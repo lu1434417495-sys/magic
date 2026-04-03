@@ -1,0 +1,168 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/settlement_window.gd" id="1_h24uw"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.0823529, 0.109804, 0.188235, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.407843, 0.537255, 0.784314, 0.9)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 18
+
+[node name="SettlementWindow" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_h24uw")
+
+[node name="Shade" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0196078, 0.027451, 0.0588235, 0.7)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(700, 520)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HeaderText" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 32
+text = "据点名称"
+
+[node name="MetaLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
+theme_override_font_sizes/font_size = 16
+text = "等级 | 占地 | 阵营"
+
+[node name="CloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "关闭"
+
+[node name="Body" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="LeftColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="FacilitiesTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_font_sizes/font_size = 20
+text = "设施结构"
+
+[node name="FacilitiesLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "设施"
+
+[node name="ResidentTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_font_sizes/font_size = 20
+text = "设施绑定 NPC"
+
+[node name="ResidentLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "NPC"
+
+[node name="RightColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="ServicesTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_font_sizes/font_size = 20
+text = "窗口服务"
+
+[node name="ServicesScroll" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+custom_minimum_size = Vector2(0, 260)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ServicesContainer" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn/ServicesScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="FeedbackTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_font_sizes/font_size = 20
+text = "交付反馈"
+
+[node name="FeedbackLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = "反馈"

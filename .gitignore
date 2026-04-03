@@ -1,0 +1,16 @@
+.godot/
+.import/
+*.import
+*.translation
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+# Runtime logs
+*.log
+
+# Local captures and diagnostics
+*_capture.png
+*_runtime_stdout.log
+*_runtime_stderr.log

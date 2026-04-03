@@ -1,0 +1,114 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/battle_map_panel.gd" id="1_pnl12"]
+[ext_resource type="Script" path="res://scripts/ui/battle_map_view.gd" id="2_view9"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.0588235, 0.0784314, 0.133333, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.376471, 0.486275, 0.678431, 0.92)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0, 0, 0, 0.28)
+shadow_size = 16
+
+[node name="BattleMapPanel" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_pnl12")
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Layout" type="VBoxContainer" parent="Panel/MarginContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="Panel/MarginContainer/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HeaderText" type="VBoxContainer" parent="Panel/MarginContainer/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="Panel/MarginContainer/Layout/Header/HeaderText"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 30
+text = "战斗地图"
+
+[node name="EncounterLabel" type="Label" parent="Panel/MarginContainer/Layout/Header/HeaderText"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.780392, 0.854902, 0.952941, 1)
+theme_override_font_sizes/font_size = 15
+text = "遭遇信息"
+autowrap_mode = 3
+
+[node name="ButtonRow" type="HBoxContainer" parent="Panel/MarginContainer/Layout/Header"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ResetMovementButton" type="Button" parent="Panel/MarginContainer/Layout/Header/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 0)
+text = "重置移动力"
+
+[node name="ResolveBattleButton" type="Button" parent="Panel/MarginContainer/Layout/Header/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "结束遭遇"
+
+[node name="MovementLabel" type="Label" parent="Panel/MarginContainer/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.937255, 0.807843, 0.45098, 1)
+theme_override_font_sizes/font_size = 16
+text = "移动力"
+autowrap_mode = 3
+
+[node name="SummaryLabel" type="Label" parent="Panel/MarginContainer/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.772549, 0.839216, 0.929412, 1)
+theme_override_font_sizes/font_size = 14
+text = "地形统计"
+autowrap_mode = 3
+
+[node name="BattleMapView" type="Control" parent="Panel/MarginContainer/Layout"]
+custom_minimum_size = Vector2(540, 540)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("2_view9")
+
+[node name="HintLabel" type="Label" parent="Panel/MarginContainer/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.784314, 0.854902, 0.941176, 1)
+theme_override_font_sizes/font_size = 14
+text = "战斗操作提示"
+autowrap_mode = 3

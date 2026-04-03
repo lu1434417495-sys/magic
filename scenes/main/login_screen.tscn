@@ -1,0 +1,145 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/login_screen.gd" id="1_8o3i7"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.0862745, 0.117647, 0.219608, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.278431, 0.368627, 0.580392, 0.85)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+shadow_color = Color(0, 0, 0, 0.28)
+shadow_size = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+bg_color = Color(0.933333, 0.694118, 0.211765, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+content_margin_left = 18.0
+content_margin_top = 14.0
+content_margin_right = 18.0
+content_margin_bottom = 14.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_disabled"]
+bg_color = Color(0.470588, 0.470588, 0.470588, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+content_margin_left = 18.0
+content_margin_top = 14.0
+content_margin_right = 18.0
+content_margin_bottom = 14.0
+
+[node name="LoginScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_8o3i7")
+start_scene_path = "res://scenes/main/world_map.tscn"
+generation_config_path = "res://data/configs/world_map/demo_world_map_config.tres"
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0470588, 0.0627451, 0.121569, 1)
+
+[node name="AccentGlow" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.16
+anchor_top = 0.12
+anchor_right = 0.84
+anchor_bottom = 0.42
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.203922, 0.313726, 0.631373, 0.2)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Card" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(560, 340)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Card"]
+layout_mode = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 32
+
+[node name="Content" type="VBoxContainer" parent="CenterContainer/Card/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Eyebrow" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.717647, 0.788235, 0.92549, 1)
+theme_override_font_sizes/font_size = 16
+text = "MAGIC PROJECT"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 42
+text = "游戏登陆"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.819608, 0.866667, 0.952941, 1)
+theme_override_font_sizes/font_size = 18
+text = "进入奇幻世界前，先从这里开始。"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Spacer" type="Control" parent="CenterContainer/Card/MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+
+[node name="StartButton" type="Button" parent="CenterContainer/Card/MarginContainer/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.101961, 0.0705882, 0.0156863, 1)
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_button_disabled")
+text = "开始游戏"
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.717647, 0.788235, 0.92549, 1)
+theme_override_font_sizes/font_size = 16
+text = "点击“开始游戏”进入主场景。"
+horizontal_alignment = 1
+autowrap_mode = 3
