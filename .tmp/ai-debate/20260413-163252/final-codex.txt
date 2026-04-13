@@ -1,0 +1,19 @@
+### Recommended Plan
+建议在这个 Godot 项目里把“先做一次限时只读方案讨论，再进入实现”设为新功能协作的默认流程，但要严格轻量化：10 分钟内只确认边界，不写长文档。例外是纯局部 bugfix 或只改单个既有 `scene/script`、且不引入新数据流、信号、配置的微调，可以直接实现。
+
+### Why This Plan
+- 仓库分层很明确：`scenes/main|player|enemies|ui|common` 对应 `scripts/player|enemies|ui|systems|utils`。先做只读对齐，能先定“主归属目录”，避免功能一上来就横跨多层。
+- `scripts/systems/` 和全局态一旦被随手扩张，后续最难回退；讨论阶段先问“是否真的需要跨域逻辑”与“是否要给 `GameSession` 加字段”，能明显降风险。
+- `data/configs/`、`scenes/main/` 都是容易把首刀做大的入口。先确认是否需要新增配置或主入口接线，能把第一刀压回最小纵切。
+- 这和仓库现有 workflow 是一致的：优先 `prompts/`，并保持 “small, domain-scoped changes”，讨论的目的就是服务这个切片策略，不是增加流程负担。
+
+### Open Risks
+- 如果只读讨论演变成泛化架构会，流程收益会迅速转负。
+- `prompts/` 如果写得太长或长期不维护，会变成过期指令源；更适合做一次性、可归档的极简 prompt。
+- 如果当前功能已经深度依赖 `GameSession` 或既有 `systems`，有些新功能可能无法做到完全单域首刀，这一点需要在讨论阶段明确承认。
+
+### First Build Slice
+1. 开一个 10 分钟上限的只读方案轮，只回答 5 个问题：主归属目录、是否需要 `scripts/systems/`、是否需要 `data/configs/`、是否需要 `scenes/main/` 接入口、是否需要新增 `GameSession` 字段。
+2. 把结论压缩成 `prompts/` 下一个极简 feature prompt：目标一句话、2 条成功条件、涉及路径、明确不做的内容。
+3. 第一刀只做一个最小纵切，优先落在单一 domain，例如只做 `scenes/player/<Feature>.tscn` 和 `scripts/player/<Feature>.gd`。
+4. 首刀跑通后再决定是否补 `scenes/ui/`、`data/configs/`、`scripts/systems/` 或 `scenes/main/` 的最小接线，避免一开始多线并进。

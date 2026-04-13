@@ -1,0 +1,985 @@
+## 文件说明：该脚本属于角色管理模块相关的模块脚本，集中维护队伍状态、技能定义集合、职业定义集合等顶层字段。
+## 审查重点：重点核对字段默认值、状态流转顺序、跨系统引用关系以及运行时读写时机是否仍然可靠。
+## 备注：后续如果增删字段，需要同步检查调用方、状态同步链路以及历史数据兼容处理。
+
+class_name CharacterManagementModule
+extends RefCounted
+
+const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
+const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
+const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
+const ACHIEVEMENT_PROGRESS_STATE_SCRIPT = preload("res://scripts/player/progression/achievement_progress_state.gd")
+const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression_service.gd")
+const PROFESSION_RULE_SERVICE_SCRIPT = preload("res://scripts/systems/profession_rule_service.gd")
+const PROFESSION_ASSIGNMENT_SERVICE_SCRIPT = preload("res://scripts/systems/profession_assignment_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const CHARACTER_PROGRESSION_DELTA_SCRIPT = preload("res://scripts/systems/character_progression_delta.gd")
+const PENDING_MASTERY_REWARD_SCRIPT = preload("res://scripts/systems/pending_mastery_reward.gd")
+const PENDING_MASTERY_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/pending_mastery_reward_entry.gd")
+const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/pending_character_reward.gd")
+const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/pending_character_reward_entry.gd")
+const PartyState = PARTY_STATE_SCRIPT
+const PartyMemberState = PARTY_MEMBER_STATE_SCRIPT
+const AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT
+const BattleUnitState = BATTLE_UNIT_STATE_SCRIPT
+const CharacterProgressionDelta = CHARACTER_PROGRESSION_DELTA_SCRIPT
+const PendingMasteryReward = PENDING_MASTERY_REWARD_SCRIPT
+const PendingMasteryRewardEntry = PENDING_MASTERY_REWARD_ENTRY_SCRIPT
+const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
+const PendingCharacterRewardEntry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT
+
+const REWARD_TYPE_ACHIEVEMENT: StringName = &"achievement"
+const REWARD_ENTRY_ORDER := {
+	&"knowledge_unlock": 0,
+	&"skill_unlock": 1,
+	&"skill_mastery": 2,
+	&"attribute_delta": 3,
+}
+
+## 字段说明：缓存队伍状态实例，会参与运行时状态流转、系统协作和存档恢复。
+var _party_state: PartyState = PARTY_STATE_SCRIPT.new()
+## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
+var _skill_defs: Dictionary = {}
+## 字段说明：缓存职业定义集合字典，集中保存可按键查询的运行时数据。
+var _profession_defs: Dictionary = {}
+## 字段说明：缓存成就定义集合字典，集中保存可按键查询的运行时数据。
+var _achievement_defs: Dictionary = {}
+## 字段说明：缓存物品定义集合字典，集中保存可按键查询的运行时数据。
+var _item_defs: Dictionary = {}
+## 字段说明：记录队伍装备服务，会参与运行时状态流转、系统协作和存档恢复。
+var _party_equipment_service = PARTY_EQUIPMENT_SERVICE_SCRIPT.new()
+
+
+func setup(
+	party_state: PartyState,
+	skill_defs: Dictionary,
+	profession_defs: Dictionary,
+	achievement_defs: Dictionary = {},
+	item_defs: Dictionary = {}
+) -> void:
+	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
+	_skill_defs = skill_defs if skill_defs != null else {}
+	_profession_defs = profession_defs if profession_defs != null else {}
+	_achievement_defs = achievement_defs if achievement_defs != null else {}
+	_item_defs = item_defs if item_defs != null else {}
+	_party_equipment_service.setup(_party_state, _item_defs)
+
+
+func get_party_state() -> PartyState:
+	return _party_state
+
+
+func set_party_state(party_state: PartyState) -> void:
+	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
+	_party_equipment_service.setup(_party_state, _item_defs)
+
+
+func get_member_state(member_id: StringName) -> PartyMemberState:
+	if _party_state == null:
+		return null
+	return _party_state.get_member_state(member_id)
+
+
+func set_member_state(member_state: PartyMemberState) -> void:
+	if _party_state == null:
+		_party_state = PARTY_STATE_SCRIPT.new()
+	if member_state == null:
+		return
+	_party_state.set_member_state(member_state)
+
+
+func get_pending_character_rewards() -> Array[PendingCharacterReward]:
+	if _party_state == null:
+		return []
+	return _party_state.pending_character_rewards.duplicate()
+
+
+func enqueue_pending_character_rewards(reward_variants: Array) -> void:
+	if _party_state == null:
+		_party_state = PARTY_STATE_SCRIPT.new()
+	for reward_variant in reward_variants:
+		var reward := _normalize_pending_character_reward_variant(reward_variant)
+		if reward == null or reward.is_empty():
+			continue
+		_party_state.enqueue_pending_character_reward(reward)
+
+
+func build_battle_party(member_ids: Array[StringName]) -> Array[BattleUnitState]:
+	var units: Array[BattleUnitState] = []
+	for member_id in member_ids:
+		var member_state: PartyMemberState = get_member_state(member_id)
+		if member_state == null or member_state.progression == null:
+			continue
+		units.append(_build_battle_unit_from_member(member_state))
+	return units
+
+
+func get_member_attribute_snapshot(member_id: StringName) -> AttributeSnapshot:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return ATTRIBUTE_SNAPSHOT_SCRIPT.new()
+	return _build_attribute_service(member_state).get_snapshot()
+
+
+func learn_skill(member_id: StringName, skill_id: StringName) -> bool:
+	return _learn_skill_internal(member_id, skill_id)
+
+
+func learn_knowledge(member_id: StringName, knowledge_id: StringName) -> bool:
+	return _learn_knowledge_internal(member_id, knowledge_id)
+
+
+func _learn_skill_internal(member_id: StringName, skill_id: StringName, unlocked_ids = null) -> bool:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return false
+
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
+	if not progression_service.learn_skill(skill_id):
+		return false
+	var achievement_ids := record_achievement_event(member_id, &"skill_learned", 1, skill_id)
+	if unlocked_ids is Array:
+		_append_unique_string_names(unlocked_ids, achievement_ids)
+	return true
+
+
+func _learn_knowledge_internal(member_id: StringName, knowledge_id: StringName, unlocked_ids = null) -> bool:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return false
+
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
+	if not progression_service.learn_knowledge(knowledge_id):
+		return false
+	var achievement_ids := record_achievement_event(member_id, &"knowledge_learned", 1, knowledge_id)
+	if unlocked_ids is Array:
+		_append_unique_string_names(unlocked_ids, achievement_ids)
+	return true
+
+
+func grant_battle_mastery(
+	member_id: StringName,
+	skill_id: StringName,
+	amount: int
+) -> CharacterProgressionDelta:
+	return _grant_skill_mastery_internal(
+		member_id,
+		skill_id,
+		amount,
+		&"battle",
+		_build_default_source_label(&"battle"),
+		"",
+		true
+	)
+
+
+func record_achievement_event(
+	member_id: StringName,
+	event_type: StringName,
+	amount: int = 1,
+	subject_id: StringName = &"",
+	meta: Dictionary = {}
+) -> Array[StringName]:
+	var unlocked_ids: Array[StringName] = []
+	if member_id == &"" or event_type == &"" or amount <= 0:
+		return unlocked_ids
+
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return unlocked_ids
+
+	for achievement_def in _get_matching_achievement_defs(event_type, subject_id):
+		if achievement_def == null:
+			continue
+		var progress_state = member_state.progression.get_achievement_progress_state(achievement_def.achievement_id)
+		if progress_state == null:
+			progress_state = ACHIEVEMENT_PROGRESS_STATE_SCRIPT.new()
+			progress_state.achievement_id = achievement_def.achievement_id
+		if progress_state.is_unlocked:
+			continue
+
+		progress_state.current_value += amount
+		if progress_state.current_value >= achievement_def.threshold:
+			progress_state.is_unlocked = true
+			progress_state.unlocked_at_unix_time = int(Time.get_unix_time_from_system())
+			var reward = _build_achievement_pending_reward(member_state, achievement_def, meta)
+			if reward != null and not reward.is_empty():
+				enqueue_pending_character_rewards([reward])
+			_append_unique_string_name(unlocked_ids, achievement_def.achievement_id)
+
+		member_state.progression.set_achievement_progress_state(progress_state)
+
+	return unlocked_ids
+
+
+func build_pending_character_reward(
+	member_id: StringName,
+	reward_id: StringName,
+	source_type: StringName,
+	source_id: StringName,
+	source_label: String,
+	entry_variants: Array,
+	summary_text: String = ""
+) -> PendingCharacterReward:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return null
+
+	var reward := PENDING_CHARACTER_REWARD_SCRIPT.new()
+	reward.reward_id = reward_id if reward_id != &"" else _build_reward_id(member_id, source_id if source_id != &"" else source_type)
+	reward.member_id = member_id
+	reward.member_name = member_state.display_name if not member_state.display_name.is_empty() else String(member_id)
+	reward.source_type = source_type
+	reward.source_id = source_id if source_id != &"" else source_type
+	reward.source_label = source_label if not source_label.is_empty() else _build_default_source_label(source_type)
+	reward.summary_text = summary_text
+	reward.entries = _normalize_pending_character_entries(entry_variants)
+	return reward if not reward.is_empty() else null
+
+
+func build_pending_mastery_reward(
+	member_id: StringName,
+	source_type: StringName,
+	source_label: String,
+	mastery_entries: Array,
+	summary_text: String = ""
+) -> PendingMasteryReward:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return null
+
+	var reward := PENDING_MASTERY_REWARD_SCRIPT.new()
+	reward.source_type = source_type
+	reward.source_label = source_label if not source_label.is_empty() else _build_default_source_label(source_type)
+	reward.summary_text = summary_text
+	reward.member_id = member_id
+	reward.member_name = member_state.display_name if not member_state.display_name.is_empty() else String(member_id)
+	reward.entries = _normalize_pending_mastery_entries(member_state.progression, mastery_entries, source_type)
+	return reward if not reward.is_empty() else null
+
+
+func apply_pending_character_reward(reward: PendingCharacterReward) -> CharacterProgressionDelta:
+	var normalized_reward: PendingCharacterReward = _normalize_pending_character_reward_variant(reward)
+	var member_id: StringName = normalized_reward.member_id if normalized_reward != null else &""
+	var delta: CharacterProgressionDelta = _new_delta(member_id)
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if normalized_reward == null or normalized_reward.is_empty():
+		return delta
+	if member_state == null or member_state.progression == null:
+		_remove_pending_character_reward_if_present(normalized_reward.reward_id)
+		return delta
+
+	var before_skill_levels: Dictionary = _capture_skill_levels(member_state.progression)
+	var before_granted_skill_ids: Dictionary = _capture_granted_skill_ids(member_state.progression)
+	var before_profession_ranks: Dictionary = _capture_profession_ranks(member_state.progression)
+	delta.character_level_before = int(member_state.progression.character_level)
+	_append_unique_string_name(delta.unlocked_achievement_ids, normalized_reward.source_id if normalized_reward.source_type == REWARD_TYPE_ACHIEVEMENT else &"")
+
+	var attribute_service: AttributeService = _build_attribute_service(member_state)
+	var mastery_source_type := _resolve_mastery_source_type(normalized_reward.source_type)
+	var applied_any := false
+
+	for entry in _sort_pending_reward_entries(normalized_reward.entries):
+		if entry == null or entry.is_empty():
+			continue
+
+		match entry.entry_type:
+			&"knowledge_unlock":
+				if _learn_knowledge_internal(member_id, entry.target_id, delta.unlocked_achievement_ids):
+					applied_any = true
+					delta.knowledge_changes.append({
+						"knowledge_id": entry.target_id,
+						"knowledge_label": _resolve_reward_target_label(entry.entry_type, entry.target_id, entry.target_label),
+						"reason_text": entry.reason_text,
+					})
+			&"skill_unlock":
+				if _learn_skill_internal(member_id, entry.target_id, delta.unlocked_achievement_ids):
+					applied_any = true
+			&"skill_mastery":
+				var mastery_delta := _grant_skill_mastery_internal(
+					member_id,
+					entry.target_id,
+					entry.amount,
+					mastery_source_type,
+					normalized_reward.source_label,
+					entry.reason_text,
+					true
+				)
+				if not mastery_delta.mastery_changes.is_empty():
+					applied_any = true
+				_merge_delta(delta, mastery_delta)
+			&"attribute_delta":
+				if attribute_service.apply_permanent_attribute_change(entry.target_id, entry.amount):
+					applied_any = true
+					delta.attribute_changes.append({
+						"attribute_id": entry.target_id,
+						"attribute_label": _resolve_reward_target_label(entry.entry_type, entry.target_id, entry.target_label),
+						"delta": entry.amount,
+						"reason_text": entry.reason_text,
+					})
+			_:
+				continue
+
+	_fill_delta_from_progression(
+		delta,
+		member_state.progression,
+		before_skill_levels,
+		before_granted_skill_ids,
+		before_profession_ranks
+	)
+	if not applied_any and delta.mastery_changes.is_empty():
+		delta.character_level_after = delta.character_level_before
+
+	_remove_pending_character_reward_if_present(normalized_reward.reward_id)
+	return delta
+
+
+func apply_pending_mastery_reward(reward: PendingMasteryReward) -> CharacterProgressionDelta:
+	var normalized_reward: PendingCharacterReward = _normalize_pending_character_reward_variant(reward)
+	return apply_pending_character_reward(normalized_reward)
+
+
+func get_member_achievement_summary(member_id: StringName) -> Dictionary:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return {
+			"unlocked_count": 0,
+			"in_progress_count": 0,
+			"recent_unlocked_name": "",
+			"active_progress_entries": [],
+		}
+
+	var unlocked_count := 0
+	var in_progress_count := 0
+	var recent_unlocked_name := ""
+	var recent_unlocked_time := 0
+	var active_progress_entries: Array[Dictionary] = []
+
+	for achievement_key in ProgressionDataUtils.sorted_string_keys(_achievement_defs):
+		var achievement_id := StringName(achievement_key)
+		var achievement_def = _achievement_defs.get(achievement_id)
+		if achievement_def == null:
+			continue
+
+		var progress_state = member_state.progression.get_achievement_progress_state(achievement_id)
+		if progress_state != null and progress_state.is_unlocked:
+			unlocked_count += 1
+			var unlocked_at := int(progress_state.unlocked_at_unix_time)
+			if unlocked_at >= recent_unlocked_time:
+				recent_unlocked_time = unlocked_at
+				recent_unlocked_name = achievement_def.display_name
+			continue
+
+		var current_value := int(progress_state.current_value) if progress_state != null else 0
+		if current_value <= 0:
+			continue
+
+		in_progress_count += 1
+		active_progress_entries.append({
+			"achievement_id": achievement_id,
+			"display_name": achievement_def.display_name,
+			"description": achievement_def.description,
+			"current_value": current_value,
+			"threshold": int(achievement_def.threshold),
+			"progress_ratio": float(current_value) / float(maxi(int(achievement_def.threshold), 1)),
+		})
+
+	active_progress_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ratio_a := float(a.get("progress_ratio", 0.0))
+		var ratio_b := float(b.get("progress_ratio", 0.0))
+		if ratio_a == ratio_b:
+			var current_a := int(a.get("current_value", 0))
+			var current_b := int(b.get("current_value", 0))
+			if current_a == current_b:
+				return String(a.get("display_name", "")) < String(b.get("display_name", ""))
+			return current_a > current_b
+		return ratio_a > ratio_b
+	)
+
+	return {
+		"unlocked_count": unlocked_count,
+		"in_progress_count": in_progress_count,
+		"recent_unlocked_name": recent_unlocked_name,
+		"active_progress_entries": active_progress_entries,
+	}
+
+
+func promote_profession(
+	member_id: StringName,
+	profession_id: StringName,
+	selection: Dictionary
+) -> CharacterProgressionDelta:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	var delta: CharacterProgressionDelta = _new_delta(member_id)
+	if member_state == null or member_state.progression == null:
+		return delta
+
+	var before_skill_levels: Dictionary = _capture_skill_levels(member_state.progression)
+	var before_granted_skill_ids: Dictionary = _capture_granted_skill_ids(member_state.progression)
+	var before_profession_ranks: Dictionary = _capture_profession_ranks(member_state.progression)
+	delta.character_level_before = int(member_state.progression.character_level)
+
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
+	if progression_service.promote_profession(profession_id, selection):
+		_fill_delta_from_progression(
+			delta,
+			member_state.progression,
+			before_skill_levels,
+			before_granted_skill_ids,
+			before_profession_ranks
+		)
+		_append_unique_string_names(
+			delta.unlocked_achievement_ids,
+			record_achievement_event(member_id, &"profession_promoted", 1, profession_id)
+		)
+
+	return delta
+
+
+func commit_battle_resources(member_id: StringName, current_hp: int, current_mp: int) -> void:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null:
+		return
+	var snapshot: AttributeSnapshot = get_member_attribute_snapshot(member_id)
+	member_state.current_hp = clampi(current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
+	member_state.current_mp = clampi(current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
+
+
+func commit_battle_ko(member_id: StringName) -> void:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null:
+		return
+	member_state.current_hp = 1
+	member_state.current_mp = 0
+
+
+func flush_after_battle() -> int:
+	return OK
+
+
+func refresh_battle_unit(unit_state: BattleUnitState) -> void:
+	if unit_state == null or unit_state.source_member_id == &"":
+		return
+	var member_state: PartyMemberState = get_member_state(unit_state.source_member_id)
+	if member_state == null:
+		return
+	var snapshot: AttributeSnapshot = get_member_attribute_snapshot(unit_state.source_member_id)
+	unit_state.body_size = maxi(int(member_state.body_size), 1)
+	unit_state.attribute_snapshot = snapshot
+	unit_state.current_hp = clampi(unit_state.current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
+	unit_state.current_mp = clampi(unit_state.current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
+	unit_state.current_stamina = clampi(
+		unit_state.current_stamina,
+		0,
+		maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
+	)
+	unit_state.current_ap = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
+	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
+	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+	unit_state.refresh_footprint()
+
+
+func _build_battle_unit_from_member(member_state: PartyMemberState) -> BattleUnitState:
+	var snapshot: AttributeSnapshot = _build_attribute_service(member_state).get_snapshot()
+	var unit_state: BattleUnitState = BATTLE_UNIT_STATE_SCRIPT.new()
+	unit_state.unit_id = member_state.member_id
+	unit_state.source_member_id = member_state.member_id
+	unit_state.display_name = member_state.display_name
+	unit_state.faction_id = member_state.faction_id
+	unit_state.control_mode = member_state.control_mode
+	unit_state.body_size = maxi(int(member_state.body_size), 1)
+	unit_state.refresh_footprint()
+	unit_state.attribute_snapshot = snapshot
+	unit_state.current_hp = clampi(member_state.current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
+	unit_state.current_mp = clampi(member_state.current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
+	unit_state.current_stamina = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
+	unit_state.current_ap = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
+	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
+	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+	unit_state.is_alive = unit_state.current_hp > 0
+	return unit_state
+
+
+func _collect_known_active_skill_ids(progression_state) -> Array[StringName]:
+	var skill_ids: Array[StringName] = []
+	if progression_state == null:
+		return skill_ids
+
+	for skill_key in ProgressionDataUtils.sorted_string_keys(progression_state.skills):
+		var skill_id: StringName = StringName(skill_key)
+		var skill_progress: Variant = progression_state.get_skill_progress(skill_id)
+		var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
+		if skill_progress == null or skill_def == null:
+			continue
+		if not skill_progress.is_learned:
+			continue
+		if skill_def.skill_type != &"active":
+			continue
+		if not skill_def.can_use_in_combat():
+			continue
+		skill_ids.append(skill_id)
+
+	return skill_ids
+
+
+func _collect_known_skill_level_map(progression_state) -> Dictionary:
+	var skill_levels: Dictionary = {}
+	if progression_state == null:
+		return skill_levels
+
+	for skill_key in ProgressionDataUtils.sorted_string_keys(progression_state.skills):
+		var skill_id: StringName = StringName(skill_key)
+		var skill_progress: Variant = progression_state.get_skill_progress(skill_id)
+		var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
+		if skill_progress == null or skill_def == null:
+			continue
+		if not skill_progress.is_learned:
+			continue
+		if skill_def.skill_type != &"active":
+			continue
+		skill_levels[skill_id] = int(skill_progress.skill_level)
+
+	return skill_levels
+
+
+func _build_progression_service(progression_state) -> ProgressionService:
+	var assignment_service: ProfessionAssignmentService = PROFESSION_ASSIGNMENT_SERVICE_SCRIPT.new()
+	assignment_service.setup(progression_state, _skill_defs, _profession_defs)
+
+	var rule_service: ProfessionRuleService = PROFESSION_RULE_SERVICE_SCRIPT.new()
+	rule_service.setup(progression_state, _skill_defs, _profession_defs)
+
+	var progression_service: ProgressionService = PROGRESSION_SERVICE_SCRIPT.new()
+	progression_service.setup(
+		progression_state,
+		_skill_defs,
+		_profession_defs,
+		rule_service,
+		assignment_service
+	)
+	return progression_service
+
+
+func _build_attribute_service(member_state: PartyMemberState) -> AttributeService:
+	var attribute_service: AttributeService = ATTRIBUTE_SERVICE_SCRIPT.new()
+	attribute_service.setup(
+		member_state.progression,
+		_skill_defs,
+		_profession_defs,
+		_party_equipment_service.build_attribute_modifiers(member_state.equipment_state)
+	)
+	return attribute_service
+
+
+func _grant_skill_mastery_internal(
+	member_id: StringName,
+	skill_id: StringName,
+	amount: int,
+	source_type: StringName,
+	source_label: String,
+	reason_text: String,
+	emit_achievement_event: bool
+) -> CharacterProgressionDelta:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	var delta: CharacterProgressionDelta = _new_delta(member_id)
+	if member_state == null or member_state.progression == null or amount <= 0:
+		return delta
+
+	var before_skill_levels: Dictionary = _capture_skill_levels(member_state.progression)
+	var before_granted_skill_ids: Dictionary = _capture_granted_skill_ids(member_state.progression)
+	var before_profession_ranks: Dictionary = _capture_profession_ranks(member_state.progression)
+	delta.character_level_before = int(member_state.progression.character_level)
+
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
+	var mastery_source_type := _resolve_mastery_source_type(source_type)
+	if not progression_service.grant_skill_mastery(skill_id, amount, mastery_source_type):
+		delta.character_level_after = delta.character_level_before
+		return delta
+
+	delta.mastery_changes.append({
+		"skill_id": skill_id,
+		"skill_name": _resolve_skill_label(skill_id),
+		"mastery_amount": amount,
+		"source_type": source_type,
+		"source_label": source_label if not source_label.is_empty() else _build_default_source_label(source_type),
+		"reason_text": reason_text,
+	})
+	_fill_delta_from_progression(
+		delta,
+		member_state.progression,
+		before_skill_levels,
+		before_granted_skill_ids,
+		before_profession_ranks
+	)
+	if emit_achievement_event:
+		_append_unique_string_names(
+			delta.unlocked_achievement_ids,
+			record_achievement_event(member_id, &"skill_mastery_gained", amount, skill_id)
+		)
+	return delta
+
+
+func _capture_skill_levels(progression_state) -> Dictionary:
+	var skill_levels: Dictionary = {}
+	if progression_state == null:
+		return skill_levels
+	for skill_key in progression_state.skills.keys():
+		var skill_id: StringName = ProgressionDataUtils.to_string_name(skill_key)
+		var skill_progress: Variant = progression_state.get_skill_progress(skill_id)
+		if skill_progress == null:
+			continue
+		skill_levels[skill_id] = int(skill_progress.skill_level)
+	return skill_levels
+
+
+func _capture_granted_skill_ids(progression_state) -> Dictionary:
+	var granted_skill_ids: Dictionary = {}
+	if progression_state == null:
+		return granted_skill_ids
+	for skill_key in progression_state.skills.keys():
+		var skill_id: StringName = ProgressionDataUtils.to_string_name(skill_key)
+		var skill_progress: Variant = progression_state.get_skill_progress(skill_id)
+		if skill_progress == null:
+			continue
+		if skill_progress.profession_granted_by != &"":
+			granted_skill_ids[skill_id] = true
+	return granted_skill_ids
+
+
+func _capture_profession_ranks(progression_state) -> Dictionary:
+	var profession_ranks: Dictionary = {}
+	if progression_state == null:
+		return profession_ranks
+	for profession_key in progression_state.professions.keys():
+		var profession_id: StringName = ProgressionDataUtils.to_string_name(profession_key)
+		var profession_progress: Variant = progression_state.get_profession_progress(profession_id)
+		if profession_progress == null:
+			continue
+		profession_ranks[profession_id] = int(profession_progress.rank)
+	return profession_ranks
+
+
+func _normalize_pending_mastery_entries(
+	progression_state,
+	mastery_entries: Array,
+	source_type: StringName
+) -> Array[PendingMasteryRewardEntry]:
+	var normalized_entries: Array[PendingMasteryRewardEntry] = []
+	if progression_state == null:
+		return normalized_entries
+
+	var entry_map: Dictionary = {}
+	var mastery_source_type := _resolve_mastery_source_type(source_type)
+	for mastery_entry_variant in mastery_entries:
+		if mastery_entry_variant is not Dictionary:
+			continue
+		var mastery_entry: Dictionary = mastery_entry_variant
+		var skill_id := ProgressionDataUtils.to_string_name(mastery_entry.get("skill_id", ""))
+		var mastery_amount := int(mastery_entry.get("mastery_amount", 0))
+		if skill_id == &"" or mastery_amount <= 0:
+			continue
+
+		var skill_progress = progression_state.get_skill_progress(skill_id)
+		var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
+		if skill_progress == null or skill_def == null:
+			continue
+		if not skill_progress.is_learned:
+			continue
+		if not skill_def.mastery_sources.is_empty() and not skill_def.mastery_sources.has(mastery_source_type):
+			continue
+
+		var reward_entry: PendingMasteryRewardEntry = entry_map.get(skill_id) as PendingMasteryRewardEntry
+		if reward_entry == null:
+			reward_entry = PENDING_MASTERY_REWARD_ENTRY_SCRIPT.new()
+			reward_entry.skill_id = skill_id
+			reward_entry.skill_name = _resolve_skill_label(skill_id)
+			reward_entry.reason_text = String(mastery_entry.get("reason_text", ""))
+			entry_map[skill_id] = reward_entry
+			normalized_entries.append(reward_entry)
+
+		reward_entry.mastery_amount += mastery_amount
+		if reward_entry.reason_text.is_empty():
+			reward_entry.reason_text = String(mastery_entry.get("reason_text", ""))
+
+	return normalized_entries
+
+
+func _normalize_pending_character_reward_variant(reward_variant) -> PendingCharacterReward:
+	if reward_variant == null:
+		return null
+	if reward_variant is PendingCharacterReward:
+		var typed_reward := reward_variant as PendingCharacterReward
+		if typed_reward.reward_id == &"":
+			typed_reward.reward_id = _build_reward_id(typed_reward.member_id, typed_reward.source_id if typed_reward.source_id != &"" else typed_reward.source_type)
+		return typed_reward if not typed_reward.is_empty() else null
+	if reward_variant is PendingMasteryReward or reward_variant is Dictionary:
+		var normalized_reward = PENDING_CHARACTER_REWARD_SCRIPT.from_legacy(reward_variant)
+		if normalized_reward == null or normalized_reward.is_empty():
+			return null
+		if normalized_reward.reward_id == &"":
+			normalized_reward.reward_id = _build_reward_id(
+				normalized_reward.member_id,
+				normalized_reward.source_id if normalized_reward.source_id != &"" else normalized_reward.source_type
+			)
+		return normalized_reward
+	return null
+
+
+func _normalize_pending_character_entries(entry_variants: Array) -> Array[PendingCharacterRewardEntry]:
+	var normalized_entries: Array[PendingCharacterRewardEntry] = []
+	for entry_variant in entry_variants:
+		var entry := _normalize_pending_character_entry(entry_variant)
+		if entry == null or entry.is_empty():
+			continue
+		normalized_entries.append(entry)
+	return normalized_entries
+
+
+func _normalize_pending_character_entry(entry_variant) -> PendingCharacterRewardEntry:
+	if entry_variant == null:
+		return null
+	if entry_variant is PendingCharacterRewardEntry:
+		return PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_dict((entry_variant as PendingCharacterRewardEntry).to_dict())
+	if entry_variant is Dictionary or entry_variant is PendingMasteryRewardEntry:
+		var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_legacy(entry_variant)
+		if entry == null:
+			return null
+		if entry.target_label.is_empty():
+			entry.target_label = _resolve_reward_target_label(entry.entry_type, entry.target_id, "")
+		return entry
+	return null
+
+
+func _build_achievement_pending_reward(member_state: PartyMemberState, achievement_def, meta: Dictionary) -> PendingCharacterReward:
+	if member_state == null or achievement_def == null:
+		return null
+
+	var reward := PENDING_CHARACTER_REWARD_SCRIPT.new()
+	reward.reward_id = _build_reward_id(member_state.member_id, achievement_def.achievement_id)
+	reward.member_id = member_state.member_id
+	reward.member_name = member_state.display_name if not member_state.display_name.is_empty() else String(member_state.member_id)
+	reward.source_type = REWARD_TYPE_ACHIEVEMENT
+	reward.source_id = achievement_def.achievement_id
+	reward.source_label = achievement_def.display_name if not achievement_def.display_name.is_empty() else String(achievement_def.achievement_id)
+	reward.summary_text = String(meta.get("summary_text", achievement_def.description))
+	reward.entries = _build_achievement_reward_entries(achievement_def)
+	return reward if not reward.is_empty() else null
+
+
+func _build_achievement_reward_entries(achievement_def) -> Array[PendingCharacterRewardEntry]:
+	var entries: Array[PendingCharacterRewardEntry] = []
+	if achievement_def == null:
+		return entries
+
+	for reward_def in achievement_def.rewards:
+		if reward_def == null or reward_def.is_empty():
+			continue
+		var entry := PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
+		entry.entry_type = reward_def.reward_type
+		entry.target_id = reward_def.target_id
+		entry.target_label = _resolve_reward_target_label(reward_def.reward_type, reward_def.target_id, reward_def.target_label)
+		entry.amount = reward_def.amount
+		entry.reason_text = reward_def.reason_text if not reward_def.reason_text.is_empty() else achievement_def.display_name
+		if entry.is_empty():
+			continue
+		entries.append(entry)
+	return entries
+
+
+func _get_matching_achievement_defs(event_type: StringName, subject_id: StringName) -> Array:
+	var matches: Array = []
+	for achievement_key in ProgressionDataUtils.sorted_string_keys(_achievement_defs):
+		var achievement_id := StringName(achievement_key)
+		var achievement_def = _achievement_defs.get(achievement_id)
+		if achievement_def == null or not achievement_def.matches_event(event_type, subject_id):
+			continue
+		matches.append(achievement_def)
+	return matches
+
+
+func _sort_pending_reward_entries(entries: Array[PendingCharacterRewardEntry]) -> Array[PendingCharacterRewardEntry]:
+	var sorted_entries: Array[PendingCharacterRewardEntry] = []
+	for entry in entries:
+		if entry == null:
+			continue
+		sorted_entries.append(entry)
+
+	sorted_entries.sort_custom(func(a: PendingCharacterRewardEntry, b: PendingCharacterRewardEntry) -> bool:
+		var order_a := int(REWARD_ENTRY_ORDER.get(a.entry_type, 99))
+		var order_b := int(REWARD_ENTRY_ORDER.get(b.entry_type, 99))
+		if order_a == order_b:
+			var label_a := a.target_label if not a.target_label.is_empty() else String(a.target_id)
+			var label_b := b.target_label if not b.target_label.is_empty() else String(b.target_id)
+			return label_a < label_b
+		return order_a < order_b
+	)
+	return sorted_entries
+
+
+func _fill_delta_from_progression(
+	delta: CharacterProgressionDelta,
+	progression_state,
+	before_skill_levels: Dictionary,
+	before_granted_skill_ids: Dictionary,
+	before_profession_ranks: Dictionary
+) -> void:
+	delta.character_level_after = int(progression_state.character_level)
+	delta.pending_profession_choices = progression_state.pending_profession_choices.duplicate()
+	delta.needs_promotion_modal = not delta.pending_profession_choices.is_empty()
+
+	for skill_key in progression_state.skills.keys():
+		var skill_id: StringName = ProgressionDataUtils.to_string_name(skill_key)
+		var skill_progress: Variant = progression_state.get_skill_progress(skill_id)
+		if skill_progress == null:
+			continue
+
+		var before_level: int = int(before_skill_levels.get(skill_id, -1))
+		if before_level >= 0 and int(skill_progress.skill_level) > before_level:
+			_append_unique_string_name(delta.leveled_skill_ids, skill_id)
+
+		if skill_progress.profession_granted_by != &"" and not before_granted_skill_ids.has(skill_id):
+			_append_unique_string_name(delta.granted_skill_ids, skill_id)
+
+	for profession_key in progression_state.professions.keys():
+		var profession_id: StringName = ProgressionDataUtils.to_string_name(profession_key)
+		var profession_progress: Variant = progression_state.get_profession_progress(profession_id)
+		if profession_progress == null:
+			continue
+		var before_rank: int = int(before_profession_ranks.get(profession_id, 0))
+		if int(profession_progress.rank) != before_rank:
+			_append_unique_string_name(delta.changed_profession_ids, profession_id)
+
+
+func _merge_delta(target: CharacterProgressionDelta, source: CharacterProgressionDelta) -> void:
+	if target == null or source == null:
+		return
+
+	_append_unique_string_names(target.leveled_skill_ids, source.leveled_skill_ids)
+	_append_unique_string_names(target.granted_skill_ids, source.granted_skill_ids)
+	_append_unique_string_names(target.changed_profession_ids, source.changed_profession_ids)
+	_append_unique_string_names(target.unlocked_achievement_ids, source.unlocked_achievement_ids)
+	target.mastery_changes.append_array(source.mastery_changes)
+	target.knowledge_changes.append_array(source.knowledge_changes)
+	target.attribute_changes.append_array(source.attribute_changes)
+	target.pending_profession_choices = source.pending_profession_choices if not source.pending_profession_choices.is_empty() else target.pending_profession_choices
+	target.needs_promotion_modal = target.needs_promotion_modal or source.needs_promotion_modal
+	target.character_level_after = maxi(target.character_level_after, source.character_level_after)
+
+
+func _new_delta(member_id: StringName) -> CharacterProgressionDelta:
+	var delta: CharacterProgressionDelta = CHARACTER_PROGRESSION_DELTA_SCRIPT.new()
+	delta.member_id = member_id
+	return delta
+
+
+func _remove_pending_character_reward_if_present(reward_id: StringName) -> void:
+	if _party_state == null or reward_id == &"":
+		return
+	_party_state.remove_pending_character_reward(reward_id)
+
+
+func _build_reward_id(member_id: StringName, source_id: StringName) -> StringName:
+	return ProgressionDataUtils.to_string_name(
+		"%s_%s_%d" % [
+			String(member_id),
+			String(source_id),
+			Time.get_ticks_usec(),
+		]
+	)
+
+
+func _append_unique_string_names(target: Array[StringName], values: Array[StringName]) -> void:
+	for value in values:
+		_append_unique_string_name(target, value)
+
+
+func _append_unique_string_name(target: Array[StringName], value: StringName) -> void:
+	if value == &"" or target.has(value):
+		return
+	target.append(value)
+
+
+func _resolve_skill_label(skill_id: StringName) -> String:
+	var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
+	if skill_def != null and not skill_def.display_name.is_empty():
+		return skill_def.display_name
+	return String(skill_id)
+
+
+func _resolve_reward_target_label(entry_type: StringName, target_id: StringName, fallback_label: String) -> String:
+	if not fallback_label.is_empty():
+		return fallback_label
+
+	match entry_type:
+		&"skill_unlock", &"skill_mastery":
+			return _resolve_skill_label(target_id)
+		&"attribute_delta":
+			return _resolve_attribute_label(target_id)
+		&"knowledge_unlock":
+			return String(target_id)
+		_:
+			return String(target_id)
+
+
+func _resolve_attribute_label(attribute_id: StringName) -> String:
+	match attribute_id:
+		UnitBaseAttributes.STRENGTH:
+			return "力量"
+		UnitBaseAttributes.AGILITY:
+			return "敏捷"
+		UnitBaseAttributes.CONSTITUTION:
+			return "体质"
+		UnitBaseAttributes.PERCEPTION:
+			return "感知"
+		UnitBaseAttributes.INTELLIGENCE:
+			return "智力"
+		UnitBaseAttributes.WILLPOWER:
+			return "意志"
+		ATTRIBUTE_SERVICE_SCRIPT.HP_MAX:
+			return "生命上限"
+		ATTRIBUTE_SERVICE_SCRIPT.MP_MAX:
+			return "法力上限"
+		ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX:
+			return "体力上限"
+		ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS:
+			return "行动点"
+		ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_ATTACK:
+			return "物攻"
+		ATTRIBUTE_SERVICE_SCRIPT.MAGIC_ATTACK:
+			return "法攻"
+		ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_DEFENSE:
+			return "物防"
+		ATTRIBUTE_SERVICE_SCRIPT.MAGIC_DEFENSE:
+			return "法防"
+		ATTRIBUTE_SERVICE_SCRIPT.SPEED:
+			return "速度"
+		_:
+			return String(attribute_id)
+
+
+func _resolve_mastery_source_type(source_type: StringName) -> StringName:
+	match source_type:
+		&"battle", &"battle_rating":
+			return &"battle"
+		&"training", &"npc_teach", &"npc", &"teaching":
+			return &"training"
+		_:
+			return &"training"
+
+
+func _build_default_source_label(source_type: StringName) -> String:
+	match source_type:
+		REWARD_TYPE_ACHIEVEMENT:
+			return "成就奖励"
+		&"battle_rating":
+			return "战斗结算"
+		&"battle":
+			return "战斗奖励"
+		&"npc_teach", &"npc", &"teaching":
+			return "NPC 传授"
+		&"training":
+			return "训练收获"
+		_:
+			return "角色奖励"

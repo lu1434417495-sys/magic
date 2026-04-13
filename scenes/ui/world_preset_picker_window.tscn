@@ -1,0 +1,130 @@
+[gd_scene load_steps=3 format=3]
+; Scene purpose: World preset picker modal scene for preset list, details, and confirm or cancel flows.
+; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
+
+
+; External scripts, scenes, and shared assets referenced by this scene.
+[ext_resource type="Script" path="res://scripts/ui/world_preset_picker_window.gd" id="1_2n8fp"]
+
+; Local sub-resources defined inline for this scene only.
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.0823529, 0.109804, 0.188235, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.407843, 0.537255, 0.784314, 0.9)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+shadow_color = Color(0, 0, 0, 0.35)
+shadow_size = 18
+
+; Root node and primary scene tree.
+[node name="WorldPresetPickerWindow" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_2n8fp")
+
+; Modal backdrop that dims the parent scene and blocks background input.
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0196078, 0.027451, 0.0588235, 0.7)
+
+; Centered container that keeps the main panel anchored in the viewport.
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(560, 460)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 30
+text = "选择世界类型"
+
+[node name="CancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "取消"
+
+[node name="IntroLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = "开始游戏前先选择世界类型。开发验证默认推荐使用测试地图。"
+
+[node name="PresetList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+same_column_width = true
+allow_reselect = true
+
+[node name="DetailTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_font_sizes/font_size = 20
+text = "预设详情"
+
+[node name="DetailLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = ""
+
+[node name="Footer" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="ConfirmButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 44)
+layout_mode = 2
+text = "创建存档"
+
+[node name="FooterCancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+layout_mode = 2
+text = "关闭"

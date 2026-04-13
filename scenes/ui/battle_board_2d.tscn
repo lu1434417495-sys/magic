@@ -1,0 +1,272 @@
+[gd_scene load_steps=2 format=3]
+; Scene purpose: Battle board scene organizing isometric terrain layers, props, and units.
+; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
+
+
+; External scripts, scenes, and shared assets referenced by this scene.
+[ext_resource type="Script" path="res://scripts/ui/battle_board_2d.gd" id="1_board2d"]
+
+; Root node and primary scene tree.
+[node name="BattleBoard2D" type="Node2D"]
+y_sort_enabled = false
+script = ExtResource("1_board2d")
+
+; Input pickup layer used for board hit detection.
+[node name="InputLayer" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+z_index = -64
+
+; Base terrain and raised top layers, split by discrete height bands.
+[node name="TopH0" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, 0)
+
+[node name="TopH1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+
+[node name="TopH2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -32)
+
+[node name="TopH3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -48)
+
+[node name="TopH4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -64)
+
+[node name="TopH5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -80)
+
+[node name="TopH6" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -96)
+
+[node name="TopH7" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -112)
+
+[node name="TopH8" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -128)
+
+[node name="EdgeDropEastH1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+
+[node name="EdgeDropEastH2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -32)
+
+[node name="EdgeDropEastH3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -48)
+
+[node name="EdgeDropEastH4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -64)
+
+[node name="EdgeDropEastH5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -80)
+
+[node name="EdgeDropEastH6" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -96)
+
+[node name="EdgeDropEastH7" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -112)
+
+[node name="EdgeDropEastH8" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -128)
+
+[node name="EdgeDropSouthH1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+
+[node name="EdgeDropSouthH2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -32)
+
+[node name="EdgeDropSouthH3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -48)
+
+[node name="EdgeDropSouthH4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -64)
+
+[node name="EdgeDropSouthH5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -80)
+
+[node name="EdgeDropSouthH6" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -96)
+
+[node name="EdgeDropSouthH7" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -112)
+
+[node name="EdgeDropSouthH8" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -128)
+
+[node name="WallEastH0" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, 0)
+
+[node name="WallEastH1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+
+[node name="WallEastH2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -32)
+
+[node name="WallEastH3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -48)
+
+[node name="WallEastH4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -64)
+
+[node name="WallEastH5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -80)
+
+[node name="WallEastH6" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -96)
+
+[node name="WallEastH7" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -112)
+
+[node name="WallEastH8" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -128)
+
+[node name="WallSouthH0" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, 0)
+
+[node name="WallSouthH1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+
+[node name="WallSouthH2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -32)
+
+[node name="WallSouthH3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -48)
+
+[node name="WallSouthH4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -64)
+
+[node name="WallSouthH5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -80)
+
+[node name="WallSouthH6" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -96)
+
+[node name="WallSouthH7" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -112)
+
+[node name="WallSouthH8" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -128)
+
+; Overlay layers used for highlights, decals, and temporary markers.
+[node name="OverlayH0" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, 0)
+
+[node name="OverlayH1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+
+[node name="OverlayH2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -32)
+
+[node name="OverlayH3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -48)
+
+[node name="OverlayH4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -64)
+
+[node name="OverlayH5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -80)
+
+[node name="OverlayH6" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -96)
+
+[node name="OverlayH7" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -112)
+
+[node name="OverlayH8" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -128)
+
+[node name="MarkerH0" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, 0)
+
+[node name="MarkerH1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+
+[node name="MarkerH2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -32)
+
+[node name="MarkerH3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -48)
+
+[node name="MarkerH4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -64)
+
+[node name="MarkerH5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -80)
+
+[node name="MarkerH6" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -96)
+
+[node name="MarkerH7" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -112)
+
+[node name="MarkerH8" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+position = Vector2(0, -128)
+
+; Dynamic prop and unit layers rendered above the terrain stack.
+[node name="PropLayer" type="Node2D" parent="."]
+unique_name_in_owner = true
+y_sort_enabled = true
+
+[node name="UnitLayer" type="Node2D" parent="."]
+unique_name_in_owner = true
+y_sort_enabled = true

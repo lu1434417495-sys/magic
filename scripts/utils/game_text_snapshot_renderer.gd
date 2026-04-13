@@ -1,0 +1,337 @@
+class_name GameTextSnapshotRenderer
+extends RefCounted
+
+
+static func render_full_snapshot(snapshot: Dictionary) -> String:
+	var sections: Array[String] = []
+	_append_section(sections, "SESSION", _build_session_lines(snapshot.get("session", {})))
+	_append_section(sections, "STATUS", _build_status_lines(snapshot.get("status", {}), snapshot.get("modal", {})))
+	_append_section(sections, "WORLD", _build_world_lines(snapshot.get("world", {})))
+	_append_section(sections, "PARTY", _build_party_lines(snapshot.get("party", {})))
+	_append_section(sections, "SETTLEMENT", _build_settlement_lines(snapshot.get("settlement", {})))
+	_append_section(sections, "CHARACTER", _build_character_lines(snapshot.get("character_info", {})))
+	_append_section(sections, "WAREHOUSE", _build_warehouse_lines(snapshot.get("warehouse", {})))
+	_append_section(sections, "BATTLE", _build_battle_lines(snapshot.get("battle", {})))
+	_append_section(sections, "REWARD", _build_reward_lines(snapshot.get("reward", {})))
+	_append_section(sections, "PROMOTION", _build_promotion_lines(snapshot.get("promotion", {})))
+	return "\n\n".join(PackedStringArray(sections))
+
+
+static func render_world_snapshot(snapshot: Dictionary) -> String:
+	return render_full_snapshot(snapshot)
+
+
+static func _append_section(sections: Array[String], title: String, lines: Array[String]) -> void:
+	if lines.is_empty():
+		return
+	sections.append("[%s]\n%s" % [title, "\n".join(PackedStringArray(lines))])
+
+
+static func _build_session_lines(session: Dictionary) -> Array[String]:
+	if session.is_empty():
+		return []
+	var lines: Array[String] = [
+		"active_save_id=%s" % String(session.get("active_save_id", "")),
+		"generation_config=%s" % String(session.get("generation_config_path", "")),
+		"world_loaded=%s" % _format_bool(bool(session.get("world_loaded", false))),
+	]
+	var presets_variant = session.get("presets", [])
+	if presets_variant is Array:
+		var preset_labels: Array[String] = []
+		for preset_variant in presets_variant:
+			if preset_variant is not Dictionary:
+				continue
+			var preset: Dictionary = preset_variant
+			preset_labels.append("%s:%s" % [
+				String(preset.get("preset_id", "")),
+				String(preset.get("display_name", "")),
+			])
+		lines.append("presets=%s" % " | ".join(PackedStringArray(preset_labels)))
+	var save_slots_variant = session.get("save_slots", [])
+	if save_slots_variant is Array:
+		lines.append("save_slot_count=%d" % save_slots_variant.size())
+		for save_slot_variant in save_slots_variant:
+			if save_slot_variant is not Dictionary:
+				continue
+			var save_slot: Dictionary = save_slot_variant
+			lines.append("save=%s | %s | %s" % [
+				String(save_slot.get("save_id", "")),
+				String(save_slot.get("display_name", "")),
+				String(save_slot.get("world_preset_name", "")),
+			])
+	return lines
+
+
+static func _build_status_lines(status: Dictionary, modal: Dictionary) -> Array[String]:
+	return [
+		"view=%s" % String(status.get("view", "")),
+		"modal=%s" % String(modal.get("id", "")),
+		"text=%s" % String(status.get("text", "")),
+	]
+
+
+static func _build_world_lines(world: Dictionary) -> Array[String]:
+	if world.is_empty():
+		return []
+	var lines: Array[String] = [
+		"player_coord=%s" % _format_coord(world.get("player_coord", {})),
+		"selected_coord=%s" % _format_coord(world.get("selected_coord", {})),
+		"selected_settlement_id=%s" % String(world.get("selected_settlement_id", "")),
+		"selected_npc_name=%s" % String(world.get("selected_npc_name", "")),
+		"selected_encounter_id=%s" % String(world.get("selected_encounter_id", "")),
+		"selected_encounter_name=%s" % String(world.get("selected_encounter_name", "")),
+	]
+	var nearby_variant = world.get("nearby_encounters", [])
+	if nearby_variant is Array:
+		for encounter_variant in nearby_variant:
+			if encounter_variant is not Dictionary:
+				continue
+			var encounter: Dictionary = encounter_variant
+			lines.append("nearby_encounter=%s | %s | distance=%d | coord=%s" % [
+				String(encounter.get("entity_id", "")),
+				String(encounter.get("display_name", "")),
+				int(encounter.get("distance", 0)),
+				_format_coord(encounter.get("coord", {})),
+			])
+	return lines
+
+
+static func _build_party_lines(party: Dictionary) -> Array[String]:
+	if party.is_empty():
+		return []
+	var lines: Array[String] = [
+		"leader_member_id=%s" % String(party.get("leader_member_id", "")),
+		"active_member_ids=%s" % _format_array(party.get("active_member_ids", [])),
+		"reserve_member_ids=%s" % _format_array(party.get("reserve_member_ids", [])),
+		"selected_member_id=%s" % String(party.get("selected_member_id", "")),
+		"pending_reward_count=%d" % int(party.get("pending_reward_count", 0)),
+	]
+	var members_variant = party.get("members", [])
+	if members_variant is Array:
+		for member_variant in members_variant:
+			if member_variant is not Dictionary:
+				continue
+			var member: Dictionary = member_variant
+			var achievement_summary: Dictionary = member.get("achievement_summary", {})
+			var attributes: Dictionary = member.get("attributes", {})
+			lines.append("member=%s | %s | hp=%d mp=%d | leader=%s | unlocked=%d in_progress=%d recent=%s | patk=%d pdef=%d speed=%d | equip=%s" % [
+				String(member.get("member_id", "")),
+				String(member.get("roster_role", "")),
+				int(member.get("current_hp", 0)),
+				int(member.get("current_mp", 0)),
+				_format_bool(bool(member.get("is_leader", false))),
+				int(achievement_summary.get("unlocked_count", 0)),
+				int(achievement_summary.get("in_progress_count", 0)),
+				String(achievement_summary.get("recent_unlocked_name", "")),
+				int(attributes.get("physical_attack", 0)),
+				int(attributes.get("physical_defense", 0)),
+				int(attributes.get("speed", 0)),
+				_format_equipment(member.get("equipment", [])),
+			])
+	return lines
+
+
+static func _build_settlement_lines(settlement: Dictionary) -> Array[String]:
+	if settlement.is_empty():
+		return []
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(settlement.get("visible", false))),
+		"settlement_id=%s" % String(settlement.get("settlement_id", "")),
+		"display_name=%s" % String(settlement.get("display_name", "")),
+		"tier_name=%s" % String(settlement.get("tier_name", "")),
+		"faction_id=%s" % String(settlement.get("faction_id", "")),
+		"feedback=%s" % String(settlement.get("feedback_text", "")),
+	]
+	var services_variant = settlement.get("services", [])
+	if services_variant is Array:
+		for service_variant in services_variant:
+			if service_variant is not Dictionary:
+				continue
+			var service: Dictionary = service_variant
+			lines.append("service=%s | %s | %s | %s | %s" % [
+				String(service.get("action_id", "")),
+				String(service.get("facility_name", "")),
+				String(service.get("npc_name", "")),
+				String(service.get("service_type", "")),
+				String(service.get("interaction_script_id", "")),
+			])
+	return lines
+
+
+static func _build_character_lines(character_info: Dictionary) -> Array[String]:
+	if character_info.is_empty():
+		return []
+	return [
+		"visible=%s" % _format_bool(bool(character_info.get("visible", false))),
+		"source=%s" % String(character_info.get("source", "")),
+		"display_name=%s" % String(character_info.get("display_name", "")),
+		"type_label=%s" % String(character_info.get("type_label", "")),
+		"faction_label=%s" % String(character_info.get("faction_label", "")),
+		"coord=%s" % _format_coord(character_info.get("coord", {})),
+		"status_label=%s" % String(character_info.get("status_label", "")),
+	]
+
+
+static func _build_warehouse_lines(warehouse: Dictionary) -> Array[String]:
+	if warehouse.is_empty():
+		return []
+	var window_data: Dictionary = warehouse.get("window_data", {})
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(warehouse.get("visible", false))),
+		"entry_label=%s" % String(warehouse.get("entry_label", "")),
+		"title=%s" % String(window_data.get("title", "")),
+		"meta=%s" % String(window_data.get("meta", "")),
+		"summary=%s" % String(window_data.get("summary_text", "")),
+		"status=%s" % String(window_data.get("status_text", "")),
+	]
+	var stacks_variant = window_data.get("stacks", [])
+	if stacks_variant is Array:
+		for stack_variant in stacks_variant:
+			if stack_variant is not Dictionary:
+				continue
+			var stack: Dictionary = stack_variant
+			lines.append("stack=%s | qty=%d | total=%d | stackable=%s | limit=%d" % [
+				String(stack.get("item_id", "")),
+				int(stack.get("quantity", 0)),
+				int(stack.get("total_quantity", 0)),
+				_format_bool(bool(stack.get("is_stackable", false))),
+				int(stack.get("stack_limit", 0)),
+			])
+	return lines
+
+
+static func _build_battle_lines(battle: Dictionary) -> Array[String]:
+	if battle.is_empty():
+		return []
+	var lines: Array[String] = [
+		"active=%s" % _format_bool(bool(battle.get("active", false))),
+		"encounter_id=%s" % String(battle.get("encounter_id", "")),
+		"encounter_name=%s" % String(battle.get("encounter_name", "")),
+		"phase=%s" % String(battle.get("phase", "")),
+		"active_unit_id=%s" % String(battle.get("active_unit_id", "")),
+		"active_unit_name=%s" % String(battle.get("active_unit_name", "")),
+		"modal_state=%s" % String(battle.get("modal_state", "")),
+		"winner_faction_id=%s" % String(battle.get("winner_faction_id", "")),
+		"selected_coord=%s" % _format_coord(battle.get("selected_coord", {})),
+		"selected_skill_id=%s" % String(battle.get("selected_skill_id", "")),
+		"selected_skill_variant_id=%s" % String(battle.get("selected_skill_variant_id", "")),
+		"selected_target_coords=%s" % _format_coord_array(battle.get("selected_target_coords", [])),
+	]
+	var hud: Dictionary = battle.get("hud", {})
+	if not hud.is_empty():
+		lines.append("hud_header=%s" % String(hud.get("header_subtitle", "")))
+		lines.append("hud_round=%s" % String(hud.get("round_badge", "")))
+		lines.append("hud_command=%s" % String(hud.get("command_text", "")))
+		lines.append("hud_log=%s" % String(hud.get("log_text", "")))
+	var units_variant = battle.get("units", [])
+	if units_variant is Array:
+		for unit_variant in units_variant:
+			if unit_variant is not Dictionary:
+				continue
+			var unit: Dictionary = unit_variant
+			lines.append("unit=%s | %s | %s | hp=%d mp=%d ap=%d | alive=%s | coord=%s" % [
+				String(unit.get("unit_id", "")),
+				String(unit.get("display_name", "")),
+				String(unit.get("faction_id", "")),
+				int(unit.get("current_hp", 0)),
+				int(unit.get("current_mp", 0)),
+				int(unit.get("current_ap", 0)),
+				_format_bool(bool(unit.get("is_alive", false))),
+				_format_coord(unit.get("coord", {})),
+			])
+	return lines
+
+
+static func _build_reward_lines(reward_snapshot: Dictionary) -> Array[String]:
+	if reward_snapshot.is_empty():
+		return []
+	var reward: Dictionary = reward_snapshot.get("reward", {})
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(reward_snapshot.get("visible", false))),
+		"remaining_count=%d" % int(reward_snapshot.get("remaining_count", 0)),
+		"reward_id=%s" % String(reward.get("reward_id", "")),
+		"member_id=%s" % String(reward.get("member_id", "")),
+		"member_name=%s" % String(reward.get("member_name", "")),
+		"source_label=%s" % String(reward.get("source_label", "")),
+		"summary=%s" % String(reward.get("summary_text", "")),
+	]
+	var entries_variant = reward.get("entries", [])
+	if entries_variant is Array:
+		for entry_variant in entries_variant:
+			if entry_variant is not Dictionary:
+				continue
+			var entry: Dictionary = entry_variant
+			lines.append("entry=%s | %s | amount=%d | reason=%s" % [
+				String(entry.get("entry_type", "")),
+				String(entry.get("target_id", entry.get("target_label", ""))),
+				int(entry.get("amount", 0)),
+				String(entry.get("reason_text", "")),
+			])
+	return lines
+
+
+static func _build_promotion_lines(promotion: Dictionary) -> Array[String]:
+	if promotion.is_empty():
+		return []
+	var prompt: Dictionary = promotion.get("prompt", {})
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(promotion.get("visible", false))),
+		"member_id=%s" % String(prompt.get("member_id", "")),
+		"member_name=%s" % String(prompt.get("member_name", "")),
+	]
+	var choices_variant = prompt.get("choices", [])
+	if choices_variant is Array:
+		for choice_variant in choices_variant:
+			if choice_variant is not Dictionary:
+				continue
+			var choice: Dictionary = choice_variant
+			lines.append("choice=%s | %s | %s | skills=%s" % [
+				String(choice.get("profession_id", "")),
+				String(choice.get("display_name", "")),
+				String(choice.get("summary", "")),
+				_format_array(choice.get("granted_skill_ids", [])),
+			])
+	return lines
+
+
+static func _format_bool(value: bool) -> String:
+	return "true" if value else "false"
+
+
+static func _format_coord(coord_variant: Variant) -> String:
+	if coord_variant is Dictionary:
+		return "(%d,%d)" % [int(coord_variant.get("x", 0)), int(coord_variant.get("y", 0))]
+	return "(0,0)"
+
+
+static func _format_coord_array(coords_variant: Variant) -> String:
+	if coords_variant is not Array:
+		return ""
+	var parts: Array[String] = []
+	for coord_variant in coords_variant:
+		parts.append(_format_coord(coord_variant))
+	return " ".join(PackedStringArray(parts))
+
+
+static func _format_array(values_variant: Variant) -> String:
+	if values_variant is not Array:
+		return ""
+	var parts: Array[String] = []
+	for value in values_variant:
+		parts.append(String(value))
+	return " ".join(PackedStringArray(parts))
+
+
+static func _format_equipment(entries_variant: Variant) -> String:
+	if entries_variant is not Array:
+		return ""
+	var parts: Array[String] = []
+	for entry_variant in entries_variant:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		parts.append("%s:%s" % [
+			String(entry.get("slot_id", "")),
+			String(entry.get("item_id", "")),
+		])
+	return " ".join(PackedStringArray(parts))

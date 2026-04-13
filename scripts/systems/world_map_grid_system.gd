@@ -1,11 +1,19 @@
+## 文件说明：该脚本属于世界地图网格系统相关的系统脚本，集中维护世界尺寸（格子）、区块尺寸、占用格子集合等顶层字段。
+## 审查重点：重点核对字段默认值、状态流转顺序、跨系统引用关系以及运行时读写时机是否仍然可靠。
+## 备注：后续如果增删字段，需要同步检查调用方、状态同步链路以及历史数据兼容处理。
+
 class_name WorldMapGridSystem
 extends RefCounted
 
 const WORLD_MAP_CELL_DATA_SCRIPT = preload("res://scripts/utils/world_map_cell_data.gd")
 
+## 字段说明：保存世界尺寸（格子），便于顺序遍历、批量展示、批量运算和整体重建。
 var _world_size_cells := Vector2i.ZERO
+## 字段说明：记录区块尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
 var _chunk_size := Vector2i.ONE
+## 字段说明：缓存占用格子集合字典，集中保存可按键查询的运行时数据。
 var _occupied_cells: Dictionary = {}
+## 字段说明：缓存占位信息集合字典，集中保存可按键查询的运行时数据。
 var _footprints: Dictionary = {}
 
 

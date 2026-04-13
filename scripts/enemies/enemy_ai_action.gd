@@ -1,0 +1,280 @@
+class_name EnemyAiAction
+extends RefCounted
+
+const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle_ai_decision.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
+const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
+const BattleAiDecision = preload("res://scripts/systems/battle_ai_decision.gd")
+const BattleCommand = preload("res://scripts/systems/battle_command.gd")
+const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
+const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+
+var action_id: StringName = &""
+
+
+func decide(_context):
+	return null
+
+
+func _create_decision(command, reason_text: String = "") -> BattleAiDecision:
+	var decision = BATTLE_AI_DECISION_SCRIPT.new()
+	decision.command = command
+	decision.action_id = action_id
+	decision.reason_text = reason_text
+	return decision
+
+
+func _resolve_known_skill_ids(context, preferred_skill_ids: Array[StringName]) -> Array[StringName]:
+	var results: Array[StringName] = []
+	if context == null or context.unit_state == null:
+		return results
+	var seen: Dictionary = {}
+	var source_ids: Array[StringName] = preferred_skill_ids if not preferred_skill_ids.is_empty() else context.unit_state.known_active_skill_ids
+	for raw_skill_id in source_ids:
+		var skill_id = StringName(String(raw_skill_id))
+		if skill_id == &"" or seen.has(skill_id):
+			continue
+		seen[skill_id] = true
+		if context.unit_state.known_active_skill_ids.has(skill_id):
+			results.append(skill_id)
+	return results
+
+
+func _get_skill_def(context, skill_id: StringName) -> SkillDef:
+	if context == null or skill_id == &"":
+		return null
+	return context.skill_defs.get(skill_id) as SkillDef
+
+
+func _preview_allowed(context, command) -> bool:
+	if context == null or command == null:
+		return false
+	var preview = context.preview_command(command)
+	return preview != null and bool(preview.allowed)
+
+
+func _build_wait_command(context):
+	if context == null or context.unit_state == null:
+		return null
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BattleCommand.TYPE_WAIT
+	command.unit_id = context.unit_state.unit_id
+	return command
+
+
+func _build_move_command(context, target_coord: Vector2i):
+	if context == null or context.unit_state == null:
+		return null
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BattleCommand.TYPE_MOVE
+	command.unit_id = context.unit_state.unit_id
+	command.target_coord = target_coord
+	return command
+
+
+func _build_unit_skill_command(context, skill_id: StringName, target_unit):
+	if context == null or context.unit_state == null or target_unit == null:
+		return null
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = context.unit_state.unit_id
+	command.skill_id = skill_id
+	command.target_unit_id = target_unit.unit_id
+	command.target_coord = target_unit.coord
+	return command
+
+
+func _build_ground_skill_command(context, skill_id: StringName, skill_variant_id: StringName, target_coords: Array):
+	if context == null or context.unit_state == null:
+		return null
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = context.unit_state.unit_id
+	command.skill_id = skill_id
+	command.skill_variant_id = skill_variant_id
+	command.target_coords = _sort_coords(target_coords)
+	if not command.target_coords.is_empty():
+		command.target_coord = command.target_coords[0]
+	return command
+
+
+func _collect_units_by_filter(context, target_filter: StringName) -> Array:
+	var results: Array = []
+	if context == null or context.state == null or context.unit_state == null:
+		return results
+	for unit_id in context.state.units.keys():
+		var unit_state = context.state.units.get(unit_id) as BattleUnitState
+		if unit_state == null or not unit_state.is_alive:
+			continue
+		if not _matches_target_filter(context, unit_state, target_filter):
+			continue
+		results.append(unit_state)
+	return results
+
+
+func _matches_target_filter(context, unit_state: BattleUnitState, target_filter: StringName) -> bool:
+	if context == null or context.unit_state == null or unit_state == null:
+		return false
+	match target_filter:
+		&"enemy":
+			return unit_state.faction_id != context.unit_state.faction_id
+		&"ally":
+			return unit_state.faction_id == context.unit_state.faction_id
+		&"self":
+			return unit_state.unit_id == context.unit_state.unit_id
+		_:
+			return true
+
+
+func _sort_target_units(context, target_filter: StringName, selector: StringName) -> Array:
+	var effective_filter = target_filter
+	if selector == &"nearest_enemy" or selector == &"lowest_hp_enemy":
+		effective_filter = &"enemy"
+	elif selector == &"nearest_ally" or selector == &"lowest_hp_ally":
+		effective_filter = &"ally"
+	elif selector == &"self":
+		effective_filter = &"self"
+	var units = _collect_units_by_filter(context, effective_filter)
+	if selector == &"self":
+		return units
+	units.sort_custom(func(left: BattleUnitState, right: BattleUnitState) -> bool:
+		var left_hp_ratio = _get_hp_ratio(left)
+		var right_hp_ratio = _get_hp_ratio(right)
+		var left_distance = _distance_between_units(context, context.unit_state, left)
+		var right_distance = _distance_between_units(context, context.unit_state, right)
+		if selector == &"lowest_hp_enemy" or selector == &"lowest_hp_ally":
+			if !is_equal_approx(left_hp_ratio, right_hp_ratio):
+				return left_hp_ratio < right_hp_ratio
+			return left_distance < right_distance
+		if left_distance == right_distance:
+			return left_hp_ratio < right_hp_ratio
+		return left_distance < right_distance
+	)
+	return units
+
+
+func _get_hp_ratio(unit_state: BattleUnitState) -> float:
+	if unit_state == null or unit_state.attribute_snapshot == null:
+		return 1.0
+	var hp_max = maxi(int(unit_state.attribute_snapshot.get_value(&"hp_max")), 1)
+	return clampf(float(unit_state.current_hp) / float(hp_max), 0.0, 1.0)
+
+
+func _distance_between_units(context, first_unit: BattleUnitState, second_unit: BattleUnitState) -> int:
+	if context == null or context.grid_service == null:
+		return 999999
+	return context.grid_service.get_distance_between_units(first_unit, second_unit)
+
+
+func _distance_from_anchor_to_unit(context, unit_state: BattleUnitState, anchor_coord: Vector2i, target_unit: BattleUnitState) -> int:
+	if context == null or context.grid_service == null or unit_state == null or target_unit == null:
+		return 999999
+	unit_state.refresh_footprint()
+	target_unit.refresh_footprint()
+	var best_distance = 999999
+	for source_coord in context.grid_service.get_footprint_coords(anchor_coord, unit_state.footprint_size):
+		for target_coord in target_unit.occupied_coords:
+			best_distance = mini(best_distance, context.grid_service.get_distance(source_coord, target_coord))
+	return best_distance
+
+
+func _get_skill_level(unit_state: BattleUnitState, skill_id: StringName) -> int:
+	if unit_state == null or skill_id == &"":
+		return 0
+	if unit_state.known_skill_level_map.has(skill_id):
+		return int(unit_state.known_skill_level_map.get(skill_id, 0))
+	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
+
+
+func _get_ground_variants(context, skill_def: SkillDef) -> Array:
+	var variants: Array = []
+	if skill_def == null or skill_def.combat_profile == null or skill_def.combat_profile.target_mode != &"ground":
+		return variants
+	if skill_def.combat_profile.cast_variants.is_empty():
+		variants.append(_build_implicit_ground_variant(skill_def))
+		return variants
+	var skill_level = _get_skill_level(context.unit_state, skill_def.skill_id)
+	for cast_variant in skill_def.combat_profile.get_unlocked_cast_variants(skill_level):
+		if cast_variant != null:
+			variants.append(cast_variant)
+	return variants
+
+
+func _build_implicit_ground_variant(skill_def: SkillDef) -> CombatCastVariantDef:
+	var cast_variant = COMBAT_CAST_VARIANT_DEF_SCRIPT.new()
+	cast_variant.variant_id = &""
+	cast_variant.display_name = ""
+	cast_variant.target_mode = &"ground"
+	cast_variant.footprint_pattern = &"single"
+	cast_variant.required_coord_count = 1
+	cast_variant.effect_defs = skill_def.combat_profile.effect_defs.duplicate()
+	return cast_variant
+
+
+func _is_charge_variant(cast_variant: CombatCastVariantDef) -> bool:
+	if cast_variant == null:
+		return false
+	for effect_def in cast_variant.effect_defs:
+		if effect_def != null and effect_def.effect_type == &"charge":
+			return true
+	return false
+
+
+func _enumerate_ground_target_coord_sets(context, cast_variant: CombatCastVariantDef) -> Array:
+	var results: Array = []
+	if context == null or context.state == null or context.grid_service == null or cast_variant == null:
+		return results
+	var seen: Dictionary = {}
+	match cast_variant.footprint_pattern:
+		&"line2":
+			for y in range(context.state.map_size.y):
+				for x in range(context.state.map_size.x):
+					var first = Vector2i(x, y)
+					for direction in [Vector2i.RIGHT, Vector2i.DOWN]:
+						var second = first + direction
+						if not context.grid_service.is_inside(context.state, second):
+							continue
+						var pair = _sort_coords([first, second])
+						var key = _coord_set_key(pair)
+						if seen.has(key):
+							continue
+						seen[key] = true
+						results.append(pair)
+		&"square2":
+			for y in range(maxi(context.state.map_size.y - 1, 0)):
+				for x in range(maxi(context.state.map_size.x - 1, 0)):
+					var coords = _sort_coords([
+						Vector2i(x, y),
+						Vector2i(x + 1, y),
+						Vector2i(x, y + 1),
+						Vector2i(x + 1, y + 1),
+					])
+					var key = _coord_set_key(coords)
+					if seen.has(key):
+						continue
+					seen[key] = true
+					results.append(coords)
+		_:
+			for y in range(context.state.map_size.y):
+				for x in range(context.state.map_size.x):
+					results.append([Vector2i(x, y)])
+	return results
+
+
+func _sort_coords(coords: Array) -> Array[Vector2i]:
+	var sorted_coords: Array[Vector2i] = []
+	for coord_variant in coords:
+		if coord_variant is Vector2i:
+			sorted_coords.append(coord_variant)
+	sorted_coords.sort_custom(func(left: Vector2i, right: Vector2i) -> bool:
+		return left.y < right.y or (left.y == right.y and left.x < right.x)
+	)
+	return sorted_coords
+
+
+func _coord_set_key(coords: Array[Vector2i]) -> String:
+	var parts: Array[String] = []
+	for coord in _sort_coords(coords):
+		parts.append("%d:%d" % [coord.x, coord.y])
+	return "|".join(parts)

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=33 format=3]
+[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=34 format=3]
 
 [ext_resource type="Script" path="res://scripts/utils/world_map_generation_config.gd" id="1_conf"]
 [ext_resource type="Script" path="res://scripts/utils/settlement_config.gd" id="2_settlement"]
@@ -24,6 +24,14 @@ display_name = "补给商"
 service_type = "补给"
 interaction_script_id = "service_supply"
 local_slot_id = "supply_slot"
+
+[sub_resource type="Resource" id="Resource_warehouse_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_quartermaster"
+display_name = "军需官"
+service_type = "仓储"
+interaction_script_id = "party_warehouse"
+local_slot_id = "warehouse_slot"
 
 [sub_resource type="Resource" id="Resource_inn_npc"]
 script = ExtResource("6_npc")
@@ -96,7 +104,7 @@ display_name = "公告板"
 category = "civic"
 min_settlement_tier = 0
 allowed_slot_tags = Array[String](["core", "civic"])
-bound_service_npcs = Array[Resource]([SubResource("Resource_notice_npc")])
+bound_service_npcs = Array[Resource]([SubResource("Resource_notice_npc"), SubResource("Resource_warehouse_npc")])
 interaction_type = "quest_board"
 
 [sub_resource type="Resource" id="Resource_supply_stall"]
@@ -106,7 +114,7 @@ display_name = "补给摊"
 category = "trade"
 min_settlement_tier = 0
 allowed_slot_tags = Array[String](["trade", "service", "support"])
-bound_service_npcs = Array[Resource]([SubResource("Resource_supply_npc")])
+bound_service_npcs = Array[Resource]([SubResource("Resource_supply_npc"), SubResource("Resource_warehouse_npc")])
 interaction_type = "shop"
 
 [sub_resource type="Resource" id="Resource_inn"]
@@ -381,6 +389,7 @@ faction_id = "neutral"
 script = ExtResource("8_wild")
 region_tag = "north_wilds"
 monster_name = "荒狼群"
+monster_template_id = &"wolf_pack"
 density_per_chunk = 2
 min_distance_to_settlement = 3
 vision_range = 1
@@ -390,6 +399,7 @@ chunk_coords = Array[Vector2i]([Vector2i(0, 0), Vector2i(1, 0)])
 script = ExtResource("8_wild")
 region_tag = "south_wilds"
 monster_name = "雾沼异兽"
+monster_template_id = &"mist_beast"
 density_per_chunk = 2
 min_distance_to_settlement = 3
 vision_range = 1

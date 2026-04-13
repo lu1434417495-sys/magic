@@ -1,29 +1,47 @@
+## 文件说明：该脚本属于职业规则服务相关的服务脚本，集中维护单位进度、技能定义集合、职业定义集合等顶层字段。
+## 审查重点：重点核对字段默认值、状态流转顺序、跨系统引用关系以及运行时读写时机是否仍然可靠。
+## 备注：后续如果增删字段，需要同步检查调用方、状态同步链路以及历史数据兼容处理。
+
 class_name ProfessionRuleService
 extends RefCounted
 
-const PlayerReputationState = preload("res://scripts/player/progression/player_reputation_state.gd")
-
-var _player_progress: PlayerProgress
+## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
+var _unit_progress: UnitProgress = null
+## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
+## 字段说明：缓存职业定义集合字典，集中保存可按键查询的运行时数据。
 var _profession_defs: Dictionary = {}
 
 
-func setup(player_progress: PlayerProgress, skill_defs: Variant, profession_defs: Variant) -> void:
-	_player_progress = player_progress
+func setup(unit_progress: UnitProgress, skill_defs: Variant, profession_defs: Variant) -> void:
+	_unit_progress = unit_progress
 	_skill_defs = _index_skill_defs(skill_defs)
 	_profession_defs = _index_profession_defs(profession_defs)
 
 
-func can_unlock_profession(profession_id: StringName) -> bool:
-	var profession_def := _get_profession_def(profession_id)
+func is_profession_knowledge_unlocked(profession_id: StringName) -> bool:
+	var profession_def: ProfessionDef = _get_profession_def(profession_id)
 	if profession_def == null:
 		return false
+	if not profession_def.requires_knowledge_unlock():
+		return true
+	if _unit_progress == null:
+		return false
+	return _unit_progress.has_knowledge(profession_def.unlock_knowledge_id)
 
-	var profession_progress := _get_profession_progress(profession_id)
+
+func can_unlock_profession(profession_id: StringName) -> bool:
+	var profession_def: ProfessionDef = _get_profession_def(profession_id)
+	if profession_def == null:
+		return false
+	if not is_profession_knowledge_unlocked(profession_id):
+		return false
+
+	var profession_progress: Variant = _get_profession_progress(profession_id)
 	if profession_progress != null and profession_progress.rank > 0:
 		return false
 
-	var unlock_requirement := profession_def.unlock_requirement
+	var unlock_requirement: ProfessionPromotionRequirement = profession_def.unlock_requirement
 	if unlock_requirement == null:
 		return true
 
@@ -42,18 +60,20 @@ func can_unlock_profession(profession_id: StringName) -> bool:
 
 
 func can_rank_up_profession(profession_id: StringName) -> bool:
-	var profession_def := _get_profession_def(profession_id)
+	var profession_def: ProfessionDef = _get_profession_def(profession_id)
 	if profession_def == null:
 		return false
+	if not is_profession_knowledge_unlocked(profession_id):
+		return false
 
-	var profession_progress := _get_profession_progress(profession_id)
+	var profession_progress: Variant = _get_profession_progress(profession_id)
 	if profession_progress == null or profession_progress.rank <= 0:
 		return false
 	if profession_progress.rank >= profession_def.max_rank:
 		return false
 
-	var target_rank := profession_progress.rank + 1
-	var rank_requirement := profession_def.get_rank_requirement(target_rank)
+	var target_rank: int = profession_progress.rank + 1
+	var rank_requirement: ProfessionRankRequirement = profession_def.get_rank_requirement(target_rank)
 	if rank_requirement == null:
 		return false
 
@@ -79,13 +99,13 @@ func can_satisfy_profession_gates(gates: Array[ProfessionRankGate]) -> bool:
 		if gate == null:
 			continue
 
-		var profession_progress := _get_profession_progress(gate.profession_id)
+		var profession_progress: Variant = _get_profession_progress(gate.profession_id)
 		if profession_progress == null:
 			return false
 		if profession_progress.rank < gate.min_rank:
 			return false
 
-		var check_mode := _resolve_gate_check_mode(gate)
+		var check_mode: StringName = _resolve_gate_check_mode(gate)
 		if check_mode == &"active_only":
 			if not profession_progress.is_active or profession_progress.is_hidden:
 				return false
@@ -94,15 +114,15 @@ func can_satisfy_profession_gates(gates: Array[ProfessionRankGate]) -> bool:
 
 
 func can_satisfy_attribute_rules(rules: Array[AttributeRequirement]) -> bool:
-	var base_attributes := _get_base_attributes()
-	if base_attributes == null:
+	var unit_base_attributes: UnitBaseAttributes = _get_unit_base_attributes()
+	if unit_base_attributes == null:
 		return rules.is_empty()
 
 	for rule in rules:
 		if rule == null:
 			continue
 
-		var value := base_attributes.get_attribute_value(rule.attribute_id)
+		var value: int = int(unit_base_attributes.get_attribute_value(rule.attribute_id))
 		if not rule.matches_value(value):
 			return false
 
@@ -115,7 +135,7 @@ func get_eligible_skill_ids(
 	allow_unassigned: bool
 ) -> Array[StringName]:
 	var eligible_skill_ids: Array[StringName] = []
-	if _player_progress == null or tag_rules.is_empty():
+	if _unit_progress == null or tag_rules.is_empty():
 		return eligible_skill_ids
 
 	for skill_id in _get_all_learned_skill_ids():
@@ -135,7 +155,7 @@ func skill_matches_tag_requirement(
 
 
 func can_satisfy_reputation_rules(rules: Array[ReputationRequirement]) -> bool:
-	var reputation_state := _get_reputation_state()
+	var reputation_state: Variant = _get_reputation_state()
 	if reputation_state == null:
 		return rules.is_empty()
 
@@ -143,7 +163,7 @@ func can_satisfy_reputation_rules(rules: Array[ReputationRequirement]) -> bool:
 		if rule == null:
 			continue
 
-		var value := reputation_state.get_reputation_value(rule.state_id)
+		var value: int = int(reputation_state.get_reputation_value(rule.state_id))
 		if not rule.matches_value(value):
 			return false
 
@@ -151,8 +171,8 @@ func can_satisfy_reputation_rules(rules: Array[ReputationRequirement]) -> bool:
 
 
 func evaluate_profession_active_state(profession_id: StringName) -> bool:
-	var profession_def := _get_profession_def(profession_id)
-	var profession_progress := _get_profession_progress(profession_id)
+	var profession_def: ProfessionDef = _get_profession_def(profession_id)
+	var profession_progress: Variant = _get_profession_progress(profession_id)
 	if profession_def == null or profession_progress == null:
 		return false
 	if profession_progress.rank <= 0:
@@ -162,13 +182,13 @@ func evaluate_profession_active_state(profession_id: StringName) -> bool:
 
 
 func refresh_all_profession_states() -> void:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return
 
-	for profession_key in _player_progress.professions.keys():
-		var profession_id := ProgressionDataUtils.to_string_name(profession_key)
-		var profession_progress := _get_profession_progress(profession_id)
-		var profession_def := _get_profession_def(profession_id)
+	for profession_key in _unit_progress.professions.keys():
+		var profession_id: StringName = ProgressionDataUtils.to_string_name(profession_key)
+		var profession_progress: Variant = _get_profession_progress(profession_id)
+		var profession_def: ProfessionDef = _get_profession_def(profession_id)
 		if profession_progress == null or profession_def == null:
 			continue
 
@@ -178,7 +198,7 @@ func refresh_all_profession_states() -> void:
 			profession_progress.inactive_reason = &""
 			continue
 
-		var conditions_satisfied := _are_active_conditions_satisfied(profession_def)
+		var conditions_satisfied: bool = _are_active_conditions_satisfied(profession_def)
 		if conditions_satisfied:
 			if profession_progress.is_active:
 				profession_progress.is_hidden = false
@@ -203,7 +223,7 @@ func _index_skill_defs(skill_defs: Variant) -> Dictionary:
 
 	if skill_defs is Dictionary:
 		for key in skill_defs.keys():
-			var skill_def = skill_defs[key]
+			var skill_def: Variant = skill_defs[key]
 			if skill_def is SkillDef:
 				var indexed_id: StringName = skill_def.skill_id if skill_def.skill_id != &"" else ProgressionDataUtils.to_string_name(key)
 				indexed_defs[indexed_id] = skill_def
@@ -220,7 +240,7 @@ func _index_profession_defs(profession_defs: Variant) -> Dictionary:
 
 	if profession_defs is Dictionary:
 		for key in profession_defs.keys():
-			var profession_def = profession_defs[key]
+			var profession_def: Variant = profession_defs[key]
 			if profession_def is ProfessionDef:
 				var indexed_id: StringName = profession_def.profession_id if profession_def.profession_id != &"" else ProgressionDataUtils.to_string_name(key)
 				indexed_defs[indexed_id] = profession_def
@@ -240,22 +260,22 @@ func _get_skill_def(skill_id: StringName) -> SkillDef:
 	return _skill_defs.get(skill_id) as SkillDef
 
 
-func _get_profession_progress(profession_id: StringName) -> PlayerProfessionProgress:
-	if _player_progress == null:
+func _get_profession_progress(profession_id: StringName) -> Variant:
+	if _unit_progress == null:
 		return null
-	return _player_progress.get_profession_progress(profession_id)
+	return _unit_progress.get_profession_progress(profession_id)
 
 
-func _get_base_attributes() -> PlayerBaseAttributes:
-	if _player_progress == null:
+func _get_unit_base_attributes() -> UnitBaseAttributes:
+	if _unit_progress == null:
 		return null
-	return _player_progress.base_attributes
+	return _unit_progress.unit_base_attributes
 
 
-func _get_reputation_state() -> PlayerReputationState:
-	if _player_progress == null:
+func _get_reputation_state() -> Variant:
+	if _unit_progress == null:
 		return null
-	return _player_progress.reputation_state
+	return _unit_progress.reputation_state
 
 
 func _can_satisfy_required_skill_ids_for_unlock(
@@ -297,7 +317,7 @@ func _can_satisfy_tag_rules_with_skill_ids(
 		if tag_rule == null or tag_rule.tag == &"":
 			continue
 
-		var matched_count := 0
+		var matched_count: int = 0
 		for skill_id in candidate_skill_ids:
 			if _matches_tag_requirement(skill_id, profession_id, tag_rule, allow_unassigned):
 				matched_count += 1
@@ -313,7 +333,7 @@ func _get_unlock_candidate_skill_ids(profession_id: StringName) -> Array[StringN
 
 
 func _get_rank_up_candidate_skill_ids(profession_id: StringName) -> Array[StringName]:
-	var profession_progress := _get_profession_progress(profession_id)
+	var profession_progress: Variant = _get_profession_progress(profession_id)
 	if profession_progress == null:
 		return []
 	return profession_progress.core_skill_ids.duplicate()
@@ -328,10 +348,10 @@ func _is_skill_eligible_for_profession(
 	profession_id: StringName,
 	allow_unassigned: bool
 ) -> bool:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return false
 
-	var skill_progress := _player_progress.get_skill_progress(skill_id)
+	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 	if skill_progress == null:
 		return false
 	if not skill_progress.is_learned:
@@ -339,7 +359,7 @@ func _is_skill_eligible_for_profession(
 	if not skill_progress.is_core:
 		return false
 
-	var skill_def := _get_skill_def(skill_id)
+	var skill_def: SkillDef = _get_skill_def(skill_id)
 	if skill_def == null:
 		return false
 	if not skill_progress.is_max_level(skill_def.max_level):
@@ -371,14 +391,14 @@ func _matches_tag_requirement(
 ) -> bool:
 	if tag_rule == null or tag_rule.tag == &"":
 		return false
-	if _player_progress == null:
+	if _unit_progress == null:
 		return false
 
-	var skill_progress := _player_progress.get_skill_progress(skill_id)
+	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 	if skill_progress == null or not skill_progress.is_learned:
 		return false
 
-	var skill_def := _get_skill_def(skill_id)
+	var skill_def: SkillDef = _get_skill_def(skill_id)
 	if skill_def == null:
 		return false
 	if not skill_def.tags.has(tag_rule.tag):
@@ -390,7 +410,7 @@ func _matches_tag_requirement(
 	return _matches_assignment(skill_progress, profession_id, allow_unassigned)
 
 
-func _matches_skill_state(skill_progress: PlayerSkillProgress, skill_def: SkillDef, tag_rule: TagRequirement) -> bool:
+func _matches_skill_state(skill_progress: Variant, skill_def: SkillDef, tag_rule: TagRequirement) -> bool:
 	match tag_rule.get_normalized_skill_state():
 		TagRequirement.SKILL_STATE_LEARNED:
 			return skill_progress.is_learned
@@ -402,7 +422,7 @@ func _matches_skill_state(skill_progress: PlayerSkillProgress, skill_def: SkillD
 			return false
 
 
-func _matches_origin_filter(skill_progress: PlayerSkillProgress, tag_rule: TagRequirement) -> bool:
+func _matches_origin_filter(skill_progress: Variant, tag_rule: TagRequirement) -> bool:
 	match tag_rule.get_normalized_origin_filter():
 		TagRequirement.ORIGIN_FILTER_ANY:
 			return true
@@ -415,7 +435,7 @@ func _matches_origin_filter(skill_progress: PlayerSkillProgress, tag_rule: TagRe
 
 
 func _matches_assignment(
-	skill_progress: PlayerSkillProgress,
+	skill_progress: Variant,
 	profession_id: StringName,
 	allow_unassigned: bool
 ) -> bool:
@@ -426,12 +446,12 @@ func _matches_assignment(
 
 func _get_all_learned_skill_ids() -> Array[StringName]:
 	var learned_skill_ids: Array[StringName] = []
-	if _player_progress == null:
+	if _unit_progress == null:
 		return learned_skill_ids
 
-	for skill_key in ProgressionDataUtils.sorted_string_keys(_player_progress.skills):
-		var skill_id := StringName(skill_key)
-		var skill_progress := _player_progress.get_skill_progress(skill_id)
+	for skill_key in ProgressionDataUtils.sorted_string_keys(_unit_progress.skills):
+		var skill_id: StringName = StringName(skill_key)
+		var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 		if skill_progress == null or not skill_progress.is_learned:
 			continue
 		learned_skill_ids.append(skill_id)
@@ -443,7 +463,7 @@ func _resolve_gate_check_mode(gate: ProfessionRankGate) -> StringName:
 	if gate.check_mode != &"":
 		return gate.check_mode
 
-	var source_profession_def := _get_profession_def(gate.profession_id)
+	var source_profession_def: ProfessionDef = _get_profession_def(gate.profession_id)
 	if source_profession_def == null:
 		return &"historical"
 	if source_profession_def.dependency_visibility_mode == &"ignore_when_hidden":
@@ -455,8 +475,8 @@ func _are_active_conditions_satisfied(profession_def: ProfessionDef) -> bool:
 	if profession_def.active_conditions.is_empty():
 		return true
 
-	var base_attributes := _get_base_attributes()
-	var reputation_state := _get_reputation_state()
+	var unit_base_attributes: UnitBaseAttributes = _get_unit_base_attributes()
+	var reputation_state: Variant = _get_reputation_state()
 
 	for active_condition in profession_def.active_conditions:
 		if active_condition == null:
@@ -464,15 +484,15 @@ func _are_active_conditions_satisfied(profession_def: ProfessionDef) -> bool:
 
 		match active_condition.condition_type:
 			&"attribute_range":
-				if base_attributes == null:
+				if unit_base_attributes == null:
 					return false
-				var value := base_attributes.get_attribute_value(active_condition.attribute_id)
+				var value: int = int(unit_base_attributes.get_attribute_value(active_condition.attribute_id))
 				if not active_condition.matches_value(value):
 					return false
 			&"reputation_range":
 				if reputation_state == null:
 					return false
-				var reputation_value := reputation_state.get_reputation_value(active_condition.state_id)
+				var reputation_value: int = int(reputation_state.get_reputation_value(active_condition.state_id))
 				if not active_condition.matches_value(reputation_value):
 					return false
 			_:

@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_speed_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "speed"
+mode = "flat"
+value = 1
+source_type = "equipment"
+source_id = "scout_charm"
+
+[sub_resource type="Resource" id="Resource_evasion_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "evasion"
+mode = "flat"
+value = 4
+source_type = "equipment"
+source_id = "scout_charm"
+
+[resource]
+script = ExtResource("1_item")
+item_id = "scout_charm"
+display_name = "斥候护符"
+description = "轻量饰品，可装备在任一饰品槽，提供速度与闪避。"
+icon = "res://icon.svg"
+is_stackable = false
+max_stack = 1
+item_category = "equipment"
+equipment_slot_ids = Array[String](["accessory_1", "accessory_2"])
+attribute_modifiers = Array[Resource]([SubResource("Resource_speed_bonus"), SubResource("Resource_evasion_bonus")])

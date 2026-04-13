@@ -1,0 +1,4 @@
+interface:
+  display_name: "Algorithm Design"
+  short_description: "Model problems, compare options, and constrain complexity"
+  default_prompt: "Use $algorithm-design to model this Godot feature, compare implementation options, and choose a safe plan before coding."

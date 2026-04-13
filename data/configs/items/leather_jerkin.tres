@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_defense_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "physical_defense"
+mode = "flat"
+value = 3
+source_type = "equipment"
+source_id = "leather_jerkin"
+
+[sub_resource type="Resource" id="Resource_hp_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "hp_max"
+mode = "flat"
+value = 6
+source_type = "equipment"
+source_id = "leather_jerkin"
+
+[resource]
+script = ExtResource("1_item")
+item_id = "leather_jerkin"
+display_name = "皮革短甲"
+description = "轻便皮甲，适合初期前排单位。"
+icon = "res://icon.svg"
+is_stackable = false
+max_stack = 1
+item_category = "equipment"
+equipment_slot_ids = Array[String](["body"])
+attribute_modifiers = Array[Resource]([SubResource("Resource_defense_bonus"), SubResource("Resource_hp_bonus")])

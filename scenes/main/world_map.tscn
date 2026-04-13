@@ -1,11 +1,23 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=12 format=3]
+; Scene purpose: World map root scene that hosts exploration, battle overlays, and related windows.
+; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
+
+; External scripts, scenes, and shared assets referenced by this scene.
 [ext_resource type="Script" path="res://scripts/systems/world_map_system.gd" id="1_3yx4r"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_view.gd" id="2_7d2f8"]
 [ext_resource type="PackedScene" path="res://scenes/ui/settlement_window.tscn" id="3_9o3k0"]
 [ext_resource type="Script" path="res://scripts/systems/settlement_window_system.gd" id="4_u3okv"]
 [ext_resource type="PackedScene" path="res://scenes/ui/battle_map_panel.tscn" id="5_ba71e"]
+[ext_resource type="PackedScene" path="res://scenes/ui/character_info_window.tscn" id="6_l1m8n"]
+[ext_resource type="PackedScene" path="res://scenes/ui/party_management_window.tscn" id="7_3n6kk"]
+[ext_resource type="PackedScene" path="res://scenes/ui/party_warehouse_window.tscn" id="7_qx5ur"]
+[ext_resource type="PackedScene" path="res://scenes/ui/promotion_choice_window.tscn" id="8_6h2fm"]
+[ext_resource type="PackedScene" path="res://scenes/ui/mastery_reward_window.tscn" id="9_h8l3n"]
+[ext_resource type="Texture2D" path="res://assets/main/basic_map/basic_map_dark.png" id="10_2dj0w"]
+[ext_resource type="Texture2D" path="res://assets/main/basic_map/npc/protagonist.png" id="12_2mc6t"]
 
+; Local sub-resources defined inline for this scene only.
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.0784314, 0.101961, 0.180392, 0.96)
 border_width_left = 2
@@ -18,6 +30,7 @@ corner_radius_top_right = 18
 corner_radius_bottom_right = 18
 corner_radius_bottom_left = 18
 
+; Root node and primary scene tree.
 [node name="WorldMap" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -26,8 +39,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_3yx4r")
-generation_config_path = "res://data/configs/world_map/demo_world_map_config.tres"
 
+; Background branch for static color or texture presentation.
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -38,71 +51,28 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.027451, 0.0392157, 0.0862745, 1)
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+; Main gameplay viewport for exploration and battle overlays.
+[node name="MapViewport" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 20
 
-[node name="Layout" type="VBoxContainer" parent="MarginContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_constants/separation = 16
+[node name="WorldMapBackground" type="TextureRect" parent="MapViewport"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("10_2dj0w")
+expand_mode = 1
+stretch_mode = 6
 
-[node name="TopBar" type="HBoxContainer" parent="MarginContainer/Layout"]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="TitleLabel" type="Label" parent="MarginContainer/Layout/TopBar"]
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 30
-text = "世界大地图"
-
-[node name="StatusLabel" type="Label" parent="MarginContainer/Layout/TopBar"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.768627, 0.835294, 0.937255, 1)
-theme_override_font_sizes/font_size = 16
-text = "状态"
-horizontal_alignment = 2
-autowrap_mode = 3
-
-[node name="Content" type="HBoxContainer" parent="MarginContainer/Layout"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_constants/separation = 18
-
-[node name="MapPanel" type="PanelContainer" parent="MarginContainer/Layout/Content"]
-custom_minimum_size = Vector2(620, 620)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
-
-[node name="MapMargin" type="MarginContainer" parent="MarginContainer/Layout/Content/MapPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
-
-[node name="MapViewport" type="Control" parent="MarginContainer/Layout/Content/MapPanel/MapMargin"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="WorldMapView" type="Control" parent="MarginContainer/Layout/Content/MapPanel/MapMargin/MapViewport"]
-custom_minimum_size = Vector2(544, 544)
+[node name="WorldMapView" type="Control" parent="MapViewport"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -111,8 +81,10 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2_7d2f8")
+cell_background_texture = ExtResource("10_2dj0w")
+player_texture = ExtResource("12_2mc6t")
 
-[node name="BattleMapPanel" parent="MarginContainer/Layout/Content/MapPanel/MapMargin/MapViewport" instance=ExtResource("5_ba71e")]
+[node name="BattleMapPanel" parent="MapViewport" instance=ExtResource("5_ba71e")]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -121,111 +93,35 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Sidebar" type="PanelContainer" parent="MarginContainer/Layout/Content"]
-custom_minimum_size = Vector2(360, 620)
-layout_mode = 2
-size_flags_vertical = 3
+; Lightweight chrome layer that separates the top edge from the map.
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 10.0
+grow_horizontal = 2
+mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="SidebarMargin" type="MarginContainer" parent="MarginContainer/Layout/Content/Sidebar"]
-layout_mode = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 18
-
-[node name="SidebarContent" type="VBoxContainer" parent="MarginContainer/Layout/Content/Sidebar/SidebarMargin"]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="StructureSummary" type="RichTextLabel" parent="MarginContainer/Layout/Content/Sidebar/SidebarMargin/SidebarContent"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-bbcode_enabled = true
-scroll_active = false
-fit_content = true
-text = ""
-
-[node name="SelectionInfo" type="RichTextLabel" parent="MarginContainer/Layout/Content/Sidebar/SidebarMargin/SidebarContent"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-bbcode_enabled = true
-scroll_active = false
-fit_content = true
-text = ""
-
-[node name="HelpLabel" type="Label" parent="MarginContainer/Layout/Content/Sidebar/SidebarMargin/SidebarContent"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.933333, 0.760784, 0.380392, 1)
-theme_override_font_sizes/font_size = 18
-text = "操作提示"
-
-[node name="HelpText" type="Label" parent="MarginContainer/Layout/Content/Sidebar/SidebarMargin/SidebarContent"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.776471, 0.847059, 0.941176, 1)
-theme_override_font_sizes/font_size = 15
-autowrap_mode = 3
-text = "1. 方向键/WASD 移动玩家\n2. 点击地图格选择目标\n3. 点击或按 Enter 打开可见据点窗口\n4. 关闭窗口后继续在大地图操作"
-
+; Scene-owned helper node and modal windows used during exploration.
 [node name="SettlementWindowSystem" type="Node" parent="."]
 unique_name_in_owner = true
 script = ExtResource("4_u3okv")
 
-[node name="RuntimeSidebar" type="PanelContainer" parent="."]
-anchors_preset = 9
-anchor_left = 1.0
-anchor_top = 0.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -392.0
-offset_top = 64.0
-offset_right = -24.0
-offset_bottom = -20.0
-grow_horizontal = 0
-grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
-
-[node name="SidebarMargin" type="MarginContainer" parent="RuntimeSidebar"]
-layout_mode = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 18
-
-[node name="SidebarContent" type="VBoxContainer" parent="RuntimeSidebar/SidebarMargin"]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="StructureSummary" type="RichTextLabel" parent="RuntimeSidebar/SidebarMargin/SidebarContent"]
-layout_mode = 2
-size_flags_vertical = 3
-bbcode_enabled = true
-scroll_active = false
-fit_content = true
-text = ""
-
-[node name="SelectionInfo" type="RichTextLabel" parent="RuntimeSidebar/SidebarMargin/SidebarContent"]
-layout_mode = 2
-size_flags_vertical = 3
-bbcode_enabled = true
-scroll_active = false
-fit_content = true
-text = ""
-
-[node name="RuntimeHelpLabel" type="Label" parent="RuntimeSidebar/SidebarMargin/SidebarContent"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.933333, 0.760784, 0.380392, 1)
-theme_override_font_sizes/font_size = 18
-text = "操作提示"
-
-[node name="RuntimeHelpText" type="Label" parent="RuntimeSidebar/SidebarMargin/SidebarContent"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.776471, 0.847059, 0.941176, 1)
-theme_override_font_sizes/font_size = 15
-autowrap_mode = 3
-text = "1. 方向键/WASD 移动玩家\n2. 点击地图格选择目标\n3. 点击或按 Enter 打开可见据点窗口\n4. 关闭窗口后继续在大地图操作"
-
 [node name="SettlementWindow" parent="." instance=ExtResource("3_9o3k0")]
+unique_name_in_owner = true
+
+[node name="CharacterInfoWindow" parent="." instance=ExtResource("6_l1m8n")]
+unique_name_in_owner = true
+
+[node name="PartyManagementWindow" parent="." instance=ExtResource("7_3n6kk")]
+unique_name_in_owner = true
+
+[node name="PartyWarehouseWindow" parent="." instance=ExtResource("7_qx5ur")]
+unique_name_in_owner = true
+
+[node name="PromotionChoiceWindow" parent="." instance=ExtResource("8_6h2fm")]
+unique_name_in_owner = true
+
+[node name="MasteryRewardWindow" parent="." instance=ExtResource("9_h8l3n")]
 unique_name_in_owner = true

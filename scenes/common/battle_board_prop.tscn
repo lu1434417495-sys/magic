@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3]
+; Scene purpose: Battle board prop scene containing the prop node and optional interaction area.
+; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
+
+
+; External scripts, scenes, and shared assets referenced by this scene.
+[ext_resource type="Script" path="res://scripts/ui/battle_board_prop.gd" id="1_prop"]
+
+; Local sub-resources defined inline for this scene only.
+[sub_resource type="CircleShape2D" id="CircleShape2D_hover"]
+radius = 16.0
+
+; Root node and primary scene tree.
+[node name="BattleBoardProp" type="Node2D"]
+script = ExtResource("1_prop")
+
+[node name="InteractionArea" type="Area2D" parent="."]
+unique_name_in_owner = true
+monitoring = false
+monitorable = false
+
+[node name="InteractionShape" type="CollisionShape2D" parent="InteractionArea"]
+unique_name_in_owner = true
+position = Vector2(0, -16)
+shape = SubResource("CircleShape2D_hover")
+disabled = true

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Godot Code Review"
+  short_description: "Review Godot changes for runtime regressions and test gaps"
+  default_prompt: "Use $godot-code-review to review these Godot changes for behavior regressions, scene-script mismatches, and missing tests."

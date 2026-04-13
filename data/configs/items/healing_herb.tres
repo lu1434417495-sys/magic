@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "healing_herb"
+display_name = "治疗草"
+description = "常见的止血与缓痛草药，适合在共享仓库中成批存放。"
+icon = "res://icon.svg"
+is_stackable = true
+max_stack = 20

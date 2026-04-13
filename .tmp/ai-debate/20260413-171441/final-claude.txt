@@ -1,0 +1,31 @@
+### Recommended Plan
+
+在 `EncounterAnchorData` 上平铺四个新字段（`encounter_kind`、`growth_level`、`suppressed_until`、`roster_profile_id`），让单体和聚落在世界层从同一对象分家但不引入子资源。新增独立的 `WildEncounterProgressionSystem` 承载时间推进和战斗结算逻辑，`GameRuntimeFacade` 只在 `_remove_active_battle_encounter_anchor()` 处做单体/聚落分支转发。编队成长规则单独抽成 `WildSettlementRosterDef` 资源，不污染 `EnemyTemplateDef` 和 `WildSpawnRule`。聚落打完采用"抑制 + 降级 + 冷却恢复"而非永久删除，通过坐标表的插入/移除控制遭遇触发。
+
+### Why This Plan
+
+- **零序列化改动**：`EncounterAnchorData` 已是平铺 `to_dict`/`from_dict` 模式（`encounter_anchor_data.gd:28-51`），新增字段只需四行 + `data.get(..., default)` 向前兼容，不需要引入子资源或迁移存档。
+- **精确切入点**：`_remove_active_battle_encounter_anchor()`（`game_runtime_facade.gd:1689`）是战后唯一移除入口，在此加 `encounter_kind` 分支，single 走原路，settlement 改写 `suppressed_until`——改动范围最小。
+- **成长逻辑不泄漏**：`WildEncounterProgressionSystem` 是纯函数式服务（无状态，输入锚点数组，输出变更），与 `WorldMapSystem`/`GameRuntimeFacade` 的职责边界清晰，未来替换触发时机不需重写核心。
+- **复用现有 roster 路径**：`EncounterRosterBuilder` 已支持 `build_context["enemy_unit_count"]` 注入（line 65），聚落只需按 `growth_level` 换算 count 注入 context，特殊职业追加第二批调用——不重写 builder 骨架。
+- **坐标表控制可见性**：`_encounter_anchor_by_coord`（`game_runtime_facade.gd:69`）是遭遇触发的实际开关，抑制时从表移除、恢复时重新插入，比新增 `is_suppressed` 渲染标记更彻底，避免玩家踩上抑制中的聚落仍触发战斗。
+
+### Open Risks
+
+- **世界时间触发时机未定**：`GameRuntimeFacade` 当前无显式世界时间概念。辩论未最终确定触发粒度（每移动 N 格 vs 真实时钟 vs 明确休息动作）。第一切片建议硬编码"每移动 1 格触发一次 `advance_world_time`"，后续再参数化——否则 `WildEncounterProgressionSystem` 的接口无法稳定。
+- **`is_cleared` 渲染过滤需同步扩展**：`game_runtime_facade.gd:1123-1125` 只过滤 `is_cleared` 控制地图可见性，抑制态聚落需同步加 `suppressed_until > world_time` 检查，否则玩家仍能看见并尝试进入已抑制的营地。
+- **`WildSettlementRosterDef` 的 `growth_counts` 曲线需策划配置**：第一版可写死狼营地一条曲线 `[2,3,4,5]`，但 `.tres` 结构需提前设计好，否则后续加新族群时要回头改资源格式。
+
+### First Build Slice
+
+1. **`encounter_anchor_data.gd`**：平铺追加 `encounter_kind: StringName`、`growth_level: int = 0`、`suppressed_until: float = 0.0`、`roster_profile_id: StringName`；`to_dict`/`from_dict` 各加四行，用 `data.get(..., default)` 保证旧存档向前兼容。
+
+2. **`wild_spawn_rule.gd`**（即当前 `WildSpawnRule` 定义文件）：追加两个 `@export var`——`encounter_kind: String = "single"` 和 `roster_profile_id: StringName`；现有 `.tres` 配置无需修改，默认值自动回退 single 行为。
+
+3. **新增 `data/configs/wild_settlement/wolf_camp_roster.tres`**（基于新 `WildSettlementRosterDef` 脚本）：字段填 `base_template_id = "wolf_grunt"`、`growth_counts = [2, 3, 4, 5]`、`elite_unlock_level = 3`、`elite_template_id = "wolf_alpha"`。这是第一条可测试的完整聚落成长配置。
+
+4. **`encounter_roster_builder.gd`**：在顶层 `build_enemy_units()` 加 `encounter_kind` 分支；新增 `build_settlement_enemy_units(anchor, roster_def, ...)` 方法——按 `anchor.growth_level` 查 `growth_counts` 算普通兵数注入 context，调现有 `_build_template_enemy_units`；若 `growth_level >= elite_unlock_level` 再追加一次 elite 模板调用。
+
+5. **新增 `scripts/systems/wild_encounter_progression_system.gd`**：实现 `advance_world_time(anchors, world_time)` 和 `apply_battle_result(anchor, outcome, world_time)`；`game_runtime_facade.gd` 在 `_remove_active_battle_encounter_anchor()` 处分支：single 继续删，settlement 调 `apply_battle_result` 并从 `_encounter_anchor_by_coord` 移除（而非删 anchor）；玩家每移动一格调 `advance_world_time`，冷却结束时重新插入坐标表。
+
+6. **新增 `tests/run_wild_encounter_progression_tests.gd`**：至少覆盖六个断言——single 胜利后锚点消失、settlement 胜利后锚点保留且不在坐标表、`advance_world_time` 不影响 single 锚点、growth 到阈值编队含 elite、suppression 结束后坐标表恢复、存档 round-trip 后 `growth_level`/`suppressed_until` 不丢。

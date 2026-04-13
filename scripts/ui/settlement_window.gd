@@ -1,18 +1,33 @@
+## 文件说明：该脚本属于聚落窗口相关的界面窗口脚本，集中维护遮罩、标题标签、元信息标签等顶层字段。
+## 审查重点：重点核对字段含义、节点绑定、信号联动以及界面状态切换是否仍与对应场景保持一致。
+## 备注：后续如果调整场景节点命名、层级或交互路径，需要同步检查成员字段与信号连接。
+
 class_name SettlementWindow
 extends Control
 
+## 信号说明：当界面请求行动时发出的信号，具体处理由外层系统或控制器负责。
 signal action_requested(settlement_id: String, action_id: String, payload: Dictionary)
+## 信号说明：当窗口或面板关闭时发出的信号，供外层恢复输入焦点、刷新数据或清理临时状态。
 signal closed
 
+## 字段说明：缓存遮罩节点，用于压暗背景并阻止底层界面继续接收输入。
 @onready var shade: ColorRect = $Shade
-@onready var title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/TitleLabel
-@onready var meta_label: Label = $CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/MetaLabel
-@onready var facilities_label: RichTextLabel = $CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn/FacilitiesLabel
-@onready var resident_label: RichTextLabel = $CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn/ResidentLabel
-@onready var feedback_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/RightColumn/FeedbackLabel
-@onready var services_container: VBoxContainer = $CenterContainer/Panel/MarginContainer/Content/Body/RightColumn/ServicesScroll/ServicesContainer
-@onready var close_button: Button = $CenterContainer/Panel/MarginContainer/Content/Header/CloseButton
+## 字段说明：缓存标题标签节点，用于显示当前窗口或面板的主标题。
+@onready var title_label: Label = $Panel/MarginContainer/Content/Header/HeaderText/TitleLabel
+## 字段说明：缓存副标题标签节点，用于显示补充状态、来源信息或筛选摘要。
+@onready var meta_label: Label = $Panel/MarginContainer/Content/Header/HeaderText/MetaLabel
+## 字段说明：缓存设施集合标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+@onready var facilities_label: RichTextLabel = $Panel/MarginContainer/Content/Body/LeftColumn/FacilitiesLabel
+## 字段说明：缓存驻留标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+@onready var resident_label: RichTextLabel = $Panel/MarginContainer/Content/Body/LeftColumn/ResidentLabel
+## 字段说明：缓存反馈标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+@onready var feedback_label: Label = $Panel/MarginContainer/Content/Body/RightColumn/FeedbackLabel
+## 字段说明：缓存服务集合容器节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+@onready var services_container: VBoxContainer = $Panel/MarginContainer/Content/Body/RightColumn/ServicesScroll/ServicesContainer
+## 字段说明：缓存关闭按钮节点，供窗口统一执行收尾和关闭逻辑。
+@onready var close_button: Button = $Panel/MarginContainer/Content/Header/CloseButton
 
+## 字段说明：记录聚落唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _settlement_id := ""
 
 
@@ -73,6 +88,7 @@ func _rebuild_service_buttons(services: Array) -> void:
 				"npc_id": service.get("npc_id", ""),
 				"npc_name": service.get("npc_name", ""),
 				"service_type": service.get("service_type", ""),
+				"interaction_script_id": service.get("interaction_script_id", ""),
 			}
 		))
 		services_container.add_child(button)

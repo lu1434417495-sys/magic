@@ -1,3 +1,7 @@
+## 文件说明：该脚本属于属性服务相关的服务脚本，集中维护单位进度、技能定义集合、职业定义集合等顶层字段。
+## 审查重点：重点核对字段默认值、状态流转顺序、跨系统引用关系以及运行时读写时机是否仍然可靠。
+## 备注：后续如果增删字段，需要同步检查调用方、状态同步链路以及历史数据兼容处理。
+
 class_name AttributeService
 extends RefCounted
 
@@ -52,12 +56,19 @@ const RESISTANCE_ATTRIBUTE_IDS := [
 	NEGATIVE_ENERGY_RESISTANCE,
 ]
 
-var _player_progress: PlayerProgress
+## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
+var _unit_progress: UnitProgress = null
+## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
+## 字段说明：缓存职业定义集合字典，集中保存可按键查询的运行时数据。
 var _profession_defs: Dictionary = {}
+## 字段说明：记录装备状态，会参与运行时状态流转、系统协作和存档恢复。
 var _equipment_state = null
+## 字段说明：记录被动状态对象，会参与运行时状态流转、系统协作和存档恢复。
 var _passive_state = null
+## 字段说明：保存临时效果集合，便于顺序遍历、批量展示、批量运算和整体重建。
 var _temporary_effects = null
+## 字段说明：缓存派生规则集合字典，集中保存可按键查询的运行时数据。
 var _derived_rules: Dictionary = {}
 
 
@@ -66,14 +77,14 @@ func _init() -> void:
 
 
 func setup(
-	player_progress: PlayerProgress,
+	unit_progress: UnitProgress,
 	skill_defs: Variant = null,
 	profession_defs: Variant = null,
 	equipment_state: Variant = null,
 	passive_state: Variant = null,
 	temporary_effects: Variant = null
 ) -> void:
-	_player_progress = player_progress
+	_unit_progress = unit_progress
 	_skill_defs = _index_skill_defs(skill_defs)
 	_profession_defs = _index_profession_defs(profession_defs)
 	_equipment_state = equipment_state
@@ -82,10 +93,10 @@ func setup(
 
 
 func get_base_value(attribute_id: StringName) -> int:
-	var base_attributes := _get_base_attributes()
-	if base_attributes == null:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
 		return 0
-	return base_attributes.get_attribute_value(attribute_id)
+	return unit_base_attributes.get_attribute_value(attribute_id)
 
 
 func get_total_value(attribute_id: StringName) -> int:
@@ -105,7 +116,7 @@ func get_snapshot() -> AttributeSnapshot:
 	var modifier_entries: Array = _collect_all_modifier_entries()
 	var resolved_base_values := _resolve_base_attribute_values(modifier_entries)
 
-	for attribute_id in PlayerBaseAttributes.BASE_ATTRIBUTE_IDS:
+	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
 		snapshot.set_value(attribute_id, int(resolved_base_values.get(attribute_id, 0)))
 
 	for attribute_id in _get_known_non_base_attribute_ids():
@@ -129,18 +140,18 @@ func get_snapshot() -> AttributeSnapshot:
 
 
 func apply_permanent_attribute_change(attribute_id: StringName, delta: int) -> bool:
-	var base_attributes := _get_base_attributes()
-	if base_attributes == null:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
 		return false
 
-	base_attributes.set_attribute_value(attribute_id, base_attributes.get_attribute_value(attribute_id) + delta)
+	unit_base_attributes.set_attribute_value(attribute_id, unit_base_attributes.get_attribute_value(attribute_id) + delta)
 	return true
 
 
-func _get_base_attributes() -> PlayerBaseAttributes:
-	if _player_progress == null:
+func _get_unit_base_attributes() -> UnitBaseAttributes:
+	if _unit_progress == null:
 		return null
-	return _player_progress.base_attributes
+	return _unit_progress.unit_base_attributes
 
 
 func _index_skill_defs(skill_defs: Variant) -> Dictionary:
@@ -179,7 +190,7 @@ func _index_profession_defs(profession_defs: Variant) -> Dictionary:
 
 func _resolve_base_attribute_values(modifier_entries: Array) -> Dictionary:
 	var resolved_values: Dictionary = {}
-	for attribute_id in PlayerBaseAttributes.BASE_ATTRIBUTE_IDS:
+	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
 		resolved_values[attribute_id] = _apply_modifier_pipeline(attribute_id, get_base_value(attribute_id), modifier_entries)
 	return resolved_values
 
@@ -195,12 +206,12 @@ func _collect_all_modifier_entries() -> Array:
 
 
 func _append_profession_modifier_entries(entries: Array) -> void:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return
 
-	for profession_key in _player_progress.professions.keys():
+	for profession_key in _unit_progress.professions.keys():
 		var profession_id := ProgressionDataUtils.to_string_name(profession_key)
-		var profession_progress := _player_progress.get_profession_progress(profession_id)
+		var profession_progress: Variant = _unit_progress.get_profession_progress(profession_id)
 		if profession_progress == null:
 			continue
 		if profession_progress.rank <= 0:
@@ -216,12 +227,12 @@ func _append_profession_modifier_entries(entries: Array) -> void:
 
 
 func _append_skill_modifier_entries(entries: Array) -> void:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return
 
-	for skill_key in _player_progress.skills.keys():
+	for skill_key in _unit_progress.skills.keys():
 		var skill_id := ProgressionDataUtils.to_string_name(skill_key)
-		var skill_progress := _player_progress.get_skill_progress(skill_id)
+		var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 		if skill_progress == null or not skill_progress.is_learned:
 			continue
 		if not _is_skill_modifier_active(skill_progress):
@@ -235,15 +246,15 @@ func _append_skill_modifier_entries(entries: Array) -> void:
 		_append_modifier_entries(entries, skill_def.attribute_modifiers, &"skill", skill_id, effective_rank)
 
 
-func _is_skill_modifier_active(skill_progress: PlayerSkillProgress) -> bool:
+func _is_skill_modifier_active(skill_progress: Variant) -> bool:
 	if skill_progress == null:
 		return false
 	if skill_progress.profession_granted_by == &"":
 		return true
-	if _player_progress == null:
+	if _unit_progress == null:
 		return false
 
-	var profession_progress := _player_progress.get_profession_progress(skill_progress.profession_granted_by)
+	var profession_progress: Variant = _unit_progress.get_profession_progress(skill_progress.profession_granted_by)
 	if profession_progress == null:
 		return false
 	return profession_progress.is_active and not profession_progress.is_hidden and profession_progress.rank > 0
@@ -307,10 +318,10 @@ func _append_modifier_entries(
 
 
 func _get_persistent_base_value(attribute_id: StringName) -> int:
-	var base_attributes := _get_base_attributes()
-	if base_attributes == null:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
 		return 0
-	return base_attributes.get_attribute_value(attribute_id)
+	return unit_base_attributes.get_attribute_value(attribute_id)
 
 
 func _apply_modifier_pipeline(attribute_id: StringName, base_value: int, modifier_entries: Array) -> int:
@@ -376,15 +387,15 @@ func _get_additional_attribute_ids(modifier_entries: Array) -> Array[StringName]
 	var seen: Dictionary = {}
 	var known_attribute_ids := _get_known_non_base_attribute_ids()
 
-	for attribute_id in PlayerBaseAttributes.BASE_ATTRIBUTE_IDS:
+	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
 		known_attribute_ids.append(attribute_id)
 		seen[attribute_id] = true
 	for attribute_id in known_attribute_ids:
 		seen[attribute_id] = true
 
-	var base_attributes := _get_base_attributes()
-	if base_attributes != null:
-		for key in base_attributes.custom_stats.keys():
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes != null:
+		for key in unit_base_attributes.custom_stats.keys():
 			var attribute_id := ProgressionDataUtils.to_string_name(key)
 			if seen.has(attribute_id):
 				continue
@@ -408,8 +419,8 @@ func _build_default_rules() -> Dictionary:
 		HP_MAX,
 		60,
 		{
-			PlayerBaseAttributes.CONSTITUTION: 8,
-			PlayerBaseAttributes.STRENGTH: 2,
+			UnitBaseAttributes.CONSTITUTION: 8,
+			UnitBaseAttributes.STRENGTH: 2,
 		},
 		1,
 		1
@@ -418,8 +429,8 @@ func _build_default_rules() -> Dictionary:
 		MP_MAX,
 		30,
 		{
-			PlayerBaseAttributes.INTELLIGENCE: 6,
-			PlayerBaseAttributes.WILLPOWER: 4,
+			UnitBaseAttributes.INTELLIGENCE: 6,
+			UnitBaseAttributes.WILLPOWER: 4,
 		},
 		1,
 		0
@@ -428,9 +439,9 @@ func _build_default_rules() -> Dictionary:
 		STAMINA_MAX,
 		40,
 		{
-			PlayerBaseAttributes.CONSTITUTION: 5,
-			PlayerBaseAttributes.STRENGTH: 2,
-			PlayerBaseAttributes.AGILITY: 2,
+			UnitBaseAttributes.CONSTITUTION: 5,
+			UnitBaseAttributes.STRENGTH: 2,
+			UnitBaseAttributes.AGILITY: 2,
 		},
 		1,
 		0
@@ -439,9 +450,9 @@ func _build_default_rules() -> Dictionary:
 		ACTION_POINTS,
 		6,
 		{
-			PlayerBaseAttributes.AGILITY: 2,
-			PlayerBaseAttributes.PERCEPTION: 1,
-			PlayerBaseAttributes.WILLPOWER: 1,
+			UnitBaseAttributes.AGILITY: 2,
+			UnitBaseAttributes.PERCEPTION: 1,
+			UnitBaseAttributes.WILLPOWER: 1,
 		},
 		6,
 		1
@@ -450,8 +461,8 @@ func _build_default_rules() -> Dictionary:
 		PHYSICAL_ATTACK,
 		4,
 		{
-			PlayerBaseAttributes.STRENGTH: 8,
-			PlayerBaseAttributes.CONSTITUTION: 2,
+			UnitBaseAttributes.STRENGTH: 8,
+			UnitBaseAttributes.CONSTITUTION: 2,
 		},
 		4,
 		0
@@ -460,8 +471,8 @@ func _build_default_rules() -> Dictionary:
 		MAGIC_ATTACK,
 		4,
 		{
-			PlayerBaseAttributes.INTELLIGENCE: 8,
-			PlayerBaseAttributes.WILLPOWER: 2,
+			UnitBaseAttributes.INTELLIGENCE: 8,
+			UnitBaseAttributes.WILLPOWER: 2,
 		},
 		4,
 		0
@@ -470,8 +481,8 @@ func _build_default_rules() -> Dictionary:
 		PHYSICAL_DEFENSE,
 		3,
 		{
-			PlayerBaseAttributes.CONSTITUTION: 8,
-			PlayerBaseAttributes.STRENGTH: 2,
+			UnitBaseAttributes.CONSTITUTION: 8,
+			UnitBaseAttributes.STRENGTH: 2,
 		},
 		4,
 		0
@@ -480,8 +491,8 @@ func _build_default_rules() -> Dictionary:
 		MAGIC_DEFENSE,
 		3,
 		{
-			PlayerBaseAttributes.WILLPOWER: 8,
-			PlayerBaseAttributes.INTELLIGENCE: 2,
+			UnitBaseAttributes.WILLPOWER: 8,
+			UnitBaseAttributes.INTELLIGENCE: 2,
 		},
 		4,
 		0
@@ -490,8 +501,8 @@ func _build_default_rules() -> Dictionary:
 		HIT_RATE,
 		70,
 		{
-			PlayerBaseAttributes.PERCEPTION: 6,
-			PlayerBaseAttributes.AGILITY: 2,
+			UnitBaseAttributes.PERCEPTION: 6,
+			UnitBaseAttributes.AGILITY: 2,
 		},
 		4,
 		0,
@@ -501,8 +512,8 @@ func _build_default_rules() -> Dictionary:
 		EVASION,
 		5,
 		{
-			PlayerBaseAttributes.AGILITY: 8,
-			PlayerBaseAttributes.PERCEPTION: 2,
+			UnitBaseAttributes.AGILITY: 8,
+			UnitBaseAttributes.PERCEPTION: 2,
 		},
 		4,
 		0,
@@ -512,8 +523,8 @@ func _build_default_rules() -> Dictionary:
 		CRIT_RATE,
 		5,
 		{
-			PlayerBaseAttributes.PERCEPTION: 4,
-			PlayerBaseAttributes.AGILITY: 2,
+			UnitBaseAttributes.PERCEPTION: 4,
+			UnitBaseAttributes.AGILITY: 2,
 		},
 		6,
 		0,
@@ -523,8 +534,8 @@ func _build_default_rules() -> Dictionary:
 		CRIT_DAMAGE,
 		150,
 		{
-			PlayerBaseAttributes.STRENGTH: 2,
-			PlayerBaseAttributes.INTELLIGENCE: 2,
+			UnitBaseAttributes.STRENGTH: 2,
+			UnitBaseAttributes.INTELLIGENCE: 2,
 		},
 		4,
 		100
@@ -533,8 +544,8 @@ func _build_default_rules() -> Dictionary:
 		SPEED,
 		10,
 		{
-			PlayerBaseAttributes.AGILITY: 8,
-			PlayerBaseAttributes.PERCEPTION: 2,
+			UnitBaseAttributes.AGILITY: 8,
+			UnitBaseAttributes.PERCEPTION: 2,
 		},
 		4,
 		1
@@ -543,8 +554,8 @@ func _build_default_rules() -> Dictionary:
 		FIRE_RESISTANCE,
 		0,
 		{
-			PlayerBaseAttributes.CONSTITUTION: 2,
-			PlayerBaseAttributes.WILLPOWER: 1,
+			UnitBaseAttributes.CONSTITUTION: 2,
+			UnitBaseAttributes.WILLPOWER: 1,
 		},
 		3,
 		0,
@@ -554,8 +565,8 @@ func _build_default_rules() -> Dictionary:
 		BLEED_RESISTANCE,
 		0,
 		{
-			PlayerBaseAttributes.CONSTITUTION: 2,
-			PlayerBaseAttributes.WILLPOWER: 1,
+			UnitBaseAttributes.CONSTITUTION: 2,
+			UnitBaseAttributes.WILLPOWER: 1,
 		},
 		2,
 		0,
@@ -565,8 +576,8 @@ func _build_default_rules() -> Dictionary:
 		FREEZE_RESISTANCE,
 		0,
 		{
-			PlayerBaseAttributes.CONSTITUTION: 1,
-			PlayerBaseAttributes.WILLPOWER: 2,
+			UnitBaseAttributes.CONSTITUTION: 1,
+			UnitBaseAttributes.WILLPOWER: 2,
 		},
 		2,
 		0,
@@ -576,8 +587,8 @@ func _build_default_rules() -> Dictionary:
 		LIGHTNING_RESISTANCE,
 		0,
 		{
-			PlayerBaseAttributes.WILLPOWER: 2,
-			PlayerBaseAttributes.INTELLIGENCE: 1,
+			UnitBaseAttributes.WILLPOWER: 2,
+			UnitBaseAttributes.INTELLIGENCE: 1,
 		},
 		2,
 		0,
@@ -587,8 +598,8 @@ func _build_default_rules() -> Dictionary:
 		POISON_RESISTANCE,
 		0,
 		{
-			PlayerBaseAttributes.CONSTITUTION: 2,
-			PlayerBaseAttributes.PERCEPTION: 1,
+			UnitBaseAttributes.CONSTITUTION: 2,
+			UnitBaseAttributes.PERCEPTION: 1,
 		},
 		2,
 		0,
@@ -598,8 +609,8 @@ func _build_default_rules() -> Dictionary:
 		NEGATIVE_ENERGY_RESISTANCE,
 		0,
 		{
-			PlayerBaseAttributes.WILLPOWER: 2,
-			PlayerBaseAttributes.INTELLIGENCE: 1,
+			UnitBaseAttributes.WILLPOWER: 2,
+			UnitBaseAttributes.INTELLIGENCE: 1,
 		},
 		2,
 		0,

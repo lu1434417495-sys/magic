@@ -1,12 +1,22 @@
+## 文件说明：该脚本属于世界地图生成系统相关的系统脚本，集中维护随机数生成器、生成配置、网格系统等顶层字段。
+## 审查重点：重点核对字段默认值、状态流转顺序、跨系统引用关系以及运行时读写时机是否仍然可靠。
+## 备注：后续如果增删字段，需要同步检查调用方、状态同步链路以及历史数据兼容处理。
+
 class_name WorldMapSpawnSystem
 extends RefCounted
 
 const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 
+## 字段说明：缓存随机数生成器实例，保证生成逻辑集中使用同一套随机来源并保持可复现性。
 var _rng := RandomNumberGenerator.new()
+## 字段说明：记录生成配置，会参与运行时状态流转、系统协作和存档恢复。
 var _generation_config
+## 字段说明：记录网格系统，会参与运行时状态流转、系统协作和存档恢复。
 var _grid_system
+## 字段说明：记录按标识索引的设施资源库，作为查表、序列化和跨系统引用时使用的主键。
 var _facility_library_by_id: Dictionary = {}
+## 字段说明：记录按标识索引的聚落资源库，作为查表、序列化和跨系统引用时使用的主键。
 var _settlement_library_by_id: Dictionary = {}
 
 
@@ -17,15 +27,16 @@ func build_world(generation_config, grid_system) -> Dictionary:
 	_build_libraries()
 
 	var settlements := _generate_settlements()
-	var world_npcs := _generate_world_npcs(settlements)
-	var wild_monsters := _generate_wild_monsters(settlements)
 	var player_start_settlement := _find_player_start_settlement(settlements)
 	var player_start_coord: Vector2i = _resolve_player_start_coord(player_start_settlement)
+	var world_npcs := _generate_world_npcs(settlements)
+	var encounter_anchors := _generate_encounter_anchors(settlements, player_start_coord)
 
 	return {
 		"settlements": settlements,
 		"world_npcs": world_npcs,
-		"wild_monsters": wild_monsters,
+		"encounter_anchors": encounter_anchors,
+		"world_step": 0,
 		"player_start_coord": player_start_coord,
 		"player_start_settlement_id": player_start_settlement.get("settlement_id", ""),
 		"player_start_settlement_name": player_start_settlement.get("display_name", ""),
@@ -95,6 +106,7 @@ func _generate_procedural_settlements() -> Array[Dictionary]:
 			settlements.append(player_settlement)
 
 	var generation_order := [
+		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.METROPOLIS,
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.WORLD_STRONGHOLD,
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.CAPITAL,
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.CITY,
@@ -277,9 +289,13 @@ func _try_place_facility(facility_config, settlement_config, settlement_origin: 
 
 func _collect_services(facilities: Array[Dictionary]) -> Array[Dictionary]:
 	var services: Array[Dictionary] = []
+	var has_party_warehouse_service := false
 
 	for facility in facilities:
 		for npc in facility.get("service_npcs", []):
+			var interaction_script_id := String(npc.get("interaction_script_id", ""))
+			if interaction_script_id == "party_warehouse":
+				has_party_warehouse_service = true
 			services.append({
 				"facility_id": facility.get("facility_id", ""),
 				"facility_name": facility.get("display_name", ""),
@@ -287,7 +303,19 @@ func _collect_services(facilities: Array[Dictionary]) -> Array[Dictionary]:
 				"npc_name": npc.get("display_name", ""),
 				"service_type": npc.get("service_type", ""),
 				"action_id": "service:%s" % npc.get("service_type", ""),
+				"interaction_script_id": interaction_script_id,
 			})
+
+	if not has_party_warehouse_service:
+		services.append({
+			"facility_id": "settlement_service_desk",
+			"facility_name": "据点服务台",
+			"npc_id": "npc_quartermaster",
+			"npc_name": "军需官",
+			"service_type": "仓储",
+			"action_id": "service:warehouse",
+			"interaction_script_id": "party_warehouse",
+		})
 
 	return services
 
@@ -364,7 +392,7 @@ func _generate_world_npcs(settlements: Array[Dictionary]) -> Array[Dictionary]:
 	return world_npcs
 
 
-func _generate_wild_monsters(settlements: Array[Dictionary]) -> Array[Dictionary]:
+func _generate_encounter_anchors(settlements: Array[Dictionary], player_start_coord: Vector2i = Vector2i(-1, -1)) -> Array:
 	var settlement_cells: Array[Vector2i] = []
 
 	for settlement in settlements:
@@ -374,37 +402,42 @@ func _generate_wild_monsters(settlements: Array[Dictionary]) -> Array[Dictionary
 			for x in range(footprint_size.x):
 				settlement_cells.append(origin + Vector2i(x, y))
 
+	var encounter_anchors: Array = []
 	if _generation_config.procedural_generation_enabled:
-		return _generate_procedural_wild_monsters(settlement_cells)
+		encounter_anchors = _generate_procedural_encounter_anchors(settlement_cells)
+	else:
+		var monster_index := 0
+		for rule in _generation_config.wild_monster_distribution:
+			for chunk_coord in rule.chunk_coords:
+				for offset in range(max(rule.density_per_chunk, 0)):
+					var spawn_coord := _pick_monster_coord_for_chunk(chunk_coord, rule.min_distance_to_settlement, settlement_cells, offset)
+					if spawn_coord == Vector2i(-1, -1):
+						continue
 
-	var monsters: Array[Dictionary] = []
-	var monster_index := 0
-	for rule in _generation_config.wild_monster_distribution:
-		for chunk_coord in rule.chunk_coords:
-			for offset in range(max(rule.density_per_chunk, 0)):
-				var spawn_coord := _pick_monster_coord_for_chunk(chunk_coord, rule.min_distance_to_settlement, settlement_cells, offset)
-				if spawn_coord == Vector2i(-1, -1):
-					continue
+					monster_index += 1
+					encounter_anchors.append(
+						_build_encounter_anchor(
+							StringName("wild_%d" % monster_index),
+							rule.monster_template_id,
+							rule.monster_name,
+							spawn_coord,
+							rule.vision_range,
+							rule.region_tag
+						)
+					)
 
-				monster_index += 1
-				monsters.append({
-					"entity_id": "wild_%d" % monster_index,
-					"display_name": rule.monster_name,
-					"coord": spawn_coord,
-					"vision_range": rule.vision_range,
-					"region_tag": rule.region_tag,
-				})
-
-	return monsters
+	_ensure_starting_wild_encounter(encounter_anchors, settlement_cells, player_start_coord)
+	_ensure_default_settlement_encounter(encounter_anchors, settlement_cells)
+	return encounter_anchors
 
 
-func _generate_procedural_wild_monsters(settlement_cells: Array[Vector2i]) -> Array[Dictionary]:
-	var monsters: Array[Dictionary] = []
+func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -> Array:
+	var encounter_anchors: Array = []
 	if _generation_config.wild_monster_distribution.is_empty():
-		return monsters
+		return encounter_anchors
 
-	var north_rule = _generation_config.wild_monster_distribution[0]
-	var south_rule = _generation_config.wild_monster_distribution[min(1, _generation_config.wild_monster_distribution.size() - 1)]
+	var north_rule: WildSpawnRule = _generation_config.wild_monster_distribution[0]
+	var south_rule: WildSpawnRule = _generation_config.wild_monster_distribution[min(1, _generation_config.wild_monster_distribution.size() - 1)]
 	var world_chunks: Vector2i = _generation_config.world_size_in_chunks
 	var midpoint_chunk_y: int = int(world_chunks.y / 2)
 	var monster_index := 0
@@ -412,7 +445,7 @@ func _generate_procedural_wild_monsters(settlement_cells: Array[Vector2i]) -> Ar
 	for chunk_y in range(world_chunks.y):
 		for chunk_x in range(world_chunks.x):
 			var chunk_coord := Vector2i(chunk_x, chunk_y)
-			var rule = north_rule if chunk_y < midpoint_chunk_y else south_rule
+			var rule: WildSpawnRule = north_rule if chunk_y < midpoint_chunk_y else south_rule
 			var chunk_seed: int = int(_generation_config.seed) + chunk_x * 92821 + chunk_y * 68917
 			if posmod(chunk_seed, 6) != 0:
 				continue
@@ -428,15 +461,199 @@ func _generate_procedural_wild_monsters(settlement_cells: Array[Vector2i]) -> Ar
 					continue
 
 				monster_index += 1
-				monsters.append({
-					"entity_id": "wild_%d" % monster_index,
-					"display_name": rule.monster_name,
-					"coord": spawn_coord,
-					"vision_range": rule.vision_range,
-					"region_tag": rule.region_tag,
-				})
+				encounter_anchors.append(
+					_build_encounter_anchor(
+						StringName("wild_%d" % monster_index),
+						rule.monster_template_id,
+						rule.monster_name,
+						spawn_coord,
+						rule.vision_range,
+						rule.region_tag
+					)
+				)
 
-	return monsters
+	return encounter_anchors
+
+
+func _ensure_starting_wild_encounter(
+	encounter_anchors: Array,
+	settlement_cells: Array[Vector2i],
+	player_start_coord: Vector2i
+) -> void:
+	if not _generation_config.guarantee_starting_wild_encounter:
+		return
+	if not _grid_system.is_cell_inside_world(player_start_coord):
+		return
+	if _generation_config.wild_monster_distribution.is_empty():
+		return
+
+	var rule: WildSpawnRule = _generation_config.wild_monster_distribution[0]
+	var min_distance: int = max(
+		int(_generation_config.starting_wild_spawn_min_distance),
+		int(rule.min_distance_to_settlement)
+	)
+	var max_distance: int = max(
+		max(
+			int(_generation_config.starting_wild_spawn_min_distance),
+			int(_generation_config.starting_wild_spawn_max_distance)
+		),
+		min_distance
+	)
+	if _has_starting_encounter_in_range(encounter_anchors, player_start_coord, max_distance):
+		return
+
+	var spawn_coord := _find_starting_wild_coord(
+		player_start_coord,
+		settlement_cells,
+		encounter_anchors,
+		min_distance,
+		max_distance
+	)
+	if spawn_coord == Vector2i(-1, -1):
+		push_warning("Unable to place a guaranteed starting wild encounter near %s." % player_start_coord)
+		return
+
+	encounter_anchors.append(
+		_build_encounter_anchor(
+			StringName("wild_%d" % (encounter_anchors.size() + 1)),
+			rule.monster_template_id,
+			rule.monster_name,
+			spawn_coord,
+			rule.vision_range,
+			rule.region_tag
+		)
+	)
+
+
+func _has_starting_encounter_in_range(encounter_anchors: Array, player_start_coord: Vector2i, max_distance: int) -> bool:
+	for encounter_anchor_data in encounter_anchors:
+		var encounter_anchor = encounter_anchor_data
+		if encounter_anchor == null:
+			continue
+		var encounter_coord: Vector2i = encounter_anchor.world_coord
+		var delta: Vector2i = encounter_coord - player_start_coord
+		if absi(delta.x) + absi(delta.y) <= max_distance:
+			return true
+	return false
+
+
+func _find_starting_wild_coord(
+	player_start_coord: Vector2i,
+	settlement_cells: Array[Vector2i],
+	encounter_anchors: Array,
+	min_distance: int,
+	max_distance: int
+) -> Vector2i:
+	var candidates: Array[Vector2i] = []
+	for offset_y in range(-max_distance, max_distance + 1):
+		for offset_x in range(-max_distance, max_distance + 1):
+			var distance := absi(offset_x) + absi(offset_y)
+			if distance < min_distance or distance > max_distance:
+				continue
+
+			var candidate := player_start_coord + Vector2i(offset_x, offset_y)
+			if not _grid_system.is_cell_inside_world(candidate):
+				continue
+			if _grid_system.get_occupant_root(candidate) != "":
+				continue
+			if _is_too_close_to_settlement(candidate, min_distance, settlement_cells):
+				continue
+			if _has_encounter_anchor_at(encounter_anchors, candidate):
+				continue
+			candidates.append(candidate)
+
+	if candidates.is_empty():
+		return Vector2i(-1, -1)
+	return candidates[_rng.randi_range(0, candidates.size() - 1)]
+
+
+func _has_encounter_anchor_at(encounter_anchors: Array, coord: Vector2i) -> bool:
+	for encounter_anchor_data in encounter_anchors:
+		var encounter_anchor = encounter_anchor_data
+		if encounter_anchor == null:
+			continue
+		if encounter_anchor.world_coord == coord:
+			return true
+	return false
+
+
+func _ensure_default_settlement_encounter(encounter_anchors: Array, settlement_cells: Array[Vector2i]) -> void:
+	for encounter_anchor_data in encounter_anchors:
+		var existing_anchor = encounter_anchor_data
+		if existing_anchor == null:
+			continue
+		if existing_anchor.encounter_kind == ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT:
+			return
+
+	for rule in _generation_config.wild_monster_distribution:
+		if rule == null or rule.monster_template_id != &"wolf_pack":
+			continue
+		for chunk_coord in _build_default_settlement_candidate_chunks(rule):
+			var spawn_coord := _pick_monster_coord_for_chunk(
+				chunk_coord,
+				maxi(int(rule.min_distance_to_settlement), 2),
+				settlement_cells,
+				int(_generation_config.seed) + chunk_coord.x * 4099 + chunk_coord.y * 8191 + 17
+			)
+			if spawn_coord == Vector2i(-1, -1):
+				continue
+			if _has_encounter_anchor_at(encounter_anchors, spawn_coord):
+				continue
+			encounter_anchors.append(
+				_build_encounter_anchor(
+					StringName("wild_settlement_%d" % (encounter_anchors.size() + 1)),
+					rule.monster_template_id,
+					"荒狼巢穴",
+					spawn_coord,
+					maxi(int(rule.vision_range), 2),
+					rule.region_tag,
+					ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT,
+					&"wolf_den",
+					0
+				)
+			)
+			return
+
+
+func _build_default_settlement_candidate_chunks(rule: WildSpawnRule) -> Array[Vector2i]:
+	if rule != null and not rule.chunk_coords.is_empty():
+		return rule.chunk_coords.duplicate()
+	var candidate_chunks: Array[Vector2i] = []
+	var world_chunks: Vector2i = _generation_config.world_size_in_chunks
+	var midpoint_chunk_y: int = int(world_chunks.y / 2)
+	for chunk_y in range(world_chunks.y):
+		for chunk_x in range(world_chunks.x):
+			if rule != null and rule.monster_template_id == &"wolf_pack" and chunk_y >= midpoint_chunk_y:
+				continue
+			candidate_chunks.append(Vector2i(chunk_x, chunk_y))
+	return candidate_chunks
+
+
+func _build_encounter_anchor(
+	entity_id: StringName,
+	monster_template_id: StringName,
+	display_name: String,
+	world_coord: Vector2i,
+	vision_range: int,
+	region_tag: StringName,
+	encounter_kind: StringName = ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE,
+	encounter_profile_id: StringName = &"",
+	growth_stage: int = 0
+):
+	var encounter_anchor = ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
+	encounter_anchor.entity_id = entity_id
+	encounter_anchor.display_name = display_name
+	encounter_anchor.world_coord = world_coord
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.enemy_roster_template_id = monster_template_id if monster_template_id != &"" else StringName(display_name)
+	encounter_anchor.region_tag = region_tag
+	encounter_anchor.vision_range = vision_range
+	encounter_anchor.is_cleared = false
+	encounter_anchor.encounter_kind = encounter_kind
+	encounter_anchor.encounter_profile_id = encounter_profile_id
+	encounter_anchor.growth_stage = maxi(growth_stage, 0)
+	encounter_anchor.suppressed_until_step = 0
+	return encounter_anchor
 
 
 func _find_free_coord_near(origin: Vector2i) -> Vector2i:

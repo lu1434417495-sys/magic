@@ -1,0 +1,482 @@
+## 文件说明：该脚本属于队伍仓库回归执行相关的回归测试脚本，集中维护失败信息、游戏会话等顶层字段。
+## 审查重点：重点核对测试数据、字段用途、断言条件和失败提示是否仍然覆盖目标回归场景。
+## 备注：后续如果业务规则变化，需要同步更新测试夹具、预期结果和失败信息。
+
+extends SceneTree
+
+const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const WorldMapScene = preload("res://scenes/main/world_map.tscn")
+const PartyState = preload("res://scripts/player/progression/party_state.gd")
+const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
+const WarehouseStackState = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
+const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
+const PartyWarehouseService = preload("res://scripts/systems/party_warehouse_service.gd")
+const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
+const PartyItemUseService = preload("res://scripts/systems/party_item_use_service.gd")
+
+const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
+const BUNDLED_SAVE_PATH := "res://data/saves/fixed_test_world_save.dat"
+
+## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
+var _failures: Array[String] = []
+## 字段说明：记录游戏会话，用于构造测试场景、记录结果并支撑回归断言。
+var _game_session = null
+
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	await _ensure_game_session()
+	await _test_old_save_compatibility()
+	await _test_warehouse_service_rules()
+	await _test_skill_book_generation_and_use_rules()
+	await _test_warehouse_serialization_guards()
+	await _test_item_registry_validation()
+	await _test_save_round_trip()
+	await _test_world_map_entry_paths()
+	await _cleanup()
+
+	if _failures.is_empty():
+		print("Party warehouse regression: PASS")
+		quit(0)
+		return
+
+	for failure in _failures:
+		push_error(failure)
+	print("Party warehouse regression: FAIL (%d)" % _failures.size())
+	quit(1)
+
+
+func _test_old_save_compatibility() -> void:
+	await _reset_session()
+	var load_error := int(_game_session.load_bundled_save(
+		BUNDLED_SAVE_PATH,
+		"warehouse_compatibility",
+		"仓库兼容性测试"
+	))
+	_assert_eq(load_error, OK, "旧存档模板应能成功加载。")
+	if load_error != OK:
+		return
+
+	var party_state: PartyState = _game_session.get_party_state()
+	_assert_true(party_state != null, "旧存档加载后应存在 PartyState。")
+	if party_state == null:
+		return
+
+	_assert_true(party_state.warehouse_state != null, "旧存档缺少 warehouse_state 时应默认生成空仓库。")
+	if party_state.warehouse_state != null:
+		_assert_eq(party_state.warehouse_state.stacks.size(), 0, "旧存档加载后的仓库应默认为空。")
+	_assert_eq(int(party_state.version), 2, "旧存档加载后 PartyState.version 应升级到 2。")
+
+
+func _test_warehouse_service_rules() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var empty_service := PartyWarehouseService.new()
+	empty_service.setup(PartyState.new(), item_defs)
+	_assert_eq(empty_service.get_total_capacity(), 0, "空队伍仓库容量应为 0。")
+
+	var preview_party := _build_party_with_members([
+		_build_member_state(&"preview_only", "预览成员", 2),
+	])
+	preview_party.warehouse_state = null
+	var preview_service := PartyWarehouseService.new()
+	preview_service.setup(preview_party, item_defs)
+	var preview_result := preview_service.preview_add_item(&"healing_herb", 4)
+	_assert_eq(int(preview_result.get("added_quantity", 0)), 4, "预览加入应返回可加入数量。")
+	_assert_true(preview_party.warehouse_state == null, "preview_add_item 不应为缺失仓库状态的队伍创建仓库。")
+
+	var missing_attr_party := _build_party_with_members([
+		_build_member_state(&"missing_attr", "无容量成员", 0, false),
+	])
+	var missing_attr_service := PartyWarehouseService.new()
+	missing_attr_service.setup(missing_attr_party, item_defs)
+	_assert_eq(missing_attr_service.get_total_capacity(), 0, "缺少 storage_space 的成员不应贡献容量。")
+
+	var negative_attr_party := _build_party_with_members([
+		_build_member_state(&"negative_attr", "负容量成员", -3, true),
+	])
+	var negative_attr_service := PartyWarehouseService.new()
+	negative_attr_service.setup(negative_attr_party, item_defs)
+	_assert_eq(negative_attr_service.get_total_capacity(), 0, "负 storage_space 应按 0 处理。")
+
+	var party := _build_party_with_members([
+		_build_member_state(&"frontline", "前卫", 2),
+		_build_member_state(&"reserve", "后备", 4),
+	])
+	party.active_member_ids = [ &"frontline" ]
+	party.reserve_member_ids = [ &"reserve" ]
+	party.leader_member_id = &"frontline"
+
+	var service := PartyWarehouseService.new()
+	service.setup(party, item_defs)
+	_assert_eq(service.get_total_capacity(), 6, "仓库容量应累计全部成员的 storage_space。")
+	party.active_member_ids = [ &"reserve" ]
+	party.reserve_member_ids = [ &"frontline" ]
+	_assert_eq(service.get_total_capacity(), 6, "上阵与替补切换不应影响容量统计范围。")
+
+	var sword_result: Dictionary = service.add_item(&"bronze_sword", 3)
+	_assert_eq(int(sword_result.get("added_quantity", 0)), 3, "不可堆叠物品应能正常加入。")
+	_assert_eq(service.get_used_slots(), 3, "不可堆叠物品应始终一件一堆。")
+
+	var herb_preview := service.preview_add_item(&"healing_herb", 25)
+	var herb_add := service.add_item(&"healing_herb", 25)
+	_assert_eq(
+		int(herb_preview.get("remaining_quantity", -1)),
+		int(herb_add.get("remaining_quantity", -2)),
+		"preview_add_item 与 add_item 的剩余数量计算应一致。"
+	)
+	_assert_eq(service.count_item(&"healing_herb"), 25, "可堆叠物品加入后应正确累计数量。")
+	_assert_eq(service.get_used_slots(), 5, "25 份治疗草应占用两个堆栈。")
+
+	var second_preview := service.preview_add_item(&"healing_herb", 30)
+	var second_add := service.add_item(&"healing_herb", 30)
+	_assert_eq(
+		int(second_preview.get("remaining_quantity", -1)),
+		int(second_add.get("remaining_quantity", -2)),
+		"二次补堆时 preview_add_item 与 add_item 的剩余数量仍应一致。"
+	)
+	_assert_eq(service.count_item(&"healing_herb"), 55, "补堆后治疗草总数应正确。")
+	_assert_eq(service.get_used_slots(), 6, "补堆并开新堆后应正确占满剩余格位。")
+
+	var over_capacity_party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 2),
+	])
+	var over_capacity_service := PartyWarehouseService.new()
+	over_capacity_service.setup(over_capacity_party, item_defs)
+	var cap_result := over_capacity_service.add_item(&"healing_herb", 45)
+	_assert_eq(int(cap_result.get("added_quantity", 0)), 40, "容量不足时应允许部分加入。")
+	_assert_eq(int(cap_result.get("remaining_quantity", 0)), 5, "容量不足时应返回剩余未加入数量。")
+
+	var porter_attributes: UnitBaseAttributes = over_capacity_party.get_member_state(&"porter").progression.unit_base_attributes
+	porter_attributes.custom_stats[&"storage_space"] = 1
+	_assert_true(over_capacity_service.is_over_capacity(), "容量下降后 used_slots > total_capacity 应进入超容状态。")
+
+	var blocked_stack_preview := over_capacity_service.preview_add_item(&"bronze_sword", 1)
+	_assert_eq(int(blocked_stack_preview.get("added_quantity", 0)), 0, "超容状态下不应继续新增堆栈。")
+
+	var remove_result := over_capacity_service.remove_item(&"healing_herb", 1)
+	_assert_eq(int(remove_result.get("removed_quantity", 0)), 1, "超容状态下仍应允许移除物品。")
+
+	var refill_preview := over_capacity_service.preview_add_item(&"healing_herb", 2)
+	var refill_add := over_capacity_service.add_item(&"healing_herb", 2)
+	_assert_eq(
+		int(refill_preview.get("remaining_quantity", -1)),
+		int(refill_add.get("remaining_quantity", -2)),
+		"超容状态下补已有堆栈时，preview_add_item 与 add_item 应保持一致。"
+	)
+	_assert_eq(int(refill_add.get("added_quantity", 0)), 1, "超容状态下只能补已有未满堆栈，不能新增堆栈。")
+	_assert_true(over_capacity_service.is_over_capacity(), "补已有堆栈后若仍超容，状态应保持超容。")
+
+
+func _test_warehouse_serialization_guards() -> void:
+	var party_state: PartyState = PartyState.from_dict({
+		"version": 2,
+		"leader_member_id": "guard_member",
+		"active_member_ids": ["guard_member"],
+		"reserve_member_ids": [],
+		"member_states": {},
+		"warehouse_state": null,
+	})
+	_assert_true(party_state.warehouse_state != null, "反序列化脏 warehouse_state 时应回落为空仓库。")
+	if party_state.warehouse_state != null:
+		_assert_eq(party_state.warehouse_state.stacks.size(), 0, "脏 warehouse_state 回落后应为空仓库。")
+
+
+func _test_skill_book_generation_and_use_rules() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var skill_book_item_id := SkillBookItemFactory.build_item_id_for_skill(&"archer_aimed_shot")
+	var item_def = item_defs.get(skill_book_item_id)
+	_assert_true(item_def != null, "book 来源技能应自动生成对应技能书物品。")
+	if item_def == null:
+		return
+	_assert_true(item_def.is_skill_book(), "自动生成的技能书物品应带有技能书分类。")
+	_assert_eq(item_def.granted_skill_id, &"archer_aimed_shot", "技能书物品应指向正确的技能 ID。")
+
+	var party := _build_party_with_members([
+		_build_member_state(&"reader", "读者", 3),
+	])
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party, item_defs)
+	var add_result := warehouse_service.add_item(skill_book_item_id, 1)
+	_assert_eq(int(add_result.get("added_quantity", 0)), 1, "技能书应能加入共享仓库。")
+
+	var character_management := CharacterManagementModule.new()
+	character_management.setup(
+		party,
+		_game_session.get_skill_defs(),
+		_game_session.get_profession_defs(),
+		_game_session.get_achievement_defs(),
+		item_defs
+	)
+	var item_use_service := PartyItemUseService.new()
+	item_use_service.setup(
+		party,
+		item_defs,
+		_game_session.get_skill_defs(),
+		warehouse_service,
+		character_management
+	)
+
+	var first_use_result := item_use_service.use_item(skill_book_item_id, &"reader")
+	_assert_true(bool(first_use_result.get("success", false)), "技能书首次使用应成功。")
+	_assert_eq(warehouse_service.count_item(skill_book_item_id), 0, "技能书成功使用后应消耗 1 本。")
+	var skill_progress = party.get_member_state(&"reader").progression.get_skill_progress(&"archer_aimed_shot")
+	_assert_true(skill_progress != null and skill_progress.is_learned, "技能书应让目标角色真正学会对应技能。")
+
+	warehouse_service.add_item(skill_book_item_id, 1)
+	var second_use_result := item_use_service.use_item(skill_book_item_id, &"reader")
+	_assert_true(not bool(second_use_result.get("success", false)), "已学会同技能后再次使用技能书应失败。")
+	_assert_eq(
+		ProgressionDataUtils.to_string_name(second_use_result.get("reason", "")),
+		&"learn_failed",
+		"重复学习失败时应返回 learn_failed，便于上层给出明确提示。"
+	)
+	_assert_eq(warehouse_service.count_item(skill_book_item_id), 1, "重复学习失败时不应吞掉技能书库存。")
+
+
+func _test_item_registry_validation() -> void:
+	var registry := ItemContentRegistry.new()
+	registry._validation_errors.clear()
+	registry._scan_directory("res://data/configs/__missing_items_registry__")
+	var validation_errors := registry.validate()
+	var found_missing_dir_error := false
+	for validation_error in validation_errors:
+		if validation_error.contains("__missing_items_registry__"):
+			found_missing_dir_error = true
+			break
+	_assert_true(
+		found_missing_dir_error,
+		"物品注册表缺少目录时应记录显式校验错误。"
+	)
+
+
+func _test_save_round_trip() -> void:
+	await _reset_session()
+	var create_error := int(_game_session.create_new_save(TEST_CONFIG_PATH, &"warehouse_roundtrip", "仓库回写测试"))
+	_assert_eq(create_error, OK, "创建仓库存档测试世界应成功。")
+	if create_error != OK:
+		return
+
+	var party_state: PartyState = _game_session.get_party_state()
+	party_state.warehouse_state = WarehouseState.new()
+	party_state.warehouse_state.stacks = [
+		_build_stack(&"bronze_sword", 1),
+		_build_stack(&"healing_herb", 7),
+		_build_stack(&"iron_ore", 12),
+	]
+
+	var persist_error := int(_game_session.set_party_state(party_state))
+	_assert_eq(persist_error, OK, "写入带仓库数据的 PartyState 应成功。")
+	if persist_error != OK:
+		return
+
+	var save_id: String = _game_session.get_active_save_id()
+	var load_error := int(_game_session.load_save(save_id))
+	_assert_eq(load_error, OK, "带仓库数据的存档应能重新加载。")
+	if load_error != OK:
+		return
+
+	var loaded_party_state: PartyState = _game_session.get_party_state()
+	_assert_eq(
+		_stack_signature(loaded_party_state),
+		["bronze_sword:1", "healing_herb:7", "iron_ore:12"],
+		"新存档 round-trip 后，仓库堆栈顺序、item_id 与数量应保持一致。"
+	)
+
+
+func _test_world_map_entry_paths() -> void:
+	await _reset_session()
+	var create_error := int(_game_session.create_new_save(TEST_CONFIG_PATH, &"warehouse_ui", "仓库入口测试"))
+	_assert_eq(create_error, OK, "创建 UI 入口测试世界应成功。")
+	if create_error != OK:
+		return
+
+	var party_state: PartyState = _game_session.get_party_state()
+	var prefill_service := PartyWarehouseService.new()
+	prefill_service.setup(party_state, _game_session.get_item_defs())
+	var skill_book_item_id := SkillBookItemFactory.build_item_id_for_skill(&"archer_aimed_shot")
+	prefill_service.add_item(skill_book_item_id, 1)
+	var persist_error := int(_game_session.set_party_state(party_state))
+	_assert_eq(persist_error, OK, "UI 测试前写入预置仓库物品应成功。")
+	if persist_error != OK:
+		return
+
+	var world_map := WorldMapScene.instantiate()
+	root.add_child(world_map)
+	await process_frame
+	await process_frame
+
+	_press_key(KEY_P)
+	await process_frame
+	await process_frame
+	var management = world_map.get_node("PartyManagementWindow")
+	var warehouse = world_map.get_node("PartyWarehouseWindow")
+	_assert_true(management.visible, "按队伍入口应能打开 PartyManagementWindow。")
+	_assert_true(
+		not String(management.details_label.text).contains("storage_space"),
+		"队伍管理详情不应暴露隐藏属性 storage_space。"
+	)
+
+	var warehouse_button := management.get_node(
+		"CenterContainer/Panel/MarginContainer/Content/Body/Controls/WarehouseButton"
+	) as Button
+	warehouse_button.emit_signal("pressed")
+	await process_frame
+	await process_frame
+	_assert_true(warehouse.visible, "队伍管理窗口应能打开共享仓库。")
+	_assert_true(not management.visible, "打开共享仓库后不应与队伍管理窗口并存。")
+	var use_button := warehouse.get_node(
+		"CenterContainer/Panel/MarginContainer/Content/Body/Controls/UseButton"
+	) as Button
+	_assert_true(use_button != null and not use_button.disabled, "仓库中存在技能书时应允许直接点击使用。")
+	if use_button != null and not use_button.disabled:
+		use_button.emit_signal("pressed")
+		await process_frame
+		await process_frame
+		var learned_progress = _game_session.get_party_state().get_member_state(&"player_sword_01").progression.get_skill_progress(&"archer_aimed_shot")
+		_assert_true(learned_progress != null and learned_progress.is_learned, "仓库窗口中的使用按钮应让目标成员学会技能书对应技能。")
+		var post_use_service := PartyWarehouseService.new()
+		post_use_service.setup(_game_session.get_party_state(), _game_session.get_item_defs())
+		_assert_eq(post_use_service.count_item(skill_book_item_id), 0, "仓库窗口使用技能书后应同步扣除库存。")
+
+	var warehouse_close_button := warehouse.get_node(
+		"CenterContainer/Panel/MarginContainer/Content/Header/CloseButton"
+	) as Button
+	warehouse_close_button.emit_signal("pressed")
+	await process_frame
+	await process_frame
+
+	var world_map_view = world_map.get_node("MapViewport/WorldMapView")
+	world_map_view.emit_signal("cell_clicked", _game_session.get_player_coord())
+	await process_frame
+	await process_frame
+
+	var settlement = world_map.get_node("SettlementWindow")
+	_assert_true(settlement.visible, "据点入口应能打开 SettlementWindow。")
+	var services_container := settlement.get_node(
+		"Panel/MarginContainer/Content/Body/RightColumn/ServicesScroll/ServicesContainer"
+	) as VBoxContainer
+	var warehouse_service_button: Button = null
+	for child in services_container.get_children():
+		var button := child as Button
+		if button == null:
+			continue
+		if button.text.contains("仓储"):
+			warehouse_service_button = button
+			break
+	_assert_true(warehouse_service_button != null, "据点窗口中应存在共享仓库服务按钮。")
+	if warehouse_service_button != null:
+		warehouse_service_button.emit_signal("pressed")
+		await process_frame
+		await process_frame
+		_assert_true(warehouse.visible, "据点服务应能打开同一个共享仓库窗口。")
+		_assert_true(not settlement.visible, "打开共享仓库后不应与据点窗口并存。")
+
+	world_map.queue_free()
+	await process_frame
+
+
+func _ensure_game_session() -> void:
+	_game_session = root.get_node_or_null("GameSession")
+	if _game_session != null:
+		return
+
+	_game_session = GameSessionScript.new()
+	_game_session.name = "GameSession"
+	root.add_child(_game_session)
+	await process_frame
+
+
+func _reset_session() -> void:
+	if _game_session == null:
+		return
+	_game_session.clear_persisted_game()
+	await process_frame
+
+
+func _cleanup() -> void:
+	if _game_session == null:
+		return
+	_game_session.clear_persisted_game()
+	await process_frame
+
+
+func _press_key(keycode: Key) -> void:
+	var event := InputEventKey.new()
+	event.keycode = keycode
+	event.physical_keycode = keycode
+	event.pressed = true
+	Input.parse_input_event(event)
+
+
+func _build_party_with_members(members: Array) -> PartyState:
+	var party_state := PartyState.new()
+	for member_variant in members:
+		var member_state := member_variant as PartyMemberState
+		if member_state == null:
+			continue
+		party_state.set_member_state(member_state)
+		if party_state.leader_member_id == &"":
+			party_state.leader_member_id = member_state.member_id
+		if not party_state.active_member_ids.has(member_state.member_id):
+			if party_state.active_member_ids.is_empty():
+				party_state.active_member_ids.append(member_state.member_id)
+			else:
+				party_state.reserve_member_ids.append(member_state.member_id)
+	return party_state
+
+
+func _build_member_state(
+	member_id: StringName,
+	display_name: String,
+	storage_space: int,
+	set_storage_attribute: bool = true
+) -> PartyMemberState:
+	var member_state := PartyMemberState.new()
+	member_state.member_id = member_id
+	member_state.display_name = display_name
+
+	var progression := UnitProgress.new()
+	progression.unit_id = member_id
+	progression.display_name = display_name
+
+	var unit_base_attributes := UnitBaseAttributes.new()
+	if set_storage_attribute:
+		unit_base_attributes.custom_stats[&"storage_space"] = storage_space
+	progression.unit_base_attributes = unit_base_attributes
+	member_state.progression = progression
+	return member_state
+
+
+func _build_stack(item_id: StringName, quantity: int) -> WarehouseStackState:
+	var stack := WarehouseStackState.new()
+	stack.item_id = item_id
+	stack.quantity = quantity
+	return stack
+
+
+func _stack_signature(party_state: PartyState) -> Array[String]:
+	var result: Array[String] = []
+	if party_state == null or party_state.warehouse_state == null:
+		return result
+	for stack in party_state.warehouse_state.stacks:
+		if stack == null:
+			continue
+		result.append("%s:%d" % [String(stack.item_id), int(stack.quantity)])
+	return result
+
+
+func _assert_true(condition: bool, message: String) -> void:
+	if not condition:
+		_failures.append(message)
+
+
+func _assert_eq(actual, expected, message: String) -> void:
+	if actual != expected:
+		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

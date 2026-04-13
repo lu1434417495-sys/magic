@@ -1,0 +1,18 @@
+# Basic smoke scenario for the headless text runner.
+preset list
+game new test
+expect field session.world_loaded == true
+expect field party.leader_member_id == player_sword_01
+party open
+expect window == party
+party select player_sword_01
+party leader player_sword_01
+party warehouse
+expect window == warehouse
+close
+world open
+expect window == settlement
+settlement action service:warehouse
+expect window == warehouse
+close
+snapshot

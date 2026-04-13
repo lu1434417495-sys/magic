@@ -1,50 +1,70 @@
+## 文件说明：该脚本属于成长服务相关的服务脚本，集中维护单位进度、技能定义集合、职业定义集合等顶层字段。
+## 审查重点：重点核对字段默认值、状态流转顺序、跨系统引用关系以及运行时读写时机是否仍然可靠。
+## 备注：后续如果增删字段，需要同步检查调用方、状态同步链路以及历史数据兼容处理。
+
 class_name ProgressionService
 extends RefCounted
 
 const SELECTION_KEY_QUALIFIER_SKILL_IDS := "selected_qualifier_skill_ids"
 const SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS := "selected_assigned_core_skill_ids"
+const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
 
-var _player_progress: PlayerProgress
+## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
+var _unit_progress: UnitProgress = null
+## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
+## 字段说明：缓存职业定义集合字典，集中保存可按键查询的运行时数据。
 var _profession_defs: Dictionary = {}
+## 字段说明：缓存规则服务实例，会参与运行时状态流转、系统协作和存档恢复。
 var _rule_service: ProfessionRuleService
+## 字段说明：缓存分配服务实例，会参与运行时状态流转、系统协作和存档恢复。
 var _assignment_service: ProfessionAssignmentService
 
 
 func setup(
-	player_progress: PlayerProgress,
+	unit_progress: UnitProgress,
 	skill_defs: Variant,
 	profession_defs: Variant,
 	rule_service: ProfessionRuleService = null,
 	assignment_service: ProfessionAssignmentService = null
 ) -> void:
-	_player_progress = player_progress
+	_unit_progress = unit_progress
 	_skill_defs = _index_skill_defs(skill_defs)
 	_profession_defs = _index_profession_defs(profession_defs)
 
 	_assignment_service = assignment_service if assignment_service != null else ProfessionAssignmentService.new()
-	_assignment_service.setup(_player_progress, _skill_defs, _profession_defs)
+	_assignment_service.setup(_unit_progress, _skill_defs, _profession_defs)
 
 	_rule_service = rule_service if rule_service != null else ProfessionRuleService.new()
-	_rule_service.setup(_player_progress, _skill_defs, _profession_defs)
+	_rule_service.setup(_unit_progress, _skill_defs, _profession_defs)
 
 	refresh_runtime_state()
 
 
 func refresh_runtime_state() -> void:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return
 
-	_player_progress.sync_active_core_skill_ids()
+	_unit_progress.sync_active_core_skill_ids()
 	recalculate_character_level()
 	if _rule_service != null:
 		_rule_service.refresh_all_profession_states()
 	_refresh_cached_pending_profession_choices()
 
 
+func learn_knowledge(knowledge_id: StringName) -> bool:
+	if _unit_progress == null:
+		return false
+	if not _unit_progress.learn_knowledge(knowledge_id):
+		return false
+	refresh_runtime_state()
+	return true
+
+
 func learn_skill(skill_id: StringName) -> bool:
-	var skill_def := _get_skill_def(skill_id)
-	if _player_progress == null or skill_def == null:
+	var skill_def: SkillDef = _get_skill_def(skill_id)
+	if _unit_progress == null or skill_def == null:
 		return false
 	if is_skill_relearn_blocked(skill_id):
 		return false
@@ -53,25 +73,25 @@ func learn_skill(skill_id: StringName) -> bool:
 	if not _can_learn_skill_requirements(skill_def.learn_requirements):
 		return false
 
-	var skill_progress := _player_progress.get_skill_progress(skill_id)
+	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 	if skill_progress != null and skill_progress.is_learned:
 		return false
 	if skill_progress == null:
-		skill_progress = PlayerSkillProgress.new()
+		skill_progress = _new_skill_progress()
 		skill_progress.skill_id = skill_id
 
 	skill_progress.is_learned = true
-	_player_progress.set_skill_progress(skill_progress)
+	_unit_progress.set_skill_progress(skill_progress)
 	refresh_runtime_state()
 	return true
 
 
 func grant_skill_mastery(skill_id: StringName, amount: int, source_type: StringName) -> bool:
-	if _player_progress == null or amount <= 0:
+	if _unit_progress == null or amount <= 0:
 		return false
 
-	var skill_def := _get_skill_def(skill_id)
-	var skill_progress := _player_progress.get_skill_progress(skill_id)
+	var skill_def: SkillDef = _get_skill_def(skill_id)
+	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 	if skill_def == null or skill_progress == null:
 		return false
 	if not skill_progress.is_learned:
@@ -89,13 +109,13 @@ func grant_skill_mastery(skill_id: StringName, amount: int, source_type: StringN
 			pass
 
 	if skill_progress.skill_level >= skill_def.max_level:
-		_player_progress.set_skill_progress(skill_progress)
+		_unit_progress.set_skill_progress(skill_progress)
 		refresh_runtime_state()
 		return true
 
 	skill_progress.current_mastery += amount
 	while skill_progress.skill_level < skill_def.max_level:
-		var mastery_required := skill_def.get_mastery_required_for_level(skill_progress.skill_level)
+		var mastery_required: int = skill_def.get_mastery_required_for_level(skill_progress.skill_level)
 		if mastery_required <= 0:
 			break
 		if skill_progress.current_mastery < mastery_required:
@@ -108,32 +128,32 @@ func grant_skill_mastery(skill_id: StringName, amount: int, source_type: StringN
 		skill_progress.skill_level = skill_def.max_level
 		skill_progress.current_mastery = 0
 
-	_player_progress.set_skill_progress(skill_progress)
+	_unit_progress.set_skill_progress(skill_progress)
 	refresh_runtime_state()
 	return true
 
 
 func set_skill_core(skill_id: StringName, enabled: bool) -> bool:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return false
 
-	var skill_progress := _player_progress.get_skill_progress(skill_id)
+	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 	if skill_progress == null or not skill_progress.is_learned:
 		return false
 
 	if enabled:
 		skill_progress.is_core = true
-		_player_progress.set_skill_progress(skill_progress)
+		_unit_progress.set_skill_progress(skill_progress)
 		refresh_runtime_state()
 		return true
 
-	var previous_profession_id := skill_progress.assigned_profession_id
+	var previous_profession_id: StringName = skill_progress.assigned_profession_id
 	skill_progress.is_core = false
 	skill_progress.clear_profession_assignment()
-	_player_progress.set_skill_progress(skill_progress)
+	_unit_progress.set_skill_progress(skill_progress)
 
 	if previous_profession_id != &"":
-		var profession_progress := _player_progress.get_profession_progress(previous_profession_id)
+		var profession_progress: Variant = _unit_progress.get_profession_progress(previous_profession_id)
 		if profession_progress != null:
 			profession_progress.remove_core_skill(skill_id)
 
@@ -142,51 +162,50 @@ func set_skill_core(skill_id: StringName, enabled: bool) -> bool:
 
 
 func recalculate_character_level() -> int:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return 0
 
-	var rank_total := 0
-	for profession_progress in _player_progress.professions.values():
-		var typed_progress := profession_progress as PlayerProfessionProgress
-		if typed_progress == null:
+	var rank_total: int = 0
+	for profession_progress in _unit_progress.professions.values():
+		if profession_progress == null:
 			continue
-		rank_total += typed_progress.rank
+		rank_total += int(profession_progress.rank)
 
-	_player_progress.character_level = rank_total
+	_unit_progress.character_level = rank_total
 	return rank_total
 
 
 func can_promote_profession(profession_id: StringName) -> bool:
-	var profession_progress := _get_profession_progress(profession_id)
+	var profession_progress: Variant = _get_profession_progress(profession_id)
 	if profession_progress == null or profession_progress.rank <= 0:
 		return _rule_service != null and _rule_service.can_unlock_profession(profession_id)
 	return _rule_service != null and _rule_service.can_rank_up_profession(profession_id)
 
 
 func promote_profession(profession_id: StringName, selection: Dictionary = {}) -> bool:
-	if _player_progress == null or _rule_service == null or _assignment_service == null:
+	if _unit_progress == null or _rule_service == null or _assignment_service == null:
 		return false
 	if not can_promote_profession(profession_id):
 		return false
 
-	var profession_def := _get_profession_def(profession_id)
+	var profession_def: ProfessionDef = _get_profession_def(profession_id)
 	if profession_def == null:
 		return false
 
-	var profession_progress := _get_profession_progress(profession_id)
-	var is_unlock := profession_progress == null or profession_progress.rank <= 0
+	var profession_progress: Variant = _get_profession_progress(profession_id)
+	var is_unlock: bool = profession_progress == null or profession_progress.rank <= 0
 	if profession_progress == null:
-		profession_progress = PlayerProfessionProgress.new()
+		profession_progress = _new_profession_progress()
 		profession_progress.profession_id = profession_id
-		_player_progress.set_profession_progress(profession_progress)
+		_unit_progress.set_profession_progress(profession_progress)
 
-	var target_rank := 1 if is_unlock else profession_progress.rank + 1
-	var promotion_selection := _resolve_promotion_selection(profession_id, target_rank, is_unlock, selection)
+	var target_rank: int = 1 if is_unlock else profession_progress.rank + 1
+	var promotion_selection: Dictionary = _resolve_promotion_selection(profession_id, target_rank, is_unlock, selection)
 	if promotion_selection.is_empty():
 		return false
 
-	var consumed_skill_ids := _get_selection_skill_ids(promotion_selection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS)
-	var qualifier_skill_ids := _get_selection_skill_ids(promotion_selection, SELECTION_KEY_QUALIFIER_SKILL_IDS)
+	var consumed_skill_ids: Array[StringName] = _get_selection_skill_ids(promotion_selection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS)
+	var qualifier_skill_ids: Array[StringName] = _get_selection_skill_ids(promotion_selection, SELECTION_KEY_QUALIFIER_SKILL_IDS)
 
 	if is_unlock:
 		for skill_id in consumed_skill_ids:
@@ -194,16 +213,16 @@ func promote_profession(profession_id: StringName, selection: Dictionary = {}) -
 				return false
 
 	profession_progress.rank = target_rank
-	var promotion_record := ProfessionPromotionRecord.new()
+	var promotion_record: ProfessionPromotionRecord = ProfessionPromotionRecord.new()
 	promotion_record.new_rank = target_rank
 	promotion_record.consumed_skill_ids = consumed_skill_ids.duplicate()
 	promotion_record.qualifier_skill_ids = qualifier_skill_ids.duplicate()
-	promotion_record.snapshot_base_attributes = _get_base_attributes_snapshot()
+	promotion_record.snapshot_unit_base_attributes = _get_unit_base_attributes_snapshot()
 	promotion_record.timestamp = int(Time.get_unix_time_from_system())
 	profession_progress.add_promotion_record(promotion_record)
 
 	_grant_profession_skills(profession_def, profession_progress, target_rank)
-	_player_progress.set_profession_progress(profession_progress)
+	_unit_progress.set_profession_progress(profession_progress)
 	refresh_runtime_state()
 	return true
 
@@ -213,9 +232,9 @@ func get_profession_upgrade_candidates() -> Array[PendingProfessionChoice]:
 
 
 func is_skill_relearn_blocked(skill_id: StringName) -> bool:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return false
-	return _player_progress.is_skill_relearn_blocked(skill_id)
+	return _unit_progress.is_skill_relearn_blocked(skill_id)
 
 
 func _index_skill_defs(skill_defs: Variant) -> Dictionary:
@@ -223,7 +242,7 @@ func _index_skill_defs(skill_defs: Variant) -> Dictionary:
 
 	if skill_defs is Dictionary:
 		for key in skill_defs.keys():
-			var skill_def = skill_defs[key]
+			var skill_def: Variant = skill_defs[key]
 			if skill_def is SkillDef:
 				var indexed_id: StringName = skill_def.skill_id if skill_def.skill_id != &"" else ProgressionDataUtils.to_string_name(key)
 				indexed_defs[indexed_id] = skill_def
@@ -240,7 +259,7 @@ func _index_profession_defs(profession_defs: Variant) -> Dictionary:
 
 	if profession_defs is Dictionary:
 		for key in profession_defs.keys():
-			var profession_def = profession_defs[key]
+			var profession_def: Variant = profession_defs[key]
 			if profession_def is ProfessionDef:
 				var indexed_id: StringName = profession_def.profession_id if profession_def.profession_id != &"" else ProgressionDataUtils.to_string_name(key)
 				indexed_defs[indexed_id] = profession_def
@@ -260,20 +279,20 @@ func _get_profession_def(profession_id: StringName) -> ProfessionDef:
 	return _profession_defs.get(profession_id) as ProfessionDef
 
 
-func _get_profession_progress(profession_id: StringName) -> PlayerProfessionProgress:
-	if _player_progress == null:
+func _get_profession_progress(profession_id: StringName) -> UnitProfessionProgress:
+	if _unit_progress == null:
 		return null
-	return _player_progress.get_profession_progress(profession_id)
+	return _unit_progress.get_profession_progress(profession_id) as UnitProfessionProgress
 
 
 func _can_learn_skill_requirements(requirements: Array[StringName]) -> bool:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return false
 	if requirements.is_empty():
 		return true
 
 	for required_skill_id in requirements:
-		var required_skill_progress := _player_progress.get_skill_progress(required_skill_id)
+		var required_skill_progress: Variant = _unit_progress.get_skill_progress(required_skill_id)
 		if required_skill_progress == null or not required_skill_progress.is_learned:
 			return false
 
@@ -286,20 +305,22 @@ func _resolve_promotion_selection(
 	is_unlock: bool,
 	selection: Dictionary
 ) -> Dictionary:
-	var profession_def := _get_profession_def(profession_id)
+	var profession_def: ProfessionDef = _get_profession_def(profession_id)
 	if profession_def == null:
 		return {}
 
-	var tag_rules := _get_tag_rules_for_target(profession_def, target_rank, is_unlock)
-	var qualifier_rules := _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_QUALIFIER)
-	var assigned_core_rules := _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_ASSIGNED_CORE)
-	var allow_unassigned := is_unlock
-	var required_skill_ids := _get_required_skill_ids_for_target(profession_def, is_unlock)
+	var tag_rules: Array[TagRequirement] = _get_tag_rules_for_target(profession_def, target_rank, is_unlock)
+	var qualifier_rules: Array[TagRequirement] = _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_QUALIFIER)
+	var assigned_core_rules: Array[TagRequirement] = _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_ASSIGNED_CORE)
+	var allow_unassigned: bool = is_unlock
+	var required_skill_ids: Array[StringName] = _get_required_skill_ids_for_target(profession_def, is_unlock)
 
-	var has_explicit_assigned_core_selection := selection.has(SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS)
-	var assigned_core_skill_ids := _normalize_skill_id_selection(
-		selection.get(SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS, [])
-	) if has_explicit_assigned_core_selection else []
+	var has_explicit_assigned_core_selection: bool = selection.has(SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS)
+	var assigned_core_skill_ids: Array[StringName] = []
+	if has_explicit_assigned_core_selection:
+		assigned_core_skill_ids = _normalize_skill_id_selection(
+			selection.get(SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS, [])
+		)
 	if has_explicit_assigned_core_selection:
 		if not _validate_explicit_selection(
 			assigned_core_skill_ids,
@@ -319,10 +340,12 @@ func _resolve_promotion_selection(
 		if assigned_core_skill_ids.is_empty() and (not assigned_core_rules.is_empty() or not required_skill_ids.is_empty()):
 			return {}
 
-	var has_explicit_qualifier_selection := selection.has(SELECTION_KEY_QUALIFIER_SKILL_IDS)
-	var qualifier_skill_ids := _normalize_skill_id_selection(
-		selection.get(SELECTION_KEY_QUALIFIER_SKILL_IDS, [])
-	) if has_explicit_qualifier_selection else []
+	var has_explicit_qualifier_selection: bool = selection.has(SELECTION_KEY_QUALIFIER_SKILL_IDS)
+	var qualifier_skill_ids: Array[StringName] = []
+	if has_explicit_qualifier_selection:
+		qualifier_skill_ids = _normalize_skill_id_selection(
+			selection.get(SELECTION_KEY_QUALIFIER_SKILL_IDS, [])
+		)
 	var qualifier_locked_skill_ids: Array[StringName] = []
 	if _assigned_core_must_be_subset_of_qualifiers(profession_def, is_unlock):
 		qualifier_locked_skill_ids = assigned_core_skill_ids.duplicate()
@@ -394,11 +417,11 @@ func _is_required_skill_id_selectable(
 	profession_id: StringName,
 	allow_unassigned: bool
 ) -> bool:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return false
 
-	var skill_progress := _player_progress.get_skill_progress(skill_id)
-	var skill_def := _get_skill_def(skill_id)
+	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
+	var skill_def: SkillDef = _get_skill_def(skill_id)
 	if skill_progress == null or skill_def == null:
 		return false
 	if not skill_progress.is_learned:
@@ -419,7 +442,7 @@ func _select_skill_ids_for_tag_rules(
 	locked_skill_ids: Array[StringName]
 ) -> Array[StringName]:
 	var selected_skill_ids: Array[StringName] = []
-	var normalized_locked_skill_ids := _normalize_skill_id_selection(locked_skill_ids)
+	var normalized_locked_skill_ids: Array[StringName] = _normalize_skill_id_selection(locked_skill_ids)
 
 	for skill_id in normalized_locked_skill_ids:
 		if not _can_include_skill_in_selection(skill_id, profession_id, tag_rules, allow_unassigned):
@@ -429,19 +452,19 @@ func _select_skill_ids_for_tag_rules(
 	if tag_rules.is_empty():
 		return selected_skill_ids
 
-	var candidate_skill_ids := _get_role_candidate_skill_ids(profession_id, tag_rules, allow_unassigned)
+	var candidate_skill_ids: Array[StringName] = _get_role_candidate_skill_ids(profession_id, tag_rules, allow_unassigned)
 	while true:
-		var deficits := _calculate_tag_rule_deficits(selected_skill_ids, profession_id, tag_rules, allow_unassigned)
+		var deficits: Dictionary = _calculate_tag_rule_deficits(selected_skill_ids, profession_id, tag_rules, allow_unassigned)
 		if deficits.is_empty():
 			return _prune_selection(selected_skill_ids, profession_id, tag_rules, allow_unassigned, normalized_locked_skill_ids)
 
 		var best_skill_id: StringName = &""
-		var best_score := 0
+		var best_score: int = 0
 		for skill_id in candidate_skill_ids:
 			if selected_skill_ids.has(skill_id):
 				continue
 
-			var score := _score_skill_against_deficits(
+			var score: int = _score_skill_against_deficits(
 				skill_id,
 				profession_id,
 				tag_rules,
@@ -489,11 +512,11 @@ func _calculate_tag_rule_deficits(
 ) -> Dictionary:
 	var deficits: Dictionary = {}
 	for index in range(tag_rules.size()):
-		var tag_rule := tag_rules[index]
+		var tag_rule: TagRequirement = tag_rules[index]
 		if tag_rule == null or tag_rule.tag == &"":
 			continue
 
-		var matched_count := 0
+		var matched_count: int = 0
 		for skill_id in selected_skill_ids:
 			if _rule_service != null and _rule_service.skill_matches_tag_requirement(
 				skill_id,
@@ -503,7 +526,7 @@ func _calculate_tag_rule_deficits(
 			):
 				matched_count += 1
 
-		var remaining := tag_rule.count - matched_count
+		var remaining: int = tag_rule.count - matched_count
 		if remaining > 0:
 			deficits[index] = remaining
 
@@ -520,9 +543,9 @@ func _score_skill_against_deficits(
 	if _rule_service == null:
 		return 0
 
-	var score := 0
+	var score: int = 0
 	for index in deficits.keys():
-		var tag_rule := tag_rules[int(index)]
+		var tag_rule: TagRequirement = tag_rules[int(index)]
 		if tag_rule == null:
 			continue
 		if _rule_service.skill_matches_tag_requirement(skill_id, profession_id, tag_rule, allow_unassigned):
@@ -538,15 +561,15 @@ func _prune_selection(
 	allow_unassigned: bool,
 	locked_skill_ids: Array[StringName]
 ) -> Array[StringName]:
-	var pruned_selection := selected_skill_ids.duplicate()
-	var normalized_locked_skill_ids := _normalize_skill_id_selection(locked_skill_ids)
+	var pruned_selection: Array[StringName] = selected_skill_ids.duplicate()
+	var normalized_locked_skill_ids: Array[StringName] = _normalize_skill_id_selection(locked_skill_ids)
 
 	for index in range(pruned_selection.size() - 1, -1, -1):
 		var skill_id: StringName = pruned_selection[index]
 		if normalized_locked_skill_ids.has(skill_id):
 			continue
 
-		var trial_selection := pruned_selection.duplicate()
+		var trial_selection: Array[StringName] = pruned_selection.duplicate()
 		trial_selection.remove_at(index)
 		if _are_tag_rules_satisfied(trial_selection, profession_id, tag_rules, allow_unassigned):
 			pruned_selection = trial_selection
@@ -599,7 +622,7 @@ func _get_tag_rules_for_target(
 	if is_unlock:
 		return profession_def.unlock_requirement.required_tag_rules if profession_def.unlock_requirement != null else []
 
-	var rank_requirement := profession_def.get_rank_requirement(target_rank)
+	var rank_requirement: ProfessionRankRequirement = profession_def.get_rank_requirement(target_rank)
 	if rank_requirement == null:
 		return []
 	return rank_requirement.required_tag_rules
@@ -660,17 +683,17 @@ func _merge_unique_skill_ids(
 
 func _build_pending_profession_choices() -> Array[PendingProfessionChoice]:
 	var results: Array[PendingProfessionChoice] = []
-	if _player_progress == null:
+	if _unit_progress == null:
 		return results
 
 	for profession_id in _get_sorted_profession_ids():
 		if not can_promote_profession(profession_id):
 			continue
 
-		var profession_progress := _get_profession_progress(profession_id)
-		var is_unlock := profession_progress == null or profession_progress.rank <= 0
-		var target_rank := 1 if is_unlock else profession_progress.rank + 1
-		var choice := _build_pending_profession_choice(profession_id, target_rank, is_unlock)
+		var profession_progress: Variant = _get_profession_progress(profession_id)
+		var is_unlock: bool = profession_progress == null or profession_progress.rank <= 0
+		var target_rank: int = 1 if is_unlock else profession_progress.rank + 1
+		var choice: PendingProfessionChoice = _build_pending_profession_choice(profession_id, target_rank, is_unlock)
 		if choice != null:
 			results.append(choice)
 
@@ -682,16 +705,16 @@ func _build_pending_profession_choice(
 	target_rank: int,
 	is_unlock: bool
 ) -> PendingProfessionChoice:
-	var profession_def := _get_profession_def(profession_id)
+	var profession_def: ProfessionDef = _get_profession_def(profession_id)
 	if profession_def == null:
 		return null
 
-	var tag_rules := _get_tag_rules_for_target(profession_def, target_rank, is_unlock)
-	var qualifier_rules := _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_QUALIFIER)
-	var assigned_core_rules := _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_ASSIGNED_CORE)
-	var allow_unassigned := is_unlock
+	var tag_rules: Array[TagRequirement] = _get_tag_rules_for_target(profession_def, target_rank, is_unlock)
+	var qualifier_rules: Array[TagRequirement] = _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_QUALIFIER)
+	var assigned_core_rules: Array[TagRequirement] = _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_ASSIGNED_CORE)
+	var allow_unassigned: bool = is_unlock
 
-	var choice := PendingProfessionChoice.new()
+	var choice: PendingProfessionChoice = PendingProfessionChoice.new()
 	choice.candidate_profession_ids.append(profession_id)
 	choice.set_target_rank(profession_id, target_rank)
 	choice.qualifier_skill_pool_ids = _get_role_candidate_skill_ids(profession_id, qualifier_rules, allow_unassigned)
@@ -701,7 +724,7 @@ func _build_pending_profession_choice(
 		if not choice.assignable_skill_candidate_ids.has(required_skill_id):
 			choice.assignable_skill_candidate_ids.append(required_skill_id)
 
-	var default_selection := _resolve_promotion_selection(profession_id, target_rank, is_unlock, {})
+	var default_selection: Dictionary = _resolve_promotion_selection(profession_id, target_rank, is_unlock, {})
 	if not default_selection.is_empty():
 		choice.trigger_skill_ids = _get_selection_skill_ids(default_selection, "trigger_skill_ids")
 		choice.required_qualifier_count = _get_selection_skill_ids(default_selection, SELECTION_KEY_QUALIFIER_SKILL_IDS).size()
@@ -711,41 +734,41 @@ func _build_pending_profession_choice(
 
 
 func _refresh_cached_pending_profession_choices() -> void:
-	if _player_progress == null:
+	if _unit_progress == null:
 		return
-	_player_progress.pending_profession_choices = _build_pending_profession_choices()
+	_unit_progress.pending_profession_choices = _build_pending_profession_choices()
 
 
 func _grant_profession_skills(
 	profession_def: ProfessionDef,
-	profession_progress: PlayerProfessionProgress,
+	profession_progress: Variant,
 	target_rank: int
 ) -> void:
 	if profession_def == null or profession_progress == null:
 		return
 
-	for granted_skill in profession_def.get_granted_skills_for_rank(target_rank):
+	for granted_skill: ProfessionGrantedSkill in profession_def.get_granted_skills_for_rank(target_rank):
 		if granted_skill == null:
 			continue
 
 		profession_progress.add_granted_skill(granted_skill.skill_id)
 
-		var skill_progress := _player_progress.get_skill_progress(granted_skill.skill_id)
+		var skill_progress: Variant = _unit_progress.get_skill_progress(granted_skill.skill_id)
 		if skill_progress == null:
-			skill_progress = PlayerSkillProgress.new()
+			skill_progress = _new_skill_progress()
 			skill_progress.skill_id = granted_skill.skill_id
 
 		skill_progress.is_learned = true
 		if skill_progress.profession_granted_by == &"":
 			skill_progress.profession_granted_by = profession_def.profession_id
 
-		_player_progress.set_skill_progress(skill_progress)
+		_unit_progress.set_skill_progress(skill_progress)
 
 
-func _get_base_attributes_snapshot() -> Dictionary:
-	if _player_progress == null or _player_progress.base_attributes == null:
+func _get_unit_base_attributes_snapshot() -> Dictionary:
+	if _unit_progress == null or _unit_progress.unit_base_attributes == null:
 		return {}
-	return _player_progress.base_attributes.to_dict()
+	return _unit_progress.unit_base_attributes.to_dict()
 
 
 func _get_sorted_profession_ids() -> Array[StringName]:
@@ -753,3 +776,11 @@ func _get_sorted_profession_ids() -> Array[StringName]:
 	for profession_id_str in ProgressionDataUtils.sorted_string_keys(_profession_defs):
 		sorted_ids.append(StringName(profession_id_str))
 	return sorted_ids
+
+
+func _new_skill_progress() -> UnitSkillProgress:
+	return UNIT_SKILL_PROGRESS_SCRIPT.new()
+
+
+func _new_profession_progress() -> UnitProfessionProgress:
+	return UNIT_PROFESSION_PROGRESS_SCRIPT.new()
