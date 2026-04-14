@@ -29,4 +29,5 @@ is_stackable = false
 max_stack = 1
 item_category = "equipment"
 equipment_slot_ids = Array[String](["accessory_1", "accessory_2"])
+equipment_type_id = "accessory"
 attribute_modifiers = Array[Resource]([SubResource("Resource_speed_bonus"), SubResource("Resource_evasion_bonus")])

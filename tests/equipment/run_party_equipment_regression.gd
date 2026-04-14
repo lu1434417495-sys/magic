@@ -10,6 +10,9 @@ const PartyWarehouseService = preload("res://scripts/systems/party_warehouse_ser
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
+const EquipmentState = preload("res://scripts/player/equipment/equipment_state.gd")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
 var _failures: Array[String] = []
 
@@ -23,6 +26,15 @@ func _run() -> void:
 	_test_equipment_service_moves_items_between_warehouse_and_slots()
 	_test_equipment_modifiers_change_attribute_snapshot_and_round_trip()
 	_test_legacy_equipment_state_dict_is_still_supported()
+	_test_two_handed_weapon_occupies_both_slots()
+	_test_two_handed_weapon_displaces_existing_main_and_off_hand()
+	_test_two_handed_weapon_attribute_not_double_counted()
+	_test_atomic_rollback_when_warehouse_full()
+	_test_preview_equip_returns_displaced_entries()
+	_test_requirement_profession_check()
+	_test_equip_creates_instance_id_in_slot()
+	_test_instance_id_preserved_through_unequip_and_reequip()
+	_test_two_items_of_same_type_get_different_instance_ids()
 	_finish()
 
 
@@ -34,10 +46,20 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	var bronze_sword = item_defs.get(&"bronze_sword")
 	var leather_jerkin = item_defs.get(&"leather_jerkin")
 	var scout_charm = item_defs.get(&"scout_charm")
+	var iron_greatsword = item_defs.get(&"iron_greatsword")
 
 	_assert_true(bronze_sword != null and bronze_sword.is_equipment(), "青铜短剑应注册为可装备物品。")
 	_assert_true(leather_jerkin != null and leather_jerkin.is_equipment(), "皮革短甲应注册为可装备物品。")
 	_assert_true(scout_charm != null and scout_charm.is_equipment(), "斥候护符应注册为可装备物品。")
+	_assert_true(iron_greatsword != null and iron_greatsword.is_equipment(), "铁制大剑应注册为可装备物品。")
+	_assert_eq(bronze_sword.get_equipment_type_id_normalized(), &"weapon", "青铜短剑应归类为 weapon。")
+	_assert_eq(leather_jerkin.get_equipment_type_id_normalized(), &"armor", "皮革短甲应归类为 armor。")
+	_assert_eq(scout_charm.get_equipment_type_id_normalized(), &"accessory", "斥候护符应归类为 accessory。")
+	_assert_eq(iron_greatsword.get_equipment_type_id_normalized(), &"weapon", "铁制大剑应归类为 weapon。")
+	_assert_true(bronze_sword.is_weapon(), "青铜短剑应通过 is_weapon()。")
+	_assert_true(leather_jerkin.is_armor(), "皮革短甲应通过 is_armor()。")
+	_assert_true(scout_charm.is_accessory(), "斥候护符应通过 is_accessory()。")
+	_assert_eq(iron_greatsword.get_final_occupied_slot_ids(&"main_hand").size(), 2, "铁制大剑应声明占用 2 个槽位。")
 
 
 func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:
@@ -150,6 +172,263 @@ func _test_legacy_equipment_state_dict_is_still_supported() -> void:
 	})
 	_assert_eq(String(member_state.equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "旧版裸字典结构应恢复主手装备。")
 	_assert_eq(String(member_state.equipment_state.get_equipped_item_id(&"body")), "leather_jerkin", "旧版嵌套字典结构应恢复身躯装备。")
+
+
+func _test_two_handed_weapon_occupies_both_slots() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	warehouse_service.add_item(&"iron_greatsword", 1)
+	var result := equipment_service.equip_item(&"hero", &"iron_greatsword")
+	_assert_true(bool(result.get("success", false)), "铁制大剑应能装备成功。")
+	_assert_eq(String(result.get("slot_id", "")), "main_hand", "铁制大剑入口槽应为 main_hand。")
+
+	var equipment_state = party_state.get_member_state(&"hero").equipment_state
+	_assert_eq(String(equipment_state.get_equipped_item_id(&"main_hand")), "iron_greatsword", "主手应记录铁制大剑。")
+	_assert_eq(String(equipment_state.get_equipped_item_id(&"off_hand")), "iron_greatsword", "副手也应被铁制大剑占用。")
+	_assert_eq(equipment_state.get_equipped_count(), 1, "双手武器只算 1 件装备。")
+	_assert_eq(equipment_state.get_filled_slot_ids().size(), 2, "双手武器应使 2 个槽位显示为已占用。")
+
+	# round-trip
+	var restored = PartyState.from_dict(party_state.to_dict())
+	var restored_eq = restored.get_member_state(&"hero").equipment_state
+	_assert_eq(String(restored_eq.get_equipped_item_id(&"main_hand")), "iron_greatsword", "序列化往返后主手应保留大剑。")
+	_assert_eq(String(restored_eq.get_equipped_item_id(&"off_hand")), "iron_greatsword", "序列化往返后副手也应保持占用。")
+	_assert_eq(restored_eq.get_equipped_count(), 1, "序列化往返后双手武器仍只算 1 件。")
+
+
+func _test_two_handed_weapon_displaces_existing_main_and_off_hand() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	# 直接设置装备状态（模拟已装备主手+副手），这两件物品不在仓库里
+	var hero_state = party_state.get_member_state(&"hero")
+	if hero_state.equipment_state == null or not (hero_state.equipment_state is Object and hero_state.equipment_state.has_method("set_equipped_entry")):
+		hero_state.equipment_state = EquipmentState.new()
+	var eq_state = hero_state.equipment_state
+	var occ_main: Array[StringName] = [&"main_hand"]
+	var occ_off: Array[StringName] = [&"off_hand"]
+	eq_state.set_equipped_entry(&"main_hand", &"bronze_sword", occ_main)
+	eq_state.set_equipped_entry(&"off_hand", &"scout_charm", occ_off)
+
+	_assert_eq(String(eq_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "前置：主手应有单手剑。")
+	_assert_eq(String(eq_state.get_equipped_item_id(&"off_hand")), "scout_charm", "前置：副手应有饰品。")
+
+	# 现在装双手大剑：应把两件都踢回仓库（仓库容量 8，完全可以接收）
+	warehouse_service.add_item(&"iron_greatsword", 1)
+	var result := equipment_service.equip_item(&"hero", &"iron_greatsword")
+	_assert_true(bool(result.get("success", false)), "双手大剑替换主+副手应成功。")
+	_assert_eq(String(eq_state.get_equipped_item_id(&"main_hand")), "iron_greatsword", "主手应换为大剑。")
+	_assert_eq(String(eq_state.get_equipped_item_id(&"off_hand")), "iron_greatsword", "副手应被大剑占用。")
+	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 1, "被替换的单手剑应回仓。")
+	_assert_eq(warehouse_service.count_item(&"scout_charm"), 1, "被替换的副手饰品应回仓。")
+
+
+func _test_two_handed_weapon_attribute_not_double_counted() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var progression_registry := ProgressionContentRegistry.new()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	warehouse_service.add_item(&"iron_greatsword", 1)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+	equipment_service.equip_item(&"hero", &"iron_greatsword")
+
+	var baseline_manager := CharacterManagementModule.new()
+	baseline_manager.setup(party_state, progression_registry.get_skill_defs(), progression_registry.get_profession_defs(), {}, item_defs)
+	var snapshot = baseline_manager.get_member_attribute_snapshot(&"hero")
+
+	# iron_greatsword 声明 physical_attack +8，不应因占 2 槽而翻倍
+	var empty_party := _build_party_with_member(&"blank", "Blank", 8)
+	var empty_manager := CharacterManagementModule.new()
+	empty_manager.setup(empty_party, progression_registry.get_skill_defs(), progression_registry.get_profession_defs(), {}, item_defs)
+	var empty_snapshot = empty_manager.get_member_attribute_snapshot(&"blank")
+
+	_assert_eq(
+		snapshot.get_value(AttributeService.PHYSICAL_ATTACK) - empty_snapshot.get_value(AttributeService.PHYSICAL_ATTACK),
+		8,
+		"双手大剑物攻加成应精确为 +8，不得因占两槽而翻倍。"
+	)
+
+
+func _test_atomic_rollback_when_warehouse_full() -> void:
+	# 测试 preview_batch_swap 在仓库只有 1 格但需要回仓 2 件时正确拒绝
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 1)  # capacity = 1
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+
+	# 仓库放 1 件大剑（已满）
+	warehouse_service.add_item(&"iron_greatsword", 1)
+	_assert_eq(warehouse_service.get_free_slots(), 0, "前置：仓库应满。")
+
+	# 批量预览：取出大剑后空出 1 格，但需要回仓 bronze_sword + scout_charm 共 2 件 → 第 2 件放不下
+	var items_to_withdraw: Array[StringName] = [&"iron_greatsword"]
+	var items_to_deposit: Array[StringName] = [&"bronze_sword", &"scout_charm"]
+	var preview := warehouse_service.preview_batch_swap(items_to_withdraw, items_to_deposit)
+	_assert_true(not bool(preview.get("allowed", false)), "仓库容量不足时批量回仓预览应失败。")
+	_assert_eq(preview.get("error_code", ""), "warehouse_blocked_swap", "错误码应为 warehouse_blocked_swap。")
+
+	# preview 不应修改仓库状态
+	_assert_eq(warehouse_service.count_item(&"iron_greatsword"), 1, "preview_batch_swap 不应消耗仓库库存。")
+	_assert_eq(warehouse_service.get_free_slots(), 0, "preview_batch_swap 不应改变仓库占用格数。")
+
+
+func _test_preview_equip_returns_displaced_entries() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	warehouse_service.add_item(&"bronze_sword", 1)
+	warehouse_service.add_item(&"iron_greatsword", 1)
+	equipment_service.equip_item(&"hero", &"bronze_sword")
+
+	var preview := equipment_service.preview_equip(&"hero", &"iron_greatsword")
+	_assert_true(bool(preview.get("success", false)), "preview_equip 对合法换装应返回 success=true。")
+	_assert_eq(String(preview.get("entry_slot_id", "")), "main_hand", "preview 的入口槽应为 main_hand。")
+	_assert_eq(preview.get("occupied_slot_ids", []).size(), 2, "preview 的 occupied_slot_ids 应有 2 个。")
+	var displaced: Array = preview.get("displaced_entries", [])
+	_assert_eq(displaced.size(), 1, "preview 应识别出 1 条被替换条目。")
+	if not displaced.is_empty():
+		_assert_eq(String(displaced[0].get("item_id", "")), "bronze_sword", "被替换条目应为青铜短剑。")
+
+	# preview 不应改变状态
+	_assert_eq(String(party_state.get_member_state(&"hero").equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "preview_equip 不应修改状态。")
+	_assert_eq(warehouse_service.count_item(&"iron_greatsword"), 1, "preview_equip 不应消耗仓库库存。")
+
+
+func _test_requirement_profession_check() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	# 手动构造一个带职业要求的 ItemDef（不写磁盘，运行时构造）
+	var sword_def = item_defs.get(&"bronze_sword").duplicate()
+	var req := EquipmentRequirement.new()
+	req.required_profession_ids = ["warrior"]
+	sword_def.equip_requirement = req
+
+	var patched_defs := item_defs.duplicate()
+	patched_defs[&"bronze_sword"] = sword_def
+	var patched_equipment_service := PartyEquipmentService.new()
+	var patched_warehouse := PartyWarehouseService.new()
+	patched_warehouse.setup(party_state, patched_defs)
+	patched_equipment_service.setup(party_state, patched_defs, patched_warehouse)
+	patched_warehouse.add_item(&"bronze_sword", 1)
+
+	# 角色没有 warrior 职业，装备应失败
+	var result := patched_equipment_service.equip_item(&"hero", &"bronze_sword")
+	_assert_true(not bool(result.get("success", false)), "不满足职业要求时装备应失败。")
+	_assert_eq(result.get("error_code", ""), "missing_profession", "错误码应为 missing_profession。")
+	_assert_eq(patched_warehouse.count_item(&"bronze_sword"), 1, "资格不符时仓库库存不应被消耗。")
+
+	# preview 也应返回相同失败信息
+	var preview := patched_equipment_service.preview_equip(&"hero", &"bronze_sword")
+	_assert_true(not bool(preview.get("success", false)), "preview_equip 也应返回失败。")
+	_assert_eq(preview.get("error_code", ""), "missing_profession", "preview 错误码应为 missing_profession。")
+	_assert_true(("missing_profession" in preview.get("blockers", [])), "blockers 应包含 missing_profession。")
+
+
+func _test_equip_creates_instance_id_in_slot() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	warehouse_service.add_item(&"bronze_sword", 1)
+	equipment_service.equip_item(&"hero", &"bronze_sword")
+
+	var equipment_state = party_state.get_member_state(&"hero").equipment_state
+	var instance_id: StringName = equipment_state.get_equipped_instance_id(&"main_hand")
+	_assert_true(instance_id != &"", "装备后主手槽应有非空的 instance_id。")
+	_assert_true(String(instance_id).begins_with("eq_"), "instance_id 应以 eq_ 开头。")
+
+	# 仓库中不应再有该装备的实例或堆叠
+	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 0, "装备后仓库中对应物品应为 0。")
+
+	# 序列化往返后 instance_id 不变
+	var restored = PartyState.from_dict(party_state.to_dict())
+	var restored_eq = restored.get_member_state(&"hero").equipment_state
+	_assert_eq(
+		String(restored_eq.get_equipped_instance_id(&"main_hand")),
+		String(instance_id),
+		"序列化往返后 instance_id 应保持不变。"
+	)
+
+
+func _test_instance_id_preserved_through_unequip_and_reequip() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	warehouse_service.add_item(&"bronze_sword", 1)
+	equipment_service.equip_item(&"hero", &"bronze_sword")
+
+	var equipment_state = party_state.get_member_state(&"hero").equipment_state
+	var original_instance_id: StringName = equipment_state.get_equipped_instance_id(&"main_hand")
+	_assert_true(original_instance_id != &"", "前置：装备后应有 instance_id。")
+
+	# 卸装 → 仓库里应有同一个实例
+	equipment_service.unequip_item(&"hero", &"main_hand")
+	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 1, "卸装后物品应回到仓库。")
+
+	var ws = party_state.warehouse_state
+	var found_instance: bool = false
+	for inst in ws.get_non_empty_instances():
+		if String(inst.instance_id) == String(original_instance_id):
+			found_instance = true
+			break
+	_assert_true(found_instance, "卸装后仓库中应能找到原来的 instance_id。")
+
+	# 重新装备 → 同一个实例被拿回来
+	equipment_service.equip_item(&"hero", &"bronze_sword")
+	var reequip_instance_id: StringName = equipment_state.get_equipped_instance_id(&"main_hand")
+	_assert_eq(
+		String(reequip_instance_id),
+		String(original_instance_id),
+		"重新装备后 instance_id 应与首次装备一致。"
+	)
+
+
+func _test_two_items_of_same_type_get_different_instance_ids() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	warehouse_service.add_item(&"scout_charm", 2)
+	equipment_service.equip_item(&"hero", &"scout_charm")
+	equipment_service.equip_item(&"hero", &"scout_charm")
+
+	var equipment_state = party_state.get_member_state(&"hero").equipment_state
+	var id1: StringName = equipment_state.get_equipped_instance_id(&"accessory_1")
+	var id2: StringName = equipment_state.get_equipped_instance_id(&"accessory_2")
+	_assert_true(id1 != &"", "饰品一槽应有 instance_id。")
+	_assert_true(id2 != &"", "饰品二槽应有 instance_id。")
+	_assert_true(id1 != id2, "同种装备的两个实例应拥有不同的 instance_id。")
 
 
 func _build_party_with_member(member_id: StringName, display_name: String, storage_space: int) -> PartyState:

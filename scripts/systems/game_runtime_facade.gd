@@ -2835,6 +2835,14 @@ func _build_equipment_error_message(result: Dictionary, is_equip_action: bool) -
 			return "%s 当前没有已装备物品。" % slot_label
 		"warehouse_full":
 			return "共享仓库空间不足，无法卸下 %s。" % _get_item_display_name(item_id)
+		"missing_profession":
+			return "%s 当前职业不满足 %s 的装备要求。" % [_get_member_display_name(member_id), _get_item_display_name(item_id)]
+		"body_size_too_small":
+			return "%s 体型过小，无法装备 %s。" % [_get_member_display_name(member_id), _get_item_display_name(item_id)]
+		"body_size_too_large":
+			return "%s 体型过大，无法装备 %s。" % [_get_member_display_name(member_id), _get_item_display_name(item_id)]
+		"requirement_failed":
+			return "%s 不满足装备要求。" % _get_item_display_name(item_id)
 		_:
 			return "装备操作失败。" if is_equip_action else "卸装操作失败。"
 

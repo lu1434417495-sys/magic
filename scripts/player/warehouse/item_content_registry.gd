@@ -97,5 +97,24 @@ func _register_item_resource(resource_path: String) -> void:
 				"Equipment item %s declares invalid slot %s." % [String(item_def.item_id), String(raw_slot_id)]
 			)
 			return
+		if not item_def.has_valid_equipment_type():
+			_validation_errors.append(
+				"Equipment item %s must declare equipment_type_id as weapon, armor, or accessory." % String(item_def.item_id)
+			)
+			return
+
+		if not item_def.occupied_slot_ids.is_empty():
+			if item_def.equipment_slot_ids.size() != 1:
+				_validation_errors.append(
+					"Equipment item %s declares occupied_slot_ids but equipment_slot_ids must be exactly 1 entry slot." % String(item_def.item_id)
+				)
+				return
+			for raw_slot_id in item_def.occupied_slot_ids:
+				if EQUIPMENT_RULES_SCRIPT.is_valid_slot(ProgressionDataUtils.to_string_name(raw_slot_id)):
+					continue
+				_validation_errors.append(
+					"Equipment item %s declares invalid occupied_slot %s." % [String(item_def.item_id), String(raw_slot_id)]
+				)
+				return
 
 	_item_defs[item_def.item_id] = item_def

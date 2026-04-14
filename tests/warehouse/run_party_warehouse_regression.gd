@@ -35,6 +35,7 @@ func _run() -> void:
 	await _ensure_game_session()
 	await _test_old_save_compatibility()
 	await _test_warehouse_service_rules()
+	await _test_batch_swap_commit_is_atomic()
 	await _test_skill_book_generation_and_use_rules()
 	await _test_warehouse_serialization_guards()
 	await _test_item_registry_validation()
@@ -186,6 +187,29 @@ func _test_warehouse_serialization_guards() -> void:
 	_assert_true(party_state.warehouse_state != null, "反序列化脏 warehouse_state 时应回落为空仓库。")
 	if party_state.warehouse_state != null:
 		_assert_eq(party_state.warehouse_state.stacks.size(), 0, "脏 warehouse_state 回落后应为空仓库。")
+
+
+func _test_batch_swap_commit_is_atomic() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 1),
+	])
+	var service := PartyWarehouseService.new()
+	service.setup(party, item_defs)
+	service.add_item(&"iron_greatsword", 1)
+
+	var before_signature := _stack_signature(party)
+	var commit_result := service.commit_batch_swap(
+		[&"iron_greatsword"],
+		[&"bronze_sword", &"scout_charm"]
+	)
+	_assert_true(not bool(commit_result.get("allowed", false)), "容量不足时 commit_batch_swap 应整体失败。")
+	_assert_eq(commit_result.get("error_code", ""), "warehouse_blocked_swap", "失败错误码应为 warehouse_blocked_swap。")
+	_assert_eq(_stack_signature(party), before_signature, "commit_batch_swap 失败后仓库状态应完整回滚。")
+	_assert_eq(service.count_item(&"iron_greatsword"), 1, "失败后原始待装备物不应被吞掉。")
+	_assert_eq(service.count_item(&"bronze_sword"), 0, "失败后不应写入部分回仓物。")
+	_assert_eq(service.count_item(&"scout_charm"), 0, "失败后不应写入部分回仓物。")
+	_assert_eq(service.get_free_slots(), 0, "失败后仓库占用格数应保持不变。")
 
 
 func _test_skill_book_generation_and_use_rules() -> void:

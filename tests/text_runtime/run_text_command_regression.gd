@@ -1,5 +1,6 @@
 extends SceneTree
 
+const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
 
 var _failures: Array[String] = []
@@ -21,6 +22,7 @@ func _run() -> void:
 	_assert_equipment_command_applied(before_equip_snapshot, runner.get_session().build_snapshot())
 	await _run_command(runner, "party unequip player_sword_01 main_hand")
 	_assert_equipment_command_reverted(before_equip_snapshot, runner.get_session().build_snapshot())
+	await _assert_equipment_requirement_error_message(runner)
 	await _run_command(runner, "party open")
 	await _run_command(runner, "party select player_sword_01")
 	await _run_command(runner, "party warehouse")
@@ -161,7 +163,7 @@ func _assert_equipment_command_reverted(before_snapshot: Dictionary, after_snaps
 		int(before_attributes.get("physical_attack", 0)),
 		"命令行卸装后，物攻快照应回到基线。"
 	)
-	_assert_eq(_count_warehouse_item(after_snapshot, "bronze_sword"), 1, "卸装后物品应回到共享仓库。")
+	_assert_eq(_count_session_warehouse_item("bronze_sword"), 1, "卸装后物品应回到共享仓库。")
 
 
 func _assert_skill_book_command_applied(snapshot: Dictionary) -> void:
@@ -172,6 +174,27 @@ func _assert_skill_book_command_applied(snapshot: Dictionary) -> void:
 		"命令行使用技能书后，角色快照中应出现已学会的技能 ID。"
 	)
 	_assert_eq(_count_warehouse_item(snapshot, "skill_book_archer_aimed_shot"), 0, "命令行使用技能书后，仓库中的技能书应被消耗。")
+
+
+func _assert_equipment_requirement_error_message(runner) -> void:
+	var item_defs: Dictionary = runner.get_session().get_game_session().get_item_defs()
+	var bronze_sword = item_defs.get(&"bronze_sword")
+	_assert_true(bronze_sword != null, "文本回归前置：bronze_sword 定义应存在。")
+	if bronze_sword == null:
+		return
+
+	var blocked_sword = bronze_sword.duplicate()
+	var requirement := EquipmentRequirement.new()
+	requirement.required_profession_ids = ["__blocked_profession__"]
+	blocked_sword.equip_requirement = requirement
+	item_defs[&"bronze_sword"] = blocked_sword
+
+	var result = await _run_command_expect_fail(runner, "party equip player_sword_01 bronze_sword")
+	_assert_true(result.message.contains("职业不满足"), "资格失败时应返回职业要求文案。")
+	_assert_true(result.message.contains("青铜短剑"), "资格失败文案应包含物品名称。")
+	_assert_eq(_count_session_warehouse_item("bronze_sword"), 1, "资格失败时不应消耗仓库中的装备。")
+
+	item_defs[&"bronze_sword"] = bronze_sword
 
 
 func _find_party_member(members: Array, member_id: String) -> Dictionary:
@@ -203,6 +226,32 @@ func _count_warehouse_item(snapshot: Dictionary, item_id: String) -> int:
 		if String(stack.get("item_id", "")) == item_id:
 			return int(stack.get("total_quantity", 0))
 	return 0
+
+
+func _count_session_warehouse_item(item_id: String) -> int:
+	var scene_tree := Engine.get_main_loop() as SceneTree
+	if scene_tree == null:
+		return 0
+	var session = scene_tree.root.get_node_or_null("GameSession")
+	if session == null:
+		return 0
+	var party_state = session.get_party_state()
+	if party_state == null or party_state.warehouse_state == null:
+		return 0
+	var total := 0
+	for stack in party_state.warehouse_state.stacks:
+		if stack == null:
+			continue
+		if String(stack.item_id) != item_id:
+			continue
+		total += int(stack.quantity)
+	for instance in party_state.warehouse_state.equipment_instances:
+		if instance == null:
+			continue
+		if String(instance.item_id) != item_id:
+			continue
+		total += 1
+	return total
 
 
 func _find_unit(units: Array, unit_id: String) -> Dictionary:
@@ -244,6 +293,15 @@ func _run_command(runner, command_text: String) -> void:
 		return
 	print(result.render())
 	_assert_true(result.ok, "命令失败：%s | %s" % [command_text, result.message])
+
+
+func _run_command_expect_fail(runner, command_text: String):
+	var result = await runner.execute_line(command_text)
+	if result.skipped:
+		return result
+	print(result.render())
+	_assert_true(not result.ok, "命令本应失败：%s" % command_text)
+	return result
 
 
 func _assert_true(condition: bool, message: String) -> void:
