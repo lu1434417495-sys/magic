@@ -14,3 +14,14 @@ Thumbs.db
 *_capture.png
 *_runtime_stdout.log
 *_runtime_stderr.log
+
+# Local Codex/MindFS state
+.mindfs/
+
+# Local temp and editor state
+.tmp/
+.vscode/
+
+# Runtime save files; keep committed fixtures explicit
+data/saves/*
+!data/saves/fixed_test_world_save.dat
