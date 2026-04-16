@@ -44,6 +44,7 @@ func _run() -> void:
 	_test_pending_character_reward_applies_in_stable_order()
 	_test_pending_character_reward_round_trip_persists()
 	_test_quest_reward_pending_character_materializer()
+	_test_research_pending_character_reward_preserves_queue_naming_and_triggers_growth_events()
 	_test_submit_item_objective_materializer_tracks_progress_and_failures()
 	_test_party_state_quest_round_trip_persists()
 	_test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
@@ -630,6 +631,92 @@ func _test_quest_reward_pending_character_materializer() -> void:
 
 	var skill_progress = party_state.get_member_state(&"hero").progression.get_skill_progress(&"charge")
 	_assert_true(skill_progress == null, "quest claim 后角色奖励应只入队，不应立刻直写成长结果。")
+
+
+func _test_research_pending_character_reward_preserves_queue_naming_and_triggers_growth_events() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var manager := _setup_manager(party_state)
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var progression: UnitProgress = member_state.progression
+	var perception_before: int = progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION)
+	var willpower_before: int = progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.WILLPOWER)
+
+	var knowledge_reward = manager.build_pending_character_reward(
+		&"hero",
+		&"research_field_manual_reward",
+		&"npc_teach",
+		&"research_field_manual",
+		"大图书官·研究",
+		[
+			{
+				"entry_type": String(AchievementRewardDef.TYPE_KNOWLEDGE_UNLOCK),
+				"target_id": "field_manual",
+				"target_label": "野外手册",
+				"amount": 1,
+				"reason_text": "研究员整理出可长期翻阅的野外手册抄本。",
+			},
+		],
+		"研究奖励：野外手册"
+	)
+	_assert_true(knowledge_reward != null, "知识型 research 奖励应能按正式队列结构构造。")
+	manager.enqueue_pending_character_rewards([knowledge_reward])
+	var queued_knowledge_reward = party_state.get_next_pending_character_reward()
+	_assert_true(queued_knowledge_reward != null, "知识型 research 奖励应进入待处理队列。")
+	if queued_knowledge_reward != null:
+		_assert_eq(queued_knowledge_reward.source_type, &"npc_teach", "research 奖励应保留正式 source_type。")
+		_assert_eq(queued_knowledge_reward.source_id, &"research_field_manual", "research 奖励应保留具体 source_id。")
+		_assert_eq(queued_knowledge_reward.source_label, "大图书官·研究", "research 奖励应保留正式 source_label。")
+
+	var knowledge_delta = manager.apply_pending_character_reward(queued_knowledge_reward)
+	_assert_true(progression.has_knowledge(&"field_manual"), "知识型 research 奖励确认后应真正学会知识。")
+	_assert_eq(knowledge_delta.knowledge_changes.size(), 1, "知识型 research 奖励应记录 knowledge delta。")
+	_assert_eq(party_state.pending_character_rewards.size(), 1, "research 学会野外手册后应继续触发正式知识学习成就奖励。")
+	_assert_eq(party_state.pending_character_rewards[0].source_id, &"knowledge_learned_field_manual", "研究触发的知识学习成就应沿用正式 achievement source_id。")
+	manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
+	_assert_eq(
+		progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.WILLPOWER),
+		willpower_before + 1,
+		"研究解锁野外手册后，后续知识学习成就奖励应正常结算。"
+	)
+
+	var skill_reward = manager.build_pending_character_reward(
+		&"hero",
+		&"research_guard_break_reward",
+		&"npc_teach",
+		&"research_guard_break",
+		"大图书官·研究",
+		[
+			{
+				"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+				"target_id": "warrior_guard_break",
+				"target_label": "裂甲斩",
+				"amount": 1,
+				"reason_text": "研究记录补全了裂甲斩的动作拆解。",
+			},
+		],
+		"研究奖励：裂甲斩"
+	)
+	_assert_true(skill_reward != null, "技能型 research 奖励应能按正式队列结构构造。")
+	manager.enqueue_pending_character_rewards([skill_reward])
+	var queued_skill_reward = party_state.get_next_pending_character_reward()
+	_assert_true(queued_skill_reward != null, "技能型 research 奖励应进入待处理队列。")
+	if queued_skill_reward != null:
+		_assert_eq(queued_skill_reward.source_type, &"npc_teach", "技能型 research 奖励也应保留正式 source_type。")
+		_assert_eq(queued_skill_reward.source_id, &"research_guard_break", "技能型 research 奖励应保留具体 source_id。")
+		_assert_eq(queued_skill_reward.source_label, "大图书官·研究", "技能型 research 奖励应保留正式 source_label。")
+
+	var skill_delta = manager.apply_pending_character_reward(queued_skill_reward)
+	var guard_break_progress = progression.get_skill_progress(&"warrior_guard_break")
+	_assert_true(guard_break_progress != null and guard_break_progress.is_learned, "技能型 research 奖励确认后应真正学会裂甲斩。")
+	_assert_true(skill_delta.granted_skill_ids.is_empty(), "book 技能 research 奖励不应误记为 profession granted。")
+	_assert_eq(party_state.pending_character_rewards.size(), 1, "research 学会裂甲斩后应继续触发正式技能学习成就奖励。")
+	_assert_eq(party_state.pending_character_rewards[0].source_id, &"skill_learned_guard_break", "研究触发的技能学习成就应沿用正式 achievement source_id。")
+	manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
+	_assert_eq(
+		progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION),
+		perception_before + 1,
+		"研究解锁裂甲斩后，后续技能学习成就奖励应正常结算。"
+	)
 
 
 func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> void:

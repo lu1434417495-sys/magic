@@ -7,6 +7,7 @@ const ProgressionDataUtils = preload("res://scripts/player/progression/progressi
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -494,11 +495,48 @@ func _test_settlement_handler_routes_research_service() -> void:
 	_assert_eq(runtime.achievement_events.size(), 1, "research 服务成功后应记录据点动作成就事件。")
 	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:research", "research 成就事件应记录正式 action_id。")
 	_assert_eq(runtime.applied_quest_event_batches.size(), 1, "research 服务成功后应仍走默认 quest progress 事件链。")
+	_assert_eq(runtime.pending_rewards.size(), 1, "research 服务成功后应正式排入 pending_character_rewards。")
+	var first_research_reward: Dictionary = runtime.pending_rewards[0].duplicate(true) if runtime.pending_rewards.size() > 0 and runtime.pending_rewards[0] is Dictionary else {}
+	_assert_eq(String(first_research_reward.get("member_id", "")), "hero", "research 奖励应写入目标成员。")
+	_assert_eq(String(first_research_reward.get("member_name", "")), "Hero", "research 奖励应保留成员显示名。")
+	_assert_eq(String(first_research_reward.get("source_type", "")), "npc_teach", "research 奖励应沿用正式 source_type 命名。")
+	_assert_eq(String(first_research_reward.get("source_id", "")), "research_field_manual", "知识型 research 奖励应写入具体来源 ID。")
+	_assert_eq(String(first_research_reward.get("source_label", "")), "大图书官·研究", "research 奖励应沿用正式 source_label 命名。")
+	var first_reward_entry := _get_first_reward_entry(first_research_reward)
+	_assert_eq(String(first_reward_entry.get("entry_type", "")), "knowledge_unlock", "首条 research 奖励应先构造成知识奖励。")
+	_assert_eq(String(first_reward_entry.get("target_id", "")), "field_manual", "首条 research 奖励应指向野外手册知识。")
 
 	var refreshed_window_data := handler.get_settlement_window_data("graystone_town_01")
 	var refreshed_research_service := _find_service_entry(refreshed_window_data.get("available_services", []), "service:research")
 	_assert_true(not bool(refreshed_research_service.get("is_enabled", true)), "扣费后金币不足时 research 服务应及时禁用。")
 	_assert_eq(String(refreshed_research_service.get("disabled_reason", "")), "金币不足", "research 服务禁用原因应明确显示金币不足。")
+
+	runtime._party_state.get_member_state(&"hero").progression.learn_knowledge(&"field_manual")
+	runtime._party_state.gold = 250
+	var reenabled_window_data := handler.get_settlement_window_data("graystone_town_01")
+	var reenabled_research_service := _find_service_entry(reenabled_window_data.get("available_services", []), "service:research")
+	_assert_true(bool(reenabled_research_service.get("is_enabled", false)), "已有下一条研究内容时，补足金币后 research 服务应重新可用。")
+
+	var second_research_result := handler.command_execute_settlement_action("service:research")
+	_assert_true(bool(second_research_result.get("ok", false)), "第二次 research 服务应继续走正式 settlement action dispatch。")
+	_assert_eq(runtime.pending_rewards.size(), 2, "第二次 research 服务应继续把奖励排入队列。")
+	var second_research_reward: Dictionary = runtime.pending_rewards[1].duplicate(true) if runtime.pending_rewards.size() > 1 and runtime.pending_rewards[1] is Dictionary else {}
+	_assert_eq(String(second_research_reward.get("source_type", "")), "npc_teach", "技能型 research 奖励也应沿用正式 source_type 命名。")
+	_assert_eq(String(second_research_reward.get("source_id", "")), "research_guard_break", "技能型 research 奖励应写入具体来源 ID。")
+	_assert_eq(String(second_research_reward.get("source_label", "")), "大图书官·研究", "技能型 research 奖励应保留统一来源标签。")
+	var second_reward_entry := _get_first_reward_entry(second_research_reward)
+	_assert_eq(String(second_reward_entry.get("entry_type", "")), "skill_unlock", "第二条 research 奖励应构造成技能奖励。")
+	_assert_eq(String(second_reward_entry.get("target_id", "")), "warrior_guard_break", "第二条 research 奖励应指向裂甲斩技能。")
+
+	var guard_break_progress := UnitSkillProgress.new()
+	guard_break_progress.skill_id = &"warrior_guard_break"
+	guard_break_progress.is_learned = true
+	runtime._party_state.get_member_state(&"hero").progression.set_skill_progress(guard_break_progress)
+	runtime._party_state.gold = 250
+	var exhausted_window_data := handler.get_settlement_window_data("graystone_town_01")
+	var exhausted_research_service := _find_service_entry(exhausted_window_data.get("available_services", []), "service:research")
+	_assert_true(not bool(exhausted_research_service.get("is_enabled", true)), "没有剩余研究内容时 research 服务应禁用。")
+	_assert_eq(String(exhausted_research_service.get("disabled_reason", "")), "暂无可研究内容", "研究内容耗尽时应给出明确禁用原因。")
 
 
 func _test_settlement_handler_routes_actions_and_modal_state() -> void:
@@ -1019,6 +1057,16 @@ func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
 		if String(entry.get("quest_id", entry.get("entry_id", ""))) == quest_id:
 			return entry.duplicate(true)
 	return {}
+
+
+func _get_first_reward_entry(reward_data) -> Dictionary:
+	if reward_data is not Dictionary:
+		return {}
+	var entries_variant = (reward_data as Dictionary).get("entries", [])
+	if entries_variant is not Array or (entries_variant as Array).is_empty():
+		return {}
+	var first_entry = (entries_variant as Array)[0]
+	return (first_entry as Dictionary).duplicate(true) if first_entry is Dictionary else {}
 
 
 func _assert_true(condition: bool, message: String) -> void:

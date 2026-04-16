@@ -77,3 +77,7 @@ title: 把 submit_item 扣除结果接到 objective progress 与失败回归
 ## 2026-04-17T03:29:21+08:00 | PVS_06A | done
 title: 为 research 服务分配正式 interaction_script_id 与 settlement 路由
 Added a formal `service_research -> service:research` settlement path by introducing `SettlementResearchService`, wiring `GameRuntimeSettlementCommandHandler`/`WorldMapSpawnSystem` to it, and switching all world-map research NPC configs from `service_unlock_archive` to `service_research`. Extended settlement-handler regression coverage to verify both direct research routing and real world generation exposure.
+
+## 2026-04-17T03:36:45+08:00 | PVS_06B | done
+title: 实现 research 奖励构造器
+Implemented the research reward constructor in `SettlementResearchService`: it now selects the next available research outcome for the target member, builds canonical `pending_character_rewards` for knowledge (`field_manual`) or skill (`warrior_guard_break`) unlocks, preserves formal source fields (`source_type/source_id/source_label`), includes member-facing summary text, and disables the service when the member has no remaining research content. Extended settlement-handler and progression regressions to cover both knowledge and skill research rewards plus downstream achievement chaining. `docs/design/project_context_units.md` stayed valid as-is.

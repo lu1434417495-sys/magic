@@ -325,14 +325,22 @@
     {
       "id": "PVS_06B",
       "title": "实现 research 奖励构造器",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "research 服务可构造 skill 或 knowledge 型 `PendingCharacterReward`",
         "research 奖励来源字段与现有 reward queue 命名保持一致"
       ],
       "notes": [
         "Owner：CU-12。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:29:21+08:00",
+      "lastRunId": "20260417-032921-PVS_06B",
+      "startedAt": "2026-04-17T03:29:21+08:00",
+      "completedAt": "2026-04-17T03:36:45+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd` and `godot --headless --script tests/progression/run_progression_tests.gd`; both passed.",
+      "lastLearnings": "Research now fits the existing reward-queue contract by emitting `PendingCharacterReward` dictionaries with `source_type = npc_teach`, a concrete `research_*` `source_id`, and a display `source_label`. The smallest stable vertical-slice shape is a service-local research catalog keyed by member progression, with reward application still owned by `CharacterManagementModule` and no `project_context_units` boundary changes."
     },
     {
       "id": "PVS_06C",
