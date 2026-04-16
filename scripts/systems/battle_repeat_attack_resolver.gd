@@ -3,11 +3,11 @@ extends RefCounted
 
 const REPEAT_ATTACK_EFFECT_TYPE: StringName = &"repeat_attack_until_fail"
 const REPEAT_ATTACK_STAGE_GUARD := 32
+const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle_event_batch.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
 var _runtime_ref: WeakRef = null
@@ -58,9 +58,10 @@ func apply_repeat_attack_skill_result(
 				_consume_repeat_attack_stage_cost(active_unit, repeat_attack_effect, stage_aura_cost)
 				_runtime._append_changed_unit_id(batch, active_unit.unit_id)
 
-		var stage_hit_rate: int = _get_repeat_attack_stage_hit_rate(active_unit, target_unit, skill_def, repeat_attack_effect, stage_index)
+		var hit_result := _resolve_repeat_attack_stage_hit_result(active_unit, target_unit, skill_def, repeat_attack_effect, stage_index)
+		var stage_hit_rate: int = int(hit_result.get("hit_rate_percent", 0))
 		executed = true
-		if not _does_repeat_attack_stage_hit(stage_hit_rate):
+		if not bool(hit_result.get("success", false)):
 			batch.log_lines.append("%s 的 %s 第 %d 段未命中 %s，当前命中率 %d%%，AU 消耗 %d。" % [
 				active_unit.display_name,
 				skill_def.display_name,
@@ -142,30 +143,23 @@ func collect_repeat_attack_base_effects(effect_defs: Array[CombatEffectDef]) -> 
 	return staged_effects
 
 
-func _get_repeat_attack_stage_hit_rate(
+func _resolve_repeat_attack_stage_hit_result(
 	active_unit: BattleUnitState,
 	target_unit: BattleUnitState,
 	skill_def: SkillDef,
 	repeat_attack_effect: CombatEffectDef,
 	stage_index: int
-) -> int:
-	var source_hit_rate := 0
-	if active_unit != null and active_unit.attribute_snapshot != null:
-		source_hit_rate = active_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HIT_RATE)
-	var target_evasion := 0
-	if target_unit != null and target_unit.attribute_snapshot != null:
-		target_evasion = target_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.EVASION)
-	var skill_hit_bonus := int(skill_def.combat_profile.hit_rate) if skill_def != null and skill_def.combat_profile != null else 0
-	var base_hit_rate := int(repeat_attack_effect.params.get("base_hit_rate", 0))
-	var follow_up_penalty := int(repeat_attack_effect.params.get("follow_up_hit_rate_penalty", 0))
-	return clampi(source_hit_rate + skill_hit_bonus + base_hit_rate - target_evasion - stage_index * follow_up_penalty, 0, 100)
-
-
-func _does_repeat_attack_stage_hit(stage_hit_rate: int) -> bool:
-	if not _has_runtime():
-		return stage_hit_rate >= 100
-	var roll_result: Dictionary = _runtime._roll_hit_rate(stage_hit_rate)
-	return bool(roll_result.get("success", false))
+) -> Dictionary:
+	var hit_resolver = _runtime._hit_resolver if _has_runtime() and _runtime._hit_resolver != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
+	var battle_state = _runtime._state if _has_runtime() else null
+	return hit_resolver.resolve_repeat_attack_stage_hit(
+		battle_state,
+		active_unit,
+		target_unit,
+		skill_def,
+		repeat_attack_effect,
+		stage_index
+	)
 
 
 func _get_repeat_attack_stage_cost(

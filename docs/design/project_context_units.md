@@ -96,11 +96,12 @@ CharacterManagementModule
 
 BattleRuntimeModule
   -> BattleChargeResolver
+  -> BattleRepeatAttackResolver
   -> BattleTerrainEffectSystem
   -> BattleRatingSystem
   -> BattleUnitFactory
   -> BattleState / BattleUnitState / BattleCellState / BattleTimelineState / BattleTerrainEffectState
-  -> BattleGridService / BattleEdgeService / BattleDamageResolver / BattleAiService
+  -> BattleGridService / BattleEdgeService / BattleDamageResolver / BattleHitResolver / BattleAiService
   -> BattleTerrainRules / BattleTerrainTopologyService
   -> BattleTerrainGenerator / EncounterRosterBuilder
 
@@ -681,6 +682,7 @@ HeadlessGameTestSession
 - 文件：
   - `scripts/systems/battle_runtime_module.gd`
   - `scripts/systems/battle_charge_resolver.gd`
+  - `scripts/systems/battle_repeat_attack_resolver.gd`
   - `scripts/systems/battle_terrain_effect_system.gd`
   - `scripts/systems/battle_rating_system.gd`
   - `scripts/systems/battle_unit_factory.gd`
@@ -695,6 +697,7 @@ HeadlessGameTestSession
   - 开战、推进时间轴、接手 AI / manual command。
   - 预览与执行移动、单体技能、地面技能、charge、terrain effect。
   - `BattleChargeResolver` 负责冲锋路径推演、受阻停步、碰撞推挤、陷阱触发与路径 AOE。
+  - `BattleRepeatAttackResolver` 负责 `repeat_attack_until_fail` 的逐段执行、资源消耗与日志归并，并把命中判定委托给 `BattleHitResolver`。
   - `BattleTerrainEffectSystem` 负责 timed terrain effect 的写入、推进与 tick 结算。
   - `BattleRatingSystem` 负责战斗评分统计、标签与结算奖励映射。
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
@@ -734,6 +737,7 @@ HeadlessGameTestSession
   - `scripts/systems/battle_grid_service.gd`
   - `scripts/systems/battle_edge_service.gd`
   - `scripts/systems/battle_damage_resolver.gd`
+  - `scripts/systems/battle_hit_resolver.gd`
   - `scripts/systems/battle_ai_context.gd`
   - `scripts/systems/battle_ai_decision.gd`
   - `scripts/systems/battle_ai_service.gd`
@@ -745,6 +749,7 @@ HeadlessGameTestSession
   - 处理 footprint、移动、墙边 / 高差 / 占位规则。
   - `BattleTerrainRules` 负责 `land / shallow_water / flowing_water / deep_water / mud / spike` 的基础通行与显示语义。
   - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
+  - `BattleHitResolver` 负责当前命中率合成、deterministic 命中掷骰，以及 repeat-attack 的正式命中口径。
   - 处理伤害、状态、AI 决策上下文与产出。
 - 邻接单元：
   - CU-15

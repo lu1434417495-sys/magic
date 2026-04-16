@@ -14,6 +14,7 @@ const BATTLE_TERRAIN_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
 const BATTLE_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battle_terrain_generator.gd")
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_damage_resolver.gd")
+const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
 const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle_ai_service.gd")
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle_ai_decision.gd")
 const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle_ai_context.gd")
@@ -32,6 +33,7 @@ const BattlePreview = preload("res://scripts/systems/battle_preview.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
 const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
+const BattleHitResolver = preload("res://scripts/systems/battle_hit_resolver.gd")
 const BattleAiService = preload("res://scripts/systems/battle_ai_service.gd")
 const BattleAiDecision = preload("res://scripts/systems/battle_ai_decision.gd")
 const BattleAiContext = preload("res://scripts/systems/battle_ai_context.gd")
@@ -72,6 +74,8 @@ var _grid_service := BATTLE_GRID_SERVICE_SCRIPT.new()
 var _terrain_generator := BATTLE_TERRAIN_GENERATOR_SCRIPT.new()
 ## 字段说明：记录伤害解析器，会参与运行时状态流转、系统协作和存档恢复。
 var _damage_resolver := BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+## 字段说明：记录命中解析器，会参与运行时状态流转、系统协作和 deterministic 掷骰。
+var _hit_resolver: BattleHitResolver = BATTLE_HIT_RESOLVER_SCRIPT.new()
 ## 字段说明：记录自动决策服务，会参与运行时状态流转、系统协作和存档恢复。
 var _ai_service: BattleAiService = BATTLE_AI_SERVICE_SCRIPT.new()
 var _terrain_effect_system = BATTLE_TERRAIN_EFFECT_SYSTEM_SCRIPT.new()
@@ -2173,35 +2177,4 @@ func _resolve_encounter_resolution() -> StringName:
 
 
 func _roll_hit_rate(hit_rate_percent: int) -> Dictionary:
-	var clamped_hit_rate := clampi(hit_rate_percent, 0, 100)
-	if clamped_hit_rate <= 0:
-		return {
-			"success": false,
-			"roll": 100,
-			"hit_rate_percent": clamped_hit_rate,
-		}
-	if clamped_hit_rate >= 100:
-		return {
-			"success": true,
-			"roll": 1,
-			"hit_rate_percent": clamped_hit_rate,
-		}
-
-	var roll := _roll_battle_percent()
-	return {
-		"success": roll <= clamped_hit_rate,
-		"roll": roll,
-		"hit_rate_percent": clamped_hit_rate,
-	}
-
-
-func _roll_battle_percent() -> int:
-	if _state == null:
-		return 1
-
-	var nonce := maxi(int(_state.attack_roll_nonce), 0)
-	var roll_seed_source := "%s:%d:%d" % [String(_state.battle_id), int(_state.seed), nonce]
-	var rng := RandomNumberGenerator.new()
-	rng.seed = int(roll_seed_source.hash())
-	_state.attack_roll_nonce = nonce + 1
-	return rng.randi_range(1, 100)
+	return _hit_resolver.roll_hit_rate(_state, hit_rate_percent)

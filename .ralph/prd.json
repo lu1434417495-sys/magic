@@ -645,14 +645,22 @@
     {
       "id": "PVS_12A",
       "title": "抽出 BattleHitResolver 并锁定现有命中口径",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "命中判定有单一 `BattleHitResolver` owner",
         "迁移前后现有 smoke 与 AI 回归的命中结果保持一致"
       ],
       "notes": [
         "Owner：CU-15 / CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:13:31+08:00",
+      "lastRunId": "20260417-051331-PVS_12A",
+      "startedAt": "2026-04-17T05:13:31+08:00",
+      "completedAt": "2026-04-17T05:18:49+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Passed `godot --headless --script tests/battle_runtime/run_warrior_advanced_skill_regression.gd`; `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`; `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd`.",
+      "lastLearnings": "The currently live hit/evasion pipeline is only exercised by `repeat_attack_until_fail` stages; extracting that formula plus deterministic roll into `BattleHitResolver` preserves existing smoke and AI results without broadening miss behavior for all skills."
     },
     {
       "id": "PVS_12B",

@@ -141,3 +141,7 @@ Added `holdout_push` support to `BattleTerrainGenerator` as a scripted attacker-
 ## 2026-04-17T05:13:31+08:00 | PVS_11B | done
 title: 把 `holdout_push` 接到测试入口与 board regression
 No code changes were needed. Verified the repo already wires `holdout_push` into `tests/battle_runtime/run_battle_runtime_smoke.gd` via explicit `battle_terrain_profile`, and `tests/battle_runtime/run_battle_board_regression.gd` already covers layout stability, deployment rings, objective/tent/torch placement, mud/spike terrain, and prop-contract assertions for `holdout_push`.
+
+## 2026-04-17T05:18:49+08:00 | PVS_12A | done
+title: 抽出 BattleHitResolver 并锁定现有命中口径
+Added `BattleHitResolver` as the single hit-logic owner, routed `BattleRuntimeModule` hit rolls and `BattleRepeatAttackResolver` stage hit checks through it, and updated `docs/design/project_context_units.md` for the CU-15/CU-16 ownership change.
