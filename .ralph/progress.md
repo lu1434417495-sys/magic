@@ -113,3 +113,7 @@ Added second-batch material seeds `forge_coal` and `whetstone`, added formal for
 ## 2026-04-17T04:34:05+08:00 | PVS_08D | done
 title: 新增任务物品 seed 并补交叉引用回归
 Added three formal quest-item seeds (`sealed_dispatch`, `bandit_insignia`, `moonfern_sample`), required `quest_item` ItemDefs to declare `quest_groups`, and extended focused warehouse/quest/text-snapshot regressions to cross-reference them.
+
+## 2026-04-17T04:38:44+08:00 | PVS_09A | done
+title: 新增前排承伤/近战冲锋敌人模板
+Added a sixth formal enemy template `wolf_vanguard` plus dedicated `frontline_bulwark` AI seed in `scripts/enemies/enemy_content_registry.gd`, and extended `tests/battle_runtime/run_battle_runtime_ai_regression.gd` to verify template count, formal template resolution, melee charge opening, and low-HP self-guard behavior. `docs/design/project_context_units.md` stayed valid and was not changed.

@@ -22,9 +22,12 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_game_runtime_facade_injects_enemy_content()
 	_test_enemy_template_resolves_stable_id()
+	_test_frontline_template_resolves_stable_id()
 	_test_enemy_template_does_not_resolve_display_name_alias()
 	_test_ai_charge_decision_logs_brain_state_action()
+	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
 	_test_ai_ground_skill_generates_legal_command()
+	_test_frontline_bulwark_guards_when_low_hp()
 	_test_ai_support_state_heals_low_hp_ally()
 	if _failures.is_empty():
 		print("Battle runtime AI regression: PASS")
@@ -49,8 +52,20 @@ func _test_game_runtime_facade_injects_enemy_content() -> void:
 		"GameRuntimeFacade.setup() 应向 BattleRuntimeModule 注入敌方模板。"
 	)
 	_assert_true(
+		facade._battle_runtime._enemy_templates.size() >= 6,
+		"正式 enemy template 数量应至少达到 6。"
+	)
+	_assert_true(
+		facade._battle_runtime._enemy_templates.has(&"wolf_vanguard"),
+		"GameRuntimeFacade.setup() 应注入新的前排狼先锋模板。"
+	)
+	_assert_true(
 		facade._battle_runtime._enemy_ai_brains.has(&"melee_aggressor"),
 		"GameRuntimeFacade.setup() 应向 BattleRuntimeModule 注入敌方 AI brain。"
+	)
+	_assert_true(
+		facade._battle_runtime._enemy_ai_brains.has(&"frontline_bulwark"),
+		"GameRuntimeFacade.setup() 应注入新的前排承伤 AI brain。"
 	)
 	game_session.clear_persisted_game()
 	game_session.free()
@@ -71,6 +86,24 @@ func _test_enemy_template_resolves_stable_id() -> void:
 	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"melee_aggressor", "stable template id 应绑定 melee_aggressor brain。")
 	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"engage", "stable template id 应写入初始 AI 状态 engage。")
 	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"charge"), "wolf_pack 模板应为敌人注入冲锋技能。")
+
+
+func _test_frontline_template_resolves_stable_id() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var encounter_anchor = _build_encounter_anchor(&"encounter_vanguard", &"wolf_vanguard", "荒狼先锋")
+	var state = runtime.start_battle(encounter_anchor, 103, {
+		"ally_member_ids": [&"ally_a", &"ally_b"],
+		"default_active_skill_ids": [&"warrior_heavy_strike"],
+	})
+	_assert_true(state != null and not state.is_empty(), "正式 battle start 应能创建基于前排模板的战斗状态。")
+	if state == null or state.is_empty():
+		return
+	_assert_true(state.enemy_unit_ids.size() == 1, "wolf_vanguard 模板应构建 1 个敌方单位。")
+	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
+	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"frontline_bulwark", "wolf_vanguard 应绑定 frontline_bulwark brain，而不是回落到默认敌人。")
+	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"engage", "wolf_vanguard 应写入 engage 初始状态。")
+	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"charge"), "wolf_vanguard 应携带 charge。")
+	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"warrior_guard"), "wolf_vanguard 应携带 warrior_guard 作为承伤技能。")
 
 
 func _test_enemy_template_does_not_resolve_display_name_alias() -> void:
@@ -117,6 +150,36 @@ func _test_ai_charge_decision_logs_brain_state_action() -> void:
 	_assert_true(wolf.coord != Vector2i(0, 1), "melee_aggressor 在 engage 状态下应优先用 charge 接敌。")
 
 
+func _test_frontline_bulwark_charge_decision_logs_brain_state_action() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 3))
+	runtime._state = state
+	var vanguard = _build_ai_unit(
+		&"vanguard_01",
+		"荒狼先锋",
+		&"hostile",
+		Vector2i(0, 1),
+		&"frontline_bulwark",
+		&"engage",
+		[&"charge", &"warrior_shield_bash", &"warrior_taunt", &"warrior_guard"],
+		42,
+		2
+	)
+	var player = _build_manual_unit(&"player_01", "玩家", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, vanguard, true)
+	_add_unit_to_state(runtime, state, player, false)
+	state.phase = &"unit_acting"
+	state.active_unit_id = vanguard.unit_id
+
+	var batch = runtime.advance(0.0)
+	_assert_true(batch != null, "frontline_bulwark AI advance 应返回有效 batch。")
+	_assert_true(
+		batch != null and not batch.log_lines.is_empty() and String(batch.log_lines[0]).contains("AI[frontline_bulwark/engage/vanguard_charge_open]"),
+		"frontline_bulwark 冲锋开场应带出明确的 brain/state/action 日志。"
+	)
+	_assert_true(vanguard.coord != Vector2i(0, 1), "frontline_bulwark 在 engage 状态下应优先用 charge 接敌。")
+
+
 func _test_ai_ground_skill_generates_legal_command() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(7, 5))
@@ -147,6 +210,35 @@ func _test_ai_ground_skill_generates_legal_command() -> void:
 	var preview = runtime.preview_command(decision.command)
 	_assert_true(preview != null and preview.allowed, "AI 产出的 ground skill 命令必须能通过 preview_command。")
 	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "ground skill 预览应至少命中 2 个单位。")
+
+
+func _test_frontline_bulwark_guards_when_low_hp() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(6, 4))
+	runtime._state = state
+	var vanguard = _build_ai_unit(
+		&"vanguard_guard",
+		"荒狼先锋",
+		&"hostile",
+		Vector2i(1, 1),
+		&"frontline_bulwark",
+		&"pressure",
+		[&"charge", &"warrior_shield_bash", &"warrior_taunt", &"warrior_guard"],
+		12,
+		2
+	)
+	var player = _build_manual_unit(&"player_01", "玩家", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, vanguard, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, vanguard)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.state_id == &"support", "低血量时 frontline_bulwark 应切入 support 状态进行承伤准备。")
+	_assert_true(
+		decision != null and decision.command != null and decision.command.skill_id == &"warrior_guard",
+		"frontline_bulwark 低血量时应优先使用 warrior_guard，而不是回落到普通近战动作。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "frontline_bulwark 的 warrior_guard 命令必须通过 preview_command。")
 
 
 func _test_ai_support_state_heals_low_hp_ally() -> void:
@@ -265,11 +357,13 @@ func _build_ai_unit(
 	unit.ai_state_id = state_id
 	unit.current_hp = current_hp
 	unit.current_mp = 8
+	unit.current_stamina = 8
 	unit.current_ap = current_ap
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", maxi(current_hp, 24))
 	unit.attribute_snapshot.set_value(&"mp_max", 8)
+	unit.attribute_snapshot.set_value(&"stamina_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 2))
 	unit.attribute_snapshot.set_value(&"physical_attack", 10)
 	unit.attribute_snapshot.set_value(&"magic_attack", 12)

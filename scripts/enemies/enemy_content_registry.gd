@@ -30,10 +30,12 @@ func rebuild() -> void:
 	_enemy_ai_brains.clear()
 	_wild_encounter_rosters.clear()
 	_register_brain(_build_melee_aggressor_brain())
+	_register_brain(_build_frontline_bulwark_brain())
 	_register_brain(_build_ranged_controller_brain())
 	_register_template(_build_wolf_pack_template())
 	_register_template(_build_wolf_raider_template())
 	_register_template(_build_wolf_alpha_template())
+	_register_template(_build_wolf_vanguard_template())
 	_register_template(_build_wolf_shaman_template())
 	_register_template(_build_mist_beast_template())
 	_register_wild_encounter_roster(_build_wolf_den_roster())
@@ -134,6 +136,39 @@ func _build_ranged_controller_brain() -> EnemyAiBrainDef:
 	return brain
 
 
+func _build_frontline_bulwark_brain() -> EnemyAiBrainDef:
+	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
+	brain.brain_id = &"frontline_bulwark"
+	brain.default_state_id = &"engage"
+	brain.retreat_hp_ratio = 0.25
+	brain.support_hp_ratio = 0.55
+	brain.pressure_distance = 1
+	brain.states = {
+		&"engage": _build_state(&"engage", [
+			_build_charge_action(&"vanguard_charge_open", &"charge"),
+			_build_unit_skill_action(&"vanguard_taunt_open", [&"warrior_taunt"], &"nearest_enemy"),
+			_build_move_to_range_action(&"vanguard_close_in", &"nearest_enemy", 1, 1),
+			_build_wait_action(&"vanguard_wait"),
+		]),
+		&"pressure": _build_state(&"pressure", [
+			_build_unit_skill_action(&"vanguard_shield_bash", [&"warrior_shield_bash"], &"nearest_enemy"),
+			_build_unit_skill_action(&"vanguard_taunt_pressure", [&"warrior_taunt"], &"nearest_enemy"),
+			_build_move_to_range_action(&"vanguard_hold_line", &"nearest_enemy", 1, 1),
+			_build_wait_action(&"vanguard_wait"),
+		]),
+		&"support": _build_state(&"support", [
+			_build_unit_skill_action(&"vanguard_guard_self", [&"warrior_guard"], &"self"),
+			_build_wait_action(&"vanguard_wait"),
+		]),
+		&"retreat": _build_state(&"retreat", [
+			_build_unit_skill_action(&"vanguard_guard_retreat", [&"warrior_guard"], &"self"),
+			_build_retreat_action(&"vanguard_retreat", 2),
+			_build_wait_action(&"vanguard_wait"),
+		]),
+	}
+	return brain
+
+
 func _build_wolf_pack_template() -> EnemyTemplateDef:
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = &"wolf_pack"
@@ -196,6 +231,33 @@ func _build_wolf_alpha_template() -> EnemyTemplateDef:
 		"magic_attack": 0,
 		"magic_defense": 2,
 		"speed": 11,
+	}
+	return template
+
+
+func _build_wolf_vanguard_template() -> EnemyTemplateDef:
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = &"wolf_vanguard"
+	template.display_name = "荒狼先锋"
+	template.brain_id = &"frontline_bulwark"
+	template.initial_state_id = &"engage"
+	template.enemy_count = 1
+	template.skill_ids = ProgressionDataUtils.to_string_name_array([
+		"charge",
+		"warrior_shield_bash",
+		"warrior_taunt",
+		"warrior_guard",
+	])
+	template.attribute_overrides = {
+		"hp_max": 42,
+		"mp_max": 0,
+		"stamina_max": 0,
+		"action_points": 2,
+		"physical_attack": 10,
+		"physical_defense": 6,
+		"magic_attack": 0,
+		"magic_defense": 3,
+		"speed": 8,
 	}
 	return template
 

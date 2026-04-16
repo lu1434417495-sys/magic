@@ -505,14 +505,22 @@
     {
       "id": "PVS_09A",
       "title": "新增前排承伤/近战冲锋敌人模板",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "新增模板后正式 enemy templates 总数达到至少 6",
         "新增模板覆盖前排承伤或近战冲锋职责，不回落到旧默认模板"
       ],
       "notes": [
         "Owner：CU-20 / CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:34:06+08:00",
+      "lastRunId": "20260417-043406-PVS_09A",
+      "startedAt": "2026-04-17T04:34:06+08:00",
+      "completedAt": "2026-04-17T04:38:44+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd`, `godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd`, and `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` — all PASS.",
+      "lastLearnings": "This story stayed inside CU-20/CU-16: adding a frontline role was cleanest as a seeded template+brain pair without touching encounter rosters. Battle AI regression fixtures also need non-zero stamina when asserting shield/guard skills, otherwise `preview_command` rejects the action and the AI appears to fall back."
     },
     {
       "id": "PVS_09B",
