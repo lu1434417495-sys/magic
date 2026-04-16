@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_defense_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "physical_defense"
+mode = "flat"
+value = 2
+source_type = "equipment"
+source_id = "leather_cap"
+
+[sub_resource type="Resource" id="Resource_evasion_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "evasion"
+mode = "flat"
+value = 2
+source_type = "equipment"
+source_id = "leather_cap"
+
+[resource]
+script = ExtResource("1_item")
+item_id = "leather_cap"
+display_name = "皮革护帽"
+description = "轻便皮帽内衬了软垫，能补足头部防护，也保留了轻甲应有的灵活。"
+icon = "res://icon.svg"
+is_stackable = false
+base_price = 90
+buy_price = 100
+sell_price = 50
+sellable = true
+max_stack = 1
+item_category = "equipment"
+tags = Array[StringName](["armor", "head", "leather", "light_armor"])
+equipment_slot_ids = Array[String](["head"])
+equipment_type_id = "armor"
+attribute_modifiers = Array[Resource]([SubResource("Resource_defense_bonus"), SubResource("Resource_evasion_bonus")])

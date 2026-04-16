@@ -45,6 +45,7 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 
 	var item_defs := registry.get_item_defs()
 	var bronze_sword = item_defs.get(&"bronze_sword")
+	var leather_cap = item_defs.get(&"leather_cap")
 	var leather_jerkin = item_defs.get(&"leather_jerkin")
 	var scout_charm = item_defs.get(&"scout_charm")
 	var iron_greatsword = item_defs.get(&"iron_greatsword")
@@ -53,6 +54,7 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	var scout_dagger = item_defs.get(&"scout_dagger")
 
 	_assert_true(bronze_sword != null and bronze_sword.is_equipment(), "青铜短剑应注册为可装备物品。")
+	_assert_true(leather_cap != null and leather_cap.is_equipment(), "皮革护帽应注册为可装备物品。")
 	_assert_true(leather_jerkin != null and leather_jerkin.is_equipment(), "皮革短甲应注册为可装备物品。")
 	_assert_true(scout_charm != null and scout_charm.is_equipment(), "斥候护符应注册为可装备物品。")
 	_assert_true(iron_greatsword != null and iron_greatsword.is_equipment(), "铁制大剑应注册为可装备物品。")
@@ -60,6 +62,7 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_true(watchman_mace != null and watchman_mace.is_equipment(), "卫兵钉锤应注册为可装备物品。")
 	_assert_true(scout_dagger != null and scout_dagger.is_equipment(), "斥候匕首应注册为可装备物品。")
 	_assert_eq(bronze_sword.get_equipment_type_id_normalized(), &"weapon", "青铜短剑应归类为 weapon。")
+	_assert_eq(leather_cap.get_equipment_type_id_normalized(), &"armor", "皮革护帽应归类为 armor。")
 	_assert_eq(leather_jerkin.get_equipment_type_id_normalized(), &"armor", "皮革短甲应归类为 armor。")
 	_assert_eq(scout_charm.get_equipment_type_id_normalized(), &"accessory", "斥候护符应归类为 accessory。")
 	_assert_eq(iron_greatsword.get_equipment_type_id_normalized(), &"weapon", "铁制大剑应归类为 weapon。")
@@ -67,9 +70,19 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_eq(watchman_mace.get_equipment_type_id_normalized(), &"weapon", "卫兵钉锤应归类为 weapon。")
 	_assert_eq(scout_dagger.get_equipment_type_id_normalized(), &"weapon", "斥候匕首应归类为 weapon。")
 	_assert_true(bronze_sword.is_weapon(), "青铜短剑应通过 is_weapon()。")
+	_assert_true(leather_cap.is_armor(), "皮革护帽应通过 is_armor()。")
 	_assert_true(leather_jerkin.is_armor(), "皮革短甲应通过 is_armor()。")
 	_assert_true(scout_charm.is_accessory(), "斥候护符应通过 is_accessory()。")
 	_assert_eq(iron_greatsword.get_final_occupied_slot_ids(&"main_hand").size(), 2, "铁制大剑应声明占用 2 个槽位。")
+	_assert_eq(
+		leather_cap.get_tags(),
+		[&"armor", &"head", &"leather", &"light_armor"],
+		"皮革护帽应补齐头部护具标签。"
+	)
+	_assert_eq(leather_cap.get_buy_price(), 100, "皮革护帽应声明购买价格。")
+	_assert_eq(leather_cap.get_sell_price(), 50, "皮革护帽应声明出售价格。")
+	_assert_eq(leather_cap.get_equipment_slot_ids(), [&"head"], "皮革护帽应声明头部槽位。")
+	_assert_eq(leather_cap.get_final_occupied_slot_ids(&"head"), [&"head"], "皮革护帽应只占用头部槽。")
 	_assert_eq(
 		bronze_sword.get_tags(),
 		[&"weapon", &"melee", &"one_handed", &"sword", &"weapon_class_sword"],
@@ -100,10 +113,14 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_eq(scout_dagger.get_sell_price(), 65, "斥候匕首应声明出售价格。")
 
 	var one_handed_weapon_classes: Dictionary = {}
+	var covered_equipment_slots: Dictionary = {}
 	for item_def_variant in item_defs.values():
 		if item_def_variant is not ItemDef:
 			continue
 		var item_def: ItemDef = item_def_variant
+		if item_def.is_equipment():
+			for slot_id in item_def.get_equipment_slot_ids():
+				covered_equipment_slots[slot_id] = true
 		if not item_def.is_weapon():
 			continue
 		if item_def.get_equipment_slot_ids() != [&"main_hand"]:
@@ -118,6 +135,10 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 		one_handed_weapon_classes.size() >= 4,
 		"当前单手武器种子至少应覆盖 4 个 weapon_class_* 标签。"
 	)
+	_assert_true(
+		covered_equipment_slots.has(&"head"),
+		"正式装备种子至少应覆盖 head 槽位。"
+	)
 
 
 func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:
@@ -129,12 +150,18 @@ func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:
 	equipment_service.setup(party_state, item_defs, warehouse_service)
 
 	warehouse_service.add_item(&"bronze_sword", 1)
+	warehouse_service.add_item(&"leather_cap", 1)
 	warehouse_service.add_item(&"scout_charm", 2)
 
 	var sword_result := equipment_service.equip_item(&"hero", &"bronze_sword")
 	_assert_true(bool(sword_result.get("success", false)), "共享仓库中的武器应能装备到角色主手。")
 	_assert_eq(String(sword_result.get("slot_id", "")), "main_hand", "武器应进入主手槽。")
 	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 0, "装备武器后，共享仓库中的对应库存应扣减。")
+
+	var cap_result := equipment_service.equip_item(&"hero", &"leather_cap")
+	_assert_true(bool(cap_result.get("success", false)), "头部护具应能自动装备到 head 槽。")
+	_assert_eq(String(cap_result.get("slot_id", "")), "head", "头部护具应进入 head 槽。")
+	_assert_eq(warehouse_service.count_item(&"leather_cap"), 0, "装备头部护具后，共享仓库中的对应库存应扣减。")
 
 	var first_charm_result := equipment_service.equip_item(&"hero", &"scout_charm")
 	_assert_true(bool(first_charm_result.get("success", false)), "第一枚饰品应能自动装备。")
@@ -147,6 +174,7 @@ func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:
 
 	var equipment_state = party_state.get_member_state(&"hero").equipment_state
 	_assert_eq(String(equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "角色主手状态应记录已装备武器。")
+	_assert_eq(String(equipment_state.get_equipped_item_id(&"head")), "leather_cap", "头部槽应记录皮革护帽。")
 	_assert_eq(String(equipment_state.get_equipped_item_id(&"accessory_1")), "scout_charm", "饰品一槽应记录首个饰品。")
 	_assert_eq(String(equipment_state.get_equipped_item_id(&"accessory_2")), "scout_charm", "饰品二槽应记录第二个饰品。")
 
@@ -174,10 +202,12 @@ func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> voi
 	var warehouse_service := PartyWarehouseService.new()
 	warehouse_service.setup(party_state, item_defs)
 	warehouse_service.add_item(&"bronze_sword", 1)
+	warehouse_service.add_item(&"leather_cap", 1)
 	warehouse_service.add_item(&"leather_jerkin", 1)
 	var equipment_service := PartyEquipmentService.new()
 	equipment_service.setup(party_state, item_defs, warehouse_service)
 	equipment_service.equip_item(&"hero", &"bronze_sword")
+	equipment_service.equip_item(&"hero", &"leather_cap")
 	equipment_service.equip_item(&"hero", &"leather_jerkin")
 
 	var manager := CharacterManagementModule.new()
@@ -202,18 +232,24 @@ func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> voi
 	)
 	_assert_eq(
 		after_snapshot.get_value(AttributeService.PHYSICAL_DEFENSE) - before_snapshot.get_value(AttributeService.PHYSICAL_DEFENSE),
-		3,
-		"皮革短甲应为物防提供固定加值。"
+		5,
+		"皮革短甲与皮革护帽应合计为物防提供固定加值。"
 	)
 	_assert_eq(
 		after_snapshot.get_value(AttributeService.HP_MAX) - before_snapshot.get_value(AttributeService.HP_MAX),
 		6,
 		"皮革短甲应为生命上限提供固定加值。"
 	)
+	_assert_eq(
+		after_snapshot.get_value(AttributeService.EVASION) - before_snapshot.get_value(AttributeService.EVASION),
+		2,
+		"皮革护帽应为闪避提供固定加值。"
+	)
 
 	var restored_party_state = PartyState.from_dict(party_state.to_dict())
 	var restored_equipment_state = restored_party_state.get_member_state(&"hero").equipment_state
 	_assert_eq(String(restored_equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "序列化往返后应保留主手装备。")
+	_assert_eq(String(restored_equipment_state.get_equipped_item_id(&"head")), "leather_cap", "序列化往返后应保留头部装备。")
 	_assert_eq(String(restored_equipment_state.get_equipped_item_id(&"body")), "leather_jerkin", "序列化往返后应保留身躯装备。")
 
 

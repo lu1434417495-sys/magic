@@ -475,6 +475,7 @@ HeadlessGameTestSession
   - `data/configs/items/militia_axe.tres`
   - `data/configs/items/watchman_mace.tres`
   - `data/configs/items/scout_dagger.tres`
+  - `data/configs/items/leather_cap.tres`
   - `data/configs/items/leather_jerkin.tres`
   - `data/configs/items/scout_charm.tres`
   - `data/configs/items/healing_herb.tres`

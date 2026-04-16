@@ -405,14 +405,22 @@
     {
       "id": "PVS_07C",
       "title": "补齐头部护具与新装备元数据校验",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "正式装备 seed 至少补出 head 槽装备",
         "新增装备通过 equipment/schema regression，不破坏现有装备快照"
       ],
       "notes": [
         "当前 body 与 accessory 已有正式 seed。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:57:33+08:00",
+      "lastRunId": "20260417-035733-PVS_07C",
+      "startedAt": "2026-04-17T03:57:33+08:00",
+      "completedAt": "2026-04-17T04:02:58+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/equipment/run_party_equipment_regression.gd` and `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd`; both passed.",
+      "lastLearnings": "Formal head-slot coverage now hangs off `leather_cap` plus the focused equipment/schema regressions. Because CU-10 explicitly enumerates formal item seeds, `docs/design/project_context_units.md` should be updated whenever a new seed file becomes part of that slice. Keep stricter metadata enforcement in regressions for new equipment until older body/accessory seeds are migrated."
     },
     {
       "id": "PVS_08A",

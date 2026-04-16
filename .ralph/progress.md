@@ -93,3 +93,7 @@ Added `data/configs/items/militia_axe.tres` as the first new one-handed axe seed
 ## 2026-04-17T03:57:33+08:00 | PVS_07B | done
 title: 补齐第二批单手武器 seed 内容
 Added two new one-handed weapon seeds (`watchman_mace`, `scout_dagger`), expanded formal shop references so `militia_axe`/mace/dagger are surfaced by settlement shops, raised equipment regression coverage from 2 to 4 one-handed weapon classes, and updated the CU-10 read-set in `docs/design/project_context_units.md`.
+
+## 2026-04-17T04:02:58+08:00 | PVS_07C | done
+title: 补齐头部护具与新装备元数据校验
+Added `leather_cap` as the first formal head-slot armor seed, surfaced it in the existing town/city shop seed tables, extended equipment and item/schema regressions to cover head-slot metadata/equip/round-trip behavior, and updated the CU-10 read-set in `docs/design/project_context_units.md`.
