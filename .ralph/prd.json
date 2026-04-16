@@ -705,14 +705,22 @@
     {
       "id": "PVS_13B",
       "title": "为新命中模型补 natural 1/20 与 seeded regression",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "natural 1 / natural 20 语义在 resolver 中显式固定",
         "新增 deterministic regression 验证 seeded roll 与边界命中"
       ],
       "notes": [
         "Owner：CU-16 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:38:59+08:00",
+      "lastRunId": "20260417-053859-PVS_13B",
+      "startedAt": "2026-04-17T05:38:59+08:00",
+      "completedAt": "2026-04-17T05:44:05+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`, `godot --headless --script tests/battle_runtime/run_warrior_advanced_skill_regression.gd`, and `godot --headless --script tests/battle_runtime/run_battle_ui_regression.gd` — all PASS.",
+      "lastLearnings": "In the new BAB + descending-AC + d20 resolver, boundary hit bands are 95% max and 5% min because natural 1 always misses and natural 20 always hits. Seeded rolls remain reproducible from `battle_id + seed + attack_roll_nonce`, so exact boundary outcomes can be locked by headless smoke regressions without changing ownership elsewhere."
     },
     {
       "id": "PVS_14A",

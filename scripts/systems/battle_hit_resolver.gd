@@ -16,6 +16,10 @@ const ATTACK_CHECK_TARGET := 21
 const NATURAL_MISS_ROLL := 1
 const NATURAL_HIT_ROLL := 20
 const ATTACK_BONUS_STEP := 5.0
+const ROLL_DISPOSITION_THRESHOLD_HIT: StringName = &"threshold_hit"
+const ROLL_DISPOSITION_THRESHOLD_MISS: StringName = &"threshold_miss"
+const ROLL_DISPOSITION_NATURAL_AUTO_MISS: StringName = &"natural_1_auto_miss"
+const ROLL_DISPOSITION_NATURAL_AUTO_HIT: StringName = &"natural_20_auto_hit"
 
 
 func resolve_repeat_attack_stage_hit(
@@ -124,6 +128,8 @@ func build_skill_attack_check(
 		"required_roll": required_roll,
 		"display_required_roll": _get_display_required_roll(required_roll),
 		"hit_rate_percent": hit_rate_percent,
+		"natural_one_auto_miss": true,
+		"natural_twenty_auto_hit": true,
 	}
 	attack_check["preview_text"] = format_attack_check_preview(attack_check)
 	return attack_check
@@ -131,20 +137,30 @@ func build_skill_attack_check(
 
 func roll_attack_check(battle_state: BattleState, attack_check: Dictionary) -> Dictionary:
 	if attack_check.is_empty():
+		var empty_disposition := _resolve_attack_roll_disposition(NATURAL_MISS_ROLL, ATTACK_CHECK_TARGET)
 		return {
 			"success": false,
 			"roll": NATURAL_MISS_ROLL,
 			"required_roll": ATTACK_CHECK_TARGET,
 			"display_required_roll": _get_display_required_roll(ATTACK_CHECK_TARGET),
 			"hit_rate_percent": 0,
+			"natural_one_auto_miss": true,
+			"natural_twenty_auto_hit": true,
+			"roll_disposition": empty_disposition,
 			"preview_text": format_attack_check_preview({}),
-			"resolution_text": format_attack_check_resolution({"roll": NATURAL_MISS_ROLL}),
+			"resolution_text": format_attack_check_resolution({
+				"roll": NATURAL_MISS_ROLL,
+				"required_roll": ATTACK_CHECK_TARGET,
+				"roll_disposition": empty_disposition,
+			}),
 		}
 	var roll := _roll_battle_d20(battle_state)
 	var required_roll := int(attack_check.get("required_roll", ATTACK_CHECK_TARGET))
+	var roll_disposition := _resolve_attack_roll_disposition(roll, required_roll)
 	var result: Dictionary = attack_check.duplicate(true)
 	result["roll"] = roll
-	result["success"] = _is_attack_roll_success(roll, required_roll)
+	result["roll_disposition"] = roll_disposition
+	result["success"] = _is_attack_roll_disposition_success(roll_disposition)
 	result["resolution_text"] = format_attack_check_resolution(result)
 	return result
 
@@ -174,7 +190,20 @@ func format_attack_check_preview(attack_check: Dictionary) -> String:
 
 func format_attack_check_resolution(attack_result: Dictionary) -> String:
 	var preview_text := String(attack_result.get("preview_text", format_attack_check_preview(attack_result)))
-	return "%s，d20=%d" % [preview_text, int(attack_result.get("roll", NATURAL_MISS_ROLL))]
+	var roll := int(attack_result.get("roll", NATURAL_MISS_ROLL))
+	var roll_disposition := StringName(
+		attack_result.get("roll_disposition", _resolve_attack_roll_disposition(
+			roll,
+			int(attack_result.get("required_roll", ATTACK_CHECK_TARGET))
+		))
+	)
+	match roll_disposition:
+		ROLL_DISPOSITION_NATURAL_AUTO_MISS:
+			return "%s，d20=%d（天然 1 失手）" % [preview_text, roll]
+		ROLL_DISPOSITION_NATURAL_AUTO_HIT:
+			return "%s，d20=%d（天然 20 命中）" % [preview_text, roll]
+		_:
+			return "%s，d20=%d" % [preview_text, roll]
 
 
 func _roll_battle_d20(battle_state: BattleState) -> int:
@@ -219,11 +248,21 @@ func _compute_hit_rate_percent(required_roll: int) -> int:
 
 
 func _is_attack_roll_success(roll: int, required_roll: int) -> bool:
+	return _is_attack_roll_disposition_success(_resolve_attack_roll_disposition(roll, required_roll))
+
+
+func _resolve_attack_roll_disposition(roll: int, required_roll: int) -> StringName:
 	if roll <= NATURAL_MISS_ROLL:
-		return false
+		return ROLL_DISPOSITION_NATURAL_AUTO_MISS
 	if roll >= NATURAL_HIT_ROLL:
-		return true
-	return roll >= required_roll
+		return ROLL_DISPOSITION_NATURAL_AUTO_HIT
+	if roll >= required_roll:
+		return ROLL_DISPOSITION_THRESHOLD_HIT
+	return ROLL_DISPOSITION_THRESHOLD_MISS
+
+
+func _is_attack_roll_disposition_success(roll_disposition: StringName) -> bool:
+	return roll_disposition == ROLL_DISPOSITION_THRESHOLD_HIT or roll_disposition == ROLL_DISPOSITION_NATURAL_AUTO_HIT
 
 
 func _get_display_required_roll(required_roll: int) -> int:
@@ -232,6 +271,8 @@ func _get_display_required_roll(required_roll: int) -> int:
 
 func _format_required_roll_text(required_roll: int) -> String:
 	var display_required_roll := _get_display_required_roll(required_roll)
+	if required_roll <= NATURAL_MISS_ROLL + 1:
+		return "需 %d+（天然 1 仍失手）" % display_required_roll
 	if required_roll > NATURAL_HIT_ROLL:
 		return "需 %d+（仅天然 20）" % display_required_roll
 	return "需 %d+" % display_required_roll

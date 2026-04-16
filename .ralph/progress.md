@@ -153,3 +153,7 @@ BattleHitResolver now builds the shared repeat-attack hit preview summary (`summ
 ## 2026-04-17T05:38:59+08:00 | PVS_13A | done
 title: 把命中公式切到 BAB + 负 AC + d20
 Switched `BattleHitResolver` to deterministic BAB + descending AC + d20 repeat-attack checks, moved preview/log wording onto the resolver payload so battle log and preview read the same required-roll result, and updated the focused warrior/UI regressions. `docs/design/project_context_units.md` stays valid as-is.
+
+## 2026-04-17T05:44:05+08:00 | PVS_13B | done
+title: 为新命中模型补 natural 1/20 与 seeded regression
+`BattleHitResolver` now exposes explicit natural-1/natural-20 outcome dispositions and boundary resolution text, and `tests/battle_runtime/run_battle_runtime_smoke.gd` now covers deterministic seeded d20 sequences plus 95%/5% boundary-hit regressions. `docs/design/project_context_units.md` stayed valid and was not changed.

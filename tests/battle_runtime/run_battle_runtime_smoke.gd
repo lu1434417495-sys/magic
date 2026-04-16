@@ -6,6 +6,7 @@ extends SceneTree
 
 const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
 const BattleCommand = preload("res://scripts/systems/battle_command.gd")
+const BattleHitResolver = preload("res://scripts/systems/battle_hit_resolver.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
@@ -28,6 +29,8 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_hit_resolver_seeded_rolls_are_deterministic()
+	_test_hit_resolver_boundary_natural_rules_are_explicit()
 	_test_timed_terrain_processing_accepts_dictionary_keys()
 	_test_start_battle_accepts_explicit_narrow_assault_profile()
 	_test_start_battle_accepts_explicit_holdout_push_profile()
@@ -64,6 +67,105 @@ func _run() -> void:
 		push_error(failure)
 	print("Battle runtime smoke: FAIL (%d)" % _failures.size())
 	quit(1)
+
+
+func _test_hit_resolver_seeded_rolls_are_deterministic() -> void:
+	var resolver := BattleHitResolver.new()
+	var attack_check := _build_synthetic_attack_check(resolver, 11)
+	var first_state := BattleState.new()
+	first_state.battle_id = &"hit_seeded_regression"
+	first_state.seed = 20260417
+	var first_rolls: Array[int] = []
+	var first_outcomes: Array[bool] = []
+	for _index in range(3):
+		var result := resolver.roll_attack_check(first_state, attack_check)
+		first_rolls.append(int(result.get("roll", 0)))
+		first_outcomes.append(bool(result.get("success", false)))
+	_assert_eq(first_state.attack_roll_nonce, 3, "battle-seeded 掷骰后应推进 attack_roll_nonce。")
+
+	var second_state := BattleState.new()
+	second_state.battle_id = &"hit_seeded_regression"
+	second_state.seed = 20260417
+	var second_rolls: Array[int] = []
+	var second_outcomes: Array[bool] = []
+	for _index in range(3):
+		var result := resolver.roll_attack_check(second_state, attack_check)
+		second_rolls.append(int(result.get("roll", 0)))
+		second_outcomes.append(bool(result.get("success", false)))
+	_assert_eq(first_rolls, second_rolls, "同 battle_id/seed 的 d20 序列应保持稳定复现。")
+	_assert_eq(first_outcomes, second_outcomes, "同 battle_id/seed 的命中结果应保持稳定复现。")
+
+	var shifted_state := BattleState.new()
+	shifted_state.battle_id = &"hit_seeded_regression"
+	shifted_state.seed = 20260417
+	shifted_state.attack_roll_nonce = 1
+	var shifted_result := resolver.roll_attack_check(shifted_state, attack_check)
+	if first_rolls.size() >= 2:
+		_assert_eq(int(shifted_result.get("roll", 0)), first_rolls[1], "attack_roll_nonce 应稳定切到同 seed 的下一次掷骰结果。")
+
+
+func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
+	var resolver := BattleHitResolver.new()
+
+	var accurate_attacker := _build_unit(&"hit_boundary_accurate", Vector2i.ZERO, 1)
+	accurate_attacker.attribute_snapshot.set_value(&"hit_rate", 100)
+	var easy_target := _build_enemy_unit(&"hit_boundary_easy_target", Vector2i(1, 0))
+	easy_target.attribute_snapshot.set_value(&"evasion", -10)
+	var easy_check := resolver.build_skill_attack_check(accurate_attacker, easy_target, null)
+	_assert_true(int(easy_check.get("required_roll", 99)) <= 1, "低 required roll 夹具应进入天然 1 边界语义。")
+	_assert_eq(int(easy_check.get("display_required_roll", 0)), 2, "低 required roll 预览应稳定显示为 2+。")
+	_assert_eq(int(easy_check.get("hit_rate_percent", 0)), 95, "低 required roll 在天然 1 语义下应只保留 95% 命中。")
+	_assert_true(String(easy_check.get("preview_text", "")).contains("天然 1 仍失手"), "低 required roll 预览应显式提示天然 1 失手语义。")
+	var natural_one_seed := _find_seed_for_exact_attack_roll(
+		resolver,
+		easy_check,
+		1,
+		&"hit_boundary_natural_one"
+	)
+	_assert_true(natural_one_seed >= 0, "应能为天然 1 边界回归找到稳定 seed。")
+	if natural_one_seed >= 0:
+		var natural_one_state := BattleState.new()
+		natural_one_state.battle_id = &"hit_boundary_natural_one"
+		natural_one_state.seed = natural_one_seed
+		var natural_one_result := resolver.roll_attack_check(natural_one_state, easy_check)
+		_assert_eq(int(natural_one_result.get("roll", 0)), 1, "天然 1 边界回归应命中预期 d20 结果。")
+		_assert_true(not bool(natural_one_result.get("success", true)), "天然 1 应强制失手，即使 required roll 已低于 2。")
+		_assert_eq(
+			StringName(natural_one_result.get("roll_disposition", &"")),
+			BattleHitResolver.ROLL_DISPOSITION_NATURAL_AUTO_MISS,
+			"天然 1 边界回归应暴露显式的 resolver disposition。"
+		)
+		_assert_true(String(natural_one_result.get("resolution_text", "")).contains("天然 1 失手"), "天然 1 结算文案应显式标注 auto miss。")
+
+	var weak_attacker := _build_unit(&"hit_boundary_weak", Vector2i.ZERO, 1)
+	weak_attacker.attribute_snapshot.set_value(&"hit_rate", 0)
+	var evasive_target := _build_enemy_unit(&"hit_boundary_evasive_target", Vector2i(1, 0))
+	evasive_target.attribute_snapshot.set_value(&"evasion", 100)
+	var hard_check := resolver.build_skill_attack_check(weak_attacker, evasive_target, null)
+	_assert_true(int(hard_check.get("required_roll", 0)) > 20, "高 required roll 夹具应进入仅天然 20 命中语义。")
+	_assert_eq(int(hard_check.get("display_required_roll", 0)), 20, "高 required roll 预览应稳定显示为 20+。")
+	_assert_eq(int(hard_check.get("hit_rate_percent", 0)), 5, "高 required roll 在天然 20 语义下应只保留 5% 命中。")
+	_assert_true(String(hard_check.get("preview_text", "")).contains("仅天然 20"), "高 required roll 预览应显式提示天然 20 语义。")
+	var natural_twenty_seed := _find_seed_for_exact_attack_roll(
+		resolver,
+		hard_check,
+		20,
+		&"hit_boundary_natural_twenty"
+	)
+	_assert_true(natural_twenty_seed >= 0, "应能为天然 20 边界回归找到稳定 seed。")
+	if natural_twenty_seed >= 0:
+		var natural_twenty_state := BattleState.new()
+		natural_twenty_state.battle_id = &"hit_boundary_natural_twenty"
+		natural_twenty_state.seed = natural_twenty_seed
+		var natural_twenty_result := resolver.roll_attack_check(natural_twenty_state, hard_check)
+		_assert_eq(int(natural_twenty_result.get("roll", 0)), 20, "天然 20 边界回归应命中预期 d20 结果。")
+		_assert_true(bool(natural_twenty_result.get("success", false)), "天然 20 应强制命中，即使 required roll 高于 20。")
+		_assert_eq(
+			StringName(natural_twenty_result.get("roll_disposition", &"")),
+			BattleHitResolver.ROLL_DISPOSITION_NATURAL_AUTO_HIT,
+			"天然 20 边界回归应暴露显式的 resolver disposition。"
+		)
+		_assert_true(String(natural_twenty_result.get("resolution_text", "")).contains("天然 20 命中"), "天然 20 结算文案应显式标注 auto hit。")
 
 
 func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:
@@ -263,6 +365,50 @@ func _build_cell(coord: Vector2i) -> BattleCellState:
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
 	return cell
+
+
+func _build_synthetic_attack_check(resolver: BattleHitResolver, required_roll: int) -> Dictionary:
+	var attack_check := {
+		"required_roll": required_roll,
+		"display_required_roll": clampi(required_roll, 2, 20),
+		"hit_rate_percent": 0,
+		"natural_one_auto_miss": true,
+		"natural_twenty_auto_hit": true,
+	}
+	attack_check["hit_rate_percent"] = int(round(float(_count_attack_check_successes(required_roll)) * 5.0))
+	attack_check["preview_text"] = resolver.format_attack_check_preview(attack_check)
+	return attack_check
+
+
+func _count_attack_check_successes(required_roll: int) -> int:
+	var success_count := 0
+	for roll in range(1, 21):
+		if roll == 1:
+			continue
+		if roll == 20 or roll >= required_roll:
+			success_count += 1
+	return success_count
+
+
+func _find_seed_for_exact_attack_roll(
+	resolver: BattleHitResolver,
+	attack_check: Dictionary,
+	expected_roll: int,
+	battle_id: StringName
+) -> int:
+	if resolver == null or attack_check.is_empty():
+		return -1
+	var battle_state := BattleState.new()
+	battle_state.battle_id = battle_id
+	for candidate_seed in range(4096):
+		battle_state.seed = candidate_seed
+		battle_state.attack_roll_nonce = 0
+		var roll_result := resolver.roll_attack_check(battle_state, attack_check)
+		if int(roll_result.get("roll", 0)) == expected_roll:
+			battle_state.attack_roll_nonce = 0
+			return candidate_seed
+	battle_state.attack_roll_nonce = 0
+	return -1
 
 
 func _test_evaluate_move_rules_survive_stacked_columns() -> void:
