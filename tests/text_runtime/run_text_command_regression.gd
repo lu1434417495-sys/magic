@@ -333,14 +333,17 @@ func _assert_quest_progress_command_applied(snapshot: Dictionary, text_snapshot:
 func _assert_quest_complete_command_applied(snapshot: Dictionary, text_snapshot: String, quest_id: String) -> void:
 	var quests_snapshot: Dictionary = snapshot.get("party", {}).get("quests", {})
 	_assert_true(not (quests_snapshot.get("active_quest_ids", []) as Array).has(quest_id), "quest complete 后激活任务列表应移除该任务。")
-	_assert_true((quests_snapshot.get("completed_quest_ids", []) as Array).has(quest_id), "quest complete 后完成任务列表应包含该任务。")
-	_assert_true(text_snapshot.contains("completed_quest_ids=%s" % quest_id), "文本快照应渲染已完成任务 ID。")
+	_assert_true((quests_snapshot.get("claimable_quest_ids", []) as Array).has(quest_id), "quest complete 后待领奖励任务列表应包含该任务。")
+	_assert_true(not (quests_snapshot.get("completed_quest_ids", []) as Array).has(quest_id), "quest complete 后不应直接进入 completed_quest_ids。")
+	_assert_true(text_snapshot.contains("claimable_quest_ids=%s" % quest_id), "文本快照应渲染待领奖励任务 ID。")
+	_assert_true(text_snapshot.contains("quest=%s | stage=claimable" % quest_id), "文本快照应渲染待领奖励任务明细。")
 
 
 func _assert_settlement_quest_event_applied(snapshot: Dictionary, text_snapshot: String) -> void:
 	var quests_snapshot: Dictionary = snapshot.get("party", {}).get("quests", {})
-	_assert_true((quests_snapshot.get("completed_quest_ids", []) as Array).has("contract_settlement_warehouse"), "真实据点动作应自动完成仓储巡查任务。")
-	_assert_true(text_snapshot.contains("completed_quest_ids=contract_manual_drill contract_settlement_warehouse") or text_snapshot.contains("completed_quest_ids=contract_settlement_warehouse contract_manual_drill"), "文本快照应渲染真实据点动作完成后的任务列表。")
+	_assert_true((quests_snapshot.get("claimable_quest_ids", []) as Array).has("contract_settlement_warehouse"), "真实据点动作应自动把仓储巡查任务推进到待领奖励。")
+	_assert_true((quests_snapshot.get("claimable_quest_ids", []) as Array).has("contract_manual_drill"), "文本回归中的手动完成任务应继续停留在待领奖励列表。")
+	_assert_true(text_snapshot.contains("claimable_quest_ids=contract_manual_drill contract_settlement_warehouse") or text_snapshot.contains("claimable_quest_ids=contract_settlement_warehouse contract_manual_drill"), "文本快照应渲染真实据点动作完成后的待领奖励任务列表。")
 
 
 func _assert_equipment_command_applied(before_snapshot: Dictionary, after_snapshot: Dictionary) -> void:

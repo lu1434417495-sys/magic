@@ -116,11 +116,14 @@ func _build_quest_snapshot(party_state) -> Dictionary:
 	if party_state == null:
 		return {}
 	var active_quests_variant = _get_party_state_quest_value(party_state, "active_quests", "get_active_quests")
+	var claimable_quests_variant = _get_party_state_quest_value(party_state, "claimable_quests", "get_claimable_quests")
 	var completed_quest_ids_variant = _get_party_state_quest_value(party_state, "completed_quest_ids", "get_completed_quest_ids")
-	if active_quests_variant == null and completed_quest_ids_variant == null:
+	if active_quests_variant == null and claimable_quests_variant == null and completed_quest_ids_variant == null:
 		return {}
-	var active_quest_entries := _build_active_quest_entries(active_quests_variant)
-	var active_quest_ids := _build_active_quest_ids(active_quest_entries)
+	var active_quest_entries := _build_quest_entries(active_quests_variant, "active")
+	var claimable_quest_entries := _build_quest_entries(claimable_quests_variant, "claimable")
+	var active_quest_ids := _build_quest_ids(active_quest_entries)
+	var claimable_quest_ids := _build_quest_ids(claimable_quest_entries)
 	var completed_quest_ids: Array[String] = []
 	if completed_quest_ids_variant is Array:
 		completed_quest_ids = _string_name_array_to_string_array(ProgressionDataUtils.to_string_name_array(completed_quest_ids_variant))
@@ -128,8 +131,10 @@ func _build_quest_snapshot(party_state) -> Dictionary:
 		completed_quest_ids = _string_name_array_to_string_array(ProgressionDataUtils.to_string_name_array((completed_quest_ids_variant as Dictionary).keys()))
 	return {
 		"active_quest_ids": active_quest_ids,
+		"claimable_quest_ids": claimable_quest_ids,
 		"completed_quest_ids": completed_quest_ids,
 		"active_quests": active_quest_entries,
+		"claimable_quests": claimable_quest_entries,
 	}
 
 
@@ -146,26 +151,26 @@ func _get_party_state_quest_value(party_state, property_name: String, getter_nam
 	return party_state.get(property_name)
 
 
-func _build_active_quest_entries(active_quests_variant) -> Array[Dictionary]:
+func _build_quest_entries(quest_entries_variant, stage_id: String) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	if active_quests_variant is Dictionary:
-		for quest_key in ProgressionDataUtils.sorted_string_keys(active_quests_variant):
-			var quest_variant = _get_dictionary_value_by_string_key(active_quests_variant as Dictionary, quest_key)
-			var quest_entry := _normalize_quest_entry(quest_variant, quest_key)
+	if quest_entries_variant is Dictionary:
+		for quest_key in ProgressionDataUtils.sorted_string_keys(quest_entries_variant):
+			var quest_variant = _get_dictionary_value_by_string_key(quest_entries_variant as Dictionary, quest_key)
+			var quest_entry := _normalize_quest_entry(quest_variant, quest_key, stage_id)
 			if not quest_entry.is_empty():
 				entries.append(quest_entry)
-	elif active_quests_variant is Array:
-		for quest_variant in active_quests_variant:
-			var quest_entry := _normalize_quest_entry(quest_variant)
+	elif quest_entries_variant is Array:
+		for quest_variant in quest_entries_variant:
+			var quest_entry := _normalize_quest_entry(quest_variant, "", stage_id)
 			if not quest_entry.is_empty():
 				entries.append(quest_entry)
 		entries.sort_custom(Callable(self, "_compare_quest_entries"))
 	return entries
 
 
-func _build_active_quest_ids(active_quest_entries: Array[Dictionary]) -> Array[String]:
+func _build_quest_ids(quest_entries: Array[Dictionary]) -> Array[String]:
 	var quest_ids: Array[String] = []
-	for quest_entry in active_quest_entries:
+	for quest_entry in quest_entries:
 		var quest_id := String(quest_entry.get("quest_id", ""))
 		if quest_id.is_empty():
 			continue
@@ -173,7 +178,7 @@ func _build_active_quest_ids(active_quest_entries: Array[Dictionary]) -> Array[S
 	return quest_ids
 
 
-func _normalize_quest_entry(quest_variant, fallback_quest_id: String = "") -> Dictionary:
+func _normalize_quest_entry(quest_variant, fallback_quest_id: String = "", stage_id: String = "") -> Dictionary:
 	var quest_data: Dictionary = {}
 	if quest_variant is Dictionary:
 		quest_data = (quest_variant as Dictionary).duplicate(true)
@@ -187,6 +192,7 @@ func _normalize_quest_entry(quest_variant, fallback_quest_id: String = "") -> Di
 	if quest_id.is_empty():
 		quest_id = fallback_quest_id
 	quest_data["quest_id"] = quest_id
+	quest_data["stage_id"] = stage_id
 	quest_data["status_id"] = String(quest_data.get("status_id", ""))
 	quest_data["objective_progress"] = _normalize_quest_progress_map(quest_data.get("objective_progress", {}))
 	quest_data["accepted_at_world_step"] = int(quest_data.get("accepted_at_world_step", -1))

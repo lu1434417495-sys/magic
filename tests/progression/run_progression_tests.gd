@@ -579,15 +579,24 @@ func _test_party_state_quest_round_trip_persists() -> void:
 	active_quest.mark_accepted(4)
 	active_quest.record_objective_progress(&"defeat_wolves", 2, 3, {"enemy_template_id": "wolf_raider"})
 	party_state.set_active_quest_state(active_quest)
+	var claimable_quest := QuestState.new()
+	claimable_quest.quest_id = &"contract_settlement_warehouse"
+	claimable_quest.mark_accepted(3)
+	claimable_quest.mark_completed(7)
+	party_state.set_claimable_quest_state(claimable_quest)
 	party_state.add_completed_quest_id(&"intro_contract")
 
 	var serialized_party_state := ProgressionSerialization.serialize_party_state(party_state)
 	var restored_party_state = ProgressionSerialization.deserialize_party_state(serialized_party_state)
 	var restored_quest: QuestState = restored_party_state.get_active_quest_state(&"contract_wolf_pack")
+	var restored_claimable_quest: QuestState = restored_party_state.get_claimable_quest_state(&"contract_settlement_warehouse")
 	_assert_true(restored_quest != null, "QuestState 应随 PartyState 一起序列化往返恢复。")
 	_assert_eq(restored_party_state.version, 3, "新增 quest schema 后 PartyState.version 应升级到 3。")
 	_assert_eq(restored_quest.get_objective_progress(&"defeat_wolves"), 2, "QuestState 进度应在往返后保持稳定。")
 	_assert_eq(restored_quest.accepted_at_world_step, 4, "QuestState 接取时间应在往返后保持稳定。")
+	_assert_true(restored_claimable_quest != null, "待领奖励 QuestState 应随 PartyState 一起序列化往返恢复。")
+	if restored_claimable_quest != null:
+		_assert_eq(restored_claimable_quest.completed_at_world_step, 7, "待领奖励 QuestState 完成时间应在往返后保持稳定。")
 	_assert_true(restored_party_state.has_completed_quest(&"intro_contract"), "completed_quest_ids 应随 PartyState 一起序列化往返恢复。")
 
 	restored_quest.record_objective_progress(&"defeat_wolves", 1, 3, {"enemy_template_id": "wolf_raider"})

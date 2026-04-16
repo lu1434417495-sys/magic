@@ -49,3 +49,7 @@ Routed `service_bounty_registry` through the existing `contract_board` modal in 
 ## 2026-04-17T02:23:37+08:00 | PVS_03C | done
 title: 为 board 接取路径补 text/headless 回归
 Added `tests/text_runtime/scenarios/contract_board_accept.txt` as a focused headless text scenario that verifies `world open -> contract board open -> accept quest -> snapshot fields change`, and updated `tests/text_runtime/README.md` to document the correct scenario-run command.
+
+## 2026-04-17T02:37:11+08:00 | PVS_04A | done
+title: 把 quest completion 与 reward claim 拆成正式状态
+Formalized quest completion into three stages by adding `PartyState.claimable_quests`, moving objective-complete flow to claimable instead of directly into `completed_quest_ids`, exposing `active/claimable/completed` through runtime, snapshot, text snapshot, and contract board state, and updating focused regressions plus `docs/design/project_context_units.md` to match.

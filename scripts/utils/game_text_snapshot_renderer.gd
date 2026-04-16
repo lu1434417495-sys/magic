@@ -203,24 +203,31 @@ static func _build_quest_lines(quests: Dictionary) -> Array[String]:
 		return []
 	var lines: Array[String] = [
 		"active_quest_ids=%s" % _format_array(quests.get("active_quest_ids", [])),
+		"claimable_quest_ids=%s" % _format_array(quests.get("claimable_quest_ids", [])),
 		"completed_quest_ids=%s" % _format_array(quests.get("completed_quest_ids", [])),
 	]
-	var active_quests_variant = quests.get("active_quests", [])
-	if active_quests_variant is Array:
-		for quest_variant in active_quests_variant:
-			if quest_variant is not Dictionary:
-				continue
-			var quest: Dictionary = quest_variant
-			lines.append("quest=%s | status=%s | progress=%s | accepted=%d | completed=%d | rewarded=%d | context=%s" % [
-				String(quest.get("quest_id", "")),
-				String(quest.get("status_id", "")),
-				_format_quest_progress(quest.get("objective_progress", {})),
-				int(quest.get("accepted_at_world_step", -1)),
-				int(quest.get("completed_at_world_step", -1)),
-				int(quest.get("reward_claimed_at_world_step", -1)),
-				_format_key_value_pairs(quest.get("last_progress_context", {})),
-			])
+	_append_quest_detail_lines(lines, quests.get("active_quests", []), "active")
+	_append_quest_detail_lines(lines, quests.get("claimable_quests", []), "claimable")
 	return lines
+
+
+static func _append_quest_detail_lines(lines: Array[String], quest_variants, fallback_stage_id: String) -> void:
+	if quest_variants is not Array:
+		return
+	for quest_variant in quest_variants:
+		if quest_variant is not Dictionary:
+			continue
+		var quest: Dictionary = quest_variant
+		lines.append("quest=%s | stage=%s | status=%s | progress=%s | accepted=%d | completed=%d | rewarded=%d | context=%s" % [
+			String(quest.get("quest_id", "")),
+			String(quest.get("stage_id", fallback_stage_id)),
+			String(quest.get("status_id", "")),
+			_format_quest_progress(quest.get("objective_progress", {})),
+			int(quest.get("accepted_at_world_step", -1)),
+			int(quest.get("completed_at_world_step", -1)),
+			int(quest.get("reward_claimed_at_world_step", -1)),
+			_format_key_value_pairs(quest.get("last_progress_context", {})),
+		])
 
 
 static func _build_shop_lines(shop_snapshot: Dictionary) -> Array[String]:

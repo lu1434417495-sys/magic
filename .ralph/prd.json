@@ -185,14 +185,22 @@
     {
       "id": "PVS_04A",
       "title": "把 quest completion 与 reward claim 拆成正式状态",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "任务完成后存在可识别的 claimable reward 状态，而不只是进入 `completed_quest_ids`",
         "runtime 和 snapshot 能区分 active、completed、claimable 三种阶段"
       ],
       "notes": [
         "Owner：CU-11 / CU-06 / CU-21。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T02:23:38+08:00",
+      "lastRunId": "20260417-022338-PVS_04A",
+      "startedAt": "2026-04-17T02:23:38+08:00",
+      "completedAt": "2026-04-17T02:37:11+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script` for `tests/runtime/run_game_runtime_quest_progress_regression.gd`, `tests/runtime/run_game_runtime_snapshot_builder_regression.gd`, `tests/runtime/run_save_serializer_quest_round_trip_regression.gd`, `tests/text_runtime/run_text_command_regression.gd`, `tests/progression/run_progression_tests.gd`, `tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`, and `tests/world_map/runtime/run_settlement_forge_service_regression.gd` — all PASS.",
+      "lastLearnings": "Durable contract is now: objective completion moves a quest from `active_quests` to `claimable_quests`; `completed_quest_ids` is reserved for post-reward finalization; runtime/headless surfaces must expose `active_quest_ids`, `claimable_quest_ids`, and `completed_quest_ids` distinctly. Save compatibility stayed on `PartyState.version = 3` because missing `claimable_quests` cleanly defaults to empty on load."
     },
     {
       "id": "PVS_04B",

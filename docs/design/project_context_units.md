@@ -529,12 +529,12 @@ HeadlessGameTestSession
   - `PartyState` 本体。
   - 每个成员的 progression / achievements / 当前资源。
   - 正式角色奖励队列 `pending_character_rewards`。
-  - 正式任务状态 `active_quests` / `completed_quest_ids`。
+  - 正式任务状态 `active_quests` / `claimable_quests` / `completed_quest_ids`。
   - 正式角色奖励结构。
 - 主要职责：
   - 定义 party / member / progression / reward 数据模型。
   - 负责模型级 `to_dict` / `from_dict`。
-  - 当前 `PartyState.version = 3`，包含 `warehouse_state`、`pending_character_rewards`、`active_quests` 与 `completed_quest_ids`。
+  - 当前 `PartyState.version = 3`，包含 `warehouse_state`、`pending_character_rewards`、`active_quests`、`claimable_quests` 与 `completed_quest_ids`。
   - 若后续落地耐久 / 装备实例化，schema 升级会优先发生在本单元与 CU-10，不会只改 battle runtime。
 - 邻接单元：
   - CU-02
@@ -563,7 +563,7 @@ HeadlessGameTestSession
   - 记录成就事件。
   - 生成与应用 `PendingCharacterReward`。
   - 统一使用 `PendingCharacterReward`。
-  - 通过 `QuestProgressService` 接受 `quest_progress_events`，维护 `PartyState.active_quests` / `completed_quest_ids`，并把事件上下文写入 `QuestState.last_progress_context`。
+  - 通过 `QuestProgressService` 接受 `quest_progress_events`，维护 `PartyState.active_quests` / `claimable_quests` / `completed_quest_ids`，并把事件上下文写入 `QuestState.last_progress_context`。
   - 处理 profession promotion、战后 hp/mp/ko 回写。
   - 未来若存在战斗内装备损坏或耐久归零后的属性变化，也必须通过这里提供的角色状态 / attribute snapshot，让 `BattleUnitFactory` 把 party 与 battle 单位重新对齐。
 - 邻接单元：
@@ -951,7 +951,7 @@ HeadlessGameTestSession
   - 用 `GameTextCommandResult` 输出可读结果。
   - 用 `GameTextSnapshotRenderer` 渲染稳定文本快照；当前快照已正式包含 `logs` 段和 `[LOG]` 文本分段，以及据点 `contract_board` / forge modal 的 `[CONTRACT_BOARD]` / `[FORGE]` 分段，供自动化 / agent / 人工排障读取最近运行日志与服务窗口状态。
   - 当前还覆盖 mounted submap 的确认进入、返回原坐标和 active map snapshot / 文本命令。
-  - 当前文本命令域已包含最小 `quest accept/progress/complete` 调试接口；party 快照与文本快照会稳定暴露 `party.quests` / `[QUEST]` 分段，并可验证 settlement / battle 自动 quest progress 结果。
+  - 当前文本命令域已包含最小 `quest accept/progress/complete` 调试接口；party 快照与文本快照会稳定暴露 `party.quests` / `[QUEST]` 分段，其中 quest state 至少区分 `active_quest_ids` / `claimable_quest_ids` / `completed_quest_ids`，并可验证 settlement / battle 自动 quest progress 结果。
   - 为回归、调试、agent 驱动提供非 UI 入口，但不参与正式启动链。
 - 邻接单元：
   - CU-02

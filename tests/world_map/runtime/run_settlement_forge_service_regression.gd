@@ -118,6 +118,7 @@ class MockRuntime:
 		return {
 			"accepted_quest_ids": [],
 			"progressed_quest_ids": [],
+			"claimable_quest_ids": [],
 			"completed_quest_ids": [],
 		}
 

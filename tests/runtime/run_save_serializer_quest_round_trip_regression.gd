@@ -40,6 +40,11 @@ func _test_save_serializer_round_trip_preserves_party_quest_schema() -> void:
 	quest_state.mark_accepted(8)
 	quest_state.record_objective_progress(&"defeat_wolves", 2, 3, {"enemy_template_id": "wolf_raider"})
 	party_state.set_active_quest_state(quest_state)
+	var claimable_quest := QuestState.new()
+	claimable_quest.quest_id = &"contract_settlement_warehouse"
+	claimable_quest.mark_accepted(5)
+	claimable_quest.mark_completed(11)
+	party_state.set_claimable_quest_state(claimable_quest)
 	party_state.add_completed_quest_id(&"intro_contract")
 
 	var serializer = game_session._save_serializer
@@ -73,12 +78,17 @@ func _test_save_serializer_round_trip_preserves_party_quest_schema() -> void:
 	_assert_true(restored_party_state != null, "解码后的 payload 应返回 PartyState。")
 	_assert_eq(restored_party_state.version, 3, "Quest schema 接入后 PartyState.version 应保持为 3。")
 	_assert_true(restored_party_state.has_active_quest(&"contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。")
+	_assert_true(restored_party_state.has_claimable_quest(&"contract_settlement_warehouse"), "SaveSerializer 往返后应保留 claimable_quests。")
 	_assert_true(restored_party_state.has_completed_quest(&"intro_contract"), "SaveSerializer 往返后应保留 completed_quest_ids。")
 	var restored_quest: QuestState = restored_party_state.get_active_quest_state(&"contract_wolf_pack")
+	var restored_claimable_quest: QuestState = restored_party_state.get_claimable_quest_state(&"contract_settlement_warehouse")
 	_assert_true(restored_quest != null, "SaveSerializer 往返后应恢复 QuestState。")
+	_assert_true(restored_claimable_quest != null, "SaveSerializer 往返后应恢复待领奖励 QuestState。")
 	if restored_quest != null:
 		_assert_eq(restored_quest.get_objective_progress(&"defeat_wolves"), 2, "QuestState 进度应穿过 save payload 保持稳定。")
 		_assert_eq(restored_quest.accepted_at_world_step, 8, "QuestState 接取时间应穿过 save payload 保持稳定。")
+	if restored_claimable_quest != null:
+		_assert_eq(restored_claimable_quest.completed_at_world_step, 11, "待领奖励 QuestState 完成时间应穿过 save payload 保持稳定。")
 
 	_cleanup_test_session(game_session)
 

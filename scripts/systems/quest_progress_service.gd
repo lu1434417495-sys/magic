@@ -34,6 +34,14 @@ func get_active_quests() -> Array[QuestState]:
 	return _party_state.get_active_quests() if _party_state != null else []
 
 
+func get_claimable_quests() -> Array[QuestState]:
+	return _party_state.get_claimable_quests() if _party_state != null else []
+
+
+func get_claimable_quest_ids() -> Array[StringName]:
+	return _party_state.get_claimable_quest_ids() if _party_state != null else []
+
+
 func get_completed_quest_ids() -> Array[StringName]:
 	return _party_state.get_completed_quest_ids() if _party_state != null else []
 
@@ -44,6 +52,8 @@ func accept_quest(quest_id: StringName, world_step: int = -1, allow_reaccept: bo
 	if not _quest_defs.is_empty() and not _quest_defs.has(quest_id):
 		return false
 	if _party_state.has_active_quest(quest_id):
+		return false
+	if _party_state.has_claimable_quest(quest_id):
 		return false
 	if _party_state.has_completed_quest(quest_id) and not allow_reaccept:
 		return false
@@ -59,15 +69,18 @@ func accept_quest(quest_id: StringName, world_step: int = -1, allow_reaccept: bo
 func complete_quest(quest_id: StringName, world_step: int = -1) -> bool:
 	if _party_state == null or quest_id == &"":
 		return false
+	if _party_state.has_claimable_quest(quest_id):
+		return false
 	if _party_state.has_completed_quest(quest_id):
 		return false
-	return _party_state.mark_quest_completed(quest_id, world_step)
+	return _party_state.mark_quest_claimable(quest_id, world_step)
 
 
 func apply_quest_progress_events(event_variants: Array, default_world_step: int = -1) -> Dictionary:
 	var summary := {
 		"accepted_quest_ids": [],
 		"progressed_quest_ids": [],
+		"claimable_quest_ids": [],
 		"completed_quest_ids": [],
 	}
 	if _party_state == null:
@@ -93,7 +106,7 @@ func apply_quest_progress_events(event_variants: Array, default_world_step: int 
 					if accept_quest(quest_id, event_world_step, bool(event_data.get("allow_reaccept", false))):
 						_append_unique_string_name(summary["accepted_quest_ids"], quest_id)
 				if complete_quest(quest_id, event_world_step):
-					_append_unique_string_name(summary["completed_quest_ids"], quest_id)
+					_append_unique_string_name(summary["claimable_quest_ids"], quest_id)
 			_:
 				var progressed_quest_ids := _apply_progress_event(event_data, event_world_step)
 				for progressed_quest_id_variant in progressed_quest_ids:
@@ -101,8 +114,8 @@ func apply_quest_progress_events(event_variants: Array, default_world_step: int 
 					if progressed_quest_id == &"":
 						continue
 					_append_unique_string_name(summary["progressed_quest_ids"], progressed_quest_id)
-				for completed_quest_id in _maybe_complete_quests_after_progress(event_data, event_world_step, progressed_quest_ids):
-					_append_unique_string_name(summary["completed_quest_ids"], completed_quest_id)
+				for claimable_quest_id in _maybe_complete_quests_after_progress(event_data, event_world_step, progressed_quest_ids):
+					_append_unique_string_name(summary["claimable_quest_ids"], claimable_quest_id)
 	return summary
 
 
@@ -192,7 +205,7 @@ func _find_matching_active_objectives(event_data: Dictionary) -> Array[Dictionar
 
 
 func _maybe_complete_quests_after_progress(event_data: Dictionary, world_step: int, progressed_quest_ids: Array[StringName]) -> Array[StringName]:
-	var completed_quest_ids: Array[StringName] = []
+	var claimable_quest_ids: Array[StringName] = []
 	for quest_id in progressed_quest_ids:
 		var quest_state: QuestState = _party_state.get_active_quest_state(quest_id)
 		var quest_def = _quest_defs.get(quest_id)
@@ -200,8 +213,8 @@ func _maybe_complete_quests_after_progress(event_data: Dictionary, world_step: i
 			continue
 		if quest_state.has_completed_all_objectives(quest_def):
 			if complete_quest(quest_id, world_step):
-				completed_quest_ids.append(quest_id)
-	return completed_quest_ids
+				claimable_quest_ids.append(quest_id)
+	return claimable_quest_ids
 
 
 func _build_event_context(event_data: Dictionary) -> Dictionary:

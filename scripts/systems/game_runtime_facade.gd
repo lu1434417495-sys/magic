@@ -510,6 +510,14 @@ func get_active_quest_states() -> Array:
 	return _character_management.get_active_quest_states() if _character_management != null else []
 
 
+func get_claimable_quest_states() -> Array:
+	return _character_management.get_claimable_quest_states() if _character_management != null else []
+
+
+func get_claimable_quest_ids() -> Array[StringName]:
+	return _character_management.get_claimable_quest_ids() if _character_management != null else []
+
+
 func get_completed_quest_ids() -> Array[StringName]:
 	return _character_management.get_completed_quest_ids() if _character_management != null else []
 
@@ -980,6 +988,7 @@ func apply_quest_progress_events_to_party(event_variants: Array, source_domain: 
 		return {
 			"accepted_quest_ids": [],
 			"progressed_quest_ids": [],
+			"claimable_quest_ids": [],
 			"completed_quest_ids": [],
 		}
 	var summary := _character_management.apply_quest_progress_events(event_variants, get_world_step())
@@ -1319,6 +1328,8 @@ func command_accept_quest(quest_id: StringName, allow_reaccept: bool = false) ->
 		var quest_label := _resolve_quest_label(quest_id, quest_data)
 		if _party_state != null and _party_state.has_active_quest(quest_id):
 			return _command_error("任务《%s》已在进行中，不能重复接取。" % quest_label)
+		if _party_state != null and _party_state.has_claimable_quest(quest_id):
+			return _command_error("任务《%s》已完成，奖励待领取，当前不可再次接取。" % quest_label)
 		var has_completed: bool = _party_state != null and _party_state.has_completed_quest(quest_id)
 		var is_repeatable := bool(quest_data.get("is_repeatable", false))
 		var effective_allow_reaccept: bool = allow_reaccept or (has_completed and is_repeatable)
@@ -1379,11 +1390,13 @@ func command_complete_quest(quest_id: StringName) -> Dictionary:
 			return _command_error("运行时尚未初始化。")
 		if quest_id == &"":
 			return _command_error("任务 ID 不能为空。")
+		var quest_data := _get_quest_def_data(quest_id)
+		var quest_label := _resolve_quest_label(quest_id, quest_data)
 		if not _character_management.complete_quest(quest_id, get_world_step()):
-			return _command_error("当前无法完成任务 %s。" % String(quest_id))
+			return _command_error("当前无法完成任务《%s》。" % quest_label)
 		_party_state = _character_management.get_party_state()
 		var persist_error := _persist_party_state()
-		var message := "已完成任务 %s。" % String(quest_id)
+		var message := "已完成任务《%s》，奖励待领取。" % quest_label
 		if persist_error != OK:
 			message = "%s 但队伍状态持久化失败。" % message
 			_update_status(message)
@@ -2455,6 +2468,7 @@ func _build_default_battle_quest_progress_events(winner_faction_id: String) -> A
 func _has_quest_progress_summary_changes(summary: Dictionary) -> bool:
 	return not (summary.get("accepted_quest_ids", []) as Array).is_empty() \
 		or not (summary.get("progressed_quest_ids", []) as Array).is_empty() \
+		or not (summary.get("claimable_quest_ids", []) as Array).is_empty() \
 		or not (summary.get("completed_quest_ids", []) as Array).is_empty()
 
 
@@ -2462,11 +2476,14 @@ func _format_quest_progress_summary(summary: Dictionary) -> String:
 	var parts: Array[String] = []
 	var accepted_ids: Array = summary.get("accepted_quest_ids", [])
 	var progressed_ids: Array = summary.get("progressed_quest_ids", [])
+	var claimable_ids: Array = summary.get("claimable_quest_ids", [])
 	var completed_ids: Array = summary.get("completed_quest_ids", [])
 	if not accepted_ids.is_empty():
 		parts.append("接取 %s" % _format_string_name_list(accepted_ids))
 	if not progressed_ids.is_empty():
 		parts.append("推进 %s" % _format_string_name_list(progressed_ids))
+	if not claimable_ids.is_empty():
+		parts.append("待领奖励 %s" % _format_string_name_list(claimable_ids))
 	if not completed_ids.is_empty():
 		parts.append("完成 %s" % _format_string_name_list(completed_ids))
 	return "任务进度已更新：%s。" % "；".join(parts) if not parts.is_empty() else "任务进度未变化。"
@@ -2497,6 +2514,7 @@ func _quest_progress_summary_to_string_dict(summary: Dictionary) -> Dictionary:
 	return {
 		"accepted_quest_ids": _string_name_array_to_string_array(summary.get("accepted_quest_ids", [])),
 		"progressed_quest_ids": _string_name_array_to_string_array(summary.get("progressed_quest_ids", [])),
+		"claimable_quest_ids": _string_name_array_to_string_array(summary.get("claimable_quest_ids", [])),
 		"completed_quest_ids": _string_name_array_to_string_array(summary.get("completed_quest_ids", [])),
 	}
 

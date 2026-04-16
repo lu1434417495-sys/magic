@@ -797,6 +797,8 @@ func _resolve_contract_board_quest_state_id(quest_id: StringName, quest_data: Di
 		return "available"
 	if party_state.has_method("get_active_quest_state") and party_state.get_active_quest_state(quest_id) != null:
 		return "active"
+	if party_state.has_method("has_claimable_quest") and party_state.has_claimable_quest(quest_id):
+		return "claimable"
 	if party_state.has_method("has_completed_quest") and party_state.has_completed_quest(quest_id):
 		if bool(quest_data.get("is_repeatable", false)):
 			return "repeatable"
@@ -808,6 +810,8 @@ func _build_contract_board_state_label(state_id: String) -> String:
 	match state_id:
 		"active":
 			return "状态：进行中"
+		"claimable":
+			return "状态：待领奖励"
 		"repeatable":
 			return "状态：可重复接取"
 		"completed":
@@ -821,12 +825,15 @@ func _build_contract_board_state_label(state_id: String) -> String:
 func _build_contract_board_state_summary(entries: Array[Dictionary]) -> String:
 	var active_count := 0
 	var available_count := 0
+	var claimable_count := 0
 	var repeatable_count := 0
 	var completed_count := 0
 	for entry in entries:
 		match String(entry.get("state_id", "")):
 			"active":
 				active_count += 1
+			"claimable":
+				claimable_count += 1
 			"repeatable":
 				repeatable_count += 1
 			"completed":
@@ -839,6 +846,8 @@ func _build_contract_board_state_summary(entries: Array[Dictionary]) -> String:
 		"进行中 %d" % active_count,
 		"待接取 %d" % available_count,
 	])
+	if claimable_count > 0:
+		parts.append("待领奖励 %d" % claimable_count)
 	if repeatable_count > 0:
 		parts.append("可重复 %d" % repeatable_count)
 	parts.append("已完成 %d" % completed_count)
@@ -1422,7 +1431,7 @@ func _normalize_contract_board_quest_data(quest_variant) -> Dictionary:
 
 
 func _is_contract_board_completed_state(state_id: String) -> bool:
-	return state_id == "completed" or state_id == "repeatable"
+	return state_id == "claimable" or state_id == "completed" or state_id == "repeatable"
 
 
 func _is_forge_interaction(interaction_script_id: String) -> bool:

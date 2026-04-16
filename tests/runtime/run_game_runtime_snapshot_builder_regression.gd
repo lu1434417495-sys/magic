@@ -69,7 +69,12 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	quest_state.record_objective_progress(&"defeat_wolves", 2, 3, {"enemy_template_id": "wolf_raider"})
 	quest_state.record_objective_progress(&"defeat_wolves", 2, 3, {"enemy_template_id": "wolf_raider"})
 	quest_state.record_objective_progress(&"report_back", 1, 1, {"settlement_id": "spring_village_01"})
+	var claimable_quest := QuestState.new()
+	claimable_quest.quest_id = &"contract_settlement_warehouse"
+	claimable_quest.mark_accepted(9)
+	claimable_quest.mark_completed(15)
 	party_state.active_quests = [quest_state]
+	party_state.claimable_quests = [claimable_quest]
 	party_state.completed_quest_ids = [&"contract_intro"]
 	runtime.party_state = party_state
 
@@ -86,15 +91,23 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 		"active_quest_ids 应稳定暴露当前激活任务 ID。"
 	)
 	_assert_eq(
+		quests_snapshot.get("claimable_quest_ids", []),
+		["contract_settlement_warehouse"],
+		"claimable_quest_ids 应稳定暴露待领奖励任务 ID。"
+	)
+	_assert_eq(
 		quests_snapshot.get("completed_quest_ids", []),
 		["contract_intro"],
 		"completed_quest_ids 应稳定暴露已完成任务 ID。"
 	)
 	var active_quests: Array = quests_snapshot.get("active_quests", [])
+	var claimable_quests: Array = quests_snapshot.get("claimable_quests", [])
 	_assert_eq(active_quests.size(), 1, "active_quests 应保留当前任务详情。")
+	_assert_eq(claimable_quests.size(), 1, "claimable_quests 应保留待领奖励任务详情。")
 	if not active_quests.is_empty():
 		var quest_entry: Dictionary = active_quests[0]
 		_assert_eq(String(quest_entry.get("quest_id", "")), "contract_wolf_pack", "任务快照应保留 quest_id。")
+		_assert_eq(String(quest_entry.get("stage_id", "")), "active", "激活任务快照应标记 active stage。")
 		_assert_eq(int(quest_entry.get("accepted_at_world_step", -1)), 12, "任务快照应保留接取时间。")
 		_assert_eq(
 			int((quest_entry.get("objective_progress", {}) as Dictionary).get("defeat_wolves", 0)),
@@ -106,10 +119,17 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 			"spring_village_01",
 			"任务快照应保留最近进度上下文。"
 		)
+	if not claimable_quests.is_empty():
+		var claimable_entry: Dictionary = claimable_quests[0]
+		_assert_eq(String(claimable_entry.get("quest_id", "")), "contract_settlement_warehouse", "待领奖励任务快照应保留 quest_id。")
+		_assert_eq(String(claimable_entry.get("stage_id", "")), "claimable", "待领奖励任务快照应标记 claimable stage。")
+		_assert_eq(int(claimable_entry.get("completed_at_world_step", -1)), 15, "待领奖励任务快照应保留完成时间。")
 	_assert_true(text_snapshot.contains("[QUEST]"), "文本快照应在 PartyState 含任务时渲染 QUEST 分段。")
 	_assert_true(text_snapshot.contains("active_quest_ids=contract_wolf_pack"), "文本快照应渲染激活任务 ID。")
+	_assert_true(text_snapshot.contains("claimable_quest_ids=contract_settlement_warehouse"), "文本快照应渲染待领奖励任务 ID。")
 	_assert_true(text_snapshot.contains("completed_quest_ids=contract_intro"), "文本快照应渲染完成任务 ID。")
-	_assert_true(text_snapshot.contains("quest=contract_wolf_pack"), "文本快照应渲染任务明细。")
+	_assert_true(text_snapshot.contains("quest=contract_wolf_pack | stage=active"), "文本快照应渲染激活任务明细。")
+	_assert_true(text_snapshot.contains("quest=contract_settlement_warehouse | stage=claimable"), "文本快照应渲染待领奖励任务明细。")
 
 	builder.dispose()
 
@@ -250,6 +270,7 @@ class FakeQuestPartyState:
 	var active_member_ids: Array = []
 	var reserve_member_ids: Array = []
 	var active_quests: Array = []
+	var claimable_quests: Array = []
 	var completed_quest_ids: Array = []
 
 	func get_member_state(_member_id: StringName):
@@ -257,6 +278,9 @@ class FakeQuestPartyState:
 
 	func get_active_quests():
 		return active_quests
+
+	func get_claimable_quests():
+		return claimable_quests
 
 	func get_completed_quest_ids():
 		return completed_quest_ids

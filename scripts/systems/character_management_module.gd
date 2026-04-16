@@ -104,6 +104,15 @@ func get_active_quest_states() -> Array:
 	return _quest_progress_service.call("get_active_quests") if _quest_progress_service != null and _quest_progress_service.has_method("get_active_quests") else []
 
 
+func get_claimable_quest_states() -> Array:
+	return _quest_progress_service.call("get_claimable_quests") if _quest_progress_service != null and _quest_progress_service.has_method("get_claimable_quests") else []
+
+
+func get_claimable_quest_ids() -> Array[StringName]:
+	var quest_ids_variant = _quest_progress_service.call("get_claimable_quest_ids") if _quest_progress_service != null and _quest_progress_service.has_method("get_claimable_quest_ids") else []
+	return ProgressionDataUtils.to_string_name_array(quest_ids_variant)
+
+
 func get_completed_quest_ids() -> Array[StringName]:
 	var quest_ids_variant = _quest_progress_service.call("get_completed_quest_ids") if _quest_progress_service != null and _quest_progress_service.has_method("get_completed_quest_ids") else []
 	return ProgressionDataUtils.to_string_name_array(quest_ids_variant)
@@ -130,6 +139,7 @@ func apply_quest_progress_events(event_variants: Array, world_step: int = -1) ->
 		return {
 			"accepted_quest_ids": [],
 			"progressed_quest_ids": [],
+			"claimable_quest_ids": [],
 			"completed_quest_ids": [],
 		}
 	var summary: Dictionary = _quest_progress_service.call("apply_quest_progress_events", event_variants, world_step) if _quest_progress_service.has_method("apply_quest_progress_events") else {}
