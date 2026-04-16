@@ -585,14 +585,22 @@
     {
       "id": "PVS_10B",
       "title": "把 `narrow_assault` 接到测试入口与 board regression",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "至少一个测试入口或 world hook 能显式使用 `narrow_assault`",
         "battle board regression 覆盖其布局、出生点与 prop 契约"
       ],
       "notes": [
         "Owner：CU-17 / CU-18 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:59:21+08:00",
+      "lastRunId": "20260417-045921-PVS_10B",
+      "startedAt": "2026-04-17T04:59:21+08:00",
+      "completedAt": "2026-04-17T05:04:38+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` PASS; `godot --headless --script tests/battle_runtime/run_battle_board_regression.gd` PASS.",
+      "lastLearnings": "This story was satisfied without changing shipped world routing or `docs/design/project_context_units.md`: `narrow_assault` is now reachable through explicit battle-start context (`battle_terrain_profile`/`battle_map_size`), and its stable contract is spawn-side separation plus 1 objective, 2 tents, 2 torches, and spike-backed prop rendering."
     },
     {
       "id": "PVS_11A",

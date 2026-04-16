@@ -63,6 +63,7 @@ func _run() -> void:
 	await _test_canyon_generation_builds_true_stacked_columns()
 	await _test_canyon_generation_contains_connected_water()
 	await _test_narrow_assault_generation_builds_breakthrough_lane()
+	await _test_narrow_assault_board_contracts()
 	await _test_default_generation_respects_global_min_height()
 	await _test_default_water_height_normalization_is_component_local()
 	await _test_battle_board_contracts()
@@ -201,6 +202,44 @@ func _test_narrow_assault_generation_builds_breakthrough_lane() -> void:
 		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_SPIKE, gate_x + 1, gate_x + 2) >= 1,
 		"突破口后方应保留地刺 kill-zone，体现防守反突意图。"
 	)
+
+	var ally_spawns := _extract_layout_coords(first_layout.get("ally_spawns", []))
+	var enemy_spawns := _extract_layout_coords(first_layout.get("enemy_spawns", []))
+	_assert_true(ally_spawns.size() >= 2, "narrow_assault 的 ally_spawns 应至少保留起点外的额外部署位。")
+	_assert_true(enemy_spawns.size() >= 2, "narrow_assault 的 enemy_spawns 应至少保留起点外的额外部署位。")
+	for coord in ally_spawns:
+		_assert_true(coord.x <= gate_x, "narrow_assault 的 ally_spawns 应全部落在突破口左侧。")
+	for coord in enemy_spawns:
+		_assert_true(coord.x > gate_x, "narrow_assault 的 enemy_spawns 应全部落在突破口右侧。")
+	for coord in ally_spawns:
+		_assert_true(not enemy_spawns.has(coord), "narrow_assault 的双方部署位不应重叠：%s" % str(coord))
+
+	var tent_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TENT)
+	var torch_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TORCH)
+	_assert_eq(tent_coords.size(), 2, "narrow_assault 地图应显式放置双方 tent。")
+	_assert_eq(torch_coords.size(), 2, "narrow_assault 地图应显式放置左右 torch。")
+	_assert_eq(_count_coords_on_or_left_of_x(tent_coords, gate_x), 1, "narrow_assault 的 tent 应在突破口左侧保留一处营地。")
+	_assert_eq(_count_coords_strictly_right_of_x(tent_coords, gate_x), 1, "narrow_assault 的 tent 应在突破口右侧保留一处营地。")
+	_assert_eq(_count_coords_on_or_left_of_x(torch_coords, gate_x), 1, "narrow_assault 的 torch 应在突破口左侧保留一处灯火。")
+	_assert_eq(_count_coords_strictly_right_of_x(torch_coords, gate_x), 1, "narrow_assault 的 torch 应在突破口右侧保留一处灯火。")
+	var explicit_prop_coords: Array[Vector2i] = []
+	explicit_prop_coords.append_array(objective_coords)
+	explicit_prop_coords.append_array(tent_coords)
+	explicit_prop_coords.append_array(torch_coords)
+	for coord in explicit_prop_coords:
+		var cell := first_layout.get("cells", {}).get(coord) as BattleCellState
+		_assert_true(cell != null and cell.passable, "narrow_assault 的显式 prop 必须放在可通行地格上：%s" % str(coord))
+		_assert_true(
+			not ally_spawns.has(coord) and not enemy_spawns.has(coord),
+			"narrow_assault 的显式 prop 不应覆盖部署位：%s" % str(coord)
+		)
+	_assert_layout_uses_supported_props(first_layout)
+
+
+func _test_narrow_assault_board_contracts() -> void:
+	var layout := _build_narrow_assault_layout(TEST_SEED)
+	var board := await _instantiate_board(_build_state(layout))
+	_assert_prop_and_unit_sorting(board)
 
 
 func _test_default_generation_respects_global_min_height() -> void:
@@ -1269,6 +1308,44 @@ func _collect_layout_prop_coords(layout: Dictionary, prop_id: StringName) -> Arr
 			continue
 		coords.append(coord)
 	return coords
+
+
+func _extract_layout_coords(coords_variant: Variant) -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	if coords_variant is not Array:
+		return coords
+	for coord_variant in coords_variant:
+		if coord_variant is Vector2i:
+			coords.append(coord_variant)
+	return coords
+
+
+func _count_coords_on_or_left_of_x(coords: Array[Vector2i], x_limit: int) -> int:
+	var count := 0
+	for coord in coords:
+		if coord.x <= x_limit:
+			count += 1
+	return count
+
+
+func _count_coords_strictly_right_of_x(coords: Array[Vector2i], x_limit: int) -> int:
+	var count := 0
+	for coord in coords:
+		if coord.x > x_limit:
+			count += 1
+	return count
+
+
+func _assert_layout_uses_supported_props(layout: Dictionary) -> void:
+	for cell_variant in layout.get("cells", {}).values():
+		var cell := cell_variant as BattleCellState
+		if cell == null:
+			continue
+		for prop_id in cell.prop_ids:
+			_assert_true(
+				BattleBoardPropCatalog.is_supported(prop_id),
+				"战斗布局中的显式 prop_id 必须来自正式 prop catalog：%s" % String(prop_id)
+			)
 
 
 func _count_terrain_cells_in_x_range(layout: Dictionary, terrain_id: StringName, min_x: int, max_x: int) -> int:

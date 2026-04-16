@@ -129,3 +129,7 @@ Added a second formal wild encounter roster `mist_hollow`, exposed explicit worl
 ## 2026-04-17T04:59:20+08:00 | PVS_10A | done
 title: 实现 `narrow_assault` 地形 profile 生成器
 Added `narrow_assault` support in `BattleTerrainGenerator` with a deterministic choke-point assault layout, explicit left/right staging, breach objective/props, and focused `run_battle_board_regression` coverage for the new profile. Also fixed shared water classification so canyon/default generator water cells enter the topology reclassification pass during validation.
+
+## 2026-04-17T05:04:38+08:00 | PVS_10B | done
+title: 把 `narrow_assault` 接到测试入口与 board regression
+Added a real `narrow_assault` test entry in `tests/battle_runtime/run_battle_runtime_smoke.gd` by starting battle runtime with explicit `battle_terrain_profile`, and tightened `tests/battle_runtime/run_battle_board_regression.gd` to cover narrow-assault spawn rings, explicit tent/torch/objective placement, supported prop IDs, and rendered prop-layer coverage.

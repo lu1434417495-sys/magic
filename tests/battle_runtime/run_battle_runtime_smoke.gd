@@ -10,11 +10,13 @@ const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleEdgeFeatureState = preload("res://scripts/systems/battle_edge_feature_state.gd")
+const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
 const BattleTerrainEffectState = preload("res://scripts/systems/battle_terrain_effect_state.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
@@ -27,6 +29,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_timed_terrain_processing_accepts_dictionary_keys()
+	_test_start_battle_accepts_explicit_narrow_assault_profile()
 	_test_evaluate_move_rules_survive_stacked_columns()
 	_test_move_command_executes_normally_on_stacked_columns()
 	_test_runtime_reports_multistep_reachable_move_coords()
@@ -97,6 +100,75 @@ func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:
 	_assert_true(
 		trailing_cell.timed_terrain_effects[0].remaining_tu == 5,
 		"timed terrain effect 应完成一次稳定 tick。"
+	)
+
+
+func _test_start_battle_accepts_explicit_narrow_assault_profile() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, registry.get_skill_defs(), {}, {})
+
+	var encounter_anchor := EncounterAnchorData.new()
+	encounter_anchor.entity_id = &"narrow_assault_smoke"
+	encounter_anchor.display_name = "狭道突击测试"
+	encounter_anchor.world_coord = Vector2i(8, 4)
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.region_tag = &"default"
+
+	var ally_a := _build_unit(&"narrow_assault_ally_a", Vector2i.ZERO, 3)
+	var ally_b := _build_unit(&"narrow_assault_ally_b", Vector2i.ZERO, 3)
+	var state := runtime.start_battle(
+		encounter_anchor,
+		20260417,
+		{
+			"battle_terrain_profile": "narrow_assault",
+			"battle_map_size": Vector2i(19, 11),
+			"battle_party": [ally_a.to_dict(), ally_b.to_dict()],
+			"enemy_unit_count": 2,
+		}
+	)
+	_assert_true(state != null and not state.is_empty(), "BattleRuntimeModule.start_battle() 应能显式启动 narrow_assault 地形。")
+	if state == null or state.is_empty():
+		return
+
+	_assert_eq(String(state.terrain_profile_id), "narrow_assault", "显式 battle_terrain_profile 应进入正式 narrow_assault battle state。")
+	_assert_eq(state.map_size, Vector2i(19, 11), "显式 narrow_assault 入口应保留请求的 battle_map_size。")
+	_assert_eq(state.ally_unit_ids.size(), 2, "显式 narrow_assault 入口应保留传入的 ally battle party。")
+	_assert_eq(state.enemy_unit_ids.size(), 2, "显式 narrow_assault 入口应构建请求数量的敌方单位。")
+
+	var center_x := int(state.map_size.x / 2)
+	for ally_unit_id in state.ally_unit_ids:
+		var ally_unit := state.units.get(ally_unit_id) as BattleUnitState
+		_assert_true(ally_unit != null, "narrow_assault 入口构建后，友军单位应可从 state.units 读取。")
+		if ally_unit == null:
+			continue
+		_assert_true(ally_unit.coord.x < center_x, "narrow_assault 入口应把友军部署在突破线左侧 staging 区。")
+	for enemy_unit_id in state.enemy_unit_ids:
+		var enemy_unit := state.units.get(enemy_unit_id) as BattleUnitState
+		_assert_true(enemy_unit != null, "narrow_assault 入口构建后，敌军单位应可从 state.units 读取。")
+		if enemy_unit == null:
+			continue
+		_assert_true(enemy_unit.coord.x >= center_x, "narrow_assault 入口应把敌军部署在突破线右侧 staging 区。")
+
+	var explicit_prop_counts := _count_explicit_props(state)
+	_assert_eq(
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER, 0)),
+		1,
+		"narrow_assault 入口生成的 battle state 应保留唯一 objective marker。"
+	)
+	_assert_eq(
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TENT, 0)),
+		2,
+		"narrow_assault 入口生成的 battle state 应保留双方 tent。"
+	)
+	_assert_eq(
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TORCH, 0)),
+		2,
+		"narrow_assault 入口生成的 battle state 应保留左右 torch。"
+	)
+	_assert_true(
+		_count_terrain_cells(state, BattleCellState.TERRAIN_SPIKE) >= 1,
+		"narrow_assault 入口生成的 battle state 应保留突破口后的 spike kill-zone。"
 	)
 
 
@@ -1038,6 +1110,37 @@ func _test_skill_costs_and_cooldowns_apply_in_runtime() -> void:
 		not second_batch.log_lines.is_empty() and String(second_batch.log_lines[-1]).contains("冷却"),
 		"技能仍在冷却时，再次施放应给出明确提示。"
 	)
+
+
+func _count_explicit_props(state: BattleState) -> Dictionary:
+	var counts := {
+		BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER: 0,
+		BattleBoardPropCatalog.PROP_TENT: 0,
+		BattleBoardPropCatalog.PROP_TORCH: 0,
+	}
+	if state == null:
+		return counts
+	for cell_variant in state.cells.values():
+		var cell := cell_variant as BattleCellState
+		if cell == null:
+			continue
+		for prop_id in cell.prop_ids:
+			if counts.has(prop_id):
+				counts[prop_id] = int(counts.get(prop_id, 0)) + 1
+	return counts
+
+
+func _count_terrain_cells(state: BattleState, terrain_id: StringName) -> int:
+	if state == null:
+		return 0
+	var count := 0
+	for cell_variant in state.cells.values():
+		var cell := cell_variant as BattleCellState
+		if cell == null:
+			continue
+		if cell.base_terrain == terrain_id:
+			count += 1
+	return count
 
 
 func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> BattleUnitState:
