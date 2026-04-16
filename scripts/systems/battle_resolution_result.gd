@@ -58,7 +58,11 @@ func get_pending_character_rewards_copy() -> Array:
 
 
 func set_loot_entries(loot_entry_variants: Array) -> void:
-	loot_entries = _normalize_loot_entry_variants(loot_entry_variants)
+	loot_entries = _normalize_drop_entry_variants(loot_entry_variants)
+
+
+func set_overflow_entries(overflow_entry_variants: Array) -> void:
+	overflow_entries = _normalize_drop_entry_variants(overflow_entry_variants)
 
 
 func set_pending_character_rewards(reward_variants: Array) -> void:
@@ -74,8 +78,8 @@ func to_dict() -> Dictionary:
 		"terrain_profile_id": String(terrain_profile_id),
 		"winner_faction_id": String(winner_faction_id),
 		"encounter_resolution": String(encounter_resolution),
-		"loot_entries": _normalize_loot_entry_variants(loot_entries),
-		"overflow_entries": _duplicate_variant_array(overflow_entries),
+		"loot_entries": _normalize_drop_entry_variants(loot_entries),
+		"overflow_entries": _normalize_drop_entry_variants(overflow_entries),
 		"pending_character_rewards": _reward_variants_to_dicts(pending_character_rewards),
 		"quest_progress_events": _duplicate_variant_array(quest_progress_events),
 		"world_mutations": _duplicate_variant_array(world_mutations),
@@ -93,14 +97,14 @@ static func from_dict(data: Dictionary):
 	result.winner_faction_id = ProgressionDataUtils.to_string_name(data.get("winner_faction_id", ""))
 	result.encounter_resolution = ProgressionDataUtils.to_string_name(data.get("encounter_resolution", ""))
 	result.set_loot_entries(data.get("loot_entries", []))
-	result.overflow_entries = _duplicate_variant_array(data.get("overflow_entries", []))
+	result.set_overflow_entries(data.get("overflow_entries", []))
 	result.pending_character_rewards = _reward_variants_from_dicts(data.get("pending_character_rewards", []))
 	result.quest_progress_events = _duplicate_variant_array(data.get("quest_progress_events", []))
 	result.world_mutations = _duplicate_variant_array(data.get("world_mutations", []))
 	result.party_resource_commit = data.get("party_resource_commit", {}).duplicate(true) if data.get("party_resource_commit", {}) is Dictionary else {}
 	return result
 
-static func _normalize_loot_entry_variants(loot_entry_variants: Variant) -> Array[Dictionary]:
+static func _normalize_drop_entry_variants(loot_entry_variants: Variant) -> Array[Dictionary]:
 	var normalized_entries: Array[Dictionary] = []
 	if loot_entry_variants is not Array:
 		return normalized_entries

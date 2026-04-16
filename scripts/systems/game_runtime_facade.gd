@@ -1130,12 +1130,19 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 	_refresh_fog()
 
 	if party_persist_error == OK and world_persist_error == OK and flush_error == OK:
-		_update_status("%s 战斗结束，胜利方：%s。已返回世界地图并统一保存。" % [
+		_update_status(_build_battle_resolution_status_message(
 			battle_name,
-			_format_faction_label(winner_faction_id),
-		])
+			winner_faction_id,
+			loot_commit_result,
+			true
+		))
 	else:
-		_update_status("%s 战斗结束，但战后持久化失败。" % battle_name)
+		_update_status(_build_battle_resolution_status_message(
+			battle_name,
+			winner_faction_id,
+			loot_commit_result,
+			false
+		))
 	_log_runtime_event(
 		"info" if party_persist_error == OK and world_persist_error == OK and flush_error == OK else "warn",
 		"battle",
@@ -1151,6 +1158,7 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 			"loot_commit_error_code": String(loot_commit_result.get("error_code", "")),
 			"loot_commit_blocked_item_id": String(loot_commit_result.get("blocked_item_id", "")),
 			"loot_committed_item_count": int(loot_commit_result.get("committed_item_count", 0)),
+			"loot_overflow_entries": (loot_commit_result.get("overflow_entries", []) as Array).duplicate(true),
 			"quest_progress_summary": _quest_progress_summary_to_string_dict(quest_summary),
 			"party_persist_error": party_persist_error,
 			"world_persist_error": world_persist_error,
@@ -1162,14 +1170,38 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 
 func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictionary:
 	if battle_resolution_result == null:
-		return {"ok": false, "error_code": "missing_battle_resolution_result", "blocked_item_id": "", "committed_item_count": 0}
+		return {
+			"ok": false,
+			"error_code": "missing_battle_resolution_result",
+			"blocked_item_id": "",
+			"committed_item_count": 0,
+			"overflow_entries": [],
+			"overflow_entry_count": 0,
+		}
+	battle_resolution_result.set_overflow_entries([])
 	if String(battle_resolution_result.winner_faction_id) != "player":
-		return {"ok": true, "error_code": "", "blocked_item_id": "", "committed_item_count": 0}
+		return {
+			"ok": true,
+			"error_code": "",
+			"blocked_item_id": "",
+			"committed_item_count": 0,
+			"overflow_entries": [],
+			"overflow_entry_count": 0,
+		}
 	if _party_state == null or _party_warehouse_service == null or _game_session == null:
-		return {"ok": false, "error_code": "warehouse_service_unavailable", "blocked_item_id": "", "committed_item_count": 0}
+		return {
+			"ok": false,
+			"error_code": "warehouse_service_unavailable",
+			"blocked_item_id": "",
+			"committed_item_count": 0,
+			"overflow_entries": [],
+			"overflow_entry_count": 0,
+		}
 
 	_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
-	var deposit_item_ids: Array[StringName] = []
+	var warehouse_state_before = _party_state.warehouse_state.duplicate_state() if _party_state.warehouse_state != null else null
+	var overflow_entries: Array[Dictionary] = []
+	var committed_item_count := 0
 	for loot_entry_variant in battle_resolution_result.loot_entries:
 		if loot_entry_variant is not Dictionary:
 			continue
@@ -1178,26 +1210,95 @@ func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictio
 		var quantity := maxi(int(loot_entry_data.get("quantity", 0)), 0)
 		if item_id == &"" or quantity <= 0:
 			continue
-		for _index in range(quantity):
-			deposit_item_ids.append(item_id)
-	if deposit_item_ids.is_empty():
-		return {"ok": true, "error_code": "", "blocked_item_id": "", "committed_item_count": 0}
-
-	# Battle loot reuses the same warehouse transaction path as quest item rewards and forge output.
-	var commit_result: Dictionary = _party_warehouse_service.commit_batch_swap([], deposit_item_ids)
-	if not bool(commit_result.get("allowed", false)):
-		return {
-			"ok": false,
-			"error_code": String(commit_result.get("error_code", "battle_loot_commit_failed")),
-			"blocked_item_id": String(commit_result.get("blocked_item_id", "")),
-			"committed_item_count": 0,
-		}
+		var add_result: Dictionary = _party_warehouse_service.add_item(item_id, quantity)
+		if not bool(add_result.get("item_found", false)):
+			_party_state.warehouse_state = warehouse_state_before
+			_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
+			return {
+				"ok": false,
+				"error_code": "battle_loot_item_missing_def",
+				"blocked_item_id": String(item_id),
+				"committed_item_count": 0,
+				"overflow_entries": [],
+				"overflow_entry_count": 0,
+			}
+		committed_item_count += int(add_result.get("added_quantity", 0))
+		var remaining_quantity := int(add_result.get("remaining_quantity", 0))
+		if remaining_quantity > 0:
+			overflow_entries.append(_build_battle_overflow_entry(loot_entry_data, remaining_quantity))
+	battle_resolution_result.set_overflow_entries(overflow_entries)
+	var overflow_item_id := ""
+	if not battle_resolution_result.overflow_entries.is_empty() and battle_resolution_result.overflow_entries[0] is Dictionary:
+		overflow_item_id = String((battle_resolution_result.overflow_entries[0] as Dictionary).get("item_id", ""))
 	return {
 		"ok": true,
 		"error_code": "",
-		"blocked_item_id": "",
-		"committed_item_count": deposit_item_ids.size(),
+		"blocked_item_id": overflow_item_id,
+		"committed_item_count": committed_item_count,
+		"overflow_entries": battle_resolution_result.overflow_entries.duplicate(true),
+		"overflow_entry_count": battle_resolution_result.overflow_entries.size(),
 	}
+
+
+func _build_battle_overflow_entry(loot_entry_data: Dictionary, overflow_quantity: int) -> Dictionary:
+	var overflow_entry := loot_entry_data.duplicate(true)
+	overflow_entry["quantity"] = maxi(overflow_quantity, 0)
+	return overflow_entry
+
+
+func _build_battle_resolution_status_message(
+	battle_name: String,
+	winner_faction_id: String,
+	loot_commit_result: Dictionary,
+	persisted_ok: bool
+) -> String:
+	var message := ""
+	if persisted_ok:
+		message = "%s 战斗结束，胜利方：%s。已返回世界地图并统一保存。" % [
+			battle_name,
+			_format_faction_label(winner_faction_id),
+		]
+	else:
+		message = "%s 战斗结束，但战后持久化失败。" % battle_name
+	var loot_status_suffix := _build_battle_loot_status_suffix(loot_commit_result)
+	if loot_status_suffix.is_empty():
+		return message
+	return "%s %s" % [message, loot_status_suffix]
+
+
+func _build_battle_loot_status_suffix(loot_commit_result: Dictionary) -> String:
+	if loot_commit_result.is_empty():
+		return ""
+	if not bool(loot_commit_result.get("ok", false)):
+		var blocked_item_id := ProgressionDataUtils.to_string_name(loot_commit_result.get("blocked_item_id", ""))
+		if blocked_item_id != &"":
+			return "战斗掉落写入共享仓库失败：%s。" % _get_item_display_name(blocked_item_id)
+		return "战斗掉落写入共享仓库失败。"
+	var overflow_text := _format_battle_drop_entries(loot_commit_result.get("overflow_entries", []))
+	if overflow_text.is_empty():
+		return ""
+	return "未装下的掉落：%s。" % overflow_text
+
+
+func _format_battle_drop_entries(drop_entry_variants: Array) -> String:
+	var quantities_by_item: Dictionary = {}
+	var ordered_item_ids: Array[StringName] = []
+	for drop_entry_variant in drop_entry_variants:
+		if drop_entry_variant is not Dictionary:
+			continue
+		var drop_entry_data := drop_entry_variant as Dictionary
+		var item_id := ProgressionDataUtils.to_string_name(drop_entry_data.get("item_id", ""))
+		var quantity := maxi(int(drop_entry_data.get("quantity", 0)), 0)
+		if item_id == &"" or quantity <= 0:
+			continue
+		if not quantities_by_item.has(item_id):
+			ordered_item_ids.append(item_id)
+			quantities_by_item[item_id] = 0
+		quantities_by_item[item_id] = int(quantities_by_item.get(item_id, 0)) + quantity
+	var parts: Array[String] = []
+	for item_id in ordered_item_ids:
+		parts.append("%s x%d" % [_get_item_display_name(item_id), int(quantities_by_item.get(item_id, 0))])
+	return "、".join(PackedStringArray(parts))
 
 
 func advance(delta: float) -> bool:

@@ -217,3 +217,7 @@ Centralized `loot_entries` canonicalization in `scripts/systems/battle_resolutio
 ## 2026-04-17T07:51:05+08:00 | PVS_20A | done
 title: 把战后 loot 正式提交到 shared warehouse
 Updated `scripts/systems/game_runtime_facade.gd` so `finalize_battle_resolution()` now commits player-victory `loot_entries` through `PartyWarehouseService.commit_batch_swap` instead of leaving battle loot unstaged, and extended `tests/battle_runtime/run_wild_encounter_regression.gd` to assert a real settlement victory writes `beast_hide` into the shared warehouse. `docs/design/project_context_units.md` stayed valid as-is; `.ralph/prd.json` was not edited.
+
+## 2026-04-17T07:58:26+08:00 | PVS_20B | done
+title: 实现 overflow_entries 与掉落溢出反馈
+`GameRuntimeFacade` now commits battle loot with partial deposit semantics, writes canonical `overflow_entries` back onto `BattleResolutionResult` when capacity blocks drops, and surfaces explicit overflow feedback through runtime status/command messages/text snapshot. `BattleResolutionResult` now normalizes `overflow_entries` with the same canonical drop schema as `loot_entries`, and focused battle regressions were added/updated for both round-trip contract coverage and real wild-encounter overflow feedback.

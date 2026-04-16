@@ -1025,14 +1025,22 @@
     {
       "id": "PVS_20B",
       "title": "实现 overflow_entries 与掉落溢出反馈",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "容量不足时 battle resolution 会生成 `overflow_entries`",
         "runtime/message/snapshot 会显式提示未装下的掉落"
       ],
       "notes": [
         "Owner：CU-10 / CU-15 / CU-21。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:51:06+08:00",
+      "lastRunId": "20260417-075106-PVS_20B",
+      "startedAt": "2026-04-17T07:51:06+08:00",
+      "completedAt": "2026-04-17T07:58:26+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Passed `godot --headless --script tests/battle_runtime/run_battle_resolution_contract_regression.gd` and `godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd`.",
+      "lastLearnings": "Battle loot overflow should be resolved in the facade-side warehouse commit path, not inside `BattleRuntimeModule`: battle owns canonical loot intent, warehouse owns capacity, and the existing `status.text`/command-message/text-snapshot surface is sufficient for explicit overflow feedback. `docs/design/project_context_units.md` remains valid as-is."
     },
     {
       "id": "PVS_21A",

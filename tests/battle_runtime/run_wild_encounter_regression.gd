@@ -7,10 +7,12 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
 const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world_time_system.gd")
 const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/wild_encounter_growth_system.gd")
+const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SMALL_WORLD_CONFIG := "res://data/configs/world_map/small_world_map_config.tres"
@@ -33,9 +35,11 @@ func _run() -> void:
 	_test_test_preset_uses_same_battle_terrain_profile_as_small_preset()
 	_test_world_spawn_explicitly_maps_south_wilds_to_mist_hollow()
 	_test_game_runtime_facade_battle_requires_confirm_before_tu_advances()
+	_test_game_runtime_facade_commit_battle_loot_records_overflow_entries()
 	_test_game_runtime_facade_single_victory_removes_encounter()
 	_test_game_runtime_facade_can_start_second_battle_after_first_victory()
 	_test_game_runtime_facade_settlement_victory_downgrades_encounter()
+	_test_game_runtime_facade_battle_overflow_feedback_surfaces_in_message_and_snapshot()
 	if _failures.is_empty():
 		print("Wild encounter regression: PASS")
 		quit(0)
@@ -329,6 +333,37 @@ func _test_game_runtime_facade_battle_requires_confirm_before_tu_advances() -> v
 	_cleanup_test_session(game_session)
 
 
+func _test_game_runtime_facade_commit_battle_loot_records_overflow_entries() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	_force_party_storage_capacity(facade.get_party_state(), 1)
+	facade.get_party_state().warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
+
+	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	warehouse_service.add_item(&"bronze_sword", 1)
+
+	var resolution_result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
+	resolution_result.winner_faction_id = &"player"
+	resolution_result.set_loot_entries([_build_formal_beast_hide_loot_entry(2)])
+
+	var commit_result: Dictionary = facade._commit_battle_loot_to_shared_warehouse(resolution_result)
+	_assert_true(bool(commit_result.get("ok", false)), "battle loot commit 遇到容量不足时仍应以 overflow 方式完成。")
+	_assert_eq(int(commit_result.get("committed_item_count", -1)), 0, "无空余格位时不应误写入 beast_hide。")
+	_assert_eq(int(commit_result.get("overflow_entry_count", 0)), 1, "容量不足时 battle loot commit 应生成 1 条 overflow entry。")
+	_assert_eq(resolution_result.overflow_entries.size(), 1, "BattleResolutionResult 应正式写入 overflow_entries。")
+	if resolution_result.overflow_entries.size() > 0 and resolution_result.overflow_entries[0] is Dictionary:
+		var overflow_entry: Dictionary = resolution_result.overflow_entries[0]
+		_assert_eq(String(overflow_entry.get("item_id", "")), "beast_hide", "overflow entry 应保留原始掉落物品。")
+		_assert_eq(int(overflow_entry.get("quantity", 0)), 2, "overflow entry 应保留未装下的数量。")
+	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 1, "battle loot overflow 不应影响原有仓库物品。")
+	_assert_eq(warehouse_service.count_item(&"beast_hide"), 0, "battle loot overflow 不应静默写入 beast_hide。")
+	_cleanup_test_session(game_session)
+
+
 func _test_game_runtime_facade_single_victory_removes_encounter() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
@@ -440,6 +475,60 @@ func _test_game_runtime_facade_settlement_victory_downgrades_encounter() -> void
 	_cleanup_test_session(game_session)
 
 
+func _test_game_runtime_facade_battle_overflow_feedback_surfaces_in_message_and_snapshot() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	_force_party_storage_capacity(facade.get_party_state(), 1)
+	facade.get_party_state().warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
+
+	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	warehouse_service.add_item(&"bronze_sword", 1)
+	var beast_hide_def = game_session.get_item_defs().get(&"beast_hide")
+	var beast_hide_label := String(beast_hide_def.display_name) if beast_hide_def != null else "beast_hide"
+
+	var encounter_anchor = _find_encounter_anchor_by_kind(
+		game_session.get_world_data(),
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT
+	)
+	_assert_true(encounter_anchor != null, "battle overflow 反馈回归需要一个聚落类野怪遭遇。")
+	if encounter_anchor == null:
+		_cleanup_test_session(game_session)
+		return
+
+	encounter_anchor.growth_stage = 3
+	game_session.set_battle_save_lock(true)
+	facade._start_battle(encounter_anchor)
+	_mark_active_battle_as_player_victory(facade)
+	var resolve_result: Dictionary = facade.command_battle_wait_or_resolve()
+	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+
+	_assert_true(bool(resolve_result.get("ok", false)), "battle overflow 反馈回归中，结束战斗命令应成功返回。")
+	_assert_true(String(resolve_result.get("message", "")).find("未装下的掉落") >= 0, "battle 结算 message 应显式提示未装下的掉落。")
+	_assert_true(String(resolve_result.get("message", "")).find(beast_hide_label) >= 0, "battle 结算 message 应包含未装下的掉落名称。")
+	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 1, "battle overflow 后原有仓库占位物应保留。")
+	_assert_eq(warehouse_service.count_item(&"beast_hide"), 0, "battle overflow 后 beast_hide 不应误写入共享仓库。")
+
+	var snapshot: Dictionary = facade.build_headless_snapshot()
+	var status_text := String(snapshot.get("status", {}).get("text", ""))
+	var text_snapshot := facade.build_text_snapshot()
+	_assert_true(status_text.find("未装下的掉落") >= 0, "headless snapshot status.text 应显式提示未装下的掉落。")
+	_assert_true(status_text.find(beast_hide_label) >= 0, "headless snapshot status.text 应包含未装下的掉落名称。")
+	_assert_true(text_snapshot.find("未装下的掉落") >= 0, "text snapshot 应显式提示未装下的掉落。")
+	_assert_true(text_snapshot.find(beast_hide_label) >= 0, "text snapshot 应包含未装下的掉落名称。")
+	var resolved_log := _find_recent_log_entry(game_session.get_log_snapshot().get("entries", []), "battle.resolved")
+	_assert_true(not resolved_log.is_empty(), "battle overflow 结算后应写入 battle.resolved 日志。")
+	if not resolved_log.is_empty():
+		var log_context: Dictionary = resolved_log.get("context", {})
+		_assert_eq(int(log_context.get("overflow_entry_count", 0)), 1, "battle.resolved 日志应记录 overflow entry 数量。")
+		_assert_eq((log_context.get("loot_overflow_entries", []) as Array).size(), 1, "battle.resolved 日志应记录 overflow entries。")
+	_assert_true(not game_session.is_battle_save_locked(), "battle overflow 结算完成后应释放 battle save lock。")
+	_cleanup_test_session(game_session)
+
+
 func _create_test_session():
 	return _create_session(TEST_WORLD_CONFIG)
 
@@ -524,6 +613,44 @@ func _find_first_other_encounter_anchor(world_data: Dictionary, excluded_encount
 			continue
 		return encounter_anchor
 	return null
+
+
+func _force_party_storage_capacity(party_state, capacity: int) -> void:
+	if party_state == null:
+		return
+	var resolved_capacity := maxi(capacity, 0)
+	var first_member_assigned := false
+	for member_variant in party_state.member_states.values():
+		var member_state = member_variant
+		if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
+			continue
+		member_state.progression.unit_base_attributes.custom_stats[&"storage_space"] = resolved_capacity if not first_member_assigned else 0
+		first_member_assigned = true
+
+
+func _build_formal_beast_hide_loot_entry(quantity: int) -> Dictionary:
+	return {
+		"drop_type": "item",
+		"drop_source_kind": "encounter_roster",
+		"drop_source_id": "wolf_den",
+		"drop_source_label": "荒狼巢穴",
+		"drop_entry_id": "wolf_den_hide_bundle",
+		"item_id": "beast_hide",
+		"quantity": quantity,
+	}
+
+
+func _find_recent_log_entry(entries_variant, event_id: String) -> Dictionary:
+	if entries_variant is not Array:
+		return {}
+	for index in range(entries_variant.size() - 1, -1, -1):
+		var entry_variant = entries_variant[index]
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("event_id", "")) == event_id:
+			return entry
+	return {}
 
 
 func _count_encounter_anchors(world_data: Dictionary) -> int:

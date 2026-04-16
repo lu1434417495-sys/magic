@@ -152,7 +152,7 @@ func _test_battle_resolution_result_round_trip() -> void:
 	result.winner_faction_id = &"player"
 	result.encounter_resolution = &"player_victory"
 	result.set_loot_entries([_build_raw_loot_entry()])
-	result.overflow_entries = [{"item_id": "ore", "amount": 1}]
+	result.set_overflow_entries([_build_raw_overflow_entry()])
 	result.pending_character_rewards = [reward]
 	result.quest_progress_events = [{"quest_id": "quest_contract", "amount": 1}]
 	result.world_mutations = [{"kind": "clear_anchor"}]
@@ -173,6 +173,9 @@ func _test_battle_resolution_result_round_trip() -> void:
 	_assert_eq(round_tripped.loot_entries.size(), 1, "loot_entries 应保持稳定。")
 	if round_tripped.loot_entries.size() > 0 and round_tripped.loot_entries[0] is Dictionary:
 		_assert_canonical_loot_entry(round_tripped.loot_entries[0], "BattleResolutionResult round trip")
+	_assert_eq(round_tripped.overflow_entries.size(), 1, "overflow_entries 应保持稳定。")
+	if round_tripped.overflow_entries.size() > 0 and round_tripped.overflow_entries[0] is Dictionary:
+		_assert_canonical_overflow_entry(round_tripped.overflow_entries[0], "BattleResolutionResult overflow round trip")
 	_assert_eq(round_tripped.pending_character_rewards.size(), 1, "pending_character_rewards 应保持稳定。")
 	_assert_true(
 		round_tripped.pending_character_rewards[0] is PendingCharacterReward,
@@ -295,6 +298,19 @@ func _build_raw_loot_entry() -> Dictionary:
 	}
 
 
+func _build_raw_overflow_entry() -> Dictionary:
+	return {
+		"drop_type": &"item",
+		"drop_source_kind": &"encounter_roster",
+		"drop_source_id": &"wolf_den",
+		"drop_source_label": "荒狼巢穴",
+		"drop_entry_id": &"wolf_den_hide_bundle",
+		"item_id": &"beast_hide",
+		"quantity": 1,
+		"debug_only_flag": true,
+	}
+
+
 func _assert_canonical_loot_entry(loot_entry: Dictionary, message_scope: String) -> void:
 	_assert_true(not loot_entry.has("drop_id"), "%s 应只暴露 canonical drop_entry_id 字段。" % message_scope)
 	_assert_true(not loot_entry.has("debug_only_flag"), "%s 不应泄露原始调试字段。" % message_scope)
@@ -304,6 +320,16 @@ func _assert_canonical_loot_entry(loot_entry: Dictionary, message_scope: String)
 	_assert_eq(String(loot_entry.get("drop_entry_id", "")), "wolf_den_hide_bundle", "%s 应保留稳定掉落 entry 标识。" % message_scope)
 	_assert_eq(String(loot_entry.get("item_id", "")), "beast_hide", "%s 应保留稳定物品标识。" % message_scope)
 	_assert_eq(int(loot_entry.get("quantity", 0)), 2, "%s 应保留稳定数量。" % message_scope)
+
+
+func _assert_canonical_overflow_entry(loot_entry: Dictionary, message_scope: String) -> void:
+	_assert_true(not loot_entry.has("debug_only_flag"), "%s 不应泄露原始调试字段。" % message_scope)
+	_assert_eq(String(loot_entry.get("drop_type", "")), "item", "%s 应保留稳定 drop_type。" % message_scope)
+	_assert_eq(String(loot_entry.get("drop_source_kind", "")), "encounter_roster", "%s 应保留稳定来源类型。" % message_scope)
+	_assert_eq(String(loot_entry.get("drop_source_id", "")), "wolf_den", "%s 应保留稳定掉落来源标识。" % message_scope)
+	_assert_eq(String(loot_entry.get("drop_entry_id", "")), "wolf_den_hide_bundle", "%s 应保留稳定掉落 entry 标识。" % message_scope)
+	_assert_eq(String(loot_entry.get("item_id", "")), "beast_hide", "%s 应保留稳定物品标识。" % message_scope)
+	_assert_eq(int(loot_entry.get("quantity", 0)), 1, "%s 应保留稳定溢出数量。" % message_scope)
 
 
 func _build_battle_state_for_end_test() -> BattleState:
