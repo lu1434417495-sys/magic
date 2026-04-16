@@ -173,6 +173,8 @@ var _active_warehouse_entry_label := ""
 var _active_settlement_id := ""
 ## 字段说明：记录当前据点反馈文本，供 UI 与 headless 统一读取。
 var _active_settlement_feedback_text := ""
+## 字段说明：缓存当前任务板窗口上下文，供 UI 与 headless 统一读取。
+var _active_contract_board_context: Dictionary = {}
 ## 字段说明：缓存当前商店窗口上下文，供 UI 与 headless 统一读取。
 var _active_shop_context: Dictionary = {}
 ## 字段说明：缓存当前重铸窗口上下文，供 UI 与 headless 统一读取。
@@ -245,6 +247,7 @@ func setup(game_session) -> void:
 	_active_modal_id = ""
 	_active_settlement_id = ""
 	_active_settlement_feedback_text = ""
+	_active_contract_board_context.clear()
 	_active_shop_context.clear()
 	_active_forge_context.clear()
 	_active_stagecoach_context.clear()
@@ -302,6 +305,7 @@ func dispose() -> void:
 	_pending_promotion_prompt.clear()
 	_pending_world_promotion_prompt.clear()
 	_active_character_info_context.clear()
+	_active_contract_board_context.clear()
 	_active_shop_context.clear()
 	_active_forge_context.clear()
 	_active_stagecoach_context.clear()
@@ -583,8 +587,16 @@ func get_shop_window_data() -> Dictionary:
 	return _settlement_command_handler.get_shop_window_data()
 
 
+func get_contract_board_window_data() -> Dictionary:
+	return _settlement_command_handler.get_contract_board_window_data()
+
+
 func get_forge_window_data() -> Dictionary:
 	return _settlement_command_handler.get_forge_window_data()
+
+
+func set_active_contract_board_context(context: Dictionary) -> void:
+	_active_contract_board_context = context.duplicate(true)
 
 
 func set_active_shop_context(context: Dictionary) -> void:
@@ -595,12 +607,20 @@ func set_active_forge_context(context: Dictionary) -> void:
 	_active_forge_context = context.duplicate(true)
 
 
+func clear_active_contract_board_context() -> void:
+	_active_contract_board_context.clear()
+
+
 func clear_active_shop_context() -> void:
 	_active_shop_context.clear()
 
 
 func clear_active_forge_context() -> void:
 	_active_forge_context.clear()
+
+
+func get_active_contract_board_context() -> Dictionary:
+	return _active_contract_board_context.duplicate(true)
 
 
 func get_active_shop_context() -> Dictionary:
@@ -769,6 +789,10 @@ func update_status(message: String) -> void:
 
 func close_settlement_modal() -> void:
 	_settlement_command_handler.on_settlement_window_closed()
+
+
+func close_contract_board_modal() -> void:
+	_settlement_command_handler.on_contract_board_window_closed()
 
 
 func close_shop_modal() -> void:

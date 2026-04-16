@@ -85,14 +85,22 @@
     {
       "id": "PVS_02A",
       "title": "落地 contract board 的正式 modal 开关链路",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "点击 `service_contract_board` 会打开任务板 modal",
         "关闭任务板后能安全返回 settlement modal，modal 互斥保持稳定"
       ],
       "notes": [
         "Owner：CU-06 / CU-08。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T01:48:16+08:00",
+      "lastRunId": "20260417-014816-PVS_02A",
+      "startedAt": "2026-04-17T01:48:16+08:00",
+      "completedAt": "2026-04-17T02:00:17+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd` and `godot --headless --script tests/text_runtime/run_text_command_regression.gd` after fixing compile/runtime issues; both pass.",
+      "lastLearnings": "The contract-board modal only routes through the formal branch when settlement action payload carries `interaction_script_id=service_contract_board`; once routed, `contract_board` is a first-class mutually-exclusive modal that must block reward presentation and is now visible in structured/text snapshots via `[CONTRACT_BOARD]`."
     },
     {
       "id": "PVS_02B",

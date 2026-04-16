@@ -136,6 +136,9 @@ unique_name_in_owner = true
 [node name="ShopWindow" parent="." instance=ExtResource("14_shop")]
 unique_name_in_owner = true
 
+[node name="ContractBoardWindow" parent="." instance=ExtResource("14_shop")]
+unique_name_in_owner = true
+
 [node name="ForgeWindow" parent="." instance=ExtResource("14_shop")]
 unique_name_in_owner = true
 

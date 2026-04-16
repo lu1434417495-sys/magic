@@ -14,6 +14,7 @@ static func render_full_snapshot(snapshot: Dictionary) -> String:
 	_append_section(sections, "PARTY", _build_party_lines(snapshot.get("party", {})))
 	_append_section(sections, "QUEST", _build_quest_lines(snapshot.get("party", {}).get("quests", {})))
 	_append_section(sections, "SETTLEMENT", _build_settlement_lines(snapshot.get("settlement", {})))
+	_append_section(sections, "CONTRACT_BOARD", _build_contract_board_lines(snapshot.get("contract_board", {})))
 	_append_section(sections, "SHOP", _build_shop_lines(snapshot.get("shop", {})))
 	_append_section(sections, "FORGE", _build_forge_lines(snapshot.get("forge", {})))
 	_append_section(sections, "STAGECOACH", _build_stagecoach_lines(snapshot.get("stagecoach", {})))
@@ -238,6 +239,29 @@ static func _build_shop_lines(shop_snapshot: Dictionary) -> Array[String]:
 				continue
 			var entry: Dictionary = entry_variant
 			lines.append("entry=%s | state=%s | cost=%s" % [
+				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("state_label", "")),
+				String(entry.get("cost_label", "")),
+			])
+	return lines
+
+
+static func _build_contract_board_lines(contract_board_snapshot: Dictionary) -> Array[String]:
+	if contract_board_snapshot.is_empty():
+		return []
+	var window_data: Dictionary = contract_board_snapshot.get("window_data", {})
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(contract_board_snapshot.get("visible", false))),
+		"title=%s" % String(window_data.get("title", "")),
+		"settlement_id=%s" % String(window_data.get("settlement_id", "")),
+	]
+	var entries_variant = window_data.get("entries", [])
+	if entries_variant is Array:
+		for entry_variant in entries_variant:
+			if entry_variant is not Dictionary:
+				continue
+			var entry: Dictionary = entry_variant
+			lines.append("entry=%s | state=%s | reward=%s" % [
 				String(entry.get("display_name", entry.get("entry_id", ""))),
 				String(entry.get("state_label", "")),
 				String(entry.get("cost_label", "")),

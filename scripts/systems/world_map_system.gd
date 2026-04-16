@@ -16,6 +16,7 @@ const BATTLE_LOADING_TEXT_COLOR := Color(1.0, 1.0, 1.0, 1.0)
 @onready var battle_map_panel: BattleMapPanel = $MapViewport/BattleMapPanel
 @onready var status_label := get_node_or_null("StatusPanel/StatusMargin/StatusLabel") as Label
 @onready var settlement_window = $SettlementWindow
+@onready var contract_board_window = $ContractBoardWindow
 @onready var shop_window = $ShopWindow
 @onready var forge_window = $ForgeWindow
 @onready var stagecoach_window = $StagecoachWindow
@@ -64,6 +65,7 @@ func _ready() -> void:
 	settlement_window.shop_requested.connect(_on_settlement_shop_requested)
 	settlement_window.stagecoach_requested.connect(_on_settlement_stagecoach_requested)
 	settlement_window.closed.connect(_on_settlement_window_closed)
+	contract_board_window.closed.connect(_on_contract_board_window_closed)
 	shop_window.action_requested.connect(_on_shop_action_requested)
 	shop_window.closed.connect(_on_shop_window_closed)
 	forge_window.action_requested.connect(_on_forge_action_requested)
@@ -190,6 +192,11 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 		shop_window.show_shop(_runtime_proxy.get_shop_window_data())
 	else:
 		shop_window.hide_window()
+
+	if modal_id == "contract_board":
+		contract_board_window.show_shop(_runtime_proxy.get_contract_board_window_data())
+	else:
+		contract_board_window.hide_window()
 
 	if modal_id == "forge":
 		forge_window.show_shop(_runtime_proxy.get_forge_window_data())
@@ -501,6 +508,12 @@ func _on_settlement_window_closed() -> void:
 
 
 func _on_shop_window_closed() -> void:
+	if _runtime == null:
+		return
+	_runtime_proxy.command_close_active_modal()
+
+
+func _on_contract_board_window_closed() -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_close_active_modal()

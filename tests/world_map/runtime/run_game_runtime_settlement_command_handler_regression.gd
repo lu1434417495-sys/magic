@@ -58,11 +58,13 @@ class MockRuntime:
 	var _active_settlement_id := ""
 	var _active_modal_id := "settlement"
 	var _active_settlement_feedback_text := ""
+	var _active_contract_board_context: Dictionary = {}
 	var _active_shop_context: Dictionary = {}
 	var _active_stagecoach_context: Dictionary = {}
 	var _current_status_message := ""
 	var _selected_settlement: Dictionary = {}
 	var _settlements_by_id: Dictionary = {}
+	var _quest_defs: Dictionary = {}
 	var _player_coord := Vector2i.ZERO
 	var _selected_coord := Vector2i.ZERO
 	var _party_state := PartyState.new()
@@ -118,6 +120,15 @@ class MockRuntime:
 	func set_active_shop_context(context: Dictionary) -> void:
 		_active_shop_context = context.duplicate(true)
 
+	func set_active_contract_board_context(context: Dictionary) -> void:
+		_active_contract_board_context = context.duplicate(true)
+
+	func clear_active_contract_board_context() -> void:
+		_active_contract_board_context.clear()
+
+	func get_active_contract_board_context() -> Dictionary:
+		return _active_contract_board_context.duplicate(true)
+
 	func clear_active_shop_context() -> void:
 		_active_shop_context.clear()
 
@@ -171,6 +182,9 @@ class MockRuntime:
 
 	func get_item_defs() -> Dictionary:
 		return {}
+
+	func get_quest_defs() -> Dictionary:
+		return _quest_defs.duplicate(true)
 
 	func get_world_step() -> int:
 		return world_step
@@ -351,6 +365,13 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 					"interaction_script_id": "service_rest_full",
 				},
 				{
+					"action_id": "service:contract_board",
+					"facility_name": "公告台",
+					"npc_name": "记录员",
+					"service_type": "契约板",
+					"interaction_script_id": "service_contract_board",
+				},
+				{
 					"action_id": "service:stagecoach",
 					"facility_name": "驿站",
 					"npc_name": "驿夫",
@@ -386,9 +407,50 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 			"shop_states": {},
 		}
 	}
+	runtime._quest_defs = {
+		&"contract_manual_drill": {
+			"quest_id": "contract_manual_drill",
+			"display_name": "训练记录",
+			"description": "在训练场完成两次记录。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "train_once",
+					"objective_type": "settlement_action",
+					"target_id": "service:training",
+					"target_value": 2,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 30},
+			],
+		},
+		&"contract_first_hunt": {
+			"quest_id": "contract_first_hunt",
+			"display_name": "首轮狩猎",
+			"description": "击败任意一组敌对遭遇。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "defeat_enemy_once",
+					"objective_type": "defeat_enemy",
+					"target_id": "",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 80},
+			],
+		},
+	}
 
 	var handler := GameRuntimeSettlementCommandHandler.new()
 	handler.setup(runtime)
+
+	var settlement_window_data := handler.get_settlement_window_data("spring_village_01")
+	var contract_service := _find_service_entry(settlement_window_data.get("available_services", []), "service:contract_board")
+	_assert_true(not contract_service.is_empty(), "据点窗口应暴露任务板服务入口。")
+	_assert_true(bool(contract_service.get("is_enabled", false)), "任务板服务入口应为可点击状态。")
 
 	var warehouse_result := handler.command_execute_settlement_action("service:warehouse")
 	_assert_true(bool(warehouse_result.get("ok", false)), "据点仓储动作应执行成功。")
@@ -401,6 +463,16 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_true(runtime.sync_party_calls > 0, "成功据点动作后应同步角色管理侧的队伍状态。")
 	_assert_true(runtime.achievement_events.size() == 1, "成功据点动作后应记录成就事件。")
 	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:warehouse", "成就事件应记录动作 ID。")
+
+	var contract_board_result := handler.command_execute_settlement_action("service:contract_board")
+	var contract_board_window_data := handler.get_contract_board_window_data()
+	_assert_true(bool(contract_board_result.get("ok", false)), "任务板服务应能切换到 contract_board modal。")
+	_assert_eq(runtime._active_modal_id, "contract_board", "任务板服务后应切换到 contract_board modal。")
+	_assert_eq(String(contract_board_window_data.get("action_id", "")), "service:contract_board", "任务板 modal 应保留原始 action_id。")
+	_assert_eq((contract_board_window_data.get("entries", []) as Array).size(), 2, "任务板 modal 应渲染 provider 绑定的契约条目。")
+	handler.on_contract_board_window_closed()
+	_assert_eq(runtime._active_modal_id, "settlement", "关闭任务板后应返回 settlement modal。")
+	_assert_eq(runtime._active_settlement_id, "spring_village_01", "关闭任务板后应继续保留当前据点。")
 
 	var training_result := handler.command_execute_settlement_action("service:training", {
 		"pending_character_rewards": [
@@ -555,6 +627,15 @@ func _has_call(calls: Array[Dictionary], method_name: String) -> bool:
 		if String(call.get("method", "")) == method_name:
 			return true
 	return false
+
+
+func _find_service_entry(service_variants, action_id: String) -> Dictionary:
+	if service_variants is not Array:
+		return {}
+	for service_variant in service_variants:
+		if service_variant is Dictionary and String(service_variant.get("action_id", "")) == action_id:
+			return (service_variant as Dictionary).duplicate(true)
+	return {}
 
 
 func _assert_true(condition: bool, message: String) -> void:

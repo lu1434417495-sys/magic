@@ -24,8 +24,11 @@ const STAGECOACH_INTERACTION_IDS := {
 	"service_world_gate_travel": true,
 }
 
-const UNIMPLEMENTED_INTERACTION_IDS := {
+const CONTRACT_BOARD_INTERACTION_IDS := {
 	"service_contract_board": true,
+}
+
+const UNIMPLEMENTED_INTERACTION_IDS := {
 	"service_join_guild": true,
 	"service_identify_relic": true,
 	"service_bounty_registry": true,
@@ -125,6 +128,13 @@ func get_shop_window_data() -> Dictionary:
 	context["member_options"] = _build_member_options()
 	context["default_member_id"] = String(resolve_default_settlement_member_id())
 	return context
+
+
+func get_contract_board_window_data() -> Dictionary:
+	var context := _get_active_contract_board_context()
+	if context.is_empty():
+		return {}
+	return context.duplicate(true)
 
 
 func get_forge_window_data() -> Dictionary:
@@ -301,6 +311,9 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 		])
 		_update_status("已从据点服务打开共享仓库。")
 		return
+	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
+		_open_contract_board_modal(settlement_id, payload)
+		return
 	if SHOP_INTERACTION_IDS.has(interaction_script_id):
 		_open_shop_modal(settlement_id, payload)
 		return
@@ -339,6 +352,7 @@ func on_settlement_window_closed() -> void:
 		return
 	_set_active_settlement_id("")
 	_set_settlement_feedback_text("")
+	_clear_active_contract_board_context()
 	_clear_active_shop_context()
 	_clear_active_forge_context()
 	_clear_active_stagecoach_context()
@@ -351,6 +365,12 @@ func on_shop_window_closed() -> void:
 	_clear_active_shop_context()
 	_set_active_modal_id("settlement")
 	_update_status("已关闭商店，返回据点服务。")
+
+
+func on_contract_board_window_closed() -> void:
+	_clear_active_contract_board_context()
+	_set_active_modal_id("settlement")
+	_update_status("已关闭任务板，返回据点服务。")
 
 
 func on_forge_window_closed() -> void:
@@ -619,6 +639,8 @@ func _build_service_metadata(settlement: Dictionary, service_data: Dictionary, _
 	if interaction_script_id == "service_intel_network":
 		var can_afford_intel: bool = party_state != null and party_state.can_afford(INTEL_NETWORK_COST)
 		return {"cost_label": "%d 金" % INTEL_NETWORK_COST, "is_enabled": can_afford_intel, "disabled_reason": "" if can_afford_intel else "金币不足"}
+	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
+		return {"cost_label": "查看任务", "is_enabled": true, "disabled_reason": ""}
 	if SHOP_INTERACTION_IDS.has(interaction_script_id):
 		return {"cost_label": "按商品计价", "is_enabled": true}
 	if STAGECOACH_INTERACTION_IDS.has(interaction_script_id):
@@ -669,6 +691,216 @@ func _build_member_options() -> Array[Dictionary]:
 		seen_member_ids[member_id] = true
 		options.append({"member_id": String(member_id), "display_name": _get_member_display_name(member_id), "roster_role": "reserve"})
 	return options
+
+
+func _open_contract_board_modal(settlement_id: String, payload: Dictionary) -> void:
+	var window_data := _build_contract_board_window_data(settlement_id, payload)
+	_set_active_contract_board_context(window_data)
+	_set_active_modal_id("contract_board")
+	_update_status("已打开 %s 的任务板。" % String(payload.get("facility_name", "据点任务板")))
+
+
+func _build_contract_board_window_data(settlement_id: String, payload: Dictionary) -> Dictionary:
+	var settlement := _get_settlement_record(settlement_id)
+	var entries := _build_contract_board_entries(String(payload.get("interaction_script_id", "")))
+	return {
+		"title": "%s · 任务板" % String(settlement.get("display_name", settlement_id)),
+		"meta": "%s · %s · %s" % [
+			String(payload.get("facility_name", "任务板")),
+			String(payload.get("npc_name", "值守人员")),
+			String(payload.get("service_type", "契约")),
+		],
+		"summary_text": "当前契约板已接入正式 modal；本轮先开放查看链路。",
+		"state_summary_text": _build_contract_board_state_summary(entries),
+		"service_name": String(payload.get("service_type", "任务板")),
+		"settlement_id": settlement_id,
+		"action_id": String(payload.get("action_id", "")),
+		"interaction_script_id": String(payload.get("interaction_script_id", "")),
+		"facility_id": String(payload.get("facility_id", "")),
+		"facility_name": String(payload.get("facility_name", "")),
+		"npc_id": String(payload.get("npc_id", "")),
+		"npc_name": String(payload.get("npc_name", "")),
+		"service_type": String(payload.get("service_type", "")),
+		"panel_kind": "contract_board",
+		"show_member_selector": false,
+		"confirm_label": "待开放",
+		"cancel_label": "返回据点",
+		"entries": entries,
+	}
+
+
+func _build_contract_board_entries(interaction_script_id: String) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for quest_variant in _get_quest_defs().values():
+		var quest_entry := _build_contract_board_entry(quest_variant, interaction_script_id)
+		if not quest_entry.is_empty():
+			entries.append(quest_entry)
+	if entries.is_empty():
+		entries.append({
+			"entry_id": "placeholder",
+			"display_name": "当前暂无可展示契约",
+			"summary_text": "任务定义尚未挂到这块任务板上。",
+			"details_text": "当前没有 provider_interaction_id 绑定到 %s 的任务定义。" % interaction_script_id,
+			"state_id": "empty",
+			"state_label": "状态：空",
+			"cost_label": "奖励：无",
+			"is_enabled": false,
+			"disabled_reason": "暂无可查看任务。",
+		})
+	return entries
+
+
+func _build_contract_board_entry(quest_variant, interaction_script_id: String) -> Dictionary:
+	var quest_data: Dictionary = {}
+	if quest_variant is Dictionary:
+		quest_data = (quest_variant as Dictionary).duplicate(true)
+	elif quest_variant is Object and quest_variant.has_method("to_dict"):
+		var quest_data_variant = quest_variant.to_dict()
+		if quest_data_variant is Dictionary:
+			quest_data = (quest_data_variant as Dictionary).duplicate(true)
+	if quest_data.is_empty():
+		return {}
+	if String(quest_data.get("provider_interaction_id", "")) != interaction_script_id:
+		return {}
+	var quest_id := ProgressionDataUtils.to_string_name(quest_data.get("quest_id", ""))
+	if quest_id == &"":
+		return {}
+	var state_id := _resolve_contract_board_quest_state_id(quest_id)
+	return {
+		"entry_id": String(quest_id),
+		"quest_id": String(quest_id),
+		"display_name": String(quest_data.get("display_name", String(quest_id))),
+		"summary_text": _build_contract_board_objective_summary(quest_id, quest_data),
+		"details_text": _build_contract_board_entry_details(quest_id, quest_data),
+		"state_id": state_id,
+		"state_label": _build_contract_board_state_label(state_id),
+		"cost_label": _build_contract_board_reward_label(quest_data.get("reward_entries", [])),
+		"is_enabled": false,
+		"disabled_reason": "任务接取与结算链路待后续 story 开放。",
+	}
+
+
+func _resolve_contract_board_quest_state_id(quest_id: StringName) -> String:
+	var party_state = _get_party_state()
+	if party_state == null:
+		return "available"
+	if party_state.has_method("get_active_quest_state") and party_state.get_active_quest_state(quest_id) != null:
+		return "active"
+	if party_state.has_method("has_completed_quest") and party_state.has_completed_quest(quest_id):
+		return "completed"
+	return "available"
+
+
+func _build_contract_board_state_label(state_id: String) -> String:
+	match state_id:
+		"active":
+			return "状态：进行中"
+		"completed":
+			return "状态：已完成"
+		"empty":
+			return "状态：空"
+		_:
+			return "状态：待接取"
+
+
+func _build_contract_board_state_summary(entries: Array[Dictionary]) -> String:
+	var active_count := 0
+	var available_count := 0
+	var completed_count := 0
+	for entry in entries:
+		match String(entry.get("state_id", "")):
+			"active":
+				active_count += 1
+			"completed":
+				completed_count += 1
+			"empty":
+				pass
+			_:
+				available_count += 1
+	return "进行中 %d  |  待接取 %d  |  已完成 %d" % [active_count, available_count, completed_count]
+
+
+func _build_contract_board_objective_summary(quest_id: StringName, quest_data: Dictionary) -> String:
+	var objective_lines := _build_contract_board_objective_lines(quest_id, quest_data)
+	return "暂无目标说明。" if objective_lines.is_empty() else "目标：" + " / ".join(PackedStringArray(objective_lines))
+
+
+func _build_contract_board_entry_details(quest_id: StringName, quest_data: Dictionary) -> String:
+	var lines := PackedStringArray([
+		String(quest_data.get("description", "暂无说明。")),
+		_build_contract_board_objective_summary(quest_id, quest_data),
+		_build_contract_board_reward_label(quest_data.get("reward_entries", [])),
+	])
+	return "\n".join(lines)
+
+
+func _build_contract_board_objective_lines(quest_id: StringName, quest_data: Dictionary) -> Array[String]:
+	var objective_lines: Array[String] = []
+	var objective_defs_variant = quest_data.get("objective_defs", [])
+	if objective_defs_variant is not Array:
+		return objective_lines
+	var quest_state = _get_active_quest_state(quest_id)
+	var is_completed := _resolve_contract_board_quest_state_id(quest_id) == "completed"
+	for objective_variant in objective_defs_variant:
+		if objective_variant is not Dictionary:
+			continue
+		var objective_data := objective_variant as Dictionary
+		var objective_id := ProgressionDataUtils.to_string_name(objective_data.get("objective_id", ""))
+		var target_value := maxi(int(objective_data.get("target_value", 1)), 1)
+		var current_value: int = target_value if is_completed else 0
+		if not is_completed and quest_state != null:
+			current_value = int(quest_state.get_objective_progress(objective_id))
+		objective_lines.append("%s %d/%d" % [
+			_describe_contract_board_objective(objective_data),
+			current_value,
+			target_value,
+		])
+	return objective_lines
+
+
+func _describe_contract_board_objective(objective_data: Dictionary) -> String:
+	var objective_type := ProgressionDataUtils.to_string_name(objective_data.get("objective_type", ""))
+	var target_id := String(objective_data.get("target_id", ""))
+	match objective_type:
+		&"settlement_action":
+			return "据点事务 %s" % (target_id if not target_id.is_empty() else "未命名")
+		&"defeat_enemy":
+			return "击败敌对遭遇"
+		&"submit_item":
+			return "提交物资 %s" % (target_id if not target_id.is_empty() else "未命名")
+		_:
+			return String(objective_data.get("objective_id", objective_type))
+
+
+func _build_contract_board_reward_label(reward_entries_variant) -> String:
+	if reward_entries_variant is not Array or (reward_entries_variant as Array).is_empty():
+		return "奖励：待定"
+	var reward_parts: Array[String] = []
+	for reward_variant in reward_entries_variant:
+		if reward_variant is not Dictionary:
+			continue
+		var reward_data := reward_variant as Dictionary
+		var reward_type := ProgressionDataUtils.to_string_name(reward_data.get("reward_type", ""))
+		match reward_type:
+			&"gold":
+				reward_parts.append("%d 金" % int(reward_data.get("amount", 0)))
+			&"item":
+				reward_parts.append("%s x%d" % [
+					_get_item_display_name(ProgressionDataUtils.to_string_name(reward_data.get("target_id", ""))),
+					maxi(int(reward_data.get("amount", 1)), 1),
+				])
+			&"pending_character_reward":
+				reward_parts.append("角色奖励")
+			_:
+				reward_parts.append(String(reward_type))
+	return "奖励：%s" % ("、".join(PackedStringArray(reward_parts)) if not reward_parts.is_empty() else "待定")
+
+
+func _get_active_quest_state(quest_id: StringName):
+	var party_state = _get_party_state()
+	if party_state == null or not party_state.has_method("get_active_quest_state"):
+		return null
+	return party_state.get_active_quest_state(quest_id)
 
 
 func _open_shop_modal(settlement_id: String, payload: Dictionary) -> void:
@@ -1063,6 +1295,15 @@ func _get_item_defs() -> Dictionary:
 	return _runtime._game_session.get_item_defs() if "_game_session" in _runtime and _runtime._game_session != null else {}
 
 
+func _get_item_display_name(item_id: StringName) -> String:
+	if _has_runtime() and _runtime.has_method("get_item_display_name"):
+		return _runtime.get_item_display_name(item_id)
+	var item_def = _get_item_defs().get(item_id, null)
+	if item_def != null and not String(item_def.display_name).is_empty():
+		return String(item_def.display_name)
+	return String(item_id)
+
+
 func _get_recipe_defs() -> Dictionary:
 	if not _has_runtime():
 		return {}
@@ -1070,6 +1311,15 @@ func _get_recipe_defs() -> Dictionary:
 		var game_session = _runtime.get_game_session()
 		return game_session.get_recipe_defs() if game_session != null and game_session.has_method("get_recipe_defs") else {}
 	return _runtime._game_session.get_recipe_defs() if "_game_session" in _runtime and _runtime._game_session != null else {}
+
+
+func _get_quest_defs() -> Dictionary:
+	if not _has_runtime():
+		return {}
+	if _runtime.has_method("get_game_session"):
+		var game_session = _runtime.get_game_session()
+		return game_session.get_quest_defs() if game_session != null and game_session.has_method("get_quest_defs") else {}
+	return _runtime._game_session.get_quest_defs() if "_game_session" in _runtime and _runtime._game_session != null else {}
 
 
 func _is_forge_modal_submission(payload: Dictionary) -> bool:
@@ -1261,6 +1511,15 @@ func _set_active_shop_context(context: Dictionary) -> void:
 		_runtime._active_shop_context = context.duplicate(true)
 
 
+func _set_active_contract_board_context(context: Dictionary) -> void:
+	if not _has_runtime():
+		return
+	if _runtime.has_method("set_active_contract_board_context"):
+		_runtime.set_active_contract_board_context(context)
+	elif "_active_contract_board_context" in _runtime:
+		_runtime._active_contract_board_context = context.duplicate(true)
+
+
 func _set_active_forge_context(context: Dictionary) -> void:
 	if not _has_runtime():
 		return
@@ -1279,6 +1538,15 @@ func _clear_active_shop_context() -> void:
 		_runtime._active_shop_context.clear()
 
 
+func _clear_active_contract_board_context() -> void:
+	if not _has_runtime():
+		return
+	if _runtime.has_method("clear_active_contract_board_context"):
+		_runtime.clear_active_contract_board_context()
+	elif "_active_contract_board_context" in _runtime:
+		_runtime._active_contract_board_context.clear()
+
+
 func _clear_active_forge_context() -> void:
 	if not _has_runtime():
 		return
@@ -1294,6 +1562,14 @@ func _get_active_shop_context() -> Dictionary:
 	if _runtime.has_method("get_active_shop_context"):
 		return _runtime.get_active_shop_context()
 	return _runtime._active_shop_context.duplicate(true) if "_active_shop_context" in _runtime else {}
+
+
+func _get_active_contract_board_context() -> Dictionary:
+	if not _has_runtime():
+		return {}
+	if _runtime.has_method("get_active_contract_board_context"):
+		return _runtime.get_active_contract_board_context()
+	return _runtime._active_contract_board_context.duplicate(true) if "_active_contract_board_context" in _runtime else {}
 
 
 func _get_active_forge_context() -> Dictionary:

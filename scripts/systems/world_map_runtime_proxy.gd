@@ -129,6 +129,10 @@ func get_shop_window_data() -> Dictionary:
 	return _call_runtime_read(&"get_shop_window_data", {})
 
 
+func get_contract_board_window_data() -> Dictionary:
+	return _call_runtime_read(&"get_contract_board_window_data", {})
+
+
 func get_forge_window_data() -> Dictionary:
 	return _call_runtime_read(&"get_forge_window_data", {})
 

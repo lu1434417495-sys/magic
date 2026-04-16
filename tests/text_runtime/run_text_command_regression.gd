@@ -31,6 +31,10 @@ func _run() -> void:
 	var skill_book_skill_id := String(book_skill.get("skill_id", ""))
 	var skill_book_item_id := String(book_skill.get("item_id", ""))
 	await _run_command(runner, "world open")
+	await _run_command(runner, "settlement action service:contract_board interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务")
+	_assert_contract_board_modal_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _run_command(runner, "close")
+	_assert_contract_board_closed_to_settlement(runner.get_session().build_snapshot())
 	await _run_command(runner, "settlement action service:basic_supply")
 	await _run_command(runner, "shop buy healing_herb")
 	_assert_shop_purchase_applied(runner.get_session().build_snapshot())
@@ -224,6 +228,24 @@ func _assert_generic_forge_persisted_after_load(snapshot: Dictionary) -> void:
 	_assert_eq(_count_warehouse_item(snapshot, "bronze_sword"), 0, "重新载入后不应恢复已消耗的青铜短剑。")
 	_assert_eq(_count_warehouse_item(snapshot, "iron_ore"), 0, "重新载入后不应恢复已消耗的铁矿石。")
 	_assert_eq(_count_warehouse_item(snapshot, "iron_greatsword"), 1, "重新载入后应保留通用 forge 产出的铁制大剑。")
+
+
+func _assert_contract_board_modal_open(snapshot: Dictionary, text_snapshot: String) -> void:
+	var contract_board_snapshot: Dictionary = snapshot.get("contract_board", {})
+	var window_data: Dictionary = contract_board_snapshot.get("window_data", {})
+	_assert_true(bool(contract_board_snapshot.get("visible", false)), "任务板服务打开后应切换到 contract_board modal。")
+	_assert_true(not bool(snapshot.get("settlement", {}).get("visible", false)), "任务板打开时 settlement modal 应隐藏。")
+	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "contract_board", "任务板打开后 modal 应为 contract_board。")
+	_assert_eq(String(window_data.get("action_id", "")), "service:contract_board", "任务板 modal 应保留原始 action_id。")
+	_assert_true((window_data.get("entries", []) as Array).size() >= 3, "任务板 modal 应至少渲染首批 contract quest。")
+	_assert_true(text_snapshot.contains("[CONTRACT_BOARD]"), "文本快照应包含 contract board 分段。")
+	_assert_true(text_snapshot.contains("首轮狩猎"), "文本快照应渲染任务板中的契约名称。")
+
+
+func _assert_contract_board_closed_to_settlement(snapshot: Dictionary) -> void:
+	_assert_true(bool(snapshot.get("settlement", {}).get("visible", false)), "关闭任务板后应恢复 settlement modal。")
+	_assert_true(not bool(snapshot.get("contract_board", {}).get("visible", false)), "关闭任务板后 contract_board modal 应隐藏。")
+	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "settlement", "关闭任务板后当前 modal 应回到 settlement。")
 
 
 func _assert_shop_purchase_applied(snapshot: Dictionary) -> void:

@@ -29,3 +29,7 @@ Added `data/configs/recipes/forge_smith_iron_greatsword.tres` as the first non-`
 ## 2026-04-17T01:48:16+08:00 | PVS_01D | done
 title: 跑通通用 forge 配方的据点端到端执行
 Routed generic forge (`service:repair_gear`) through `SettlementForgeService`, kept forge UI/feedback/action IDs service-specific, inferred forge tags from generic smith interactions even on non-`craft` facilities, and added world-map/text regressions for atomic warehouse consumption, shared-warehouse output, logs, and reload persistence.
+
+## 2026-04-17T02:00:17+08:00 | PVS_02A | done
+title: 落地 contract board 的正式 modal 开关链路
+Wired `service_contract_board` into the formal settlement modal chain by adding a `contract_board` runtime modal/context, rendering it through `WorldMapSystem` with the shared `ShopWindow` shell, exposing snapshot/text snapshot data, adding close-to-settlement handling, and covering the flow in settlement-handler and text-runtime regressions. Updated `docs/design/project_context_units.md` because CU-06/CU-15 now formally include the contract-board modal path.

@@ -37,6 +37,7 @@ func build_headless_snapshot() -> Dictionary:
 		"submap": _build_submap_snapshot(),
 		"party": _build_party_snapshot(),
 		"settlement": _build_settlement_snapshot(),
+		"contract_board": _build_contract_board_snapshot(),
 		"shop": _build_shop_snapshot(),
 		"forge": _build_forge_snapshot(),
 		"stagecoach": _build_stagecoach_snapshot(),
@@ -283,6 +284,15 @@ func _build_shop_snapshot() -> Dictionary:
 	window_data.erase("party_state")
 	return {
 		"visible": _runtime.get_active_modal_id() == "shop",
+		"window_data": window_data.duplicate(true),
+	}
+
+
+func _build_contract_board_snapshot() -> Dictionary:
+	var window_data: Dictionary = _runtime.get_contract_board_window_data()
+	window_data.erase("party_state")
+	return {
+		"visible": _runtime.get_active_modal_id() == "contract_board",
 		"window_data": window_data.duplicate(true),
 	}
 

@@ -69,6 +69,9 @@ func command_close_active_modal() -> Dictionary:
 		"settlement":
 			_close_settlement_modal()
 			return _command_ok()
+		"contract_board":
+			_close_contract_board_modal()
+			return _command_ok()
 		"shop":
 			_close_shop_modal()
 			return _command_ok()
@@ -233,7 +236,7 @@ func present_pending_reward_if_ready() -> bool:
 			_set_active_modal_id("reward")
 			return true
 		return false
-	if active_modal_id == "settlement" or active_modal_id == "shop" or active_modal_id == "forge" or active_modal_id == "stagecoach" or active_modal_id == "character_info" or active_modal_id == "party" or active_modal_id == "warehouse" or active_modal_id == "submap_confirm" or active_modal_id == "battle_start_confirm":
+	if active_modal_id == "settlement" or active_modal_id == "contract_board" or active_modal_id == "shop" or active_modal_id == "forge" or active_modal_id == "stagecoach" or active_modal_id == "character_info" or active_modal_id == "party" or active_modal_id == "warehouse" or active_modal_id == "submap_confirm" or active_modal_id == "battle_start_confirm":
 		return false
 	var party_state = _get_party_state()
 	if party_state == null or party_state.pending_character_rewards.is_empty():
@@ -345,6 +348,15 @@ func _close_settlement_modal() -> void:
 		_runtime.close_settlement_modal()
 	elif "_settlement_command_handler" in _runtime and _runtime._settlement_command_handler != null:
 		_runtime._settlement_command_handler.on_settlement_window_closed()
+
+
+func _close_contract_board_modal() -> void:
+	if not _has_runtime():
+		return
+	if _runtime.has_method("close_contract_board_modal"):
+		_runtime.close_contract_board_modal()
+	elif "_settlement_command_handler" in _runtime and _runtime._settlement_command_handler != null:
+		_runtime._settlement_command_handler.on_contract_board_window_closed()
 
 
 func _close_shop_modal() -> void:
