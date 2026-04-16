@@ -369,6 +369,27 @@ func _register_seed_quests() -> void:
 			{"reward_type": QuestDef.REWARD_GOLD, "amount": 80},
 		]
 	))
+	_register_quest(_build_quest(
+		&"contract_regional_bounty",
+		"地区悬赏",
+		"由悬赏署单独发放的区域通缉，用来验证多 provider 任务板的过滤边界。",
+		&"service_bounty_registry",
+		[
+			{
+				"objective_id": "defeat_enemy_once",
+				"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+				"target_id": "",
+				"target_value": 1,
+			},
+		],
+		[
+			{"reward_type": QuestDef.REWARD_GOLD, "amount": 120},
+		],
+		[
+			&"contract",
+			&"bounty",
+		]
+	))
 	_register_achievement(
 		_build_achievement(
 			&"settlement_wayfarer",

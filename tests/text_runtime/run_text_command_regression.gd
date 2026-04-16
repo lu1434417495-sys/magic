@@ -41,6 +41,10 @@ func _run() -> void:
 	_assert_contract_board_duplicate_feedback(runner.get_session().build_snapshot())
 	await _run_command(runner, "close")
 	_assert_contract_board_closed_to_settlement(runner.get_session().build_snapshot())
+	await _run_command(runner, "settlement action service:bounty_registry interaction_script_id=service_bounty_registry facility_name=悬赏署 npc_name=悬赏文书 service_type=悬赏")
+	_assert_bounty_registry_modal_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _run_command(runner, "close")
+	_assert_contract_board_closed_to_settlement(runner.get_session().build_snapshot())
 	await _run_command(runner, "settlement action service:basic_supply")
 	await _run_command(runner, "shop buy healing_herb")
 	_assert_shop_purchase_applied(runner.get_session().build_snapshot())
@@ -245,6 +249,21 @@ func _assert_contract_board_modal_open(snapshot: Dictionary, text_snapshot: Stri
 	_assert_true((window_data.get("entries", []) as Array).size() >= 3, "任务板 modal 应至少渲染首批 contract quest。")
 	_assert_true(text_snapshot.contains("[CONTRACT_BOARD]"), "文本快照应包含 contract board 分段。")
 	_assert_true(text_snapshot.contains("首轮狩猎"), "文本快照应渲染任务板中的契约名称。")
+
+
+func _assert_bounty_registry_modal_open(snapshot: Dictionary, text_snapshot: String) -> void:
+	var contract_board_snapshot: Dictionary = snapshot.get("contract_board", {})
+	var window_data: Dictionary = contract_board_snapshot.get("window_data", {})
+	var bounty_entry := _find_contract_board_entry(window_data.get("entries", []), "contract_regional_bounty")
+	_assert_true(bool(contract_board_snapshot.get("visible", false)), "悬赏署打开后应复用 contract_board modal。")
+	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "contract_board", "悬赏署打开后当前 modal 仍应为 contract_board。")
+	_assert_eq(String(window_data.get("action_id", "")), "service:bounty_registry", "悬赏署 modal 应保留原始 action_id。")
+	_assert_eq(String(window_data.get("provider_interaction_id", "")), "service_bounty_registry", "悬赏署 modal 应记录自己的 provider_interaction_id。")
+	_assert_eq((window_data.get("entries", []) as Array).size(), 1, "悬赏署 modal 只应渲染自己的 bounty 条目。")
+	_assert_true(not bounty_entry.is_empty(), "悬赏署 modal 应渲染悬赏 provider 对应的契约。")
+	_assert_true(_find_contract_board_entry(window_data.get("entries", []), "contract_manual_drill").is_empty(), "悬赏署 modal 不应混入 contract board 契约。")
+	_assert_true(text_snapshot.contains("provider_interaction_id=service_bounty_registry"), "文本快照应标记悬赏署 provider_interaction_id。")
+	_assert_true(text_snapshot.contains("地区悬赏"), "文本快照应渲染悬赏 provider 的契约名称。")
 
 
 func _assert_contract_board_closed_to_settlement(snapshot: Dictionary) -> void:

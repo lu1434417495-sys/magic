@@ -400,6 +400,13 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 					"interaction_script_id": "service_contract_board",
 				},
 				{
+					"action_id": "service:bounty_registry",
+					"facility_name": "悬赏署",
+					"npc_name": "悬赏文书",
+					"service_type": "悬赏",
+					"interaction_script_id": "service_bounty_registry",
+				},
+				{
 					"action_id": "service:stagecoach",
 					"facility_name": "驿站",
 					"npc_name": "驿夫",
@@ -512,8 +519,11 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 
 	var settlement_window_data := handler.get_settlement_window_data("spring_village_01")
 	var contract_service := _find_service_entry(settlement_window_data.get("available_services", []), "service:contract_board")
+	var bounty_service := _find_service_entry(settlement_window_data.get("available_services", []), "service:bounty_registry")
 	_assert_true(not contract_service.is_empty(), "据点窗口应暴露任务板服务入口。")
 	_assert_true(bool(contract_service.get("is_enabled", false)), "任务板服务入口应为可点击状态。")
+	_assert_true(not bounty_service.is_empty(), "据点窗口应暴露悬赏署服务入口。")
+	_assert_true(bool(bounty_service.get("is_enabled", false)), "悬赏署服务入口应为可点击状态。")
 
 	var warehouse_result := handler.command_execute_settlement_action("service:warehouse")
 	_assert_true(bool(warehouse_result.get("ok", false)), "据点仓储动作应执行成功。")
@@ -585,6 +595,21 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	handler.on_contract_board_window_closed()
 	_assert_eq(runtime._active_modal_id, "settlement", "关闭任务板后应返回 settlement modal。")
 	_assert_eq(runtime._active_settlement_id, "spring_village_01", "关闭任务板后应继续保留当前据点。")
+
+	var bounty_board_result := handler.command_execute_settlement_action("service:bounty_registry")
+	var bounty_board_window_data := handler.get_contract_board_window_data()
+	var bounty_board_entry_ids := _extract_contract_board_entry_ids(bounty_board_window_data.get("entries", []))
+	_assert_true(bool(bounty_board_result.get("ok", false)), "悬赏署服务应复用 contract_board modal。")
+	_assert_eq(runtime._active_modal_id, "contract_board", "悬赏署服务后仍应落到 contract_board modal。")
+	_assert_eq(String(bounty_board_window_data.get("action_id", "")), "service:bounty_registry", "悬赏署 modal 应保留原始 action_id。")
+	_assert_eq(String(bounty_board_window_data.get("provider_interaction_id", "")), "service_bounty_registry", "悬赏署 modal 应记录自己的 provider_interaction_id。")
+	_assert_eq(bounty_board_entry_ids, ["contract_regional_bounty"], "悬赏署 modal 只应暴露自己的 bounty quest。")
+
+	handler.on_contract_board_window_closed()
+	handler.command_execute_settlement_action("service:contract_board")
+	var reopened_contract_entry_ids := _extract_contract_board_entry_ids(handler.get_contract_board_window_data().get("entries", []))
+	_assert_eq(reopened_contract_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol"], "悬赏署 provider 不应污染正式 contract board 列表。")
+	handler.on_contract_board_window_closed()
 
 	var training_result := handler.command_execute_settlement_action("service:training", {
 		"pending_character_rewards": [

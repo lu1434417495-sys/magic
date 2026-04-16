@@ -41,3 +41,7 @@ Filtered contract-board entries deterministically from `QuestDef.provider_intera
 ## 2026-04-17T02:15:08+08:00 | PVS_03A | done
 title: 支持从 contract board 正式接取任务
 Wired contract-board confirm through `ShopWindow -> WorldMapSystem -> GameRuntimeSettlementCommandHandler -> GameRuntimeFacade.command_accept_quest`, refreshed contract-board entry/status feedback after each accept attempt, and added regressions for duplicate, completed, repeatable, and real headless board-accept flows. `docs/design/project_context_units.md` stayed valid as-is.
+
+## 2026-04-17T02:20:20+08:00 | PVS_03B | done
+title: 让 bounty registry 复用正式任务板表面
+Routed `service_bounty_registry` through the existing `contract_board` modal in `scripts/systems/game_runtime_settlement_command_handler.gd`, removed it from the unimplemented-service bucket, seeded `contract_regional_bounty` in `scripts/player/progression/progression_content_registry.gd`, and extended the settlement/text regressions so bounty-provider entries stay isolated from the normal contract board list. `docs/design/project_context_units.md` stayed valid as-is.

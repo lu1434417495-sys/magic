@@ -26,12 +26,12 @@ const STAGECOACH_INTERACTION_IDS := {
 
 const CONTRACT_BOARD_INTERACTION_IDS := {
 	"service_contract_board": true,
+	"service_bounty_registry": true,
 }
 
 const UNIMPLEMENTED_INTERACTION_IDS := {
 	"service_join_guild": true,
 	"service_identify_relic": true,
-	"service_bounty_registry": true,
 	"service_recruit_specialist": true,
 	"service_issue_regional_edict": true,
 	"service_unlock_archive": true,
