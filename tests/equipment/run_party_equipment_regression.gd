@@ -3,6 +3,7 @@ extends SceneTree
 const AttributeService = preload("res://scripts/systems/attribute_service.gd")
 const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
+const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const PartyEquipmentService = preload("res://scripts/systems/party_equipment_service.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
@@ -47,19 +48,56 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	var leather_jerkin = item_defs.get(&"leather_jerkin")
 	var scout_charm = item_defs.get(&"scout_charm")
 	var iron_greatsword = item_defs.get(&"iron_greatsword")
+	var militia_axe = item_defs.get(&"militia_axe")
 
 	_assert_true(bronze_sword != null and bronze_sword.is_equipment(), "青铜短剑应注册为可装备物品。")
 	_assert_true(leather_jerkin != null and leather_jerkin.is_equipment(), "皮革短甲应注册为可装备物品。")
 	_assert_true(scout_charm != null and scout_charm.is_equipment(), "斥候护符应注册为可装备物品。")
 	_assert_true(iron_greatsword != null and iron_greatsword.is_equipment(), "铁制大剑应注册为可装备物品。")
+	_assert_true(militia_axe != null and militia_axe.is_equipment(), "民兵手斧应注册为可装备物品。")
 	_assert_eq(bronze_sword.get_equipment_type_id_normalized(), &"weapon", "青铜短剑应归类为 weapon。")
 	_assert_eq(leather_jerkin.get_equipment_type_id_normalized(), &"armor", "皮革短甲应归类为 armor。")
 	_assert_eq(scout_charm.get_equipment_type_id_normalized(), &"accessory", "斥候护符应归类为 accessory。")
 	_assert_eq(iron_greatsword.get_equipment_type_id_normalized(), &"weapon", "铁制大剑应归类为 weapon。")
+	_assert_eq(militia_axe.get_equipment_type_id_normalized(), &"weapon", "民兵手斧应归类为 weapon。")
 	_assert_true(bronze_sword.is_weapon(), "青铜短剑应通过 is_weapon()。")
 	_assert_true(leather_jerkin.is_armor(), "皮革短甲应通过 is_armor()。")
 	_assert_true(scout_charm.is_accessory(), "斥候护符应通过 is_accessory()。")
 	_assert_eq(iron_greatsword.get_final_occupied_slot_ids(&"main_hand").size(), 2, "铁制大剑应声明占用 2 个槽位。")
+	_assert_eq(
+		bronze_sword.get_tags(),
+		[&"weapon", &"melee", &"one_handed", &"sword", &"weapon_class_sword"],
+		"青铜短剑应补齐单手剑标签。"
+	)
+	_assert_eq(
+		militia_axe.get_tags(),
+		[&"weapon", &"melee", &"one_handed", &"axe", &"weapon_class_axe"],
+		"民兵手斧应补齐单手斧标签。"
+	)
+	_assert_eq(militia_axe.get_buy_price(), 145, "民兵手斧应声明购买价格。")
+	_assert_eq(militia_axe.get_sell_price(), 70, "民兵手斧应声明出售价格。")
+	_assert_eq(militia_axe.get_equipment_slot_ids(), [&"main_hand"], "民兵手斧应声明主手槽位。")
+	_assert_eq(militia_axe.get_final_occupied_slot_ids(&"main_hand"), [&"main_hand"], "民兵手斧应只占用主手槽。")
+
+	var one_handed_weapon_classes: Dictionary = {}
+	for item_def_variant in item_defs.values():
+		if item_def_variant is not ItemDef:
+			continue
+		var item_def: ItemDef = item_def_variant
+		if not item_def.is_weapon():
+			continue
+		if item_def.get_equipment_slot_ids() != [&"main_hand"]:
+			continue
+		if item_def.get_final_occupied_slot_ids(&"main_hand") != [&"main_hand"]:
+			continue
+		for tag in item_def.get_tags():
+			if not String(tag).begins_with("weapon_class_"):
+				continue
+			one_handed_weapon_classes[tag] = true
+	_assert_true(
+		one_handed_weapon_classes.size() >= 2,
+		"当前单手武器种子至少应覆盖 2 个 weapon_class_* 标签。"
+	)
 
 
 func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:

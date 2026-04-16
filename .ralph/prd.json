@@ -365,14 +365,22 @@
     {
       "id": "PVS_07A",
       "title": "补齐第一批单手武器 seed 内容",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "单手武器从 1 类扩到至少 2 类",
         "新增武器补齐价格、标签、equipment_type 与槽位元数据"
       ],
       "notes": [
         "Owner：CU-10 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:48:49+08:00",
+      "lastRunId": "20260417-034849-PVS_07A",
+      "startedAt": "2026-04-17T03:48:49+08:00",
+      "completedAt": "2026-04-17T03:54:15+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/equipment/run_party_equipment_regression.gd` and `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd`; both passed.",
+      "lastLearnings": "Current one-handed weapon class coverage is now tracked by `weapon_class_*` tags on main-hand-only weapon seeds; `bronze_sword` + `militia_axe` bring the seed set to at least 2 classes, and CU-10 context docs should include new tracked item resources when this seed list grows."
     },
     {
       "id": "PVS_07B",

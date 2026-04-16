@@ -472,6 +472,7 @@ HeadlessGameTestSession
   - `scripts/ui/party_warehouse_window.gd`
   - `data/configs/recipes/*.tres`
   - `data/configs/items/bronze_sword.tres`
+  - `data/configs/items/militia_axe.tres`
   - `data/configs/items/leather_jerkin.tres`
   - `data/configs/items/scout_charm.tres`
   - `data/configs/items/healing_herb.tres`

@@ -7,30 +7,32 @@
 script = ExtResource("2_modifier")
 attribute_id = "physical_attack"
 mode = "flat"
-value = 4
+value = 5
 source_type = "equipment"
-source_id = "bronze_sword"
+source_id = "militia_axe"
 
 [sub_resource type="Resource" id="Resource_hit_bonus"]
 script = ExtResource("2_modifier")
 attribute_id = "hit_rate"
 mode = "flat"
-value = 5
+value = 2
 source_type = "equipment"
-source_id = "bronze_sword"
+source_id = "militia_axe"
 
 [resource]
 script = ExtResource("1_item")
-item_id = "bronze_sword"
-display_name = "青铜短剑"
-description = "朴素但可靠的入门单手武器，装备后提升物攻与命中。"
+item_id = "militia_axe"
+display_name = "民兵手斧"
+description = "配发给前线民兵的单手战斧，挥砍沉稳，适合作为剑类之外的基础近战武器。"
 icon = "res://icon.svg"
 is_stackable = false
-base_price = 120
+base_price = 135
+buy_price = 145
+sell_price = 70
 sellable = true
 max_stack = 1
 item_category = "equipment"
-tags = Array[StringName](["weapon", "melee", "one_handed", "sword", "weapon_class_sword"])
+tags = Array[StringName](["weapon", "melee", "one_handed", "axe", "weapon_class_axe"])
 equipment_slot_ids = Array[String](["main_hand"])
 equipment_type_id = "weapon"
 attribute_modifiers = Array[Resource]([SubResource("Resource_attack_bonus"), SubResource("Resource_hit_bonus")])

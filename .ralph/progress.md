@@ -85,3 +85,7 @@ Implemented the research reward constructor in `SettlementResearchService`: it n
 ## 2026-04-17T03:48:49+08:00 | PVS_06C | done
 title: 为 research 服务补 reward flow 与 text regression
 Added research-specific coverage in `tests/runtime/run_game_runtime_reward_flow_regression.gd` for research-shaped pending rewards entering, blocking on settlement modal, presenting in reward flow, and confirming. Extended `tests/text_runtime/run_text_command_regression.gd` with a focused headless research pass that verifies settlement-state timing, structured snapshot fields, and text snapshot rendering before/after the reward modal; `docs/design/project_context_units.md` stays valid as-is.
+
+## 2026-04-17T03:54:15+08:00 | PVS_07A | done
+title: 补齐第一批单手武器 seed 内容
+Added `data/configs/items/militia_axe.tres` as the first new one-handed axe seed with explicit price/tag/equipment metadata, backfilled `bronze_sword` with explicit one-handed sword tags, extended `tests/equipment/run_party_equipment_regression.gd` to assert one-handed weapon class coverage/metadata, and updated `docs/design/project_context_units.md` for the CU-10 read set.

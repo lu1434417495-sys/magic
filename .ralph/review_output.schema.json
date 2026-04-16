@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "passed",
+    "findings",
+    "what_was_done_well",
+    "open_questions",
+    "residual_risks",
+    "summary"
+  ],
+  "properties": {
+    "passed": {
+      "type": "boolean"
+    },
+    "findings": {
+      "items": {
+        "properties": {
+          "category": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "issue": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "file": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "Critical",
+              "Warning",
+              "Suggestion"
+            ],
+            "type": "string"
+          },
+          "fix": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category",
+          "severity",
+          "file",
+          "issue",
+          "fix"
+        ]
+      },
+      "type": "array"
+    },
+    "what_was_done_well": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "open_questions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "residual_risks": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "summary": {
+      "properties": {
+        "categories": {
+          "items": {
+            "properties": {
+              "na": {
+                "type": "boolean"
+              },
+              "warning": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "critical": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "suggestion": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "name",
+              "critical",
+              "warning",
+              "suggestion",
+              "na"
+            ]
+          },
+          "type": "array"
+        },
+        "totals": {
+          "properties": {
+            "warning": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "critical": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "suggestion": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "critical",
+            "warning",
+            "suggestion"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "totals",
+        "categories"
+      ]
+    }
+  }
+}
