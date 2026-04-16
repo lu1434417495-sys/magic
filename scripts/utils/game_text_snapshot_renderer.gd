@@ -424,12 +424,13 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 			if unit_variant is not Dictionary:
 				continue
 			var unit: Dictionary = unit_variant
-			lines.append("unit=%s | %s | %s | hp=%d mp=%d ap=%d | alive=%s | coord=%s" % [
+			lines.append("unit=%s | %s | %s | hp=%d mp=%d st=%d ap=%d | alive=%s | coord=%s" % [
 				String(unit.get("unit_id", "")),
 				String(unit.get("display_name", "")),
 				String(unit.get("faction_id", "")),
 				int(unit.get("current_hp", 0)),
 				int(unit.get("current_mp", 0)),
+				int(unit.get("current_stamina", 0)),
 				int(unit.get("current_ap", 0)),
 				_format_bool(bool(unit.get("is_alive", false))),
 				_format_coord(unit.get("coord", {})),

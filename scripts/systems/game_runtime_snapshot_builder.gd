@@ -369,6 +369,8 @@ func _build_battle_snapshot() -> Dictionary:
 			"is_alive": unit_state.is_alive,
 			"current_hp": int(unit_state.current_hp),
 			"current_mp": int(unit_state.current_mp),
+			"current_stamina": int(unit_state.current_stamina),
+			"stamina_max": int(unit_state.attribute_snapshot.get_value(&"stamina_max")) if unit_state.attribute_snapshot != null else 0,
 			"current_ap": int(unit_state.current_ap),
 		})
 	return {

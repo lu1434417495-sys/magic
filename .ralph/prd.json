@@ -725,14 +725,22 @@
     {
       "id": "PVS_14A",
       "title": "实现 stamina_cost 的正式扣费路径",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "技能释放会正式扣除 stamina",
         "battle state 与 snapshot 能稳定暴露当前 stamina"
       ],
       "notes": [
         "Owner：CU-15 / CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:44:06+08:00",
+      "lastRunId": "20260417-054406-PVS_14A",
+      "startedAt": "2026-04-17T05:44:06+08:00",
+      "completedAt": "2026-04-17T05:48:44+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd` and `godot --headless --script tests/runtime/run_game_runtime_snapshot_builder_regression.gd`; both passed.",
+      "lastLearnings": "`BattleRuntimeModule` already owned the actual stamina deduction on skill execution through `BattleUnitState`; this story’s missing durable slice was stable projection of that value through battle snapshot/text/log surfaces. `docs/design/project_context_units.md` remains valid as-is."
     },
     {
       "id": "PVS_14B",

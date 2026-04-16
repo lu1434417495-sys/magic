@@ -157,3 +157,7 @@ Switched `BattleHitResolver` to deterministic BAB + descending AC + d20 repeat-a
 ## 2026-04-17T05:44:05+08:00 | PVS_13B | done
 title: 为新命中模型补 natural 1/20 与 seeded regression
 `BattleHitResolver` now exposes explicit natural-1/natural-20 outcome dispositions and boundary resolution text, and `tests/battle_runtime/run_battle_runtime_smoke.gd` now covers deterministic seeded d20 sequences plus 95%/5% boundary-hit regressions. `docs/design/project_context_units.md` stayed valid and was not changed.
+
+## 2026-04-17T05:48:44+08:00 | PVS_14A | done
+title: 实现 stamina_cost 的正式扣费路径
+Exposed battle-unit `current_stamina` and `stamina_max` in the headless battle snapshot, rendered stamina in the text battle snapshot, added `current_stamina` to battle command-log unit summaries, and added a facade-level regression that drives a real stamina-cost skill through the formal battle command path and verifies state/snapshot/log updates.

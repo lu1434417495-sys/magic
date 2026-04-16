@@ -19,6 +19,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_facade_clicking_active_unit_casts_self_skill()
 	_test_facade_multi_unit_selection_tracks_target_unit_ids()
+	_test_facade_stamina_skill_updates_battle_state_snapshot_and_logs()
 	if _failures.is_empty():
 		print("Battle skill protocol regression: PASS")
 		quit(0)
@@ -147,6 +148,66 @@ func _test_facade_multi_unit_selection_tracks_target_unit_ids() -> void:
 	_cleanup_test_session(game_session)
 
 
+func _test_facade_stamina_skill_updates_battle_state_snapshot_and_logs() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"stamina_cost_user",
+		"耐力施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"archer_long_draw"],
+		2,
+		0
+	)
+	caster.current_stamina = 12
+	caster.attribute_snapshot.set_value(&"stamina_max", 12)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"stamina_cost_enemy",
+		"敌人",
+		&"enemy",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(bool(select_result.get("ok", false)), "选择 stamina 技能应返回成功结果。")
+	var cast_result: Dictionary = facade.command_battle_move_to(enemy.coord)
+	_assert_true(bool(cast_result.get("ok", false)), "执行 stamina 技能应返回成功结果。")
+
+	var runtime_state := facade.get_battle_state()
+	var runtime_caster := runtime_state.units.get(caster.unit_id) as BattleUnitState if runtime_state != null else null
+	var battle_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
+	var caster_snapshot := _find_battle_unit_snapshot(battle_snapshot, String(caster.unit_id))
+	var text_snapshot := facade.build_text_snapshot()
+	var move_log := _find_log_entry(facade.get_log_snapshot(), "battle.move_to")
+	var logged_units: Array = move_log.get("context", {}).get("after", {}).get("battle", {}).get("units", [])
+	var logged_caster := _find_unit_entry(logged_units, String(caster.unit_id))
+
+	_assert_true(runtime_caster != null, "stamina 回归中应能从 battle state 读取施法者单位。")
+	_assert_eq(runtime_caster.current_stamina if runtime_caster != null else -1, 10, "技能释放后 battle state 应正式扣除 stamina。")
+	_assert_eq(int(caster_snapshot.get("current_stamina", -1)), 10, "battle snapshot 应稳定暴露扣费后的 current_stamina。")
+	_assert_eq(int(caster_snapshot.get("stamina_max", -1)), 12, "battle snapshot 应稳定暴露 stamina_max。")
+	_assert_true(text_snapshot.contains("unit=stamina_cost_user |"), "battle 文本快照应渲染 stamina 施法者单位行。")
+	_assert_true(text_snapshot.contains("st=10"), "battle 文本快照应渲染扣费后的 stamina。")
+	_assert_eq(int(logged_caster.get("current_stamina", -1)), 10, "战斗命令日志后态也应暴露扣费后的 current_stamina。")
+
+	_cleanup_test_session(game_session)
+
+
 func _create_test_session():
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
@@ -249,6 +310,33 @@ func _extract_coord_pairs(coord_dicts: Array) -> Array:
 		var coord: Dictionary = coord_variant
 		pairs.append([int(coord.get("x", 0)), int(coord.get("y", 0))])
 	return pairs
+
+
+func _find_battle_unit_snapshot(battle_snapshot: Dictionary, unit_id: String) -> Dictionary:
+	return _find_unit_entry(battle_snapshot.get("units", []), unit_id)
+
+
+func _find_unit_entry(unit_variants: Variant, unit_id: String) -> Dictionary:
+	if unit_variants is not Array:
+		return {}
+	for unit_variant in unit_variants:
+		if unit_variant is not Dictionary:
+			continue
+		var unit_entry: Dictionary = unit_variant
+		if String(unit_entry.get("unit_id", "")) == unit_id:
+			return unit_entry.duplicate(true)
+	return {}
+
+
+func _find_log_entry(log_snapshot: Dictionary, event_id: String) -> Dictionary:
+	var entries: Array = log_snapshot.get("entries", [])
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("event_id", "")) == event_id:
+			return entry.duplicate(true)
+	return {}
 
 
 func _assert_true(condition: bool, message: String) -> void:
