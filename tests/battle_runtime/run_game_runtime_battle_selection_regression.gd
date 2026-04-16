@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const GAME_RUNTIME_BATTLE_SELECTION_SCRIPT = preload("res://scripts/systems/game_runtime_battle_selection.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
@@ -19,6 +20,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_selection_sidecar_tracks_multi_unit_targets()
+	_test_selection_sidecar_reuses_shared_line_and_cone_target_collection()
 	_test_selection_sidecar_executes_multistep_reachable_movement()
 	_test_selection_sidecar_hides_targets_for_stamina_blocked_skill()
 	_test_selection_sidecar_hides_targets_for_cooldown_blocked_skill()
@@ -104,6 +106,31 @@ func _test_selection_sidecar_tracks_multi_unit_targets() -> void:
 		_extract_string_array(selection.get_selected_battle_skill_target_unit_ids()),
 		[],
 		"多目标技能结算后不应残留单位目标队列。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_selection_sidecar_reuses_shared_line_and_cone_target_collection() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	_assert_selection_sidecar_matches_ground_preview_target_collection(
+		game_session,
+		&"mage_flame_spear",
+		3,
+		20,
+		Vector2i(2, 1),
+		"line"
+	)
+	_assert_selection_sidecar_matches_ground_preview_target_collection(
+		game_session,
+		&"warrior_sweeping_slash",
+		0,
+		20,
+		Vector2i(2, 1),
+		"cone"
 	)
 
 	_cleanup_test_session(game_session)
@@ -243,6 +270,59 @@ func _test_selection_sidecar_hides_targets_for_cooldown_blocked_skill() -> void:
 	)
 
 	_cleanup_test_session(game_session)
+
+
+func _assert_selection_sidecar_matches_ground_preview_target_collection(
+	game_session,
+	skill_id: StringName,
+	current_mp: int,
+	current_stamina: int,
+	target_coord: Vector2i,
+	label: String
+) -> void:
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
+	selection.setup(facade)
+
+	var state: BattleState = _build_flat_state(Vector2i(5, 5))
+	var caster: BattleUnitState = _build_manual_unit(
+		StringName("%s_%s" % [label, String(skill_id)]),
+		"%s 施法者" % label,
+		&"player",
+		Vector2i(2, 2),
+		[skill_id],
+		2,
+		current_mp
+	)
+	caster.current_stamina = current_stamina
+	caster.attribute_snapshot.set_value(&"stamina_max", maxi(current_stamina, 1))
+	_add_unit_to_state(facade, state, caster, false)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	selection.select_battle_skill_slot(0)
+	_assert_eq(String(facade.get_selected_battle_skill_id()), String(skill_id), "%s 范围技能选择后应写入 facade 选中状态。" % label)
+
+	facade.set_battle_selection_target_coords_state([target_coord])
+	var selected_target_coords := selection.get_selected_battle_skill_target_coords()
+
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	command.unit_id = caster.unit_id
+	command.skill_id = skill_id
+	command.target_coord = target_coord
+	var preview = facade.preview_battle_command(command)
+	_assert_true(preview != null and preview.allowed, "%s 范围技能前置：preview_command 应允许测试目标地格。" % label)
+	if preview == null:
+		return
+	_assert_true(preview.target_coords.size() > 1, "%s 范围技能前置：runtime preview 应返回正式范围坐标，而不是只保留锚点。" % label)
+	_assert_eq(
+		_extract_coord_pairs(selected_target_coords),
+		_extract_coord_pairs(preview.target_coords),
+		"%s 范围技能的 selection 读面应复用与 runtime preview 相同的范围收集结果。" % label
+	)
 
 
 func _test_selection_sidecar_hides_targets_for_aura_blocked_skill() -> void:

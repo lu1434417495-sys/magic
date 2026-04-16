@@ -185,3 +185,7 @@ Added a formal CU-16 status semantics owner in `scripts/systems/battle_status_se
 ## 2026-04-17T06:46:56+08:00 | PVS_16B | done
 title: 把状态持续时间管理接到 battle runtime 并补回归
 Unified battle status duration handling onto a single owner-turn-end path in battle runtime, added serialized `skip_next_turn_end_decay` metadata for self-applied statuses, expanded `BattleStatusSemanticTable` to the current baseline buff/debuff set, extended resolver sidecars to preserve timing metadata, added battle smoke coverage for status duration plus `BattleUnitState` round-trip, and refreshed `docs/design/project_context_units.md`.
+
+## 2026-04-17T06:53:41+08:00 | PVS_17A | done
+title: 补齐 line 与 cone 范围图形收集器
+Added `scripts/systems/battle_target_collection_service.gd` as the shared `line`/`cone` collector, routed `BattleRuntimeModule` ground-effect coord building and `GameRuntimeBattleSelection` selected-ground target readback through it, and added focused regression coverage that matches selection coords against runtime preview output for both shapes.

@@ -865,14 +865,22 @@
     {
       "id": "PVS_17A",
       "title": "补齐 line 与 cone 范围图形收集器",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`combat_profile` 的 `line` 与 `cone` 都有正式 target collection",
         "收集结果可被 selection 与 execute 共同复用"
       ],
       "notes": [
         "Owner：CU-15 / CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T06:46:57+08:00",
+      "lastRunId": "20260417-064657-PVS_17A",
+      "startedAt": "2026-04-17T06:46:57+08:00",
+      "completedAt": "2026-04-17T06:53:41+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Passed `godot --headless --script tests/battle_runtime/run_game_runtime_battle_selection_regression.gd` and `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`.",
+      "lastLearnings": "CU-16 now has a single extension point for `combat_profile.area_pattern` target collection: `BattleTargetCollectionService`. `line` and `cone` are wired into both selection readback and runtime preview/execute, so follow-up `radius`/`self` work should extend this helper instead of duplicating shape logic. `docs/design/project_context_units.md` stays valid as-is."
     },
     {
       "id": "PVS_17B",

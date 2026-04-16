@@ -25,6 +25,7 @@ const BATTLE_UNIT_FACTORY_SCRIPT = preload("res://scripts/systems/battle_unit_fa
 const BATTLE_CHARGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_charge_resolver.gd")
 const BATTLE_REPEAT_ATTACK_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_repeat_attack_resolver.gd")
 const BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT = preload("res://scripts/systems/battle_terrain_topology_service.gd")
+const BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT = preload("res://scripts/systems/battle_target_collection_service.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
@@ -86,6 +87,7 @@ var _unit_factory = BATTLE_UNIT_FACTORY_SCRIPT.new()
 var _charge_resolver = BATTLE_CHARGE_RESOLVER_SCRIPT.new()
 var _repeat_attack_resolver = BATTLE_REPEAT_ATTACK_RESOLVER_SCRIPT.new()
 var _terrain_topology_service = BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT.new()
+var _target_collection_service = BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT.new()
 ## 字段说明：缓存战斗评分统计字典，集中保存可按键查询的运行时数据。
 var _battle_rating_stats: Dictionary = {}
 ## 字段说明：保存待处理后置战斗角色奖励列表，便于顺序遍历、批量展示、批量运算和整体重建。
@@ -1309,6 +1311,15 @@ func _build_ground_effect_coords(
 		normalized_target_coords.append(target_coord)
 	if _state == null or skill_def == null or skill_def.combat_profile == null:
 		return _sort_coords(normalized_target_coords)
+	var collected_target_coords := _target_collection_service.collect_combat_profile_target_coords(
+		_state,
+		_grid_service,
+		source_coord,
+		skill_def.combat_profile,
+		normalized_target_coords
+	)
+	if bool(collected_target_coords.get("handled", false)):
+		return _sort_coords(collected_target_coords.get("target_coords", []))
 
 	var area_pattern: StringName = skill_def.combat_profile.area_pattern if skill_def.combat_profile.area_pattern != &"" else &"single"
 	var area_value := maxi(int(skill_def.combat_profile.area_value), 0)
