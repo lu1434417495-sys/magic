@@ -312,6 +312,9 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 		_update_status("已从据点服务打开共享仓库。")
 		return
 	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
+		if _is_contract_board_modal_submission(payload):
+			_submit_contract_board_quest_accept(settlement_id, action_id, payload)
+			return
 		_open_contract_board_modal(settlement_id, payload)
 		return
 	if SHOP_INTERACTION_IDS.has(interaction_script_id):
@@ -704,6 +707,9 @@ func _build_contract_board_window_data(settlement_id: String, payload: Dictionar
 	var settlement := _get_settlement_record(settlement_id)
 	var provider_interaction_id := String(payload.get("interaction_script_id", "")).strip_edges()
 	var entries := _build_contract_board_entries(provider_interaction_id)
+	var summary_text := String(payload.get("feedback_text", "")).strip_edges()
+	if summary_text.is_empty():
+		summary_text = "选择契约后会调用正式 quest accept 命令；重复接取、已完成和可重复任务都会返回明确反馈。"
 	return {
 		"title": "%s · 任务板" % String(settlement.get("display_name", settlement_id)),
 		"meta": "%s · %s · %s" % [
@@ -711,7 +717,7 @@ func _build_contract_board_window_data(settlement_id: String, payload: Dictionar
 			String(payload.get("npc_name", "值守人员")),
 			String(payload.get("service_type", "契约")),
 		],
-		"summary_text": "当前契约板已接入正式 modal；本轮先开放查看链路。",
+		"summary_text": summary_text,
 		"state_summary_text": _build_contract_board_state_summary(entries),
 		"service_name": String(payload.get("service_type", "任务板")),
 		"settlement_id": settlement_id,
@@ -725,7 +731,7 @@ func _build_contract_board_window_data(settlement_id: String, payload: Dictionar
 		"service_type": String(payload.get("service_type", "")),
 		"panel_kind": "contract_board",
 		"show_member_selector": false,
-		"confirm_label": "待开放",
+		"confirm_label": "接取契约",
 		"cancel_label": "返回据点",
 		"entries": entries,
 	}
@@ -759,13 +765,7 @@ func _build_contract_board_entries(interaction_script_id: String) -> Array[Dicti
 
 
 func _build_contract_board_entry(quest_variant, interaction_script_id: String) -> Dictionary:
-	var quest_data: Dictionary = {}
-	if quest_variant is Dictionary:
-		quest_data = (quest_variant as Dictionary).duplicate(true)
-	elif quest_variant is Object and quest_variant.has_method("to_dict"):
-		var quest_data_variant = quest_variant.to_dict()
-		if quest_data_variant is Dictionary:
-			quest_data = (quest_data_variant as Dictionary).duplicate(true)
+	var quest_data := _normalize_contract_board_quest_data(quest_variant)
 	if quest_data.is_empty():
 		return {}
 	var provider_interaction_id := String(quest_data.get("provider_interaction_id", "")).strip_edges()
@@ -774,7 +774,7 @@ func _build_contract_board_entry(quest_variant, interaction_script_id: String) -
 	var quest_id := ProgressionDataUtils.to_string_name(quest_data.get("quest_id", ""))
 	if quest_id == &"":
 		return {}
-	var state_id := _resolve_contract_board_quest_state_id(quest_id)
+	var state_id := _resolve_contract_board_quest_state_id(quest_id, quest_data)
 	return {
 		"entry_id": String(quest_id),
 		"quest_id": String(quest_id),
@@ -785,18 +785,21 @@ func _build_contract_board_entry(quest_variant, interaction_script_id: String) -
 		"state_id": state_id,
 		"state_label": _build_contract_board_state_label(state_id),
 		"cost_label": _build_contract_board_reward_label(quest_data.get("reward_entries", [])),
-		"is_enabled": false,
-		"disabled_reason": "任务接取与结算链路待后续 story 开放。",
+		"is_enabled": true,
+		"disabled_reason": "",
+		"is_repeatable": bool(quest_data.get("is_repeatable", false)),
 	}
 
 
-func _resolve_contract_board_quest_state_id(quest_id: StringName) -> String:
+func _resolve_contract_board_quest_state_id(quest_id: StringName, quest_data: Dictionary = {}) -> String:
 	var party_state = _get_party_state()
 	if party_state == null:
 		return "available"
 	if party_state.has_method("get_active_quest_state") and party_state.get_active_quest_state(quest_id) != null:
 		return "active"
 	if party_state.has_method("has_completed_quest") and party_state.has_completed_quest(quest_id):
+		if bool(quest_data.get("is_repeatable", false)):
+			return "repeatable"
 		return "completed"
 	return "available"
 
@@ -805,6 +808,8 @@ func _build_contract_board_state_label(state_id: String) -> String:
 	match state_id:
 		"active":
 			return "状态：进行中"
+		"repeatable":
+			return "状态：可重复接取"
 		"completed":
 			return "状态：已完成"
 		"empty":
@@ -816,18 +821,28 @@ func _build_contract_board_state_label(state_id: String) -> String:
 func _build_contract_board_state_summary(entries: Array[Dictionary]) -> String:
 	var active_count := 0
 	var available_count := 0
+	var repeatable_count := 0
 	var completed_count := 0
 	for entry in entries:
 		match String(entry.get("state_id", "")):
 			"active":
 				active_count += 1
+			"repeatable":
+				repeatable_count += 1
 			"completed":
 				completed_count += 1
 			"empty":
 				pass
 			_:
 				available_count += 1
-	return "进行中 %d  |  待接取 %d  |  已完成 %d" % [active_count, available_count, completed_count]
+	var parts := PackedStringArray([
+		"进行中 %d" % active_count,
+		"待接取 %d" % available_count,
+	])
+	if repeatable_count > 0:
+		parts.append("可重复 %d" % repeatable_count)
+	parts.append("已完成 %d" % completed_count)
+	return "  |  ".join(parts)
 
 
 func _build_contract_board_objective_summary(quest_id: StringName, quest_data: Dictionary) -> String:
@@ -841,6 +856,8 @@ func _build_contract_board_entry_details(quest_id: StringName, quest_data: Dicti
 		_build_contract_board_objective_summary(quest_id, quest_data),
 		_build_contract_board_reward_label(quest_data.get("reward_entries", [])),
 	])
+	if bool(quest_data.get("is_repeatable", false)):
+		lines.append("说明：该契约完成后可再次接取。")
 	return "\n".join(lines)
 
 
@@ -850,7 +867,8 @@ func _build_contract_board_objective_lines(quest_id: StringName, quest_data: Dic
 	if objective_defs_variant is not Array:
 		return objective_lines
 	var quest_state = _get_active_quest_state(quest_id)
-	var is_completed := _resolve_contract_board_quest_state_id(quest_id) == "completed"
+	var state_id := _resolve_contract_board_quest_state_id(quest_id, quest_data)
+	var is_completed := _is_contract_board_completed_state(state_id)
 	for objective_variant in objective_defs_variant:
 		if objective_variant is not Dictionary:
 			continue
@@ -972,6 +990,18 @@ func _refresh_active_shop_context() -> void:
 	next_context["settlement_id"] = settlement_id
 	next_context["interaction_script_id"] = String(context.get("interaction_script_id", ""))
 	_set_active_shop_context(next_context)
+
+
+func _refresh_active_contract_board_context(feedback_text: String = "") -> void:
+	var context := _get_active_contract_board_context()
+	if context.is_empty():
+		return
+	var settlement_id := String(context.get("settlement_id", ""))
+	var next_payload := context.duplicate(true)
+	if not feedback_text.is_empty():
+		next_payload["feedback_text"] = feedback_text
+	var next_context := _build_contract_board_window_data(settlement_id, next_payload)
+	_set_active_contract_board_context(next_context)
 
 
 func _refresh_active_forge_context(feedback_text: String = "") -> void:
@@ -1334,6 +1364,65 @@ func _get_quest_defs() -> Dictionary:
 
 func _is_forge_modal_submission(payload: Dictionary) -> bool:
 	return String(payload.get("submission_source", "")) == "forge"
+
+
+func _is_contract_board_modal_submission(payload: Dictionary) -> bool:
+	var submission_source := String(payload.get("submission_source", payload.get("panel_kind", ""))).strip_edges()
+	return submission_source == "contract_board"
+
+
+func _submit_contract_board_quest_accept(settlement_id: String, _action_id: String, payload: Dictionary) -> void:
+	if not _has_runtime():
+		return
+	var quest_id := ProgressionDataUtils.to_string_name(payload.get("quest_id", payload.get("entry_id", "")))
+	if quest_id == &"":
+		var missing_id_message := "当前契约条目缺少 quest_id，无法接取。"
+		_set_settlement_feedback_text(missing_id_message)
+		_refresh_active_contract_board_context(missing_id_message)
+		_update_status(missing_id_message)
+		return
+	var quest_data := _resolve_contract_board_submission_quest_data(quest_id)
+	if quest_data.is_empty():
+		var missing_quest_message := "当前任务板未找到契约 %s。" % String(quest_id)
+		_set_settlement_feedback_text(missing_quest_message)
+		_refresh_active_contract_board_context(missing_quest_message)
+		_update_status(missing_quest_message)
+		return
+	var provider_interaction_id := String(payload.get("provider_interaction_id", payload.get("interaction_script_id", ""))).strip_edges()
+	var quest_provider_interaction_id := String(quest_data.get("provider_interaction_id", "")).strip_edges()
+	if not provider_interaction_id.is_empty() and quest_provider_interaction_id != provider_interaction_id:
+		var provider_mismatch_message := "契约 %s 不属于当前任务板。" % String(quest_data.get("display_name", quest_id))
+		_set_settlement_feedback_text(provider_mismatch_message)
+		_refresh_active_contract_board_context(provider_mismatch_message)
+		_update_status(provider_mismatch_message)
+		return
+	var allow_reaccept := bool(quest_data.get("is_repeatable", false))
+	var accept_result: Dictionary = _runtime.command_accept_quest(quest_id, allow_reaccept) if _runtime.has_method("command_accept_quest") else _command_error("运行时缺少 quest accept 接口。")
+	var message := String(accept_result.get("message", "任务接取失败。"))
+	_set_active_settlement_id(settlement_id)
+	_set_active_modal_id("contract_board")
+	_set_settlement_feedback_text(message)
+	_refresh_active_contract_board_context(message)
+
+
+func _resolve_contract_board_submission_quest_data(quest_id: StringName) -> Dictionary:
+	var quest_defs := _get_quest_defs()
+	var quest_variant = quest_defs.get(quest_id, quest_defs.get(String(quest_id), null))
+	return _normalize_contract_board_quest_data(quest_variant)
+
+
+func _normalize_contract_board_quest_data(quest_variant) -> Dictionary:
+	if quest_variant is Dictionary:
+		return (quest_variant as Dictionary).duplicate(true)
+	if quest_variant is Object and quest_variant.has_method("to_dict"):
+		var quest_data_variant = quest_variant.to_dict()
+		if quest_data_variant is Dictionary:
+			return (quest_data_variant as Dictionary).duplicate(true)
+	return {}
+
+
+func _is_contract_board_completed_state(state_id: String) -> bool:
+	return state_id == "completed" or state_id == "repeatable"
 
 
 func _is_forge_interaction(interaction_script_id: String) -> bool:

@@ -37,3 +37,7 @@ Wired `service_contract_board` into the formal settlement modal chain by adding 
 ## 2026-04-17T02:04:42+08:00 | PVS_02B | done
 title: 让 contract board 按 provider_interaction_id 过滤任务列表
 Filtered contract-board entries deterministically from `QuestDef.provider_interaction_id` in `game_runtime_settlement_command_handler.gd`, carried the active `provider_interaction_id` into contract-board window/snapshot data, hardened `game_runtime_snapshot_builder.gd` to read contract-board context through safe runtime helpers, exposed the provider line in text snapshots, and added regressions covering provider-specific filtering plus runtime/text snapshot visibility for the current board list.
+
+## 2026-04-17T02:15:08+08:00 | PVS_03A | done
+title: 支持从 contract board 正式接取任务
+Wired contract-board confirm through `ShopWindow -> WorldMapSystem -> GameRuntimeSettlementCommandHandler -> GameRuntimeFacade.command_accept_quest`, refreshed contract-board entry/status feedback after each accept attempt, and added regressions for duplicate, completed, repeatable, and real headless board-accept flows. `docs/design/project_context_units.md` stayed valid as-is.

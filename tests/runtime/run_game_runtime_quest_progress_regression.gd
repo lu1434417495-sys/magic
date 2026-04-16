@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
+const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -32,13 +33,18 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
+	_inject_repeatable_quest_def(game_session)
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
 
 	var accept_result := facade.command_accept_quest(&"contract_manual_drill")
 	_assert_true(bool(accept_result.get("ok", false)), "quest accept 命令应成功。")
+	_assert_eq(String(accept_result.get("message", "")), "已接取任务《训练记录》。", "首次接取任务时应返回明确成功反馈。")
 	_assert_true(facade.get_party_state().has_active_quest(&"contract_manual_drill"), "接取任务后 PartyState 应包含激活任务。")
+	var duplicate_accept_result := facade.command_accept_quest(&"contract_manual_drill")
+	_assert_true(not bool(duplicate_accept_result.get("ok", true)), "重复接取中的任务应失败。")
+	_assert_eq(String(duplicate_accept_result.get("message", "")), "任务《训练记录》已在进行中，不能重复接取。", "重复接取中的任务应返回明确反馈。")
 
 	var progress_result := facade.command_progress_quest(&"contract_manual_drill", &"train_once", 1, {
 		"target_value": 2,
@@ -55,6 +61,18 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_assert_true(bool(complete_result.get("ok", false)), "quest complete 命令应成功。")
 	_assert_true(not facade.get_party_state().has_active_quest(&"contract_manual_drill"), "完成任务后应从 active_quests 移除。")
 	_assert_true(facade.get_party_state().has_completed_quest(&"contract_manual_drill"), "完成任务后应进入 completed_quest_ids。")
+	var completed_accept_result := facade.command_accept_quest(&"contract_manual_drill")
+	_assert_true(not bool(completed_accept_result.get("ok", true)), "已完成的非 repeatable 任务不应再次接取。")
+	_assert_eq(String(completed_accept_result.get("message", "")), "任务《训练记录》已完成，当前不可再次接取。", "已完成的非 repeatable 任务应返回明确反馈。")
+
+	var repeatable_accept_result := facade.command_accept_quest(&"contract_repeatable_patrol")
+	_assert_true(bool(repeatable_accept_result.get("ok", false)), "repeatable 任务首次接取应成功。")
+	_assert_true(bool(facade.command_complete_quest(&"contract_repeatable_patrol").get("ok", false)), "repeatable 任务应能先完成一次。")
+	var repeatable_reaccept_result := facade.command_accept_quest(&"contract_repeatable_patrol")
+	_assert_true(bool(repeatable_reaccept_result.get("ok", false)), "repeatable 任务完成后应可再次接取。")
+	_assert_eq(String(repeatable_reaccept_result.get("message", "")), "已重新接取任务《巡路值守》。", "repeatable 任务再次接取应返回明确反馈。")
+	_assert_true(facade.get_party_state().has_active_quest(&"contract_repeatable_patrol"), "repeatable 任务再次接取后应回到 active_quests。")
+	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_repeatable_patrol"), "repeatable 任务再次接取后应移出 completed_quest_ids。")
 
 	var encounter_anchor = _find_any_uncleared_encounter_anchor(game_session.get_world_data())
 	_assert_true(encounter_anchor != null, "battle quest 前置：测试世界应存在一个遭遇锚点。")
@@ -91,6 +109,29 @@ func _cleanup_test_session(game_session) -> void:
 		return
 	game_session.clear_persisted_game()
 	game_session.free()
+
+
+func _inject_repeatable_quest_def(game_session) -> void:
+	if game_session == null:
+		return
+	var repeatable_quest := QuestDef.new()
+	repeatable_quest.quest_id = &"contract_repeatable_patrol"
+	repeatable_quest.display_name = "巡路值守"
+	repeatable_quest.description = "完成一次例行巡路后可重新接取。"
+	repeatable_quest.provider_interaction_id = &"service_contract_board"
+	repeatable_quest.objective_defs = [
+		{
+			"objective_id": "warehouse_visit",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service:warehouse",
+			"target_value": 1,
+		},
+	]
+	repeatable_quest.reward_entries = [
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 15},
+	]
+	repeatable_quest.is_repeatable = true
+	game_session.get_quest_defs()[repeatable_quest.quest_id] = repeatable_quest
 
 
 func _find_any_uncleared_encounter_anchor(world_data: Dictionary):

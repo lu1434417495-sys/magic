@@ -1313,11 +1313,22 @@ func command_accept_quest(quest_id: StringName, allow_reaccept: bool = false) ->
 			return _command_error("运行时尚未初始化。")
 		if quest_id == &"":
 			return _command_error("任务 ID 不能为空。")
-		if not _character_management.accept_quest(quest_id, get_world_step(), allow_reaccept):
-			return _command_error("当前无法接取任务 %s。" % String(quest_id))
+		var quest_data := _get_quest_def_data(quest_id)
+		if quest_data.is_empty():
+			return _command_error("未找到任务 %s。" % String(quest_id))
+		var quest_label := _resolve_quest_label(quest_id, quest_data)
+		if _party_state != null and _party_state.has_active_quest(quest_id):
+			return _command_error("任务《%s》已在进行中，不能重复接取。" % quest_label)
+		var has_completed: bool = _party_state != null and _party_state.has_completed_quest(quest_id)
+		var is_repeatable := bool(quest_data.get("is_repeatable", false))
+		var effective_allow_reaccept: bool = allow_reaccept or (has_completed and is_repeatable)
+		if has_completed and not effective_allow_reaccept:
+			return _command_error("任务《%s》已完成，当前不可再次接取。" % quest_label)
+		if not _character_management.accept_quest(quest_id, get_world_step(), effective_allow_reaccept):
+			return _command_error("当前无法接取任务《%s》。" % quest_label)
 		_party_state = _character_management.get_party_state()
 		var persist_error := _persist_party_state()
-		var message := "已接取任务 %s。" % String(quest_id)
+		var message := "已重新接取任务《%s》。" % quest_label if has_completed and effective_allow_reaccept else "已接取任务《%s》。" % quest_label
 		if persist_error != OK:
 			message = "%s 但队伍状态持久化失败。" % message
 			_update_status(message)
@@ -2459,6 +2470,27 @@ func _format_quest_progress_summary(summary: Dictionary) -> String:
 	if not completed_ids.is_empty():
 		parts.append("完成 %s" % _format_string_name_list(completed_ids))
 	return "任务进度已更新：%s。" % "；".join(parts) if not parts.is_empty() else "任务进度未变化。"
+
+
+func _get_quest_def_data(quest_id: StringName) -> Dictionary:
+	if _game_session == null or quest_id == &"":
+		return {}
+	var quest_defs: Dictionary = _game_session.get_quest_defs()
+	if quest_defs == null:
+		return {}
+	var quest_variant = quest_defs.get(quest_id, quest_defs.get(String(quest_id), null))
+	if quest_variant is Dictionary:
+		return (quest_variant as Dictionary).duplicate(true)
+	if quest_variant is Object and quest_variant.has_method("to_dict"):
+		var quest_data_variant = quest_variant.to_dict()
+		if quest_data_variant is Dictionary:
+			return (quest_data_variant as Dictionary).duplicate(true)
+	return {}
+
+
+func _resolve_quest_label(quest_id: StringName, quest_data: Dictionary) -> String:
+	var display_name := String(quest_data.get("display_name", "")).strip_edges()
+	return display_name if not display_name.is_empty() else String(quest_id)
 
 
 func _quest_progress_summary_to_string_dict(summary: Dictionary) -> Dictionary:

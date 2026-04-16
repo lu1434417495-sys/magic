@@ -125,14 +125,22 @@
     {
       "id": "PVS_03A",
       "title": "支持从 contract board 正式接取任务",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "任务板动作会调用正式 quest accept 命令并写入 `PartyState.active_quests`",
         "重复接取、已完成、repeatable 三类情况都有明确反馈"
       ],
       "notes": [
         "Owner：CU-06 / CU-11。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T02:04:43+08:00",
+      "lastRunId": "20260417-020443-PVS_03A",
+      "startedAt": "2026-04-17T02:04:43+08:00",
+      "completedAt": "2026-04-17T02:15:08+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`, `godot --headless --script tests/runtime/run_game_runtime_quest_progress_regression.gd`, and `godot --headless --script tests/text_runtime/run_text_command_regression.gd`.",
+      "lastLearnings": "The real UI path now supplies contract-board service metadata on confirm, but synthetic text-command submissions still need explicit `interaction_script_id`/service fields when the test settlement does not seed a formal contract-board service. Duplicate/completed/repeatable feedback now intentionally comes from the formal `quest.accept` command, not from ad-hoc contract-board-only rules."
     },
     {
       "id": "PVS_03B",

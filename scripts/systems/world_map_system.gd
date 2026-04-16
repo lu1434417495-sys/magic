@@ -65,6 +65,7 @@ func _ready() -> void:
 	settlement_window.shop_requested.connect(_on_settlement_shop_requested)
 	settlement_window.stagecoach_requested.connect(_on_settlement_stagecoach_requested)
 	settlement_window.closed.connect(_on_settlement_window_closed)
+	contract_board_window.action_requested.connect(_on_contract_board_action_requested)
 	contract_board_window.closed.connect(_on_contract_board_window_closed)
 	shop_window.action_requested.connect(_on_shop_action_requested)
 	shop_window.closed.connect(_on_shop_window_closed)
@@ -517,6 +518,12 @@ func _on_contract_board_window_closed() -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_close_active_modal()
+
+
+func _on_contract_board_action_requested(_settlement_id: String, action_id: String, payload: Dictionary) -> void:
+	if _runtime == null:
+		return
+	_runtime_proxy.command_execute_settlement_action(action_id, payload)
 
 
 func _on_forge_window_closed() -> void:

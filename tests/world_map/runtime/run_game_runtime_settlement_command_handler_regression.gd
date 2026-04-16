@@ -73,6 +73,7 @@ class MockRuntime:
 	var pending_rewards: Array = []
 	var applied_quest_event_batches: Array = []
 	var achievement_events: Array[Dictionary] = []
+	var accepted_quest_calls: Array[Dictionary] = []
 	var persist_calls := 0
 	var world_persist_calls := 0
 	var player_persist_calls := 0
@@ -191,6 +192,33 @@ class MockRuntime:
 
 	func advance_world_time_by_steps(delta_steps: int) -> void:
 		world_step += maxi(delta_steps, 0)
+
+	func command_accept_quest(quest_id: StringName, allow_reaccept: bool = false) -> Dictionary:
+		accepted_quest_calls.append({
+			"quest_id": String(quest_id),
+			"allow_reaccept": allow_reaccept,
+		})
+		var quest_data: Dictionary = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), {})).duplicate(true)
+		var quest_label := String(quest_data.get("display_name", quest_id))
+		if quest_data.is_empty():
+			_current_status_message = "未找到任务 %s。" % String(quest_id)
+			return build_command_error(_current_status_message)
+		if _party_state.has_active_quest(quest_id):
+			_current_status_message = "任务《%s》已在进行中，不能重复接取。" % quest_label
+			return build_command_error(_current_status_message)
+		var has_completed := _party_state.has_completed_quest(quest_id)
+		var effective_allow_reaccept := allow_reaccept or (has_completed and bool(quest_data.get("is_repeatable", false)))
+		if has_completed and not effective_allow_reaccept:
+			_current_status_message = "任务《%s》已完成，当前不可再次接取。" % quest_label
+			return build_command_error(_current_status_message)
+		if has_completed and effective_allow_reaccept:
+			_party_state.completed_quest_ids.erase(quest_id)
+		var quest_state := QuestState.new()
+		quest_state.quest_id = quest_id
+		quest_state.mark_accepted(world_step)
+		_party_state.set_active_quest_state(quest_state)
+		_current_status_message = "已重新接取任务《%s》。" % quest_label if has_completed and effective_allow_reaccept else "已接取任务《%s》。" % quest_label
+		return build_command_ok(_current_status_message)
 
 	func refresh_world_visibility() -> void:
 		refresh_world_visibility_calls += 1
@@ -442,6 +470,24 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 				{"reward_type": "gold", "amount": 30},
 			],
 		},
+		&"contract_repeatable_patrol": {
+			"quest_id": "contract_repeatable_patrol",
+			"display_name": "巡路值守",
+			"description": "完成一次例行巡路，随后可再次接取。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "warehouse_visit",
+					"objective_type": "settlement_action",
+					"target_id": "service:warehouse",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 15},
+			],
+			"is_repeatable": true,
+		},
 		&"contract_regional_bounty": {
 			"quest_id": "contract_regional_bounty",
 			"display_name": "地区悬赏",
@@ -488,7 +534,54 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(runtime._active_modal_id, "contract_board", "任务板服务后应切换到 contract_board modal。")
 	_assert_eq(String(contract_board_window_data.get("action_id", "")), "service:contract_board", "任务板 modal 应保留原始 action_id。")
 	_assert_eq(String(contract_board_window_data.get("provider_interaction_id", "")), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。")
-	_assert_eq(contract_board_entry_ids, ["contract_first_hunt", "contract_manual_drill"], "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。")
+	_assert_eq(contract_board_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol"], "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。")
+	var accept_contract_result := handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_manual_drill",
+	})
+	var accepted_contract_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_manual_drill")
+	_assert_true(bool(accept_contract_result.get("ok", false)), "任务板提交应保持据点动作链路可执行。")
+	_assert_true(runtime._party_state.has_active_quest(&"contract_manual_drill"), "任务板接取后应把任务写入 PartyState.active_quests。")
+	_assert_eq(runtime._active_modal_id, "contract_board", "接取契约后应继续停留在 contract_board modal。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 1, "任务板接取应调用正式 quest accept 命令。")
+	_assert_true(not bool(runtime.accepted_quest_calls[0].get("allow_reaccept", true)), "普通契约接取不应启用 repeatable 重接参数。")
+	_assert_eq(runtime._current_status_message, "已接取任务《训练记录》。", "任务板接取后应更新成功反馈。")
+	_assert_eq(String(accepted_contract_entry.get("state_id", "")), "active", "接取后的契约条目应刷新为 active。")
+	_assert_eq(String(handler.get_contract_board_window_data().get("summary_text", "")), "已接取任务《训练记录》。", "任务板 summary_text 应刷新为最新反馈。")
+
+	handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_manual_drill",
+	})
+	_assert_eq(runtime.accepted_quest_calls.size(), 2, "重复提交同一契约时仍应调用正式 quest accept 命令。")
+	_assert_eq(runtime._current_status_message, "任务《训练记录》已在进行中，不能重复接取。", "重复接取时应返回明确反馈。")
+
+	_assert_true(runtime._party_state.mark_quest_completed(&"contract_manual_drill", runtime.world_step), "测试前置：普通契约应能标记完成。")
+	handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_manual_drill",
+	})
+	_assert_eq(runtime.accepted_quest_calls.size(), 3, "已完成契约再次提交时仍应经过正式 quest accept 命令。")
+	_assert_eq(runtime._current_status_message, "任务《训练记录》已完成，当前不可再次接取。", "已完成非 repeatable 契约应返回明确反馈。")
+	_assert_true(not runtime._party_state.has_active_quest(&"contract_manual_drill"), "已完成非 repeatable 契约不应重新回到 active_quests。")
+
+	var repeatable_quest := QuestState.new()
+	repeatable_quest.quest_id = &"contract_repeatable_patrol"
+	repeatable_quest.mark_accepted(runtime.world_step)
+	runtime._party_state.set_active_quest_state(repeatable_quest)
+	_assert_true(runtime._party_state.mark_quest_completed(&"contract_repeatable_patrol", runtime.world_step), "测试前置：repeatable 契约应先进入 completed 状态。")
+	handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_repeatable_patrol",
+	})
+	var repeatable_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_repeatable_patrol")
+	_assert_eq(runtime.accepted_quest_calls.size(), 4, "repeatable 契约提交时应复用正式 quest accept 命令。")
+	_assert_true(bool(runtime.accepted_quest_calls[3].get("allow_reaccept", false)), "repeatable 契约应启用 allow_reaccept。")
+	_assert_eq(runtime._current_status_message, "已重新接取任务《巡路值守》。", "repeatable 契约应给出重新接取反馈。")
+	_assert_true(runtime._party_state.has_active_quest(&"contract_repeatable_patrol"), "repeatable 契约应重新进入 active_quests。")
+	_assert_true(not runtime._party_state.has_completed_quest(&"contract_repeatable_patrol"), "repeatable 契约重新接取后应移出 completed_quest_ids。")
+	_assert_eq(String(repeatable_entry.get("state_id", "")), "active", "repeatable 契约重新接取后条目应刷新为 active。")
+
 	handler.on_contract_board_window_closed()
 	_assert_eq(runtime._active_modal_id, "settlement", "关闭任务板后应返回 settlement modal。")
 	_assert_eq(runtime._active_settlement_id, "spring_village_01", "关闭任务板后应继续保留当前据点。")
@@ -667,6 +760,18 @@ func _extract_contract_board_entry_ids(entry_variants) -> Array[String]:
 		var entry: Dictionary = entry_variant
 		result.append(String(entry.get("quest_id", entry.get("entry_id", ""))))
 	return result
+
+
+func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
+	if entry_variants is not Array:
+		return {}
+	for entry_variant in entry_variants:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("quest_id", entry.get("entry_id", ""))) == quest_id:
+			return entry.duplicate(true)
+	return {}
 
 
 func _assert_true(condition: bool, message: String) -> void:
