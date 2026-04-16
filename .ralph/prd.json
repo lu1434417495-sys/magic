@@ -385,14 +385,22 @@
     {
       "id": "PVS_07B",
       "title": "补齐第二批单手武器 seed 内容",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "单手武器从至少 2 类扩到至少 4 类",
         "新增武器能被商店、掉落或配方正式引用"
       ],
       "notes": [
         "Owner：CU-10 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:54:15+08:00",
+      "lastRunId": "20260417-035415-PVS_07B",
+      "startedAt": "2026-04-17T03:54:15+08:00",
+      "completedAt": "2026-04-17T03:57:33+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/equipment/run_party_equipment_regression.gd` PASS; `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd` PASS.",
+      "lastLearnings": "Second-batch one-handed coverage now spans sword/axe/mace/dagger. Formal exposure for these seed weapons is currently guarded through `scripts/systems/settlement_shop_service.gd` plus `tests/warehouse/run_item_recipe_schema_regression.gd`, and CU-10’s recommended read-set now needs the two new item resources."
     },
     {
       "id": "PVS_07C",

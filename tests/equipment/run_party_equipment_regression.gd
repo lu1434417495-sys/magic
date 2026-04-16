@@ -49,17 +49,23 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	var scout_charm = item_defs.get(&"scout_charm")
 	var iron_greatsword = item_defs.get(&"iron_greatsword")
 	var militia_axe = item_defs.get(&"militia_axe")
+	var watchman_mace = item_defs.get(&"watchman_mace")
+	var scout_dagger = item_defs.get(&"scout_dagger")
 
 	_assert_true(bronze_sword != null and bronze_sword.is_equipment(), "青铜短剑应注册为可装备物品。")
 	_assert_true(leather_jerkin != null and leather_jerkin.is_equipment(), "皮革短甲应注册为可装备物品。")
 	_assert_true(scout_charm != null and scout_charm.is_equipment(), "斥候护符应注册为可装备物品。")
 	_assert_true(iron_greatsword != null and iron_greatsword.is_equipment(), "铁制大剑应注册为可装备物品。")
 	_assert_true(militia_axe != null and militia_axe.is_equipment(), "民兵手斧应注册为可装备物品。")
+	_assert_true(watchman_mace != null and watchman_mace.is_equipment(), "卫兵钉锤应注册为可装备物品。")
+	_assert_true(scout_dagger != null and scout_dagger.is_equipment(), "斥候匕首应注册为可装备物品。")
 	_assert_eq(bronze_sword.get_equipment_type_id_normalized(), &"weapon", "青铜短剑应归类为 weapon。")
 	_assert_eq(leather_jerkin.get_equipment_type_id_normalized(), &"armor", "皮革短甲应归类为 armor。")
 	_assert_eq(scout_charm.get_equipment_type_id_normalized(), &"accessory", "斥候护符应归类为 accessory。")
 	_assert_eq(iron_greatsword.get_equipment_type_id_normalized(), &"weapon", "铁制大剑应归类为 weapon。")
 	_assert_eq(militia_axe.get_equipment_type_id_normalized(), &"weapon", "民兵手斧应归类为 weapon。")
+	_assert_eq(watchman_mace.get_equipment_type_id_normalized(), &"weapon", "卫兵钉锤应归类为 weapon。")
+	_assert_eq(scout_dagger.get_equipment_type_id_normalized(), &"weapon", "斥候匕首应归类为 weapon。")
 	_assert_true(bronze_sword.is_weapon(), "青铜短剑应通过 is_weapon()。")
 	_assert_true(leather_jerkin.is_armor(), "皮革短甲应通过 is_armor()。")
 	_assert_true(scout_charm.is_accessory(), "斥候护符应通过 is_accessory()。")
@@ -78,6 +84,20 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_eq(militia_axe.get_sell_price(), 70, "民兵手斧应声明出售价格。")
 	_assert_eq(militia_axe.get_equipment_slot_ids(), [&"main_hand"], "民兵手斧应声明主手槽位。")
 	_assert_eq(militia_axe.get_final_occupied_slot_ids(&"main_hand"), [&"main_hand"], "民兵手斧应只占用主手槽。")
+	_assert_eq(
+		watchman_mace.get_tags(),
+		[&"weapon", &"melee", &"one_handed", &"mace", &"weapon_class_mace"],
+		"卫兵钉锤应补齐单手钉锤标签。"
+	)
+	_assert_eq(
+		scout_dagger.get_tags(),
+		[&"weapon", &"melee", &"one_handed", &"dagger", &"weapon_class_dagger"],
+		"斥候匕首应补齐单手匕首标签。"
+	)
+	_assert_eq(watchman_mace.get_buy_price(), 175, "卫兵钉锤应声明购买价格。")
+	_assert_eq(watchman_mace.get_sell_price(), 85, "卫兵钉锤应声明出售价格。")
+	_assert_eq(scout_dagger.get_buy_price(), 130, "斥候匕首应声明购买价格。")
+	_assert_eq(scout_dagger.get_sell_price(), 65, "斥候匕首应声明出售价格。")
 
 	var one_handed_weapon_classes: Dictionary = {}
 	for item_def_variant in item_defs.values():
@@ -95,8 +115,8 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 				continue
 			one_handed_weapon_classes[tag] = true
 	_assert_true(
-		one_handed_weapon_classes.size() >= 2,
-		"当前单手武器种子至少应覆盖 2 个 weapon_class_* 标签。"
+		one_handed_weapon_classes.size() >= 4,
+		"当前单手武器种子至少应覆盖 4 个 weapon_class_* 标签。"
 	)
 
 

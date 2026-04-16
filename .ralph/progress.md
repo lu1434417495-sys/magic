@@ -89,3 +89,7 @@ Added research-specific coverage in `tests/runtime/run_game_runtime_reward_flow_
 ## 2026-04-17T03:54:15+08:00 | PVS_07A | done
 title: 补齐第一批单手武器 seed 内容
 Added `data/configs/items/militia_axe.tres` as the first new one-handed axe seed with explicit price/tag/equipment metadata, backfilled `bronze_sword` with explicit one-handed sword tags, extended `tests/equipment/run_party_equipment_regression.gd` to assert one-handed weapon class coverage/metadata, and updated `docs/design/project_context_units.md` for the CU-10 read set.
+
+## 2026-04-17T03:57:33+08:00 | PVS_07B | done
+title: 补齐第二批单手武器 seed 内容
+Added two new one-handed weapon seeds (`watchman_mace`, `scout_dagger`), expanded formal shop references so `militia_axe`/mace/dagger are surfaced by settlement shops, raised equipment regression coverage from 2 to 4 one-handed weapon classes, and updated the CU-10 read-set in `docs/design/project_context_units.md`.

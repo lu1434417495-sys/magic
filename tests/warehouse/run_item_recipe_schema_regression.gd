@@ -31,6 +31,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_item_schema_defaults_and_accessors()
 	_test_shop_pricing_uses_item_accessors()
+	_test_shop_seed_references_second_batch_one_handed_weapons()
 	_test_recipe_schema_defaults_and_fields()
 	_test_recipe_registry_and_game_session_cache()
 
@@ -139,6 +140,26 @@ func _test_shop_pricing_uses_item_accessors() -> void:
 	_assert_true(not custom_sell_entry.is_empty(), "显式卖价物品应出现在卖出条目中。")
 	_assert_eq(int(custom_buy_entry.get("unit_price", -1)), 150, "商店买价应读取 ItemDef.buy_price。")
 	_assert_eq(int(custom_sell_entry.get("unit_price", -1)), 80, "商店卖价应读取 ItemDef.sell_price。")
+
+
+func _test_shop_seed_references_second_batch_one_handed_weapons() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var shop_service := SettlementShopService.new()
+	var window_data := shop_service.build_window_data(
+		"service_city_market",
+		{
+			"settlement_id": "seed_weapon_market",
+			"display_name": "Seed Weapon Market",
+		},
+		{"world_step": 0},
+		item_defs,
+		null,
+		999
+	)
+	var buy_entries: Array = window_data.get("buy_entries", [])
+	_assert_true(not _find_entry(buy_entries, "militia_axe").is_empty(), "城市市场应正式引用民兵手斧。")
+	_assert_true(not _find_entry(buy_entries, "watchman_mace").is_empty(), "城市市场应正式引用卫兵钉锤。")
+	_assert_true(not _find_entry(buy_entries, "scout_dagger").is_empty(), "城市市场应正式引用斥候匕首。")
 
 
 func _test_recipe_schema_defaults_and_fields() -> void:

@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_attack_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "physical_attack"
+mode = "flat"
+value = 6
+source_type = "equipment"
+source_id = "watchman_mace"
+
+[sub_resource type="Resource" id="Resource_hit_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "hit_rate"
+mode = "flat"
+value = 1
+source_type = "equipment"
+source_id = "watchman_mace"
+
+[resource]
+script = ExtResource("1_item")
+item_id = "watchman_mace"
+display_name = "卫兵钉锤"
+description = "城镇卫兵常备的单手钉锤，压制力强，是单手钝器系的基础型号。"
+icon = "res://icon.svg"
+is_stackable = false
+base_price = 165
+buy_price = 175
+sell_price = 85
+sellable = true
+max_stack = 1
+item_category = "equipment"
+tags = Array[StringName](["weapon", "melee", "one_handed", "mace", "weapon_class_mace"])
+equipment_slot_ids = Array[String](["main_hand"])
+equipment_type_id = "weapon"
+attribute_modifiers = Array[Resource]([SubResource("Resource_attack_bonus"), SubResource("Resource_hit_bonus")])

@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_attack_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "physical_attack"
+mode = "flat"
+value = 3
+source_type = "equipment"
+source_id = "scout_dagger"
+
+[sub_resource type="Resource" id="Resource_hit_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = "hit_rate"
+mode = "flat"
+value = 8
+source_type = "equipment"
+source_id = "scout_dagger"
+
+[resource]
+script = ExtResource("1_item")
+item_id = "scout_dagger"
+display_name = "斥候匕首"
+description = "便于随身隐藏的单手匕首，牺牲部分杀伤换来更高的命中与机动。"
+icon = "res://icon.svg"
+is_stackable = false
+base_price = 120
+buy_price = 130
+sell_price = 65
+sellable = true
+max_stack = 1
+item_category = "equipment"
+tags = Array[StringName](["weapon", "melee", "one_handed", "dagger", "weapon_class_dagger"])
+equipment_slot_ids = Array[String](["main_hand"])
+equipment_type_id = "weapon"
+attribute_modifiers = Array[Resource]([SubResource("Resource_attack_bonus"), SubResource("Resource_hit_bonus")])

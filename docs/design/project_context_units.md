@@ -473,6 +473,8 @@ HeadlessGameTestSession
   - `data/configs/recipes/*.tres`
   - `data/configs/items/bronze_sword.tres`
   - `data/configs/items/militia_axe.tres`
+  - `data/configs/items/watchman_mace.tres`
+  - `data/configs/items/scout_dagger.tres`
   - `data/configs/items/leather_jerkin.tres`
   - `data/configs/items/scout_charm.tres`
   - `data/configs/items/healing_herb.tres`
