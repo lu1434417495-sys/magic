@@ -648,7 +648,9 @@ func _generate_encounter_anchors(settlements: Array[Dictionary], player_start_co
 							rule.monster_name,
 							spawn_coord,
 							rule.vision_range,
-							rule.region_tag
+							rule.region_tag,
+							ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE,
+							rule.encounter_profile_id
 						)
 					)
 
@@ -694,7 +696,9 @@ func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -
 						rule.monster_name,
 						spawn_coord,
 						rule.vision_range,
-						rule.region_tag
+						rule.region_tag,
+						ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE,
+						rule.encounter_profile_id
 					)
 				)
 
@@ -746,7 +750,9 @@ func _ensure_starting_wild_encounter(
 			rule.monster_name,
 			spawn_coord,
 			rule.vision_range,
-			rule.region_tag
+			rule.region_tag,
+			ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE,
+			rule.encounter_profile_id
 		)
 	)
 

@@ -121,3 +121,7 @@ Added a sixth formal enemy template `wolf_vanguard` plus dedicated `frontline_bu
 ## 2026-04-17T04:44:54+08:00 | PVS_09B | done
 title: 新增远程压制/治疗控制敌人模板
 Added two formal enemy templates, `mist_harrier` and `mist_weaver`, plus dedicated `ranged_suppressor` and `healer_controller` brains in `scripts/enemies/enemy_content_registry.gd`. Extended `tests/battle_runtime/run_battle_runtime_ai_regression.gd` to require 8+ templates and verify stable template resolution plus ranged-suppression, control, and healing AI behavior.
+
+## 2026-04-17T04:49:13+08:00 | PVS_09C | done
+title: 新增第二个正式 encounter roster 并接到 world encounter 映射
+Added a second formal wild encounter roster `mist_hollow`, exposed explicit world->roster mapping via `WildSpawnRule.encounter_profile_id`, mapped mist-beast world rules to that roster in the shipped world configs, and extended the focused wild-encounter regression to cover roster registration, mixed-unit buildout, and south-wild explicit mapping.

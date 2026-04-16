@@ -24,9 +24,12 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
+	_test_enemy_content_registry_registers_second_formal_roster()
+	_test_encounter_roster_builder_builds_mixed_mist_hollow_units()
 	_test_wild_encounter_growth_respects_suppression_window()
 	_test_game_runtime_facade_move_advances_world_step()
 	_test_test_preset_uses_same_battle_terrain_profile_as_small_preset()
+	_test_world_spawn_explicitly_maps_south_wilds_to_mist_hollow()
 	_test_game_runtime_facade_battle_requires_confirm_before_tu_advances()
 	_test_game_runtime_facade_single_victory_removes_encounter()
 	_test_game_runtime_facade_can_start_second_battle_after_first_victory()
@@ -86,6 +89,52 @@ func _test_encounter_roster_builder_builds_mixed_wolf_den_units() -> void:
 	_assert_true(
 		_unit_has_skill(enemy_units, "荒狼祭司", &"mage_temporal_rewind"),
 		"荒狼祭司应携带治疗/支援技能 mage_temporal_rewind。"
+	)
+	game_session.free()
+
+
+func _test_enemy_content_registry_registers_second_formal_roster() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var rosters: Dictionary = game_session.get_wild_encounter_rosters()
+	_assert_true(rosters.has(&"wolf_den"), "wild encounter rosters 应继续保留 wolf_den。")
+	_assert_true(rosters.has(&"mist_hollow"), "wild encounter rosters 应注册第二个正式 roster mist_hollow。")
+	var mist_hollow = rosters.get(&"mist_hollow")
+	_assert_true(mist_hollow != null, "mist_hollow roster 应能被正式查到。")
+	if mist_hollow != null:
+		_assert_eq(String(mist_hollow.display_name), "雾沼伏猎群", "mist_hollow roster 应暴露稳定显示名。")
+	game_session.free()
+
+
+func _test_encounter_roster_builder_builds_mixed_mist_hollow_units() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	builder.setup(game_session.get_wild_encounter_rosters())
+
+	var encounter_anchor = ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
+	encounter_anchor.entity_id = &"mist_hollow_stage2"
+	encounter_anchor.display_name = "雾沼伏猎群"
+	encounter_anchor.world_coord = Vector2i(8, 8)
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.enemy_roster_template_id = &"mist_beast"
+	encounter_anchor.region_tag = &"south_wilds"
+	encounter_anchor.vision_range = 2
+	encounter_anchor.encounter_profile_id = &"mist_hollow"
+	encounter_anchor.growth_stage = 2
+
+	var enemy_units: Array = builder.build_enemy_units(encounter_anchor, {
+		"skill_defs": game_session.get_skill_defs(),
+		"enemy_templates": game_session.get_enemy_templates(),
+		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
+	})
+	_assert_eq(enemy_units.size(), 5, "mist_hollow 第 2 阶段应构建 5 个敌方单位。")
+	_assert_eq(_count_units_with_name_prefix(enemy_units, "雾沼异兽·"), 2, "mist_hollow 第 2 阶段应包含 2 个雾沼异兽。")
+	_assert_eq(_count_units_with_name_prefix(enemy_units, "雾沼猎压者·"), 2, "mist_hollow 第 2 阶段应包含 2 个雾沼猎压者。")
+	_assert_eq(_count_units_with_exact_name(enemy_units, "雾沼织咒者"), 1, "mist_hollow 第 2 阶段应包含 1 个雾沼织咒者。")
+	_assert_eq(_count_units_with_brain(enemy_units, &"ranged_suppressor"), 2, "雾沼猎压者应使用 ranged_suppressor brain。")
+	_assert_eq(_count_units_with_brain(enemy_units, &"healer_controller"), 1, "雾沼织咒者应使用 healer_controller brain。")
+	_assert_true(
+		_unit_has_skill(enemy_units, "雾沼织咒者", &"mage_glacial_prison"),
+		"雾沼织咒者应携带控制技能 mage_glacial_prison。"
 	)
 	game_session.free()
 
@@ -208,6 +257,17 @@ func _test_test_preset_uses_same_battle_terrain_profile_as_small_preset() -> voi
 
 	_cleanup_test_session(test_session)
 	_cleanup_test_session(small_session)
+
+
+func _test_world_spawn_explicitly_maps_south_wilds_to_mist_hollow() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var south_anchor = _find_encounter_anchor_by_region_tag(game_session.get_world_data(), &"south_wilds")
+	_assert_true(south_anchor != null, "测试世界应至少包含一个 south_wilds 野外遭遇。")
+	if south_anchor != null:
+		_assert_eq(String(south_anchor.encounter_profile_id), "mist_hollow", "south_wilds 野外遭遇应显式命中 mist_hollow roster。")
+	_cleanup_test_session(game_session)
 
 
 func _test_game_runtime_facade_battle_requires_confirm_before_tu_advances() -> void:

@@ -447,6 +447,7 @@ script = ExtResource("8_wild")
 region_tag = "south_wilds"
 monster_name = "雾沼异兽"
 monster_template_id = &"mist_beast"
+encounter_profile_id = &"mist_hollow"
 density_per_chunk = 1
 min_distance_to_settlement = 3
 vision_range = 1

@@ -43,6 +43,7 @@ func rebuild() -> void:
 	_register_template(_build_mist_harrier_template())
 	_register_template(_build_mist_weaver_template())
 	_register_wild_encounter_roster(_build_wolf_den_roster())
+	_register_wild_encounter_roster(_build_mist_hollow_roster())
 
 
 func get_enemy_templates() -> Dictionary:
@@ -463,6 +464,39 @@ func _build_wolf_den_roster() -> WildEncounterRosterDef:
 			{"template_id": &"wolf_raider", "count": 4},
 			{"template_id": &"wolf_alpha", "count": 1},
 			{"template_id": &"wolf_shaman", "count": 1},
+		],
+	})
+	return roster
+
+
+func _build_mist_hollow_roster() -> WildEncounterRosterDef:
+	var roster = WILD_ENCOUNTER_ROSTER_DEF_SCRIPT.new()
+	roster.profile_id = &"mist_hollow"
+	roster.display_name = "雾沼伏猎群"
+	roster.initial_stage = 0
+	roster.growth_step_interval = 3
+	roster.suppression_steps_on_victory = 2
+	roster.stages.clear()
+	roster.stages.append({
+		"stage": 0,
+		"unit_entries": [
+			{"template_id": &"mist_beast", "count": 1},
+			{"template_id": &"mist_harrier", "count": 1},
+		],
+	})
+	roster.stages.append({
+		"stage": 1,
+		"unit_entries": [
+			{"template_id": &"mist_beast", "count": 1},
+			{"template_id": &"mist_harrier", "count": 2},
+		],
+	})
+	roster.stages.append({
+		"stage": 2,
+		"unit_entries": [
+			{"template_id": &"mist_beast", "count": 2},
+			{"template_id": &"mist_harrier", "count": 2},
+			{"template_id": &"mist_weaver", "count": 1},
 		],
 	})
 	return roster

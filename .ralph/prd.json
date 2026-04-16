@@ -545,14 +545,22 @@
     {
       "id": "PVS_09C",
       "title": "新增第二个正式 encounter roster 并接到 world encounter 映射",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "除 `wolf_den` 外至少存在 1 个正式 roster",
         "至少一类 world encounter 可显式命中新 roster"
       ],
       "notes": [
         "Owner：CU-17 / CU-20 / CU-04。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:44:54+08:00",
+      "lastRunId": "20260417-044454-PVS_09C",
+      "startedAt": "2026-04-17T04:44:54+08:00",
+      "completedAt": "2026-04-17T04:49:13+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd` and `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`; both passed.",
+      "lastLearnings": "The durable seam for explicit world encounter roster routing is `WildSpawnRule.encounter_profile_id -> EncounterAnchorData.encounter_profile_id -> EncounterRosterBuilder`; no runtime-facade or save-schema change was needed, and `docs/design/project_context_units.md` stays valid as-is."
     },
     {
       "id": "PVS_10A",
