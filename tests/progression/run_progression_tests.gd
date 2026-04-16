@@ -42,6 +42,7 @@ func _run() -> void:
 	_test_single_event_can_unlock_multiple_achievements_in_queue_order()
 	_test_pending_character_reward_applies_in_stable_order()
 	_test_pending_character_reward_round_trip_persists()
+	_test_quest_reward_pending_character_materializer()
 	_test_party_state_quest_round_trip_persists()
 	_test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 	await _test_party_management_window_renders_achievement_summary()
@@ -555,6 +556,78 @@ func _test_pending_character_reward_round_trip_persists() -> void:
 	_assert_eq(restored_party_state.pending_character_rewards.size(), 1, "未确认奖励应通过 PartyState 存档往返恢复。")
 	_assert_eq(restored_party_state.pending_character_rewards[0].source_id, &"persist_reward", "恢复后的奖励应保留来源 ID。")
 	_assert_true(restored_progress != null and restored_progress.is_unlocked, "成就进度应随 PartyState 一并恢复。")
+
+
+func _test_quest_reward_pending_character_materializer() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var registry := ProgressionContentRegistry.new()
+	var quest_def := QuestDef.new()
+	quest_def.quest_id = &"contract_growth_drill"
+	quest_def.display_name = "成长演练"
+	quest_def.objective_defs = [
+		{
+			"objective_id": "report_back",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service_contract_board",
+			"target_value": 1,
+		},
+	]
+	quest_def.reward_entries = [
+		{
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"member_id": "hero",
+			"summary_text": "完成演练后获得成长奖励。",
+			"entries": [
+				{
+					"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+					"target_id": "charge",
+					"target_label": "冲锋",
+					"amount": 1,
+				},
+				{
+					"entry_type": String(AchievementRewardDef.TYPE_SKILL_MASTERY),
+					"target_id": "charge",
+					"target_label": "冲锋",
+					"amount": 10,
+				},
+			],
+		},
+	]
+
+	var manager := CharacterManagementModule.new()
+	manager.setup(
+		party_state,
+		registry.get_skill_defs(),
+		registry.get_profession_defs(),
+		registry.get_achievement_defs(),
+		{},
+		{
+			quest_def.quest_id: quest_def,
+		}
+	)
+	var claimable_quest := QuestState.new()
+	claimable_quest.quest_id = quest_def.quest_id
+	claimable_quest.mark_accepted(6)
+	claimable_quest.mark_completed(9)
+	party_state.set_claimable_quest_state(claimable_quest)
+
+	var claim_result := manager.claim_quest_reward(quest_def.quest_id, 12)
+	_assert_true(bool(claim_result.get("ok", false)), "quest 的 pending_character_reward 应能正式入队。")
+	_assert_eq((claim_result.get("pending_character_rewards", []) as Array).size(), 1, "claim 结果应暴露 materialized 角色奖励。")
+	_assert_eq(party_state.pending_character_rewards.size(), 1, "quest 的成长奖励应进入正式 pending_character_rewards。")
+	_assert_true(not party_state.has_claimable_quest(quest_def.quest_id), "领奖成功后任务应离开 claimable_quests。")
+	_assert_true(party_state.has_completed_quest(quest_def.quest_id), "领奖成功后任务应进入 completed_quest_ids。")
+
+	var queued_reward = party_state.get_next_pending_character_reward()
+	_assert_true(queued_reward != null, "materialized reward 应能从正式奖励队列取出。")
+	if queued_reward != null:
+		_assert_eq(queued_reward.member_id, &"hero", "quest reward 应保留目标成员。")
+		_assert_eq(queued_reward.source_id, quest_def.quest_id, "quest reward 应默认把 quest_id 作为来源 ID。")
+		_assert_eq(queued_reward.source_label, "成长演练", "quest reward 应默认把 quest 名称作为来源标签。")
+		_assert_eq(queued_reward.entries.size(), 2, "quest reward 应保留所有成长条目。")
+
+	var skill_progress = party_state.get_member_state(&"hero").progression.get_skill_progress(&"charge")
+	_assert_true(skill_progress == null, "quest claim 后角色奖励应只入队，不应立刻直写成长结果。")
 
 
 func _test_party_state_quest_round_trip_persists() -> void:

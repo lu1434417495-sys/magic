@@ -6,6 +6,7 @@ const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_re
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -39,6 +40,7 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
+	_inject_pending_reward_quest_def(game_session, facade.get_party_state().leader_member_id)
 
 	var accept_result := facade.command_accept_quest(&"contract_manual_drill")
 	_assert_true(bool(accept_result.get("ok", false)), "quest accept 命令应成功。")
@@ -129,6 +131,44 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_reward_overflow"), "容量不足时任务应继续停留在 claimable_quests。")
 	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_reward_overflow"), "容量不足时任务不应误写入 completed_quest_ids。")
 	_assert_eq(runtime_warehouse_service.count_item(&"bronze_sword"), bronze_sword_count_before_overflow_claim, "容量不足时不应额外写入奖励物品。")
+
+	var growth_reward_member_id: StringName = facade.get_party_state().leader_member_id
+	var growth_reward_quest := QuestState.new()
+	growth_reward_quest.quest_id = &"contract_growth_drill"
+	growth_reward_quest.mark_accepted(31)
+	growth_reward_quest.mark_completed(33)
+	facade.get_party_state().set_claimable_quest_state(growth_reward_quest)
+	var growth_member_state = facade.get_party_state().get_member_state(growth_reward_member_id)
+	var growth_strength_before: int = int(
+		growth_member_state.progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH)
+	)
+	var growth_claim_result := facade.command_claim_quest(&"contract_growth_drill")
+	_assert_true(bool(growth_claim_result.get("ok", false)), "pending_character_reward quest 应能通过正式 claim 命令成功领取。")
+	_assert_eq((growth_claim_result.get("pending_character_rewards", []) as Array).size(), 1, "quest claim 结果应暴露 materialized 角色奖励。")
+	_assert_text_contains(String(growth_claim_result.get("message", "")), "角色奖励", "pending_character_reward claim 应在反馈中注明角色奖励。")
+	_assert_eq(facade.get_party_state().pending_character_rewards.size(), 1, "quest 的成长奖励应进入正式 pending_character_rewards 队列。")
+	_assert_true(facade.get_party_state().has_completed_quest(&"contract_growth_drill"), "quest claim 后任务应进入 completed_quest_ids。")
+	_assert_true(not facade.get_party_state().has_claimable_quest(&"contract_growth_drill"), "quest claim 后任务应移出 claimable_quests。")
+	_assert_eq(
+		facade.get_party_state().get_member_state(growth_reward_member_id).progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH),
+		growth_strength_before,
+		"quest claim 后角色奖励应只入队，不应立刻写入属性。"
+	)
+	_assert_true(facade.present_pending_reward_if_ready(), "quest claim 后应继续走现有 reward flow 呈现奖励。")
+	_assert_eq(facade.get_active_modal_id(), "reward", "quest growth reward 应复用正式 reward modal。")
+	var active_reward = facade.get_active_reward()
+	_assert_true(active_reward != null, "quest growth reward 应被提为 active reward。")
+	if active_reward != null:
+		_assert_eq(active_reward.member_id, growth_reward_member_id, "quest growth reward 应保留目标成员。")
+		_assert_eq(active_reward.source_id, &"contract_growth_drill", "quest growth reward 应保留 quest 来源 ID。")
+	var growth_confirm_result := facade.confirm_active_reward()
+	_assert_true(bool(growth_confirm_result.get("ok", false)), "quest growth reward 应能通过既有确认命令结算。")
+	_assert_eq(
+		facade.get_party_state().get_member_state(growth_reward_member_id).progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH),
+		growth_strength_before + 2,
+		"确认正式 reward flow 后角色奖励才应真正入账。"
+	)
+	_assert_true(facade.get_party_state().pending_character_rewards.is_empty(), "确认 quest growth reward 后正式队列应清空。")
 
 	var encounter_anchor = _find_any_uncleared_encounter_anchor(game_session.get_world_data())
 	_assert_true(encounter_anchor != null, "battle quest 前置：测试世界应存在一个遭遇锚点。")
@@ -224,6 +264,40 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 	game_session.get_quest_defs()[overflow_quest.quest_id] = overflow_quest
 
 
+func _inject_pending_reward_quest_def(game_session, member_id: StringName) -> void:
+	if game_session == null or member_id == &"":
+		return
+	var growth_reward_quest := QuestDef.new()
+	growth_reward_quest.quest_id = &"contract_growth_drill"
+	growth_reward_quest.display_name = "成长演练"
+	growth_reward_quest.description = "用于验证任务奖励会走正式角色奖励队列。"
+	growth_reward_quest.provider_interaction_id = &"service_contract_board"
+	growth_reward_quest.objective_defs = [
+		{
+			"objective_id": "report_back",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service_contract_board",
+			"target_value": 1,
+		},
+	]
+	growth_reward_quest.reward_entries = _build_reward_entries([
+		{
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"member_id": String(member_id),
+			"summary_text": "完成演练后将获得成长奖励。",
+			"entries": [
+				{
+					"entry_type": "attribute_delta",
+					"target_id": String(UnitBaseAttributes.STRENGTH),
+					"target_label": "力量",
+					"amount": 2,
+				},
+			],
+		},
+	])
+	game_session.get_quest_defs()[growth_reward_quest.quest_id] = growth_reward_quest
+
+
 func _find_any_uncleared_encounter_anchor(world_data: Dictionary):
 	for encounter_variant in world_data.get("encounter_anchors", []):
 		if encounter_variant == null or bool(encounter_variant.is_cleared):
@@ -261,3 +335,9 @@ func _assert_true(condition: bool, message: String) -> void:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+
+
+func _assert_text_contains(text: String, expected_fragment: String, message: String) -> void:
+	if text.contains(expected_fragment):
+		return
+	_failures.append("%s | missing=%s text=%s" % [message, expected_fragment, text])

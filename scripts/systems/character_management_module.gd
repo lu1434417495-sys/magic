@@ -30,6 +30,7 @@ const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 const PendingCharacterRewardEntry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT
 
 const REWARD_TYPE_ACHIEVEMENT: StringName = &"achievement"
+const REWARD_TYPE_QUEST: StringName = &"quest"
 const REWARD_ENTRY_ORDER := {
 	&"knowledge_unlock": 0,
 	&"skill_unlock": 1,
@@ -147,6 +148,7 @@ func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionar
 		"error_code": "",
 		"gold_delta": 0,
 		"item_rewards": [],
+		"pending_character_rewards": [],
 		"unsupported_reward_types": [],
 	}
 	if _party_state == null or quest_id == &"":
@@ -159,7 +161,7 @@ func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionar
 	if not bool(quest_reward_data.get("found", false)):
 		result["error_code"] = "quest_def_missing"
 		return result
-	var reward_preview := _preview_quest_reward_claim(quest_reward_data.get("reward_entries", []))
+	var reward_preview := _preview_quest_reward_claim(quest_id, quest_reward_data)
 	if not bool(reward_preview.get("ok", false)):
 		result["error_code"] = String(reward_preview.get("error_code", "invalid_reward_entry"))
 		result["unsupported_reward_types"] = ProgressionDataUtils.to_string_name_array(
@@ -185,9 +187,13 @@ func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionar
 		_party_state.warehouse_state = warehouse_state_before
 		result["error_code"] = "quest_claim_failed"
 		return result
+	var pending_character_rewards: Array = reward_preview.get("pending_character_rewards", [])
+	if not pending_character_rewards.is_empty():
+		enqueue_pending_character_rewards(pending_character_rewards)
 	result["ok"] = true
 	result["gold_delta"] = gold_delta
 	result["item_rewards"] = (reward_preview.get("item_rewards", []) as Array).duplicate(true)
+	result["pending_character_rewards"] = _pending_character_reward_variants_to_dicts(pending_character_rewards)
 	return result
 
 
@@ -791,18 +797,21 @@ func _resolve_quest_reward_data(quest_id: StringName) -> Dictionary:
 	if quest_variant == null:
 		return {
 			"found": false,
+			"display_name": "",
 			"reward_entries": [],
 		}
 	if quest_variant is Dictionary:
 		var quest_data := (quest_variant as Dictionary).duplicate(true)
 		return {
 			"found": true,
+			"display_name": String(quest_data.get("display_name", "")),
 			"reward_entries": quest_data.get("reward_entries", []),
 		}
 	if quest_variant is QuestDef:
 		var quest_def: QuestDef = quest_variant
 		return {
 			"found": true,
+			"display_name": quest_def.display_name,
 			"reward_entries": quest_def.reward_entries.duplicate(true),
 		}
 	if quest_variant is Object and quest_variant.has_method("to_dict"):
@@ -810,28 +819,36 @@ func _resolve_quest_reward_data(quest_id: StringName) -> Dictionary:
 		if quest_data_variant is Dictionary:
 			return {
 				"found": true,
+				"display_name": String((quest_data_variant as Dictionary).get("display_name", "")),
 				"reward_entries": (quest_data_variant as Dictionary).get("reward_entries", []),
 			}
 	return {
 		"found": false,
+		"display_name": "",
 		"reward_entries": [],
 	}
 
 
-func _preview_quest_reward_claim(reward_entries_variant) -> Dictionary:
+func _preview_quest_reward_claim(quest_id: StringName, quest_reward_data: Dictionary) -> Dictionary:
 	var result := {
 		"ok": true,
 		"error_code": "",
 		"gold_delta": 0,
 		"item_rewards": [],
 		"warehouse_deposit_item_ids": [],
+		"pending_character_rewards": [],
 		"unsupported_reward_types": [],
 	}
+	var reward_entries_variant = quest_reward_data.get("reward_entries", [])
 	if reward_entries_variant is not Array:
 		return result
+	var quest_label := String(quest_reward_data.get("display_name", "")).strip_edges()
+	if quest_label.is_empty():
+		quest_label = String(quest_id)
 	var unsupported_reward_types: Array[StringName] = []
 	var reward_item_entries: Array[Dictionary] = []
 	var reward_item_ids: Array[StringName] = []
+	var pending_character_rewards: Array[PendingCharacterReward] = []
 	for reward_variant in reward_entries_variant:
 		if reward_variant is not Dictionary:
 			result["ok"] = false
@@ -864,7 +881,14 @@ func _preview_quest_reward_claim(reward_entries_variant) -> Dictionary:
 					ProgressionDataUtils.to_string_name_array(item_reward_result.get("warehouse_deposit_item_ids", []))
 				)
 			QUEST_DEF_SCRIPT.REWARD_PENDING_CHARACTER_REWARD:
-				_append_unique_string_name(unsupported_reward_types, reward_type)
+				var pending_reward_result := _preview_quest_pending_character_reward_entry(quest_id, quest_label, reward_data)
+				if not bool(pending_reward_result.get("ok", false)):
+					result["ok"] = false
+					result["error_code"] = String(pending_reward_result.get("error_code", "invalid_pending_character_reward"))
+					return result
+				var pending_reward: Variant = pending_reward_result.get("pending_character_reward", null)
+				if pending_reward is PendingCharacterReward and not (pending_reward as PendingCharacterReward).is_empty():
+					pending_character_rewards.append(pending_reward as PendingCharacterReward)
 			_:
 				_append_unique_string_name(unsupported_reward_types, reward_type)
 	if not unsupported_reward_types.is_empty():
@@ -880,6 +904,7 @@ func _preview_quest_reward_claim(reward_entries_variant) -> Dictionary:
 			return result
 	result["item_rewards"] = reward_item_entries
 	result["warehouse_deposit_item_ids"] = ProgressionDataUtils.string_name_array_to_string_array(reward_item_ids)
+	result["pending_character_rewards"] = pending_character_rewards
 	return result
 
 
@@ -910,6 +935,49 @@ func _preview_quest_item_reward_entry(reward_data: Dictionary) -> Dictionary:
 	}
 
 
+func _preview_quest_pending_character_reward_entry(
+	quest_id: StringName,
+	quest_label: String,
+	reward_data: Dictionary
+) -> Dictionary:
+	var member_id := ProgressionDataUtils.to_string_name(reward_data.get("member_id", ""))
+	var entry_variants = reward_data.get("entries", [])
+	if member_id == &"" or entry_variants is not Array or (entry_variants as Array).is_empty():
+		return {
+			"ok": false,
+			"error_code": "invalid_pending_character_reward",
+		}
+	var source_type := ProgressionDataUtils.to_string_name(reward_data.get("source_type", REWARD_TYPE_QUEST))
+	if source_type == &"":
+		source_type = REWARD_TYPE_QUEST
+	var source_id := ProgressionDataUtils.to_string_name(reward_data.get("source_id", quest_id))
+	if source_id == &"":
+		source_id = quest_id if quest_id != &"" else source_type
+	var source_label := String(reward_data.get("source_label", "")).strip_edges()
+	if source_label.is_empty():
+		source_label = quest_label
+	var summary_text := String(reward_data.get("summary_text", "")).strip_edges()
+	var reward_id := ProgressionDataUtils.to_string_name(reward_data.get("reward_id", ""))
+	var pending_reward := build_pending_character_reward(
+		member_id,
+		reward_id,
+		source_type,
+		source_id,
+		source_label,
+		entry_variants,
+		summary_text
+	)
+	if pending_reward == null or pending_reward.is_empty():
+		return {
+			"ok": false,
+			"error_code": "invalid_pending_character_reward",
+		}
+	return {
+		"ok": true,
+		"pending_character_reward": pending_reward,
+	}
+
+
 func _build_repeated_item_ids(item_id: StringName, quantity: int) -> Array[StringName]:
 	var item_ids: Array[StringName] = []
 	var resolved_quantity := maxi(quantity, 0)
@@ -920,6 +988,16 @@ func _build_repeated_item_ids(item_id: StringName, quantity: int) -> Array[Strin
 
 func _resolve_quest_reward_warehouse_error_code(warehouse_result: Dictionary) -> String:
 	return "reward_overflow" if String(warehouse_result.get("error_code", "")) == "warehouse_blocked_swap" else "quest_reward_commit_failed"
+
+
+func _pending_character_reward_variants_to_dicts(reward_variants: Array) -> Array[Dictionary]:
+	var reward_dicts: Array[Dictionary] = []
+	for reward_variant in reward_variants:
+		var reward := _normalize_pending_character_reward_variant(reward_variant)
+		if reward == null or reward.is_empty():
+			continue
+		reward_dicts.append(reward.to_dict())
+	return reward_dicts
 
 
 func _normalize_pending_character_entries(entry_variants: Array) -> Array[PendingCharacterRewardEntry]:

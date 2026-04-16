@@ -1430,6 +1430,8 @@ func command_claim_quest(quest_id: StringName) -> Dictionary:
 					return _command_error("任务《%s》包含无效的金币奖励配置，当前无法领取。" % quest_label)
 				"invalid_item_reward":
 					return _command_error("任务《%s》包含无效的物品奖励配置，当前无法领取。" % quest_label)
+				"invalid_pending_character_reward":
+					return _command_error("任务《%s》包含无效的角色奖励配置，当前无法领取。" % quest_label)
 				"item_reward_missing_def":
 					return _command_error("任务《%s》引用了缺失的物品奖励配置，当前无法领取。" % quest_label)
 				"reward_overflow":
@@ -1457,6 +1459,7 @@ func command_claim_quest(quest_id: StringName) -> Dictionary:
 		var result := _command_ok(message)
 		result["gold_delta"] = gold_delta
 		result["item_rewards"] = (claim_result.get("item_rewards", []) as Array).duplicate(true)
+		result["pending_character_rewards"] = (claim_result.get("pending_character_rewards", []) as Array).duplicate(true)
 		return result
 	)
 
@@ -2602,6 +2605,12 @@ func _build_quest_claim_reward_summary_text(claim_result: Dictionary) -> String:
 		if reward_label.is_empty():
 			reward_label = String(reward_data.get("item_id", ""))
 		reward_parts.append("%s x%d" % [reward_label, reward_quantity])
+	for reward_variant in claim_result.get("pending_character_rewards", []):
+		if reward_variant is not Dictionary:
+			continue
+		var reward_data := reward_variant as Dictionary
+		var member_name := String(reward_data.get("member_name", "")).strip_edges()
+		reward_parts.append("%s的角色奖励" % member_name if not member_name.is_empty() else "角色奖励")
 	return "、".join(PackedStringArray(reward_parts))
 
 

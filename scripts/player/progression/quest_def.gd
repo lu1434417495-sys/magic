@@ -103,6 +103,8 @@ func validate_schema() -> Array[String]:
 					errors.append("QuestDef %s 的 item reward 缺少 item_id。" % String(quest_id))
 				if get_reward_quantity(reward_data) <= 0:
 					errors.append("QuestDef %s 的 item reward 必须有正 quantity。" % String(quest_id))
+			REWARD_PENDING_CHARACTER_REWARD:
+				errors.append_array(_validate_pending_character_reward(quest_id, reward_data))
 	return errors
 
 
@@ -174,3 +176,32 @@ static func get_reward_quantity(reward_data: Dictionary) -> int:
 	if reward_data.has("quantity"):
 		return int(reward_data.get("quantity", 0))
 	return int(reward_data.get("amount", 0))
+
+
+static func _validate_pending_character_reward(quest_id_value: StringName, reward_data: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	var quest_id_text := String(quest_id_value)
+	var member_id := ProgressionDataUtils.to_string_name(reward_data.get("member_id", ""))
+	if member_id == &"":
+		errors.append("QuestDef %s 的 pending_character_reward 缺少 member_id。" % quest_id_text)
+
+	var entries_variant: Variant = reward_data.get("entries", [])
+	if entries_variant is not Array or (entries_variant as Array).is_empty():
+		errors.append("QuestDef %s 的 pending_character_reward 至少需要一条 entries。" % quest_id_text)
+		return errors
+
+	for entry_variant in entries_variant:
+		if entry_variant is not Dictionary:
+			errors.append("QuestDef %s 的 pending_character_reward 包含非 Dictionary entry。" % quest_id_text)
+			continue
+		var entry_data := entry_variant as Dictionary
+		var entry_type := ProgressionDataUtils.to_string_name(entry_data.get("entry_type", ""))
+		var target_id := ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
+		var amount := int(entry_data.get("amount", 0))
+		if entry_type == &"":
+			errors.append("QuestDef %s 的 pending_character_reward entry 缺少 entry_type。" % quest_id_text)
+		if target_id == &"":
+			errors.append("QuestDef %s 的 pending_character_reward entry 缺少 target_id。" % quest_id_text)
+		if amount == 0:
+			errors.append("QuestDef %s 的 pending_character_reward entry amount 不能为 0。" % quest_id_text)
+	return errors

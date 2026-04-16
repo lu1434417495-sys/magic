@@ -51,6 +51,17 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	quest_def.reward_entries = [
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 120},
 		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "iron_ore", "quantity": 2},
+		{
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"member_id": "hero",
+			"entries": [
+				{
+					"entry_type": "skill_unlock",
+					"target_id": "charge",
+					"amount": 1,
+				},
+			],
+		},
 	]
 
 	var restored: QuestDef = QuestDef.from_dict(quest_def.to_dict())
@@ -78,6 +89,26 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	]
 	var reward_errors: Array[String] = invalid_reward_quest.validate_schema()
 	_assert_true(reward_errors.size() >= 2, "无效 gold/item reward 应被 validate_schema() 拒绝。")
+
+	var invalid_pending_reward_quest := QuestDef.new()
+	invalid_pending_reward_quest.quest_id = &"broken_pending_reward_contract"
+	invalid_pending_reward_quest.objective_defs = [
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+	]
+	invalid_pending_reward_quest.reward_entries = [
+		{
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"entries": [
+				{
+					"entry_type": "",
+					"target_id": "",
+					"amount": 0,
+				},
+			],
+		},
+	]
+	var pending_reward_errors: Array[String] = invalid_pending_reward_quest.validate_schema()
+	_assert_true(pending_reward_errors.size() >= 3, "无效 pending_character_reward 应被 validate_schema() 拒绝。")
 
 
 func _test_quest_state_progress_and_round_trip() -> void:

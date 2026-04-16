@@ -245,14 +245,22 @@
     {
       "id": "PVS_04D",
       "title": "实现 quest pending_character_reward materializer",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`QuestDef.reward_entries` 的成长型奖励会进入 `pending_character_rewards`",
         "claim reward 后仍走现有 reward flow，不新增平行奖励容器"
       ],
       "notes": [
         "Owner：CU-12 / CU-06。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T02:54:09+08:00",
+      "lastRunId": "20260417-025409-PVS_04D",
+      "startedAt": "2026-04-17T02:54:09+08:00",
+      "completedAt": "2026-04-17T03:02:51+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/progression/run_quest_schema_regression.gd`, `tests/progression/run_progression_tests.gd`, `tests/runtime/run_game_runtime_quest_progress_regression.gd`, `tests/runtime/run_game_runtime_reward_flow_regression.gd`, and `tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`.",
+      "lastLearnings": "Quest reward type `pending_character_reward` now expects `member_id` plus non-empty `entries`; quest claim materialization lives in `CharacterManagementModule`, while presentation/confirmation still stays on the formal `PartyState.pending_character_rewards` -> `GameRuntimeRewardFlowHandler` path with no new parallel reward container."
     },
     {
       "id": "PVS_05A",

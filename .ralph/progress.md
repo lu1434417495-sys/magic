@@ -61,3 +61,7 @@ Added formal quest reward claiming with gold materialization in `CharacterManage
 ## 2026-04-17T02:54:08+08:00 | PVS_04C | done
 title: 实现 quest item reward materializer
 Implemented quest item reward claiming through `CharacterManagementModule` + `PartyWarehouseService`, writing claimed item rewards into the shared warehouse, returning explicit overflow failure when capacity blocks the reward, surfacing reward summaries in `GameRuntimeFacade`, aligning quest item reward schema helpers, and adding focused regressions.
+
+## 2026-04-17T03:02:51+08:00 | PVS_04D | done
+title: 实现 quest pending_character_reward materializer
+Implemented quest `pending_character_reward` materialization in `CharacterManagementModule`, added `QuestDef` schema validation for that reward type, surfaced quest-claim summaries/errors through `GameRuntimeFacade`, and added focused progression/runtime regressions proving claimed quest growth rewards enter `pending_character_rewards` and continue through the existing reward modal flow. `docs/design/project_context_units.md` stayed valid and `.ralph/prd.json` was not edited.
