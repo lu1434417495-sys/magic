@@ -285,14 +285,22 @@
     {
       "id": "PVS_05B",
       "title": "把 submit_item 扣除结果接到 objective progress 与失败回归",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "交付成功后会推进对应 objective 并按需要触发 completion/claimable 状态",
         "数量不足、错误物品两条失败路径有明确回归覆盖"
       ],
       "notes": [
         "优先补 progression/runtime regression。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:14:57+08:00",
+      "lastRunId": "20260417-031457-PVS_05B",
+      "startedAt": "2026-04-17T03:14:57+08:00",
+      "completedAt": "2026-04-17T03:20:31+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "已运行 `godot --headless --script tests/progression/run_progression_tests.gd` 和 `godot --headless --script tests/runtime/run_game_runtime_quest_progress_regression.gd`，均通过。",
+      "lastLearnings": "`submit_item` 的正式 owner 仍是 `CharacterManagementModule -> QuestProgressService`，场景/runtime 层无需再承载规则；后续如果改提交逻辑，至少要继续保留 partial-progress 成功、数量不足失败、错误物品失败这三类回归。"
     },
     {
       "id": "PVS_06A",

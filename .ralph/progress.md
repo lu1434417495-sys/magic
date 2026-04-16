@@ -69,3 +69,7 @@ Implemented quest `pending_character_reward` materialization in `CharacterManage
 ## 2026-04-17T03:14:56+08:00 | PVS_05A | done
 title: 为 submit_item 目标增加正式仓库扣除入口
 新增 submit_item 正式提交流程：由 CharacterManagementModule 统一预览需求、原子扣减 shared warehouse 并推进 quest objective，GameRuntimeFacade/SettlementCommandHandler 接入任务板入口；补了 quest schema 校验、文本快照兼容和相关回归，并更新了 project_context_units 的 ownership 说明。
+
+## 2026-04-17T03:20:31+08:00 | PVS_05B | done
+title: 把 submit_item 扣除结果接到 objective progress 与失败回归
+补强 `submit_item` 的 progression/runtime 回归：在 `tests/progression/run_progression_tests.gd` 新增 CharacterManagementModule 级回归，覆盖部分进度成功提交、objective_progress/last_progress_context 写入、数量不足与错误物品两条失败路径；在 `tests/runtime/run_game_runtime_quest_progress_regression.gd` 补充成功后 objective_progress/context 断言，并新增错误物品失败回归。`docs/design/project_context_units.md` 无需更新。

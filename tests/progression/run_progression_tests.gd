@@ -11,6 +11,7 @@ const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module
 const BattleUnitFactory = preload("res://scripts/systems/battle_unit_factory.gd")
 const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
 const GameSession = preload("res://scripts/systems/game_session.gd")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const PartyManagementWindowScene = preload("res://scenes/ui/party_management_window.tscn")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
@@ -43,6 +44,7 @@ func _run() -> void:
 	_test_pending_character_reward_applies_in_stable_order()
 	_test_pending_character_reward_round_trip_persists()
 	_test_quest_reward_pending_character_materializer()
+	_test_submit_item_objective_materializer_tracks_progress_and_failures()
 	_test_party_state_quest_round_trip_persists()
 	_test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 	await _test_party_management_window_renders_achievement_summary()
@@ -628,6 +630,111 @@ func _test_quest_reward_pending_character_materializer() -> void:
 
 	var skill_progress = party_state.get_member_state(&"hero").progression.get_skill_progress(&"charge")
 	_assert_true(skill_progress == null, "quest claim 后角色奖励应只入队，不应立刻直写成长结果。")
+
+
+func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> void:
+	var party_state := _make_party_state([&"hero"])
+	party_state.get_member_state(&"hero").progression.unit_base_attributes.set_attribute_value(
+		PARTY_WAREHOUSE_SERVICE_SCRIPT.STORAGE_SPACE_ATTRIBUTE_ID,
+		4
+	)
+	var registry := ProgressionContentRegistry.new()
+	var session := GameSession.new()
+	var item_defs := session.get_item_defs()
+
+	var submit_item_quest := QuestDef.new()
+	submit_item_quest.quest_id = &"contract_supply_delivery"
+	submit_item_quest.display_name = "物资缴纳"
+	submit_item_quest.objective_defs = [
+		{
+			"objective_id": "deliver_ore",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": "iron_ore",
+			"target_value": 2,
+		},
+	]
+	var submit_item_shortage_quest := QuestDef.new()
+	submit_item_shortage_quest.quest_id = &"contract_supply_delivery_shortage"
+	submit_item_shortage_quest.display_name = "物资缴纳缺料"
+	submit_item_shortage_quest.objective_defs = submit_item_quest.objective_defs.duplicate(true)
+	var submit_item_wrong_item_quest := QuestDef.new()
+	submit_item_wrong_item_quest.quest_id = &"contract_supply_delivery_wrong_item"
+	submit_item_wrong_item_quest.display_name = "物资缴纳错货"
+	submit_item_wrong_item_quest.objective_defs = submit_item_quest.objective_defs.duplicate(true)
+
+	var manager := CharacterManagementModule.new()
+	manager.setup(
+		party_state,
+		registry.get_skill_defs(),
+		registry.get_profession_defs(),
+		registry.get_achievement_defs(),
+		item_defs,
+		{
+			submit_item_quest.quest_id: submit_item_quest,
+			submit_item_shortage_quest.quest_id: submit_item_shortage_quest,
+			submit_item_wrong_item_quest.quest_id: submit_item_wrong_item_quest,
+		}
+	)
+	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+	warehouse_service.setup(party_state, item_defs)
+
+	var partial_submit_quest := QuestState.new()
+	partial_submit_quest.quest_id = submit_item_quest.quest_id
+	partial_submit_quest.mark_accepted(3)
+	partial_submit_quest.record_objective_progress(&"deliver_ore", 1, 2, {"item_id": "iron_ore", "submitted_quantity": 1})
+	party_state.set_active_quest_state(partial_submit_quest)
+	warehouse_service.add_item(&"iron_ore", 1)
+	var partial_submit_result := manager.submit_item_objective(submit_item_quest.quest_id, &"deliver_ore", 4)
+	warehouse_service.setup(party_state, item_defs)
+	_assert_true(bool(partial_submit_result.get("ok", false)), "submit_item 成功时应通过 CharacterManagementModule 推进正式 objective。")
+	_assert_eq(int(partial_submit_result.get("submitted_quantity", 0)), 1, "已有部分进度时 submit_item 只应扣除剩余所需数量。")
+	_assert_true(not party_state.has_active_quest(submit_item_quest.quest_id), "submit_item 完成后任务应离开 active_quests。")
+	_assert_true(party_state.has_claimable_quest(submit_item_quest.quest_id), "submit_item 完成后任务应进入 claimable_quests。")
+	_assert_eq(warehouse_service.count_item(&"iron_ore"), 0, "submit_item 成功后共享仓库应只扣除剩余所需的铁矿石。")
+	var claimable_submit_item_quest: QuestState = party_state.get_claimable_quest_state(submit_item_quest.quest_id)
+	_assert_true(claimable_submit_item_quest != null, "submit_item 完成后应保留可领奖的 QuestState。")
+	if claimable_submit_item_quest != null:
+		_assert_eq(claimable_submit_item_quest.get_objective_progress(&"deliver_ore"), 2, "submit_item 成功后 objective_progress 应补到目标值。")
+		_assert_eq(int(claimable_submit_item_quest.last_progress_context.get("submitted_quantity", 0)), 1, "submit_item 成功后 QuestState 应记录实际扣除数量。")
+		_assert_eq(String(claimable_submit_item_quest.last_progress_context.get("item_id", "")), "iron_ore", "submit_item 成功后 QuestState 应记录正式提交物品。")
+		_assert_eq(claimable_submit_item_quest.completed_at_world_step, 4, "submit_item 完成后 QuestState 应记录完成 world_step。")
+
+	var submit_item_shortage_state := QuestState.new()
+	submit_item_shortage_state.quest_id = submit_item_shortage_quest.quest_id
+	submit_item_shortage_state.mark_accepted(5)
+	party_state.set_active_quest_state(submit_item_shortage_state)
+	var remaining_iron_ore := warehouse_service.count_item(&"iron_ore")
+	if remaining_iron_ore > 0:
+		warehouse_service.remove_item(&"iron_ore", remaining_iron_ore)
+	var shortage_submit_result := manager.submit_item_objective(submit_item_shortage_quest.quest_id, &"deliver_ore", 6)
+	_assert_true(not bool(shortage_submit_result.get("ok", true)), "共享仓库缺料时 submit_item 应正式失败。")
+	_assert_eq(String(shortage_submit_result.get("error_code", "")), "submit_item_missing_inventory", "缺料时 submit_item 应返回正式缺料错误码。")
+	var active_shortage_quest: QuestState = party_state.get_active_quest_state(submit_item_shortage_quest.quest_id)
+	_assert_true(active_shortage_quest != null, "缺料时任务应继续停留在 active_quests。")
+	if active_shortage_quest != null:
+		_assert_eq(active_shortage_quest.get_objective_progress(&"deliver_ore"), 0, "缺料时不应推进 quest objective。")
+	_assert_true(not party_state.has_claimable_quest(submit_item_shortage_quest.quest_id), "缺料时任务不应误进入 claimable_quests。")
+
+	var submit_item_wrong_item_state := QuestState.new()
+	submit_item_wrong_item_state.quest_id = submit_item_wrong_item_quest.quest_id
+	submit_item_wrong_item_state.mark_accepted(7)
+	party_state.set_active_quest_state(submit_item_wrong_item_state)
+	var remaining_bronze_sword := warehouse_service.count_item(&"bronze_sword")
+	if remaining_bronze_sword > 0:
+		warehouse_service.remove_item(&"bronze_sword", remaining_bronze_sword)
+	warehouse_service.add_item(&"bronze_sword", 1)
+	var bronze_sword_count_before_wrong_submit := warehouse_service.count_item(&"bronze_sword")
+	var wrong_item_submit_result := manager.submit_item_objective(submit_item_wrong_item_quest.quest_id, &"deliver_ore", 8)
+	warehouse_service.setup(party_state, item_defs)
+	_assert_true(not bool(wrong_item_submit_result.get("ok", true)), "仓库只有错误物品时 submit_item 应正式失败。")
+	_assert_eq(String(wrong_item_submit_result.get("error_code", "")), "submit_item_missing_inventory", "错误物品时 submit_item 仍应返回缺少目标物资。")
+	_assert_eq(warehouse_service.count_item(&"bronze_sword"), bronze_sword_count_before_wrong_submit, "错误物品时不应误吞共享仓库中的其他物资。")
+	var active_wrong_item_quest: QuestState = party_state.get_active_quest_state(submit_item_wrong_item_quest.quest_id)
+	_assert_true(active_wrong_item_quest != null, "错误物品时任务应继续停留在 active_quests。")
+	if active_wrong_item_quest != null:
+		_assert_eq(active_wrong_item_quest.get_objective_progress(&"deliver_ore"), 0, "错误物品时不应推进 quest objective。")
+	_assert_true(not party_state.has_claimable_quest(submit_item_wrong_item_quest.quest_id), "错误物品时任务不应误进入 claimable_quests。")
+	session.free()
 
 
 func _test_party_state_quest_round_trip_persists() -> void:

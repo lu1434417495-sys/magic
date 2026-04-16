@@ -148,6 +148,12 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_assert_eq(runtime_warehouse_service.count_item(&"iron_ore"), 0, "submit_item 成功后共享仓库应扣除对应物资。")
 	_assert_true(not facade.get_party_state().has_active_quest(&"contract_supply_delivery"), "submit_item 目标完成后任务应离开 active_quests。")
 	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_supply_delivery"), "submit_item 目标完成后任务应进入 claimable_quests。")
+	var claimable_submit_item_quest: QuestState = facade.get_party_state().get_claimable_quest_state(&"contract_supply_delivery")
+	_assert_true(claimable_submit_item_quest != null, "submit_item 成功后应保留 claimable QuestState。")
+	if claimable_submit_item_quest != null:
+		_assert_eq(claimable_submit_item_quest.get_objective_progress(&"deliver_ore"), 2, "submit_item 成功后应把对应 objective_progress 推到目标值。")
+		_assert_eq(int(claimable_submit_item_quest.last_progress_context.get("submitted_quantity", 0)), 2, "submit_item 成功后 QuestState 应记录实际提交数量。")
+		_assert_eq(String(claimable_submit_item_quest.last_progress_context.get("item_id", "")), "iron_ore", "submit_item 成功后 QuestState 应记录正式提交物品。")
 
 	var submit_shortage_accept_result := facade.command_accept_quest(&"contract_supply_delivery_shortage")
 	_assert_true(bool(submit_shortage_accept_result.get("ok", false)), "submit_item 缺料任务接取应成功。")
@@ -166,6 +172,28 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	if shortage_quest != null:
 		_assert_eq(shortage_quest.get_objective_progress(&"deliver_ore"), 0, "submit_item 失败时不应推进 quest objective。")
 	_assert_true(not facade.get_party_state().has_claimable_quest(&"contract_supply_delivery_shortage"), "submit_item 失败时任务不应误进入 claimable_quests。")
+
+	var submit_wrong_item_accept_result := facade.command_accept_quest(&"contract_supply_delivery_wrong_item")
+	_assert_true(bool(submit_wrong_item_accept_result.get("ok", false)), "submit_item 错货任务接取应成功。")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	var wrong_item_iron_ore_to_clear := runtime_warehouse_service.count_item(&"iron_ore")
+	if wrong_item_iron_ore_to_clear > 0:
+		runtime_warehouse_service.remove_item(&"iron_ore", wrong_item_iron_ore_to_clear)
+	var bronze_sword_to_clear := runtime_warehouse_service.count_item(&"bronze_sword")
+	if bronze_sword_to_clear > 0:
+		runtime_warehouse_service.remove_item(&"bronze_sword", bronze_sword_to_clear)
+	runtime_warehouse_service.add_item(&"bronze_sword", 1)
+	var bronze_sword_count_before_wrong_submit := runtime_warehouse_service.count_item(&"bronze_sword")
+	var submit_wrong_item_result := facade.command_submit_quest_item(&"contract_supply_delivery_wrong_item")
+	var wrong_item_quest: QuestState = facade.get_party_state().get_active_quest_state(&"contract_supply_delivery_wrong_item")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	_assert_true(not bool(submit_wrong_item_result.get("ok", true)), "共享仓库只有错误物品时 submit_item 命令应失败。")
+	_assert_eq(String(submit_wrong_item_result.get("message", "")), "共享仓库缺少铁矿石 x2，无法提交给任务《物资缴纳错货》。", "错误物品时 submit_item 应继续指向缺失的正式目标物资。")
+	_assert_eq(runtime_warehouse_service.count_item(&"bronze_sword"), bronze_sword_count_before_wrong_submit, "错误物品时不应吞掉共享仓库中的其他物资。")
+	_assert_true(wrong_item_quest != null, "错误物品时任务应继续停留在 active_quests。")
+	if wrong_item_quest != null:
+		_assert_eq(wrong_item_quest.get_objective_progress(&"deliver_ore"), 0, "错误物品时不应推进 quest objective。")
+	_assert_true(not facade.get_party_state().has_claimable_quest(&"contract_supply_delivery_wrong_item"), "错误物品时任务不应误进入 claimable_quests。")
 
 	var growth_reward_member_id: StringName = facade.get_party_state().leader_member_id
 	var growth_reward_quest := QuestState.new()
@@ -330,6 +358,17 @@ func _inject_submit_item_quest_defs(game_session) -> void:
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 10},
 	])
 	game_session.get_quest_defs()[submit_item_shortage_quest.quest_id] = submit_item_shortage_quest
+
+	var submit_item_wrong_item_quest := QuestDef.new()
+	submit_item_wrong_item_quest.quest_id = &"contract_supply_delivery_wrong_item"
+	submit_item_wrong_item_quest.display_name = "物资缴纳错货"
+	submit_item_wrong_item_quest.description = "用于验证仓库只有错误物品时 submit_item 不会误推进或吞库存。"
+	submit_item_wrong_item_quest.provider_interaction_id = &"service_contract_board"
+	submit_item_wrong_item_quest.objective_defs = submit_item_quest.objective_defs.duplicate(true)
+	submit_item_wrong_item_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 11},
+	])
+	game_session.get_quest_defs()[submit_item_wrong_item_quest.quest_id] = submit_item_wrong_item_quest
 
 
 func _inject_pending_reward_quest_def(game_session, member_id: StringName) -> void:
