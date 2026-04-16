@@ -20,6 +20,7 @@ func _run() -> void:
 	_test_facade_clicking_active_unit_casts_self_skill()
 	_test_facade_multi_unit_selection_tracks_target_unit_ids()
 	_test_facade_stamina_skill_updates_battle_state_snapshot_and_logs()
+	_test_facade_cooldown_skill_reduces_after_battle_tick()
 	if _failures.is_empty():
 		print("Battle skill protocol regression: PASS")
 		quit(0)
@@ -204,6 +205,70 @@ func _test_facade_stamina_skill_updates_battle_state_snapshot_and_logs() -> void
 	_assert_true(text_snapshot.contains("unit=stamina_cost_user |"), "battle 文本快照应渲染 stamina 施法者单位行。")
 	_assert_true(text_snapshot.contains("st=10"), "battle 文本快照应渲染扣费后的 stamina。")
 	_assert_eq(int(logged_caster.get("current_stamina", -1)), 10, "战斗命令日志后态也应暴露扣费后的 current_stamina。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_facade_cooldown_skill_reduces_after_battle_tick() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 1
+	state.timeline.action_threshold = 100
+	var caster: BattleUnitState = _build_manual_unit(
+		&"aa_cooldown_tick_user",
+		"冷却施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"archer_long_draw"],
+		2,
+		0
+	)
+	caster.current_stamina = 12
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"zz_cooldown_tick_enemy",
+		"敌人",
+		&"enemy",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(bool(select_result.get("ok", false)), "选择 cooldown 技能应返回成功结果。")
+	var cast_result: Dictionary = facade.command_battle_move_to(enemy.coord)
+	_assert_true(bool(cast_result.get("ok", false)), "执行 cooldown 技能应返回成功结果。")
+	_assert_eq(int(caster.cooldowns.get(&"archer_long_draw", 0)), 3, "技能释放后应写入基础 cooldown。")
+
+	var tick_result: Dictionary = facade.command_battle_tick(1.0, 1.0)
+	_assert_true(bool(tick_result.get("ok", false)), "battle tick 应能成功推进 cooldown。")
+
+	var runtime_state := facade.get_battle_state()
+	var runtime_caster := runtime_state.units.get(caster.unit_id) as BattleUnitState if runtime_state != null else null
+	var battle_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
+	var hud: Dictionary = battle_snapshot.get("hud", {})
+	var skill_slots: Array = hud.get("skill_slots", [])
+	var first_slot: Dictionary = skill_slots[0] if not skill_slots.is_empty() and skill_slots[0] is Dictionary else {}
+
+	_assert_true(runtime_caster != null, "cooldown tick 回归中应能从 battle state 读取施法者单位。")
+	_assert_eq(int(runtime_state.timeline.current_tu) if runtime_state != null and runtime_state.timeline != null else -1, 1, "battle tick 后 current_tu 应按配置推进 1。")
+	_assert_eq(int(runtime_caster.cooldowns.get(&"archer_long_draw", 0)) if runtime_caster != null else -1, 2, "TU 推进后的下一行动窗口应把 cooldown 正式递减为 2。")
+	_assert_eq(String(runtime_state.active_unit_id) if runtime_state != null else "", String(caster.unit_id), "冷却递减后应轮到施法者重新进入行动窗口。")
+	_assert_eq(int(first_slot.get("cooldown", -1)), 2, "HUD skill slot 应展示递减后的 cooldown。")
+	_assert_eq(String(first_slot.get("footer_text", "")), "CD 2", "HUD skill slot footer 应同步显示新的 cooldown 文案。")
+	_assert_true(bool(first_slot.get("is_disabled", false)), "冷却未结束前 HUD skill slot 应保持禁用。")
 
 	_cleanup_test_session(game_session)
 

@@ -161,3 +161,7 @@ title: 为新命中模型补 natural 1/20 与 seeded regression
 ## 2026-04-17T05:48:44+08:00 | PVS_14A | done
 title: 实现 stamina_cost 的正式扣费路径
 Exposed battle-unit `current_stamina` and `stamina_max` in the headless battle snapshot, rendered stamina in the text battle snapshot, added `current_stamina` to battle command-log unit summaries, and added a facade-level regression that drives a real stamina-cost skill through the formal battle command path and verifies state/snapshot/log updates.
+
+## 2026-04-17T05:58:16+08:00 | PVS_14B | done
+title: 实现 cooldown_tu 的正式递减路径
+Implemented the formal `cooldown_tu` decrement path in `BattleRuntimeModule` by anchoring each unit to `BattleUnitState.last_turn_tu`, seeding mid-turn anchors on command entry, and reducing cooldowns from elapsed TU with a zero-TU turn-switch fallback. Added focused smoke and facade regressions to cover cooldown write, TU-driven decrement, zero-TU queued turn switches, and HUD cooldown refresh. `docs/design/project_context_units.md` stays valid as-is.

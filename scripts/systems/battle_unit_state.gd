@@ -60,6 +60,8 @@ var known_skill_level_map: Dictionary = {}
 var movement_tags: Array[StringName] = []
 ## 字段说明：缓存冷却表字典，集中保存可按键查询的运行时数据。
 var cooldowns: Dictionary = {}
+## 字段说明：记录该单位上一次进入行动窗口时的时间轴 TU，用于把 cooldown_tu 的正式递减锚定到 battle timeline。
+var last_turn_tu := -1
 ## 字段说明：缓存状态效果集合字典，内部 value 使用 BattleStatusEffectState。
 var status_effects: Dictionary = {}
 ## 字段说明：缓存连击态字典，集中保存可按键查询的运行时数据。
@@ -162,6 +164,7 @@ func to_dict() -> Dictionary:
 		"known_skill_level_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_level_map),
 		"movement_tags": _string_name_array_to_strings(movement_tags),
 		"cooldowns": cooldowns.duplicate(true),
+		"last_turn_tu": last_turn_tu,
 		"status_effects": status_payloads,
 		"combo_state": combo_state.duplicate(true),
 	}
@@ -192,6 +195,7 @@ static func from_dict(data: Dictionary):
 	unit_state.known_skill_level_map = ProgressionDataUtils.to_string_name_int_map(data.get("known_skill_level_map", {}))
 	unit_state.movement_tags = _strings_to_string_name_array(data.get("movement_tags", []))
 	unit_state.cooldowns = data.get("cooldowns", {}).duplicate(true)
+	unit_state.last_turn_tu = int(data.get("last_turn_tu", -1))
 	unit_state.status_effects = _status_effects_from_dict(data.get("status_effects", {}))
 	unit_state.combo_state = data.get("combo_state", {}).duplicate(true)
 	unit_state.refresh_footprint()

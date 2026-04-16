@@ -298,6 +298,7 @@ func issue_command(command: BattleCommand) -> BattleEventBatch:
 	var active_unit := _state.units.get(_state.active_unit_id) as BattleUnitState
 	if active_unit == null or active_unit.unit_id != command.unit_id or not active_unit.is_alive:
 		return batch
+	_ensure_unit_turn_anchor(active_unit)
 
 	match command.command_type:
 		BattleCommand.TYPE_MOVE:
@@ -2032,20 +2033,44 @@ func _consume_skill_costs(active_unit: BattleUnitState, skill_def: SkillDef) -> 
 		active_unit.cooldowns[skill_def.skill_id] = cooldown
 
 
+func _ensure_unit_turn_anchor(unit_state: BattleUnitState) -> void:
+	if unit_state == null or unit_state.last_turn_tu >= 0:
+		return
+	unit_state.last_turn_tu = int(_state.timeline.current_tu) if _state != null and _state.timeline != null else 0
+
+
+func _advance_unit_cooldowns(unit_state: BattleUnitState, cooldown_delta: int) -> bool:
+	if unit_state == null or cooldown_delta <= 0:
+		return false
+	var previous_cooldowns: Dictionary = unit_state.cooldowns.duplicate(true)
+	var retained_cooldowns: Dictionary = {}
+	for skill_id_variant in previous_cooldowns.keys():
+		var skill_id := ProgressionDataUtils.to_string_name(skill_id_variant)
+		var previous_remaining := int(previous_cooldowns.get(skill_id_variant, 0))
+		var remaining := maxi(previous_remaining - cooldown_delta, 0)
+		if remaining > 0:
+			retained_cooldowns[skill_id] = remaining
+	unit_state.cooldowns = retained_cooldowns
+	return previous_cooldowns != retained_cooldowns
+
+
+func _consume_turn_cooldown_delta(unit_state: BattleUnitState) -> bool:
+	if unit_state == null:
+		return false
+	var current_tu := int(_state.timeline.current_tu) if _state != null and _state.timeline != null else 0
+	if unit_state.last_turn_tu < 0:
+		unit_state.last_turn_tu = current_tu
+		return false
+	var elapsed_tu := maxi(current_tu - unit_state.last_turn_tu, 0)
+	unit_state.last_turn_tu = current_tu
+	var cooldown_delta := elapsed_tu if elapsed_tu > 0 else 1
+	return _advance_unit_cooldowns(unit_state, cooldown_delta)
+
+
 func _advance_unit_turn_timers(unit_state: BattleUnitState, batch: BattleEventBatch) -> void:
 	if unit_state == null:
 		return
-	var changed := false
-	var retained_cooldowns: Dictionary = {}
-	for skill_id_variant in unit_state.cooldowns.keys():
-		var skill_id := ProgressionDataUtils.to_string_name(skill_id_variant)
-		var previous_remaining := int(unit_state.cooldowns.get(skill_id_variant, 0))
-		var remaining := maxi(previous_remaining - 1, 0)
-		if remaining > 0:
-			retained_cooldowns[skill_id] = remaining
-		if remaining != previous_remaining:
-			changed = true
-	unit_state.cooldowns = retained_cooldowns
+	var changed := _consume_turn_cooldown_delta(unit_state)
 
 	var expired_status_ids: Array[StringName] = []
 	for status_id_variant in unit_state.status_effects.keys():

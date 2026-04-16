@@ -745,14 +745,22 @@
     {
       "id": "PVS_14B",
       "title": "实现 cooldown_tu 的正式递减路径",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "技能施放后会写入 cooldown 状态",
         "TU 推进或回合切换会按统一规则减少 cooldown"
       ],
       "notes": [
         "Owner：CU-15 / CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:48:44+08:00",
+      "lastRunId": "20260417-054844-PVS_14B",
+      "startedAt": "2026-04-17T05:48:44+08:00",
+      "completedAt": "2026-04-17T05:58:16+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`, `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd`, and `godot --headless --script tests/battle_runtime/run_warrior_advanced_skill_regression.gd`.",
+      "lastLearnings": "Cooldown decay is now owned by the CU-15/CU-16 battle runtime/state layer: `BattleUnitState.cooldowns` remains the truth source, and `last_turn_tu` is the durable anchor that lets injected mid-turn states and formal battle ticks share one decrement rule without changing broader runtime ownership. `.ralph/prd.json` was not edited."
     },
     {
       "id": "PVS_14C",

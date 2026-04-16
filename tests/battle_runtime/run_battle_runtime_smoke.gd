@@ -59,6 +59,7 @@ func _run() -> void:
 	_test_archer_multishot_uses_target_unit_ids_in_manual_order()
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
+	_test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch()
 	if _failures.is_empty():
 		print("Battle runtime smoke: PASS")
 		quit(0)
@@ -1339,6 +1340,47 @@ func _test_skill_costs_and_cooldowns_apply_in_runtime() -> void:
 		not second_batch.log_lines.is_empty() and String(second_batch.log_lines[-1]).contains("冷却"),
 		"技能仍在冷却时，再次施放应给出明确提示。"
 	)
+
+
+func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, registry.get_skill_defs(), {}, {})
+
+	var state := _build_skill_test_state(Vector2i(2, 1))
+	state.phase = &"timeline_running"
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 1
+	state.timeline.action_threshold = 10
+	var archer := _build_unit(&"aa_cooldown_turn_user", Vector2i(0, 0), 1)
+	archer.cooldowns = {&"archer_long_draw": 3}
+	archer.last_turn_tu = 0
+	var enemy := _build_enemy_unit(&"zz_cooldown_turn_enemy", Vector2i(1, 0))
+
+	state.units = {
+		archer.unit_id: archer,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [archer.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	_assert_true(runtime._grid_service.place_unit(state, archer, archer.coord, true), "冷却递减回归中的施法者应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "冷却递减回归中的目标应能成功放入战场。")
+	runtime._state = state
+
+	var tu_batch := runtime.advance(1.0)
+	_assert_eq(state.timeline.current_tu, 1, "战斗时间轴推进后 current_tu 应增长 1。")
+	_assert_true(tu_batch.changed_unit_ids.has(archer.unit_id), "TU 推进触发新回合时应记录 cooldown 单位变更。")
+	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 2, "经过 1 TU 后，技能冷却应正式递减 1。")
+	_assert_eq(archer.last_turn_tu, 1, "进入新行动窗口后应记录最新的 turn TU 锚点。")
+
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	state.timeline.ready_unit_ids.clear()
+	state.timeline.ready_unit_ids.append(archer.unit_id)
+	var turn_batch := runtime.advance(0.0)
+	_assert_true(turn_batch.changed_unit_ids.has(archer.unit_id), "零 TU 的队列回合切换也应记录 cooldown 单位变更。")
+	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 1, "零 TU 回合切换应继续按统一规则递减 cooldown。")
+	_assert_eq(archer.last_turn_tu, 1, "零 TU 回合切换不应篡改当前的 timeline TU 锚点。")
 
 
 func _count_explicit_props(state: BattleState) -> Dictionary:
