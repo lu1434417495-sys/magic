@@ -945,14 +945,22 @@
     {
       "id": "PVS_18B",
       "title": "让敌方按评分选择技能并补关键 brain 回归",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "AI 不再只按 action 顺序选技能",
         "AI regression 覆盖 `melee_aggressor` 与 `ranged_controller` 的关键分支"
       ],
       "notes": [
         "Owner：CU-16 / CU-20 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:20:50+08:00",
+      "lastRunId": "20260417-072050-PVS_18B",
+      "startedAt": "2026-04-17T07:20:50+08:00",
+      "completedAt": "2026-04-17T07:28:58+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd` and `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` successfully.",
+      "lastLearnings": "Cross-action AI score comparison needs an explicit per-action score bucket: compare only within the first valid bucket in state order, otherwise support/control priorities get incorrectly overridden by later offensive skills."
     },
     {
       "id": "PVS_19A",

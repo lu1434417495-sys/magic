@@ -35,6 +35,8 @@ func _run() -> void:
 	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
 	_test_ai_ground_skill_generates_legal_command()
 	_test_ai_skill_score_input_exposes_ground_metrics()
+	_test_melee_aggressor_prefers_later_higher_score_skill_action()
+	_test_ranged_controller_prefers_later_higher_score_skill_action()
 	_test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster()
 	_test_ranged_suppressor_skips_stamina_blocked_suppressive_fire()
 	_test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire()
@@ -330,6 +332,192 @@ func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
 	_assert_eq(score_input.position_objective_kind, &"cast_distance", "ground skill score input 应记录默认站位目标类型。")
 	_assert_true(score_input.distance_to_primary_coord >= 0, "ground skill score input 应记录站位目标距离。")
 	_assert_true(score_input.position_objective_score >= 0, "ground skill score input 应暴露站位目标评分。")
+
+
+func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var brain = runtime._enemy_ai_brains.get(&"melee_aggressor")
+	var pressure_state = brain.get_state(&"pressure") if brain != null else null
+	_assert_true(pressure_state != null, "melee_aggressor 应暴露 pressure 状态供评分回归覆盖。")
+	if pressure_state == null:
+		return
+	var lower_score_action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	lower_score_action.action_id = &"wolf_pressure_heavy_strike"
+	var lower_score_skill_ids: Array[StringName] = [&"warrior_heavy_strike"]
+	lower_score_action.skill_ids = lower_score_skill_ids
+	lower_score_action.target_selector = &"nearest_enemy"
+	lower_score_action.score_bucket_id = &"wolf_pressure_offense"
+	var higher_score_action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	higher_score_action.action_id = &"wolf_pressure_execution"
+	var higher_score_skill_ids: Array[StringName] = [&"warrior_execution_cleave"]
+	higher_score_action.skill_ids = higher_score_skill_ids
+	higher_score_action.target_selector = &"nearest_enemy"
+	higher_score_action.score_bucket_id = &"wolf_pressure_offense"
+	pressure_state.actions = [lower_score_action, higher_score_action]
+
+	var state = _build_flat_state(Vector2i(5, 3))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"wolf_score_melee",
+		"荒狼评分手",
+		&"hostile",
+		Vector2i(1, 1),
+		&"melee_aggressor",
+		&"pressure",
+		[&"warrior_heavy_strike", &"warrior_execution_cleave"],
+		26,
+		2
+	)
+	var player = _build_manual_unit(&"low_hp_target", "残血玩家", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
+	player.current_hp = 5
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+
+	var heavy_skill_def = runtime._skill_defs.get(&"warrior_heavy_strike")
+	var heavy_command = BATTLE_COMMAND_SCRIPT.new()
+	heavy_command.command_type = heavy_command.TYPE_SKILL
+	heavy_command.unit_id = wolf.unit_id
+	heavy_command.skill_id = &"warrior_heavy_strike"
+	heavy_command.target_unit_id = player.unit_id
+	heavy_command.target_coord = player.coord
+	var heavy_preview = runtime.preview_command(heavy_command)
+	var heavy_score = ai_context.build_skill_score_input(
+		heavy_skill_def,
+		heavy_command,
+		heavy_preview,
+		heavy_skill_def.combat_profile.effect_defs if heavy_skill_def != null and heavy_skill_def.combat_profile != null else [],
+		{"position_target_unit": player}
+	)
+
+	var execute_skill_def = runtime._skill_defs.get(&"warrior_execution_cleave")
+	var execute_command = BATTLE_COMMAND_SCRIPT.new()
+	execute_command.command_type = execute_command.TYPE_SKILL
+	execute_command.unit_id = wolf.unit_id
+	execute_command.skill_id = &"warrior_execution_cleave"
+	execute_command.target_unit_id = player.unit_id
+	execute_command.target_coord = player.coord
+	var execute_preview = runtime.preview_command(execute_command)
+	var execute_score = ai_context.build_skill_score_input(
+		execute_skill_def,
+		execute_command,
+		execute_preview,
+		execute_skill_def.combat_profile.effect_defs if execute_skill_def != null and execute_skill_def.combat_profile != null else [],
+		{"position_target_unit": player}
+	)
+	_assert_true(heavy_score != null and execute_score != null, "melee_aggressor 评分回归应拿到两个合法技能候选的评分。")
+	if heavy_score == null or execute_score == null:
+		return
+	_assert_true(
+		execute_score.total_score > heavy_score.total_score,
+		"残血目标场景下，warrior_execution_cleave 的评分应高于 warrior_heavy_strike。"
+	)
+
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.state_id == &"pressure", "melee_aggressor 评分选技回归应保持 pressure 状态。")
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"warrior_execution_cleave",
+		"melee_aggressor 不应再只按 action 顺序选择先声明的 warrior_heavy_strike。"
+	)
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"wolf_pressure_execution",
+		"melee_aggressor 应能选中后声明但评分更高的技能 action。"
+	)
+
+
+func _test_ranged_controller_prefers_later_higher_score_skill_action() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var brain = runtime._enemy_ai_brains.get(&"ranged_controller")
+	var pressure_state = brain.get_state(&"pressure") if brain != null else null
+	_assert_true(pressure_state != null, "ranged_controller 应暴露 pressure 状态供评分回归覆盖。")
+	if pressure_state == null:
+		return
+	var lower_score_action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	lower_score_action.action_id = &"mist_pressure_fireball"
+	var lower_score_ground_skill_ids: Array[StringName] = [&"mage_fireball"]
+	lower_score_action.skill_ids = lower_score_ground_skill_ids
+	lower_score_action.minimum_hit_count = 1
+	lower_score_action.score_bucket_id = &"mist_pressure_offense"
+	var higher_score_action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	higher_score_action.action_id = &"mist_pressure_ice_lance"
+	var higher_score_unit_skill_ids: Array[StringName] = [&"mage_ice_lance"]
+	higher_score_action.skill_ids = higher_score_unit_skill_ids
+	higher_score_action.target_selector = &"lowest_hp_enemy"
+	higher_score_action.score_bucket_id = &"mist_pressure_offense"
+	pressure_state.actions = [lower_score_action, higher_score_action]
+
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var mist = _build_ai_unit(
+		&"mist_score_caster",
+		"雾沼评分术士",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_controller",
+		&"pressure",
+		[&"mage_fireball", &"mage_ice_lance"],
+		24,
+		2
+	)
+	var player = _build_manual_unit(&"single_target", "单体目标", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, mist, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, mist)
+
+	var fireball_skill_def = runtime._skill_defs.get(&"mage_fireball")
+	var fireball_command = BATTLE_COMMAND_SCRIPT.new()
+	fireball_command.command_type = fireball_command.TYPE_SKILL
+	fireball_command.unit_id = mist.unit_id
+	fireball_command.skill_id = &"mage_fireball"
+	fireball_command.target_coord = player.coord
+	var fireball_target_coords: Array[Vector2i] = [player.coord]
+	fireball_command.target_coords = fireball_target_coords
+	var fireball_preview = runtime.preview_command(fireball_command)
+	var fireball_score = ai_context.build_skill_score_input(
+		fireball_skill_def,
+		fireball_command,
+		fireball_preview,
+		fireball_skill_def.combat_profile.effect_defs if fireball_skill_def != null and fireball_skill_def.combat_profile != null else [],
+		{}
+	)
+
+	var ice_lance_skill_def = runtime._skill_defs.get(&"mage_ice_lance")
+	var ice_lance_command = BATTLE_COMMAND_SCRIPT.new()
+	ice_lance_command.command_type = ice_lance_command.TYPE_SKILL
+	ice_lance_command.unit_id = mist.unit_id
+	ice_lance_command.skill_id = &"mage_ice_lance"
+	ice_lance_command.target_unit_id = player.unit_id
+	ice_lance_command.target_coord = player.coord
+	var ice_lance_preview = runtime.preview_command(ice_lance_command)
+	var ice_lance_score = ai_context.build_skill_score_input(
+		ice_lance_skill_def,
+		ice_lance_command,
+		ice_lance_preview,
+		ice_lance_skill_def.combat_profile.effect_defs if ice_lance_skill_def != null and ice_lance_skill_def.combat_profile != null else [],
+		{"position_target_unit": player}
+	)
+	_assert_true(fireball_score != null and ice_lance_score != null, "ranged_controller 评分回归应拿到两个合法技能候选的评分。")
+	if fireball_score == null or ice_lance_score == null:
+		return
+	_assert_true(
+		ice_lance_score.total_score > fireball_score.total_score,
+		"单体目标场景下，mage_ice_lance 的评分应高于 mage_fireball。"
+	)
+
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.state_id == &"pressure", "ranged_controller 评分选技回归应保持 pressure 状态。")
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"mage_ice_lance",
+		"ranged_controller 不应再只按 action 顺序优先选到先声明的 mage_fireball。"
+	)
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"mist_pressure_ice_lance",
+		"ranged_controller 应能选中后声明但评分更高的技能 action。"
+	)
 
 
 func _test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster() -> void:

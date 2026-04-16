@@ -201,3 +201,7 @@ Extended `tests/battle_runtime/run_battle_skill_protocol_regression.gd` with a r
 ## 2026-04-17T07:20:49+08:00 | PVS_18A | done
 title: 建立 AI 技能评分上下文
 Added `BattleAiScoreInput` and `BattleAiScoreService` as the formal CU-16 score-input owner, wired `BattleAiContext`/`BattleAiService`/`BattleRuntimeModule` to expose shared score packets, switched unit and ground skill AI actions to compare candidates through that shared scoring path, extended `run_battle_runtime_ai_regression.gd`, and updated `docs/design/project_context_units.md` for the new ownership surface.
+
+## 2026-04-17T07:28:58+08:00 | PVS_18B | done
+title: 让敌方按评分选择技能并补关键 brain 回归
+Implemented bucketed AI skill scoring selection in `BattleAiService`/`BattleAiDecision`, attached score metadata from unit/ground/charge skill actions, tagged `ranged_controller`/`ranged_suppressor` competitive skill buckets in `enemy_content_registry`, and added focused AI regressions proving later higher-score skill actions win for `melee_aggressor` and `ranged_controller`. `docs/design/project_context_units.md` stayed valid as-is.

@@ -39,8 +39,9 @@ func decide(context):
 			if not _is_better_skill_score_input(score_input, best_score_input):
 				continue
 			best_score_input = score_input
-			best_decision = _create_decision(
+			best_decision = _create_scored_decision(
 				command,
+				score_input,
 				"%s 选择对 %s 使用 %s（评分 %d）。" % [
 					context.unit_state.display_name,
 					target_unit.display_name,

@@ -115,26 +115,26 @@ func _build_ranged_controller_brain() -> EnemyAiBrainDef:
 	brain.pressure_distance = 4
 	brain.states = {
 		&"engage": _build_state(&"engage", [
-			_build_ground_skill_action(&"mist_aoe", [&"mage_fireball"], 2),
-			_build_unit_skill_action(&"mist_ranged_single", [&"mage_ice_lance"], &"lowest_hp_enemy"),
+			_build_ground_skill_action(&"mist_aoe", [&"mage_fireball"], 2, &"mist_offense"),
+			_build_unit_skill_action(&"mist_ranged_single", [&"mage_ice_lance"], &"lowest_hp_enemy", &"mist_offense"),
 			_build_move_to_range_action(&"mist_keep_range", &"nearest_enemy", 3, 4),
 			_build_wait_action(&"mist_wait"),
 		]),
 		&"pressure": _build_state(&"pressure", [
-			_build_ground_skill_action(&"mist_aoe", [&"mage_fireball"], 2),
-			_build_unit_skill_action(&"mist_ranged_single", [&"mage_ice_lance"], &"lowest_hp_enemy"),
+			_build_ground_skill_action(&"mist_aoe", [&"mage_fireball"], 2, &"mist_offense"),
+			_build_unit_skill_action(&"mist_ranged_single", [&"mage_ice_lance"], &"lowest_hp_enemy", &"mist_offense"),
 			_build_move_to_range_action(&"mist_keep_range", &"nearest_enemy", 3, 4),
 			_build_wait_action(&"mist_wait"),
 		]),
 		&"support": _build_state(&"support", [
-			_build_unit_skill_action(&"mist_support", [&"mage_temporal_rewind"], &"lowest_hp_ally"),
-			_build_ground_skill_action(&"mist_aoe", [&"mage_fireball"], 1),
-			_build_unit_skill_action(&"mist_ranged_single", [&"mage_ice_lance"], &"lowest_hp_enemy"),
+			_build_unit_skill_action(&"mist_support", [&"mage_temporal_rewind"], &"lowest_hp_ally", &"mist_support"),
+			_build_ground_skill_action(&"mist_aoe", [&"mage_fireball"], 1, &"mist_offense"),
+			_build_unit_skill_action(&"mist_ranged_single", [&"mage_ice_lance"], &"lowest_hp_enemy", &"mist_offense"),
 			_build_wait_action(&"mist_wait"),
 		]),
 		&"retreat": _build_state(&"retreat", [
 			_build_retreat_action(&"mist_retreat", 4),
-			_build_unit_skill_action(&"mist_support", [&"mage_temporal_rewind"], &"lowest_hp_ally"),
+			_build_unit_skill_action(&"mist_support", [&"mage_temporal_rewind"], &"lowest_hp_ally", &"mist_support"),
 			_build_wait_action(&"mist_wait"),
 		]),
 	}
@@ -149,14 +149,14 @@ func _build_ranged_suppressor_brain() -> EnemyAiBrainDef:
 	brain.pressure_distance = 4
 	brain.states = {
 		&"engage": _build_state(&"engage", [
-			_build_ground_skill_action(&"harrier_suppress_lane", [&"archer_suppressive_fire"], 2),
-			_build_unit_skill_action(&"harrier_pin_target", [&"archer_pinning_shot"], &"lowest_hp_enemy"),
+			_build_ground_skill_action(&"harrier_suppress_lane", [&"archer_suppressive_fire"], 2, &"harrier_pressure"),
+			_build_unit_skill_action(&"harrier_pin_target", [&"archer_pinning_shot"], &"lowest_hp_enemy", &"harrier_pressure"),
 			_build_move_to_range_action(&"harrier_take_cover", &"nearest_enemy", 4, 5),
 			_build_wait_action(&"harrier_wait"),
 		]),
 		&"pressure": _build_state(&"pressure", [
-			_build_ground_skill_action(&"harrier_suppress_lane", [&"archer_suppressive_fire"], 2),
-			_build_unit_skill_action(&"harrier_pin_target", [&"archer_pinning_shot"], &"lowest_hp_enemy"),
+			_build_ground_skill_action(&"harrier_suppress_lane", [&"archer_suppressive_fire"], 2, &"harrier_pressure"),
+			_build_unit_skill_action(&"harrier_pin_target", [&"archer_pinning_shot"], &"lowest_hp_enemy", &"harrier_pressure"),
 			_build_move_to_range_action(&"harrier_keep_range", &"nearest_enemy", 4, 5),
 			_build_wait_action(&"harrier_wait"),
 		]),
@@ -509,19 +509,31 @@ func _build_state(state_id: StringName, actions: Array) -> EnemyAiStateDef:
 	return state
 
 
-func _build_unit_skill_action(action_id: StringName, skill_ids: Array[StringName], target_selector: StringName):
+func _build_unit_skill_action(
+	action_id: StringName,
+	skill_ids: Array[StringName],
+	target_selector: StringName,
+	score_bucket_id: StringName = &""
+):
 	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
 	action.action_id = action_id
 	action.skill_ids = skill_ids.duplicate()
 	action.target_selector = target_selector
+	action.score_bucket_id = score_bucket_id
 	return action
 
 
-func _build_ground_skill_action(action_id: StringName, skill_ids: Array[StringName], minimum_hit_count: int):
+func _build_ground_skill_action(
+	action_id: StringName,
+	skill_ids: Array[StringName],
+	minimum_hit_count: int,
+	score_bucket_id: StringName = &""
+):
 	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
 	action.action_id = action_id
 	action.skill_ids = skill_ids.duplicate()
 	action.minimum_hit_count = minimum_hit_count
+	action.score_bucket_id = score_bucket_id
 	return action
 
 

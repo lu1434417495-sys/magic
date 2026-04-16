@@ -16,7 +16,8 @@ func decide(context):
 		return null
 	var focus_target = targets[0] as BattleUnitState
 	var best_decision = null
-	var best_score = -999999
+	var best_score_input = null
+	var best_fallback_score = -999999
 	for cast_variant in _get_ground_variants(context, skill_def):
 		if cast_variant == null or not _is_charge_variant(cast_variant):
 			continue
@@ -32,10 +33,37 @@ func decide(context):
 					continue
 				var predicted_anchor: Vector2i = charge_info.get("predicted_anchor", context.unit_state.coord)
 				var predicted_distance = _distance_from_anchor_to_unit(context, context.unit_state, predicted_anchor, focus_target)
-				var total_score = 1000 - predicted_distance * 100 + int(charge_info.get("distance", 0))
-				if total_score <= best_score:
+				var score_input = _build_skill_score_input(
+					context,
+					skill_def,
+					command,
+					preview,
+					cast_variant.effect_defs,
+					{
+						"position_target_unit": focus_target,
+						"position_anchor_coord": predicted_anchor,
+						"desired_min_distance": 1,
+						"desired_max_distance": 1,
+					}
+				)
+				if score_input != null:
+					if not _is_better_skill_score_input(score_input, best_score_input):
+						continue
+					best_score_input = score_input
+					best_decision = _create_scored_decision(
+						command,
+						score_input,
+						"%s 准备用冲锋逼近 %s（评分 %d）。" % [
+							context.unit_state.display_name,
+							focus_target.display_name,
+							int(score_input.total_score),
+						]
+					)
 					continue
-				best_score = total_score
+				var fallback_score = 1000 - predicted_distance * 100 + int(charge_info.get("distance", 0))
+				if fallback_score <= best_fallback_score:
+					continue
+				best_fallback_score = fallback_score
 				best_decision = _create_decision(
 					command,
 					"%s 准备用冲锋逼近 %s。" % [context.unit_state.display_name, focus_target.display_name]

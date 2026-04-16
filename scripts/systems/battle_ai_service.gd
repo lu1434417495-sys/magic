@@ -60,18 +60,38 @@ func choose_command(context) -> BattleAiDecision:
 		_commit_decision(unit_state, missing_state_decision)
 		return missing_state_decision
 
-	for action in state_def.get_actions():
+	var active_score_bucket: StringName = &""
+	var best_bucket_decision: BattleAiDecision = null
+	var best_bucket_action_index := 999999
+	var fallback_decision: BattleAiDecision = null
+	var actions = state_def.get_actions()
+	for action_index in range(actions.size()):
+		var action = actions[action_index]
 		if action == null or not action.has_method("decide"):
 			continue
 		var decision = action.decide(context) as BattleAiDecision
 		if decision == null or decision.command == null:
 			continue
-		decision.brain_id = brain.brain_id
-		decision.state_id = next_state_id
-		if decision.action_id == &"":
-			decision.action_id = &"anonymous_action"
-		_commit_decision(unit_state, decision)
-		return decision
+		_prepare_decision(decision, brain.brain_id, next_state_id)
+		var decision_bucket_id: StringName = decision.score_bucket_id
+		if decision.skill_score_input != null and decision_bucket_id != &"":
+			if active_score_bucket == &"":
+				active_score_bucket = decision_bucket_id
+			elif decision_bucket_id != active_score_bucket:
+				break
+			if _should_replace_skill_decision(decision, action_index, best_bucket_decision, best_bucket_action_index):
+				best_bucket_decision = decision
+				best_bucket_action_index = action_index
+			continue
+		if active_score_bucket != &"":
+			break
+		if fallback_decision == null:
+			fallback_decision = decision
+
+	var resolved_decision := best_bucket_decision if best_bucket_decision != null else fallback_decision
+	if resolved_decision != null:
+		_commit_decision(unit_state, resolved_decision)
+		return resolved_decision
 
 	var wait_decision = _build_wait_decision(
 		context,
@@ -86,6 +106,50 @@ func choose_command(context) -> BattleAiDecision:
 
 func build_skill_score_input(context, skill_def: SkillDef, command, preview, effect_defs: Array = [], metadata: Dictionary = {}):
 	return _score_service.build_skill_score_input(context, skill_def, command, preview, effect_defs, metadata)
+
+
+func _prepare_decision(decision: BattleAiDecision, brain_id: StringName, state_id: StringName) -> void:
+	if decision == null:
+		return
+	decision.brain_id = brain_id
+	decision.state_id = state_id
+	if decision.action_id == &"":
+		decision.action_id = &"anonymous_action"
+
+
+func _should_replace_skill_decision(
+	candidate: BattleAiDecision,
+	candidate_action_index: int,
+	best_candidate: BattleAiDecision,
+	best_action_index: int
+) -> bool:
+	if candidate == null or candidate.skill_score_input == null:
+		return false
+	if best_candidate == null or best_candidate.skill_score_input == null:
+		return true
+	var candidate_score = candidate.skill_score_input
+	var best_score = best_candidate.skill_score_input
+	if _is_better_skill_score_input(candidate_score, best_score):
+		return true
+	if _is_better_skill_score_input(best_score, candidate_score):
+		return false
+	return candidate_action_index < best_action_index
+
+
+func _is_better_skill_score_input(candidate, best_candidate) -> bool:
+	if candidate == null:
+		return false
+	if best_candidate == null:
+		return true
+	if int(candidate.total_score) != int(best_candidate.total_score):
+		return int(candidate.total_score) > int(best_candidate.total_score)
+	if int(candidate.hit_payoff_score) != int(best_candidate.hit_payoff_score):
+		return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
+	if int(candidate.target_count) != int(best_candidate.target_count):
+		return int(candidate.target_count) > int(best_candidate.target_count)
+	if int(candidate.position_objective_score) != int(best_candidate.position_objective_score):
+		return int(candidate.position_objective_score) > int(best_candidate.position_objective_score)
+	return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
 
 
 func _resolve_brain(brain_id: StringName):

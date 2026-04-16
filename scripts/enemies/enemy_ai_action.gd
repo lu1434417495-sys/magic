@@ -11,6 +11,7 @@ const CombatCastVariantDef = preload("res://scripts/player/progression/combat_ca
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
 var action_id: StringName = &""
+var score_bucket_id: StringName = &""
 
 
 func decide(_context):
@@ -22,6 +23,13 @@ func _create_decision(command, reason_text: String = "") -> BattleAiDecision:
 	decision.command = command
 	decision.action_id = action_id
 	decision.reason_text = reason_text
+	decision.score_bucket_id = score_bucket_id
+	return decision
+
+
+func _create_scored_decision(command, score_input, reason_text: String = "") -> BattleAiDecision:
+	var decision = _create_decision(command, reason_text)
+	decision.skill_score_input = score_input
 	return decision
 
 
