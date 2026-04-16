@@ -30,6 +30,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_timed_terrain_processing_accepts_dictionary_keys()
 	_test_start_battle_accepts_explicit_narrow_assault_profile()
+	_test_start_battle_accepts_explicit_holdout_push_profile()
 	_test_evaluate_move_rules_survive_stacked_columns()
 	_test_move_command_executes_normally_on_stacked_columns()
 	_test_runtime_reports_multistep_reachable_move_coords()
@@ -169,6 +170,88 @@ func _test_start_battle_accepts_explicit_narrow_assault_profile() -> void:
 	_assert_true(
 		_count_terrain_cells(state, BattleCellState.TERRAIN_SPIKE) >= 1,
 		"narrow_assault 入口生成的 battle state 应保留突破口后的 spike kill-zone。"
+	)
+
+
+func _test_start_battle_accepts_explicit_holdout_push_profile() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, registry.get_skill_defs(), {}, {})
+
+	var encounter_anchor := EncounterAnchorData.new()
+	encounter_anchor.entity_id = &"holdout_push_smoke"
+	encounter_anchor.display_name = "守点推进测试"
+	encounter_anchor.world_coord = Vector2i(12, 6)
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.region_tag = &"default"
+
+	var ally_a := _build_unit(&"holdout_push_ally_a", Vector2i.ZERO, 3)
+	var ally_b := _build_unit(&"holdout_push_ally_b", Vector2i.ZERO, 3)
+	var state := runtime.start_battle(
+		encounter_anchor,
+		20260417,
+		{
+			"battle_terrain_profile": "holdout_push",
+			"battle_map_size": Vector2i(19, 11),
+			"battle_party": [ally_a.to_dict(), ally_b.to_dict()],
+			"enemy_unit_count": 2,
+		}
+	)
+	_assert_true(state != null and not state.is_empty(), "BattleRuntimeModule.start_battle() 应能显式启动 holdout_push 地形。")
+	if state == null or state.is_empty():
+		return
+
+	_assert_eq(String(state.terrain_profile_id), "holdout_push", "显式 battle_terrain_profile 应进入正式 holdout_push battle state。")
+	_assert_eq(state.map_size, Vector2i(19, 11), "显式 holdout_push 入口应保留请求的 battle_map_size。")
+	_assert_eq(state.ally_unit_ids.size(), 2, "显式 holdout_push 入口应保留传入的 ally battle party。")
+	_assert_eq(state.enemy_unit_ids.size(), 2, "显式 holdout_push 入口应构建请求数量的敌方单位。")
+
+	var objective_coords := _collect_explicit_prop_coords(state, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER)
+	_assert_eq(objective_coords.size(), 1, "holdout_push 入口生成的 battle state 应保留唯一守点目标。")
+	if objective_coords.size() != 1:
+		return
+	var objective_coord := objective_coords[0]
+	_assert_true(objective_coord.x > int(state.map_size.x / 2), "holdout_push 的守点目标应位于战场右侧 holdout。")
+
+	var ally_height_total := 0
+	var enemy_height_total := 0
+	for ally_unit_id in state.ally_unit_ids:
+		var ally_unit := state.units.get(ally_unit_id) as BattleUnitState
+		_assert_true(ally_unit != null, "holdout_push 入口构建后，友军单位应可从 state.units 读取。")
+		if ally_unit == null:
+			continue
+		ally_height_total += _get_unit_anchor_height(state, ally_unit)
+		_assert_true(ally_unit.coord.x < objective_coord.x, "holdout_push 入口应把友军部署在守点目标之前的推进侧。")
+	for enemy_unit_id in state.enemy_unit_ids:
+		var enemy_unit := state.units.get(enemy_unit_id) as BattleUnitState
+		_assert_true(enemy_unit != null, "holdout_push 入口构建后，敌军单位应可从 state.units 读取。")
+		if enemy_unit == null:
+			continue
+		enemy_height_total += _get_unit_anchor_height(state, enemy_unit)
+		_assert_true(enemy_unit.coord.x >= objective_coord.x - 1, "holdout_push 入口应把敌军部署在守点目标附近的防守侧。")
+	_assert_true(
+		enemy_height_total >= ally_height_total + state.enemy_unit_ids.size(),
+		"holdout_push 入口应让守军整体站在比推进方更高的 holdout 高地。"
+	)
+
+	var explicit_prop_counts := _count_explicit_props(state)
+	_assert_eq(
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TENT, 0)),
+		2,
+		"holdout_push 入口生成的 battle state 应保留双方 tent。"
+	)
+	_assert_eq(
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TORCH, 0)),
+		2,
+		"holdout_push 入口生成的 battle state 应保留双方 torch。"
+	)
+	_assert_true(
+		_count_terrain_cells(state, BattleCellState.TERRAIN_MUD) >= 2,
+		"holdout_push 入口生成的 battle state 应保留推进侧泥地减速带。"
+	)
+	_assert_true(
+		_count_terrain_cells(state, BattleCellState.TERRAIN_SPIKE) >= 2,
+		"holdout_push 入口生成的 battle state 应保留守点正面的 spike barricade 区域。"
 	)
 
 
@@ -1130,6 +1213,21 @@ func _count_explicit_props(state: BattleState) -> Dictionary:
 	return counts
 
 
+func _collect_explicit_prop_coords(state: BattleState, prop_id: StringName) -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	if state == null:
+		return coords
+	for coord_variant in state.cells.keys():
+		if coord_variant is not Vector2i:
+			continue
+		var coord: Vector2i = coord_variant
+		var cell := state.cells.get(coord) as BattleCellState
+		if cell == null or not cell.prop_ids.has(prop_id):
+			continue
+		coords.append(coord)
+	return coords
+
+
 func _count_terrain_cells(state: BattleState, terrain_id: StringName) -> int:
 	if state == null:
 		return 0
@@ -1141,6 +1239,15 @@ func _count_terrain_cells(state: BattleState, terrain_id: StringName) -> int:
 		if cell.base_terrain == terrain_id:
 			count += 1
 	return count
+
+
+func _get_unit_anchor_height(state: BattleState, unit: BattleUnitState) -> int:
+	if state == null or unit == null:
+		return 0
+	var cell := state.cells.get(unit.coord) as BattleCellState
+	if cell == null:
+		return 0
+	return int(cell.current_height)
 
 
 func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> BattleUnitState:

@@ -64,6 +64,8 @@ func _run() -> void:
 	await _test_canyon_generation_contains_connected_water()
 	await _test_narrow_assault_generation_builds_breakthrough_lane()
 	await _test_narrow_assault_board_contracts()
+	await _test_holdout_push_generation_builds_defender_holdout()
+	await _test_holdout_push_board_contracts()
 	await _test_default_generation_respects_global_min_height()
 	await _test_default_water_height_normalization_is_component_local()
 	await _test_battle_board_contracts()
@@ -238,6 +240,96 @@ func _test_narrow_assault_generation_builds_breakthrough_lane() -> void:
 
 func _test_narrow_assault_board_contracts() -> void:
 	var layout := _build_narrow_assault_layout(TEST_SEED)
+	var board := await _instantiate_board(_build_state(layout))
+	_assert_prop_and_unit_sorting(board)
+
+
+func _test_holdout_push_generation_builds_defender_holdout() -> void:
+	var first_layout := _build_holdout_push_layout(TEST_SEED)
+	var second_layout := _build_holdout_push_layout(TEST_SEED)
+	_assert_true(
+		_capture_layout_signature(first_layout) == _capture_layout_signature(second_layout),
+		"同 seed 的 holdout_push 生成结果应保持稳定。"
+	)
+	_assert_eq(
+		String(first_layout.get("terrain_profile_id", "")),
+		"holdout_push",
+		"holdout_push 地图应回写正式 terrain_profile_id。"
+	)
+	var line_info := _find_holdout_push_line_info(first_layout)
+	_assert_true(not line_info.is_empty(), "holdout_push 地图应形成带 wall opening 的防守线。")
+	if line_info.is_empty():
+		return
+
+	var map_size: Vector2i = first_layout.get("map_size", Vector2i.ZERO)
+	var hold_line_x := int(line_info.get("hold_line_x", -1))
+	var opening_count := int(line_info.get("opening_count", 0))
+	var wall_count := int(line_info.get("wall_count", 0))
+	var player_coord: Vector2i = first_layout.get("player_coord", Vector2i.ZERO)
+	var enemy_coord: Vector2i = first_layout.get("enemy_coord", Vector2i.ZERO)
+	var cells: Dictionary = first_layout.get("cells", {})
+	var player_cell := cells.get(player_coord) as BattleCellState
+	var enemy_cell := cells.get(enemy_coord) as BattleCellState
+	_assert_true(hold_line_x >= int(map_size.x * 0.55), "holdout_push 的防守线应落在战场右半区，体现守点纵深。")
+	_assert_true(wall_count >= 2, "holdout_push 的防守线应至少包含两段 wall。")
+	_assert_true(opening_count >= 1 and opening_count <= 2, "holdout_push 的防守线 opening 应保持 1-2 处，形成可预判的推进入口。")
+	_assert_true(player_coord.x < hold_line_x and enemy_coord.x > hold_line_x, "holdout_push 的出生点应分列防守线两侧。")
+	_assert_true(
+		int(line_info.get("left_reachable_count", 0)) > int(line_info.get("right_reachable_count", 0)),
+		"holdout_push 的推进侧应比守点侧拥有更大的机动展开空间。"
+	)
+	_assert_true(
+		player_cell != null and enemy_cell != null and int(enemy_cell.current_height) >= int(player_cell.current_height) + 1,
+		"holdout_push 的守点出生位应至少高出推进方一层。"
+	)
+
+	var objective_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER)
+	_assert_eq(objective_coords.size(), 1, "holdout_push 地图应恰好生成一个守点目标。")
+	if objective_coords.size() == 1:
+		_assert_true(objective_coords[0].x > hold_line_x, "holdout_push 的目标点应落在防守线之后的 holdout 内部。")
+
+	_assert_true(
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_MUD, hold_line_x - 2, hold_line_x - 1) >= 2,
+		"holdout_push 的推进侧在防线前应保留泥地减速带。"
+	)
+	_assert_true(
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_SPIKE, hold_line_x + 1, hold_line_x + 1) >= 2,
+		"holdout_push 的守点正面应布置 spike barricade 区域。"
+	)
+
+	var ally_spawns := _extract_layout_coords(first_layout.get("ally_spawns", []))
+	var enemy_spawns := _extract_layout_coords(first_layout.get("enemy_spawns", []))
+	_assert_true(ally_spawns.size() >= 2, "holdout_push 的 ally_spawns 应至少保留起点外的额外推进站位。")
+	_assert_true(enemy_spawns.size() >= 2, "holdout_push 的 enemy_spawns 应至少保留起点外的额外守点站位。")
+	for coord in ally_spawns:
+		_assert_true(coord.x < hold_line_x, "holdout_push 的 ally_spawns 应全部落在推进侧。")
+	for coord in enemy_spawns:
+		_assert_true(coord.x > hold_line_x, "holdout_push 的 enemy_spawns 应全部落在守点侧。")
+
+	var tent_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TENT)
+	var torch_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TORCH)
+	_assert_eq(tent_coords.size(), 2, "holdout_push 地图应显式放置双方 tent。")
+	_assert_eq(torch_coords.size(), 2, "holdout_push 地图应显式放置双方 torch。")
+	_assert_eq(_count_coords_on_or_left_of_x(tent_coords, hold_line_x), 1, "holdout_push 的 tent 应在推进侧保留一处集结营地。")
+	_assert_eq(_count_coords_strictly_right_of_x(tent_coords, hold_line_x), 1, "holdout_push 的 tent 应在守点侧保留一处固守营地。")
+	_assert_eq(_count_coords_on_or_left_of_x(torch_coords, hold_line_x), 1, "holdout_push 的 torch 应在推进侧保留一处灯火。")
+	_assert_eq(_count_coords_strictly_right_of_x(torch_coords, hold_line_x), 1, "holdout_push 的 torch 应在守点侧保留一处灯火。")
+	var explicit_prop_coords: Array[Vector2i] = []
+	explicit_prop_coords.append_array(objective_coords)
+	explicit_prop_coords.append_array(tent_coords)
+	explicit_prop_coords.append_array(torch_coords)
+	for coord in explicit_prop_coords:
+		var cell := first_layout.get("cells", {}).get(coord) as BattleCellState
+		_assert_true(cell != null and cell.passable, "holdout_push 的显式 prop 必须放在可通行地格上：%s" % str(coord))
+		_assert_true(
+			not ally_spawns.has(coord) and not enemy_spawns.has(coord),
+			"holdout_push 的显式 prop 不应覆盖部署位：%s" % str(coord)
+		)
+	_assert_layout_uses_supported_props(first_layout)
+
+
+func _test_holdout_push_board_contracts() -> void:
+	var layout := _build_holdout_push_layout(TEST_SEED)
 	var board := await _instantiate_board(_build_state(layout))
 	_assert_prop_and_unit_sorting(board)
 
@@ -817,6 +909,22 @@ func _build_narrow_assault_layout(seed: int) -> Dictionary:
 		"world_coord": TEST_WORLD_COORD,
 		"world_seed": seed,
 		"battle_terrain_profile": "narrow_assault",
+		"battle_map_size": TEST_MAP_SIZE,
+	})
+
+
+func _build_holdout_push_layout(seed: int) -> Dictionary:
+	var generator := BattleTerrainGenerator.new()
+	return generator.generate({
+		"monster": {
+			"entity_id": "battle_board_holdout_push_test",
+			"display_name": "守点推进测试",
+			"faction_id": "hostile",
+			"region_tag": "holdout_push",
+		},
+		"world_coord": TEST_WORLD_COORD,
+		"world_seed": seed,
+		"battle_terrain_profile": "holdout_push",
 		"battle_map_size": TEST_MAP_SIZE,
 	})
 
@@ -1450,6 +1558,46 @@ func _find_narrow_assault_gate_info(layout: Dictionary) -> Dictionary:
 	return best_info
 
 
+func _find_holdout_push_line_info(layout: Dictionary) -> Dictionary:
+	var cells: Dictionary = layout.get("cells", {})
+	var map_size: Vector2i = layout.get("map_size", Vector2i.ZERO)
+	if cells.is_empty() or map_size == Vector2i.ZERO:
+		return {}
+	var cell_columns_variant: Variant = layout.get("cell_columns", {})
+	var cell_columns: Dictionary = cell_columns_variant if cell_columns_variant is Dictionary else BattleCellState.build_columns_from_surface_cells(cells)
+	var edge_faces := _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
+	var player_coord: Vector2i = layout.get("player_coord", Vector2i.ZERO)
+	var enemy_coord: Vector2i = layout.get("enemy_coord", Vector2i.ZERO)
+	var min_x := mini(player_coord.x, enemy_coord.x)
+	var max_x := maxi(player_coord.x, enemy_coord.x) - 1
+	var best_info := {}
+	var best_score := -999999
+
+	for hold_line_x in range(min_x, max_x + 1):
+		var wall_count := _count_blocking_wall_segments_for_seam(cells, map_size, hold_line_x)
+		if wall_count <= 0:
+			continue
+		var opening_count := _count_traversable_openings_for_seam(cells, map_size, edge_faces, hold_line_x)
+		if opening_count <= 0:
+			continue
+		var left_reachable_count := _count_side_reachable_cells(cells, map_size, edge_faces, player_coord, 0, hold_line_x)
+		var right_reachable_count := _count_side_reachable_cells(cells, map_size, edge_faces, enemy_coord, hold_line_x + 1, map_size.x - 1)
+		if left_reachable_count <= 0 or right_reachable_count <= 0:
+			continue
+
+		var score := wall_count * 120 - opening_count * 35 - absi(hold_line_x - int(round(float(map_size.x) * 0.62))) * 12
+		if score > best_score:
+			best_score = score
+			best_info = {
+				"hold_line_x": hold_line_x,
+				"wall_count": wall_count,
+				"opening_count": opening_count,
+				"left_reachable_count": left_reachable_count,
+				"right_reachable_count": right_reachable_count,
+			}
+	return best_info
+
+
 func _count_traversable_openings_for_seam(
 	cells: Dictionary,
 	map_size: Vector2i,
@@ -1461,6 +1609,17 @@ func _count_traversable_openings_for_seam(
 		if _is_layout_edge_traversable(cells, edge_faces, Vector2i(gate_x, y), Vector2i(gate_x + 1, y)):
 			opening_count += 1
 	return opening_count
+
+
+func _count_blocking_wall_segments_for_seam(cells: Dictionary, map_size: Vector2i, seam_x: int) -> int:
+	var wall_count := 0
+	for y in range(map_size.y):
+		var cell := cells.get(Vector2i(seam_x, y)) as BattleCellState
+		if cell == null:
+			continue
+		if cell.edge_feature_east != null and cell.edge_feature_east.blocks_occupancy:
+			wall_count += 1
+	return wall_count
 
 
 func _count_side_reachable_cells(

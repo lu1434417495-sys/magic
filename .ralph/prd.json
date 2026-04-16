@@ -605,14 +605,22 @@
     {
       "id": "PVS_11A",
       "title": "实现 `holdout_push` 地形 profile 生成器",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`BattleTerrainGenerator` 支持 `holdout_push` profile",
         "profile 生成结果有明确守点/推进站位意图"
       ],
       "notes": [
         "Owner：CU-17。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:04:39+08:00",
+      "lastRunId": "20260417-050439-PVS_11A",
+      "startedAt": "2026-04-17T05:04:39+08:00",
+      "completedAt": "2026-04-17T05:11:47+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_battle_board_regression.gd` PASS; `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` PASS.",
+      "lastLearnings": "New non-canyon battle terrain profiles can stay scoped to `BattleTerrainGenerator` plus focused battle regressions because `BattleBoardController` already falls back to the default tile profile for them; runtime ownership/read sets did not change, so `docs/design/project_context_units.md` remained valid as-is."
     },
     {
       "id": "PVS_11B",

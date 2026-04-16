@@ -133,3 +133,7 @@ Added `narrow_assault` support in `BattleTerrainGenerator` with a deterministic 
 ## 2026-04-17T05:04:38+08:00 | PVS_10B | done
 title: 把 `narrow_assault` 接到测试入口与 board regression
 Added a real `narrow_assault` test entry in `tests/battle_runtime/run_battle_runtime_smoke.gd` by starting battle runtime with explicit `battle_terrain_profile`, and tightened `tests/battle_runtime/run_battle_board_regression.gd` to cover narrow-assault spawn rings, explicit tent/torch/objective placement, supported prop IDs, and rendered prop-layer coverage.
+
+## 2026-04-17T05:11:47+08:00 | PVS_11A | done
+title: 实现 `holdout_push` 地形 profile 生成器
+Added `holdout_push` support to `BattleTerrainGenerator` as a scripted attacker-vs-holdout layout with elevated defender ground, a wall-defined defensive line, mud approach, spike barricade frontage, explicit objective/tent/torch placement, and focused board/runtime regression coverage for the new profile.
