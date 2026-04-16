@@ -6,7 +6,7 @@ class_name BattleDamageResolver
 extends RefCounted
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
-const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
+const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle_status_semantic_table.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const STATUS_ATTACK_UP: StringName = &"attack_up"
@@ -215,25 +215,13 @@ func _apply_status_effect(target_unit: BattleUnitState, source_unit: BattleUnitS
 	if target_unit == null or effect_def == null or effect_def.status_id == &"":
 		return
 
-	var status_entry = target_unit.get_status_effect(effect_def.status_id)
-	var previous_stacks := 0
-	if status_entry == null:
-		status_entry = BATTLE_STATUS_EFFECT_STATE_SCRIPT.new()
-		status_entry.status_id = effect_def.status_id
-	else:
-		previous_stacks = int(status_entry.stacks)
-
-	var params := {}
-	if effect_def.params != null:
-		params = effect_def.params.duplicate(true)
-
-	status_entry.source_unit_id = source_unit.unit_id if source_unit != null else &""
-	status_entry.power = int(effect_def.power)
-	status_entry.params = params
-	status_entry.stacks = maxi(previous_stacks + 1, 1)
-	if effect_def.params != null and effect_def.params.has("duration"):
-		status_entry.duration = maxi(int(effect_def.params.get("duration", 1)), 1)
-	target_unit.set_status_effect(status_entry)
+	var status_entry = BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT.merge_status(
+		effect_def,
+		source_unit.unit_id if source_unit != null else &"",
+		target_unit.get_status_effect(effect_def.status_id)
+	)
+	if status_entry != null:
+		target_unit.set_status_effect(status_entry)
 
 
 func _has_status_effect(unit_state: BattleUnitState, status_id: StringName) -> bool:

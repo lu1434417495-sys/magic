@@ -825,14 +825,22 @@
     {
       "id": "PVS_16A",
       "title": "引入状态效果语义表",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`status_effects` 有正式 semantic table 定义 stack、duration 与 tick 口径",
         "`burning`、`slow`、`staggered` 至少接入表内定义"
       ],
       "notes": [
         "Owner：CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T06:23:45+08:00",
+      "lastRunId": "20260417-062345-PVS_16A",
+      "startedAt": "2026-04-17T06:23:45+08:00",
+      "completedAt": "2026-04-17T06:36:13+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_status_effect_semantics_regression.gd` PASS; `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` PASS; `godot --headless --script tests/battle_runtime/run_warrior_skill_semantics_regression.gd` FAIL in an existing taunt fixture because the AI unit has `warrior_heavy_strike` but 0 stamina.",
+      "lastLearnings": "Status semantics in CU-16 now have a formal runtime owner: use `battle_status_semantic_table.gd` for future stack/duration/tick changes instead of adding more ad hoc branches in resolver/runtime. The older warrior taunt regression fixture needs resource setup aligned with current AI skill gating if it should stay green."
     },
     {
       "id": "PVS_16B",

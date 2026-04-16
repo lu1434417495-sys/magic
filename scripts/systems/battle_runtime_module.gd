@@ -15,6 +15,7 @@ const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_se
 const BATTLE_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battle_terrain_generator.gd")
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_damage_resolver.gd")
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
+const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle_status_semantic_table.gd")
 const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle_ai_service.gd")
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle_ai_decision.gd")
 const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle_ai_context.gd")
@@ -34,6 +35,7 @@ const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
 const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
 const BattleHitResolver = preload("res://scripts/systems/battle_hit_resolver.gd")
+const BattleStatusSemanticTable = preload("res://scripts/systems/battle_status_semantic_table.gd")
 const BattleAiService = preload("res://scripts/systems/battle_ai_service.gd")
 const BattleAiDecision = preload("res://scripts/systems/battle_ai_decision.gd")
 const BattleAiContext = preload("res://scripts/systems/battle_ai_context.gd")
@@ -607,9 +609,31 @@ func _get_move_cost_for_unit_target(
 	if _state == null or unit_state == null:
 		return 1
 	var move_cost := _grid_service.get_unit_move_cost(_state, unit_state, target_coord)
+	move_cost += _get_status_move_cost_delta(unit_state)
 	if allow_quickstep_bonus and _has_status(unit_state, STATUS_ARCHER_QUICKSTEP):
 		move_cost = maxi(move_cost - 1, 0)
 	return move_cost
+
+
+func _get_move_path_cost(unit_state: BattleUnitState, anchor_path: Array[Vector2i]) -> int:
+	if unit_state == null or anchor_path.size() <= 1:
+		return 0
+	var total_cost := 0
+	var allow_quickstep_bonus := _has_status(unit_state, STATUS_ARCHER_QUICKSTEP)
+	for path_index in range(1, anchor_path.size()):
+		total_cost += _get_move_cost_for_unit_target(unit_state, anchor_path[path_index], allow_quickstep_bonus)
+		allow_quickstep_bonus = false
+	return total_cost
+
+
+func _get_status_move_cost_delta(unit_state: BattleUnitState) -> int:
+	if unit_state == null:
+		return 0
+	var total_delta := 0
+	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
+		var status_entry = unit_state.get_status_effect(StringName(status_id_str))
+		total_delta += BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT.get_move_cost_delta(status_entry)
+	return maxi(total_delta, 0)
 
 
 func _resolve_move_path_result(active_unit: BattleUnitState, target_coord: Vector2i) -> Dictionary:
@@ -621,7 +645,7 @@ func _resolve_move_path_result(active_unit: BattleUnitState, target_coord: Vecto
 			"message": "当前单位数据不可用。",
 		}
 	var first_step_cost_discount := 1 if _has_status(active_unit, STATUS_ARCHER_QUICKSTEP) else 0
-	return _grid_service.resolve_unit_move_path(
+	var move_result := _grid_service.resolve_unit_move_path(
 		_state,
 		active_unit,
 		active_unit.coord,
@@ -629,6 +653,19 @@ func _resolve_move_path_result(active_unit: BattleUnitState, target_coord: Vecto
 		maxi(int(active_unit.current_ap), 0),
 		first_step_cost_discount
 	)
+	var anchor_path: Array[Vector2i] = []
+	var path_variant = move_result.get("path", [])
+	if path_variant is Array:
+		for coord_variant in path_variant:
+			if coord_variant is Vector2i:
+				anchor_path.append(coord_variant)
+	if anchor_path.size() > 1:
+		var semantic_cost := _get_move_path_cost(active_unit, anchor_path)
+		move_result["cost"] = semantic_cost
+		if semantic_cost > maxi(int(active_unit.current_ap), 0):
+			move_result["allowed"] = false
+			move_result["message"] = "行动点不足，无法移动。"
+	return move_result
 
 
 func _handle_move_command(active_unit: BattleUnitState, command: BattleCommand, batch: BattleEventBatch) -> void:
@@ -1993,6 +2030,17 @@ func _activate_next_ready_unit(batch: BattleEventBatch) -> void:
 			action_points = maxi(unit_state.attribute_snapshot.get_value(&"action_points"), 1)
 		unit_state.current_ap = action_points
 		_apply_turn_start_statuses(unit_state, batch)
+		if not unit_state.is_alive:
+			_clear_defeated_unit(unit_state, batch)
+			_state.phase = &"timeline_running"
+			_state.active_unit_id = &""
+			batch.phase_changed = true
+			batch.changed_unit_ids.append(next_unit_id)
+			batch.log_lines.append("%s 因持续效果倒下。" % unit_state.display_name)
+			_state.log_entries.append(batch.log_lines[-1])
+			if _check_battle_end(batch):
+				return
+			continue
 		if unit_state.control_mode != &"manual":
 			_prepare_ai_turn(unit_state)
 		batch.phase_changed = true
@@ -2080,6 +2128,8 @@ func _advance_unit_turn_timers(unit_state: BattleUnitState, batch: BattleEventBa
 			expired_status_ids.append(status_id)
 			changed = true
 			continue
+		if BattleStatusSemanticTable.should_skip_legacy_turn_decrement(status_id):
+			continue
 		if _expires_on_turn_end(status_id):
 			continue
 		if not status_entry.has_duration():
@@ -2105,16 +2155,25 @@ func _apply_turn_start_statuses(unit_state: BattleUnitState, batch: BattleEventB
 	if unit_state == null:
 		return
 	var changed := false
-	if _has_status(unit_state, STATUS_STAGGERED):
-		var stagger_entry = unit_state.get_status_effect(STATUS_STAGGERED)
-		var stagger_power := 1
-		if stagger_entry != null:
-			stagger_power = maxi(int(stagger_entry.power), maxi(int(stagger_entry.stacks), 1))
-		var previous_ap: int = unit_state.current_ap
-		unit_state.current_ap = maxi(unit_state.current_ap - stagger_power, 0)
-		if unit_state.current_ap != previous_ap:
-			changed = true
-			batch.log_lines.append("%s 受到踉跄影响，本回合少 %d 点行动点。" % [unit_state.display_name, previous_ap - unit_state.current_ap])
+	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
+		var status_entry = unit_state.get_status_effect(StringName(status_id_str))
+		if status_entry == null:
+			continue
+		var ap_penalty := BattleStatusSemanticTable.get_turn_start_ap_penalty(status_entry)
+		if ap_penalty > 0:
+			var previous_ap: int = unit_state.current_ap
+			unit_state.current_ap = maxi(unit_state.current_ap - ap_penalty, 0)
+			if unit_state.current_ap != previous_ap:
+				changed = true
+				batch.log_lines.append("%s 受到踉跄影响，本回合少 %d 点行动点。" % [unit_state.display_name, previous_ap - unit_state.current_ap])
+		var tick_damage := BattleStatusSemanticTable.get_turn_start_damage(status_entry)
+		if tick_damage > 0 and unit_state.is_alive:
+			var previous_hp := unit_state.current_hp
+			unit_state.current_hp = maxi(unit_state.current_hp - tick_damage, 0)
+			unit_state.is_alive = unit_state.current_hp > 0
+			if unit_state.current_hp != previous_hp:
+				changed = true
+				batch.log_lines.append("%s 受到灼烧影响，损失 %d 点生命。" % [unit_state.display_name, previous_hp - unit_state.current_hp])
 	if changed:
 		_append_changed_unit_id(batch, unit_state.unit_id)
 
@@ -2122,18 +2181,35 @@ func _apply_turn_start_statuses(unit_state: BattleUnitState, batch: BattleEventB
 func _consume_turn_end_statuses(unit_state: BattleUnitState, batch: BattleEventBatch) -> void:
 	if unit_state == null:
 		return
-	var consumed := false
-	for status_id in [STATUS_STAGGERED, STATUS_TAUNTED]:
-		if not unit_state.has_status_effect(status_id):
+	var changed := false
+	var expired_status_ids: Array[StringName] = []
+	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
+		var status_id := StringName(status_id_str)
+		var status_entry = unit_state.get_status_effect(status_id)
+		if status_entry == null:
+			expired_status_ids.append(status_id)
+			changed = true
 			continue
-		unit_state.erase_status_effect(status_id)
-		consumed = true
-	if consumed:
+		if status_id == STATUS_TAUNTED:
+			expired_status_ids.append(status_id)
+			changed = true
+			continue
+		var duration_result: Dictionary = BattleStatusSemanticTable.advance_turn_end_duration(status_entry)
+		if bool(duration_result.get("expired", false)):
+			expired_status_ids.append(status_id)
+			changed = true
+			continue
+		if bool(duration_result.get("changed", false)):
+			unit_state.set_status_effect(status_entry)
+			changed = true
+	for expired_status_id in expired_status_ids:
+		unit_state.erase_status_effect(expired_status_id)
+	if changed:
 		_append_changed_unit_id(batch, unit_state.unit_id)
 
 
 func _expires_on_turn_end(status_id: StringName) -> bool:
-	return status_id == STATUS_STAGGERED or status_id == STATUS_TAUNTED
+	return status_id == STATUS_TAUNTED
 
 
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:

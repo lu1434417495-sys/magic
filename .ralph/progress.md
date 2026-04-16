@@ -177,3 +177,7 @@ Formalized Aura exposure across the battle/headless surface: `BattleUnitState` n
 ## 2026-04-17T06:23:45+08:00 | PVS_15B | done
 title: 实现 Aura 消耗、gating 与回归
 Patched the battle selection/session handoff so a selected skill that becomes Aura-blocked now returns a formal battle command failure instead of an `ok` overlay result, and added focused Aura regressions for selection gating, runtime post-selection failure, and AI fallback behavior. `docs/design/project_context_units.md` stayed valid as-is.
+
+## 2026-04-17T06:36:13+08:00 | PVS_16A | done
+title: 引入状态效果语义表
+Added a formal CU-16 status semantics owner in `scripts/systems/battle_status_semantic_table.gd`, routed `BattleDamageResolver` and `BattleRuntimeModule` through it for stack/duration/tick handling, integrated `burning`/`slow`/`staggered`, added `tests/battle_runtime/run_status_effect_semantics_regression.gd`, and updated `docs/design/project_context_units.md` for the new ownership/read-set.
