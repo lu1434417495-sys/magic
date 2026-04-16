@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 
@@ -34,6 +35,7 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	if game_session == null:
 		return
 	_inject_repeatable_quest_def(game_session)
+	_inject_item_reward_quest_defs(game_session)
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
@@ -96,6 +98,38 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_assert_true(not facade.get_party_state().has_claimable_quest(&"contract_repeatable_patrol"), "repeatable 任务再次接取后应移出 claimable_quests。")
 	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_repeatable_patrol"), "repeatable 任务再次接取后应移出 completed_quest_ids。")
 
+	var item_reward_quest := QuestState.new()
+	item_reward_quest.quest_id = &"contract_supply_receipt"
+	item_reward_quest.mark_accepted(20)
+	item_reward_quest.mark_completed(24)
+	facade.get_party_state().set_claimable_quest_state(item_reward_quest)
+	var runtime_warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	var item_claim_result := facade.command_claim_quest(&"contract_supply_receipt")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	_assert_true(bool(item_claim_result.get("ok", false)), "item reward 任务应能通过正式 claim 命令写入共享仓库。")
+	_assert_eq(String(item_claim_result.get("message", "")), "已领取任务《补给签收》奖励，获得 12 金、铁矿石 x2。", "item reward claim 成功时应返回明确奖励摘要。")
+	_assert_eq(int(item_claim_result.get("gold_delta", 0)), 12, "item reward claim 结果应继续暴露 gold_delta。")
+	_assert_eq(_extract_item_reward_quantity(item_claim_result.get("item_rewards", []), "iron_ore"), 2, "item reward claim 结果应暴露写入仓库的物品条目。")
+	_assert_eq(runtime_warehouse_service.count_item(&"iron_ore"), 2, "item reward claim 后共享仓库应新增铁矿石。")
+	_assert_true(facade.get_party_state().has_completed_quest(&"contract_supply_receipt"), "item reward claim 后任务应进入 completed_quest_ids。")
+
+	var overflow_quest := QuestState.new()
+	overflow_quest.quest_id = &"contract_reward_overflow"
+	overflow_quest.mark_accepted(25)
+	overflow_quest.mark_completed(29)
+	facade.get_party_state().set_claimable_quest_state(overflow_quest)
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	var warehouse_capacity := runtime_warehouse_service.get_total_capacity()
+	runtime_warehouse_service.add_item(&"bronze_sword", warehouse_capacity)
+	var bronze_sword_count_before_overflow_claim := runtime_warehouse_service.count_item(&"bronze_sword")
+	var overflow_claim_result := facade.command_claim_quest(&"contract_reward_overflow")
+	_assert_true(not bool(overflow_claim_result.get("ok", true)), "容量不足时 item reward claim 应正式失败。")
+	_assert_eq(String(overflow_claim_result.get("message", "")), "共享仓库空间不足，领取任务《仓储超额》奖励会溢出，当前无法领取。", "容量不足时应返回明确 overflow 反馈。")
+	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_reward_overflow"), "容量不足时任务应继续停留在 claimable_quests。")
+	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_reward_overflow"), "容量不足时任务不应误写入 completed_quest_ids。")
+	_assert_eq(runtime_warehouse_service.count_item(&"bronze_sword"), bronze_sword_count_before_overflow_claim, "容量不足时不应额外写入奖励物品。")
+
 	var encounter_anchor = _find_any_uncleared_encounter_anchor(game_session.get_world_data())
 	_assert_true(encounter_anchor != null, "battle quest 前置：测试世界应存在一个遭遇锚点。")
 	if encounter_anchor == null:
@@ -156,12 +190,67 @@ func _inject_repeatable_quest_def(game_session) -> void:
 	game_session.get_quest_defs()[repeatable_quest.quest_id] = repeatable_quest
 
 
+func _inject_item_reward_quest_defs(game_session) -> void:
+	if game_session == null:
+		return
+	var item_reward_quest := QuestDef.new()
+	item_reward_quest.quest_id = &"contract_supply_receipt"
+	item_reward_quest.display_name = "补给签收"
+	item_reward_quest.description = "完成补给交接后领取金币与素材奖励。"
+	item_reward_quest.provider_interaction_id = &"service_contract_board"
+	item_reward_quest.objective_defs = [
+		{
+			"objective_id": "warehouse_visit",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service:warehouse",
+			"target_value": 1,
+		},
+	]
+	item_reward_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 12},
+		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "iron_ore", "quantity": 2},
+	])
+	game_session.get_quest_defs()[item_reward_quest.quest_id] = item_reward_quest
+
+	var overflow_quest := QuestDef.new()
+	overflow_quest.quest_id = &"contract_reward_overflow"
+	overflow_quest.display_name = "仓储超额"
+	overflow_quest.description = "用于验证奖励写入共享仓库时的 overflow 反馈。"
+	overflow_quest.provider_interaction_id = &"service_contract_board"
+	overflow_quest.objective_defs = item_reward_quest.objective_defs.duplicate(true)
+	overflow_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "bronze_sword", "quantity": 1},
+	])
+	game_session.get_quest_defs()[overflow_quest.quest_id] = overflow_quest
+
+
 func _find_any_uncleared_encounter_anchor(world_data: Dictionary):
 	for encounter_variant in world_data.get("encounter_anchors", []):
 		if encounter_variant == null or bool(encounter_variant.is_cleared):
 			continue
 		return encounter_variant
 	return null
+
+
+func _extract_item_reward_quantity(item_reward_variants, item_id: String) -> int:
+	if item_reward_variants is not Array:
+		return 0
+	for reward_variant in item_reward_variants:
+		if reward_variant is not Dictionary:
+			continue
+		var reward_data := reward_variant as Dictionary
+		if String(reward_data.get("item_id", "")) != item_id:
+			continue
+		return int(reward_data.get("quantity", 0))
+	return 0
+
+
+func _build_reward_entries(reward_variants: Array) -> Array[Dictionary]:
+	var reward_entries: Array[Dictionary] = []
+	for reward_variant in reward_variants:
+		if reward_variant is Dictionary:
+			reward_entries.append((reward_variant as Dictionary).duplicate(true))
+	return reward_entries
 
 
 func _assert_true(condition: bool, message: String) -> void:

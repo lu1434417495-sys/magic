@@ -57,3 +57,7 @@ Formalized quest completion into three stages by adding `PartyState.claimable_qu
 ## 2026-04-17T02:44:30+08:00 | PVS_04B | done
 title: 实现 quest gold reward materializer
 Added formal quest reward claiming with gold materialization in `CharacterManagementModule`, exposed `GameRuntimeFacade.command_claim_quest()`, and routed contract-board claimable entries through claim instead of re-accept. Updated focused runtime regressions for direct quest claim and contract-board claim flow. `docs/design/project_context_units.md` stays valid as-is.
+
+## 2026-04-17T02:54:08+08:00 | PVS_04C | done
+title: 实现 quest item reward materializer
+Implemented quest item reward claiming through `CharacterManagementModule` + `PartyWarehouseService`, writing claimed item rewards into the shared warehouse, returning explicit overflow failure when capacity blocks the reward, surfacing reward summaries in `GameRuntimeFacade`, aligning quest item reward schema helpers, and adding focused regressions.

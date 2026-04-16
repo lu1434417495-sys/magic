@@ -4,6 +4,7 @@ extends RefCounted
 const SETTLEMENT_SHOP_SERVICE_SCRIPT = preload("res://scripts/systems/settlement_shop_service.gd")
 const SETTLEMENT_FORGE_SERVICE_SCRIPT = preload("res://scripts/systems/settlement_forge_service.gd")
 const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement_service_result.gd")
+const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
 
 const REST_FULL_COST := 50
 const INTEL_NETWORK_COST := 50
@@ -922,9 +923,11 @@ func _build_contract_board_reward_label(reward_entries_variant) -> String:
 			&"gold":
 				reward_parts.append("%d 金" % int(reward_data.get("amount", 0)))
 			&"item":
+				var reward_item_id := QUEST_DEF_SCRIPT.get_reward_item_id(reward_data)
+				var reward_quantity := maxi(QUEST_DEF_SCRIPT.get_reward_quantity(reward_data), 1)
 				reward_parts.append("%s x%d" % [
-					_get_item_display_name(ProgressionDataUtils.to_string_name(reward_data.get("target_id", ""))),
-					maxi(int(reward_data.get("amount", 1)), 1),
+					_get_item_display_name(reward_item_id),
+					reward_quantity,
 				])
 			&"pending_character_reward":
 				reward_parts.append("角色奖励")

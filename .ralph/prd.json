@@ -225,14 +225,22 @@
     {
       "id": "PVS_04C",
       "title": "实现 quest item reward materializer",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`QuestDef.reward_entries` 的 item 条目可在 claim 时写入 shared warehouse",
         "容量不足时返回正式失败或 overflow 反馈，不能静默吞奖励"
       ],
       "notes": [
         "Owner：CU-10 / CU-11。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T02:44:31+08:00",
+      "lastRunId": "20260417-024431-PVS_04C",
+      "startedAt": "2026-04-17T02:44:31+08:00",
+      "completedAt": "2026-04-17T02:54:08+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/progression/run_quest_schema_regression.gd`, `godot --headless --script tests/runtime/run_game_runtime_quest_progress_regression.gd`, `godot --headless --script tests/warehouse/run_party_warehouse_regression.gd`, and `godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`.",
+      "lastLearnings": "Quest reward claim ownership stays with CU-11 orchestration (`CharacterManagementModule`) while warehouse capacity/atomic deposit rules stay in CU-10 (`PartyWarehouseService`). `QuestDef` item rewards now read `item_id`/`quantity` canonically with fallback support for legacy-style fields in runtime label rendering. `docs/design/project_context_units.md` remains valid as-is."
     },
     {
       "id": "PVS_04D",

@@ -10,6 +10,8 @@ const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
+const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
 const WarehouseStackState = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
@@ -36,6 +38,7 @@ func _run() -> void:
 	await _test_warehouse_service_rules()
 	await _test_inventory_entries_include_equipment_instances()
 	await _test_batch_swap_commit_is_atomic()
+	await _test_quest_reward_item_materializer()
 	await _test_skill_book_generation_and_use_rules()
 	await _test_party_state_requires_current_schema()
 	await _test_item_registry_validation()
@@ -186,6 +189,84 @@ func _test_batch_swap_commit_is_atomic() -> void:
 	_assert_eq(service.count_item(&"bronze_sword"), 0, "失败后不应写入部分回仓物。")
 	_assert_eq(service.count_item(&"scout_charm"), 0, "失败后不应写入部分回仓物。")
 	_assert_eq(service.get_free_slots(), 0, "失败后仓库占用格数应保持不变。")
+
+
+func _test_quest_reward_item_materializer() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var quest_defs := {
+		&"contract_supply_receipt": _build_test_quest_def(
+			&"contract_supply_receipt",
+			"补给签收",
+			[
+				{"reward_type": QuestDef.REWARD_GOLD, "amount": 12},
+				{"reward_type": QuestDef.REWARD_ITEM, "item_id": "iron_ore", "quantity": 2},
+			]
+		),
+		&"contract_reward_overflow": _build_test_quest_def(
+			&"contract_reward_overflow",
+			"仓储超额",
+			[
+				{"reward_type": QuestDef.REWARD_ITEM, "item_id": "bronze_sword", "quantity": 1},
+			]
+		),
+	}
+
+	var party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 3),
+	])
+	var character_management := CharacterManagementModule.new()
+	character_management.setup(
+		party,
+		_game_session.get_skill_defs(),
+		_game_session.get_profession_defs(),
+		_game_session.get_achievement_defs(),
+		item_defs,
+		quest_defs
+	)
+	var claimable_quest := QuestState.new()
+	claimable_quest.quest_id = &"contract_supply_receipt"
+	claimable_quest.mark_accepted(4)
+	claimable_quest.mark_completed(6)
+	party.set_claimable_quest_state(claimable_quest)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party, item_defs)
+
+	var claim_result := character_management.claim_quest_reward(&"contract_supply_receipt", 8)
+	_assert_true(bool(claim_result.get("ok", false)), "item reward 任务应能正式写入共享仓库。")
+	_assert_eq(int(claim_result.get("gold_delta", 0)), 12, "item reward 任务应继续暴露 gold_delta。")
+	_assert_eq(_extract_item_reward_quantity(claim_result.get("item_rewards", []), "iron_ore"), 2, "item reward 结果应暴露写入仓库的物品条目。")
+	_assert_eq(warehouse_service.count_item(&"iron_ore"), 2, "item reward claim 后共享仓库应新增铁矿石。")
+	_assert_eq(party.get_gold(), 12, "item reward claim 后金币奖励应继续写入 PartyState。")
+	_assert_true(not party.has_claimable_quest(&"contract_supply_receipt"), "item reward claim 后任务应离开 claimable_quests。")
+	_assert_true(party.has_completed_quest(&"contract_supply_receipt"), "item reward claim 后任务应进入 completed_quest_ids。")
+
+	var overflow_party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 1),
+	])
+	var overflow_warehouse_service := PartyWarehouseService.new()
+	overflow_warehouse_service.setup(overflow_party, item_defs)
+	overflow_warehouse_service.add_item(&"bronze_sword", 1)
+	var overflow_character_management := CharacterManagementModule.new()
+	overflow_character_management.setup(
+		overflow_party,
+		_game_session.get_skill_defs(),
+		_game_session.get_profession_defs(),
+		_game_session.get_achievement_defs(),
+		item_defs,
+		quest_defs
+	)
+	var overflow_quest := QuestState.new()
+	overflow_quest.quest_id = &"contract_reward_overflow"
+	overflow_quest.mark_accepted(5)
+	overflow_quest.mark_completed(7)
+	overflow_party.set_claimable_quest_state(overflow_quest)
+
+	var overflow_result := overflow_character_management.claim_quest_reward(&"contract_reward_overflow", 9)
+	_assert_true(not bool(overflow_result.get("ok", true)), "容量不足时 quest item reward claim 应正式失败。")
+	_assert_eq(String(overflow_result.get("error_code", "")), "reward_overflow", "容量不足时 quest item reward claim 应返回 reward_overflow。")
+	_assert_true(overflow_party.has_claimable_quest(&"contract_reward_overflow"), "容量不足时任务应继续停留在 claimable_quests。")
+	_assert_true(not overflow_party.has_completed_quest(&"contract_reward_overflow"), "容量不足时任务不应误写入 completed_quest_ids。")
+	_assert_eq(overflow_warehouse_service.count_item(&"bronze_sword"), 1, "容量不足时不应静默吞掉或部分写入奖励物品。")
 
 
 func _test_inventory_entries_include_equipment_instances() -> void:
@@ -495,11 +576,44 @@ func _build_member_state(
 	return member_state
 
 
+func _build_test_quest_def(quest_id: StringName, display_name: String, reward_entries: Array) -> QuestDef:
+	var quest_def := QuestDef.new()
+	quest_def.quest_id = quest_id
+	quest_def.display_name = display_name
+	quest_def.objective_defs = [
+		{
+			"objective_id": "warehouse_visit",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service:warehouse",
+			"target_value": 1,
+		},
+	]
+	var typed_reward_entries: Array[Dictionary] = []
+	for reward_variant in reward_entries:
+		if reward_variant is Dictionary:
+			typed_reward_entries.append((reward_variant as Dictionary).duplicate(true))
+	quest_def.reward_entries = typed_reward_entries
+	return quest_def
+
+
 func _build_stack(item_id: StringName, quantity: int) -> WarehouseStackState:
 	var stack := WarehouseStackState.new()
 	stack.item_id = item_id
 	stack.quantity = quantity
 	return stack
+
+
+func _extract_item_reward_quantity(item_reward_variants, item_id: String) -> int:
+	if item_reward_variants is not Array:
+		return 0
+	for reward_variant in item_reward_variants:
+		if reward_variant is not Dictionary:
+			continue
+		var reward_data := reward_variant as Dictionary
+		if String(reward_data.get("item_id", "")) != item_id:
+			continue
+		return int(reward_data.get("quantity", 0))
+	return 0
 
 
 func _stack_signature(party_state: PartyState) -> Array[String]:

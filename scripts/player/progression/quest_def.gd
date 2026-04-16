@@ -92,6 +92,17 @@ func validate_schema() -> Array[String]:
 			continue
 		if not _get_supported_reward_types().has(reward_type):
 			errors.append("QuestDef %s 使用了不支持的 reward_type %s。" % [String(quest_id), String(reward_type)])
+			continue
+		match reward_type:
+			REWARD_GOLD:
+				if int(reward_data.get("amount", 0)) <= 0:
+					errors.append("QuestDef %s 的 gold reward 必须有正 amount。" % String(quest_id))
+			REWARD_ITEM:
+				var reward_item_id := get_reward_item_id(reward_data)
+				if reward_item_id == &"":
+					errors.append("QuestDef %s 的 item reward 缺少 item_id。" % String(quest_id))
+				if get_reward_quantity(reward_data) <= 0:
+					errors.append("QuestDef %s 的 item reward 必须有正 quantity。" % String(quest_id))
 	return errors
 
 
@@ -153,3 +164,13 @@ static func _get_supported_reward_types() -> Array[StringName]:
 		REWARD_ITEM,
 		REWARD_PENDING_CHARACTER_REWARD,
 	]
+
+
+static func get_reward_item_id(reward_data: Dictionary) -> StringName:
+	return ProgressionDataUtils.to_string_name(reward_data.get("item_id", reward_data.get("target_id", "")))
+
+
+static func get_reward_quantity(reward_data: Dictionary) -> int:
+	if reward_data.has("quantity"):
+		return int(reward_data.get("quantity", 0))
+	return int(reward_data.get("amount", 0))

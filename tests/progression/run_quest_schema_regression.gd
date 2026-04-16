@@ -67,6 +67,18 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	var errors: Array[String] = invalid_quest.validate_schema()
 	_assert_true(errors.size() >= 1, "重复 objective_id 应被 validate_schema() 拒绝。")
 
+	var invalid_reward_quest := QuestDef.new()
+	invalid_reward_quest.quest_id = &"broken_reward_contract"
+	invalid_reward_quest.objective_defs = [
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+	]
+	invalid_reward_quest.reward_entries = [
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 0},
+		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "", "quantity": 0},
+	]
+	var reward_errors: Array[String] = invalid_reward_quest.validate_schema()
+	_assert_true(reward_errors.size() >= 2, "无效 gold/item reward 应被 validate_schema() 拒绝。")
+
 
 func _test_quest_state_progress_and_round_trip() -> void:
 	var quest_def := QuestDef.new()

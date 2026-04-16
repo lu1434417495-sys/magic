@@ -1428,6 +1428,14 @@ func command_claim_quest(quest_id: StringName) -> Dictionary:
 					return _command_error("任务《%s》缺少奖励配置，当前无法领取。" % quest_label)
 				"invalid_gold_amount":
 					return _command_error("任务《%s》包含无效的金币奖励配置，当前无法领取。" % quest_label)
+				"invalid_item_reward":
+					return _command_error("任务《%s》包含无效的物品奖励配置，当前无法领取。" % quest_label)
+				"item_reward_missing_def":
+					return _command_error("任务《%s》引用了缺失的物品奖励配置，当前无法领取。" % quest_label)
+				"reward_overflow":
+					return _command_error("共享仓库空间不足，领取任务《%s》奖励会溢出，当前无法领取。" % quest_label)
+				"quest_reward_commit_failed":
+					return _command_error("任务《%s》奖励写入共享仓库失败，当前无法领取。" % quest_label)
 				"unsupported_reward_types":
 					var unsupported_types := _string_name_array_to_string_array(claim_result.get("unsupported_reward_types", []))
 					var unsupported_text := "、".join(unsupported_types) if not unsupported_types.is_empty() else "未知奖励"
@@ -1437,9 +1445,10 @@ func command_claim_quest(quest_id: StringName) -> Dictionary:
 		_party_state = _character_management.get_party_state()
 		var persist_error := _persist_party_state()
 		var gold_delta := int(claim_result.get("gold_delta", 0))
+		var reward_summary := _build_quest_claim_reward_summary_text(claim_result)
 		var message := "已领取任务《%s》奖励。" % quest_label
-		if gold_delta > 0:
-			message = "已领取任务《%s》奖励，获得 %d 金。" % [quest_label, gold_delta]
+		if not reward_summary.is_empty():
+			message = "已领取任务《%s》奖励，获得 %s。" % [quest_label, reward_summary]
 		if persist_error != OK:
 			message = "%s 但队伍状态持久化失败。" % message
 			_update_status(message)
@@ -1447,6 +1456,7 @@ func command_claim_quest(quest_id: StringName) -> Dictionary:
 		_update_status(message)
 		var result := _command_ok(message)
 		result["gold_delta"] = gold_delta
+		result["item_rewards"] = (claim_result.get("item_rewards", []) as Array).duplicate(true)
 		return result
 	)
 
@@ -2574,6 +2584,25 @@ func _string_name_array_to_string_array(values: Array) -> Array[String]:
 	for value in ProgressionDataUtils.to_string_name_array(values):
 		labels.append(String(value))
 	return labels
+
+
+func _build_quest_claim_reward_summary_text(claim_result: Dictionary) -> String:
+	var reward_parts: Array[String] = []
+	var gold_delta := int(claim_result.get("gold_delta", 0))
+	if gold_delta > 0:
+		reward_parts.append("%d 金" % gold_delta)
+	for reward_variant in claim_result.get("item_rewards", []):
+		if reward_variant is not Dictionary:
+			continue
+		var reward_data := reward_variant as Dictionary
+		var reward_quantity := int(reward_data.get("quantity", 0))
+		if reward_quantity <= 0:
+			continue
+		var reward_label := String(reward_data.get("display_name", reward_data.get("item_id", ""))).strip_edges()
+		if reward_label.is_empty():
+			reward_label = String(reward_data.get("item_id", ""))
+		reward_parts.append("%s x%d" % [reward_label, reward_quantity])
+	return "、".join(PackedStringArray(reward_parts))
 
 
 func _update_status(message: String) -> void:

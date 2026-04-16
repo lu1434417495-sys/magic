@@ -15,6 +15,7 @@ const PROFESSION_ASSIGNMENT_SERVICE_SCRIPT = preload("res://scripts/systems/prof
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/skill_merge_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const QUEST_PROGRESS_SERVICE_SCRIPT = preload("res://scripts/systems/quest_progress_service.gd")
 const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
 const CHARACTER_PROGRESSION_DELTA_SCRIPT = preload("res://scripts/systems/character_progression_delta.gd")
@@ -48,6 +49,8 @@ var _achievement_defs: Dictionary = {}
 var _item_defs: Dictionary = {}
 ## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
 var _quest_defs: Dictionary = {}
+## 字段说明：记录队伍仓库服务，会参与运行时状态流转、系统协作和存档恢复。
+var _party_warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
 ## 字段说明：记录队伍装备服务，会参与运行时状态流转、系统协作和存档恢复。
 var _party_equipment_service = PARTY_EQUIPMENT_SERVICE_SCRIPT.new()
 ## 字段说明：记录任务进度服务，会参与运行时状态流转、系统协作和存档恢复。
@@ -68,6 +71,7 @@ func setup(
 	_achievement_defs = achievement_defs if achievement_defs != null else {}
 	_item_defs = item_defs if item_defs != null else {}
 	_quest_defs = quest_defs if quest_defs != null else {}
+	_party_warehouse_service.setup(_party_state, _item_defs)
 	_party_equipment_service.setup(_party_state, _item_defs)
 	_quest_progress_service.setup(_party_state, _quest_defs)
 
@@ -78,6 +82,7 @@ func get_party_state() -> PartyState:
 
 func set_party_state(party_state: PartyState) -> void:
 	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
+	_party_warehouse_service.setup(_party_state, _item_defs)
 	_party_equipment_service.setup(_party_state, _item_defs)
 	_quest_progress_service.setup(_party_state, _quest_defs)
 
@@ -141,6 +146,7 @@ func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionar
 		"ok": false,
 		"error_code": "",
 		"gold_delta": 0,
+		"item_rewards": [],
 		"unsupported_reward_types": [],
 	}
 	if _party_state == null or quest_id == &"":
@@ -160,14 +166,28 @@ func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionar
 			reward_preview.get("unsupported_reward_types", [])
 		)
 		return result
-	if not _party_state.mark_quest_reward_claimed(quest_id, world_step):
-		result["error_code"] = "quest_claim_failed"
-		return result
+	var reward_item_ids: Array[StringName] = ProgressionDataUtils.to_string_name_array(
+		reward_preview.get("warehouse_deposit_item_ids", [])
+	)
+	var warehouse_state_before = _party_state.warehouse_state.duplicate_state() if _party_state.warehouse_state != null else null
+	if not reward_item_ids.is_empty():
+		var warehouse_commit := _party_warehouse_service.commit_batch_swap([], reward_item_ids)
+		if not bool(warehouse_commit.get("allowed", false)):
+			result["error_code"] = _resolve_quest_reward_warehouse_error_code(warehouse_commit)
+			return result
 	var gold_delta := int(reward_preview.get("gold_delta", 0))
+	var gold_before_claim := _party_state.get_gold()
 	if gold_delta > 0:
 		_party_state.add_gold(gold_delta)
+	if not _party_state.mark_quest_reward_claimed(quest_id, world_step):
+		if gold_delta > 0:
+			_party_state.set_gold(gold_before_claim)
+		_party_state.warehouse_state = warehouse_state_before
+		result["error_code"] = "quest_claim_failed"
+		return result
 	result["ok"] = true
 	result["gold_delta"] = gold_delta
+	result["item_rewards"] = (reward_preview.get("item_rewards", []) as Array).duplicate(true)
 	return result
 
 
@@ -803,11 +823,15 @@ func _preview_quest_reward_claim(reward_entries_variant) -> Dictionary:
 		"ok": true,
 		"error_code": "",
 		"gold_delta": 0,
+		"item_rewards": [],
+		"warehouse_deposit_item_ids": [],
 		"unsupported_reward_types": [],
 	}
 	if reward_entries_variant is not Array:
 		return result
 	var unsupported_reward_types: Array[StringName] = []
+	var reward_item_entries: Array[Dictionary] = []
+	var reward_item_ids: Array[StringName] = []
 	for reward_variant in reward_entries_variant:
 		if reward_variant is not Dictionary:
 			result["ok"] = false
@@ -827,7 +851,19 @@ func _preview_quest_reward_claim(reward_entries_variant) -> Dictionary:
 					result["error_code"] = "invalid_gold_amount"
 					return result
 				result["gold_delta"] = int(result.get("gold_delta", 0)) + amount
-			QUEST_DEF_SCRIPT.REWARD_ITEM, QUEST_DEF_SCRIPT.REWARD_PENDING_CHARACTER_REWARD:
+			QUEST_DEF_SCRIPT.REWARD_ITEM:
+				var item_reward_result := _preview_quest_item_reward_entry(reward_data)
+				if not bool(item_reward_result.get("ok", false)):
+					result["ok"] = false
+					result["error_code"] = String(item_reward_result.get("error_code", "invalid_item_reward"))
+					return result
+				var reward_item_entry: Variant = item_reward_result.get("item_reward", {})
+				if reward_item_entry is Dictionary and not (reward_item_entry as Dictionary).is_empty():
+					reward_item_entries.append((reward_item_entry as Dictionary).duplicate(true))
+				reward_item_ids.append_array(
+					ProgressionDataUtils.to_string_name_array(item_reward_result.get("warehouse_deposit_item_ids", []))
+				)
+			QUEST_DEF_SCRIPT.REWARD_PENDING_CHARACTER_REWARD:
 				_append_unique_string_name(unsupported_reward_types, reward_type)
 			_:
 				_append_unique_string_name(unsupported_reward_types, reward_type)
@@ -835,7 +871,55 @@ func _preview_quest_reward_claim(reward_entries_variant) -> Dictionary:
 		result["ok"] = false
 		result["error_code"] = "unsupported_reward_types"
 		result["unsupported_reward_types"] = unsupported_reward_types
+		return result
+	if not reward_item_ids.is_empty():
+		var warehouse_preview := _party_warehouse_service.preview_batch_swap([], reward_item_ids)
+		if not bool(warehouse_preview.get("allowed", false)):
+			result["ok"] = false
+			result["error_code"] = _resolve_quest_reward_warehouse_error_code(warehouse_preview)
+			return result
+	result["item_rewards"] = reward_item_entries
+	result["warehouse_deposit_item_ids"] = ProgressionDataUtils.string_name_array_to_string_array(reward_item_ids)
 	return result
+
+
+func _preview_quest_item_reward_entry(reward_data: Dictionary) -> Dictionary:
+	var reward_item_id := QUEST_DEF_SCRIPT.get_reward_item_id(reward_data)
+	var reward_quantity := QUEST_DEF_SCRIPT.get_reward_quantity(reward_data)
+	if reward_item_id == &"" or reward_quantity <= 0:
+		return {
+			"ok": false,
+			"error_code": "invalid_item_reward",
+		}
+	var item_def = _item_defs.get(reward_item_id)
+	if item_def == null:
+		return {
+			"ok": false,
+			"error_code": "item_reward_missing_def",
+		}
+	return {
+		"ok": true,
+		"item_reward": {
+			"item_id": String(reward_item_id),
+			"display_name": item_def.display_name if not item_def.display_name.is_empty() else String(reward_item_id),
+			"quantity": reward_quantity,
+		},
+		"warehouse_deposit_item_ids": ProgressionDataUtils.string_name_array_to_string_array(
+			_build_repeated_item_ids(reward_item_id, reward_quantity)
+		),
+	}
+
+
+func _build_repeated_item_ids(item_id: StringName, quantity: int) -> Array[StringName]:
+	var item_ids: Array[StringName] = []
+	var resolved_quantity := maxi(quantity, 0)
+	for _index in range(resolved_quantity):
+		item_ids.append(item_id)
+	return item_ids
+
+
+func _resolve_quest_reward_warehouse_error_code(warehouse_result: Dictionary) -> String:
+	return "reward_overflow" if String(warehouse_result.get("error_code", "")) == "warehouse_blocked_swap" else "quest_reward_commit_failed"
 
 
 func _normalize_pending_character_entries(entry_variants: Array) -> Array[PendingCharacterRewardEntry]:
