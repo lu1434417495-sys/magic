@@ -305,14 +305,22 @@
     {
       "id": "PVS_06A",
       "title": "为 research 服务分配正式 interaction_script_id 与 settlement 路由",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "world config 中的 research 服务能走正式 action dispatch，而不是只靠 `interaction_type` 占位",
         "research 服务不会继续留在 `UNIMPLEMENTED_INTERACTION_IDS` 的伪可用状态"
       ],
       "notes": [
         "Owner：CU-04 / CU-06。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:20:31+08:00",
+      "lastRunId": "20260417-032031-PVS_06A",
+      "startedAt": "2026-04-17T03:20:31+08:00",
+      "completedAt": "2026-04-17T03:29:21+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd` and `godot --headless --script tests/world_map/runtime/run_settlement_forge_service_regression.gd`; both passed.",
+      "lastLearnings": "For the vertical-slice runtime, research now uses the dedicated interaction id `service_research`; `service_unlock_archive` stays reserved in the unimplemented bucket for future archive-specific content. `docs/design/project_context_units.md` remains valid as-is because ownership/runtime boundaries did not change."
     },
     {
       "id": "PVS_06B",

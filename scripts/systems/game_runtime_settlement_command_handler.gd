@@ -3,6 +3,7 @@ extends RefCounted
 
 const SETTLEMENT_SHOP_SERVICE_SCRIPT = preload("res://scripts/systems/settlement_shop_service.gd")
 const SETTLEMENT_FORGE_SERVICE_SCRIPT = preload("res://scripts/systems/settlement_forge_service.gd")
+const SETTLEMENT_RESEARCH_SERVICE_SCRIPT = preload("res://scripts/systems/settlement_research_service.gd")
 const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement_service_result.gd")
 const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
 
@@ -55,6 +56,7 @@ var _runtime = null:
 
 var _shop_service = SETTLEMENT_SHOP_SERVICE_SCRIPT.new()
 var _forge_service = SETTLEMENT_FORGE_SERVICE_SCRIPT.new()
+var _research_service = SETTLEMENT_RESEARCH_SERVICE_SCRIPT.new()
 
 
 func setup(runtime) -> void:
@@ -65,6 +67,7 @@ func dispose() -> void:
 	_runtime = null
 	_shop_service = SETTLEMENT_SHOP_SERVICE_SCRIPT.new()
 	_forge_service = SETTLEMENT_FORGE_SERVICE_SCRIPT.new()
+	_research_service = SETTLEMENT_RESEARCH_SERVICE_SCRIPT.new()
 
 
 func get_settlement_window_data(settlement_id: String = "") -> Dictionary:
@@ -464,6 +467,13 @@ func execute_settlement_action(settlement_id: String, action_id: String, payload
 			_get_party_state(),
 			_extract_quest_progress_events(payload, action_id, settlement_id)
 		)
+	if _is_research_interaction(interaction_script_id):
+		return _research_service.execute(
+			settlement,
+			payload,
+			_get_party_state(),
+			_extract_quest_progress_events(payload, action_id, settlement_id)
+		)
 	if UNIMPLEMENTED_INTERACTION_IDS.has(interaction_script_id):
 		return _build_settlement_service_result(true, "该据点服务入口已接通，但其配套系统尚未开放。", [], false, false, false, 0, {}, _extract_quest_progress_events(payload, action_id, settlement_id))
 	var pending_character_rewards := extract_pending_character_rewards(
@@ -662,6 +672,8 @@ func _build_service_metadata(settlement: Dictionary, service_data: Dictionary, _
 			"is_enabled": has_recipe,
 			"disabled_reason": "" if has_recipe else _build_forge_unavailable_reason(interaction_script_id),
 		}
+	if _is_research_interaction(interaction_script_id):
+		return _research_service.build_service_metadata(party_state)
 	if UNIMPLEMENTED_INTERACTION_IDS.has(interaction_script_id):
 		return {"cost_label": "未开放", "is_enabled": false, "disabled_reason": "系统未开放"}
 	return {"cost_label": "", "is_enabled": true, "disabled_reason": ""}
@@ -1485,6 +1497,10 @@ func _is_contract_board_completed_state(state_id: String) -> bool:
 
 func _is_forge_interaction(interaction_script_id: String) -> bool:
 	return _forge_service != null and _forge_service.is_supported_interaction(interaction_script_id)
+
+
+func _is_research_interaction(interaction_script_id: String) -> bool:
+	return _research_service != null and _research_service.is_supported_interaction(interaction_script_id)
 
 
 func _build_forge_unavailable_reason(interaction_script_id: String) -> String:

@@ -73,3 +73,7 @@ title: 为 submit_item 目标增加正式仓库扣除入口
 ## 2026-04-17T03:20:31+08:00 | PVS_05B | done
 title: 把 submit_item 扣除结果接到 objective progress 与失败回归
 补强 `submit_item` 的 progression/runtime 回归：在 `tests/progression/run_progression_tests.gd` 新增 CharacterManagementModule 级回归，覆盖部分进度成功提交、objective_progress/last_progress_context 写入、数量不足与错误物品两条失败路径；在 `tests/runtime/run_game_runtime_quest_progress_regression.gd` 补充成功后 objective_progress/context 断言，并新增错误物品失败回归。`docs/design/project_context_units.md` 无需更新。
+
+## 2026-04-17T03:29:21+08:00 | PVS_06A | done
+title: 为 research 服务分配正式 interaction_script_id 与 settlement 路由
+Added a formal `service_research -> service:research` settlement path by introducing `SettlementResearchService`, wiring `GameRuntimeSettlementCommandHandler`/`WorldMapSpawnSystem` to it, and switching all world-map research NPC configs from `service_unlock_archive` to `service_research`. Extended settlement-handler regression coverage to verify both direct research routing and real world generation exposure.

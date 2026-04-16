@@ -78,7 +78,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_librarian"
 display_name = "大图书官"
 service_type = "研究"
-interaction_script_id = "service_unlock_archive"
+interaction_script_id = "service_research"
 local_slot_id = "library_slot"
 
 [sub_resource type="Resource" id="Resource_gate_npc"]

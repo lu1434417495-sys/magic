@@ -2,10 +2,13 @@ extends SceneTree
 
 const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd")
 const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime_settlement_command_handler.gd")
+const GameSessionScript = preload("res://scripts/systems/game_session.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+
+const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
 var _failures: Array[String] = []
 
@@ -391,7 +394,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_facade_delegates_settlement_surface_to_handler()
+	_test_settlement_handler_routes_research_service()
 	_test_settlement_handler_routes_actions_and_modal_state()
+	await _test_world_generation_exposes_research_service()
 
 	if _failures.is_empty():
 		print("Game runtime settlement command handler regression: PASS")
@@ -430,6 +435,70 @@ func _test_facade_delegates_settlement_surface_to_handler() -> void:
 
 	_assert_true(_has_call(handler.calls, "on_settlement_action_requested"), "_on_settlement_action_requested() 应委托给 settlement handler。")
 	_assert_true(_has_call(handler.calls, "on_settlement_window_closed"), "_on_settlement_window_closed() 应委托给 settlement handler。")
+
+
+func _test_settlement_handler_routes_research_service() -> void:
+	var runtime := MockRuntime.new()
+	runtime._party_state = _make_party_state()
+	runtime._party_state.gold = 250
+	runtime._selected_settlement = {
+		"settlement_id": "graystone_town_01",
+	}
+	runtime._settlements_by_id = {
+		"graystone_town_01": {
+			"settlement_id": "graystone_town_01",
+			"display_name": "灰石镇",
+			"origin": Vector2i.ZERO,
+			"available_services": [
+				{
+					"action_id": "service:research",
+					"facility_name": "大图书馆",
+					"npc_name": "大图书官",
+					"service_type": "研究",
+					"interaction_script_id": "service_research",
+				},
+			],
+		},
+	}
+	runtime._settlement_states = {
+		"graystone_town_01": {
+			"visited": true,
+			"reputation": 0,
+			"active_conditions": [],
+			"cooldowns": {},
+			"shop_inventory_seed": 0,
+			"shop_last_refresh_step": 0,
+			"shop_states": {},
+		},
+	}
+
+	var handler := GameRuntimeSettlementCommandHandler.new()
+	handler.setup(runtime)
+
+	var settlement_window_data := handler.get_settlement_window_data("graystone_town_01")
+	var research_service := _find_service_entry(settlement_window_data.get("available_services", []), "service:research")
+	_assert_true(not research_service.is_empty(), "据点窗口应暴露正式 research 服务入口。")
+	_assert_eq(String(research_service.get("interaction_script_id", "")), "service_research", "research 服务应使用正式 interaction_script_id。")
+	_assert_true(bool(research_service.get("is_enabled", false)), "金币充足时 research 服务入口应可点击。")
+	_assert_eq(String(research_service.get("cost_label", "")), "200 金", "research 服务应暴露正式金币成本。")
+
+	var research_result := handler.command_execute_settlement_action("service:research")
+	_assert_true(bool(research_result.get("ok", false)), "research 服务应能走正式 settlement action dispatch。")
+	_assert_eq(runtime._party_state.get_gold(), 50, "research 服务成功后应扣除正式研究成本。")
+	_assert_eq(runtime._active_modal_id, "settlement", "research 服务不应切走当前 settlement modal。")
+	_assert_true(runtime._active_settlement_feedback_text.find("研究") >= 0, "research 服务应写入正式据点反馈。")
+	_assert_true(runtime._current_status_message.find("研究") >= 0, "research 服务应刷新状态文案。")
+	_assert_true(runtime._current_status_message.find("尚未开放") == -1, "research 服务不应继续使用未开放占位文案。")
+	_assert_eq(runtime.persist_calls, 1, "research 服务成功后应持久化队伍状态。")
+	_assert_eq(runtime.sync_party_calls, 1, "research 服务成功后应同步角色管理侧队伍状态。")
+	_assert_eq(runtime.achievement_events.size(), 1, "research 服务成功后应记录据点动作成就事件。")
+	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:research", "research 成就事件应记录正式 action_id。")
+	_assert_eq(runtime.applied_quest_event_batches.size(), 1, "research 服务成功后应仍走默认 quest progress 事件链。")
+
+	var refreshed_window_data := handler.get_settlement_window_data("graystone_town_01")
+	var refreshed_research_service := _find_service_entry(refreshed_window_data.get("available_services", []), "service:research")
+	_assert_true(not bool(refreshed_research_service.get("is_enabled", true)), "扣费后金币不足时 research 服务应及时禁用。")
+	_assert_eq(String(refreshed_research_service.get("disabled_reason", "")), "金币不足", "research 服务禁用原因应明确显示金币不足。")
 
 
 func _test_settlement_handler_routes_actions_and_modal_state() -> void:
@@ -858,6 +927,42 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(runtime._active_modal_id, "", "关闭据点窗口应清空 modal。")
 	_assert_true(runtime.present_reward_calls > 0, "关闭据点窗口后应尝试恢复待确认奖励。")
 	_assert_eq(runtime._current_status_message, "已关闭据点窗口，返回世界地图。", "关闭据点窗口后应刷新状态文案。")
+
+
+func _test_world_generation_exposes_research_service() -> void:
+	var game_session := GameSessionScript.new()
+	game_session.name = "ResearchRouteGameSession"
+	root.add_child(game_session)
+	await process_frame
+
+	var create_error := int(game_session.create_new_save(TEST_CONFIG_PATH, &"research_route_service", "研究入口验证"))
+	_assert_eq(create_error, OK, "创建 research 入口验证世界应成功。")
+	if create_error == OK:
+		var world_data: Dictionary = game_session.get_world_data()
+		var found_research_service: Dictionary = {}
+		var found_legacy_unlock_archive := false
+		for settlement_variant in world_data.get("settlements", []):
+			if settlement_variant is not Dictionary:
+				continue
+			for service_variant in (settlement_variant as Dictionary).get("available_services", []):
+				if service_variant is not Dictionary:
+					continue
+				var service_data: Dictionary = service_variant
+				var interaction_script_id := String(service_data.get("interaction_script_id", ""))
+				if interaction_script_id == "service_research" and found_research_service.is_empty():
+					found_research_service = service_data.duplicate(true)
+				if interaction_script_id == "service_unlock_archive":
+					found_legacy_unlock_archive = true
+		_assert_true(not found_research_service.is_empty(), "正式 world config 生成结果应包含 research 服务入口。")
+		_assert_eq(String(found_research_service.get("action_id", "")), "service:research", "research 服务应映射到正式 action_id。")
+		_assert_true(not found_legacy_unlock_archive, "research 服务不应继续使用 legacy service_unlock_archive 入口。")
+
+	var clear_error := int(game_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "清理 research 入口验证存档应成功。")
+	if game_session.get_parent() != null:
+		game_session.get_parent().remove_child(game_session)
+	game_session.free()
+	await process_frame
 
 
 func _make_party_state() -> PartyState:

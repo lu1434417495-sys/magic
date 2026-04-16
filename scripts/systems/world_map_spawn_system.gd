@@ -30,6 +30,7 @@ const SERVICE_ACTION_ID_BY_INTERACTION := {
 	"service_bounty_registry": "service:bounty_registry",
 	"service_recruit_specialist": "service:recruit_specialist",
 	"service_issue_regional_edict": "service:issue_regional_edict",
+	"service_research": "service:research",
 	"service_unlock_archive": "service:unlock_archive",
 	"service_diplomatic_clearance": "service:diplomatic_clearance",
 	"service_amnesty_review": "service:amnesty_review",
