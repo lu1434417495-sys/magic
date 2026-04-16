@@ -625,14 +625,22 @@
     {
       "id": "PVS_11B",
       "title": "把 `holdout_push` 接到测试入口与 board regression",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "至少一个测试入口或 world hook 能显式使用 `holdout_push`",
         "battle board regression 覆盖其布局、部署点与核心 prop 契约"
       ],
       "notes": [
         "Owner：CU-17 / CU-18 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:11:47+08:00",
+      "lastRunId": "20260417-051147-PVS_11B",
+      "startedAt": "2026-04-17T05:11:47+08:00",
+      "completedAt": "2026-04-17T05:13:31+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` -> PASS; ran `godot --headless --script tests/battle_runtime/run_battle_board_regression.gd` -> PASS.",
+      "lastLearnings": "PVS_11B is already satisfied in the current tree. The durable anchors are the explicit smoke entry `_test_start_battle_accepts_explicit_holdout_push_profile()` and the board regression pair `_test_holdout_push_generation_builds_defender_holdout()` / `_test_holdout_push_board_contracts()`. `docs/design/project_context_units.md` stays valid as-is."
     },
     {
       "id": "PVS_12A",

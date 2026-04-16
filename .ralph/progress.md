@@ -137,3 +137,7 @@ Added a real `narrow_assault` test entry in `tests/battle_runtime/run_battle_run
 ## 2026-04-17T05:11:47+08:00 | PVS_11A | done
 title: 实现 `holdout_push` 地形 profile 生成器
 Added `holdout_push` support to `BattleTerrainGenerator` as a scripted attacker-vs-holdout layout with elevated defender ground, a wall-defined defensive line, mud approach, spike barricade frontage, explicit objective/tent/torch placement, and focused board/runtime regression coverage for the new profile.
+
+## 2026-04-17T05:13:31+08:00 | PVS_11B | done
+title: 把 `holdout_push` 接到测试入口与 board regression
+No code changes were needed. Verified the repo already wires `holdout_push` into `tests/battle_runtime/run_battle_runtime_smoke.gd` via explicit `battle_terrain_profile`, and `tests/battle_runtime/run_battle_board_regression.gd` already covers layout stability, deployment rings, objective/tent/torch placement, mud/spike terrain, and prop-contract assertions for `holdout_push`.
