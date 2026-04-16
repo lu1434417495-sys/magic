@@ -117,3 +117,7 @@ Added three formal quest-item seeds (`sealed_dispatch`, `bandit_insignia`, `moon
 ## 2026-04-17T04:38:44+08:00 | PVS_09A | done
 title: 新增前排承伤/近战冲锋敌人模板
 Added a sixth formal enemy template `wolf_vanguard` plus dedicated `frontline_bulwark` AI seed in `scripts/enemies/enemy_content_registry.gd`, and extended `tests/battle_runtime/run_battle_runtime_ai_regression.gd` to verify template count, formal template resolution, melee charge opening, and low-HP self-guard behavior. `docs/design/project_context_units.md` stayed valid and was not changed.
+
+## 2026-04-17T04:44:54+08:00 | PVS_09B | done
+title: 新增远程压制/治疗控制敌人模板
+Added two formal enemy templates, `mist_harrier` and `mist_weaver`, plus dedicated `ranged_suppressor` and `healer_controller` brains in `scripts/enemies/enemy_content_registry.gd`. Extended `tests/battle_runtime/run_battle_runtime_ai_regression.gd` to require 8+ templates and verify stable template resolution plus ranged-suppression, control, and healing AI behavior.

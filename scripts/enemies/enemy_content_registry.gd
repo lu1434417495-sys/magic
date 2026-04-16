@@ -32,12 +32,16 @@ func rebuild() -> void:
 	_register_brain(_build_melee_aggressor_brain())
 	_register_brain(_build_frontline_bulwark_brain())
 	_register_brain(_build_ranged_controller_brain())
+	_register_brain(_build_ranged_suppressor_brain())
+	_register_brain(_build_healer_controller_brain())
 	_register_template(_build_wolf_pack_template())
 	_register_template(_build_wolf_raider_template())
 	_register_template(_build_wolf_alpha_template())
 	_register_template(_build_wolf_vanguard_template())
 	_register_template(_build_wolf_shaman_template())
 	_register_template(_build_mist_beast_template())
+	_register_template(_build_mist_harrier_template())
+	_register_template(_build_mist_weaver_template())
 	_register_wild_encounter_roster(_build_wolf_den_roster())
 
 
@@ -131,6 +135,68 @@ func _build_ranged_controller_brain() -> EnemyAiBrainDef:
 			_build_retreat_action(&"mist_retreat", 4),
 			_build_unit_skill_action(&"mist_support", [&"mage_temporal_rewind"], &"lowest_hp_ally"),
 			_build_wait_action(&"mist_wait"),
+		]),
+	}
+	return brain
+
+
+func _build_ranged_suppressor_brain() -> EnemyAiBrainDef:
+	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
+	brain.brain_id = &"ranged_suppressor"
+	brain.default_state_id = &"pressure"
+	brain.retreat_hp_ratio = 0.3
+	brain.pressure_distance = 4
+	brain.states = {
+		&"engage": _build_state(&"engage", [
+			_build_ground_skill_action(&"harrier_suppress_lane", [&"archer_suppressive_fire"], 2),
+			_build_unit_skill_action(&"harrier_pin_target", [&"archer_pinning_shot"], &"lowest_hp_enemy"),
+			_build_move_to_range_action(&"harrier_take_cover", &"nearest_enemy", 4, 5),
+			_build_wait_action(&"harrier_wait"),
+		]),
+		&"pressure": _build_state(&"pressure", [
+			_build_ground_skill_action(&"harrier_suppress_lane", [&"archer_suppressive_fire"], 2),
+			_build_unit_skill_action(&"harrier_pin_target", [&"archer_pinning_shot"], &"lowest_hp_enemy"),
+			_build_move_to_range_action(&"harrier_keep_range", &"nearest_enemy", 4, 5),
+			_build_wait_action(&"harrier_wait"),
+		]),
+		&"retreat": _build_state(&"retreat", [
+			_build_unit_skill_action(&"harrier_cover_retreat", [&"archer_pinning_shot"], &"nearest_enemy"),
+			_build_retreat_action(&"harrier_retreat", 5),
+			_build_wait_action(&"harrier_wait"),
+		]),
+	}
+	return brain
+
+
+func _build_healer_controller_brain() -> EnemyAiBrainDef:
+	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
+	brain.brain_id = &"healer_controller"
+	brain.default_state_id = &"pressure"
+	brain.retreat_hp_ratio = 0.35
+	brain.support_hp_ratio = 0.7
+	brain.pressure_distance = 4
+	brain.states = {
+		&"engage": _build_state(&"engage", [
+			_build_unit_skill_action(&"weaver_lock_target", [&"mage_glacial_prison"], &"lowest_hp_enemy"),
+			_build_unit_skill_action(&"weaver_pressure_bolt", [&"mage_ice_lance"], &"lowest_hp_enemy"),
+			_build_move_to_range_action(&"weaver_take_position", &"nearest_enemy", 3, 4),
+			_build_wait_action(&"weaver_wait"),
+		]),
+		&"pressure": _build_state(&"pressure", [
+			_build_unit_skill_action(&"weaver_lock_target", [&"mage_glacial_prison"], &"lowest_hp_enemy"),
+			_build_unit_skill_action(&"weaver_pressure_bolt", [&"mage_ice_lance"], &"lowest_hp_enemy"),
+			_build_move_to_range_action(&"weaver_keep_range", &"nearest_enemy", 3, 4),
+			_build_wait_action(&"weaver_wait"),
+		]),
+		&"support": _build_state(&"support", [
+			_build_unit_skill_action(&"weaver_rewind_ally", [&"mage_temporal_rewind"], &"lowest_hp_ally"),
+			_build_unit_skill_action(&"weaver_cover_bind", [&"mage_glacial_prison"], &"lowest_hp_enemy"),
+			_build_wait_action(&"weaver_wait"),
+		]),
+		&"retreat": _build_state(&"retreat", [
+			_build_unit_skill_action(&"weaver_rewind_retreat", [&"mage_temporal_rewind"], &"lowest_hp_ally"),
+			_build_retreat_action(&"weaver_retreat", 4),
+			_build_wait_action(&"weaver_wait"),
 		]),
 	}
 	return brain
@@ -302,6 +368,57 @@ func _build_mist_beast_template() -> EnemyTemplateDef:
 		"magic_attack": 12,
 		"magic_defense": 5,
 		"fire_resistance": 2,
+		"speed": 9,
+	}
+	return template
+
+
+func _build_mist_harrier_template() -> EnemyTemplateDef:
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = &"mist_harrier"
+	template.display_name = "雾沼猎压者"
+	template.brain_id = &"ranged_suppressor"
+	template.initial_state_id = &"pressure"
+	template.enemy_count = 1
+	template.skill_ids = ProgressionDataUtils.to_string_name_array([
+		"archer_suppressive_fire",
+		"archer_pinning_shot",
+	])
+	template.attribute_overrides = {
+		"hp_max": 26,
+		"mp_max": 0,
+		"stamina_max": 4,
+		"action_points": 2,
+		"physical_attack": 9,
+		"physical_defense": 3,
+		"magic_attack": 0,
+		"magic_defense": 2,
+		"speed": 11,
+	}
+	return template
+
+
+func _build_mist_weaver_template() -> EnemyTemplateDef:
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = &"mist_weaver"
+	template.display_name = "雾沼织咒者"
+	template.brain_id = &"healer_controller"
+	template.initial_state_id = &"pressure"
+	template.enemy_count = 1
+	template.skill_ids = ProgressionDataUtils.to_string_name_array([
+		"mage_temporal_rewind",
+		"mage_glacial_prison",
+		"mage_ice_lance",
+	])
+	template.attribute_overrides = {
+		"hp_max": 24,
+		"mp_max": 14,
+		"stamina_max": 0,
+		"action_points": 2,
+		"physical_attack": 3,
+		"physical_defense": 2,
+		"magic_attack": 12,
+		"magic_defense": 6,
 		"speed": 9,
 	}
 	return template

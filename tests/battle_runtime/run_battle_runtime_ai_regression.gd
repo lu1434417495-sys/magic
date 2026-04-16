@@ -23,12 +23,17 @@ func _run() -> void:
 	_test_game_runtime_facade_injects_enemy_content()
 	_test_enemy_template_resolves_stable_id()
 	_test_frontline_template_resolves_stable_id()
+	_test_suppressor_template_resolves_stable_id()
+	_test_healer_template_resolves_stable_id()
 	_test_enemy_template_does_not_resolve_display_name_alias()
 	_test_ai_charge_decision_logs_brain_state_action()
 	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
 	_test_ai_ground_skill_generates_legal_command()
+	_test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster()
+	_test_healer_controller_uses_control_when_battle_is_stable()
 	_test_frontline_bulwark_guards_when_low_hp()
 	_test_ai_support_state_heals_low_hp_ally()
+	_test_healer_controller_heals_low_hp_ally()
 	if _failures.is_empty():
 		print("Battle runtime AI regression: PASS")
 		quit(0)
@@ -52,12 +57,20 @@ func _test_game_runtime_facade_injects_enemy_content() -> void:
 		"GameRuntimeFacade.setup() 应向 BattleRuntimeModule 注入敌方模板。"
 	)
 	_assert_true(
-		facade._battle_runtime._enemy_templates.size() >= 6,
-		"正式 enemy template 数量应至少达到 6。"
+		facade._battle_runtime._enemy_templates.size() >= 8,
+		"正式 enemy template 数量应至少达到 8。"
 	)
 	_assert_true(
 		facade._battle_runtime._enemy_templates.has(&"wolf_vanguard"),
 		"GameRuntimeFacade.setup() 应注入新的前排狼先锋模板。"
+	)
+	_assert_true(
+		facade._battle_runtime._enemy_templates.has(&"mist_harrier"),
+		"GameRuntimeFacade.setup() 应注入新的远程压制模板。"
+	)
+	_assert_true(
+		facade._battle_runtime._enemy_templates.has(&"mist_weaver"),
+		"GameRuntimeFacade.setup() 应注入新的治疗控制模板。"
 	)
 	_assert_true(
 		facade._battle_runtime._enemy_ai_brains.has(&"melee_aggressor"),
@@ -66,6 +79,14 @@ func _test_game_runtime_facade_injects_enemy_content() -> void:
 	_assert_true(
 		facade._battle_runtime._enemy_ai_brains.has(&"frontline_bulwark"),
 		"GameRuntimeFacade.setup() 应注入新的前排承伤 AI brain。"
+	)
+	_assert_true(
+		facade._battle_runtime._enemy_ai_brains.has(&"ranged_suppressor"),
+		"GameRuntimeFacade.setup() 应注入新的远程压制 AI brain。"
+	)
+	_assert_true(
+		facade._battle_runtime._enemy_ai_brains.has(&"healer_controller"),
+		"GameRuntimeFacade.setup() 应注入新的治疗控制 AI brain。"
 	)
 	game_session.clear_persisted_game()
 	game_session.free()
@@ -104,6 +125,42 @@ func _test_frontline_template_resolves_stable_id() -> void:
 	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"engage", "wolf_vanguard 应写入 engage 初始状态。")
 	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"charge"), "wolf_vanguard 应携带 charge。")
 	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"warrior_guard"), "wolf_vanguard 应携带 warrior_guard 作为承伤技能。")
+
+
+func _test_suppressor_template_resolves_stable_id() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var encounter_anchor = _build_encounter_anchor(&"encounter_harrier", &"mist_harrier", "雾沼猎压者")
+	var state = runtime.start_battle(encounter_anchor, 104, {
+		"ally_member_ids": [&"ally_a", &"ally_b"],
+		"default_active_skill_ids": [&"warrior_heavy_strike"],
+	})
+	_assert_true(state != null and not state.is_empty(), "正式 battle start 应能创建基于远程压制模板的战斗状态。")
+	if state == null or state.is_empty():
+		return
+	_assert_true(state.enemy_unit_ids.size() == 1, "mist_harrier 模板应构建 1 个敌方单位。")
+	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
+	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"ranged_suppressor", "mist_harrier 应绑定 ranged_suppressor brain。")
+	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"pressure", "mist_harrier 应写入 pressure 初始状态。")
+	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"archer_suppressive_fire"), "mist_harrier 应携带 archer_suppressive_fire。")
+	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"archer_pinning_shot"), "mist_harrier 应携带 archer_pinning_shot。")
+
+
+func _test_healer_template_resolves_stable_id() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var encounter_anchor = _build_encounter_anchor(&"encounter_weaver", &"mist_weaver", "雾沼织咒者")
+	var state = runtime.start_battle(encounter_anchor, 105, {
+		"ally_member_ids": [&"ally_a", &"ally_b"],
+		"default_active_skill_ids": [&"warrior_heavy_strike"],
+	})
+	_assert_true(state != null and not state.is_empty(), "正式 battle start 应能创建基于治疗控制模板的战斗状态。")
+	if state == null or state.is_empty():
+		return
+	_assert_true(state.enemy_unit_ids.size() == 1, "mist_weaver 模板应构建 1 个敌方单位。")
+	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
+	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"healer_controller", "mist_weaver 应绑定 healer_controller brain。")
+	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"pressure", "mist_weaver 应写入 pressure 初始状态。")
+	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"mage_temporal_rewind"), "mist_weaver 应携带 mage_temporal_rewind。")
+	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"mage_glacial_prison"), "mist_weaver 应携带 mage_glacial_prison。")
 
 
 func _test_enemy_template_does_not_resolve_display_name_alias() -> void:
@@ -212,6 +269,79 @@ func _test_ai_ground_skill_generates_legal_command() -> void:
 	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "ground skill 预览应至少命中 2 个单位。")
 
 
+func _test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var harrier = _build_ai_unit(
+		&"mist_harrier_01",
+		"雾沼猎压者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_suppressor",
+		&"pressure",
+		[&"archer_suppressive_fire", &"archer_pinning_shot"],
+		26,
+		2
+	)
+	var player_a = _build_manual_unit(&"player_a", "玩家A", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	var player_b = _build_manual_unit(&"player_b", "玩家B", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, harrier, true)
+	_add_unit_to_state(runtime, state, player_a, false)
+	_add_unit_to_state(runtime, state, player_b, false)
+	var ai_context = _build_ai_context(runtime, harrier)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.state_id == &"pressure", "ranged_suppressor 在有效射程内应保持 pressure 状态。")
+	_assert_true(
+		decision != null and decision.command != null and decision.command.skill_id == &"archer_suppressive_fire",
+		"ranged_suppressor 面对成线目标时应优先生成 archer_suppressive_fire。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "远程压制命令必须通过 preview_command。")
+	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "远程压制命令应至少覆盖 2 个敌对目标。")
+
+
+func _test_healer_controller_uses_control_when_battle_is_stable() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var weaver = _build_ai_unit(
+		&"mist_weaver_01",
+		"雾沼织咒者",
+		&"hostile",
+		Vector2i(1, 1),
+		&"healer_controller",
+		&"pressure",
+		[&"mage_temporal_rewind", &"mage_glacial_prison", &"mage_ice_lance"],
+		24,
+		2
+	)
+	var ally = _build_ai_unit(
+		&"mist_weaver_ally",
+		"雾沼盟友",
+		&"hostile",
+		Vector2i(2, 1),
+		&"ranged_controller",
+		&"pressure",
+		[&"mage_ice_lance"],
+		24,
+		2
+	)
+	var player = _build_manual_unit(&"player_01", "玩家", &"player", Vector2i(5, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, weaver, true)
+	_add_unit_to_state(runtime, state, ally, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, weaver)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.state_id == &"pressure", "没有低血量友军时，healer_controller 应保持 pressure 状态。")
+	_assert_true(
+		decision != null and decision.command != null and decision.command.skill_id == &"mage_glacial_prison",
+		"healer_controller 在稳定局面下应先用 mage_glacial_prison 做控制。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "治疗控制模板的控场命令必须通过 preview_command。")
+
+
 func _test_frontline_bulwark_guards_when_low_hp() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(6, 4))
@@ -281,6 +411,48 @@ func _test_ai_support_state_heals_low_hp_ally() -> void:
 	)
 	var preview = runtime.preview_command(decision.command)
 	_assert_true(preview != null and preview.allowed, "support 支援命令必须通过 preview_command。")
+
+
+func _test_healer_controller_heals_low_hp_ally() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var weaver = _build_ai_unit(
+		&"mist_weaver_healer",
+		"雾沼织咒者",
+		&"hostile",
+		Vector2i(1, 1),
+		&"healer_controller",
+		&"pressure",
+		[&"mage_temporal_rewind", &"mage_glacial_prison", &"mage_ice_lance"],
+		24,
+		2
+	)
+	var ally = _build_ai_unit(
+		&"mist_weaver_target",
+		"雾沼盟友",
+		&"hostile",
+		Vector2i(2, 1),
+		&"ranged_controller",
+		&"pressure",
+		[&"mage_ice_lance"],
+		10,
+		2
+	)
+	ally.attribute_snapshot.set_value(&"hp_max", 24)
+	var player = _build_manual_unit(&"player_01", "玩家", &"player", Vector2i(5, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, weaver, true)
+	_add_unit_to_state(runtime, state, ally, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, weaver)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.state_id == &"support", "低血量友军存在时，healer_controller 应切入 support 状态。")
+	_assert_true(
+		decision != null and decision.command != null and decision.command.skill_id == &"mage_temporal_rewind",
+		"healer_controller 在 support 状态下应优先使用 mage_temporal_rewind。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "healer_controller 的治疗命令必须通过 preview_command。")
 
 
 func _build_runtime_with_enemy_content():

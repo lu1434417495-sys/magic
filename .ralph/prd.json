@@ -525,14 +525,22 @@
     {
       "id": "PVS_09B",
       "title": "新增远程压制/治疗控制敌人模板",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "新增模板后正式 enemy templates 总数达到至少 8",
         "新增模板覆盖远程压制与治疗控制职责"
       ],
       "notes": [
         "Owner：CU-20 / CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:38:44+08:00",
+      "lastRunId": "20260417-043844-PVS_09B",
+      "startedAt": "2026-04-17T04:38:44+08:00",
+      "completedAt": "2026-04-17T04:44:54+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd` and `godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd` successfully.",
+      "lastLearnings": "Existing CU-20 AI action helpers already support the new roles without runtime changes: ranged suppression works through `archer_suppressive_fire`/`archer_pinning_shot`, and healer-control works through `mage_temporal_rewind`/`mage_glacial_prison`. Ownership and runtime chains did not change, so `docs/design/project_context_units.md` stays valid as-is."
     },
     {
       "id": "PVS_09C",
