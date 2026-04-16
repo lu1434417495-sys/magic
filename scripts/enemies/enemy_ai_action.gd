@@ -73,6 +73,35 @@ func _preview_allowed(context, command) -> bool:
 	return preview != null and bool(preview.allowed)
 
 
+func _build_skill_score_input(
+	context,
+	skill_def: SkillDef,
+	command,
+	preview,
+	effect_defs: Array = [],
+	metadata: Dictionary = {}
+):
+	if context == null:
+		return null
+	return context.build_skill_score_input(skill_def, command, preview, effect_defs, metadata)
+
+
+func _is_better_skill_score_input(candidate, best_candidate) -> bool:
+	if candidate == null:
+		return false
+	if best_candidate == null:
+		return true
+	if int(candidate.total_score) != int(best_candidate.total_score):
+		return int(candidate.total_score) > int(best_candidate.total_score)
+	if int(candidate.hit_payoff_score) != int(best_candidate.hit_payoff_score):
+		return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
+	if int(candidate.target_count) != int(best_candidate.target_count):
+		return int(candidate.target_count) > int(best_candidate.target_count)
+	if int(candidate.position_objective_score) != int(best_candidate.position_objective_score):
+		return int(candidate.position_objective_score) > int(best_candidate.position_objective_score)
+	return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
+
+
 func _build_wait_command(context):
 	if context == null or context.unit_state == null:
 		return null

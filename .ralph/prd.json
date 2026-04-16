@@ -925,14 +925,22 @@
     {
       "id": "PVS_18A",
       "title": "建立 AI 技能评分上下文",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "AI 评分至少能读取命中收益、目标数量、资源消耗与站位目标",
         "`BattleAiService` 或 sidecar 有清晰的 score input owner"
       ],
       "notes": [
         "Owner：CU-16 / CU-20。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:09:04+08:00",
+      "lastRunId": "20260417-070904-PVS_18A",
+      "startedAt": "2026-04-17T07:09:04+08:00",
+      "completedAt": "2026-04-17T07:20:49+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd` PASS; `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` PASS; extra `godot --headless --script tests/battle_runtime/run_warrior_skill_semantics_regression.gd` still fails on the existing taunt-target assertion and was left outside this story slice.",
+      "lastLearnings": "Battle AI skill scoring now has one formal owner: `BattleAiScoreService` builds shared score packets through `BattleAiContext` with hit payoff, target count, raw and weighted resource costs, and position-objective data. Future AI scoring changes should extend that sidecar instead of adding new action-local score formulas."
     },
     {
       "id": "PVS_18B",

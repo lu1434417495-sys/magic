@@ -7,23 +7,30 @@ extends RefCounted
 
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle_ai_decision.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
+const BATTLE_AI_SCORE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_ai_score_service.gd")
 const BattleAiDecision = preload("res://scripts/systems/battle_ai_decision.gd")
 const BattleCommand = preload("res://scripts/systems/battle_command.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
+const BattleAiScoreService = preload("res://scripts/systems/battle_ai_score_service.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const STATUS_TAUNTED: StringName = &"taunted"
 
 var _enemy_ai_brains: Dictionary = {}
+var _score_service: BattleAiScoreService = BATTLE_AI_SCORE_SERVICE_SCRIPT.new()
 
 
-func setup(enemy_ai_brains: Dictionary = {}) -> void:
+func setup(enemy_ai_brains: Dictionary = {}, damage_resolver: BattleDamageResolver = null) -> void:
 	_enemy_ai_brains = enemy_ai_brains if enemy_ai_brains != null else {}
+	_score_service.setup(damage_resolver)
 
 
 func choose_command(context) -> BattleAiDecision:
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null:
 		return null
+	if not context.skill_score_input_callback.is_valid():
+		context.skill_score_input_callback = Callable(self, "build_skill_score_input")
 
 	var unit_state: BattleUnitState = context.unit_state
 	var brain = _resolve_brain(unit_state.ai_brain_id)
@@ -75,6 +82,10 @@ func choose_command(context) -> BattleAiDecision:
 	)
 	_commit_decision(unit_state, wait_decision)
 	return wait_decision
+
+
+func build_skill_score_input(context, skill_def: SkillDef, command, preview, effect_defs: Array = [], metadata: Dictionary = {}):
+	return _score_service.build_skill_score_input(context, skill_def, command, preview, effect_defs, metadata)
 
 
 func _resolve_brain(brain_id: StringName):

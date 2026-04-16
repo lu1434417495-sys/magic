@@ -4,6 +4,7 @@ const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle_runtime_module.gd")
 const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle_ai_context.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
@@ -11,6 +12,7 @@ const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_stat
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
 const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
+const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -32,10 +34,12 @@ func _run() -> void:
 	_test_ai_charge_decision_logs_brain_state_action()
 	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
 	_test_ai_ground_skill_generates_legal_command()
+	_test_ai_skill_score_input_exposes_ground_metrics()
 	_test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster()
 	_test_ranged_suppressor_skips_stamina_blocked_suppressive_fire()
 	_test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire()
 	_test_ai_unit_skill_action_skips_aura_blocked_primary_skill()
+	_test_ai_unit_skill_scoring_prefers_higher_hit_payoff_target()
 	_test_healer_controller_uses_control_when_battle_is_stable()
 	_test_frontline_bulwark_guards_when_low_hp()
 	_test_ai_support_state_heals_low_hp_ally()
@@ -275,6 +279,59 @@ func _test_ai_ground_skill_generates_legal_command() -> void:
 	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "ground skill 预览应至少命中 2 个单位。")
 
 
+func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var harrier = _build_ai_unit(
+		&"mist_harrier_score",
+		"雾沼猎压者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_suppressor",
+		&"pressure",
+		[&"archer_suppressive_fire", &"archer_pinning_shot"],
+		26,
+		2
+	)
+	var player_a = _build_manual_unit(&"player_a", "玩家A", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	var player_b = _build_manual_unit(&"player_b", "玩家B", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, harrier, true)
+	_add_unit_to_state(runtime, state, player_a, false)
+	_add_unit_to_state(runtime, state, player_b, false)
+	var ai_context = _build_ai_context(runtime, harrier)
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"ground_score_probe"
+	var ground_action_skill_ids: Array[StringName] = [&"archer_suppressive_fire"]
+	action.skill_ids = ground_action_skill_ids
+	action.minimum_hit_count = 2
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "ground skill 评分回归应先拿到合法候选。")
+	if decision == null or decision.command == null:
+		return
+	var skill_def = runtime._skill_defs.get(decision.command.skill_id)
+	var preview = runtime.preview_command(decision.command)
+	var score_input = ai_context.build_skill_score_input(
+		skill_def,
+		decision.command,
+		preview,
+		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
+		{}
+	)
+	_assert_true(score_input != null, "AI skill score input 应由 BattleAiContext 正式构造。")
+	if score_input == null:
+		return
+	_assert_true(score_input.hit_payoff_score > 0, "ground skill score input 应暴露正向命中收益。")
+	_assert_true(score_input.target_count >= 2, "ground skill score input 应暴露目标数量。")
+	_assert_eq(score_input.ap_cost, 2, "ground skill score input 应暴露 AP 消耗。")
+	_assert_eq(score_input.stamina_cost, 2, "ground skill score input 应暴露 ST 消耗。")
+	_assert_eq(score_input.cooldown_tu, 3, "ground skill score input 应暴露 cooldown_tu。")
+	_assert_true(score_input.resource_cost_score > 0, "ground skill score input 应暴露资源消耗评分。")
+	_assert_eq(score_input.position_objective_kind, &"cast_distance", "ground skill score input 应记录默认站位目标类型。")
+	_assert_true(score_input.distance_to_primary_coord >= 0, "ground skill score input 应记录站位目标距离。")
+	_assert_true(score_input.position_objective_score >= 0, "ground skill score input 应暴露站位目标评分。")
+
+
 func _test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(7, 5))
@@ -419,6 +476,83 @@ func _test_ai_unit_skill_action_skips_aura_blocked_primary_skill() -> void:
 	)
 	var preview = runtime.preview_command(decision.command)
 	_assert_true(preview != null and preview.allowed, "Aura 阻断后的 AI 替代命令仍必须通过 preview_command。")
+
+
+func _test_ai_unit_skill_scoring_prefers_higher_hit_payoff_target() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"score_archer",
+		"评分猎手",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_suppressor",
+		&"pressure",
+		[&"archer_pinning_shot"],
+		26,
+		2
+	)
+	var close_tank = _build_manual_unit(&"close_tank", "近处重甲", &"player", Vector2i(2, 2), [&"warrior_heavy_strike"])
+	close_tank.attribute_snapshot.set_value(&"physical_defense", 20)
+	var far_scout = _build_manual_unit(&"far_scout", "远处轻甲", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	far_scout.attribute_snapshot.set_value(&"physical_defense", 0)
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, close_tank, false)
+	_add_unit_to_state(runtime, state, far_scout, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"score_pick_best_target"
+	var unit_action_skill_ids: Array[StringName] = [&"archer_pinning_shot"]
+	action.skill_ids = unit_action_skill_ids
+	action.target_selector = &"nearest_enemy"
+	var skill_def = runtime._skill_defs.get(&"archer_pinning_shot")
+	var close_command = BATTLE_COMMAND_SCRIPT.new()
+	close_command.command_type = close_command.TYPE_SKILL
+	close_command.unit_id = archer.unit_id
+	close_command.skill_id = &"archer_pinning_shot"
+	close_command.target_unit_id = close_tank.unit_id
+	close_command.target_coord = close_tank.coord
+	var far_command = BATTLE_COMMAND_SCRIPT.new()
+	far_command.command_type = far_command.TYPE_SKILL
+	far_command.unit_id = archer.unit_id
+	far_command.skill_id = &"archer_pinning_shot"
+	far_command.target_unit_id = far_scout.unit_id
+	far_command.target_coord = far_scout.coord
+	var close_preview = runtime.preview_command(close_command)
+	var far_preview = runtime.preview_command(far_command)
+	var close_score = ai_context.build_skill_score_input(
+		skill_def,
+		close_command,
+		close_preview,
+		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
+		{"position_target_unit": close_tank}
+	)
+	var far_score = ai_context.build_skill_score_input(
+		skill_def,
+		far_command,
+		far_preview,
+		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
+		{"position_target_unit": far_scout}
+	)
+	_assert_true(close_score != null and far_score != null, "unit skill score input 应能为多个候选目标生成评分上下文。")
+	if close_score == null or far_score == null:
+		return
+	_assert_true(
+		far_score.hit_payoff_score > close_score.hit_payoff_score,
+		"更脆弱的远处目标应提供更高的命中收益评分。"
+	)
+	_assert_true(
+		far_score.total_score > close_score.total_score,
+		"共享评分上下文应允许高收益目标压过默认最近目标。"
+	)
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "共享 unit score input 后应仍能生成合法指令。")
+	_assert_eq(
+		decision.command.target_unit_id if decision != null and decision.command != null else &"",
+		far_scout.unit_id,
+		"UseUnitSkillAction 应根据共享评分上下文选择更高命中收益的目标。"
+	)
 
 
 func _test_healer_controller_uses_control_when_battle_is_stable() -> void:
@@ -626,6 +760,7 @@ func _build_ai_context(runtime, unit_state):
 	ai_context.grid_service = runtime._grid_service
 	ai_context.skill_defs = runtime._skill_defs
 	ai_context.preview_callback = Callable(runtime, "preview_command")
+	ai_context.skill_score_input_callback = Callable(runtime._ai_service, "build_skill_score_input")
 	return ai_context
 
 

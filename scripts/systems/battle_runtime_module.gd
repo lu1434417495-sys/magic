@@ -112,7 +112,7 @@ func setup(
 	_enemy_templates = enemy_templates if enemy_templates != null else {}
 	_enemy_ai_brains = enemy_ai_brains if enemy_ai_brains != null else {}
 	_encounter_builder = encounter_builder if encounter_builder != null else ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
-	_ai_service.setup(_enemy_ai_brains)
+	_ai_service.setup(_enemy_ai_brains, _damage_resolver)
 	_terrain_effect_system.setup(self)
 	_battle_rating_system.setup(self)
 	_unit_factory.setup(self)
@@ -193,6 +193,7 @@ func advance(delta_seconds: float) -> BattleEventBatch:
 			ai_context.grid_service = _grid_service
 			ai_context.skill_defs = _skill_defs
 			ai_context.preview_callback = Callable(self, "preview_command")
+			ai_context.skill_score_input_callback = Callable(_ai_service, "build_skill_score_input")
 			var decision: BattleAiDecision = _ai_service.choose_command(ai_context)
 			if decision != null and decision.command != null:
 				var ai_line := "AI[%s/%s/%s] %s" % [

@@ -7,7 +7,7 @@ var minimum_hit_count := 1
 
 func decide(context):
 	var best_decision = null
-	var best_score = -999999
+	var best_score_input = null
 	for skill_id in _resolve_known_skill_ids(context, skill_ids):
 		var skill_def = _get_skill_def(context, skill_id)
 		if skill_def == null or skill_def.combat_profile == null:
@@ -27,14 +27,31 @@ func decide(context):
 				var hit_count = preview.target_unit_ids.size()
 				if hit_count < minimum_hit_count:
 					continue
-				var primary_coord = command.target_coord
-				var distance_score = 99 - context.grid_service.get_distance_from_unit_to_coord(context.unit_state, primary_coord)
-				var total_score = hit_count * 100 + distance_score
-				if total_score <= best_score:
+				var score_input = _build_skill_score_input(
+					context,
+					skill_def,
+					command,
+					preview,
+					cast_variant.effect_defs,
+					{
+						"position_target_coord": command.target_coord,
+					}
+				)
+				if score_input == null:
+					return _create_decision(
+						command,
+						"%s 准备用 %s 覆盖 %d 个单位。" % [context.unit_state.display_name, skill_def.display_name, hit_count]
+					)
+				if not _is_better_skill_score_input(score_input, best_score_input):
 					continue
-				best_score = total_score
+				best_score_input = score_input
 				best_decision = _create_decision(
 					command,
-					"%s 准备用 %s 覆盖 %d 个单位。" % [context.unit_state.display_name, skill_def.display_name, hit_count]
+					"%s 准备用 %s 覆盖 %d 个单位（评分 %d）。" % [
+						context.unit_state.display_name,
+						skill_def.display_name,
+						hit_count,
+						int(score_input.total_score),
+					]
 				)
 	return best_decision

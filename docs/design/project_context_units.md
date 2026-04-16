@@ -101,11 +101,12 @@ BattleRuntimeModule
   -> BattleRatingSystem
   -> BattleUnitFactory
   -> BattleState / BattleUnitState / BattleCellState / BattleTimelineState / BattleTerrainEffectState
-  -> BattleGridService / BattleEdgeService / BattleDamageResolver / BattleHitResolver / BattleAiService
+  -> BattleGridService / BattleEdgeService / BattleDamageResolver / BattleHitResolver / BattleAiService / BattleAiScoreService
   -> BattleTerrainRules / BattleTerrainTopologyService
   -> BattleTerrainGenerator / EncounterRosterBuilder
 
 BattleAiService
+  -> BattleAiContext / BattleAiScoreInput / BattleAiScoreService
   -> EnemyTemplateDef / EnemyAiBrainDef / EnemyAiStateDef
   -> enemy actions/*
 
@@ -740,6 +741,8 @@ HeadlessGameTestSession
   - `scripts/systems/battle_status_semantic_table.gd`
   - `scripts/systems/battle_hit_resolver.gd`
   - `scripts/systems/battle_ai_context.gd`
+  - `scripts/systems/battle_ai_score_input.gd`
+  - `scripts/systems/battle_ai_score_service.gd`
   - `scripts/systems/battle_ai_decision.gd`
   - `scripts/systems/battle_ai_service.gd`
 - 真相源：
@@ -752,6 +755,7 @@ HeadlessGameTestSession
   - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
 - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
   - `BattleHitResolver` 负责当前命中率合成、deterministic 命中掷骰，以及 repeat-attack 的正式命中口径。
+  - `BattleAiScoreService` 负责构造技能候选的正式评分输入包（命中收益、目标数量、资源消耗、站位目标），并通过 `BattleAiContext` 提供给 `BattleAiService / enemy actions` 共享读取；不要再把 skill score input 散写回各个 action。
   - 处理伤害、状态、AI 决策上下文与产出。
 - 邻接单元：
   - CU-15

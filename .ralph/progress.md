@@ -197,3 +197,7 @@ Extended `BattleTargetCollectionService` into the shared `ground | unit | self` 
 ## 2026-04-17T07:09:04+08:00 | PVS_17C | done
 title: 为范围图形补 selection/execute shared regression
 Extended `tests/battle_runtime/run_battle_skill_protocol_regression.gd` with a real `mage_cold_snap` radius-AoE contract test that locks selection state, battle snapshot/UI marker input, preview validation, and execution onto the same collected target range, including a real board-marker assertion and in-range vs out-of-range damage checks.
+
+## 2026-04-17T07:20:49+08:00 | PVS_18A | done
+title: 建立 AI 技能评分上下文
+Added `BattleAiScoreInput` and `BattleAiScoreService` as the formal CU-16 score-input owner, wired `BattleAiContext`/`BattleAiService`/`BattleRuntimeModule` to expose shared score packets, switched unit and ground skill AI actions to compare candidates through that shared scoring path, extended `run_battle_runtime_ai_regression.gd`, and updated `docs/design/project_context_units.md` for the new ownership surface.
