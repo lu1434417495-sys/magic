@@ -17,6 +17,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_snapshot_builder_matches_facade_outputs()
 	_test_snapshot_builder_exposes_party_quest_snapshot()
+	_test_snapshot_builder_exposes_contract_board_modal_snapshot()
 	_test_snapshot_builder_exposes_forge_modal_snapshot()
 	_test_snapshot_builder_exposes_generic_forge_modal_snapshot()
 
@@ -109,6 +110,49 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	_assert_true(text_snapshot.contains("active_quest_ids=contract_wolf_pack"), "文本快照应渲染激活任务 ID。")
 	_assert_true(text_snapshot.contains("completed_quest_ids=contract_intro"), "文本快照应渲染完成任务 ID。")
 	_assert_true(text_snapshot.contains("quest=contract_wolf_pack"), "文本快照应渲染任务明细。")
+
+	builder.dispose()
+
+
+func _test_snapshot_builder_exposes_contract_board_modal_snapshot() -> void:
+	var runtime := FakeQuestRuntime.new()
+	runtime.active_modal_id = "contract_board"
+	runtime.contract_board_window_data = {
+		"title": "春泉村 · 任务板",
+		"settlement_id": "spring_village_01",
+		"provider_interaction_id": "service_contract_board",
+		"entries": [
+			{
+				"entry_id": "contract_first_hunt",
+				"quest_id": "contract_first_hunt",
+				"display_name": "首轮狩猎",
+				"state_label": "状态：可查看",
+				"cost_label": "奖励：80 金",
+			},
+			{
+				"entry_id": "contract_manual_drill",
+				"quest_id": "contract_manual_drill",
+				"display_name": "训练记录",
+				"state_label": "状态：可查看",
+				"cost_label": "奖励：30 金",
+			},
+		],
+	}
+
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	var text_snapshot := builder.build_text_snapshot()
+	var contract_board_snapshot: Dictionary = snapshot.get("contract_board", {})
+	var entry_ids := _extract_window_entry_value_strings(contract_board_snapshot.get("window_data", {}).get("entries", []), "quest_id")
+
+	_assert_true(bool(contract_board_snapshot.get("visible", false)), "contract board modal 激活时快照应暴露 contract_board.visible。")
+	_assert_eq(String(contract_board_snapshot.get("window_data", {}).get("provider_interaction_id", "")), "service_contract_board", "contract board 快照应保留当前 provider_interaction_id。")
+	_assert_eq(entry_ids, ["contract_first_hunt", "contract_manual_drill"], "contract board 快照应稳定暴露当前任务板条目列表。")
+	_assert_true(text_snapshot.contains("[CONTRACT_BOARD]"), "文本快照应渲染 CONTRACT_BOARD 分段。")
+	_assert_true(text_snapshot.contains("provider_interaction_id=service_contract_board"), "文本快照应渲染当前任务板 provider_interaction_id。")
+	_assert_true(text_snapshot.contains("首轮狩猎"), "文本快照应渲染首轮狩猎条目。")
+	_assert_true(text_snapshot.contains("训练记录"), "文本快照应渲染训练记录条目。")
 
 	builder.dispose()
 
@@ -223,6 +267,7 @@ class FakeQuestRuntime:
 
 	var party_state: FakeQuestPartyState = null
 	var active_modal_id := ""
+	var contract_board_window_data: Dictionary = {}
 	var forge_window_data: Dictionary = {}
 	var active_shop_context: Dictionary = {}
 
@@ -301,6 +346,12 @@ class FakeQuestRuntime:
 	func get_shop_window_data() -> Dictionary:
 		return {}
 
+	func get_contract_board_window_data() -> Dictionary:
+		return contract_board_window_data.duplicate(true)
+
+	func get_active_contract_board_context() -> Dictionary:
+		return contract_board_window_data.duplicate(true)
+
 	func get_active_shop_context() -> Dictionary:
 		return active_shop_context.duplicate(true)
 
@@ -336,3 +387,15 @@ class FakeQuestRuntime:
 
 	func get_nearby_world_event_entries(_limit: int = 8) -> Array[Dictionary]:
 		return []
+
+
+func _extract_window_entry_value_strings(entry_variants, key: String) -> Array[String]:
+	var result: Array[String] = []
+	if entry_variants is not Array:
+		return result
+	for entry_variant in entry_variants:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		result.append(String(entry.get(key, "")))
+	return result

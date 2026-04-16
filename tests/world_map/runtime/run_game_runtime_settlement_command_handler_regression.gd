@@ -408,6 +408,23 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 		}
 	}
 	runtime._quest_defs = {
+		&"contract_first_hunt": {
+			"quest_id": "contract_first_hunt",
+			"display_name": "首轮狩猎",
+			"description": "击败任意一组敌对遭遇。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "defeat_enemy_once",
+					"objective_type": "defeat_enemy",
+					"target_id": "",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 80},
+			],
+		},
 		&"contract_manual_drill": {
 			"quest_id": "contract_manual_drill",
 			"display_name": "训练记录",
@@ -425,21 +442,21 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 				{"reward_type": "gold", "amount": 30},
 			],
 		},
-		&"contract_first_hunt": {
-			"quest_id": "contract_first_hunt",
-			"display_name": "首轮狩猎",
-			"description": "击败任意一组敌对遭遇。",
-			"provider_interaction_id": "service_contract_board",
+		&"contract_regional_bounty": {
+			"quest_id": "contract_regional_bounty",
+			"display_name": "地区悬赏",
+			"description": "仅应出现在悬赏署任务板。",
+			"provider_interaction_id": "service_bounty_registry",
 			"objective_defs": [
 				{
-					"objective_id": "defeat_enemy_once",
-					"objective_type": "defeat_enemy",
-					"target_id": "",
+					"objective_id": "submit_report",
+					"objective_type": "settlement_action",
+					"target_id": "service:report_bounty",
 					"target_value": 1,
 				},
 			],
 			"reward_entries": [
-				{"reward_type": "gold", "amount": 80},
+				{"reward_type": "gold", "amount": 120},
 			],
 		},
 	}
@@ -466,10 +483,12 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 
 	var contract_board_result := handler.command_execute_settlement_action("service:contract_board")
 	var contract_board_window_data := handler.get_contract_board_window_data()
+	var contract_board_entry_ids := _extract_contract_board_entry_ids(contract_board_window_data.get("entries", []))
 	_assert_true(bool(contract_board_result.get("ok", false)), "任务板服务应能切换到 contract_board modal。")
 	_assert_eq(runtime._active_modal_id, "contract_board", "任务板服务后应切换到 contract_board modal。")
 	_assert_eq(String(contract_board_window_data.get("action_id", "")), "service:contract_board", "任务板 modal 应保留原始 action_id。")
-	_assert_eq((contract_board_window_data.get("entries", []) as Array).size(), 2, "任务板 modal 应渲染 provider 绑定的契约条目。")
+	_assert_eq(String(contract_board_window_data.get("provider_interaction_id", "")), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。")
+	_assert_eq(contract_board_entry_ids, ["contract_first_hunt", "contract_manual_drill"], "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。")
 	handler.on_contract_board_window_closed()
 	_assert_eq(runtime._active_modal_id, "settlement", "关闭任务板后应返回 settlement modal。")
 	_assert_eq(runtime._active_settlement_id, "spring_village_01", "关闭任务板后应继续保留当前据点。")
@@ -636,6 +655,18 @@ func _find_service_entry(service_variants, action_id: String) -> Dictionary:
 		if service_variant is Dictionary and String(service_variant.get("action_id", "")) == action_id:
 			return (service_variant as Dictionary).duplicate(true)
 	return {}
+
+
+func _extract_contract_board_entry_ids(entry_variants) -> Array[String]:
+	var result: Array[String] = []
+	if entry_variants is not Array:
+		return result
+	for entry_variant in entry_variants:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		result.append(String(entry.get("quest_id", entry.get("entry_id", ""))))
+	return result
 
 
 func _assert_true(condition: bool, message: String) -> void:

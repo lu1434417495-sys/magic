@@ -33,3 +33,7 @@ Routed generic forge (`service:repair_gear`) through `SettlementForgeService`, k
 ## 2026-04-17T02:00:17+08:00 | PVS_02A | done
 title: 落地 contract board 的正式 modal 开关链路
 Wired `service_contract_board` into the formal settlement modal chain by adding a `contract_board` runtime modal/context, rendering it through `WorldMapSystem` with the shared `ShopWindow` shell, exposing snapshot/text snapshot data, adding close-to-settlement handling, and covering the flow in settlement-handler and text-runtime regressions. Updated `docs/design/project_context_units.md` because CU-06/CU-15 now formally include the contract-board modal path.
+
+## 2026-04-17T02:04:42+08:00 | PVS_02B | done
+title: 让 contract board 按 provider_interaction_id 过滤任务列表
+Filtered contract-board entries deterministically from `QuestDef.provider_interaction_id` in `game_runtime_settlement_command_handler.gd`, carried the active `provider_interaction_id` into contract-board window/snapshot data, hardened `game_runtime_snapshot_builder.gd` to read contract-board context through safe runtime helpers, exposed the provider line in text snapshots, and added regressions covering provider-specific filtering plus runtime/text snapshot visibility for the current board list.

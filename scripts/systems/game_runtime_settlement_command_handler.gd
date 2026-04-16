@@ -702,7 +702,8 @@ func _open_contract_board_modal(settlement_id: String, payload: Dictionary) -> v
 
 func _build_contract_board_window_data(settlement_id: String, payload: Dictionary) -> Dictionary:
 	var settlement := _get_settlement_record(settlement_id)
-	var entries := _build_contract_board_entries(String(payload.get("interaction_script_id", "")))
+	var provider_interaction_id := String(payload.get("interaction_script_id", "")).strip_edges()
+	var entries := _build_contract_board_entries(provider_interaction_id)
 	return {
 		"title": "%s · 任务板" % String(settlement.get("display_name", settlement_id)),
 		"meta": "%s · %s · %s" % [
@@ -715,7 +716,8 @@ func _build_contract_board_window_data(settlement_id: String, payload: Dictionar
 		"service_name": String(payload.get("service_type", "任务板")),
 		"settlement_id": settlement_id,
 		"action_id": String(payload.get("action_id", "")),
-		"interaction_script_id": String(payload.get("interaction_script_id", "")),
+		"interaction_script_id": provider_interaction_id,
+		"provider_interaction_id": provider_interaction_id,
 		"facility_id": String(payload.get("facility_id", "")),
 		"facility_name": String(payload.get("facility_name", "")),
 		"npc_id": String(payload.get("npc_id", "")),
@@ -731,16 +733,22 @@ func _build_contract_board_window_data(settlement_id: String, payload: Dictionar
 
 func _build_contract_board_entries(interaction_script_id: String) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	for quest_variant in _get_quest_defs().values():
-		var quest_entry := _build_contract_board_entry(quest_variant, interaction_script_id)
+	var normalized_interaction_id := interaction_script_id.strip_edges()
+	var quest_defs := _get_quest_defs()
+	for quest_key in ProgressionDataUtils.sorted_string_keys(quest_defs):
+		var quest_variant = quest_defs.get(StringName(quest_key), quest_defs.get(quest_key))
+		var quest_entry := _build_contract_board_entry(quest_variant, normalized_interaction_id)
 		if not quest_entry.is_empty():
 			entries.append(quest_entry)
 	if entries.is_empty():
+		var missing_provider_text := "当前没有 provider_interaction_id 绑定到 %s 的任务定义。" % normalized_interaction_id
+		if normalized_interaction_id.is_empty():
+			missing_provider_text = "当前任务板缺少 interaction_script_id，无法匹配 provider_interaction_id。"
 		entries.append({
 			"entry_id": "placeholder",
 			"display_name": "当前暂无可展示契约",
 			"summary_text": "任务定义尚未挂到这块任务板上。",
-			"details_text": "当前没有 provider_interaction_id 绑定到 %s 的任务定义。" % interaction_script_id,
+			"details_text": missing_provider_text,
 			"state_id": "empty",
 			"state_label": "状态：空",
 			"cost_label": "奖励：无",
@@ -760,7 +768,8 @@ func _build_contract_board_entry(quest_variant, interaction_script_id: String) -
 			quest_data = (quest_data_variant as Dictionary).duplicate(true)
 	if quest_data.is_empty():
 		return {}
-	if String(quest_data.get("provider_interaction_id", "")) != interaction_script_id:
+	var provider_interaction_id := String(quest_data.get("provider_interaction_id", "")).strip_edges()
+	if provider_interaction_id.is_empty() or provider_interaction_id != interaction_script_id:
 		return {}
 	var quest_id := ProgressionDataUtils.to_string_name(quest_data.get("quest_id", ""))
 	if quest_id == &"":
@@ -769,6 +778,7 @@ func _build_contract_board_entry(quest_variant, interaction_script_id: String) -
 	return {
 		"entry_id": String(quest_id),
 		"quest_id": String(quest_id),
+		"provider_interaction_id": provider_interaction_id,
 		"display_name": String(quest_data.get("display_name", String(quest_id))),
 		"summary_text": _build_contract_board_objective_summary(quest_id, quest_data),
 		"details_text": _build_contract_board_entry_details(quest_id, quest_data),

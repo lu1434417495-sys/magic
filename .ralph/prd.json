@@ -105,14 +105,22 @@
     {
       "id": "PVS_02B",
       "title": "让 contract board 按 provider_interaction_id 过滤任务列表",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "任务板只展示 `provider_interaction_id` 匹配当前服务的 `QuestDef`",
         "runtime snapshot 和 text snapshot 能读取当前任务板列表"
       ],
       "notes": [
         "Owner：CU-11 / CU-21。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T02:00:17+08:00",
+      "lastRunId": "20260417-020017-PVS_02B",
+      "startedAt": "2026-04-17T02:00:17+08:00",
+      "completedAt": "2026-04-17T02:04:42+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`, `godot --headless --script tests/runtime/run_game_runtime_snapshot_builder_regression.gd`, and `godot --headless --script tests/text_runtime/run_text_command_regression.gd`.",
+      "lastLearnings": "Contract-board ownership stays split as expected: quest-provider truth lives on `QuestDef.provider_interaction_id`, filtered board assembly belongs in `GameRuntimeSettlementCommandHandler`, and headless/runtime/text snapshot consumers should read the already-filtered active contract-board context rather than re-filtering in UI or snapshot layers."
     },
     {
       "id": "PVS_03A",

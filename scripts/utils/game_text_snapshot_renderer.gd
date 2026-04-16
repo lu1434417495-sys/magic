@@ -254,6 +254,7 @@ static func _build_contract_board_lines(contract_board_snapshot: Dictionary) -> 
 		"visible=%s" % _format_bool(bool(contract_board_snapshot.get("visible", false))),
 		"title=%s" % String(window_data.get("title", "")),
 		"settlement_id=%s" % String(window_data.get("settlement_id", "")),
+		"provider_interaction_id=%s" % String(window_data.get("provider_interaction_id", window_data.get("interaction_script_id", ""))),
 	]
 	var entries_variant = window_data.get("entries", [])
 	if entries_variant is Array:

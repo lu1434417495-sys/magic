@@ -289,7 +289,7 @@ func _build_shop_snapshot() -> Dictionary:
 
 
 func _build_contract_board_snapshot() -> Dictionary:
-	var window_data: Dictionary = _runtime.get_contract_board_window_data()
+	var window_data := _resolve_contract_board_window_data()
 	window_data.erase("party_state")
 	return {
 		"visible": _runtime.get_active_modal_id() == "contract_board",
@@ -406,6 +406,13 @@ func _build_promotion_snapshot() -> Dictionary:
 
 func _build_log_snapshot(limit: int = 30) -> Dictionary:
 	return _runtime.get_log_snapshot(limit) if _runtime != null else {}
+
+
+func _resolve_contract_board_window_data() -> Dictionary:
+	var window_data := _get_window_data_from_runtime("get_contract_board_window_data")
+	if not window_data.is_empty():
+		return window_data
+	return _get_window_data_from_runtime("get_active_contract_board_context")
 
 
 func _resolve_forge_window_data() -> Dictionary:
