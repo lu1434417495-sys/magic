@@ -313,7 +313,7 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 		return
 	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
 		if _is_contract_board_modal_submission(payload):
-			_submit_contract_board_quest_accept(settlement_id, action_id, payload)
+			_submit_contract_board_quest_action(settlement_id, action_id, payload)
 			return
 		_open_contract_board_modal(settlement_id, payload)
 		return
@@ -709,7 +709,7 @@ func _build_contract_board_window_data(settlement_id: String, payload: Dictionar
 	var entries := _build_contract_board_entries(provider_interaction_id)
 	var summary_text := String(payload.get("feedback_text", "")).strip_edges()
 	if summary_text.is_empty():
-		summary_text = "选择契约后会调用正式 quest accept 命令；重复接取、已完成和可重复任务都会返回明确反馈。"
+		summary_text = "选择契约后会按当前状态执行接取或领奖；重复接取、待领奖励和可重复任务都会返回明确反馈。"
 	return {
 		"title": "%s · 任务板" % String(settlement.get("display_name", settlement_id)),
 		"meta": "%s · %s · %s" % [
@@ -731,7 +731,7 @@ func _build_contract_board_window_data(settlement_id: String, payload: Dictionar
 		"service_type": String(payload.get("service_type", "")),
 		"panel_kind": "contract_board",
 		"show_member_selector": false,
-		"confirm_label": "接取契约",
+		"confirm_label": "确认操作",
 		"cancel_label": "返回据点",
 		"entries": entries,
 	}
@@ -1380,7 +1380,7 @@ func _is_contract_board_modal_submission(payload: Dictionary) -> bool:
 	return submission_source == "contract_board"
 
 
-func _submit_contract_board_quest_accept(settlement_id: String, _action_id: String, payload: Dictionary) -> void:
+func _submit_contract_board_quest_action(settlement_id: String, _action_id: String, payload: Dictionary) -> void:
 	if not _has_runtime():
 		return
 	var quest_id := ProgressionDataUtils.to_string_name(payload.get("quest_id", payload.get("entry_id", "")))
@@ -1405,9 +1405,14 @@ func _submit_contract_board_quest_accept(settlement_id: String, _action_id: Stri
 		_refresh_active_contract_board_context(provider_mismatch_message)
 		_update_status(provider_mismatch_message)
 		return
-	var allow_reaccept := bool(quest_data.get("is_repeatable", false))
-	var accept_result: Dictionary = _runtime.command_accept_quest(quest_id, allow_reaccept) if _runtime.has_method("command_accept_quest") else _command_error("运行时缺少 quest accept 接口。")
-	var message := String(accept_result.get("message", "任务接取失败。"))
+	var state_id := _resolve_contract_board_quest_state_id(quest_id, quest_data)
+	var command_result: Dictionary = {}
+	if state_id == "claimable":
+		command_result = _runtime.command_claim_quest(quest_id) if _runtime.has_method("command_claim_quest") else _command_error("运行时缺少 quest claim 接口。")
+	else:
+		var allow_reaccept := bool(quest_data.get("is_repeatable", false))
+		command_result = _runtime.command_accept_quest(quest_id, allow_reaccept) if _runtime.has_method("command_accept_quest") else _command_error("运行时缺少 quest accept 接口。")
+	var message := String(command_result.get("message", "任务处理失败。"))
 	_set_active_settlement_id(settlement_id)
 	_set_active_modal_id("contract_board")
 	_set_settlement_feedback_text(message)

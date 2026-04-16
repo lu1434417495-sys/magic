@@ -74,6 +74,7 @@ class MockRuntime:
 	var applied_quest_event_batches: Array = []
 	var achievement_events: Array[Dictionary] = []
 	var accepted_quest_calls: Array[Dictionary] = []
+	var claimed_quest_calls: Array[Dictionary] = []
 	var persist_calls := 0
 	var world_persist_calls := 0
 	var player_persist_calls := 0
@@ -222,6 +223,40 @@ class MockRuntime:
 		_party_state.set_active_quest_state(quest_state)
 		_current_status_message = "已重新接取任务《%s》。" % quest_label if has_completed and effective_allow_reaccept else "已接取任务《%s》。" % quest_label
 		return build_command_ok(_current_status_message)
+
+	func command_claim_quest(quest_id: StringName) -> Dictionary:
+		claimed_quest_calls.append({
+			"quest_id": String(quest_id),
+		})
+		var quest_data: Dictionary = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), {})).duplicate(true)
+		var quest_label := String(quest_data.get("display_name", quest_id))
+		if quest_data.is_empty():
+			_current_status_message = "未找到任务 %s。" % String(quest_id)
+			return build_command_error(_current_status_message)
+		if not _party_state.has_claimable_quest(quest_id):
+			_current_status_message = "当前没有可领取的任务《%s》奖励。" % quest_label
+			return build_command_error(_current_status_message)
+		var gold_delta := 0
+		var reward_entries_variant = quest_data.get("reward_entries", [])
+		if reward_entries_variant is Array:
+			for reward_variant in reward_entries_variant:
+				if reward_variant is not Dictionary:
+					continue
+				var reward_data := reward_variant as Dictionary
+				if String(reward_data.get("reward_type", "")) != "gold":
+					continue
+				gold_delta += maxi(int(reward_data.get("amount", 0)), 0)
+		if not _party_state.mark_quest_reward_claimed(quest_id, world_step):
+			_current_status_message = "当前无法领取任务《%s》奖励。" % quest_label
+			return build_command_error(_current_status_message)
+		if gold_delta > 0:
+			_party_state.add_gold(gold_delta)
+			_current_status_message = "已领取任务《%s》奖励，获得 %d 金。" % [quest_label, gold_delta]
+		else:
+			_current_status_message = "已领取任务《%s》奖励。" % quest_label
+		var result := build_command_ok(_current_status_message)
+		result["gold_delta"] = gold_delta
+		return result
 
 	func refresh_world_visibility() -> void:
 		refresh_world_visibility_calls += 1
@@ -571,32 +606,40 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(runtime._current_status_message, "任务《训练记录》已在进行中，不能重复接取。", "重复接取时应返回明确反馈。")
 
 	_assert_true(runtime._party_state.mark_quest_completed(&"contract_manual_drill", runtime.world_step), "测试前置：普通契约应能标记完成。")
+	var manual_claim_gold_before: int = runtime._party_state.get_gold()
 	handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_manual_drill",
 	})
-	_assert_eq(runtime.accepted_quest_calls.size(), 3, "已完成契约再次提交时仍应经过正式 quest accept 命令。")
-	_assert_eq(runtime._current_status_message, "任务《训练记录》已完成，奖励待领取，当前不可再次接取。", "待领奖励中的非 repeatable 契约应返回明确反馈。")
+	var claimed_contract_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_manual_drill")
+	_assert_eq(runtime.accepted_quest_calls.size(), 2, "领取 claimable 契约时不应重复走 quest accept 命令。")
+	_assert_eq(runtime.claimed_quest_calls.size(), 1, "claimable 契约提交时应走正式 quest claim 命令。")
+	_assert_eq(runtime._current_status_message, "已领取任务《训练记录》奖励，获得 30 金。", "claimable 契约提交时应返回领奖反馈。")
+	_assert_eq(runtime._party_state.get_gold(), manual_claim_gold_before + 30, "claimable 契约提交后应把金币奖励写入 PartyState。")
 	_assert_true(not runtime._party_state.has_active_quest(&"contract_manual_drill"), "已完成非 repeatable 契约不应重新回到 active_quests。")
-	_assert_true(runtime._party_state.has_claimable_quest(&"contract_manual_drill"), "已完成非 repeatable 契约应停留在 claimable_quests。")
+	_assert_true(not runtime._party_state.has_claimable_quest(&"contract_manual_drill"), "领奖后的非 repeatable 契约不应继续停留在 claimable_quests。")
+	_assert_true(runtime._party_state.has_completed_quest(&"contract_manual_drill"), "领奖后的非 repeatable 契约应进入 completed_quest_ids。")
+	_assert_eq(String(claimed_contract_entry.get("state_id", "")), "completed", "领奖后的普通契约条目应刷新为 completed。")
 
 	var repeatable_quest := QuestState.new()
 	repeatable_quest.quest_id = &"contract_repeatable_patrol"
 	repeatable_quest.mark_accepted(runtime.world_step)
 	runtime._party_state.set_active_quest_state(repeatable_quest)
 	_assert_true(runtime._party_state.mark_quest_completed(&"contract_repeatable_patrol", runtime.world_step), "测试前置：repeatable 契约应先进入待领奖励状态。")
+	var repeatable_claim_gold_before: int = runtime._party_state.get_gold()
 	handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_repeatable_patrol",
 	})
 	var repeatable_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_repeatable_patrol")
-	_assert_eq(runtime.accepted_quest_calls.size(), 4, "repeatable 契约提交时应复用正式 quest accept 命令。")
-	_assert_true(bool(runtime.accepted_quest_calls[3].get("allow_reaccept", false)), "repeatable 契约应启用 allow_reaccept。")
-	_assert_eq(runtime._current_status_message, "任务《巡路值守》已完成，奖励待领取，当前不可再次接取。", "repeatable 契约待领奖励时应阻止直接重接。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 2, "repeatable 契约领奖时不应误走 quest accept。")
+	_assert_eq(runtime.claimed_quest_calls.size(), 2, "repeatable 契约待领奖励时应走正式 quest claim 命令。")
+	_assert_eq(runtime._current_status_message, "已领取任务《巡路值守》奖励，获得 15 金。", "repeatable 契约领奖时应返回明确反馈。")
+	_assert_eq(runtime._party_state.get_gold(), repeatable_claim_gold_before + 15, "repeatable 契约领奖后应增加金币。")
 	_assert_true(not runtime._party_state.has_active_quest(&"contract_repeatable_patrol"), "repeatable 契约待领奖励时不应重新进入 active_quests。")
-	_assert_true(runtime._party_state.has_claimable_quest(&"contract_repeatable_patrol"), "repeatable 契约待领奖励时应保留在 claimable_quests。")
-	_assert_true(not runtime._party_state.has_completed_quest(&"contract_repeatable_patrol"), "repeatable 契约待领奖励时不应进入 completed_quest_ids。")
-	_assert_eq(String(repeatable_entry.get("state_id", "")), "claimable", "repeatable 契约待领奖励时条目应刷新为 claimable。")
+	_assert_true(not runtime._party_state.has_claimable_quest(&"contract_repeatable_patrol"), "repeatable 契约领奖后应离开 claimable_quests。")
+	_assert_true(runtime._party_state.has_completed_quest(&"contract_repeatable_patrol"), "repeatable 契约领奖后应进入 completed_quest_ids。")
+	_assert_eq(String(repeatable_entry.get("state_id", "")), "repeatable", "repeatable 契约领奖后条目应刷新为 repeatable。")
 
 	handler.on_contract_board_window_closed()
 	_assert_eq(runtime._active_modal_id, "settlement", "关闭任务板后应返回 settlement modal。")

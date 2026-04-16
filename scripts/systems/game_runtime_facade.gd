@@ -1406,6 +1406,51 @@ func command_complete_quest(quest_id: StringName) -> Dictionary:
 	)
 
 
+func command_claim_quest(quest_id: StringName) -> Dictionary:
+	return _execute_logged_command("quest.claim", "quest", {
+		"quest_id": quest_id,
+	}, func() -> Dictionary:
+		if _character_management == null:
+			return _command_error("运行时尚未初始化。")
+		if quest_id == &"":
+			return _command_error("任务 ID 不能为空。")
+		var quest_data := _get_quest_def_data(quest_id)
+		if quest_data.is_empty():
+			return _command_error("未找到任务 %s。" % String(quest_id))
+		var quest_label := _resolve_quest_label(quest_id, quest_data)
+		var claim_result := _character_management.claim_quest_reward(quest_id, get_world_step())
+		if not bool(claim_result.get("ok", false)):
+			var error_code := String(claim_result.get("error_code", ""))
+			match error_code:
+				"quest_not_claimable":
+					return _command_error("当前没有可领取的任务《%s》奖励。" % quest_label)
+				"quest_def_missing":
+					return _command_error("任务《%s》缺少奖励配置，当前无法领取。" % quest_label)
+				"invalid_gold_amount":
+					return _command_error("任务《%s》包含无效的金币奖励配置，当前无法领取。" % quest_label)
+				"unsupported_reward_types":
+					var unsupported_types := _string_name_array_to_string_array(claim_result.get("unsupported_reward_types", []))
+					var unsupported_text := "、".join(unsupported_types) if not unsupported_types.is_empty() else "未知奖励"
+					return _command_error("任务《%s》包含暂不支持的奖励类型：%s。" % [quest_label, unsupported_text])
+				_:
+					return _command_error("当前无法领取任务《%s》奖励。" % quest_label)
+		_party_state = _character_management.get_party_state()
+		var persist_error := _persist_party_state()
+		var gold_delta := int(claim_result.get("gold_delta", 0))
+		var message := "已领取任务《%s》奖励。" % quest_label
+		if gold_delta > 0:
+			message = "已领取任务《%s》奖励，获得 %d 金。" % [quest_label, gold_delta]
+		if persist_error != OK:
+			message = "%s 但队伍状态持久化失败。" % message
+			_update_status(message)
+			return _command_error(message)
+		_update_status(message)
+		var result := _command_ok(message)
+		result["gold_delta"] = gold_delta
+		return result
+	)
+
+
 func command_select_party_member(member_id: StringName) -> Dictionary:
 	return _execute_logged_command("party.select_member", "party", {
 		"member_id": member_id,

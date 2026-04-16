@@ -205,14 +205,22 @@
     {
       "id": "PVS_04B",
       "title": "实现 quest gold reward materializer",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`QuestDef.reward_entries` 的 gold 条目可在 claim 时转成 `PartyState.gold` 变更",
         "gold reward 的 claim 结果有稳定 runtime regression"
       ],
       "notes": [
         "Owner：CU-11 / CU-12。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T02:37:11+08:00",
+      "lastRunId": "20260417-023711-PVS_04B",
+      "startedAt": "2026-04-17T02:37:11+08:00",
+      "completedAt": "2026-04-17T02:44:30+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/runtime/run_game_runtime_quest_progress_regression.gd`; `godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`",
+      "lastLearnings": "Quest completion/claim is now a two-step formal path: completed quests stay in `claimable_quests` until `command_claim_quest()` materializes rewards and moves them to `completed_quest_ids`. Contract-board submissions must branch on entry state: `claimable` uses quest claim, while other states continue through quest accept/reaccept."
     },
     {
       "id": "PVS_04C",

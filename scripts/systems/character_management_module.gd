@@ -16,11 +16,13 @@ const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/skill_merge_se
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
 const QUEST_PROGRESS_SERVICE_SCRIPT = preload("res://scripts/systems/quest_progress_service.gd")
+const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
 const CHARACTER_PROGRESSION_DELTA_SCRIPT = preload("res://scripts/systems/character_progression_delta.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/pending_character_reward.gd")
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/pending_character_reward_entry.gd")
 const PartyState = PARTY_STATE_SCRIPT
 const PartyMemberState = PARTY_MEMBER_STATE_SCRIPT
+const QuestDef = QUEST_DEF_SCRIPT
 const AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT
 const CharacterProgressionDelta = CHARACTER_PROGRESSION_DELTA_SCRIPT
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
@@ -132,6 +134,41 @@ func complete_quest(quest_id: StringName, world_step: int = -1) -> bool:
 	var completed := bool(_quest_progress_service.call("complete_quest", quest_id, world_step)) if _quest_progress_service.has_method("complete_quest") else false
 	_party_state = _quest_progress_service.call("get_party_state") if _quest_progress_service.has_method("get_party_state") else _party_state
 	return completed
+
+
+func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionary:
+	var result := {
+		"ok": false,
+		"error_code": "",
+		"gold_delta": 0,
+		"unsupported_reward_types": [],
+	}
+	if _party_state == null or quest_id == &"":
+		result["error_code"] = "invalid_quest_id"
+		return result
+	if not _party_state.has_claimable_quest(quest_id):
+		result["error_code"] = "quest_not_claimable"
+		return result
+	var quest_reward_data := _resolve_quest_reward_data(quest_id)
+	if not bool(quest_reward_data.get("found", false)):
+		result["error_code"] = "quest_def_missing"
+		return result
+	var reward_preview := _preview_quest_reward_claim(quest_reward_data.get("reward_entries", []))
+	if not bool(reward_preview.get("ok", false)):
+		result["error_code"] = String(reward_preview.get("error_code", "invalid_reward_entry"))
+		result["unsupported_reward_types"] = ProgressionDataUtils.to_string_name_array(
+			reward_preview.get("unsupported_reward_types", [])
+		)
+		return result
+	if not _party_state.mark_quest_reward_claimed(quest_id, world_step):
+		result["error_code"] = "quest_claim_failed"
+		return result
+	var gold_delta := int(reward_preview.get("gold_delta", 0))
+	if gold_delta > 0:
+		_party_state.add_gold(gold_delta)
+	result["ok"] = true
+	result["gold_delta"] = gold_delta
+	return result
 
 
 func apply_quest_progress_events(event_variants: Array, world_step: int = -1) -> Dictionary:
@@ -727,6 +764,78 @@ func _normalize_pending_character_reward_variant(reward_variant) -> PendingChara
 			)
 		return normalized_reward
 	return null
+
+
+func _resolve_quest_reward_data(quest_id: StringName) -> Dictionary:
+	var quest_variant = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), null))
+	if quest_variant == null:
+		return {
+			"found": false,
+			"reward_entries": [],
+		}
+	if quest_variant is Dictionary:
+		var quest_data := (quest_variant as Dictionary).duplicate(true)
+		return {
+			"found": true,
+			"reward_entries": quest_data.get("reward_entries", []),
+		}
+	if quest_variant is QuestDef:
+		var quest_def: QuestDef = quest_variant
+		return {
+			"found": true,
+			"reward_entries": quest_def.reward_entries.duplicate(true),
+		}
+	if quest_variant is Object and quest_variant.has_method("to_dict"):
+		var quest_data_variant = quest_variant.to_dict()
+		if quest_data_variant is Dictionary:
+			return {
+				"found": true,
+				"reward_entries": (quest_data_variant as Dictionary).get("reward_entries", []),
+			}
+	return {
+		"found": false,
+		"reward_entries": [],
+	}
+
+
+func _preview_quest_reward_claim(reward_entries_variant) -> Dictionary:
+	var result := {
+		"ok": true,
+		"error_code": "",
+		"gold_delta": 0,
+		"unsupported_reward_types": [],
+	}
+	if reward_entries_variant is not Array:
+		return result
+	var unsupported_reward_types: Array[StringName] = []
+	for reward_variant in reward_entries_variant:
+		if reward_variant is not Dictionary:
+			result["ok"] = false
+			result["error_code"] = "invalid_reward_entry"
+			return result
+		var reward_data := reward_variant as Dictionary
+		var reward_type := ProgressionDataUtils.to_string_name(reward_data.get("reward_type", ""))
+		if reward_type == &"":
+			result["ok"] = false
+			result["error_code"] = "invalid_reward_entry"
+			return result
+		match reward_type:
+			QUEST_DEF_SCRIPT.REWARD_GOLD:
+				var amount := int(reward_data.get("amount", 0))
+				if amount <= 0:
+					result["ok"] = false
+					result["error_code"] = "invalid_gold_amount"
+					return result
+				result["gold_delta"] = int(result.get("gold_delta", 0)) + amount
+			QUEST_DEF_SCRIPT.REWARD_ITEM, QUEST_DEF_SCRIPT.REWARD_PENDING_CHARACTER_REWARD:
+				_append_unique_string_name(unsupported_reward_types, reward_type)
+			_:
+				_append_unique_string_name(unsupported_reward_types, reward_type)
+	if not unsupported_reward_types.is_empty():
+		result["ok"] = false
+		result["error_code"] = "unsupported_reward_types"
+		result["unsupported_reward_types"] = unsupported_reward_types
+	return result
 
 
 func _normalize_pending_character_entries(entry_variants: Array) -> Array[PendingCharacterRewardEntry]:
