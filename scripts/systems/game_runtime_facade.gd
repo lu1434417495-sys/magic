@@ -2343,7 +2343,8 @@ func _refresh_battle_panel() -> void:
 		get_selected_battle_skill_variant_name(),
 		get_selected_battle_skill_target_coords(),
 		get_battle_overlay_target_coords(),
-		get_selected_battle_skill_required_coord_count()
+		get_selected_battle_skill_required_coord_count(),
+		get_selected_battle_skill_target_unit_ids()
 	)
 
 
@@ -2360,7 +2361,8 @@ func _refresh_battle_panel_overlay() -> void:
 		get_selected_battle_skill_variant_name(),
 		get_selected_battle_skill_target_coords(),
 		get_battle_overlay_target_coords(),
-		get_selected_battle_skill_required_coord_count()
+		get_selected_battle_skill_required_coord_count(),
+		get_selected_battle_skill_target_unit_ids()
 	)
 
 
@@ -2399,7 +2401,8 @@ func _set_battle_view_active() -> void:
 		get_selected_battle_skill_variant_name(),
 		get_selected_battle_skill_target_coords(),
 		get_battle_overlay_target_coords(),
-		get_selected_battle_skill_required_coord_count()
+		get_selected_battle_skill_required_coord_count(),
+		get_selected_battle_skill_target_unit_ids()
 	)
 
 

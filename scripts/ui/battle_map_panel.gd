@@ -183,7 +183,8 @@ func show_battle(
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
-	selected_skill_required_coord_count: int = 0
+	selected_skill_required_coord_count: int = 0,
+	selected_skill_target_unit_ids: Array[StringName] = []
 ) -> void:
 	var battle_id := _resolve_battle_id(battle_state)
 	_store_pending_show_battle_payload(
@@ -194,7 +195,8 @@ func show_battle(
 		selected_skill_variant_name,
 		selected_skill_target_coords,
 		selected_skill_valid_target_coords,
-		selected_skill_required_coord_count
+		selected_skill_required_coord_count,
+		selected_skill_target_unit_ids
 	)
 	var reveal_ticket := _begin_battle_reveal_if_needed(battle_id)
 	visible = true
@@ -211,7 +213,8 @@ func show_battle(
 		selected_skill_variant_name,
 		selected_skill_target_coords,
 		selected_skill_valid_target_coords,
-		selected_skill_required_coord_count
+		selected_skill_required_coord_count,
+		selected_skill_target_unit_ids
 	)
 
 
@@ -223,7 +226,8 @@ func _store_pending_show_battle_payload(
 	selected_skill_variant_name: String,
 	selected_skill_target_coords: Array[Vector2i],
 	selected_skill_valid_target_coords: Array[Vector2i],
-	selected_skill_required_coord_count: int
+	selected_skill_required_coord_count: int,
+	selected_skill_target_unit_ids: Array[StringName]
 ) -> void:
 	_pending_show_battle_payload = {
 		"battle_state": battle_state,
@@ -234,6 +238,7 @@ func _store_pending_show_battle_payload(
 		"selected_skill_target_coords": selected_skill_target_coords.duplicate(),
 		"selected_skill_valid_target_coords": selected_skill_valid_target_coords.duplicate(),
 		"selected_skill_required_coord_count": selected_skill_required_coord_count,
+		"selected_skill_target_unit_ids": selected_skill_target_unit_ids.duplicate(),
 	}
 
 
@@ -245,7 +250,8 @@ func refresh_overlay(
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
-	selected_skill_required_coord_count: int = 0
+	selected_skill_required_coord_count: int = 0,
+	selected_skill_target_unit_ids: Array[StringName] = []
 ) -> void:
 	_refresh_internal(
 		battle_state,
@@ -256,6 +262,7 @@ func refresh_overlay(
 		selected_skill_target_coords,
 		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
+		selected_skill_target_unit_ids,
 		false
 	)
 
@@ -268,7 +275,8 @@ func refresh(
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
-	selected_skill_required_coord_count: int = 0
+	selected_skill_required_coord_count: int = 0,
+	selected_skill_target_unit_ids: Array[StringName] = []
 ) -> void:
 	_refresh_internal(
 		battle_state,
@@ -279,6 +287,7 @@ func refresh(
 		selected_skill_target_coords,
 		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
+		selected_skill_target_unit_ids,
 		true
 	)
 
@@ -292,6 +301,7 @@ func _refresh_internal(
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
+	selected_skill_target_unit_ids: Array[StringName] = [],
 	redraw_board: bool = true
 ) -> void:
 	if battle_state == null:
@@ -305,7 +315,8 @@ func _refresh_internal(
 		selected_skill_name,
 		selected_skill_variant_name,
 		selected_skill_target_coords,
-		selected_skill_required_coord_count
+		selected_skill_required_coord_count,
+		selected_skill_target_unit_ids
 	)
 	_apply_snapshot(snapshot)
 	_update_button_states(selected_skill_id)
@@ -432,7 +443,8 @@ func _apply_pending_show_battle_payload() -> void:
 		String(_pending_show_battle_payload.get("selected_skill_variant_name", "")),
 		_pending_show_battle_payload.get("selected_skill_target_coords", []),
 		_pending_show_battle_payload.get("selected_skill_valid_target_coords", []),
-		int(_pending_show_battle_payload.get("selected_skill_required_coord_count", 0))
+		int(_pending_show_battle_payload.get("selected_skill_required_coord_count", 0)),
+		_pending_show_battle_payload.get("selected_skill_target_unit_ids", [])
 	)
 
 

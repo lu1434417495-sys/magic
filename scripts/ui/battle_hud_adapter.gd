@@ -7,6 +7,8 @@ extends RefCounted
 
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
+const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
+const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 
@@ -16,6 +18,8 @@ const TARGET_SELECTION_MULTI_UNIT := &"multi_unit"
 
 ## 字段说明：按键缓存队列就绪查找表，便于在较多对象中快速定位目标并减少重复遍历。
 var _queue_ready_lookup: Dictionary = {}
+var _grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
+var _hit_resolver = BATTLE_HIT_RESOLVER_SCRIPT.new()
 
 
 func build_snapshot(
@@ -25,7 +29,8 @@ func build_snapshot(
 	selected_skill_name: String = "",
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
-	selected_skill_required_coord_count: int = 0
+	selected_skill_required_coord_count: int = 0,
+	selected_skill_target_unit_ids: Array[StringName] = []
 ) -> Dictionary:
 	if battle_state == null:
 		return {}
@@ -40,6 +45,14 @@ func build_snapshot(
 		active_unit,
 		selected_skill_id,
 		selected_target_count
+	)
+	var hit_preview := _build_selected_skill_hit_preview(
+		battle_state,
+		active_unit,
+		selected_coord,
+		selected_skill_id,
+		selected_skill_target_coords,
+		selected_skill_target_unit_ids
 	)
 
 	return {
@@ -56,7 +69,8 @@ func build_snapshot(
 			selected_skill_variant_name,
 			selected_target_count,
 			selected_skill_required_coord_count,
-			selection_info
+			selection_info,
+			hit_preview
 		),
 		"skill_slots": _build_skill_slots(active_unit, selected_skill_id),
 		"tile_text": _build_tile_text(selected_coord, selected_cell, selected_unit),
@@ -74,8 +88,11 @@ func build_snapshot(
 			selected_skill_variant_name,
 			selected_target_count,
 			selected_skill_required_coord_count,
-			selection_info
+			selection_info,
+			hit_preview
 		),
+		"selected_skill_hit_preview_text": String(hit_preview.get("summary_text", "")),
+		"selected_skill_hit_stage_rates": (hit_preview.get("stage_hit_rates", []) as Array).duplicate(true),
 		"selected_skill_target_selection_mode": String(selection_info.get("selection_mode", &"single_unit")),
 		"selected_skill_target_min_count": int(selection_info.get("min_target_count", 1)),
 		"selected_skill_target_max_count": int(selection_info.get("max_target_count", 1)),
@@ -292,7 +309,8 @@ func _build_skill_subtitle(
 	selected_skill_variant_name: String,
 	selected_count: int,
 	required_count: int,
-	selection_info: Dictionary
+	selection_info: Dictionary,
+	hit_preview: Dictionary = {}
 ) -> String:
 	if active_unit == null:
 		return "无可行动单位"
@@ -323,6 +341,12 @@ func _build_skill_subtitle(
 			_build_skill_title(selected_skill_name, selected_skill_variant_name),
 			selected_count,
 			max_target_count,
+		]
+	var hit_preview_text := String(hit_preview.get("summary_text", ""))
+	if not hit_preview_text.is_empty():
+		return "当前技能 %s  ·  %s" % [
+			_build_skill_title(selected_skill_name, selected_skill_variant_name),
+			hit_preview_text,
 		]
 	if required_count <= 1:
 		return "当前技能 %s  ·  左键选择目标格释放" % _build_skill_title(selected_skill_name, selected_skill_variant_name)
@@ -453,7 +477,8 @@ func _build_command_text(
 	selected_skill_variant_name: String,
 	selected_count: int,
 	required_count: int,
-	selection_info: Dictionary
+	selection_info: Dictionary,
+	hit_preview: Dictionary = {}
 ) -> String:
 	if active_unit == null:
 		return "等待行动单位"
@@ -471,6 +496,12 @@ func _build_command_text(
 		if selected_count < max_target_count:
 			return "已锁定 %d 个单位目标  ·  已满足最小数量，可点击自己或空地确认" % [selected_count]
 		return "已锁定 %d 个单位目标  ·  已达到上限 %d 个，将自动施放" % [selected_count, max_target_count]
+	var hit_preview_text := String(hit_preview.get("summary_text", ""))
+	if not hit_preview_text.is_empty():
+		return "已锁定 %s  ·  %s" % [
+			_build_skill_title(selected_skill_name, selected_skill_variant_name),
+			hit_preview_text,
+		]
 	if required_count <= 1:
 		return "已锁定 %s" % _build_skill_title(selected_skill_name, selected_skill_variant_name)
 	return "已锁定 %s  ·  选点 %d/%d" % [
@@ -580,6 +611,80 @@ func _get_skill_defs() -> Dictionary:
 	return session.call("get_skill_defs") if session != null else {}
 
 
+func _build_selected_skill_hit_preview(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	selected_coord: Vector2i,
+	selected_skill_id: StringName,
+	selected_skill_target_coords: Array[Vector2i],
+	selected_skill_target_unit_ids: Array[StringName]
+) -> Dictionary:
+	if battle_state == null or active_unit == null or selected_skill_id == &"":
+		return {}
+	var skill_def = _get_skill_defs().get(selected_skill_id)
+	if skill_def == null or skill_def.combat_profile == null:
+		return {}
+	var repeat_attack_effect = _get_repeat_attack_effect(skill_def)
+	if repeat_attack_effect == null:
+		return {}
+	var target_unit := _resolve_selected_skill_preview_target_unit(
+		battle_state,
+		active_unit,
+		selected_coord,
+		selected_skill_target_coords,
+		selected_skill_target_unit_ids,
+		skill_def
+	)
+	if target_unit == null:
+		return {}
+	return _hit_resolver.build_repeat_attack_preview(active_unit, target_unit, skill_def, repeat_attack_effect)
+
+
+func _resolve_selected_skill_preview_target_unit(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	selected_coord: Vector2i,
+	selected_skill_target_coords: Array[Vector2i],
+	selected_skill_target_unit_ids: Array[StringName],
+	skill_def
+) -> BattleUnitState:
+	for target_unit_id in selected_skill_target_unit_ids:
+		var queued_target := battle_state.units.get(target_unit_id) as BattleUnitState
+		if _can_preview_skill_target_unit(active_unit, queued_target, skill_def):
+			return queued_target
+	for target_coord in selected_skill_target_coords:
+		var queued_coord_target := _get_unit_at_coord(battle_state, target_coord)
+		if _can_preview_skill_target_unit(active_unit, queued_coord_target, skill_def):
+			return queued_coord_target
+	var focused_target := _get_unit_at_coord(battle_state, selected_coord)
+	if _can_preview_skill_target_unit(active_unit, focused_target, skill_def):
+		return focused_target
+	return null
+
+
+func _can_preview_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def) -> bool:
+	if active_unit == null or target_unit == null or skill_def == null or skill_def.combat_profile == null:
+		return false
+	if not target_unit.is_alive:
+		return false
+	if target_unit.unit_id == active_unit.unit_id:
+		return false
+	if not _get_skill_cast_block_reason(active_unit, skill_def).is_empty():
+		return false
+	if not _skill_target_filter_matches_unit(active_unit, target_unit, skill_def.combat_profile.target_team_filter):
+		return false
+	return _grid_service.get_distance_between_units(active_unit, target_unit) <= _get_effective_skill_range(active_unit, skill_def)
+
+
+func _get_repeat_attack_effect(skill_def):
+	if skill_def == null or skill_def.combat_profile == null:
+		return null
+	for effect_def in skill_def.combat_profile.effect_defs:
+		if effect_def != null and effect_def.effect_type == &"repeat_attack_until_fail":
+			return effect_def
+	return null
+
+
 func _build_skill_target_selection_info(
 	battle_state: BattleState,
 	active_unit: BattleUnitState,
@@ -616,6 +721,55 @@ func _build_skill_target_selection_info(
 		"confirm_ready": confirm_ready,
 		"auto_cast_ready": auto_cast_ready,
 	}
+
+
+func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> String:
+	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
+		return "技能或目标无效。"
+	var combat_profile = skill_def.combat_profile
+	var cooldown := int(active_unit.cooldowns.get(skill_def.skill_id, 0))
+	if cooldown > 0:
+		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
+	if active_unit.current_ap < int(combat_profile.ap_cost):
+		return "行动点不足，无法施放该技能。"
+	if active_unit.current_mp < int(combat_profile.mp_cost):
+		return "法力不足，无法施放该技能。"
+	if active_unit.current_stamina < int(combat_profile.stamina_cost):
+		return "体力不足，无法施放该技能。"
+	if active_unit.current_aura < int(combat_profile.aura_cost):
+		return "斗气不足，无法施放该技能。"
+	return ""
+
+
+func _skill_target_filter_matches_unit(
+	active_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	target_team_filter: StringName
+) -> bool:
+	if active_unit == null or target_unit == null:
+		return false
+	var is_same_unit := active_unit.unit_id == target_unit.unit_id
+	var is_same_faction := String(active_unit.faction_id) == String(target_unit.faction_id)
+	match target_team_filter:
+		&"enemy":
+			return not is_same_faction
+		&"ally":
+			return is_same_faction
+		&"self":
+			return is_same_unit
+		&"", &"any":
+			return true
+		_:
+			return true
+
+
+func _get_effective_skill_range(active_unit: BattleUnitState, skill_def) -> int:
+	if skill_def == null or skill_def.combat_profile == null:
+		return 0
+	var skill_range := int(skill_def.combat_profile.range_value)
+	if active_unit != null and active_unit.has_status_effect(&"archer_range_up"):
+		skill_range += 1
+	return skill_range
 
 
 func _get_party_member_state(member_id: StringName):

@@ -145,3 +145,7 @@ No code changes were needed. Verified the repo already wires `holdout_push` into
 ## 2026-04-17T05:18:49+08:00 | PVS_12A | done
 title: 抽出 BattleHitResolver 并锁定现有命中口径
 Added `BattleHitResolver` as the single hit-logic owner, routed `BattleRuntimeModule` hit rolls and `BattleRepeatAttackResolver` stage hit checks through it, and updated `docs/design/project_context_units.md` for the CU-15/CU-16 ownership change.
+
+## 2026-04-17T05:30:19+08:00 | PVS_12B | done
+title: 让 preview、HUD 与 runtime 共用 BattleHitResolver
+BattleHitResolver now builds the shared repeat-attack hit preview summary (`summary_text` + staged hit rates), `BattlePreview` exposes that resolver output, and `BattleHudAdapter`/battle panel/snapshot plumbing consume the same data instead of formatting their own hit semantics. Added battle UI regression coverage that compares HUD output against runtime preview for `saint_blade_combo`.

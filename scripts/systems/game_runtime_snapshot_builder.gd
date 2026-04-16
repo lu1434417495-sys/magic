@@ -351,7 +351,8 @@ func _build_battle_snapshot() -> Dictionary:
 		_runtime.get_selected_battle_skill_name(),
 		_runtime.get_selected_battle_skill_variant_name(),
 		_runtime.get_selected_battle_skill_target_coords(),
-		_runtime.get_selected_battle_skill_required_coord_count()
+		_runtime.get_selected_battle_skill_required_coord_count(),
+		_runtime.get_selected_battle_skill_target_unit_ids()
 	)
 	var units: Array[Dictionary] = []
 	for unit_id_str in ProgressionDataUtils.sorted_string_keys(battle_state.units):

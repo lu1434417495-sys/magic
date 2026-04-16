@@ -3,11 +3,15 @@ extends SceneTree
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
 const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
+const BattleCommand = preload("res://scripts/systems/battle_command.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const BattleMapPanel = preload("res://scripts/ui/battle_map_panel.gd")
 const BattlePanelScene = preload("res://scenes/ui/battle_map_panel.tscn")
 
@@ -32,6 +36,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _test_multi_unit_hud_copy_and_selection_state()
+	await _test_repeat_attack_hud_preview_matches_runtime_resolver()
 	await _test_multi_unit_board_highlights_confirm_state()
 	await _test_multi_unit_board_confirm_halo_follows_active_unit()
 	await _test_multi_unit_board_highlights_continue_state()
@@ -70,6 +75,87 @@ func _test_multi_unit_hud_copy_and_selection_state() -> void:
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains("已满足最小数量"), "multi_unit HUD 副标题应提示确认态。")
 	_assert_true(String(snapshot.get("hint_text", "")).contains("点击自己或空地确认"), "multi_unit HUD 提示应说明确认路径。")
 	_assert_true(String(snapshot.get("command_text", "")).contains("可点击自己或空地确认"), "multi_unit 命令摘要应说明确认路径。")
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
+	var skill_def := _get_repeat_attack_skill_def()
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "连斩命中预览前置：saint_blade_combo 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, game_session.skill_defs, {}, {}, null)
+	var state := _build_repeat_attack_state()
+	var attacker := _build_repeat_attack_unit(
+		&"saint_blade_ui_user",
+		"圣剑使",
+		&"player",
+		Vector2i(1, 1),
+		[skill_def.skill_id],
+		2,
+		4
+	)
+	attacker.current_aura = 6
+	attacker.attribute_snapshot.set_value(&"hit_rate", 90)
+	var defender := _build_repeat_attack_unit(
+		&"saint_blade_ui_target",
+		"训练木桩",
+		&"enemy",
+		Vector2i(2, 1),
+		[],
+		2,
+		0
+	)
+	defender.attribute_snapshot.set_value(&"evasion", 0)
+	_add_unit_to_runtime_state(runtime, state, attacker, false)
+	_add_unit_to_runtime_state(runtime, state, defender, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = attacker.unit_id
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = attacker.unit_id
+	command.skill_id = skill_def.skill_id
+	command.target_unit_id = defender.unit_id
+	command.target_coord = defender.coord
+	var preview := runtime.preview_command(command)
+	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
+	_assert_true(preview != null and not preview.hit_preview.is_empty(), "repeat_attack 预览应暴露共享的命中摘要。")
+	_assert_true(hit_preview_text.begins_with("预计命中率 "), "repeat_attack 预览摘要应使用统一的 resolver 文案前缀。")
+	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 3, "repeat_attack 预览应默认展示 3 段命中率。")
+
+	var adapter := BattleHudAdapter.new()
+	var snapshot := adapter.build_snapshot(
+		state,
+		defender.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"",
+		[],
+		1,
+		[]
+	)
+	_assert_eq(
+		String(snapshot.get("selected_skill_hit_preview_text", "")),
+		hit_preview_text,
+		"HUD snapshot 应复用 runtime preview 的命中摘要。"
+	)
+	_assert_eq(
+		snapshot.get("selected_skill_hit_stage_rates", []),
+		preview.hit_preview.get("stage_hit_rates", []),
+		"HUD snapshot 应复用 runtime preview 的阶段命中率数组。"
+	)
+	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "HUD 副标题应显示 resolver 命中摘要。")
+	_assert_true(String(snapshot.get("command_text", "")).contains(hit_preview_text), "HUD 指令摘要应显示 resolver 命中摘要。")
+
 	game_session.queue_free()
 	await process_frame
 
@@ -282,6 +368,20 @@ func _build_state() -> BattleState:
 	return state
 
 
+func _build_repeat_attack_state() -> BattleState:
+	var state := BattleState.new()
+	state.battle_id = &"battle_ui_repeat_attack"
+	state.map_size = Vector2i(4, 3)
+	state.terrain_profile_id = &"default"
+	state.timeline = BattleTimelineState.new()
+	state.cells = {}
+	for y in range(3):
+		for x in range(4):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+	return state
+
+
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
@@ -290,6 +390,59 @@ func _build_cell(coord: Vector2i) -> BattleCellState:
 	cell.base_terrain = BattleCellState.TERRAIN_LAND
 	cell.recalculate_runtime_values()
 	return cell
+
+
+func _build_repeat_attack_unit(
+	unit_id: StringName,
+	display_name: String,
+	faction_id: StringName,
+	coord: Vector2i,
+	skill_ids: Array[StringName],
+	current_ap: int,
+	current_mp: int
+) -> BattleUnitState:
+	var unit := BattleUnitState.new()
+	unit.unit_id = unit_id
+	unit.display_name = display_name
+	unit.faction_id = faction_id
+	unit.control_mode = &"manual"
+	unit.current_hp = 40
+	unit.current_mp = current_mp
+	unit.current_ap = current_ap
+	unit.current_stamina = 0
+	unit.current_aura = 0
+	unit.is_alive = true
+	unit.set_anchor_coord(coord)
+	unit.attribute_snapshot.set_value(&"hp_max", 40)
+	unit.attribute_snapshot.set_value(&"mp_max", maxi(current_mp, 4))
+	unit.attribute_snapshot.set_value(&"stamina_max", 4)
+	unit.attribute_snapshot.set_value(&"aura_max", 8)
+	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
+	unit.attribute_snapshot.set_value(&"physical_attack", 12)
+	unit.attribute_snapshot.set_value(&"physical_defense", 4)
+	unit.attribute_snapshot.set_value(&"magic_attack", 6)
+	unit.attribute_snapshot.set_value(&"magic_defense", 4)
+	unit.attribute_snapshot.set_value(&"hit_rate", 80)
+	unit.attribute_snapshot.set_value(&"evasion", 5)
+	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.known_active_skill_ids = skill_ids.duplicate()
+	for skill_id in unit.known_active_skill_ids:
+		unit.known_skill_level_map[skill_id] = 1
+	return unit
+
+
+func _add_unit_to_runtime_state(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUnitState, is_enemy: bool) -> void:
+	state.units[unit.unit_id] = unit
+	if is_enemy:
+		state.enemy_unit_ids.append(unit.unit_id)
+	else:
+		state.ally_unit_ids.append(unit.unit_id)
+	_assert_true(bool(runtime._grid_service.place_unit(state, unit, unit.coord, true)), "UI 命中预览回归中的测试单位应成功放入战场。")
+
+
+func _get_repeat_attack_skill_def() -> SkillDef:
+	var registry := ProgressionContentRegistry.new()
+	return registry.get_skill_defs().get(&"saint_blade_combo") as SkillDef
 
 
 func _instantiate_board() -> BattleBoard2D:

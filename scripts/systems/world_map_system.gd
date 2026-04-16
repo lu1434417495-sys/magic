@@ -135,6 +135,7 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 		var selected_skill_name = _runtime_proxy.get_selected_battle_skill_name()
 		var selected_skill_variant_name = _runtime_proxy.get_selected_battle_skill_variant_name()
 		var selected_target_coords = _runtime_proxy.get_selected_battle_skill_target_coords()
+		var selected_target_unit_ids = _runtime_proxy.get_selected_battle_skill_target_unit_ids()
 		var valid_target_coords = _runtime_proxy.get_battle_overlay_target_coords()
 		var required_coord_count = _runtime_proxy.get_selected_battle_skill_required_coord_count()
 		if battle_map_panel.visible and refresh_mode == "overlay":
@@ -146,7 +147,8 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 				selected_skill_variant_name,
 				selected_target_coords,
 				valid_target_coords,
-				required_coord_count
+				required_coord_count,
+				selected_target_unit_ids
 			)
 		else:
 			battle_map_panel.show_battle(
@@ -157,7 +159,8 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 				selected_skill_variant_name,
 				selected_target_coords,
 				valid_target_coords,
-				required_coord_count
+				required_coord_count,
+				selected_target_unit_ids
 			)
 		_set_battle_loading_overlay(
 			battle_map_panel.is_loading_battle(),

@@ -724,16 +724,21 @@ func _preview_unit_skill_command(
 			preview.target_coords.append(preview_coord_variant)
 	if preview.allowed:
 		var target_units := validation.get("target_units", []) as Array
+		preview.hit_preview = _build_unit_skill_hit_preview(active_unit, target_units, skill_def)
 		if target_units.size() == 1:
 			var target_unit := target_units[0] as BattleUnitState
 			if target_unit != null:
 				preview.log_lines.append("%s 可对 %s 使用 %s。" % [active_unit.display_name, target_unit.display_name, skill_def.display_name])
+				if not preview.hit_preview.is_empty():
+					preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
 				return
 		preview.log_lines.append("%s 可对 %d 个单位使用 %s。" % [
 			active_unit.display_name,
 			preview.target_unit_ids.size(),
 			skill_def.display_name,
 		])
+		if not preview.hit_preview.is_empty():
+			preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
 		return
 	preview.log_lines.append(String(validation.get("message", "技能或目标无效。")))
 
@@ -788,6 +793,24 @@ func _preview_ground_skill_command(
 		])
 	else:
 		preview.log_lines.append(String(validation.get("message", "地面技能目标无效。")))
+
+
+func _build_unit_skill_hit_preview(
+	active_unit: BattleUnitState,
+	target_units: Array,
+	skill_def: SkillDef
+) -> Dictionary:
+	if active_unit == null or skill_def == null or target_units.size() != 1:
+		return {}
+	var target_unit := target_units[0] as BattleUnitState
+	if target_unit == null:
+		return {}
+	var repeat_attack_effect := _repeat_attack_resolver.get_repeat_attack_effect_def(
+		_collect_unit_skill_effect_defs(skill_def, null)
+	)
+	if repeat_attack_effect == null:
+		return {}
+	return _hit_resolver.build_repeat_attack_preview(active_unit, target_unit, skill_def, repeat_attack_effect)
 
 
 func _handle_unit_skill_command(

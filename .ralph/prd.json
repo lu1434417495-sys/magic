@@ -665,14 +665,22 @@
     {
       "id": "PVS_12B",
       "title": "让 preview、HUD 与 runtime 共用 BattleHitResolver",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "preview/HUD 不再各自维护独立命中口径",
         "battle UI 与 runtime parity regression 能覆盖 resolver 共用结果"
       ],
       "notes": [
         "Owner：CU-16 / CU-18。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:18:49+08:00",
+      "lastRunId": "20260417-051849-PVS_12B",
+      "startedAt": "2026-04-17T05:18:49+08:00",
+      "completedAt": "2026-04-17T05:30:19+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_ui_regression.gd`; ran `godot --headless --script tests/battle_runtime/run_warrior_advanced_skill_regression.gd`; ran `godot --headless --script tests/runtime/run_game_runtime_snapshot_builder_regression.gd`.",
+      "lastLearnings": "Repeat-attack hit preview ownership should stay in CU-16: `BattleHitResolver` is now the single source for staged hit-rate preview text/data, while CU-18 surfaces it through HUD/panel/snapshot layers. `docs/design/project_context_units.md` stays valid as-is, and `E:\\game\\magic\\.ralph\\prd.json` was not edited."
     },
     {
       "id": "PVS_13A",
