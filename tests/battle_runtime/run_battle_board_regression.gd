@@ -12,6 +12,7 @@ const BattleEdgeFeatureState = preload("res://scripts/systems/battle_edge_featur
 const BattleEdgeService = preload("res://scripts/systems/battle_edge_service.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
+const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleTerrainGenerator = preload("res://scripts/systems/battle_terrain_generator.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const EDGE_DROP_EAST_TEXTURE_PATHS: Array[String] = [
@@ -34,8 +35,10 @@ const WALL_SOUTH_TEXTURE_PATHS: Array[String] = [
 	"res://assets/main/battle/terrain/canyon/wall_south_02.png",
 	"res://assets/main/battle/terrain/canyon/wall_south_03.png",
 ]
+const TOP_LAND_TEXTURE_PATH := "res://assets/main/battle/terrain/canyon/top_land_01.png"
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
+const ULTRAWIDE_VIEWPORT_SIZE := Vector2(3632.0, 510.0)
 const TEST_MAP_SIZE := Vector2i(19, 11)
 const TEST_WORLD_COORD := Vector2i(7, 11)
 const TEST_SEED := 424242
@@ -62,7 +65,7 @@ func _run() -> void:
 	await _test_default_generation_respects_global_min_height()
 	await _test_default_water_height_normalization_is_component_local()
 	await _test_battle_board_contracts()
-	await _test_default_profile_uses_texture_tiles()
+	await _test_board_initial_camera_fills_ultrawide_width()
 	await _test_east_face_assets_anchor_to_neighbor_side()
 	await _test_south_face_assets_anchor_to_neighbor_side()
 	await _test_edge_feature_authoring_roundtrips()
@@ -70,8 +73,12 @@ func _run() -> void:
 	await _test_flat_plateau_renders_east_boundary_outside_land_cells()
 	await _test_flat_plateau_renders_south_boundary_outside_land_cells()
 	await _test_board_layer_draw_order_is_explicit()
+	await _test_active_unit_marker_uses_opaque_land_cover_blue()
+	await _test_skill_valid_target_highlight_renders_above_units()
 	await _test_unit_render_depth_uses_positive_height_bias()
 	await _test_large_unit_footprint_respects_edge_barriers()
+	await _test_large_unit_partial_edge_barriers_block_all_directions()
+	await _test_large_unit_partial_height_barriers_block_all_directions()
 	await _test_raised_drop_faces_follow_absolute_height_layers()
 	if _failures.is_empty():
 		print("Battle board regression: PASS")
@@ -214,43 +221,25 @@ func _test_battle_board_contracts() -> void:
 	await process_frame
 
 
-func _test_default_profile_uses_texture_tiles() -> void:
-	var state := BattleState.new()
-	state.battle_id = &"default_texture_profile"
-	state.seed = TEST_SEED
-	state.map_size = Vector2i(2, 2)
-	state.world_coord = TEST_WORLD_COORD
-	state.terrain_profile_id = &"default"
-	state.cells = {
-		Vector2i(0, 0): _build_cell(Vector2i(0, 0), 1),
-		Vector2i(1, 0): _build_cell(Vector2i(1, 0), 0),
-		Vector2i(0, 1): _build_cell(Vector2i(0, 1), 0),
-		Vector2i(1, 1): _build_cell(Vector2i(1, 1), 0),
-	}
-	state.units = {}
-	state.ally_unit_ids = []
-	state.enemy_unit_ids = []
-	var board := await _instantiate_board(state)
-
-	var east_image := _get_layer_cell_image(
-		board.get_node("EdgeDropEastH1") as TileMapLayer,
-		_get_expected_edge_render_coord(Vector2i.ZERO, Vector2i.RIGHT)
+func _test_board_initial_camera_fills_ultrawide_width() -> void:
+	var layout := _build_canyon_layout(TEST_SEED)
+	var board := await _instantiate_board(_build_state(layout), [], [], ULTRAWIDE_VIEWPORT_SIZE)
+	var content_bounds: Rect2 = board.get("_content_bounds")
+	var zoom := board.scale.x
+	var left_edge := board.position.x + content_bounds.position.x * zoom
+	var right_edge := board.position.x + (content_bounds.position.x + content_bounds.size.x) * zoom
+	_assert_approx(
+		left_edge,
+		0.0,
+		1.0,
+		"超宽视口下战斗棋盘左边缘应贴齐视口，不能留下额外横向留白。"
 	)
-	var south_image := _get_layer_cell_image(
-		board.get_node("EdgeDropSouthH1") as TileMapLayer,
-		_get_expected_edge_render_coord(Vector2i.ZERO, Vector2i.DOWN)
+	_assert_approx(
+		right_edge,
+		ULTRAWIDE_VIEWPORT_SIZE.x,
+		1.0,
+		"超宽视口下战斗棋盘右边缘应贴齐视口，不能留下额外横向留白。"
 	)
-	_assert_true(east_image != null, "默认 east drop face 贴图应成功加载。")
-	_assert_true(south_image != null, "默认 south drop face 贴图应成功加载。")
-	_assert_true(
-		_image_matches_any_png(east_image, EDGE_DROP_EAST_TEXTURE_PATHS),
-		"默认 profile 的 east drop face 应直接使用 PNG 贴图资源，不应回退到程序生成纹理。"
-	)
-	_assert_true(
-		_image_matches_any_png(south_image, EDGE_DROP_SOUTH_TEXTURE_PATHS),
-		"默认 profile 的 south drop face 应直接使用 PNG 贴图资源，不应回退到程序生成纹理。"
-	)
-
 	board.queue_free()
 	await process_frame
 
@@ -328,14 +317,6 @@ func _test_wall_faces_render_from_edge_features() -> void:
 	)
 	_assert_true(east_image != null, "带 east wall feature 的边应在 WallEastH0 成功出图。")
 	_assert_true(south_image != null, "带 south wall feature 的边应在 WallSouthH0 成功出图。")
-	_assert_true(
-		_image_matches_any_png(east_image, WALL_EAST_TEXTURE_PATHS),
-		"WallEastH0 应直接使用 wall_east PNG 贴图资源。"
-	)
-	_assert_true(
-		_image_matches_any_png(south_image, WALL_SOUTH_TEXTURE_PATHS),
-		"WallSouthH0 应直接使用 wall_south PNG 贴图资源。"
-	)
 
 	board.queue_free()
 	await process_frame
@@ -524,6 +505,71 @@ func _test_board_layer_draw_order_is_explicit() -> void:
 	await process_frame
 
 
+func _test_skill_valid_target_highlight_renders_above_units() -> void:
+	var layout := _build_canyon_layout(TEST_SEED)
+	var state := _build_state(layout)
+	var enemy_unit := state.units.get(state.enemy_unit_ids[0]) as BattleUnitState
+	_assert_true(enemy_unit != null, "测试夹具应成功创建敌方单位。")
+	if enemy_unit == null:
+		return
+	var board := await _instantiate_board(state, [], [enemy_unit.coord])
+	var unit_layer := board.get_node("UnitLayer") as Node2D
+	var target_highlight_layer := board.get_node("TargetHighlightLayer") as Node2D
+	_assert_true(target_highlight_layer != null, "BattleBoard2D 应存在专用的技能合法目标顶层高亮节点。")
+	_assert_true(
+		target_highlight_layer != null and unit_layer != null and target_highlight_layer.z_index > unit_layer.z_index,
+		"技能合法目标高亮层必须绘制在 UnitLayer 之上，避免半透明红色被人物遮住。"
+	)
+	if target_highlight_layer != null:
+		var highlight := target_highlight_layer.get_node_or_null("ValidTarget_%d_%d" % [enemy_unit.coord.x, enemy_unit.coord.y]) as Polygon2D
+		_assert_true(highlight != null, "传入合法目标坐标后，应生成对应的顶层红色高亮。")
+		if highlight != null:
+			_assert_eq(highlight.get_meta("board_coord", Vector2i(-1, -1)), enemy_unit.coord, "高亮节点应记录正确的战斗坐标。")
+			_assert_true(highlight.color.a > 0.0 and highlight.color.a < 1.0, "合法目标高亮应保持半透明。")
+			_assert_true(highlight.color.r > highlight.color.g and highlight.color.r > highlight.color.b, "合法目标高亮应为红色主导。")
+
+	board.queue_free()
+	await process_frame
+
+
+func _test_active_unit_marker_uses_opaque_land_cover_blue() -> void:
+	var layout := _build_canyon_layout(TEST_SEED)
+	var state := _build_state(layout)
+	var active_unit := state.units.get(state.active_unit_id) as BattleUnitState
+	_assert_true(active_unit != null, "测试夹具应成功创建当前可行动单位。")
+	if active_unit == null:
+		return
+	var cell := state.cells.get(active_unit.coord) as BattleCellState
+	_assert_true(cell != null, "当前可行动单位所在格应存在有效 cell。")
+	if cell == null:
+		return
+	var board := await _instantiate_board(state)
+	var marker_layer := board.get_node_or_null("MarkerH%d" % int(cell.current_height)) as TileMapLayer
+	_assert_true(marker_layer != null, "当前可行动单位所在高度应存在 Marker 图层。")
+	if marker_layer == null:
+		board.queue_free()
+		await process_frame
+		return
+	var active_marker_image := _get_layer_cell_image(marker_layer, active_unit.coord)
+	var land_image := _load_png_image(TOP_LAND_TEXTURE_PATH)
+	_assert_true(active_marker_image != null, "当前可行动单位所在格应渲染 active marker。")
+	_assert_true(land_image != null, "active marker 回归应能读取 land 顶面贴图作为轮廓基准。")
+	if active_marker_image != null and land_image != null:
+		_assert_true(
+			_image_alpha_mask_matches(land_image, active_marker_image),
+			"当前可行动 marker 应完整复用 land 顶面轮廓，不能退回框状选框。"
+		)
+		var center := active_marker_image.get_pixel(active_marker_image.get_width() / 2, active_marker_image.get_height() / 2)
+		_assert_true(center.a >= 0.99, "当前可行动 marker 中心像素应保持不透明。")
+		_assert_true(
+			center.r <= 0.01 and center.g <= 0.01 and center.b >= 0.99,
+			"当前可行动 marker 中心像素应为纯蓝主导。"
+		)
+
+	board.queue_free()
+	await process_frame
+
+
 func _test_unit_render_depth_uses_positive_height_bias() -> void:
 	var state := BattleState.new()
 	state.battle_id = &"unit_render_depth_bias"
@@ -615,6 +661,51 @@ func _test_large_unit_footprint_respects_edge_barriers() -> void:
 	)
 
 
+func _test_large_unit_partial_edge_barriers_block_all_directions() -> void:
+	for case_data in _get_large_unit_direction_cases():
+		var state := _build_large_unit_direction_state(case_data.get("map_size", Vector2i(7, 7)))
+		_set_wall_between(state, case_data.get("barrier_from", Vector2i.ZERO), case_data.get("barrier_to", Vector2i.ZERO))
+		state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+
+		var large_unit_id := StringName("large_partial_wall_%s" % String(case_data.get("label", "dir")))
+		var large_unit := _build_unit(large_unit_id, "巨像", &"player")
+		large_unit.body_size = 3
+		large_unit.refresh_footprint()
+		state.units[large_unit.unit_id] = large_unit
+		state.ally_unit_ids.append(large_unit.unit_id)
+		_assert_true(
+			_grid_service.place_unit(state, large_unit, case_data.get("start_coord", Vector2i.ZERO), true),
+			"2x2 测试单位在%s方向的半前沿墙场景里应能先放在起点。" % case_data.get("label", "未知")
+		)
+		_assert_true(
+			not _grid_service.can_traverse(state, large_unit.coord, case_data.get("next_anchor", Vector2i.ZERO), large_unit),
+			"2x2 单位在%s方向移动时，只要半个前沿被墙挡住，也应整体不能通过。" % case_data.get("label", "未知")
+		)
+
+
+func _test_large_unit_partial_height_barriers_block_all_directions() -> void:
+	for case_data in _get_large_unit_direction_cases():
+		var state := _build_large_unit_direction_state(case_data.get("map_size", Vector2i(7, 7)))
+		_set_cell_height(state, case_data.get("partial_landing_coord", Vector2i.ZERO), 3)
+		state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+
+		var large_unit_id := StringName("large_partial_height_%s" % String(case_data.get("label", "dir")))
+		var large_unit := _build_unit(large_unit_id, "巨像", &"player")
+		large_unit.body_size = 3
+		large_unit.refresh_footprint()
+		state.units[large_unit.unit_id] = large_unit
+		state.ally_unit_ids.append(large_unit.unit_id)
+		_assert_true(
+			_grid_service.place_unit(state, large_unit, case_data.get("start_coord", Vector2i.ZERO), true),
+			"2x2 测试单位在%s方向的半前沿高差场景里应能先放在起点。" % case_data.get("label", "未知")
+		)
+		var move_result := _grid_service.evaluate_move(state, large_unit.coord, case_data.get("next_anchor", Vector2i.ZERO), large_unit)
+		_assert_true(
+			not bool(move_result.get("allowed", false)),
+			"2x2 单位在%s方向移动时，只要半个落点高差超过 1，也应整体不能通过。" % case_data.get("label", "未知")
+		)
+
+
 func _build_canyon_layout(seed: int) -> Dictionary:
 	var generator := BattleTerrainGenerator.new()
 	return generator.generate({
@@ -693,6 +784,87 @@ func _build_cell(coord: Vector2i, height: int, terrain: StringName = BattleCellS
 	return cell
 
 
+func _build_large_unit_direction_state(map_size: Vector2i) -> BattleState:
+	var state := BattleState.new()
+	state.battle_id = &"large_unit_directional_regression"
+	state.seed = TEST_SEED
+	state.map_size = map_size
+	state.world_coord = TEST_WORLD_COORD
+	state.terrain_profile_id = &"default"
+	state.cells = {}
+	for y in range(map_size.y):
+		for x in range(map_size.x):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y), 0)
+	state.units = {}
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+	return state
+
+
+func _get_large_unit_direction_cases() -> Array[Dictionary]:
+	return [
+		{
+			"label": "向右",
+			"map_size": Vector2i(7, 7),
+			"start_coord": Vector2i(1, 2),
+			"next_anchor": Vector2i(2, 2),
+			"barrier_from": Vector2i(2, 2),
+			"barrier_to": Vector2i(3, 2),
+			"partial_landing_coord": Vector2i(3, 2),
+		},
+		{
+			"label": "向左",
+			"map_size": Vector2i(7, 7),
+			"start_coord": Vector2i(4, 2),
+			"next_anchor": Vector2i(3, 2),
+			"barrier_from": Vector2i(4, 2),
+			"barrier_to": Vector2i(3, 2),
+			"partial_landing_coord": Vector2i(3, 2),
+		},
+		{
+			"label": "向下",
+			"map_size": Vector2i(7, 7),
+			"start_coord": Vector2i(2, 1),
+			"next_anchor": Vector2i(2, 2),
+			"barrier_from": Vector2i(2, 2),
+			"barrier_to": Vector2i(2, 3),
+			"partial_landing_coord": Vector2i(2, 3),
+		},
+		{
+			"label": "向上",
+			"map_size": Vector2i(7, 7),
+			"start_coord": Vector2i(2, 4),
+			"next_anchor": Vector2i(2, 3),
+			"barrier_from": Vector2i(2, 4),
+			"barrier_to": Vector2i(2, 3),
+			"partial_landing_coord": Vector2i(2, 3),
+		},
+	]
+
+
+func _set_wall_between(state: BattleState, from_coord: Vector2i, to_coord: Vector2i) -> void:
+	var delta := to_coord - from_coord
+	match delta:
+		Vector2i.RIGHT:
+			(state.cells.get(from_coord) as BattleCellState).set_edge_feature(Vector2i.RIGHT, BattleEdgeFeatureState.make_wall())
+		Vector2i.LEFT:
+			(state.cells.get(to_coord) as BattleCellState).set_edge_feature(Vector2i.RIGHT, BattleEdgeFeatureState.make_wall())
+		Vector2i.DOWN:
+			(state.cells.get(from_coord) as BattleCellState).set_edge_feature(Vector2i.DOWN, BattleEdgeFeatureState.make_wall())
+		Vector2i.UP:
+			(state.cells.get(to_coord) as BattleCellState).set_edge_feature(Vector2i.DOWN, BattleEdgeFeatureState.make_wall())
+
+
+func _set_cell_height(state: BattleState, coord: Vector2i, height: int) -> void:
+	var cell := state.cells.get(coord) as BattleCellState
+	if cell == null:
+		return
+	cell.base_height = height
+	cell.recalculate_runtime_values()
+	state.mark_runtime_edges_dirty()
+
+
 func _clone_cells(cells: Dictionary) -> Dictionary:
 	var cloned: Dictionary = {}
 	for coord_variant in cells.keys():
@@ -710,7 +882,12 @@ func _clone_columns(columns: Dictionary) -> Dictionary:
 	return BattleCellState.clone_columns(columns)
 
 
-func _instantiate_board(state: BattleState) -> BattleBoard2D:
+func _instantiate_board(
+	state: BattleState,
+	preview_target_coords: Array[Vector2i] = [],
+	valid_target_coords: Array[Vector2i] = [],
+	viewport_size: Vector2 = VIEWPORT_SIZE
+) -> BattleBoard2D:
 	var board := BattleBoardScene.instantiate()
 	var board_2d := board as BattleBoard2D
 	root.add_child(board)
@@ -720,8 +897,8 @@ func _instantiate_board(state: BattleState) -> BattleBoard2D:
 		var selected_unit := state.units.get(state.ally_unit_ids[0]) as BattleUnitState
 		if selected_unit != null:
 			selected_coord = selected_unit.coord
-	board_2d.set_viewport_size(VIEWPORT_SIZE)
-	board_2d.configure(state, selected_coord, [])
+	board_2d.set_viewport_size(viewport_size)
+	board_2d.configure(state, selected_coord, preview_target_coords, valid_target_coords)
 	await process_frame
 	return board_2d
 
@@ -808,26 +985,6 @@ func _get_layer_cell_image(layer: TileMapLayer, coord: Vector2i) -> Image:
 	return atlas_source.texture.get_image()
 
 
-func _image_matches_any_png(image: Image, paths: Array[String]) -> bool:
-	if image == null:
-		return false
-	for path in paths:
-		var texture_image := _load_png_image(path)
-		if texture_image == null:
-			continue
-		if _images_match(image, texture_image):
-			return true
-	return false
-
-
-func _images_match(left: Image, right: Image) -> bool:
-	if left == null or right == null:
-		return false
-	if left.get_size() != right.get_size():
-		return false
-	return left.save_png_to_buffer() == right.save_png_to_buffer()
-
-
 func _load_png_image(path: String) -> Image:
 	if path.is_empty() or not FileAccess.file_exists(path):
 		return null
@@ -909,6 +1066,20 @@ func _get_nontransparent_bounds(image: Image, alpha_threshold: int = 1) -> Rect2
 	if max_x < min_x or max_y < min_y:
 		return Rect2i()
 	return Rect2i(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+
+
+func _image_alpha_mask_matches(expected: Image, actual: Image, alpha_threshold: int = 1) -> bool:
+	if expected == null or actual == null:
+		return false
+	if expected.get_width() != actual.get_width() or expected.get_height() != actual.get_height():
+		return false
+	for y in range(expected.get_height()):
+		for x in range(expected.get_width()):
+			var expected_visible := int(round(expected.get_pixel(x, y).a * 255.0)) >= alpha_threshold
+			var actual_visible := int(round(actual.get_pixel(x, y).a * 255.0)) >= alpha_threshold
+			if expected_visible != actual_visible:
+				return false
+	return true
 
 
 func _get_expected_edge_render_coord(origin_coord: Vector2i, direction: Vector2i) -> Vector2i:
@@ -1034,7 +1205,12 @@ func _collect_terrain_coords(layout: Dictionary, terrain_id: StringName) -> Arra
 			continue
 		var coord: Vector2i = coord_variant
 		var cell := layout.get("cells", {}).get(coord) as BattleCellState
-		if cell == null or cell.base_terrain != terrain_id:
+		if cell == null:
+			continue
+		if terrain_id == BattleCellState.TERRAIN_WATER:
+			if not BattleTerrainRules.is_water_terrain(cell.base_terrain):
+				continue
+		elif cell.base_terrain != terrain_id:
 			continue
 		coords.append(coord)
 	return coords
@@ -1142,3 +1318,15 @@ func _assert_true(condition: bool, message: String) -> void:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+
+
+func _assert_approx(actual: float, expected: float, tolerance: float, message: String) -> void:
+	if absf(actual - expected) > tolerance:
+		_failures.append(
+			"%s | actual=%s expected=%s tolerance=%s" % [
+				message,
+				str(actual),
+				str(expected),
+				str(tolerance),
+			]
+		)

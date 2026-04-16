@@ -76,42 +76,14 @@ static func from_dict(data: Dictionary):
 	return reward
 
 
-static func from_legacy(reward_variant):
+static func from_variant(reward_variant):
 	if reward_variant == null:
 		return null
-	if reward_variant is Dictionary and reward_variant.has("reward_id") and reward_variant.has("source_id"):
-		return from_dict(reward_variant)
-
-	var reward = PENDING_CHARACTER_REWARD_SCRIPT.new()
-	var entries_variant: Variant = []
+	if reward_variant is PendingCharacterReward:
+		return from_dict((reward_variant as PendingCharacterReward).to_dict())
 	if reward_variant is Dictionary:
-		var reward_data: Dictionary = reward_variant
-		reward.member_id = ProgressionDataUtils.to_string_name(reward_data.get("member_id", ""))
-		reward.member_name = String(reward_data.get("member_name", ""))
-		reward.source_type = ProgressionDataUtils.to_string_name(reward_data.get("source_type", "training"))
-		reward.source_id = ProgressionDataUtils.to_string_name(reward_data.get("source_id", reward_data.get("source_type", "training")))
-		reward.source_label = String(reward_data.get("source_label", "熟练度奖励"))
-		reward.summary_text = String(reward_data.get("summary_text", ""))
-		entries_variant = reward_data.get("entries", reward_data.get("mastery_entries", []))
-	else:
-		var legacy_reward: Variant = reward_variant
-		reward.member_id = legacy_reward.member_id
-		reward.member_name = String(legacy_reward.member_name)
-		reward.source_type = legacy_reward.source_type
-		reward.source_id = legacy_reward.source_type
-		reward.source_label = String(legacy_reward.source_label)
-		reward.summary_text = String(legacy_reward.summary_text)
-		entries_variant = legacy_reward.entries
-
-	if entries_variant is Array:
-		for entry_variant in entries_variant:
-			var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_legacy(entry_variant)
-			if entry == null:
-				continue
-			reward.entries.append(entry)
-
-	_assign_fallback_reward_id(reward)
-	return reward
+		return from_dict(reward_variant)
+	return null
 
 
 static func _assign_fallback_reward_id(reward) -> void:

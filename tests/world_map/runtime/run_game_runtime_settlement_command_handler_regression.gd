@@ -1,0 +1,567 @@
+extends SceneTree
+
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd")
+const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime_settlement_command_handler.gd")
+const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
+const PartyState = preload("res://scripts/player/progression/party_state.gd")
+const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+
+var _failures: Array[String] = []
+
+
+class MockAttributeSnapshot:
+	extends RefCounted
+
+	var values: Dictionary = {}
+
+	func get_value(attribute_id: StringName) -> int:
+		return int(values.get(attribute_id, 0))
+
+
+class MockSettlementHandler:
+	extends RefCounted
+
+	var calls: Array[Dictionary] = []
+
+	func get_settlement_window_data(settlement_id: String = "") -> Dictionary:
+		calls.append({"method": "get_settlement_window_data", "args": [settlement_id]})
+		return {"settlement_id": "spring_village_01"}
+
+	func command_execute_settlement_action(action_id: String, payload: Dictionary = {}) -> Dictionary:
+		calls.append({"method": "command_execute_settlement_action", "args": [action_id, payload.duplicate(true)]})
+		return {
+			"ok": true,
+			"message": action_id,
+			"battle_refresh_mode": "",
+		}
+
+	func resolve_command_settlement_id() -> String:
+		calls.append({"method": "resolve_command_settlement_id", "args": []})
+		return "spring_village_01"
+
+	func on_settlement_action_requested(settlement_id: String, action_id: String, payload: Dictionary) -> void:
+		calls.append({
+			"method": "on_settlement_action_requested",
+			"args": [settlement_id, action_id, payload.duplicate(true)],
+		})
+
+	func on_settlement_window_closed() -> void:
+		calls.append({"method": "on_settlement_window_closed", "args": []})
+
+
+class MockRuntime:
+	extends RefCounted
+
+	const PARTY_WAREHOUSE_INTERACTION_ID := "party_warehouse"
+
+	var _active_settlement_id := ""
+	var _active_modal_id := "settlement"
+	var _active_settlement_feedback_text := ""
+	var _active_shop_context: Dictionary = {}
+	var _active_stagecoach_context: Dictionary = {}
+	var _current_status_message := ""
+	var _selected_settlement: Dictionary = {}
+	var _settlements_by_id: Dictionary = {}
+	var _player_coord := Vector2i.ZERO
+	var _selected_coord := Vector2i.ZERO
+	var _party_state := PartyState.new()
+	var _settlement_states: Dictionary = {}
+	var opened_warehouse_labels: Array[String] = []
+	var pending_rewards: Array = []
+	var applied_quest_event_batches: Array = []
+	var achievement_events: Array[Dictionary] = []
+	var persist_calls := 0
+	var world_persist_calls := 0
+	var player_persist_calls := 0
+	var present_reward_calls := 0
+	var sync_party_calls := 0
+	var battle_active := false
+	var world_step := 0
+	var refresh_world_visibility_calls := 0
+
+	func build_command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
+		return {
+			"ok": true,
+			"message": message,
+			"battle_refresh_mode": battle_refresh_mode,
+		}
+
+	func build_command_error(message: String) -> Dictionary:
+		update_status(message)
+		return {
+			"ok": false,
+			"message": message,
+		}
+
+	func is_battle_active() -> bool:
+		return battle_active
+
+	func get_active_settlement_id() -> String:
+		return _active_settlement_id
+
+	func set_active_settlement_id(settlement_id: String) -> void:
+		_active_settlement_id = settlement_id
+
+	func set_settlement_feedback_text(feedback_text: String) -> void:
+		_active_settlement_feedback_text = feedback_text
+
+	func set_runtime_active_modal_id(modal_id: String) -> void:
+		_active_modal_id = modal_id
+
+	func set_player_coord(coord: Vector2i) -> void:
+		_player_coord = coord
+
+	func set_selected_coord(coord: Vector2i) -> void:
+		_selected_coord = coord
+
+	func set_active_shop_context(context: Dictionary) -> void:
+		_active_shop_context = context.duplicate(true)
+
+	func clear_active_shop_context() -> void:
+		_active_shop_context.clear()
+
+	func get_active_shop_context() -> Dictionary:
+		return _active_shop_context.duplicate(true)
+
+	func set_active_stagecoach_context(context: Dictionary) -> void:
+		_active_stagecoach_context = context.duplicate(true)
+
+	func clear_active_stagecoach_context() -> void:
+		_active_stagecoach_context.clear()
+
+	func get_active_stagecoach_context() -> Dictionary:
+		return _active_stagecoach_context.duplicate(true)
+
+	func update_status(message: String) -> void:
+		_current_status_message = message
+
+	func present_pending_reward_if_ready() -> bool:
+		present_reward_calls += 1
+		return false
+
+	func get_selected_settlement() -> Dictionary:
+		return _selected_settlement.duplicate(true)
+
+	func get_settlement_record(settlement_id: String) -> Dictionary:
+		return _settlements_by_id.get(settlement_id, {}).duplicate(true)
+
+	func get_settlement_state(settlement_id: String) -> Dictionary:
+		return _settlement_states.get(settlement_id, {}).duplicate(true)
+
+	func set_active_settlement_state(settlement_id: String, settlement_state: Dictionary) -> bool:
+		_settlement_states[settlement_id] = settlement_state.duplicate(true)
+		return true
+
+	func get_all_settlement_records() -> Array[Dictionary]:
+		var settlements: Array[Dictionary] = []
+		for settlement_variant in _settlements_by_id.values():
+			if settlement_variant is Dictionary:
+				settlements.append((settlement_variant as Dictionary).duplicate(true))
+		return settlements
+
+	func get_party_state():
+		return _party_state
+
+	func get_party_warehouse_service():
+		return null
+
+	func get_game_session():
+		return self
+
+	func get_item_defs() -> Dictionary:
+		return {}
+
+	func get_world_step() -> int:
+		return world_step
+
+	func advance_world_time_by_steps(delta_steps: int) -> void:
+		world_step += maxi(delta_steps, 0)
+
+	func refresh_world_visibility() -> void:
+		refresh_world_visibility_calls += 1
+
+	func get_member_attribute_snapshot(_member_id: StringName):
+		var snapshot := MockAttributeSnapshot.new()
+		snapshot.values = {
+			&"hp_max": 40,
+			&"mp_max": 12,
+		}
+		return snapshot
+
+	func get_member_display_name(member_id: StringName) -> String:
+		var member_state = _party_state.get_member_state(member_id)
+		return String(member_state.display_name) if member_state != null else String(member_id)
+
+	func open_party_warehouse_window(entry_label: String) -> void:
+		opened_warehouse_labels.append(entry_label)
+
+	func enqueue_pending_character_rewards(reward_variants: Array) -> void:
+		pending_rewards.append_array(reward_variants.duplicate(true))
+
+	func apply_quest_progress_events_to_party(event_variants: Array, _source_domain: String = "settlement") -> Dictionary:
+		applied_quest_event_batches.append(event_variants.duplicate(true))
+		var summary := {
+			"accepted_quest_ids": [],
+			"progressed_quest_ids": [],
+			"completed_quest_ids": [],
+		}
+		for event_variant in event_variants:
+			if event_variant is not Dictionary:
+				continue
+			var event_data := (event_variant as Dictionary).duplicate(true)
+			var quest_id := ProgressionDataUtils.to_string_name(event_data.get("quest_id", ""))
+			if quest_id == &"":
+				continue
+			var event_type := String(event_data.get("event_type", "progress"))
+			match event_type:
+				"accept":
+					var quest_state := QuestState.new()
+					quest_state.quest_id = quest_id
+					quest_state.mark_accepted(int(event_data.get("world_step", world_step)))
+					_party_state.set_active_quest_state(quest_state)
+					(summary["accepted_quest_ids"] as Array).append(quest_id)
+				"complete":
+					if _party_state.mark_quest_completed(quest_id, int(event_data.get("world_step", world_step))):
+						(summary["completed_quest_ids"] as Array).append(quest_id)
+				_:
+					var active_quest: QuestState = _party_state.get_active_quest_state(quest_id)
+					if active_quest == null:
+						active_quest = QuestState.new()
+						active_quest.quest_id = quest_id
+						active_quest.mark_accepted(int(event_data.get("world_step", world_step)))
+						_party_state.set_active_quest_state(active_quest)
+						(summary["accepted_quest_ids"] as Array).append(quest_id)
+					active_quest.record_objective_progress(
+						ProgressionDataUtils.to_string_name(event_data.get("objective_id", "")),
+						int(event_data.get("progress_delta", 1)),
+						int(event_data.get("target_value", 1)),
+						{"settlement_id": String(event_data.get("settlement_id", ""))},
+					)
+					(summary["progressed_quest_ids"] as Array).append(quest_id)
+		return summary
+
+	func record_member_achievement_event(
+		member_id: StringName,
+		event_id: StringName,
+		value: int,
+		detail_id: StringName = &""
+	) -> void:
+		achievement_events.append({
+			"member_id": String(member_id),
+			"event_id": String(event_id),
+			"value": value,
+			"detail_id": String(detail_id),
+		})
+
+	func sync_party_state_from_character_management() -> void:
+		sync_party_calls += 1
+
+	func persist_party_state() -> int:
+		persist_calls += 1
+		return OK
+
+	func persist_world_data() -> int:
+		world_persist_calls += 1
+		return OK
+
+	func persist_player_coord() -> int:
+		player_persist_calls += 1
+		return OK
+
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	_test_facade_delegates_settlement_surface_to_handler()
+	_test_settlement_handler_routes_actions_and_modal_state()
+
+	if _failures.is_empty():
+		print("Game runtime settlement command handler regression: PASS")
+		quit(0)
+		return
+
+	for failure in _failures:
+		push_error(failure)
+	print("Game runtime settlement command handler regression: FAIL (%d)" % _failures.size())
+	quit(1)
+
+
+func _test_facade_delegates_settlement_surface_to_handler() -> void:
+	var facade := GameRuntimeFacade.new()
+	var handler := MockSettlementHandler.new()
+	facade._settlement_command_handler = handler
+
+	_assert_eq(
+		String(facade.command_execute_settlement_action("service:warehouse").get("message", "")),
+		"service:warehouse",
+		"command_execute_settlement_action() 应委托给 settlement handler。"
+	)
+	_assert_eq(
+		String(facade.get_settlement_window_data("spring_village_01").get("settlement_id", "")),
+		"spring_village_01",
+		"get_settlement_window_data() 应委托给 settlement handler。"
+	)
+	_assert_eq(
+		facade.get_resolved_settlement_id(),
+		"spring_village_01",
+		"get_resolved_settlement_id() 应委托给 settlement handler。"
+	)
+
+	facade._on_settlement_action_requested("spring_village_01", "service:warehouse", {})
+	facade._on_settlement_window_closed()
+
+	_assert_true(_has_call(handler.calls, "on_settlement_action_requested"), "_on_settlement_action_requested() 应委托给 settlement handler。")
+	_assert_true(_has_call(handler.calls, "on_settlement_window_closed"), "_on_settlement_window_closed() 应委托给 settlement handler。")
+
+
+func _test_settlement_handler_routes_actions_and_modal_state() -> void:
+	var runtime := MockRuntime.new()
+	runtime._party_state = _make_party_state()
+	runtime._selected_settlement = {
+		"settlement_id": "spring_village_01",
+	}
+	runtime._settlements_by_id = {
+		"spring_village_01": {
+			"settlement_id": "spring_village_01",
+			"display_name": "春泉村",
+			"origin": Vector2i.ZERO,
+			"available_services": [
+				{
+					"action_id": "service:warehouse",
+					"facility_name": "据点服务台",
+					"npc_name": "军需官",
+					"service_type": "仓储",
+					"interaction_script_id": MockRuntime.PARTY_WAREHOUSE_INTERACTION_ID,
+				},
+				{
+					"action_id": "service:training",
+					"facility_name": "训练场",
+					"npc_name": "教官",
+					"service_type": "训练",
+					"interaction_script_id": "training_service",
+				},
+				{
+					"action_id": "service:rest_full",
+					"facility_name": "旅店",
+					"npc_name": "店主",
+					"service_type": "整备",
+					"interaction_script_id": "service_rest_full",
+				},
+				{
+					"action_id": "service:stagecoach",
+					"facility_name": "驿站",
+					"npc_name": "驿夫",
+					"service_type": "驿站",
+					"interaction_script_id": "service_stagecoach",
+				},
+			],
+		},
+		"graystone_town_01": {
+			"settlement_id": "graystone_town_01",
+			"display_name": "灰石镇",
+			"origin": Vector2i(2, 1),
+			"available_services": [],
+		},
+	}
+	runtime._settlement_states = {
+		"spring_village_01": {
+			"visited": true,
+			"reputation": 0,
+			"active_conditions": [],
+			"cooldowns": {},
+			"shop_inventory_seed": 0,
+			"shop_last_refresh_step": 0,
+			"shop_states": {},
+		},
+		"graystone_town_01": {
+			"visited": true,
+			"reputation": 0,
+			"active_conditions": [],
+			"cooldowns": {},
+			"shop_inventory_seed": 0,
+			"shop_last_refresh_step": 0,
+			"shop_states": {},
+		}
+	}
+
+	var handler := GameRuntimeSettlementCommandHandler.new()
+	handler.setup(runtime)
+
+	var warehouse_result := handler.command_execute_settlement_action("service:warehouse")
+	_assert_true(bool(warehouse_result.get("ok", false)), "据点仓储动作应执行成功。")
+	_assert_eq(runtime._active_settlement_id, "spring_village_01", "仓储动作后应记录当前据点 ID。")
+	_assert_eq(runtime._active_modal_id, "", "仓储动作后应让位给共享仓库 modal。")
+	_assert_true(runtime.opened_warehouse_labels.size() == 1, "仓储动作后应打开共享仓库。")
+	_assert_true(runtime.opened_warehouse_labels[0].find("据点服务") >= 0, "仓储入口标签应包含据点服务来源。")
+	_assert_eq(runtime._current_status_message, "已从据点服务打开共享仓库。", "仓储动作后应刷新状态文案。")
+	_assert_true(runtime.persist_calls > 0, "成功据点动作后应持久化队伍状态。")
+	_assert_true(runtime.sync_party_calls > 0, "成功据点动作后应同步角色管理侧的队伍状态。")
+	_assert_true(runtime.achievement_events.size() == 1, "成功据点动作后应记录成就事件。")
+	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:warehouse", "成就事件应记录动作 ID。")
+
+	var training_result := handler.command_execute_settlement_action("service:training", {
+		"pending_character_rewards": [
+			{
+				"member_id": "hero",
+				"source_type": "training",
+				"source_id": "training",
+				"source_label": "训练",
+				"entries": [
+					{
+						"entry_type": "skill_mastery",
+						"target_id": "warrior_heavy_strike",
+						"amount": 1,
+					},
+				],
+			},
+		],
+	})
+	_assert_true(bool(training_result.get("ok", false)), "普通据点动作应执行成功。")
+	_assert_true(runtime._active_settlement_feedback_text.find("训练") >= 0, "普通据点动作后应写入据点反馈文本。")
+	_assert_true(runtime.pending_rewards.size() == 1, "带 pending_character_rewards 的据点动作应归并出待领奖励。")
+	_assert_true(runtime._current_status_message.find("事务") >= 0, "普通据点动作完成后应刷新状态文案。")
+
+	var quest_apply_count_before := runtime.applied_quest_event_batches.size()
+	var quest_training_result := handler.execute_settlement_action("spring_village_01", "service:training", {
+		"interaction_script_id": "training_service",
+		"facility_name": "训练场",
+		"npc_name": "教官",
+		"service_type": "训练",
+		"member_id": "hero",
+		"quest_progress_events": [
+			{
+				"event_type": "accept",
+				"quest_id": "contract_training",
+			},
+			{
+				"event_type": "progress",
+				"quest_id": "contract_training",
+				"objective_id": "train_once",
+				"progress_delta": 1,
+				"target_value": 1,
+				"settlement_id": "spring_village_01",
+			},
+		],
+	})
+	handler.on_settlement_action_requested("spring_village_01", "service:training", {
+		"interaction_script_id": "training_service",
+		"facility_name": "训练场",
+		"npc_name": "教官",
+		"service_type": "训练",
+		"member_id": "hero",
+		"quest_progress_events": quest_training_result.get("quest_progress_events", []),
+	})
+	var training_quest: QuestState = runtime._party_state.get_active_quest_state(&"contract_training")
+	_assert_eq((quest_training_result.get("quest_progress_events", []) as Array).size(), 3, "据点服务结果应包含显式 quest_progress_events 与默认据点动作事件。")
+	_assert_eq(runtime.applied_quest_event_batches.size(), quest_apply_count_before + 1, "成功据点动作后应把 quest_progress_events 应用到运行时。")
+	_assert_true(training_quest != null, "据点动作应能把 quest_progress_events 写入 PartyState.active_quests。")
+	if training_quest != null:
+		_assert_eq(training_quest.get_objective_progress(&"train_once"), 1, "据点动作应推进任务目标进度。")
+
+	var canonical_training_result := handler.execute_settlement_action("spring_village_01", "service:training", {
+		"interaction_script_id": "training_service",
+		"facility_name": "训练场",
+		"npc_name": "教官",
+		"service_type": "训练",
+		"member_id": "hero",
+		"pending_character_rewards": [
+			{
+				"member_id": "hero",
+				"source_type": "training",
+				"source_id": "training",
+				"source_label": "训练",
+				"entries": [
+					{
+						"entry_type": "skill_mastery",
+						"target_id": "warrior_heavy_strike",
+						"amount": 1,
+					},
+				],
+			},
+		],
+	})
+	_assert_true(bool(canonical_training_result.get("success", false)), "据点服务结果应成功。")
+	_assert_true(canonical_training_result.has("pending_character_rewards"), "据点服务结果应包含 canonical pending_character_rewards。")
+	_assert_true(canonical_training_result.has("service_side_effects"), "据点服务结果应包含 service_side_effects。")
+	_assert_eq((canonical_training_result.get("pending_character_rewards", []) as Array).size(), 1, "据点服务结果应输出 canonical 奖励数组。")
+	_assert_true(not canonical_training_result.has("pending_mastery_rewards"), "据点服务结果不应再输出 legacy pending_mastery_rewards。")
+	_assert_true(not canonical_training_result.has("effects"), "据点服务结果不应再输出 legacy effects。")
+	_assert_eq(int(canonical_training_result.get("gold_delta", 0)), 0, "普通据点服务不应修改金币字段。")
+
+	runtime._party_state.gold = 200
+	runtime._party_state.get_member_state(&"hero").current_hp = 10
+	var rest_result := handler.execute_settlement_action("spring_village_01", "service:rest_full", {
+		"interaction_script_id": "service_rest_full",
+		"facility_name": "旅店",
+		"npc_name": "店主",
+		"service_type": "整备",
+		"member_id": "hero",
+	})
+	_assert_true(bool(rest_result.get("success", false)), "整备服务应执行成功。")
+	_assert_eq(runtime._party_state.gold, 150, "整备服务应扣除 50 金。")
+	_assert_eq(runtime.world_step, 1, "整备服务应推进 1 点 world_step。")
+	_assert_eq(runtime._party_state.get_member_state(&"hero").current_hp, 40, "整备服务应把当前生命恢复到上限。")
+	_assert_eq(int(rest_result.get("gold_delta", 0)), -50, "整备服务结果应记录金币变化。")
+	_assert_true((rest_result.get("service_side_effects", {}) as Dictionary).has("world_step_advanced"), "整备服务结果应记录 world_step_advanced。")
+	_assert_true(not rest_result.has("effects"), "整备服务结果不应再输出 legacy effects。")
+
+	var missing_result := handler.execute_settlement_action("missing_settlement", "service:training", {})
+	_assert_true(not bool(missing_result.get("success", true)), "缺失据点时服务结果应失败。")
+	_assert_true(missing_result.has("pending_character_rewards"), "失败结果也应包含 canonical pending_character_rewards。")
+	_assert_true(missing_result.has("service_side_effects"), "失败结果也应包含 service_side_effects。")
+	_assert_true(not missing_result.has("pending_mastery_rewards"), "失败结果也不应保留 legacy pending_mastery_rewards。")
+	_assert_true(not missing_result.has("effects"), "失败结果也不应保留 legacy effects。")
+
+	var stagecoach_result := handler.command_execute_settlement_action("service:stagecoach")
+	_assert_true(bool(stagecoach_result.get("ok", false)), "驿站服务应能打开路线窗口。")
+	_assert_eq(runtime._active_modal_id, "stagecoach", "打开驿站后应切换到驿站 modal。")
+	var travel_result := handler.command_stagecoach_travel("graystone_town_01")
+	_assert_true(bool(travel_result.get("ok", false)), "驿站换乘应执行成功。")
+	_assert_eq(runtime._active_modal_id, "settlement", "驿站换乘后应回到目标据点窗口。")
+	_assert_eq(runtime._active_settlement_id, "graystone_town_01", "驿站换乘后应记录目标据点。")
+	_assert_eq(runtime._party_state.gold, 120, "驿站换乘应按距离扣除路费。")
+	_assert_eq(runtime.player_persist_calls, 1, "驿站换乘后应持久化玩家坐标。")
+	_assert_true(runtime.refresh_world_visibility_calls > 0, "驿站换乘后应刷新世界可见状态。")
+
+	handler.on_settlement_window_closed()
+	_assert_eq(runtime._active_settlement_id, "", "关闭据点窗口应清空当前据点 ID。")
+	_assert_eq(runtime._active_settlement_feedback_text, "", "关闭据点窗口应清空反馈文本。")
+	_assert_eq(runtime._active_modal_id, "", "关闭据点窗口应清空 modal。")
+	_assert_true(runtime.present_reward_calls > 0, "关闭据点窗口后应尝试恢复待确认奖励。")
+	_assert_eq(runtime._current_status_message, "已关闭据点窗口，返回世界地图。", "关闭据点窗口后应刷新状态文案。")
+
+
+func _make_party_state() -> PartyState:
+	var party_state := PartyState.new()
+	party_state.leader_member_id = &"hero"
+	party_state.active_member_ids = [&"hero"]
+
+	var hero := PartyMemberState.new()
+	hero.member_id = &"hero"
+	hero.display_name = "Hero"
+	hero.current_hp = 20
+	hero.current_mp = 4
+	party_state.member_states = {
+		&"hero": hero,
+	}
+	return party_state
+
+
+func _has_call(calls: Array[Dictionary], method_name: String) -> bool:
+	for call in calls:
+		if String(call.get("method", "")) == method_name:
+			return true
+	return false
+
+
+func _assert_true(condition: bool, message: String) -> void:
+	if not condition:
+		_failures.append(message)
+
+
+func _assert_eq(actual, expected, message: String) -> void:
+	if actual != expected:
+		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

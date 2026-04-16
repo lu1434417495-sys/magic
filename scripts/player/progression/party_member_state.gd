@@ -47,22 +47,26 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
+	if data.is_empty():
+		return null
+	var progression_data: Variant = data.get("progression", null)
+	var equipment_state_data: Variant = data.get("equipment_state", null)
+	if progression_data is not Dictionary or equipment_state_data is not Dictionary:
+		return null
 	var member_state := PARTY_MEMBER_STATE_SCRIPT.new()
 	member_state.member_id = ProgressionDataUtils.to_string_name(data.get("member_id", ""))
 	member_state.display_name = String(data.get("display_name", ""))
 	member_state.faction_id = ProgressionDataUtils.to_string_name(data.get("faction_id", "player"))
 	member_state.portrait_id = ProgressionDataUtils.to_string_name(data.get("portrait_id", ""))
-	member_state.progression = UNIT_PROGRESS_SCRIPT.from_dict(data.get("progression", {}))
-	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.from_dict(data.get("equipment_state", {}))
+	member_state.progression = UNIT_PROGRESS_SCRIPT.from_dict(progression_data)
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.from_dict(equipment_state_data)
 	member_state.control_mode = ProgressionDataUtils.to_string_name(data.get("control_mode", "manual"))
 	member_state.current_hp = int(data.get("current_hp", 1))
 	member_state.current_mp = int(data.get("current_mp", 0))
 	member_state.body_size = maxi(int(data.get("body_size", 1)), 1)
 
-	if member_state.progression == null:
-		member_state.progression = UNIT_PROGRESS_SCRIPT.new()
-	if member_state.equipment_state == null:
-		member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	if member_state.progression == null or member_state.equipment_state == null:
+		return null
 	if member_state.progression.unit_id == &"":
 		member_state.progression.unit_id = member_state.member_id
 	if member_state.progression.display_name.is_empty():

@@ -1,3 +1,5 @@
+# Development REPL for the headless text command chain.
+# It exists for local debugging, not as a shipping game entry.
 extends SceneTree
 
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
@@ -15,11 +17,13 @@ func _run() -> void:
 	while true:
 		var line := OS.read_string_from_stdin()
 		if line == "":
+			await runner.dispose()
 			quit(0)
 			return
 		var command_text := String(line).strip_edges()
 		if command_text == "exit" or command_text == "quit":
 			print("Bye.")
+			await runner.dispose()
 			quit(0)
 			return
 		var result = await runner.execute_line(command_text)

@@ -120,16 +120,11 @@ func preview_equip(member_id: StringName, item_id: StringName, requested_slot_id
 		var existing_item_id: StringName = equipment_state.get_equipped_item_id(existing_entry_slot)
 		if existing_item_id == &"":
 			continue
-		var existing_entry: Variant = equipment_state.equipped_slots.get(existing_entry_slot)
-		var existing_occ: Array = []
-		if existing_entry is Dictionary:
-			existing_occ = existing_entry.get("occupied_slot_ids", [])
-		else:
-			existing_occ = [String(existing_entry_slot)]
+		var existing_occ: Array[StringName] = equipment_state.get_occupied_slot_ids_for_entry(existing_entry_slot)
 
 		var conflicts := false
 		for occ_slot in occupied_slots:
-			if existing_occ.has(String(occ_slot)):
+			if existing_occ.has(occ_slot):
 				conflicts = true
 				break
 		if conflicts:
@@ -233,7 +228,7 @@ func equip_item(member_id: StringName, item_id: StringName, requested_slot_id: S
 		if displaced_instance != null:
 			_warehouse_service.deposit_equipment_instance(displaced_instance)
 		elif displaced_entry_slot != &"":
-			equipment_state.equipped_slots.erase(displaced_entry_slot)
+			equipment_state.clear_entry_slot(displaced_entry_slot)
 
 	# 写入新装备实例到装备槽
 	equipment_state.set_equipped_entry(entry_slot, norm_item, occupied_slots, new_instance.instance_id)

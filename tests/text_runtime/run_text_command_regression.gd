@@ -1,6 +1,11 @@
+# End-to-end regression for the headless text command chain.
+# It protects runtime flows while the main game remains UI-driven.
 extends SceneTree
 
 const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
+const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
+const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
 
 var _failures: Array[String] = []
@@ -15,8 +20,24 @@ func _run() -> void:
 	await runner.initialize()
 
 	await _run_command(runner, "game new test")
+	_assert_log_snapshot_available(runner)
+	_assert_new_game_random_book_skill_grant(runner)
+	var book_skill := _pick_unlearned_book_skill_for_member(runner.get_session().get_game_session(), &"player_sword_01")
+	_assert_true(not book_skill.is_empty(), "文本命令回归前置：应能为主角找到一个尚未学会且可生成技能书的技能。")
+	if book_skill.is_empty():
+		await runner.dispose(true)
+		_finish()
+		return
+	var skill_book_skill_id := String(book_skill.get("skill_id", ""))
+	var skill_book_item_id := String(book_skill.get("item_id", ""))
+	await _run_command(runner, "world open")
+	await _run_command(runner, "settlement action service:basic_supply")
+	await _run_command(runner, "shop buy healing_herb")
+	_assert_shop_purchase_applied(runner.get_session().build_snapshot())
+	await _run_command(runner, "close")
+	await _run_command(runner, "close")
 	await _run_command(runner, "warehouse add bronze_sword 1")
-	await _run_command(runner, "warehouse add skill_book_archer_aimed_shot 1")
+	await _run_command(runner, "warehouse add %s 1" % skill_book_item_id)
 	var before_equip_snapshot: Dictionary = runner.get_session().build_snapshot()
 	await _run_command(runner, "party equip player_sword_01 bronze_sword")
 	_assert_equipment_command_applied(before_equip_snapshot, runner.get_session().build_snapshot())
@@ -26,28 +47,64 @@ func _run() -> void:
 	await _run_command(runner, "party open")
 	await _run_command(runner, "party select player_sword_01")
 	await _run_command(runner, "party warehouse")
-	await _run_command(runner, "warehouse use skill_book_archer_aimed_shot player_sword_01")
-	_assert_skill_book_command_applied(runner.get_session().build_snapshot())
+	await _run_command(runner, "warehouse use %s player_sword_01" % skill_book_item_id)
+	_assert_skill_book_command_applied(runner.get_session().build_snapshot(), skill_book_skill_id, skill_book_item_id)
 	await _run_command(runner, "close")
-	await _run_command(runner, "world open")
 	await _run_command(runner, "settlement action service:warehouse")
 	_assert_settlement_reward_queued_while_warehouse_open(runner.get_session().build_snapshot())
 	await _run_command(runner, "close")
 	_assert_settlement_reward_presented_after_modal_close(runner.get_session().build_snapshot())
 	await _run_command(runner, "reward confirm")
 	_assert_settlement_reward_confirmed(runner.get_session().build_snapshot())
+	await _run_command(runner, "quest accept contract_manual_drill")
+	await _run_command(runner, "quest progress contract_manual_drill train_once 1 target_value=2 action_id=service:training")
+	_assert_quest_progress_command_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot(), "contract_manual_drill", "train_once", 1, "action_id", "service:training")
+	await _run_command(runner, "quest complete contract_manual_drill")
+	_assert_quest_complete_command_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot(), "contract_manual_drill")
+	await _run_command(runner, "quest accept contract_settlement_warehouse")
+	await _run_command(runner, "world open")
+	await _run_command(runner, "settlement action service:warehouse")
+	_assert_settlement_quest_event_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _run_command(runner, "close")
 
-	var snapshot: Dictionary = runner.get_session().build_snapshot()
-	var nearby_encounters: Array = snapshot.get("world", {}).get("nearby_encounters", [])
-	_assert_true(not nearby_encounters.is_empty(), "测试世界应暴露至少一个附近遭遇。")
-	if nearby_encounters.is_empty():
+	var target_coord: Dictionary = _find_nearest_encounter_coord(runner)
+	_assert_true(not target_coord.is_empty(), "测试世界应至少存在一个可到达的遭遇。")
+	if target_coord.is_empty():
+		await runner.dispose(true)
 		_finish()
 		return
-
-	var target_coord: Dictionary = nearby_encounters[0]
 	await _walk_to_coord(runner, target_coord.get("coord", {}))
 	await _exercise_battle_flow(runner)
+	await runner.dispose(true)
 	_finish()
+
+
+func _find_nearest_encounter_coord(runner) -> Dictionary:
+	var runtime = runner.get_session().get_runtime_facade()
+	if runtime == null:
+		return {}
+	var world_data: Dictionary = runtime.get_world_data()
+	var player_coord: Vector2i = runtime.get_player_coord()
+	var nearest_encounter: ENCOUNTER_ANCHOR_DATA_SCRIPT = null
+	var nearest_distance := 2147483647
+	for encounter_variant in world_data.get("encounter_anchors", []):
+		var encounter := encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+		if encounter == null or encounter.is_cleared:
+			continue
+		var delta: Vector2i = encounter.world_coord - player_coord
+		var distance := absi(delta.x) + absi(delta.y)
+		if distance >= nearest_distance:
+			continue
+		nearest_distance = distance
+		nearest_encounter = encounter
+	if nearest_encounter == null:
+		return {}
+	return {
+		"coord": {
+			"x": nearest_encounter.world_coord.x,
+			"y": nearest_encounter.world_coord.y,
+		},
+	}
 
 
 func _walk_to_coord(runner, coord_data: Dictionary) -> void:
@@ -89,6 +146,9 @@ func _exercise_battle_flow(runner) -> void:
 
 	var battle_snapshot: Dictionary = runner.get_session().build_snapshot().get("battle", {})
 	_assert_true(not (battle_snapshot.get("units", []) as Array).is_empty(), "战斗快照应包含单位列表。")
+	_assert_true(bool(battle_snapshot.get("start_confirm_visible", false)), "进入战斗后应先弹出开始战斗确认。")
+	await _run_command(runner, "battle confirm")
+	_assert_battle_command_log_contains_post_state(runner.get_session().build_snapshot(), "battle.confirm_start")
 	await _run_command(runner, "battle tick 1.0")
 	await _run_command(runner, "battle wait")
 	var units: Array = runner.get_session().build_snapshot().get("battle", {}).get("units", [])
@@ -114,6 +174,12 @@ func _assert_settlement_reward_queued_while_warehouse_open(snapshot: Dictionary)
 	_assert_eq(String(achievement_summary.get("recent_unlocked_name", "")), "行路借火", "最近解锁成就应记录据点成就。")
 
 
+func _assert_shop_purchase_applied(snapshot: Dictionary) -> void:
+	_assert_true(bool(snapshot.get("shop", {}).get("visible", false)), "商店购买后应继续停留在商店 modal。")
+	_assert_eq(int(snapshot.get("party", {}).get("gold", 0)), 168, "购买 1 份治疗草后金币应扣减 12。")
+	_assert_eq(_count_warehouse_item(snapshot, "healing_herb"), 1, "购买后共享仓库应新增治疗草。")
+
+
 func _assert_settlement_reward_presented_after_modal_close(snapshot: Dictionary) -> void:
 	var reward_snapshot: Dictionary = snapshot.get("reward", {})
 	var reward: Dictionary = reward_snapshot.get("reward", {})
@@ -130,6 +196,33 @@ func _assert_settlement_reward_confirmed(snapshot: Dictionary) -> void:
 	_assert_eq(int(party_snapshot.get("pending_reward_count", 0)), 0, "确认奖励后待处理队列应被清空。")
 	_assert_true(not bool(reward_snapshot.get("visible", false)), "奖励确认后弹窗应关闭。")
 	_assert_eq(int(achievement_summary.get("unlocked_count", 0)), 1, "奖励确认后成就解锁状态应继续保留。")
+
+
+func _assert_quest_progress_command_applied(snapshot: Dictionary, text_snapshot: String, quest_id: String, objective_id: String, expected_progress: int, context_key: String, context_value: String) -> void:
+	var quests_snapshot: Dictionary = snapshot.get("party", {}).get("quests", {})
+	var active_quests: Array = quests_snapshot.get("active_quests", [])
+	_assert_true((quests_snapshot.get("active_quest_ids", []) as Array).has(quest_id), "quest accept/progress 后快照应暴露激活任务 ID。")
+	_assert_eq(active_quests.size(), 1, "quest accept/progress 后应存在 1 条激活任务。")
+	if not active_quests.is_empty():
+		var quest_entry: Dictionary = active_quests[0]
+		var objective_progress: Dictionary = quest_entry.get("objective_progress", {})
+		_assert_eq(int(objective_progress.get(objective_id, 0)), expected_progress, "quest progress 命令应写入目标进度。")
+		_assert_eq(String((quest_entry.get("last_progress_context", {}) as Dictionary).get(context_key, "")), context_value, "quest progress 命令应保留上下文。")
+	_assert_true(text_snapshot.contains("active_quest_ids=%s" % quest_id), "文本快照应渲染激活任务 ID。")
+	_assert_true(text_snapshot.contains("quest=%s" % quest_id), "文本快照应渲染任务明细。")
+
+
+func _assert_quest_complete_command_applied(snapshot: Dictionary, text_snapshot: String, quest_id: String) -> void:
+	var quests_snapshot: Dictionary = snapshot.get("party", {}).get("quests", {})
+	_assert_true(not (quests_snapshot.get("active_quest_ids", []) as Array).has(quest_id), "quest complete 后激活任务列表应移除该任务。")
+	_assert_true((quests_snapshot.get("completed_quest_ids", []) as Array).has(quest_id), "quest complete 后完成任务列表应包含该任务。")
+	_assert_true(text_snapshot.contains("completed_quest_ids=%s" % quest_id), "文本快照应渲染已完成任务 ID。")
+
+
+func _assert_settlement_quest_event_applied(snapshot: Dictionary, text_snapshot: String) -> void:
+	var quests_snapshot: Dictionary = snapshot.get("party", {}).get("quests", {})
+	_assert_true((quests_snapshot.get("completed_quest_ids", []) as Array).has("contract_settlement_warehouse"), "真实据点动作应自动完成仓储巡查任务。")
+	_assert_true(text_snapshot.contains("completed_quest_ids=contract_manual_drill contract_settlement_warehouse") or text_snapshot.contains("completed_quest_ids=contract_settlement_warehouse contract_manual_drill"), "文本快照应渲染真实据点动作完成后的任务列表。")
 
 
 func _assert_equipment_command_applied(before_snapshot: Dictionary, after_snapshot: Dictionary) -> void:
@@ -163,17 +256,123 @@ func _assert_equipment_command_reverted(before_snapshot: Dictionary, after_snaps
 		int(before_attributes.get("physical_attack", 0)),
 		"命令行卸装后，物攻快照应回到基线。"
 	)
+	_assert_eq(_count_warehouse_item(after_snapshot, "bronze_sword"), 1, "命令行卸装后，仓库快照中应能看到回仓的装备。")
 	_assert_eq(_count_session_warehouse_item("bronze_sword"), 1, "卸装后物品应回到共享仓库。")
 
 
-func _assert_skill_book_command_applied(snapshot: Dictionary) -> void:
+func _assert_skill_book_command_applied(snapshot: Dictionary, skill_id: String, item_id: String) -> void:
 	var member: Dictionary = _find_party_member(snapshot.get("party", {}).get("members", []), "player_sword_01")
 	var learned_skill_ids: Array = member.get("learned_skill_ids", [])
 	_assert_true(
-		learned_skill_ids.has("archer_aimed_shot"),
-		"命令行使用技能书后，角色快照中应出现已学会的技能 ID。"
+		learned_skill_ids.has(skill_id),
+		"命令行使用技能书后，角色快照中应出现本次技能书对应的已学会技能 ID。"
 	)
-	_assert_eq(_count_warehouse_item(snapshot, "skill_book_archer_aimed_shot"), 0, "命令行使用技能书后，仓库中的技能书应被消耗。")
+	_assert_eq(_count_warehouse_item(snapshot, item_id), 0, "命令行使用技能书后，仓库中的技能书应被消耗。")
+
+
+func _assert_new_game_random_book_skill_grant(runner) -> void:
+	var game_session = runner.get_session().get_game_session()
+	_assert_true(game_session != null, "新游戏随机技能回归前置：GameSession 应可访问。")
+	if game_session == null:
+		return
+
+	var party_state = game_session.get_party_state()
+	var member_state = party_state.get_member_state(&"player_sword_01") if party_state != null else null
+	_assert_true(member_state != null and member_state.progression != null, "新游戏后应能读取主角成长数据。")
+	if member_state == null or member_state.progression == null:
+		return
+
+	var extra_learned_book_skill_ids: Array[StringName] = []
+	var skill_defs: Dictionary = game_session.get_skill_defs()
+	for skill_key in member_state.progression.skills.keys():
+		var skill_id := StringName(String(skill_key))
+		if skill_id == &"warrior_heavy_strike":
+			continue
+		var skill_progress = member_state.progression.get_skill_progress(skill_id)
+		if skill_progress == null or not skill_progress.is_learned:
+			continue
+		var skill_def = skill_defs.get(skill_id)
+		if skill_def == null or skill_def.learn_source != &"book":
+			continue
+		extra_learned_book_skill_ids.append(skill_id)
+
+	_assert_eq(extra_learned_book_skill_ids.size(), 1, "新游戏后主角应额外随机学会 1 个可由技能书学习的技能。")
+	if extra_learned_book_skill_ids.size() != 1:
+		return
+
+	var granted_skill_id := extra_learned_book_skill_ids[0]
+	var granted_skill_def = skill_defs.get(granted_skill_id)
+	var granted_skill_progress = member_state.progression.get_skill_progress(granted_skill_id)
+	_assert_true(granted_skill_progress != null and granted_skill_progress.is_learned, "随机技能应真正写入主角成长数据。")
+	_assert_eq(
+		int(granted_skill_progress.skill_level),
+		game_session._resolve_random_start_skill_initial_level(granted_skill_def),
+		"随机技能等级应按技能层级规则初始化。"
+	)
+
+
+func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) -> Dictionary:
+	if game_session == null:
+		return {}
+	var party_state = game_session.get_party_state()
+	var member_state = party_state.get_member_state(member_id) if party_state != null else null
+	if member_state == null or member_state.progression == null:
+		return {}
+	var skill_defs: Dictionary = game_session.get_skill_defs()
+	var item_defs: Dictionary = game_session.get_item_defs()
+	for skill_key in ProgressionDataUtils.sorted_string_keys(skill_defs):
+		var skill_id := StringName(skill_key)
+		var skill_def = skill_defs.get(skill_id)
+		if skill_def == null or skill_def.learn_source != &"book":
+			continue
+		var skill_progress = member_state.progression.get_skill_progress(skill_id)
+		if skill_progress != null and skill_progress.is_learned:
+			continue
+		var item_id := SkillBookItemFactory.build_item_id_for_skill(skill_id)
+		if not item_defs.has(item_id):
+			continue
+		return {
+			"skill_id": skill_id,
+			"item_id": item_id,
+		}
+	return {}
+
+
+func _assert_log_snapshot_available(runner) -> void:
+	var snapshot: Dictionary = runner.get_session().build_snapshot()
+	var logs_snapshot: Dictionary = snapshot.get("logs", {})
+	var entries: Array = logs_snapshot.get("entries", [])
+	_assert_true(not String(logs_snapshot.get("file_path", "")).is_empty(), "headless 快照应暴露当前日志文件路径。")
+	_assert_true(not entries.is_empty(), "headless 快照应包含最近日志条目。")
+	_assert_true(runner.get_session().build_text_snapshot().contains("[LOG]"), "headless 文本快照应包含日志分段。")
+
+
+func _assert_battle_command_log_contains_post_state(snapshot: Dictionary, event_id: String) -> void:
+	var entry := _find_log_entry(snapshot, event_id)
+	_assert_true(not entry.is_empty(), "战斗命令 %s 应写入日志。" % event_id)
+	if entry.is_empty():
+		return
+	var context: Dictionary = entry.get("context", {})
+	var before_state: Dictionary = context.get("before", {})
+	var after_state: Dictionary = context.get("after", {})
+	var after_battle: Dictionary = after_state.get("battle", {})
+	_assert_true(bool(before_state.get("battle_active", false)), "战斗命令日志应保留命令执行前的战斗态。")
+	_assert_true(bool(after_state.get("battle_active", false)), "战斗命令日志应保留命令执行后的战斗态。")
+	_assert_true(after_battle.has("seed"), "战斗命令日志后态应包含战斗 seed。")
+	_assert_true(not String(after_battle.get("terrain_profile_id", "")).is_empty(), "战斗命令日志后态应包含 terrain profile。")
+	_assert_true(not (after_battle.get("units", []) as Array).is_empty(), "战斗命令日志后态应包含单位状态摘要。")
+
+
+func _find_log_entry(snapshot: Dictionary, event_id: String) -> Dictionary:
+	var entries: Array = snapshot.get("logs", {}).get("entries", [])
+	for index in range(entries.size() - 1, -1, -1):
+		var entry_variant = entries[index]
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("event_id", "")) == event_id:
+			return entry
+	return {}
 
 
 func _assert_equipment_requirement_error_message(runner) -> void:
@@ -218,13 +417,13 @@ func _find_equipped_item(equipment_entries: Array, slot_id: String) -> Dictionar
 
 
 func _count_warehouse_item(snapshot: Dictionary, item_id: String) -> int:
-	var stacks: Array = snapshot.get("warehouse", {}).get("window_data", {}).get("stacks", [])
-	for stack_variant in stacks:
-		if stack_variant is not Dictionary:
+	var entries: Array = snapshot.get("warehouse", {}).get("window_data", {}).get("entries", [])
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
 			continue
-		var stack: Dictionary = stack_variant
-		if String(stack.get("item_id", "")) == item_id:
-			return int(stack.get("total_quantity", 0))
+		var entry: Dictionary = entry_variant
+		if String(entry.get("item_id", "")) == item_id:
+			return int(entry.get("total_quantity", 0))
 	return 0
 
 

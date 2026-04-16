@@ -44,28 +44,11 @@ static func from_dict(data: Dictionary):
 	return entry
 
 
-static func from_legacy(entry_variant):
+static func from_variant(entry_variant):
 	if entry_variant == null:
 		return null
-
+	if entry_variant is PendingCharacterRewardEntry:
+		return from_dict((entry_variant as PendingCharacterRewardEntry).to_dict())
 	if entry_variant is Dictionary:
-		var entry_data: Dictionary = entry_variant
-		if entry_data.has("entry_type"):
-			return from_dict(entry_data)
-
-		var legacy_entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
-		legacy_entry.entry_type = SKILL_MASTERY_ENTRY_TYPE
-		legacy_entry.target_id = ProgressionDataUtils.to_string_name(entry_data.get("skill_id", ""))
-		legacy_entry.target_label = String(entry_data.get("skill_name", ""))
-		legacy_entry.amount = int(entry_data.get("mastery_amount", 0))
-		legacy_entry.reason_text = String(entry_data.get("reason_text", ""))
-		return legacy_entry
-
-	var legacy_object: Variant = entry_variant
-	var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
-	entry.entry_type = SKILL_MASTERY_ENTRY_TYPE
-	entry.target_id = legacy_object.skill_id
-	entry.target_label = legacy_object.skill_name
-	entry.amount = int(legacy_object.mastery_amount)
-	entry.reason_text = String(legacy_object.reason_text)
-	return entry
+		return from_dict(entry_variant)
+	return null

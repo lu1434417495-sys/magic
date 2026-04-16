@@ -25,7 +25,7 @@ func _run() -> void:
 	_test_item_registry_accepts_equipment_seed_data()
 	_test_equipment_service_moves_items_between_warehouse_and_slots()
 	_test_equipment_modifiers_change_attribute_snapshot_and_round_trip()
-	_test_legacy_equipment_state_dict_is_still_supported()
+	_test_equipment_state_requires_canonical_payload()
 	_test_two_handed_weapon_occupies_both_slots()
 	_test_two_handed_weapon_displaces_existing_main_and_off_hand()
 	_test_two_handed_weapon_attribute_not_double_counted()
@@ -159,19 +159,14 @@ func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> voi
 	_assert_eq(String(restored_equipment_state.get_equipped_item_id(&"body")), "leather_jerkin", "序列化往返后应保留身躯装备。")
 
 
-func _test_legacy_equipment_state_dict_is_still_supported() -> void:
-	var member_state = PartyMemberState.from_dict({
-		"member_id": "legacy_hero",
-		"display_name": "Legacy Hero",
-		"equipment_state": {
-			"main_hand": "bronze_sword",
-			"body": {
-				"item_id": "leather_jerkin",
-			},
+func _test_equipment_state_requires_canonical_payload() -> void:
+	var legacy_state = EquipmentState.from_dict({
+		"main_hand": "bronze_sword",
+		"body": {
+			"item_id": "leather_jerkin",
 		},
 	})
-	_assert_eq(String(member_state.equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "旧版裸字典结构应恢复主手装备。")
-	_assert_eq(String(member_state.equipment_state.get_equipped_item_id(&"body")), "leather_jerkin", "旧版嵌套字典结构应恢复身躯装备。")
+	_assert_true(legacy_state == null, "旧版裸字典 equipment_state 不再支持。")
 
 
 func _test_two_handed_weapon_occupies_both_slots() -> void:

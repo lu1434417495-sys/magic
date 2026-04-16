@@ -7,6 +7,40 @@ extends RefCounted
 
 const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
+const WORLD_EVENT_CONFIG_SCRIPT = preload("res://scripts/utils/world_event_config.gd")
+const MOUNTED_SUBMAP_CONFIG_SCRIPT = preload("res://scripts/utils/mounted_submap_config.gd")
+
+const SERVICE_ACTION_ID_BY_INTERACTION := {
+	"party_warehouse": "service:warehouse",
+	"service_rest_basic": "service:rest_basic",
+	"service_rest_full": "service:rest_full",
+	"service_basic_supply": "service:basic_supply",
+	"service_local_trade": "service:local_trade",
+	"service_city_market": "service:city_market",
+	"service_military_supply": "service:military_supply",
+	"service_grand_auction": "service:grand_auction",
+	"service_village_rumor": "service:village_rumor",
+	"service_intel_network": "service:intel_network",
+	"service_stagecoach": "service:stagecoach",
+	"service_world_gate_travel": "service:world_gate_travel",
+	"service_repair_gear": "service:repair_gear",
+	"service_contract_board": "service:contract_board",
+	"service_join_guild": "service:join_guild",
+	"service_identify_relic": "service:identify_relic",
+	"service_bounty_registry": "service:bounty_registry",
+	"service_recruit_specialist": "service:recruit_specialist",
+	"service_issue_regional_edict": "service:issue_regional_edict",
+	"service_unlock_archive": "service:unlock_archive",
+	"service_diplomatic_clearance": "service:diplomatic_clearance",
+	"service_amnesty_review": "service:amnesty_review",
+	"service_elite_recruitment": "service:elite_recruitment",
+	"service_master_reforge": "service:master_reforge",
+	"service_respecialize_build": "service:respecialize_build",
+	"service_manage_reputation": "service:manage_reputation",
+	"service_open_trade_route": "service:open_trade_route",
+	"service_legend_contracts": "service:legend_contracts",
+	"service_hire_expert": "service:hire_expert",
+}
 
 ## 字段说明：缓存随机数生成器实例，保证生成逻辑集中使用同一套随机来源并保持可复现性。
 var _rng := RandomNumberGenerator.new()
@@ -36,6 +70,10 @@ func build_world(generation_config, grid_system) -> Dictionary:
 		"settlements": settlements,
 		"world_npcs": world_npcs,
 		"encounter_anchors": encounter_anchors,
+		"world_events": _generate_world_events(),
+		"mounted_submaps": _generate_mounted_submaps(),
+		"active_submap_id": "",
+		"submap_return_stack": [],
 		"world_step": 0,
 		"player_start_coord": player_start_coord,
 		"player_start_settlement_id": player_start_settlement.get("settlement_id", ""),
@@ -193,6 +231,7 @@ func _create_settlement_instance(
 	_grid_system.register_footprint(entity_id, origin, footprint_size)
 
 	var facilities := _generate_facilities_for_settlement(settlement_config, origin)
+	facilities = _augment_facilities_for_settlement(settlement_config, origin, facilities)
 	var settlement := {
 		"entity_id": entity_id,
 		"template_id": template_id,
@@ -205,6 +244,7 @@ func _create_settlement_instance(
 		"footprint_size": footprint_size,
 		"facilities": facilities,
 		"is_player_start": is_player_start,
+		"settlement_state": _build_default_settlement_state(is_player_start),
 	}
 	settlement["available_services"] = _collect_services(facilities)
 	settlement["service_npcs"] = _collect_service_npcs(facilities)
@@ -247,6 +287,167 @@ func _generate_facilities_for_settlement(settlement_config, settlement_origin: V
 		_remove_weighted_entry(optional_pool, selected_facility_id)
 
 	return generated_facilities
+
+
+func _augment_facilities_for_settlement(settlement_config, settlement_origin: Vector2i, facilities: Array[Dictionary]) -> Array[Dictionary]:
+	var next_facilities: Array[Dictionary] = []
+	for facility_variant in facilities:
+		if facility_variant is Dictionary:
+			next_facilities.append((facility_variant as Dictionary).duplicate(true))
+	var tier: int = int(settlement_config.tier)
+	var existing_interaction_ids := _collect_interaction_ids(next_facilities)
+	if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.VILLAGE:
+		if not existing_interaction_ids.has("service_rest_basic") or not existing_interaction_ids.has("service_basic_supply") or not existing_interaction_ids.has("service_village_rumor"):
+			next_facilities.append(_build_synthetic_facility(
+				"village_hearth",
+				"篝烟灶",
+				"rest",
+				"rest",
+				settlement_origin,
+				"core",
+				[
+					{"npc_id": "npc_village_elder", "display_name": "村长", "service_type": "歇脚", "interaction_script_id": "service_rest_basic", "local_slot_id": "hearth_rest"},
+					{"npc_id": "npc_village_teller", "display_name": "猎径向导", "service_type": "传闻", "interaction_script_id": "service_village_rumor", "local_slot_id": "hearth_rumor"},
+					{"npc_id": "npc_village_vendor", "display_name": "补给商", "service_type": "补给", "interaction_script_id": "service_basic_supply", "local_slot_id": "hearth_supply"},
+					{"npc_id": "npc_village_keeper", "display_name": "仓管", "service_type": "仓储", "interaction_script_id": "party_warehouse", "local_slot_id": "hearth_warehouse"},
+				]
+			))
+	if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.TOWN:
+		if not existing_interaction_ids.has("service_local_trade"):
+			next_facilities.append(_build_synthetic_facility(
+				"town_market",
+				"镇集摊位",
+				"trade",
+				"shop",
+				settlement_origin + Vector2i.ONE,
+				"commerce",
+				[
+					{"npc_id": "npc_town_merchant", "display_name": "杂货商", "service_type": "交易", "interaction_script_id": "service_local_trade", "local_slot_id": "market_trade"},
+				]
+			))
+		if not existing_interaction_ids.has("service_stagecoach"):
+			next_facilities.append(_build_synthetic_facility(
+				"coach_station",
+				"驿站",
+				"transport",
+				"travel",
+				settlement_origin + Vector2i.ONE,
+				"service",
+				[
+					{"npc_id": "npc_coachman", "display_name": "驿夫", "service_type": "驿站", "interaction_script_id": "service_stagecoach", "local_slot_id": "coach_route"},
+				]
+			))
+		if not existing_interaction_ids.has("service_repair_gear"):
+			next_facilities.append(_build_synthetic_facility(
+				"repair_workshop",
+				"工坊",
+				"craft",
+				"craft",
+				settlement_origin + Vector2i.ONE,
+				"support",
+				[
+					{"npc_id": "npc_blacksmith", "display_name": "铁匠", "service_type": "修整", "interaction_script_id": "service_repair_gear", "local_slot_id": "workshop_repair"},
+					{"npc_id": "npc_town_keeper", "display_name": "仓管", "service_type": "仓储", "interaction_script_id": "party_warehouse", "local_slot_id": "workshop_warehouse"},
+				]
+			))
+	next_facilities = _ensure_master_reforge_service(next_facilities)
+	return next_facilities
+
+
+func _collect_interaction_ids(facilities: Array[Dictionary]) -> Dictionary:
+	var interaction_ids: Dictionary = {}
+	for facility_variant in facilities:
+		if facility_variant is not Dictionary:
+			continue
+		var facility_data: Dictionary = facility_variant
+		for npc_variant in facility_data.get("service_npcs", []):
+			if npc_variant is not Dictionary:
+				continue
+			var interaction_script_id := String((npc_variant as Dictionary).get("interaction_script_id", ""))
+			if not interaction_script_id.is_empty():
+				interaction_ids[interaction_script_id] = true
+	return interaction_ids
+
+
+func _build_synthetic_facility(
+	facility_id: String,
+	display_name: String,
+	category: String,
+	interaction_type: String,
+	world_coord: Vector2i,
+	slot_tag: String,
+	npc_entries: Array
+) -> Dictionary:
+	var service_npcs: Array[Dictionary] = []
+	for npc_variant in npc_entries:
+		if npc_variant is not Dictionary:
+			continue
+		var npc_data: Dictionary = (npc_variant as Dictionary).duplicate(true)
+		npc_data["facility_id"] = facility_id
+		npc_data["facility_name"] = display_name
+		service_npcs.append(npc_data)
+	return {
+		"facility_id": facility_id,
+		"display_name": display_name,
+		"category": category,
+		"interaction_type": interaction_type,
+		"slot_id": "generated_%s" % facility_id,
+		"slot_tag": slot_tag,
+		"local_coord": Vector2i.ZERO,
+		"world_coord": world_coord,
+		"service_npcs": service_npcs,
+	}
+
+
+func _ensure_master_reforge_service(facilities: Array[Dictionary]) -> Array[Dictionary]:
+	var next_facilities: Array[Dictionary] = []
+	var has_master_reforge := false
+	for facility_variant in facilities:
+		if facility_variant is not Dictionary:
+			continue
+		var facility_copy: Dictionary = (facility_variant as Dictionary).duplicate(true)
+		for npc_variant in facility_copy.get("service_npcs", []):
+			if npc_variant is not Dictionary:
+				continue
+			if String((npc_variant as Dictionary).get("interaction_script_id", "")) == "service_master_reforge":
+				has_master_reforge = true
+				break
+		next_facilities.append(facility_copy)
+	if has_master_reforge:
+		return next_facilities
+
+	for facility_index in range(next_facilities.size()):
+		var facility := next_facilities[facility_index]
+		if not _facility_supports_master_reforge(facility):
+			continue
+		var service_npcs: Array = facility.get("service_npcs", []).duplicate(true)
+		service_npcs.append({
+			"npc_id": "npc_master_smith",
+			"display_name": "大师铁匠",
+			"service_type": "重铸",
+			"interaction_script_id": "service_master_reforge",
+			"local_slot_id": "master_reforge_slot",
+			"facility_id": facility.get("facility_id", ""),
+			"facility_name": facility.get("display_name", ""),
+		})
+		facility["service_npcs"] = service_npcs
+		next_facilities[facility_index] = facility
+		break
+	return next_facilities
+
+
+func _facility_supports_master_reforge(facility: Dictionary) -> bool:
+	var facility_id := String(facility.get("facility_id", ""))
+	if String(facility.get("interaction_type", "")) == "craft":
+		return true
+	if facility_id.contains("forge") or facility_id.contains("workshop"):
+		return true
+	for npc_variant in facility.get("service_npcs", []):
+		if npc_variant is not Dictionary:
+			continue
+		if String((npc_variant as Dictionary).get("interaction_script_id", "")) == "service_repair_gear":
+			return true
+	return false
 
 
 func _try_place_facility(facility_config, settlement_config, settlement_origin: Vector2i, used_slot_ids: Dictionary) -> Dictionary:
@@ -302,7 +503,10 @@ func _collect_services(facilities: Array[Dictionary]) -> Array[Dictionary]:
 				"npc_id": npc.get("npc_id", ""),
 				"npc_name": npc.get("display_name", ""),
 				"service_type": npc.get("service_type", ""),
-				"action_id": "service:%s" % npc.get("service_type", ""),
+				"action_id": _build_service_action_id(
+					String(npc.get("service_type", "")),
+					interaction_script_id
+				),
 				"interaction_script_id": interaction_script_id,
 			})
 
@@ -313,7 +517,7 @@ func _collect_services(facilities: Array[Dictionary]) -> Array[Dictionary]:
 			"npc_id": "npc_quartermaster",
 			"npc_name": "军需官",
 			"service_type": "仓储",
-			"action_id": "service:warehouse",
+			"action_id": String(SERVICE_ACTION_ID_BY_INTERACTION.get("party_warehouse", "service:warehouse")),
 			"interaction_script_id": "party_warehouse",
 		})
 
@@ -328,6 +532,27 @@ func _collect_service_npcs(facilities: Array[Dictionary]) -> Array[Dictionary]:
 			service_npcs.append(npc)
 
 	return service_npcs
+
+
+func _build_default_settlement_state(is_player_start: bool) -> Dictionary:
+	return {
+		"visited": is_player_start,
+		"reputation": 0,
+		"active_conditions": [],
+		"cooldowns": {},
+		"shop_inventory_seed": 0,
+		"shop_last_refresh_step": 0,
+		"shop_states": {},
+	}
+
+
+func _build_service_action_id(service_type: String, interaction_script_id: String) -> String:
+	if SERVICE_ACTION_ID_BY_INTERACTION.has(interaction_script_id):
+		return String(SERVICE_ACTION_ID_BY_INTERACTION.get(interaction_script_id, ""))
+	var normalized_service_type := service_type.strip_edges().to_snake_case()
+	if normalized_service_type.is_empty():
+		normalized_service_type = "service"
+	return "service:%s" % normalized_service_type
 
 
 func _pick_weighted_facility(optional_pool: Array) -> String:
@@ -645,7 +870,7 @@ func _build_encounter_anchor(
 	encounter_anchor.display_name = display_name
 	encounter_anchor.world_coord = world_coord
 	encounter_anchor.faction_id = &"hostile"
-	encounter_anchor.enemy_roster_template_id = monster_template_id if monster_template_id != &"" else StringName(display_name)
+	encounter_anchor.enemy_roster_template_id = monster_template_id
 	encounter_anchor.region_tag = region_tag
 	encounter_anchor.vision_range = vision_range
 	encounter_anchor.is_cleared = false
@@ -654,6 +879,51 @@ func _build_encounter_anchor(
 	encounter_anchor.growth_stage = maxi(growth_stage, 0)
 	encounter_anchor.suppressed_until_step = 0
 	return encounter_anchor
+
+
+func _generate_world_events() -> Array[Dictionary]:
+	var generated_events: Array[Dictionary] = []
+	for event_variant in _generation_config.world_events:
+		var event_config := event_variant as WORLD_EVENT_CONFIG_SCRIPT
+		if event_config == null or event_config.event_id == &"":
+			continue
+		generated_events.append({
+			"event_id": String(event_config.event_id),
+			"display_name": event_config.display_name,
+			"world_coord": event_config.world_coord,
+			"event_type": String(event_config.event_type),
+			"target_submap_id": String(event_config.target_submap_id),
+			"discovery_condition_id": String(event_config.discovery_condition_id),
+			"prompt_title": event_config.prompt_title,
+			"prompt_text": event_config.prompt_text,
+			"is_discovered": _is_world_event_discovered_by_default(event_config),
+		})
+	return generated_events
+
+
+func _generate_mounted_submaps() -> Dictionary:
+	var mounted_submaps: Dictionary = {}
+	for submap_variant in _generation_config.mounted_submaps:
+		var submap_config := submap_variant as MOUNTED_SUBMAP_CONFIG_SCRIPT
+		if submap_config == null or submap_config.submap_id == &"":
+			continue
+		mounted_submaps[String(submap_config.submap_id)] = {
+			"submap_id": String(submap_config.submap_id),
+			"display_name": submap_config.display_name,
+			"generation_config_path": submap_config.generation_config_path,
+			"return_hint_text": submap_config.return_hint_text,
+			"is_generated": false,
+			"player_coord": Vector2i(-1, -1),
+			"world_data": {},
+		}
+	return mounted_submaps
+
+
+func _is_world_event_discovered_by_default(event_config: WORLD_EVENT_CONFIG_SCRIPT) -> bool:
+	if event_config == null:
+		return false
+	var condition_id := String(event_config.discovery_condition_id).strip_edges()
+	return condition_id.is_empty() or condition_id == "always_true"
 
 
 func _find_free_coord_near(origin: Vector2i) -> Vector2i:

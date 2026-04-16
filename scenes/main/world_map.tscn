@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 ; Scene purpose: World map root scene that hosts exploration, battle overlays, and related windows.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
@@ -7,7 +7,6 @@
 [ext_resource type="Script" path="res://scripts/systems/world_map_system.gd" id="1_3yx4r"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_view.gd" id="2_7d2f8"]
 [ext_resource type="PackedScene" path="res://scenes/ui/settlement_window.tscn" id="3_9o3k0"]
-[ext_resource type="Script" path="res://scripts/systems/settlement_window_system.gd" id="4_u3okv"]
 [ext_resource type="PackedScene" path="res://scenes/ui/battle_map_panel.tscn" id="5_ba71e"]
 [ext_resource type="PackedScene" path="res://scenes/ui/character_info_window.tscn" id="6_l1m8n"]
 [ext_resource type="PackedScene" path="res://scenes/ui/party_management_window.tscn" id="7_3n6kk"]
@@ -16,6 +15,9 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/mastery_reward_window.tscn" id="9_h8l3n"]
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/basic_map_dark.png" id="10_2dj0w"]
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/npc/protagonist.png" id="12_2mc6t"]
+[ext_resource type="PackedScene" path="res://scenes/ui/submap_entry_window.tscn" id="13_submap"]
+[ext_resource type="PackedScene" path="res://scenes/ui/shop_window.tscn" id="14_shop"]
+[ext_resource type="PackedScene" path="res://scenes/ui/stagecoach_window.tscn" id="15_stagecoach"]
 
 ; Local sub-resources defined inline for this scene only.
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
@@ -93,6 +95,30 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="SubmapHintPanel" type="PanelContainer" parent="MapViewport"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 340.0
+offset_bottom = 82.0
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="MapViewport/SubmapHintPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="SubmapHintLabel" type="Label" parent="MapViewport/SubmapHintPanel/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+text = "点击任意地点返回原位置。"
+
 ; Lightweight chrome layer that separates the top edge from the map.
 [node name="Panel" type="Panel" parent="."]
 layout_mode = 1
@@ -103,12 +129,17 @@ grow_horizontal = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-; Scene-owned helper node and modal windows used during exploration.
-[node name="SettlementWindowSystem" type="Node" parent="."]
-unique_name_in_owner = true
-script = ExtResource("4_u3okv")
-
+; Scene-owned modal windows used during exploration.
 [node name="SettlementWindow" parent="." instance=ExtResource("3_9o3k0")]
+unique_name_in_owner = true
+
+[node name="ShopWindow" parent="." instance=ExtResource("14_shop")]
+unique_name_in_owner = true
+
+[node name="ForgeWindow" parent="." instance=ExtResource("14_shop")]
+unique_name_in_owner = true
+
+[node name="StagecoachWindow" parent="." instance=ExtResource("15_stagecoach")]
 unique_name_in_owner = true
 
 [node name="CharacterInfoWindow" parent="." instance=ExtResource("6_l1m8n")]
@@ -125,3 +156,41 @@ unique_name_in_owner = true
 
 [node name="MasteryRewardWindow" parent="." instance=ExtResource("9_h8l3n")]
 unique_name_in_owner = true
+
+[node name="SubmapEntryWindow" parent="." instance=ExtResource("13_submap")]
+unique_name_in_owner = true
+
+[node name="BattleLoadingOverlay" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Backdrop" type="ColorRect" parent="BattleLoadingOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Center" type="CenterContainer" parent="BattleLoadingOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="BattleLoadingLabel" type="Label" parent="BattleLoadingOverlay/Center"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "LOADING..."

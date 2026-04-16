@@ -22,7 +22,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_game_runtime_facade_injects_enemy_content()
 	_test_enemy_template_resolves_stable_id()
-	_test_enemy_template_resolves_legacy_alias()
+	_test_enemy_template_does_not_resolve_display_name_alias()
 	_test_ai_charge_decision_logs_brain_state_action()
 	_test_ai_ground_skill_generates_legal_command()
 	_test_ai_support_state_heals_low_hp_ally()
@@ -73,18 +73,18 @@ func _test_enemy_template_resolves_stable_id() -> void:
 	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"charge"), "wolf_pack 模板应为敌人注入冲锋技能。")
 
 
-func _test_enemy_template_resolves_legacy_alias() -> void:
+func _test_enemy_template_does_not_resolve_display_name_alias() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var encounter_anchor = _build_encounter_anchor(&"encounter_legacy", &"荒狼群", "荒狼群")
 	var state = runtime.start_battle(encounter_anchor, 102, {
 		"ally_member_ids": [&"ally_a"],
 		"default_active_skill_ids": [&"warrior_heavy_strike"],
 	})
-	_assert_true(state != null and not state.is_empty(), "旧显示名 alias 仍应能构建战斗状态。")
+	_assert_true(state != null and not state.is_empty(), "旧显示名 alias 不应阻止战斗状态创建。")
 	if state == null or state.is_empty():
 		return
 	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
-	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"melee_aggressor", "旧 display_name alias 应解析到正式 wolf_pack 模板。")
+	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id != &"melee_aggressor", "旧 display_name alias 不应再解析到正式 wolf_pack 模板。")
 
 
 func _test_ai_charge_decision_logs_brain_state_action() -> void:

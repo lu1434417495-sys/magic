@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(find ./scripts -name \"*.gd\" -exec cat {} +)",
+      "Bash(awk '{printf \"%.1f%%\\\\n\", 24901 * 100 / 43671}')",
+      "Bash(gh pr:*)"
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+[gd_scene load_steps=2 format=3]
+; Scene purpose: Submap confirmation modal scene for entering mounted submaps from the world map.
+
+[ext_resource type="Script" path="res://scripts/ui/submap_entry_window.gd" id="1_window"]
+
+[node name="SubmapEntryWindow" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+script = ExtResource("1_window")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+color = Color(0, 0, 0, 0.72)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="Layout" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Layout"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 22
+text = "进入子地图"
+
+[node name="DescriptionLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Layout"]
+layout_mode = 2
+autowrap_mode = 3
+horizontal_alignment = 1
+text = "确认后将进入新的区域。"
+
+[node name="ButtonRow" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Layout"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="CancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Layout/ButtonRow"]
+custom_minimum_size = Vector2(120, 42)
+layout_mode = 2
+text = "取消"
+
+[node name="ConfirmButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Layout/ButtonRow"]
+custom_minimum_size = Vector2(140, 42)
+layout_mode = 2
+text = "确认进入"

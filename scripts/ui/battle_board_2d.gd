@@ -21,7 +21,8 @@ const DEFAULT_CAMERA_ZOOM := 2.0
 const MIN_CAMERA_ZOOM := 1.25
 const MAX_CAMERA_ZOOM := 4.0
 const CAMERA_ZOOM_STEP := 0.2
-const CAMERA_EDGE_MARGIN := 72.0
+const CAMERA_EDGE_MARGIN_X := 0.0
+const CAMERA_EDGE_MARGIN_Y := 72.0
 const FOCUS_VIEWPORT_RATIO := Vector2(0.5, 0.44)
 
 ## 字段说明：缓存输入层节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
@@ -44,6 +45,8 @@ const FOCUS_VIEWPORT_RATIO := Vector2(0.5, 0.44)
 @onready var prop_layer: Node2D = %PropLayer
 ## 字段说明：缓存单位层节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var unit_layer: Node2D = %UnitLayer
+## 字段说明：缓存技能合法目标高亮层节点，用于把当前可点击地格绘制在最顶层。
+@onready var target_highlight_layer: Node2D = %TargetHighlightLayer
 
 ## 字段说明：缓存控制器实例，作为界面刷新、输入处理和窗口联动的重要依据。
 var _controller: BattleBoardController = BattleBoardController.new()
@@ -55,6 +58,14 @@ var _pending_battle_state: BattleState = null
 var _pending_selected_coord := Vector2i(-1, -1)
 ## 字段说明：保存待处理的预览目标坐标列表，供范围判定、占位刷新、批量渲染或目标选择复用。
 var _pending_preview_target_coords: Array[Vector2i] = []
+## 字段说明：保存待处理的技能合法目标坐标列表，用于渲染当前技能可点击格。
+var _pending_valid_target_coords: Array[Vector2i] = []
+## 字段说明：保存待处理的目标选择模式，供高亮表现层区分单目标与 multi_unit 语义。
+var _pending_target_selection_mode: StringName = &"single_unit"
+## 字段说明：保存待处理的最小目标数量，供高亮表现层表达确认阈值。
+var _pending_target_min_count := 1
+## 字段说明：保存待处理的最大目标数量，供高亮表现层表达自动施放阈值。
+var _pending_target_max_count := 1
 ## 字段说明：记录视口尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
 var _viewport_size := Vector2.ZERO
 ## 字段说明：记录相机缩放，作为界面刷新、输入处理和窗口联动的重要依据。
@@ -67,6 +78,8 @@ var _has_content_bounds := false
 var _camera_initialized := false
 ## 字段说明：记录上一次焦点坐标，用于定位对象、绘制内容或执行网格计算。
 var _last_focus_coord := Vector2i(-9999, -9999)
+## 字段说明：记录当前是否已进入手动缩放模式，避免每次刷新都覆盖玩家主动设置的镜头比例。
+var _has_manual_zoom_override := false
 ## 字段说明：用于标记当前是否处于平移中状态，避免在不合适的时机重复触发流程，作为界面刷新、输入处理和窗口联动的重要依据。
 var _is_panning := false
 ## 字段说明：记录上一次平移视口位置，作为界面刷新、输入处理和窗口联动的重要依据。
@@ -84,18 +97,37 @@ func _ready() -> void:
 func configure(
 	battle_state: BattleState,
 	selected_coord: Vector2i,
-	preview_target_coords: Array[Vector2i] = []
+	preview_target_coords: Array[Vector2i] = [],
+	valid_target_coords: Array[Vector2i] = [],
+	target_selection_mode: StringName = &"single_unit",
+	min_target_count: int = 1,
+	max_target_count: int = 1
 ) -> void:
 	_pending_battle_state = battle_state
 	_pending_selected_coord = selected_coord
 	_pending_preview_target_coords = preview_target_coords.duplicate()
+	_pending_valid_target_coords = valid_target_coords.duplicate()
+	_pending_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
+	_pending_target_min_count = maxi(min_target_count, 1)
+	_pending_target_max_count = maxi(max_target_count, _pending_target_min_count)
 	_apply_pending_configuration()
 	_fit_to_viewport(true)
 
 
-func update_selection(selected_coord: Vector2i, preview_target_coords: Array[Vector2i] = []) -> void:
+func update_selection(
+	selected_coord: Vector2i,
+	preview_target_coords: Array[Vector2i] = [],
+	valid_target_coords: Array[Vector2i] = [],
+	target_selection_mode: StringName = &"single_unit",
+	min_target_count: int = 1,
+	max_target_count: int = 1
+) -> void:
 	_pending_selected_coord = selected_coord
 	_pending_preview_target_coords = preview_target_coords.duplicate()
+	_pending_valid_target_coords = valid_target_coords.duplicate()
+	_pending_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
+	_pending_target_min_count = maxi(min_target_count, 1)
+	_pending_target_max_count = maxi(max_target_count, _pending_target_min_count)
 	_apply_pending_marker_update()
 
 
@@ -140,6 +172,7 @@ func zoom_viewport(step: int, viewport_position: Vector2) -> bool:
 		return false
 	var local_anchor := (viewport_position - position) / _camera_zoom
 	_camera_zoom = next_zoom
+	_has_manual_zoom_override = true
 	scale = Vector2.ONE * _camera_zoom
 	position = viewport_position - local_anchor * _camera_zoom
 	_camera_initialized = true
@@ -170,13 +203,23 @@ func clear_board() -> void:
 	_pending_battle_state = null
 	_pending_selected_coord = Vector2i(-1, -1)
 	_pending_preview_target_coords.clear()
+	_pending_valid_target_coords.clear()
+	_pending_target_selection_mode = &"single_unit"
+	_pending_target_min_count = 1
+	_pending_target_max_count = 1
 	_is_panning = false
 	_has_content_bounds = false
 	_camera_initialized = false
+	_has_manual_zoom_override = false
+	_camera_zoom = DEFAULT_CAMERA_ZOOM
 	_last_focus_coord = Vector2i(-9999, -9999)
 	if _controller != null:
 		_controller.clear()
 	_fit_to_viewport()
+
+
+func is_render_content_ready() -> bool:
+	return _is_bound and _pending_battle_state != null and _controller != null and _controller.is_render_content_ready()
 
 
 func _bind_controller() -> void:
@@ -192,7 +235,8 @@ func _bind_controller() -> void:
 		overlay_layers,
 		marker_layers,
 		prop_layer,
-		unit_layer
+		unit_layer,
+		target_highlight_layer
 	)
 	_is_bound = true
 
@@ -200,7 +244,22 @@ func _bind_controller() -> void:
 func _apply_pending_configuration() -> void:
 	if not _is_bound:
 		return
-	_controller.configure(_pending_battle_state, _pending_selected_coord, _pending_preview_target_coords)
+	_controller.configure(
+		_pending_battle_state,
+		_pending_selected_coord,
+		_pending_preview_target_coords,
+		_pending_target_selection_mode,
+		_pending_target_min_count,
+		_pending_target_max_count
+	)
+	_controller.update_markers(
+		_pending_selected_coord,
+		_pending_preview_target_coords,
+		_pending_valid_target_coords,
+		_pending_target_selection_mode,
+		_pending_target_min_count,
+		_pending_target_max_count
+	)
 	_refresh_content_bounds()
 	_fit_to_viewport()
 
@@ -208,7 +267,14 @@ func _apply_pending_configuration() -> void:
 func _apply_pending_marker_update() -> void:
 	if not _is_bound or _pending_battle_state == null:
 		return
-	_controller.update_markers(_pending_selected_coord, _pending_preview_target_coords)
+	_controller.update_markers(
+		_pending_selected_coord,
+		_pending_preview_target_coords,
+		_pending_valid_target_coords,
+		_pending_target_selection_mode,
+		_pending_target_min_count,
+		_pending_target_max_count
+	)
 
 
 func _viewport_position_to_board_coord(viewport_position: Vector2) -> Vector2i:
@@ -235,8 +301,11 @@ func _fit_to_viewport(force_focus: bool = false) -> void:
 	if not _has_content_bounds:
 		position = _viewport_size * 0.5
 		return
+	if not _has_manual_zoom_override:
+		_camera_zoom = _compute_horizontal_fit_zoom()
 
 	var focus_coord := _resolve_focus_coord()
+	scale = Vector2.ONE * _camera_zoom
 	if force_focus or not _camera_initialized or focus_coord != _last_focus_coord:
 		_center_camera_on_coord(focus_coord)
 		_last_focus_coord = focus_coord
@@ -315,19 +384,35 @@ func _clamp_camera_position() -> void:
 		position.x,
 		_content_bounds.position.x,
 		bounds_end.x,
-		_viewport_size.x
+		_viewport_size.x,
+		CAMERA_EDGE_MARGIN_X
 	)
 	position.y = _clamp_camera_axis(
 		position.y,
 		_content_bounds.position.y,
 		bounds_end.y,
-		_viewport_size.y
+		_viewport_size.y,
+		CAMERA_EDGE_MARGIN_Y
 	)
 
 
-func _clamp_camera_axis(current_position: float, bounds_start: float, bounds_end: float, viewport_extent: float) -> float:
-	var min_position := viewport_extent - CAMERA_EDGE_MARGIN - bounds_end * _camera_zoom
-	var max_position := CAMERA_EDGE_MARGIN - bounds_start * _camera_zoom
+func _compute_horizontal_fit_zoom() -> float:
+	if not _has_content_bounds:
+		return DEFAULT_CAMERA_ZOOM
+	var available_width := maxf(_viewport_size.x - CAMERA_EDGE_MARGIN_X * 2.0, 1.0)
+	var content_width := maxf(_content_bounds.size.x, 1.0)
+	return clampf(available_width / content_width, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM)
+
+
+func _clamp_camera_axis(
+	current_position: float,
+	bounds_start: float,
+	bounds_end: float,
+	viewport_extent: float,
+	margin: float
+) -> float:
+	var min_position := viewport_extent - margin - bounds_end * _camera_zoom
+	var max_position := margin - bounds_start * _camera_zoom
 	if min_position > max_position:
 		return (viewport_extent - (bounds_start + bounds_end) * _camera_zoom) * 0.5
 	return clampf(current_position, min_position, max_position)

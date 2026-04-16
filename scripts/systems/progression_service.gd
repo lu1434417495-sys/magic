@@ -9,6 +9,7 @@ const SELECTION_KEY_QUALIFIER_SKILL_IDS := "selected_qualifier_skill_ids"
 const SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS := "selected_assigned_core_skill_ids"
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
+const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/skill_merge_service.gd")
 
 ## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var _unit_progress: UnitProgress = null
@@ -20,6 +21,8 @@ var _profession_defs: Dictionary = {}
 var _rule_service: ProfessionRuleService
 ## 字段说明：缓存分配服务实例，会参与运行时状态流转、系统协作和存档恢复。
 var _assignment_service: ProfessionAssignmentService
+## 字段说明：缓存技能合并服务实例，会参与复合升级的来源保留与核心迁移。
+var _skill_merge_service: SkillMergeService
 
 
 func setup(
@@ -27,7 +30,8 @@ func setup(
 	skill_defs: Variant,
 	profession_defs: Variant,
 	rule_service: ProfessionRuleService = null,
-	assignment_service: ProfessionAssignmentService = null
+	assignment_service: ProfessionAssignmentService = null,
+	skill_merge_service: SkillMergeService = null
 ) -> void:
 	_unit_progress = unit_progress
 	_skill_defs = _index_skill_defs(skill_defs)
@@ -38,6 +42,9 @@ func setup(
 
 	_rule_service = rule_service if rule_service != null else ProfessionRuleService.new()
 	_rule_service.setup(_unit_progress, _skill_defs, _profession_defs)
+
+	_skill_merge_service = skill_merge_service if skill_merge_service != null else SKILL_MERGE_SERVICE_SCRIPT.new()
+	_skill_merge_service.setup(_unit_progress, _skill_defs, _assignment_service)
 
 	refresh_runtime_state()
 
@@ -72,6 +79,10 @@ func learn_skill(skill_id: StringName) -> bool:
 		return false
 	if not _can_learn_skill_requirements(skill_def.learn_requirements):
 		return false
+	if skill_def.unlock_mode == &"composite_upgrade":
+		if not _can_learn_composite_upgrade(skill_def):
+			return false
+		return _learn_composite_upgrade(skill_def)
 
 	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
 	if skill_progress != null and skill_progress.is_learned:
@@ -82,6 +93,35 @@ func learn_skill(skill_id: StringName) -> bool:
 
 	skill_progress.is_learned = true
 	_unit_progress.set_skill_progress(skill_progress)
+	refresh_runtime_state()
+	return true
+
+
+func _learn_composite_upgrade(skill_def: SkillDef) -> bool:
+	if _unit_progress == null or skill_def == null:
+		return false
+	if skill_def.skill_id == &"":
+		return false
+	if _unit_progress.get_skill_progress(skill_def.skill_id) != null and _unit_progress.get_skill_progress(skill_def.skill_id).is_learned:
+		return false
+
+	if _skill_merge_service != null and not skill_def.upgrade_source_skill_ids.is_empty():
+		if not _skill_merge_service.apply_composite_upgrade_result(
+			skill_def.skill_id,
+			skill_def.upgrade_source_skill_ids,
+			skill_def.retain_source_skills_on_unlock,
+			skill_def.core_skill_transition_mode
+		):
+			return false
+	else:
+		var skill_progress: Variant = _unit_progress.get_skill_progress(skill_def.skill_id)
+		if skill_progress == null:
+			skill_progress = _new_skill_progress()
+			skill_progress.skill_id = skill_def.skill_id
+		skill_progress.is_learned = true
+		skill_progress.merged_from_skill_ids = skill_def.upgrade_source_skill_ids.duplicate()
+		_unit_progress.set_skill_progress(skill_progress)
+
 	refresh_runtime_state()
 	return true
 
@@ -296,6 +336,55 @@ func _can_learn_skill_requirements(requirements: Array[StringName]) -> bool:
 		if required_skill_progress == null or not required_skill_progress.is_learned:
 			return false
 
+	return true
+
+
+func _can_learn_composite_upgrade(skill_def: SkillDef) -> bool:
+	if _unit_progress == null or skill_def == null:
+		return false
+	if not _can_learn_skill_requirements(skill_def.learn_requirements):
+		return false
+	if not _can_satisfy_knowledge_requirements(skill_def.knowledge_requirements):
+		return false
+	if not _can_satisfy_skill_level_requirements(skill_def.skill_level_requirements):
+		return false
+	if not _can_satisfy_achievement_requirements(skill_def.achievement_requirements):
+		return false
+	return true
+
+
+func _can_satisfy_knowledge_requirements(required_knowledge_ids: Array[StringName]) -> bool:
+	if _unit_progress == null:
+		return false
+	for knowledge_id in required_knowledge_ids:
+		if not _unit_progress.has_knowledge(knowledge_id):
+			return false
+	return true
+
+
+func _can_satisfy_skill_level_requirements(required_skill_level_map: Dictionary) -> bool:
+	if _unit_progress == null:
+		return false
+	for required_skill_key in required_skill_level_map.keys():
+		var required_skill_id := ProgressionDataUtils.to_string_name(required_skill_key)
+		var required_level := int(required_skill_level_map.get(required_skill_key, 0))
+		if required_skill_id == &"" or required_level <= 0:
+			return false
+		var required_skill_progress: Variant = _unit_progress.get_skill_progress(required_skill_id)
+		if required_skill_progress == null or not required_skill_progress.is_learned:
+			return false
+		if int(required_skill_progress.skill_level) < required_level:
+			return false
+	return true
+
+
+func _can_satisfy_achievement_requirements(required_achievement_ids: Array[StringName]) -> bool:
+	if _unit_progress == null:
+		return false
+	for achievement_id in required_achievement_ids:
+		var progress_state = _unit_progress.get_achievement_progress_state(achievement_id)
+		if progress_state == null or not progress_state.is_unlocked:
+			return false
 	return true
 
 

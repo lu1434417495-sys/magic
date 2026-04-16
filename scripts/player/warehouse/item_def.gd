@@ -25,10 +25,24 @@ const EQUIPMENT_TYPE_ACCESSORY: StringName = &"accessory"
 @export_file("*.png", "*.svg", "*.webp", "*.jpg", "*.jpeg") var icon: String = ""
 ## 字段说明：在编辑器中暴露是否可堆叠配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var is_stackable := true
+## 字段说明：在编辑器中暴露基础价格配置，便于据点商店、出售和价格计算统一读取。
+@export_range(0, 999999, 1) var base_price := 0
+## 字段说明：在编辑器中暴露基础购买价格配置；未填写时回退到 base_price，保持旧资源默认行为。
+@export_range(0, 999999, 1) var buy_price := 0
+## 字段说明：在编辑器中暴露基础出售价格配置；未填写时回退到 base_price 的半价逻辑，保持旧资源默认行为。
+@export_range(0, 999999, 1) var sell_price := 0
+## 字段说明：在编辑器中暴露是否可出售配置，便于根据物品类型控制据点商店流转。
+@export var sellable := true
 ## 字段说明：在编辑器中暴露最大堆叠参数，用于限制该对象可达到的上限并控制成长或容量边界。
 @export_range(1, 9999, 1) var max_stack := 99
 ## 字段说明：记录物品分类，用于区分普通素材、可装备道具等行为分支。
 @export var item_category: StringName = ITEM_CATEGORY_MISC
+## 字段说明：记录物品标签集合，供后续配方、任务和筛选逻辑引用。
+@export var tags: Array[StringName] = []
+## 字段说明：记录物品所属的合成分组，供后续配方过滤和内容分桶使用。
+@export var crafting_groups: Array[StringName] = []
+## 字段说明：记录物品所属的任务分组，供后续任务过滤和内容分桶使用。
+@export var quest_groups: Array[StringName] = []
 ## 字段说明：当物品可装备时，声明允许进入的装备槽位列表。
 @export var equipment_slot_ids: Array[String] = []
 ## 字段说明：当物品被装备时，提供附加到角色属性结算链路中的修正器。
@@ -48,6 +62,38 @@ func get_effective_max_stack() -> int:
 	if not is_stackable:
 		return 1
 	return maxi(int(max_stack), 1)
+
+
+func get_base_price() -> int:
+	return maxi(int(base_price), 0)
+
+
+func get_buy_price(price_multiplier: float = 1.0) -> int:
+	var resolved_buy_price := int(buy_price)
+	if resolved_buy_price <= 0:
+		resolved_buy_price = get_base_price()
+	return maxi(int(round(float(resolved_buy_price) * maxf(price_multiplier, 0.0))), 0)
+
+
+func get_sell_price(price_multiplier: float = 0.5) -> int:
+	if not sellable:
+		return 0
+	var resolved_sell_price := int(sell_price)
+	if resolved_sell_price <= 0:
+		resolved_sell_price = int(round(float(get_base_price()) * 0.5))
+	return maxi(int(round(float(resolved_sell_price) * (maxf(price_multiplier, 0.0) / 0.5))), 0)
+
+
+func get_tags() -> Array[StringName]:
+	return _normalize_string_name_list(tags)
+
+
+func get_crafting_groups() -> Array[StringName]:
+	return _normalize_string_name_list(crafting_groups)
+
+
+func get_quest_groups() -> Array[StringName]:
+	return _normalize_string_name_list(quest_groups)
 
 
 func has_equipment_category() -> bool:
@@ -111,3 +157,13 @@ func get_final_occupied_slot_ids(entry_slot_id: StringName) -> Array[StringName]
 		var result: Array[StringName] = [norm]
 		return result
 	return []
+
+
+func _normalize_string_name_list(values: Array) -> Array[StringName]:
+	var normalized_values: Array[StringName] = []
+	for raw_value in values:
+		var normalized_value := ProgressionDataUtils.to_string_name(raw_value)
+		if normalized_value == &"":
+			continue
+		normalized_values.append(normalized_value)
+	return normalized_values

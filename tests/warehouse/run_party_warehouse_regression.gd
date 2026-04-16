@@ -12,15 +12,15 @@ const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd"
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
 const WarehouseStackState = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
+const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const PartyWarehouseService = preload("res://scripts/systems/party_warehouse_service.gd")
 const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
 const PartyItemUseService = preload("res://scripts/systems/party_item_use_service.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
-const BUNDLED_SAVE_PATH := "res://data/saves/fixed_test_world_save.dat"
-
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
 var _failures: Array[String] = []
 ## 字段说明：记录游戏会话，用于构造测试场景、记录结果并支撑回归断言。
@@ -33,11 +33,11 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _ensure_game_session()
-	await _test_old_save_compatibility()
 	await _test_warehouse_service_rules()
+	await _test_inventory_entries_include_equipment_instances()
 	await _test_batch_swap_commit_is_atomic()
 	await _test_skill_book_generation_and_use_rules()
-	await _test_warehouse_serialization_guards()
+	await _test_party_state_requires_current_schema()
 	await _test_item_registry_validation()
 	await _test_save_round_trip()
 	await _test_world_map_entry_paths()
@@ -52,28 +52,6 @@ func _run() -> void:
 		push_error(failure)
 	print("Party warehouse regression: FAIL (%d)" % _failures.size())
 	quit(1)
-
-
-func _test_old_save_compatibility() -> void:
-	await _reset_session()
-	var load_error := int(_game_session.load_bundled_save(
-		BUNDLED_SAVE_PATH,
-		"warehouse_compatibility",
-		"仓库兼容性测试"
-	))
-	_assert_eq(load_error, OK, "旧存档模板应能成功加载。")
-	if load_error != OK:
-		return
-
-	var party_state: PartyState = _game_session.get_party_state()
-	_assert_true(party_state != null, "旧存档加载后应存在 PartyState。")
-	if party_state == null:
-		return
-
-	_assert_true(party_state.warehouse_state != null, "旧存档缺少 warehouse_state 时应默认生成空仓库。")
-	if party_state.warehouse_state != null:
-		_assert_eq(party_state.warehouse_state.stacks.size(), 0, "旧存档加载后的仓库应默认为空。")
-	_assert_eq(int(party_state.version), 2, "旧存档加载后 PartyState.version 应升级到 2。")
 
 
 func _test_warehouse_service_rules() -> void:
@@ -175,8 +153,8 @@ func _test_warehouse_service_rules() -> void:
 	_assert_true(over_capacity_service.is_over_capacity(), "补已有堆栈后若仍超容，状态应保持超容。")
 
 
-func _test_warehouse_serialization_guards() -> void:
-	var party_state: PartyState = PartyState.from_dict({
+func _test_party_state_requires_current_schema() -> void:
+	var party_state = PartyState.from_dict({
 		"version": 2,
 		"leader_member_id": "guard_member",
 		"active_member_ids": ["guard_member"],
@@ -184,9 +162,7 @@ func _test_warehouse_serialization_guards() -> void:
 		"member_states": {},
 		"warehouse_state": null,
 	})
-	_assert_true(party_state.warehouse_state != null, "反序列化脏 warehouse_state 时应回落为空仓库。")
-	if party_state.warehouse_state != null:
-		_assert_eq(party_state.warehouse_state.stacks.size(), 0, "脏 warehouse_state 回落后应为空仓库。")
+	_assert_true(party_state == null, "缺少当前 warehouse_state schema 的 PartyState 不再支持。")
 
 
 func _test_batch_swap_commit_is_atomic() -> void:
@@ -210,6 +186,30 @@ func _test_batch_swap_commit_is_atomic() -> void:
 	_assert_eq(service.count_item(&"bronze_sword"), 0, "失败后不应写入部分回仓物。")
 	_assert_eq(service.count_item(&"scout_charm"), 0, "失败后不应写入部分回仓物。")
 	_assert_eq(service.get_free_slots(), 0, "失败后仓库占用格数应保持不变。")
+
+
+func _test_inventory_entries_include_equipment_instances() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 4),
+	])
+	var service := PartyWarehouseService.new()
+	service.setup(party, item_defs)
+	service.add_item(&"bronze_sword", 2)
+	service.add_item(&"healing_herb", 7)
+
+	var entries := service.get_inventory_entries()
+	var sword_entry := _find_inventory_entry(entries, "bronze_sword")
+	var herb_entry := _find_inventory_entry(entries, "healing_herb")
+
+	_assert_true(not sword_entry.is_empty(), "展示条目中应包含装备实例聚合项。")
+	_assert_eq(int(sword_entry.get("quantity", 0)), 2, "装备实例聚合项应反映实例数量。")
+	_assert_eq(String(sword_entry.get("storage_mode", "")), "instance", "装备条目应标记为 instance 存储模式。")
+	_assert_true(not bool(sword_entry.get("is_stackable", true)), "装备条目不应被误标为可堆叠。")
+
+	_assert_true(not herb_entry.is_empty(), "展示条目中应保留普通堆叠物品。")
+	_assert_eq(int(herb_entry.get("quantity", 0)), 7, "普通堆叠物品应保留堆叠数量。")
+	_assert_eq(String(herb_entry.get("storage_mode", "")), "stack", "普通物品条目应标记为 stack 存储模式。")
 
 
 func _test_skill_book_generation_and_use_rules() -> void:
@@ -290,9 +290,11 @@ func _test_save_round_trip() -> void:
 	var party_state: PartyState = _game_session.get_party_state()
 	party_state.warehouse_state = WarehouseState.new()
 	party_state.warehouse_state.stacks = [
-		_build_stack(&"bronze_sword", 1),
 		_build_stack(&"healing_herb", 7),
 		_build_stack(&"iron_ore", 12),
+	]
+	party_state.warehouse_state.equipment_instances = [
+		EquipmentInstanceState.create(&"bronze_sword"),
 	]
 
 	var persist_error := int(_game_session.set_party_state(party_state))
@@ -309,8 +311,13 @@ func _test_save_round_trip() -> void:
 	var loaded_party_state: PartyState = _game_session.get_party_state()
 	_assert_eq(
 		_stack_signature(loaded_party_state),
-		["bronze_sword:1", "healing_herb:7", "iron_ore:12"],
-		"新存档 round-trip 后，仓库堆栈顺序、item_id 与数量应保持一致。"
+		["healing_herb:7", "iron_ore:12"],
+		"新存档 round-trip 后，普通仓库堆栈顺序、item_id 与数量应保持一致。"
+	)
+	_assert_eq(
+		_instance_signature(loaded_party_state),
+		["bronze_sword"],
+		"新存档 round-trip 后，装备实例列表应保持不变。"
 	)
 
 
@@ -321,10 +328,16 @@ func _test_world_map_entry_paths() -> void:
 	if create_error != OK:
 		return
 
+	var book_skill := _pick_unlearned_book_skill_for_member(_game_session, &"player_sword_01")
+	_assert_true(not book_skill.is_empty(), "UI 仓库回归前置：应能为主角找到一个尚未学会且可生成技能书的技能。")
+	if book_skill.is_empty():
+		return
+
+	var target_skill_id := ProgressionDataUtils.to_string_name(book_skill.get("skill_id", ""))
+	var skill_book_item_id := ProgressionDataUtils.to_string_name(book_skill.get("item_id", ""))
 	var party_state: PartyState = _game_session.get_party_state()
 	var prefill_service := PartyWarehouseService.new()
 	prefill_service.setup(party_state, _game_session.get_item_defs())
-	var skill_book_item_id := SkillBookItemFactory.build_item_id_for_skill(&"archer_aimed_shot")
 	prefill_service.add_item(skill_book_item_id, 1)
 	var persist_error := int(_game_session.set_party_state(party_state))
 	_assert_eq(persist_error, OK, "UI 测试前写入预置仓库物品应成功。")
@@ -363,7 +376,7 @@ func _test_world_map_entry_paths() -> void:
 		use_button.emit_signal("pressed")
 		await process_frame
 		await process_frame
-		var learned_progress = _game_session.get_party_state().get_member_state(&"player_sword_01").progression.get_skill_progress(&"archer_aimed_shot")
+		var learned_progress = _game_session.get_party_state().get_member_state(&"player_sword_01").progression.get_skill_progress(target_skill_id)
 		_assert_true(learned_progress != null and learned_progress.is_learned, "仓库窗口中的使用按钮应让目标成员学会技能书对应技能。")
 		var post_use_service := PartyWarehouseService.new()
 		post_use_service.setup(_game_session.get_party_state(), _game_session.get_item_defs())
@@ -384,7 +397,7 @@ func _test_world_map_entry_paths() -> void:
 	var settlement = world_map.get_node("SettlementWindow")
 	_assert_true(settlement.visible, "据点入口应能打开 SettlementWindow。")
 	var services_container := settlement.get_node(
-		"Panel/MarginContainer/Content/Body/RightColumn/ServicesScroll/ServicesContainer"
+		"CenterContainer/Panel/MarginContainer/Content/Body/RightColumn/ServicesScroll/ServicesContainer"
 	) as VBoxContainer
 	var warehouse_service_button: Button = null
 	for child in services_container.get_children():
@@ -428,6 +441,10 @@ func _cleanup() -> void:
 	if _game_session == null:
 		return
 	_game_session.clear_persisted_game()
+	if _game_session.get_parent() != null:
+		_game_session.get_parent().remove_child(_game_session)
+	_game_session.free()
+	_game_session = null
 	await process_frame
 
 
@@ -494,6 +511,55 @@ func _stack_signature(party_state: PartyState) -> Array[String]:
 			continue
 		result.append("%s:%d" % [String(stack.item_id), int(stack.quantity)])
 	return result
+
+
+func _instance_signature(party_state: PartyState) -> Array[String]:
+	var result: Array[String] = []
+	if party_state == null or party_state.warehouse_state == null:
+		return result
+	for instance in party_state.warehouse_state.equipment_instances:
+		if instance == null:
+			continue
+		result.append(String(instance.item_id))
+	result.sort()
+	return result
+
+
+func _find_inventory_entry(entries: Array, item_id: String) -> Dictionary:
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("item_id", "")) == item_id:
+			return entry
+	return {}
+
+
+func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) -> Dictionary:
+	if game_session == null:
+		return {}
+	var party_state: PartyState = game_session.get_party_state()
+	var member_state: PartyMemberState = party_state.get_member_state(member_id) if party_state != null else null
+	if member_state == null or member_state.progression == null:
+		return {}
+	var skill_defs: Dictionary = game_session.get_skill_defs()
+	var item_defs: Dictionary = game_session.get_item_defs()
+	for skill_key in ProgressionDataUtils.sorted_string_keys(skill_defs):
+		var skill_id := StringName(skill_key)
+		var skill_def = skill_defs.get(skill_id)
+		if skill_def == null or skill_def.learn_source != &"book":
+			continue
+		var skill_progress = member_state.progression.get_skill_progress(skill_id)
+		if skill_progress != null and skill_progress.is_learned:
+			continue
+		var item_id := SkillBookItemFactory.build_item_id_for_skill(skill_id)
+		if not item_defs.has(item_id):
+			continue
+		return {
+			"skill_id": skill_id,
+			"item_id": item_id,
+		}
+	return {}
 
 
 func _assert_true(condition: bool, message: String) -> void:

@@ -10,10 +10,14 @@ const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/part
 const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
 const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/pending_character_reward.gd")
+const QUEST_STATE_SCRIPT = preload("res://scripts/player/progression/quest_state.gd")
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
+const QuestState = QUEST_STATE_SCRIPT
 
 ## 字段说明：记录版本，会参与成长规则判定、序列化和界面展示。
-var version := 2
+var version := 3
+## 字段说明：记录队伍持有金币，用于据点消费、商店结算和通用财富判定。
+var gold: int = 0
 ## 字段说明：记录队长成员唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var leader_member_id: StringName = &""
 ## 字段说明：保存激活成员标识列表，便于批量遍历、交叉查找和界面展示。
@@ -24,12 +28,51 @@ var reserve_member_ids: Array = []
 var member_states: Dictionary = {}
 ## 字段说明：保存待处理角色奖励列表，便于顺序遍历、批量展示、批量运算和整体重建。
 var pending_character_rewards: Array[PendingCharacterReward] = []
+## 字段说明：保存当前正在进行中的任务状态列表，供后续任务系统、存档与快照读取。
+var active_quests: Array[QuestState] = []
+## 字段说明：保存已完成任务标识列表，供后续任务系统、存档与快照读取。
+var completed_quest_ids: Array[StringName] = []
 ## 字段说明：记录仓库状态，会参与成长规则判定、序列化和界面展示。
 var warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
 
 
 func get_member_state(member_id: StringName):
 	return member_states.get(member_id)
+
+
+func get_active_quests() -> Array[QuestState]:
+	return active_quests.duplicate()
+
+
+func get_completed_quest_ids() -> Array[StringName]:
+	return completed_quest_ids.duplicate()
+
+
+func get_gold() -> int:
+	return maxi(int(gold), 0)
+
+
+func set_gold(value: int) -> void:
+	gold = maxi(int(value), 0)
+
+
+func add_gold(amount: int) -> int:
+	set_gold(get_gold() + int(amount))
+	return gold
+
+
+func can_afford(amount: int) -> bool:
+	return get_gold() >= maxi(int(amount), 0)
+
+
+func spend_gold(amount: int) -> bool:
+	var cost := maxi(int(amount), 0)
+	if cost == 0:
+		return true
+	if not can_afford(cost):
+		return false
+	set_gold(get_gold() - cost)
+	return true
 
 
 func set_member_state(member_state) -> void:
@@ -74,6 +117,71 @@ func remove_pending_character_reward(reward_id: StringName) -> bool:
 	return false
 
 
+func get_active_quest_state(quest_id: StringName) -> QuestState:
+	for quest_state in active_quests:
+		if quest_state != null and quest_state.quest_id == quest_id:
+			return quest_state
+	return null
+
+
+func has_active_quest(quest_id: StringName) -> bool:
+	return get_active_quest_state(quest_id) != null
+
+
+func set_active_quest_state(quest_state) -> void:
+	if quest_state == null or quest_state is not QuestState:
+		return
+	var typed_quest_state: QuestState = quest_state
+	if typed_quest_state.quest_id == &"":
+		return
+	for index in range(active_quests.size()):
+		var existing_quest_state := active_quests[index]
+		if existing_quest_state == null or existing_quest_state.quest_id != typed_quest_state.quest_id:
+			continue
+		active_quests[index] = typed_quest_state
+		return
+	active_quests.append(typed_quest_state)
+
+
+func remove_active_quest(quest_id: StringName) -> bool:
+	for index in range(active_quests.size()):
+		var quest_state := active_quests[index]
+		if quest_state == null or quest_state.quest_id != quest_id:
+			continue
+		active_quests.remove_at(index)
+		return true
+	return false
+
+
+func get_active_quest_ids() -> Array[StringName]:
+	var quest_ids: Array[StringName] = []
+	for quest_state in active_quests:
+		if quest_state == null or quest_state.quest_id == &"":
+			continue
+		quest_ids.append(quest_state.quest_id)
+	return quest_ids
+
+
+func has_completed_quest(quest_id: StringName) -> bool:
+	return completed_quest_ids.has(quest_id)
+
+
+func add_completed_quest_id(quest_id: StringName) -> void:
+	if quest_id == &"" or completed_quest_ids.has(quest_id):
+		return
+	completed_quest_ids.append(quest_id)
+
+
+func mark_quest_completed(quest_id: StringName, world_step: int = -1) -> bool:
+	var quest_state := get_active_quest_state(quest_id)
+	if quest_state == null:
+		return false
+	quest_state.mark_completed(world_step)
+	remove_active_quest(quest_id)
+	add_completed_quest_id(quest_id)
+	return true
+
+
 func to_dict() -> Dictionary:
 	var member_states_data: Dictionary = {}
 	for key in ProgressionDataUtils.sorted_string_keys(member_states):
@@ -88,8 +196,24 @@ func to_dict() -> Dictionary:
 			continue
 		pending_reward_data.append(reward.to_dict())
 
+	var active_quest_data: Array[Dictionary] = []
+	var active_quest_entries: Array[Dictionary] = []
+	for quest_state in active_quests:
+		if quest_state == null or quest_state.quest_id == &"":
+			continue
+		active_quest_entries.append({
+			"quest_id": String(quest_state.quest_id),
+			"data": quest_state.to_dict(),
+		})
+	active_quest_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("quest_id", "")) < String(b.get("quest_id", ""))
+	)
+	for entry in active_quest_entries:
+		active_quest_data.append((entry.get("data", {}) as Dictionary).duplicate(true))
+
 	return {
 		"version": version,
+		"gold": get_gold(),
 		"leader_member_id": String(leader_member_id),
 		"active_member_ids": ProgressionDataUtils.string_name_array_to_string_array(
 			ProgressionDataUtils.to_string_name_array(active_member_ids)
@@ -99,45 +223,87 @@ func to_dict() -> Dictionary:
 		),
 		"member_states": member_states_data,
 		"pending_character_rewards": pending_reward_data,
+		"active_quests": active_quest_data,
+		"completed_quest_ids": ProgressionDataUtils.string_name_array_to_string_array(
+			_normalize_unique_string_name_array(completed_quest_ids)
+		),
 		"warehouse_state": warehouse_state.to_dict() if warehouse_state != null else {},
 	}
 
 
 static func from_dict(data: Dictionary):
+	if data.is_empty():
+		return null
+	if int(data.get("version", 0)) != 3:
+		return null
+	var warehouse_state_data: Variant = data.get("warehouse_state", null)
+	if warehouse_state_data is not Dictionary:
+		return null
+	var member_states_data: Variant = data.get("member_states", null)
+	if member_states_data is not Dictionary:
+		return null
+	var pending_rewards_variant: Variant = data.get("pending_character_rewards", null)
+	if pending_rewards_variant is not Array:
+		return null
+	var active_quests_variant: Variant = data.get("active_quests", null)
+	if active_quests_variant is not Array:
+		return null
+	var completed_quest_ids_variant: Variant = data.get("completed_quest_ids", null)
+	if completed_quest_ids_variant is not Array:
+		return null
+
 	var party_state := PARTY_STATE_SCRIPT.new()
-	party_state.version = maxi(int(data.get("version", 1)), 2)
+	party_state.version = int(data.get("version", 3))
+	party_state.gold = maxi(int(data.get("gold", 0)), 0)
 	party_state.leader_member_id = ProgressionDataUtils.to_string_name(data.get("leader_member_id", ""))
 	party_state.active_member_ids = ProgressionDataUtils.to_string_name_array(data.get("active_member_ids", []))
 	party_state.reserve_member_ids = ProgressionDataUtils.to_string_name_array(data.get("reserve_member_ids", []))
-	var warehouse_state_data: Variant = data.get("warehouse_state", {})
-	if warehouse_state_data is Dictionary:
-		party_state.warehouse_state = WAREHOUSE_STATE_SCRIPT.from_dict(warehouse_state_data)
-	else:
-		party_state.warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
-
-	var member_states_data: Variant = data.get("member_states", {})
-	if member_states_data is Dictionary:
-		for key in member_states_data.keys():
-			var member_state = PARTY_MEMBER_STATE_SCRIPT.from_dict(member_states_data[key])
-			if member_state.member_id == &"":
-				member_state.member_id = ProgressionDataUtils.to_string_name(key)
-			if member_state.progression == null:
-				member_state.progression = UNIT_PROGRESS_SCRIPT.new()
-			if member_state.progression.unit_id == &"":
-				member_state.progression.unit_id = member_state.member_id
-			if member_state.progression.display_name.is_empty():
-				member_state.progression.display_name = member_state.display_name
-			party_state.member_states[member_state.member_id] = member_state
-
-	var pending_rewards_variant: Variant = data.get("pending_character_rewards", data.get("pending_mastery_rewards", []))
-	if pending_rewards_variant is Array:
-		for reward_variant in pending_rewards_variant:
-			var reward = PENDING_CHARACTER_REWARD_SCRIPT.from_legacy(reward_variant)
-			if reward == null or reward.is_empty():
-				continue
-			party_state.pending_character_rewards.append(reward)
-
+	party_state.warehouse_state = WAREHOUSE_STATE_SCRIPT.from_dict(warehouse_state_data)
 	if party_state.warehouse_state == null:
-		party_state.warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
+		return null
+
+	for key in member_states_data.keys():
+		var member_state = PARTY_MEMBER_STATE_SCRIPT.from_dict(member_states_data[key])
+		if member_state == null:
+			return null
+		if member_state.member_id == &"":
+			member_state.member_id = ProgressionDataUtils.to_string_name(key)
+		if member_state.progression == null:
+			member_state.progression = UNIT_PROGRESS_SCRIPT.new()
+		if member_state.progression.unit_id == &"":
+			member_state.progression.unit_id = member_state.member_id
+		if member_state.progression.display_name.is_empty():
+			member_state.progression.display_name = member_state.display_name
+		party_state.member_states[member_state.member_id] = member_state
+
+	for reward_variant in pending_rewards_variant:
+		var reward = PENDING_CHARACTER_REWARD_SCRIPT.from_variant(reward_variant)
+		if reward == null or reward.is_empty():
+			continue
+		party_state.pending_character_rewards.append(reward)
+
+	for quest_variant in active_quests_variant:
+		if quest_variant is not Dictionary:
+			return null
+		var quest_state: QuestState = QUEST_STATE_SCRIPT.from_dict(quest_variant)
+		if quest_state == null or quest_state.quest_id == &"" or party_state.has_active_quest(quest_state.quest_id):
+			continue
+		party_state.active_quests.append(quest_state)
+
+	party_state.completed_quest_ids = _normalize_unique_string_name_array(
+		ProgressionDataUtils.to_string_name_array(completed_quest_ids_variant)
+	)
 
 	return party_state
+
+
+static func _normalize_unique_string_name_array(values: Array) -> Array[StringName]:
+	var normalized_values: Array[StringName] = []
+	var seen_values: Dictionary = {}
+	for raw_value in values:
+		var normalized_value := ProgressionDataUtils.to_string_name(raw_value)
+		if normalized_value == &"" or seen_values.has(normalized_value):
+			continue
+		seen_values[normalized_value] = true
+		normalized_values.append(normalized_value)
+	return normalized_values

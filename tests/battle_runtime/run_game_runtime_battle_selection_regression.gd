@@ -1,0 +1,357 @@
+extends SceneTree
+
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
+const GAME_RUNTIME_BATTLE_SELECTION_SCRIPT = preload("res://scripts/systems/game_runtime_battle_selection.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+
+const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
+
+var _failures: Array[String] = []
+
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	_test_selection_sidecar_tracks_multi_unit_targets()
+	_test_selection_sidecar_executes_multistep_reachable_movement()
+	_test_selection_sidecar_hides_targets_for_blocked_skill()
+	_test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready()
+
+	if _failures.is_empty():
+		print("Game runtime battle selection regression: PASS")
+		quit(0)
+		return
+
+	for failure in _failures:
+		push_error(failure)
+	print("Game runtime battle selection regression: FAIL (%d)" % _failures.size())
+	quit(1)
+
+
+func _test_selection_sidecar_tracks_multi_unit_targets() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var skill_def = game_session.get_skill_defs().get(&"mage_arcane_missile")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "多目标回归前置：mage_arcane_missile 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		_cleanup_test_session(game_session)
+		return
+	skill_def.combat_profile.min_target_count = 2
+	skill_def.combat_profile.max_target_count = 2
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
+	selection.setup(facade)
+
+	var state: BattleState = _build_flat_state(Vector2i(5, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"multi_unit_user",
+		"多目标施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"mage_arcane_missile"],
+		2,
+		6
+	)
+	var enemy_a: BattleUnitState = _build_manual_unit(&"enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
+	var enemy_b: BattleUnitState = _build_manual_unit(&"enemy_b", "敌人B", &"enemy", Vector2i(3, 0), [], 2, 0)
+	var enemy_c: BattleUnitState = _build_manual_unit(&"enemy_c", "敌人C", &"enemy", Vector2i(4, 0), [], 2, 0)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy_a, true)
+	_add_unit_to_state(facade, state, enemy_b, true)
+	_add_unit_to_state(facade, state, enemy_c, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	selection.select_battle_skill_slot(0)
+	_assert_eq(String(facade.get_selected_battle_skill_id()), "mage_arcane_missile", "选择技能后 facade 应同步记录选中的技能 ID。")
+
+	var first_click_mode := String(selection.attempt_battle_move_to(enemy_b.coord))
+	_assert_eq(first_click_mode, "overlay", "首个单位目标选择阶段应保持 overlay 刷新。")
+	_assert_eq(
+		_extract_string_array(selection.get_selected_battle_skill_target_unit_ids()),
+		["enemy_b"],
+		"Selection sidecar 应跟踪首个已选单位目标。"
+	)
+	_assert_eq(
+		_extract_coord_pairs(selection.get_selected_battle_skill_target_coords()),
+		[[enemy_b.coord.x, enemy_b.coord.y]],
+		"Selection sidecar 应同步暴露首个已选单位的坐标。"
+	)
+	_assert_true(
+		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()).has([enemy_a.coord.x, enemy_a.coord.y]),
+		"首个目标入队后，剩余合法目标中应仍包含第二个敌人。"
+	)
+
+	var second_click_mode := String(selection.attempt_battle_move_to(enemy_a.coord))
+	_assert_eq(second_click_mode, "full", "达到最小目标数并完成施法后应返回 full 刷新。")
+	_assert_true(enemy_b.current_hp < 30, "多目标技能结算后应命中第一个已选单位。")
+	_assert_true(enemy_a.current_hp < 30, "多目标技能结算后应命中第二个已选单位。")
+	_assert_eq(enemy_c.current_hp, 30, "未被选中的单位不应受到多目标技能影响。")
+	_assert_eq(
+		_extract_string_array(selection.get_selected_battle_skill_target_unit_ids()),
+		[],
+		"多目标技能结算后不应残留单位目标队列。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_selection_sidecar_executes_multistep_reachable_movement() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
+	selection.setup(facade)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var mover: BattleUnitState = _build_manual_unit(
+		&"multistep_move_user",
+		"多步移动者",
+		&"player",
+		Vector2i(0, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, mover, false)
+	state.phase = &"unit_acting"
+	state.active_unit_id = mover.unit_id
+	_apply_battle_state(facade, state)
+
+	var click_mode := String(selection.attempt_battle_move_to(Vector2i(1, 1)))
+	_assert_eq(click_mode, "full", "点击两步内可达蓝色地格后应触发完整战斗刷新。")
+	_assert_eq(mover.coord, Vector2i(1, 1), "点击两步内可达蓝色地格后应真正移动到目标终点。")
+	_assert_eq(mover.current_ap, 0, "多步移动后应累计扣除路径消耗。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_selection_sidecar_hides_targets_for_blocked_skill() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var skill_def = game_session.get_skill_defs().get(&"mage_arcane_missile")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "不可施放高亮回归前置：mage_arcane_missile 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		_cleanup_test_session(game_session)
+		return
+	skill_def.combat_profile.mp_cost = 3
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
+	selection.setup(facade)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"blocked_skill_user",
+		"资源不足施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"mage_arcane_missile"],
+		2,
+		0
+	)
+	var enemy_a: BattleUnitState = _build_manual_unit(&"blocked_enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
+	var enemy_b: BattleUnitState = _build_manual_unit(&"blocked_enemy_b", "敌人B", &"enemy", Vector2i(3, 0), [], 2, 0)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy_a, true)
+	_add_unit_to_state(facade, state, enemy_b, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	selection.select_battle_skill_slot(0)
+	_assert_eq(
+		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()),
+		[],
+		"当前技能不可施放时，不应继续高亮任何合法目标。"
+	)
+	_assert_true(
+		String(facade.get_status_text()).contains("法力不足"),
+		"选择不可施放技能时，状态文案应直接说明阻断原因。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var skill_def = game_session.get_skill_defs().get(&"mage_arcane_missile")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "确认焦点回归前置：mage_arcane_missile 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		_cleanup_test_session(game_session)
+		return
+	skill_def.combat_profile.min_target_count = 2
+	skill_def.combat_profile.max_target_count = 3
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
+	selection.setup(facade)
+
+	var state: BattleState = _build_flat_state(Vector2i(5, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"confirm_focus_user",
+		"确认焦点施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"mage_arcane_missile"],
+		2,
+		6
+	)
+	var enemy_a: BattleUnitState = _build_manual_unit(&"confirm_enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
+	var enemy_b: BattleUnitState = _build_manual_unit(&"confirm_enemy_b", "敌人B", &"enemy", Vector2i(3, 0), [], 2, 0)
+	var enemy_c: BattleUnitState = _build_manual_unit(&"confirm_enemy_c", "敌人C", &"enemy", Vector2i(4, 0), [], 2, 0)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy_a, true)
+	_add_unit_to_state(facade, state, enemy_b, true)
+	_add_unit_to_state(facade, state, enemy_c, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	selection.select_battle_skill_slot(0)
+	selection.attempt_battle_move_to(enemy_a.coord)
+	var second_click_mode := String(selection.attempt_battle_move_to(enemy_b.coord))
+	_assert_eq(second_click_mode, "overlay", "达到最小目标数但未达上限时，应停留在确认态 overlay。")
+	_assert_eq(
+		facade.get_battle_selected_coord(),
+		caster.coord,
+		"进入 multi_unit 确认态后，棋盘焦点应回到施法者自身，而不是最后一个锁定目标。"
+	)
+	_assert_true(
+		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()).has([enemy_c.coord.x, enemy_c.coord.y]),
+		"进入确认态后，剩余合法目标仍应继续保留。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _create_test_session():
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_true(create_error == OK, "GameSession 应能基于测试世界配置创建新存档。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return null
+	return game_session
+
+
+func _cleanup_test_session(game_session) -> void:
+	if game_session == null:
+		return
+	game_session.clear_persisted_game()
+	game_session.free()
+
+
+func _build_flat_state(map_size: Vector2i) -> BattleState:
+	var state: BattleState = BATTLE_STATE_SCRIPT.new()
+	state.battle_id = &"battle_selection_regression"
+	state.phase = &"timeline_running"
+	state.map_size = map_size
+	state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.new()
+	for y in range(map_size.y):
+		for x in range(map_size.x):
+			var cell = BATTLE_CELL_STATE_SCRIPT.new()
+			cell.coord = Vector2i(x, y)
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_height = 4
+			cell.height_offset = 0
+			cell.recalculate_runtime_values()
+			state.cells[cell.coord] = cell
+	state.cell_columns = BATTLE_CELL_STATE_SCRIPT.build_columns_from_surface_cells(state.cells)
+	return state
+
+
+func _build_manual_unit(
+	unit_id: StringName,
+	display_name: String,
+	faction_id: StringName,
+	coord: Vector2i,
+	skill_ids: Array[StringName],
+	current_ap: int,
+	current_mp: int
+) -> BattleUnitState:
+	var unit: BattleUnitState = BATTLE_UNIT_STATE_SCRIPT.new()
+	unit.unit_id = unit_id
+	unit.display_name = display_name
+	unit.faction_id = faction_id
+	unit.control_mode = &"manual"
+	unit.current_hp = 30
+	unit.current_mp = current_mp
+	unit.current_ap = current_ap
+	unit.current_stamina = 20
+	unit.is_alive = true
+	unit.set_anchor_coord(coord)
+	unit.attribute_snapshot.set_value(&"hp_max", 30)
+	unit.attribute_snapshot.set_value(&"mp_max", maxi(current_mp, 6))
+	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 2))
+	unit.attribute_snapshot.set_value(&"physical_attack", 10)
+	unit.attribute_snapshot.set_value(&"magic_attack", 12)
+	unit.attribute_snapshot.set_value(&"physical_defense", 4)
+	unit.attribute_snapshot.set_value(&"magic_defense", 4)
+	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.known_active_skill_ids = skill_ids.duplicate()
+	for skill_id in unit.known_active_skill_ids:
+		unit.known_skill_level_map[skill_id] = 1
+	return unit
+
+
+func _add_unit_to_state(facade, state: BattleState, unit: BattleUnitState, is_enemy: bool) -> void:
+	state.units[unit.unit_id] = unit
+	if is_enemy:
+		state.enemy_unit_ids.append(unit.unit_id)
+	else:
+		state.ally_unit_ids.append(unit.unit_id)
+	var placed: bool = bool(facade._battle_runtime._grid_service.place_unit(state, unit, unit.coord, true))
+	_assert_true(placed, "测试单位 %s 应能成功放入战场。" % String(unit.unit_id))
+
+
+func _apply_battle_state(facade, state: BattleState) -> void:
+	facade._battle_runtime._state = state
+	facade._battle_state = state
+	facade._battle_selected_coord = Vector2i(-1, -1)
+	facade._refresh_battle_runtime_state()
+
+
+func _extract_string_array(values: Array) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(String(value))
+	return result
+
+
+func _extract_coord_pairs(coords: Array[Vector2i]) -> Array:
+	var pairs: Array = []
+	for coord in coords:
+		pairs.append([coord.x, coord.y])
+	return pairs
+
+
+func _assert_true(condition: bool, message: String) -> void:
+	if not condition:
+		_failures.append(message)
+
+
+func _assert_eq(actual, expected, message: String) -> void:
+	if actual != expected:
+		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

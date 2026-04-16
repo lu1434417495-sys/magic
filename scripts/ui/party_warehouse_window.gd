@@ -47,8 +47,8 @@ signal closed
 var _window_data: Dictionary = {}
 ## 字段说明：记录已选物品唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _selected_item_id: StringName = &""
-## 字段说明：记录已选堆叠索引，作为界面刷新、输入处理和窗口联动的重要依据。
-var _selected_stack_index := -1
+## 字段说明：记录已选展示条目索引，作为界面刷新、输入处理和窗口联动的重要依据。
+var _selected_entry_index := -1
 ## 字段说明：记录技能书当前目标成员唯一标识，作为技能书使用流程的目标选择缓存。
 var _selected_target_member_id: StringName = &""
 
@@ -92,7 +92,7 @@ func hide_window() -> void:
 	visible = false
 	_window_data.clear()
 	_selected_item_id = &""
-	_selected_stack_index = -1
+	_selected_entry_index = -1
 	_selected_target_member_id = &""
 	if stack_list != null:
 		stack_list.clear()
@@ -110,43 +110,43 @@ func hide_window() -> void:
 
 func _rebuild_stack_list() -> void:
 	stack_list.clear()
-	for stack_data_variant in _get_stack_entries():
-		var stack_data: Dictionary = stack_data_variant
+	for entry_data_variant in _get_inventory_entries():
+		var entry_data: Dictionary = entry_data_variant
 		var label := "%s  x%d" % [
-			String(stack_data.get("display_name", stack_data.get("item_id", "未知物品"))),
-			int(stack_data.get("quantity", 0)),
+			String(entry_data.get("display_name", entry_data.get("item_id", "未知物品"))),
+			int(entry_data.get("quantity", 0)),
 		]
-		if bool(stack_data.get("is_stackable", false)):
+		if bool(entry_data.get("is_stackable", false)):
 			label += "  |  堆栈 %d/%d" % [
-				int(stack_data.get("quantity", 0)),
-				int(stack_data.get("stack_limit", 1)),
+				int(entry_data.get("quantity", 0)),
+				int(entry_data.get("stack_limit", 1)),
 			]
 		else:
-			label += "  |  不可堆叠"
+			label += "  |  按实例占格"
 		stack_list.add_item(label)
-		stack_list.set_item_metadata(stack_list.item_count - 1, stack_data)
+		stack_list.set_item_metadata(stack_list.item_count - 1, entry_data)
 
 
 func _restore_selection() -> void:
-	var stack_entries := _get_stack_entries()
-	if stack_entries.is_empty():
+	var inventory_entries := _get_inventory_entries()
+	if inventory_entries.is_empty():
 		_selected_item_id = &""
-		_selected_stack_index = -1
+		_selected_entry_index = -1
 		return
 
 	var target_index := -1
 	if _selected_item_id != &"":
-		for index in range(stack_entries.size()):
-			var stack_data: Dictionary = stack_entries[index]
-			if ProgressionDataUtils.to_string_name(stack_data.get("item_id", "")) == _selected_item_id:
+		for index in range(inventory_entries.size()):
+			var entry_data: Dictionary = inventory_entries[index]
+			if ProgressionDataUtils.to_string_name(entry_data.get("item_id", "")) == _selected_item_id:
 				target_index = index
 				break
 	if target_index < 0:
-		target_index = clampi(_selected_stack_index, 0, stack_entries.size() - 1)
+		target_index = clampi(_selected_entry_index, 0, inventory_entries.size() - 1)
 
-	_selected_stack_index = target_index
-	var selected_stack: Dictionary = stack_entries[target_index]
-	_selected_item_id = ProgressionDataUtils.to_string_name(selected_stack.get("item_id", ""))
+	_selected_entry_index = target_index
+	var selected_entry: Dictionary = inventory_entries[target_index]
+	_selected_item_id = ProgressionDataUtils.to_string_name(selected_entry.get("item_id", ""))
 	stack_list.select(target_index)
 	stack_list.ensure_current_is_visible()
 
@@ -180,64 +180,64 @@ func _rebuild_target_member_selector() -> void:
 
 
 func _refresh_details() -> void:
-	var stack_entries := _get_stack_entries()
-	if stack_entries.is_empty():
+	var inventory_entries := _get_inventory_entries()
+	if inventory_entries.is_empty():
 		item_icon.texture = null
 		details_label.text = "仓库当前为空。"
 		return
 
-	var stack_data := _get_selected_stack_data()
-	if stack_data.is_empty():
+	var entry_data := _get_selected_entry_data()
+	if entry_data.is_empty():
 		item_icon.texture = null
-		details_label.text = "请选择一个堆栈查看详情。"
+		details_label.text = "请选择一个条目查看详情。"
 		return
 
-	item_icon.texture = _load_icon_texture(String(stack_data.get("icon", "")))
-	var item_id := String(stack_data.get("item_id", ""))
-	var total_quantity := int(stack_data.get("total_quantity", stack_data.get("quantity", 0)))
-	var stack_limit := int(stack_data.get("stack_limit", 1))
+	item_icon.texture = _load_icon_texture(String(entry_data.get("icon", "")))
+	var item_id := String(entry_data.get("item_id", ""))
+	var total_quantity := int(entry_data.get("total_quantity", entry_data.get("quantity", 0)))
+	var stack_limit := int(entry_data.get("stack_limit", 1))
+	var quantity := int(entry_data.get("quantity", 0))
+	var storage_mode := String(entry_data.get("storage_mode", ""))
+	var storage_rule_text := "每堆上限 %d" % stack_limit if bool(entry_data.get("is_stackable", false)) else "不可堆叠，按实例独立占格"
 	var lines := PackedStringArray([
-		"物品：%s" % String(stack_data.get("display_name", item_id)),
+		"物品：%s" % String(entry_data.get("display_name", item_id)),
 		"物品 ID：%s" % item_id,
-		"当前堆栈：%d" % int(stack_data.get("quantity", 0)),
+		"当前条目数量：%d" % quantity,
 		"同类总数：%d" % total_quantity,
-		"堆叠规则：%s" % (
-			"每堆上限 %d" % stack_limit
-			if bool(stack_data.get("is_stackable", false))
-			else "不可堆叠"
-		),
-		"说明：%s" % String(stack_data.get("description", "暂无说明。")),
+		"存储方式：%s" % ("堆叠条目" if storage_mode == "stack" else "实例聚合条目"),
+		"堆叠规则：%s" % storage_rule_text,
+		"说明：%s" % String(entry_data.get("description", "暂无说明。")),
 	])
-	if bool(stack_data.get("is_skill_book", false)):
-		lines.append("技能书效果：使目标角色学会 %s。" % String(stack_data.get("granted_skill_name", stack_data.get("granted_skill_id", ""))))
+	if bool(entry_data.get("is_skill_book", false)):
+		lines.append("技能书效果：使目标角色学会 %s。" % String(entry_data.get("granted_skill_name", entry_data.get("granted_skill_id", ""))))
 		if _selected_target_member_id != &"":
 			lines.append("当前目标：%s" % _get_target_member_display_name(_selected_target_member_id))
 	details_label.text = "\n".join(lines)
 
 
 func _refresh_controls() -> void:
-	var has_selection := not _get_selected_stack_data().is_empty()
+	var has_selection := not _get_selected_entry_data().is_empty()
 	var can_use_selected_item := _can_use_selected_item()
 	discard_one_button.disabled = not has_selection
 	discard_all_button.disabled = not has_selection
-	target_member_label.visible = _selected_stack_is_skill_book()
-	target_member_selector.visible = _selected_stack_is_skill_book()
-	target_member_selector.disabled = not _selected_stack_is_skill_book() or _get_target_members().is_empty()
-	use_button.visible = _selected_stack_is_skill_book()
+	target_member_label.visible = _selected_entry_is_skill_book()
+	target_member_selector.visible = _selected_entry_is_skill_book()
+	target_member_selector.disabled = not _selected_entry_is_skill_book() or _get_target_members().is_empty()
+	use_button.visible = _selected_entry_is_skill_book()
 	use_button.disabled = not can_use_selected_item
 
 
-func _get_stack_entries() -> Array:
-	var stacks_variant: Variant = _window_data.get("stacks", [])
-	return stacks_variant if stacks_variant is Array else []
+func _get_inventory_entries() -> Array:
+	var entries_variant: Variant = _window_data.get("entries", [])
+	return entries_variant if entries_variant is Array else []
 
 
-func _get_selected_stack_data() -> Dictionary:
-	var stack_entries := _get_stack_entries()
-	if _selected_stack_index < 0 or _selected_stack_index >= stack_entries.size():
+func _get_selected_entry_data() -> Dictionary:
+	var inventory_entries := _get_inventory_entries()
+	if _selected_entry_index < 0 or _selected_entry_index >= inventory_entries.size():
 		return {}
-	var stack_data_variant = stack_entries[_selected_stack_index]
-	return stack_data_variant if stack_data_variant is Dictionary else {}
+	var entry_data_variant = inventory_entries[_selected_entry_index]
+	return entry_data_variant if entry_data_variant is Dictionary else {}
 
 
 func _get_target_members() -> Array:
@@ -273,12 +273,12 @@ func _get_target_member_display_name(member_id: StringName) -> String:
 	return String(member_id)
 
 
-func _selected_stack_is_skill_book() -> bool:
-	return bool(_get_selected_stack_data().get("is_skill_book", false))
+func _selected_entry_is_skill_book() -> bool:
+	return bool(_get_selected_entry_data().get("is_skill_book", false))
 
 
 func _can_use_selected_item() -> bool:
-	return _selected_stack_is_skill_book() and _selected_target_member_id != &"" and _has_target_member(_selected_target_member_id)
+	return _selected_entry_is_skill_book() and _selected_target_member_id != &"" and _has_target_member(_selected_target_member_id)
 
 
 func _load_icon_texture(icon_path: String) -> Texture2D:
@@ -289,9 +289,9 @@ func _load_icon_texture(icon_path: String) -> Texture2D:
 
 
 func _on_stack_selected(index: int) -> void:
-	_selected_stack_index = index
-	var stack_data := _get_selected_stack_data()
-	_selected_item_id = ProgressionDataUtils.to_string_name(stack_data.get("item_id", ""))
+	_selected_entry_index = index
+	var entry_data := _get_selected_entry_data()
+	_selected_item_id = ProgressionDataUtils.to_string_name(entry_data.get("item_id", ""))
 	_refresh_details()
 	_refresh_controls()
 

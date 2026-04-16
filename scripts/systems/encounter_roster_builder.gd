@@ -55,15 +55,6 @@ func _resolve_enemy_template(encounter_anchor, build_context: Dictionary, enemy_
 		candidate_ids.append(explicit_template_id)
 	if encounter_anchor != null and encounter_anchor.enemy_roster_template_id != &"":
 		candidate_ids.append(encounter_anchor.enemy_roster_template_id)
-	var display_name := String(build_context.get(
-		"monster_display_name",
-		encounter_anchor.display_name if encounter_anchor != null else ""
-	))
-	if not display_name.is_empty():
-		candidate_ids.append(StringName(display_name))
-	var legacy_name := String(build_context.get("monster_name", display_name))
-	if not legacy_name.is_empty():
-		candidate_ids.append(StringName(legacy_name))
 	for candidate_id in candidate_ids:
 		if candidate_id != &"" and enemy_templates.has(candidate_id):
 			return enemy_templates.get(candidate_id)

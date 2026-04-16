@@ -11,9 +11,13 @@ const BattleEdgeFeatureState = preload("res://scripts/systems/battle_edge_featur
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BATTLE_EDGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_edge_service.gd")
 const BattleEdgeService = preload("res://scripts/systems/battle_edge_service.gd")
+const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const TERRAIN_LAND := &"land"
 const TERRAIN_FOREST := &"forest"
 const TERRAIN_WATER := &"water"
+const TERRAIN_SHALLOW_WATER := &"shallow_water"
+const TERRAIN_FLOWING_WATER := &"flowing_water"
+const TERRAIN_DEEP_WATER := &"deep_water"
 const TERRAIN_MUD := &"mud"
 const TERRAIN_SPIKE := &"spike"
 const MIN_RUNTIME_HEIGHT := -5
@@ -110,39 +114,196 @@ func get_area_coords(
 	state: BattleState,
 	center_coord: Vector2i,
 	area_pattern: StringName,
-	area_value: int
+	area_value: int,
+	facing_direction: Vector2i = Vector2i.ZERO
 ) -> Array[Vector2i]:
 	var coords: Array[Vector2i] = []
 	if state == null or not is_inside(state, center_coord):
 		return coords
 
 	var radius := maxi(int(area_value), 0)
-	if area_pattern == &"" or area_pattern == &"single" or radius <= 0:
+	if area_pattern == &"" or area_pattern == &"single" or area_pattern == &"self" or radius <= 0:
 		coords.append(center_coord)
 		return coords
 
-	for y in range(center_coord.y - radius, center_coord.y + radius + 1):
-		for x in range(center_coord.x - radius, center_coord.x + radius + 1):
-			var coord := Vector2i(x, y)
-			if not is_inside(state, coord):
-				continue
-
-			var dx := absi(coord.x - center_coord.x)
-			var dy := absi(coord.y - center_coord.y)
-			match area_pattern:
-				&"diamond":
+	match area_pattern:
+		&"diamond":
+			for y in range(center_coord.y - radius, center_coord.y + radius + 1):
+				for x in range(center_coord.x - radius, center_coord.x + radius + 1):
+					var coord := Vector2i(x, y)
+					if not is_inside(state, coord):
+						continue
+					var dx := absi(coord.x - center_coord.x)
+					var dy := absi(coord.y - center_coord.y)
 					if dx + dy <= radius:
 						coords.append(coord)
-				&"square":
+		&"square", &"radius":
+			for y in range(center_coord.y - radius, center_coord.y + radius + 1):
+				for x in range(center_coord.x - radius, center_coord.x + radius + 1):
+					var coord := Vector2i(x, y)
+					if not is_inside(state, coord):
+						continue
+					var dx := absi(coord.x - center_coord.x)
+					var dy := absi(coord.y - center_coord.y)
 					if maxi(dx, dy) <= radius:
 						coords.append(coord)
-				&"cross":
+		&"cross":
+			for y in range(center_coord.y - radius, center_coord.y + radius + 1):
+				for x in range(center_coord.x - radius, center_coord.x + radius + 1):
+					var coord := Vector2i(x, y)
+					if not is_inside(state, coord):
+						continue
+					var dx := absi(coord.x - center_coord.x)
+					var dy := absi(coord.y - center_coord.y)
 					if (dx == 0 and dy <= radius) or (dy == 0 and dx <= radius):
 						coords.append(coord)
-				_:
-					if coord == center_coord:
+		&"line":
+			return _build_line_coords(state, center_coord, radius, facing_direction)
+		&"cone":
+			return _build_cone_coords(state, center_coord, radius, facing_direction)
+		_:
+			coords.append(center_coord)
+	return _sort_unique_coords(coords)
+
+
+func _build_line_coords(
+	state: BattleState,
+	center_coord: Vector2i,
+	radius: int,
+	facing_direction: Vector2i
+) -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	if radius <= 0:
+		coords.append(center_coord)
+		return coords
+
+	if _get_directional_line_axis(state, center_coord, facing_direction) == 0:
+		for x in range(center_coord.x - radius, center_coord.x + radius + 1):
+			var coord := Vector2i(x, center_coord.y)
+			if is_inside(state, coord):
+				coords.append(coord)
+	else:
+		for y in range(center_coord.y - radius, center_coord.y + radius + 1):
+			var coord := Vector2i(center_coord.x, y)
+			if is_inside(state, coord):
+				coords.append(coord)
+	return _sort_unique_coords(coords)
+
+
+func _build_cone_coords(
+	state: BattleState,
+	center_coord: Vector2i,
+	radius: int,
+	facing_direction: Vector2i
+) -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	coords.append(center_coord)
+	if radius <= 0:
+		return coords
+
+	match _resolve_area_direction(state, center_coord, facing_direction):
+		Vector2i.RIGHT:
+			for step in range(1, radius + 1):
+				var x := center_coord.x + step
+				for offset in range(-step, step + 1):
+					var coord := Vector2i(x, center_coord.y + offset)
+					if is_inside(state, coord):
 						coords.append(coord)
-	return coords
+		Vector2i.LEFT:
+			for step in range(1, radius + 1):
+				var x := center_coord.x - step
+				for offset in range(-step, step + 1):
+					var coord := Vector2i(x, center_coord.y + offset)
+					if is_inside(state, coord):
+						coords.append(coord)
+		Vector2i.DOWN:
+			for step in range(1, radius + 1):
+				var y := center_coord.y + step
+				for offset in range(-step, step + 1):
+					var coord := Vector2i(center_coord.x + offset, y)
+					if is_inside(state, coord):
+						coords.append(coord)
+		Vector2i.UP:
+			for step in range(1, radius + 1):
+				var y := center_coord.y - step
+				for offset in range(-step, step + 1):
+					var coord := Vector2i(center_coord.x + offset, y)
+					if is_inside(state, coord):
+						coords.append(coord)
+	return _sort_unique_coords(coords)
+
+
+func _get_directional_line_axis(
+	state: BattleState,
+	center_coord: Vector2i,
+	facing_direction: Vector2i
+) -> int:
+	var normalized_direction := _normalize_area_direction(facing_direction)
+	if normalized_direction != Vector2i.ZERO:
+		return 0 if normalized_direction.x != 0 else 1
+	return _get_stable_line_axis(state, center_coord)
+
+
+func _get_stable_line_axis(state: BattleState, center_coord: Vector2i) -> int:
+	var horizontal_span := mini(center_coord.x, state.map_size.x - 1 - center_coord.x)
+	var vertical_span := mini(center_coord.y, state.map_size.y - 1 - center_coord.y)
+	if horizontal_span >= vertical_span:
+		return 0
+	return 1
+
+
+func _resolve_area_direction(
+	state: BattleState,
+	center_coord: Vector2i,
+	facing_direction: Vector2i
+) -> Vector2i:
+	var normalized_direction := _normalize_area_direction(facing_direction)
+	if normalized_direction != Vector2i.ZERO:
+		return normalized_direction
+	return _get_stable_cone_direction(state, center_coord)
+
+
+func _get_stable_cone_direction(state: BattleState, center_coord: Vector2i) -> Vector2i:
+	var right_span := maxi(state.map_size.x - 1 - center_coord.x, 0)
+	var left_span := maxi(center_coord.x, 0)
+	var down_span := maxi(state.map_size.y - 1 - center_coord.y, 0)
+	var up_span := maxi(center_coord.y, 0)
+	var best_direction := Vector2i.RIGHT
+	var best_span := right_span
+	if left_span > best_span:
+		best_direction = Vector2i.LEFT
+		best_span = left_span
+	if down_span > best_span:
+		best_direction = Vector2i.DOWN
+		best_span = down_span
+	if up_span > best_span:
+		best_direction = Vector2i.UP
+	return best_direction
+
+
+func _normalize_area_direction(direction: Vector2i) -> Vector2i:
+	if direction == Vector2i.ZERO:
+		return Vector2i.ZERO
+	var abs_x := absi(direction.x)
+	var abs_y := absi(direction.y)
+	if abs_x >= abs_y and abs_x > 0:
+		return Vector2i(1 if direction.x > 0 else -1, 0)
+	if abs_y > 0:
+		return Vector2i(0, 1 if direction.y > 0 else -1)
+	return Vector2i.ZERO
+
+
+func _sort_unique_coords(coords: Array[Vector2i]) -> Array[Vector2i]:
+	if coords.is_empty():
+		return coords
+	var unique_coords: Array[Vector2i] = []
+	var seen: Dictionary = {}
+	for coord in coords:
+		if seen.has(coord):
+			continue
+		seen[coord] = true
+		unique_coords.append(coord)
+	return unique_coords
 
 
 func get_distance_from_unit_to_coord(unit_state: BattleUnitState, target_coord: Vector2i) -> int:
@@ -175,11 +336,16 @@ func can_enter_cell(state: BattleState, coord: Vector2i) -> bool:
 	return can_place_footprint(state, coord, Vector2i.ONE)
 
 
+func can_unit_enter_coord(state: BattleState, coord: Vector2i, unit_state: BattleUnitState) -> bool:
+	return can_place_footprint(state, coord, Vector2i.ONE, &"", unit_state)
+
+
 func can_place_footprint(
 	state: BattleState,
 	anchor_coord: Vector2i,
 	footprint_size: Vector2i,
-	ignored_unit_id: StringName = &""
+	ignored_unit_id: StringName = &"",
+	unit_state: BattleUnitState = null
 ) -> bool:
 	var footprint_coords := get_footprint_coords(anchor_coord, footprint_size)
 	var footprint_lookup: Dictionary = {}
@@ -188,7 +354,12 @@ func can_place_footprint(
 		if not is_inside(state, footprint_coord):
 			return false
 		var cell := get_cell(state, footprint_coord)
-		if cell == null or not cell.passable:
+		if cell == null:
+			return false
+		if unit_state != null:
+			if not _can_unit_enter_cell(cell, unit_state):
+				return false
+		elif not cell.passable:
 			return false
 		if cell.occupant_unit_id != &"" and cell.occupant_unit_id != ignored_unit_id:
 			return false
@@ -229,7 +400,7 @@ func can_place_unit(
 ) -> bool:
 	if state == null or unit_state == null:
 		return false
-	if not can_place_footprint(state, target_coord, unit_state.footprint_size, unit_state.unit_id):
+	if not can_place_footprint(state, target_coord, unit_state.footprint_size, unit_state.unit_id, unit_state):
 		return false
 	if ignore_height:
 		return true
@@ -267,8 +438,15 @@ func _can_unit_step_across_edges(state: BattleState, unit_state: BattleUnitState
 	if state == null or unit_state == null:
 		return false
 	unit_state.refresh_footprint()
-	var footprint_size := unit_state.footprint_size
-	var anchor_coord := unit_state.coord
+	return _can_anchor_step_across_edges(state, unit_state.footprint_size, unit_state.coord, delta)
+
+
+func _can_anchor_step_across_edges(
+	state: BattleState,
+	footprint_size: Vector2i,
+	anchor_coord: Vector2i,
+	delta: Vector2i
+) -> bool:
 	match delta:
 		Vector2i.RIGHT:
 			for y in range(footprint_size.y):
@@ -318,6 +496,185 @@ func can_traverse(
 	return _edge_service.is_traversable_between(state, from_coord, to_coord)
 
 
+func can_unit_step_between_anchors(
+	state: BattleState,
+	unit_state: BattleUnitState,
+	from_anchor: Vector2i,
+	to_anchor: Vector2i
+) -> bool:
+	if state == null or unit_state == null:
+		return false
+	unit_state.refresh_footprint()
+	var delta := to_anchor - from_anchor
+	if get_distance(from_anchor, to_anchor) != 1:
+		return false
+	if not can_place_footprint(state, to_anchor, unit_state.footprint_size, unit_state.unit_id, unit_state):
+		return false
+	if not _can_anchor_step_across_edges(state, unit_state.footprint_size, from_anchor, delta):
+		return false
+
+	for footprint_coord in get_unit_target_coords(unit_state, to_anchor):
+		var target_cell := get_cell(state, footprint_coord)
+		if target_cell == null:
+			return false
+		var reference_cell := get_cell(state, footprint_coord - delta)
+		if reference_cell == null:
+			return false
+		if absi(int(reference_cell.current_height) - int(target_cell.current_height)) > 1:
+			return false
+	return true
+
+
+func get_unit_move_cost(
+	state: BattleState,
+	unit_state: BattleUnitState,
+	target_coord: Vector2i
+) -> int:
+	if state == null or unit_state == null:
+		return 1
+	var movement_tags := _get_unit_movement_tags(unit_state)
+	var move_cost := 1
+	for occupied_coord in get_unit_target_coords(unit_state, target_coord):
+		var cell := get_cell(state, occupied_coord)
+		if cell == null:
+			continue
+		move_cost = maxi(move_cost, BattleTerrainRules.get_unit_move_cost(cell.base_terrain, movement_tags))
+	return move_cost
+
+
+func resolve_unit_move_path(
+	state: BattleState,
+	unit_state: BattleUnitState,
+	from_coord: Vector2i,
+	to_coord: Vector2i,
+	max_move_points: int,
+	first_step_cost_discount: int = 0
+) -> Dictionary:
+	if state == null:
+		return {
+			"allowed": false,
+			"cost": 0,
+			"path": [],
+			"message": "战斗状态不可用。",
+		}
+	if unit_state == null:
+		return {
+			"allowed": false,
+			"cost": 0,
+			"path": [],
+			"message": "当前单位数据不可用。",
+		}
+	if not is_inside(state, from_coord):
+		return {
+			"allowed": false,
+			"cost": 0,
+			"path": [],
+			"message": "当前单位不在有效战斗格上。",
+		}
+	if not is_inside(state, to_coord):
+		return {
+			"allowed": false,
+			"cost": 0,
+			"path": [],
+			"message": "已到达战斗地图边界。",
+		}
+	if from_coord == to_coord:
+		return {
+			"allowed": true,
+			"cost": 0,
+			"path": [from_coord],
+			"message": "可移动。",
+		}
+
+	var sanitized_max_move_points := maxi(max_move_points, 0)
+	var has_initial_discount := first_step_cost_discount > 0
+	var start_state_key := _build_move_path_state_key(from_coord, has_initial_discount)
+	var best_state_costs := {
+		start_state_key: 0,
+	}
+	var previous_state_keys: Dictionary = {}
+	var state_key_to_coord := {
+		start_state_key: from_coord,
+	}
+	var frontier: Array = [{
+		"coord": from_coord,
+		"cost": 0,
+		"has_discount": has_initial_discount,
+	}]
+	var final_state_key := ""
+
+	while not frontier.is_empty():
+		var frontier_entry := _pop_lowest_cost_move_frontier_entry(frontier)
+		var current_coord: Vector2i = frontier_entry.get("coord", from_coord)
+		var current_cost := int(frontier_entry.get("cost", 0))
+		var has_discount := bool(frontier_entry.get("has_discount", false))
+		var current_state_key := _build_move_path_state_key(current_coord, has_discount)
+		if current_cost != int(best_state_costs.get(current_state_key, 2147483647)):
+			continue
+		if current_coord == to_coord:
+			final_state_key = current_state_key
+			break
+
+		for neighbor_coord in get_neighbors_4(state, current_coord):
+			if not can_unit_step_between_anchors(state, unit_state, current_coord, neighbor_coord):
+				continue
+			var step_cost := get_unit_move_cost(state, unit_state, neighbor_coord)
+			if has_discount and first_step_cost_discount > 0:
+				step_cost = maxi(step_cost - first_step_cost_discount, 0)
+			var next_cost := current_cost + step_cost
+			var next_has_discount := false
+			var next_state_key := _build_move_path_state_key(neighbor_coord, next_has_discount)
+			if next_cost >= int(best_state_costs.get(next_state_key, 2147483647)):
+				continue
+			best_state_costs[next_state_key] = next_cost
+			previous_state_keys[next_state_key] = current_state_key
+			state_key_to_coord[next_state_key] = neighbor_coord
+			frontier.append({
+				"coord": neighbor_coord,
+				"cost": next_cost,
+				"has_discount": next_has_discount,
+			})
+
+	if final_state_key.is_empty():
+		if not can_place_footprint(state, to_coord, unit_state.footprint_size, unit_state.unit_id, unit_state):
+			return {
+				"allowed": false,
+				"cost": 0,
+				"path": [],
+				"message": "目标区域不可放置当前单位。",
+			}
+		if get_distance(from_coord, to_coord) == 1:
+			var direct_result := evaluate_move(state, from_coord, to_coord, unit_state)
+			return {
+				"allowed": false,
+				"cost": int(direct_result.get("cost", 0)),
+				"path": [],
+				"message": String(direct_result.get("message", "该移动不可执行。")),
+			}
+		return {
+			"allowed": false,
+			"cost": 0,
+			"path": [],
+			"message": "目标地格当前不可到达。",
+		}
+
+	var final_cost := int(best_state_costs.get(final_state_key, 2147483647))
+	var anchor_path := _build_move_anchor_path(previous_state_keys, state_key_to_coord, final_state_key)
+	if final_cost > sanitized_max_move_points:
+		return {
+			"allowed": false,
+			"cost": final_cost,
+			"path": anchor_path,
+			"message": "行动点不足，无法移动。",
+		}
+	return {
+		"allowed": true,
+		"cost": final_cost,
+		"path": anchor_path,
+		"message": "可移动。",
+	}
+
+
 func evaluate_move(
 	state: BattleState,
 	from_coord: Vector2i,
@@ -354,7 +711,7 @@ func evaluate_move(
 			"message": "当前单位数据不可用。",
 		}
 
-	if not can_place_footprint(state, to_coord, move_unit.footprint_size, move_unit.unit_id):
+	if not can_place_footprint(state, to_coord, move_unit.footprint_size, move_unit.unit_id, move_unit):
 		return {
 			"allowed": false,
 			"message": "目标区域不可放置当前单位。",
@@ -366,7 +723,7 @@ func evaluate_move(
 			"message": "目标区域高度差超过 1，无法通行。",
 		}
 
-	var move_cost := get_movement_cost(state, to_coord)
+	var move_cost := get_unit_move_cost(state, move_unit, to_coord)
 	return {
 		"allowed": true,
 		"cost": move_cost,
@@ -377,14 +734,17 @@ func evaluate_move(
 func recalculate_cell(cell_state: BattleCellState) -> void:
 	if cell_state == null:
 		return
+	cell_state.base_terrain = BattleTerrainRules.normalize_terrain_id(cell_state.base_terrain)
+	if cell_state.base_terrain != TERRAIN_FLOWING_WATER:
+		cell_state.flow_direction = Vector2i.ZERO
 	cell_state.current_height = clampi(
 		int(cell_state.base_height) + int(cell_state.height_offset),
 		MIN_RUNTIME_HEIGHT,
 		MAX_RUNTIME_HEIGHT
 	)
 	cell_state.stack_layer = int(cell_state.current_height)
-	cell_state.passable = cell_state.base_terrain != TERRAIN_WATER
-	cell_state.move_cost = 2 if cell_state.base_terrain == TERRAIN_MUD or cell_state.base_terrain == TERRAIN_SPIKE else 1
+	cell_state.passable = BattleTerrainRules.get_global_passable(cell_state.base_terrain)
+	cell_state.move_cost = BattleTerrainRules.get_base_move_cost(cell_state.base_terrain)
 
 
 func recalculate_cells(cells: Dictionary) -> void:
@@ -422,7 +782,9 @@ func set_base_terrain(state: BattleState, coord: Vector2i, terrain: StringName) 
 	var cell := get_cell(state, coord)
 	if cell == null:
 		return false
-	cell.base_terrain = terrain
+	cell.base_terrain = BattleTerrainRules.normalize_terrain_id(terrain)
+	if cell.base_terrain != TERRAIN_FLOWING_WATER:
+		cell.flow_direction = Vector2i.ZERO
 	recalculate_cell(cell)
 	sync_column_from_surface_cell(state, coord)
 	_edge_service.mark_runtime_edge_faces_dirty(state)
@@ -527,16 +889,47 @@ func move_unit_force(state: BattleState, unit_state: BattleUnitState, target_coo
 
 
 func get_terrain_display_name(terrain: String) -> String:
-	match StringName(terrain):
-		TERRAIN_LAND:
-			return "陆地"
-		TERRAIN_FOREST:
-			return "森林"
-		TERRAIN_WATER:
-			return "水域"
-		TERRAIN_MUD:
-			return "泥沼"
-		TERRAIN_SPIKE:
-			return "地刺"
-		_:
-			return terrain
+	return BattleTerrainRules.get_display_name(StringName(terrain))
+
+
+func _can_unit_enter_cell(cell: BattleCellState, unit_state: BattleUnitState) -> bool:
+	if cell == null or unit_state == null:
+		return false
+	return BattleTerrainRules.can_unit_enter_terrain(cell.base_terrain, _get_unit_movement_tags(unit_state))
+
+
+func _get_unit_movement_tags(unit_state: BattleUnitState) -> Array[StringName]:
+	return unit_state.movement_tags if unit_state != null else []
+
+
+func _build_move_path_state_key(coord: Vector2i, has_discount: bool) -> String:
+	return "%d,%d:%d" % [coord.x, coord.y, 1 if has_discount else 0]
+
+
+func _pop_lowest_cost_move_frontier_entry(frontier: Array) -> Dictionary:
+	var best_index := 0
+	var best_cost := int(frontier[0].get("cost", 2147483647))
+	for index in range(1, frontier.size()):
+		var candidate_cost := int(frontier[index].get("cost", 2147483647))
+		if candidate_cost < best_cost:
+			best_index = index
+			best_cost = candidate_cost
+	var best_entry: Dictionary = frontier[best_index]
+	frontier.remove_at(best_index)
+	return best_entry
+
+
+func _build_move_anchor_path(
+	previous_state_keys: Dictionary,
+	state_key_to_coord: Dictionary,
+	final_state_key: String
+) -> Array[Vector2i]:
+	var reversed_path: Array[Vector2i] = []
+	var current_state_key := final_state_key
+	while not current_state_key.is_empty():
+		var coord_variant = state_key_to_coord.get(current_state_key, Vector2i(-1, -1))
+		if coord_variant is Vector2i:
+			reversed_path.append(coord_variant)
+		current_state_key = String(previous_state_keys.get(current_state_key, ""))
+	reversed_path.reverse()
+	return reversed_path

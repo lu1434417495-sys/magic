@@ -1,0 +1,778 @@
+{
+  "branchName": "",
+  "maxAttemptsPerStory": 3,
+  "commitPrefix": "chore(ralph):",
+  "userStories": [
+    {
+      "id": "PVS_01A",
+      "title": "把通用 forge interaction_script_id 接到 SettlementForgeService",
+      "status": "in_progress",
+      "acceptanceCriteria": [
+        "非 `service_master_reforge` 的 forge interaction_script_id 也能进入 forge handler",
+        "forge 路由仍通过 `GameRuntimeSettlementCommandHandler`，不把规则回塞到 UI"
+      ],
+      "notes": [
+        "Owner：CU-06 / CU-08。"
+      ],
+      "attemptCount": 3,
+      "lastAttemptAt": "2026-04-17T01:15:09+08:00",
+      "lastRunId": "20260417-011509-PVS_01A",
+      "startedAt": "2026-04-17T01:10:17+08:00",
+      "lastFailure": "Codex exec failed. stderr: E:\\game\\magic\\.ralph\\runs\\20260417-011044-PVS_01A.stderr.log",
+      "lastChecksRun": "",
+      "lastLearnings": ""
+    },
+    {
+      "id": "PVS_01B",
+      "title": "让通用 forge modal 进入 snapshot 与 text snapshot",
+      "status": "done",
+      "acceptanceCriteria": [
+        "generic forge modal 的 window_data 能进入 runtime snapshot",
+        "text snapshot 能渲染通用 forge 条目而不只覆盖 master_reforge"
+      ],
+      "notes": [
+        "Owner：CU-06 / CU-21。"
+      ],
+      "attemptCount": 2,
+      "lastAttemptAt": "2026-04-17T01:26:16+08:00",
+      "lastRunId": "20260417-012616-PVS_01B",
+      "startedAt": "2026-04-17T01:16:31+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/runtime/run_game_runtime_snapshot_builder_regression.gd` and `godot --headless --script tests/text_runtime/run_text_command_regression.gd`.",
+      "lastLearnings": "Generic forge UI state can currently travel through shared shop-like context even though headless ownership belongs to the forge modal, so snapshot code needs to be panel-kind aware instead of assuming only dedicated `master_reforge` forge context. Runtime ownership/read sets did not change, so `docs/design/project_context_units.md` remains valid as-is.",
+      "completedAt": "2026-04-17T01:31:19+08:00"
+    },
+    {
+      "id": "PVS_01C",
+      "title": "新增首批通用 forge 配方资源与设施标签约束",
+      "status": "open",
+      "acceptanceCriteria": [
+        "至少新增 1 条非 `master_reforge` 的正式 `RecipeDef` 资源",
+        "`run_item_recipe_schema_regression` 可校验新配方的 item 引用和 facility tag"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-13 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_01D",
+      "title": "跑通通用 forge 配方的据点端到端执行",
+      "status": "open",
+      "acceptanceCriteria": [
+        "据点执行通用 forge 配方会原子扣料并把成品写入 shared warehouse",
+        "forge 成功后的反馈、日志和持久化回写有正式回归覆盖"
+      ],
+      "notes": [
+        "验证入口优先用 world_map runtime regression。"
+      ]
+    },
+    {
+      "id": "PVS_02A",
+      "title": "落地 contract board 的正式 modal 开关链路",
+      "status": "open",
+      "acceptanceCriteria": [
+        "点击 `service_contract_board` 会打开任务板 modal",
+        "关闭任务板后能安全返回 settlement modal，modal 互斥保持稳定"
+      ],
+      "notes": [
+        "Owner：CU-06 / CU-08。"
+      ]
+    },
+    {
+      "id": "PVS_02B",
+      "title": "让 contract board 按 provider_interaction_id 过滤任务列表",
+      "status": "open",
+      "acceptanceCriteria": [
+        "任务板只展示 `provider_interaction_id` 匹配当前服务的 `QuestDef`",
+        "runtime snapshot 和 text snapshot 能读取当前任务板列表"
+      ],
+      "notes": [
+        "Owner：CU-11 / CU-21。"
+      ]
+    },
+    {
+      "id": "PVS_03A",
+      "title": "支持从 contract board 正式接取任务",
+      "status": "open",
+      "acceptanceCriteria": [
+        "任务板动作会调用正式 quest accept 命令并写入 `PartyState.active_quests`",
+        "重复接取、已完成、repeatable 三类情况都有明确反馈"
+      ],
+      "notes": [
+        "Owner：CU-06 / CU-11。"
+      ]
+    },
+    {
+      "id": "PVS_03B",
+      "title": "让 bounty registry 复用正式任务板表面",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`service_bounty_registry` 可打开与 contract board 共用的任务板表面",
+        "bounty 列表能按自己的 provider id 过滤，不污染 contract board 列表"
+      ],
+      "notes": [
+        "Owner：CU-06 / CU-08 / CU-11。"
+      ]
+    },
+    {
+      "id": "PVS_03C",
+      "title": "为 board 接取路径补 text/headless 回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "text/headless 场景可验证 `open board -> accept quest -> snapshot changed`",
+        "现有最小 `quest accept` 命令回归继续通过"
+      ],
+      "notes": [
+        "Owner：CU-21 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_04A",
+      "title": "把 quest completion 与 reward claim 拆成正式状态",
+      "status": "open",
+      "acceptanceCriteria": [
+        "任务完成后存在可识别的 claimable reward 状态，而不只是进入 `completed_quest_ids`",
+        "runtime 和 snapshot 能区分 active、completed、claimable 三种阶段"
+      ],
+      "notes": [
+        "Owner：CU-11 / CU-06 / CU-21。"
+      ]
+    },
+    {
+      "id": "PVS_04B",
+      "title": "实现 quest gold reward materializer",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`QuestDef.reward_entries` 的 gold 条目可在 claim 时转成 `PartyState.gold` 变更",
+        "gold reward 的 claim 结果有稳定 runtime regression"
+      ],
+      "notes": [
+        "Owner：CU-11 / CU-12。"
+      ]
+    },
+    {
+      "id": "PVS_04C",
+      "title": "实现 quest item reward materializer",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`QuestDef.reward_entries` 的 item 条目可在 claim 时写入 shared warehouse",
+        "容量不足时返回正式失败或 overflow 反馈，不能静默吞奖励"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-11。"
+      ]
+    },
+    {
+      "id": "PVS_04D",
+      "title": "实现 quest pending_character_reward materializer",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`QuestDef.reward_entries` 的成长型奖励会进入 `pending_character_rewards`",
+        "claim reward 后仍走现有 reward flow，不新增平行奖励容器"
+      ],
+      "notes": [
+        "Owner：CU-12 / CU-06。"
+      ]
+    },
+    {
+      "id": "PVS_05A",
+      "title": "为 submit_item 目标增加正式仓库扣除入口",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`submit_item` 目标能从 shared warehouse 扣除指定 item 与数量",
+        "扣除失败时不会推进 quest objective，也不会吞库存"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-11。"
+      ]
+    },
+    {
+      "id": "PVS_05B",
+      "title": "把 submit_item 扣除结果接到 objective progress 与失败回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "交付成功后会推进对应 objective 并按需要触发 completion/claimable 状态",
+        "数量不足、错误物品两条失败路径有明确回归覆盖"
+      ],
+      "notes": [
+        "优先补 progression/runtime regression。"
+      ]
+    },
+    {
+      "id": "PVS_06A",
+      "title": "为 research 服务分配正式 interaction_script_id 与 settlement 路由",
+      "status": "open",
+      "acceptanceCriteria": [
+        "world config 中的 research 服务能走正式 action dispatch，而不是只靠 `interaction_type` 占位",
+        "research 服务不会继续留在 `UNIMPLEMENTED_INTERACTION_IDS` 的伪可用状态"
+      ],
+      "notes": [
+        "Owner：CU-04 / CU-06。"
+      ]
+    },
+    {
+      "id": "PVS_06B",
+      "title": "实现 research 奖励构造器",
+      "status": "open",
+      "acceptanceCriteria": [
+        "research 服务可构造 skill 或 knowledge 型 `PendingCharacterReward`",
+        "research 奖励来源字段与现有 reward queue 命名保持一致"
+      ],
+      "notes": [
+        "Owner：CU-12。"
+      ]
+    },
+    {
+      "id": "PVS_06C",
+      "title": "为 research 服务补 reward flow 与 text regression",
+      "status": "open",
+      "acceptanceCriteria": [
+        "research 服务可在据点、snapshot、text snapshot 中验证奖励呈现时机",
+        "reward flow regression 覆盖 research 生成的 pending reward"
+      ],
+      "notes": [
+        "Owner：CU-06 / CU-21 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_07A",
+      "title": "补齐第一批单手武器 seed 内容",
+      "status": "open",
+      "acceptanceCriteria": [
+        "单手武器从 1 类扩到至少 2 类",
+        "新增武器补齐价格、标签、equipment_type 与槽位元数据"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_07B",
+      "title": "补齐第二批单手武器 seed 内容",
+      "status": "open",
+      "acceptanceCriteria": [
+        "单手武器从至少 2 类扩到至少 4 类",
+        "新增武器能被商店、掉落或配方正式引用"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_07C",
+      "title": "补齐头部护具与新装备元数据校验",
+      "status": "open",
+      "acceptanceCriteria": [
+        "正式装备 seed 至少补出 head 槽装备",
+        "新增装备通过 equipment/schema regression，不破坏现有装备快照"
+      ],
+      "notes": [
+        "当前 body 与 accessory 已有正式 seed。"
+      ]
+    },
+    {
+      "id": "PVS_08A",
+      "title": "补齐消耗品 seed 到最小可玩集合",
+      "status": "open",
+      "acceptanceCriteria": [
+        "消耗品从 1 类扩到至少 4 类",
+        "新增消耗品能进入商店与仓库 schema 回归"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_08B",
+      "title": "补齐第一批材料 seed 内容",
+      "status": "open",
+      "acceptanceCriteria": [
+        "材料从 1 类扩到至少 3 类",
+        "新增材料有稳定 `tags` / `crafting_groups` 元数据"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-13。"
+      ]
+    },
+    {
+      "id": "PVS_08C",
+      "title": "补齐第二批材料 seed 内容",
+      "status": "open",
+      "acceptanceCriteria": [
+        "材料从至少 3 类扩到至少 6 类",
+        "新增材料可被正式配方或掉落表引用"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-13。"
+      ]
+    },
+    {
+      "id": "PVS_08D",
+      "title": "新增任务物品 seed 并补交叉引用回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "正式任务物品至少达到 3 类",
+        "任务物品可被 quest condition、warehouse schema 与 text snapshot 共同引用"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-11 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_09A",
+      "title": "新增前排承伤/近战冲锋敌人模板",
+      "status": "open",
+      "acceptanceCriteria": [
+        "新增模板后正式 enemy templates 总数达到至少 6",
+        "新增模板覆盖前排承伤或近战冲锋职责，不回落到旧默认模板"
+      ],
+      "notes": [
+        "Owner：CU-20 / CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_09B",
+      "title": "新增远程压制/治疗控制敌人模板",
+      "status": "open",
+      "acceptanceCriteria": [
+        "新增模板后正式 enemy templates 总数达到至少 8",
+        "新增模板覆盖远程压制与治疗控制职责"
+      ],
+      "notes": [
+        "Owner：CU-20 / CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_09C",
+      "title": "新增第二个正式 encounter roster 并接到 world encounter 映射",
+      "status": "open",
+      "acceptanceCriteria": [
+        "除 `wolf_den` 外至少存在 1 个正式 roster",
+        "至少一类 world encounter 可显式命中新 roster"
+      ],
+      "notes": [
+        "Owner：CU-17 / CU-20 / CU-04。"
+      ]
+    },
+    {
+      "id": "PVS_10A",
+      "title": "实现 `narrow_assault` 地形 profile 生成器",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`BattleTerrainGenerator` 支持 `narrow_assault` profile",
+        "profile 生成结果有明确狭道/突破站位意图，并保持可通过"
+      ],
+      "notes": [
+        "Owner：CU-17。"
+      ]
+    },
+    {
+      "id": "PVS_10B",
+      "title": "把 `narrow_assault` 接到测试入口与 board regression",
+      "status": "open",
+      "acceptanceCriteria": [
+        "至少一个测试入口或 world hook 能显式使用 `narrow_assault`",
+        "battle board regression 覆盖其布局、出生点与 prop 契约"
+      ],
+      "notes": [
+        "Owner：CU-17 / CU-18 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_11A",
+      "title": "实现 `holdout_push` 地形 profile 生成器",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`BattleTerrainGenerator` 支持 `holdout_push` profile",
+        "profile 生成结果有明确守点/推进站位意图"
+      ],
+      "notes": [
+        "Owner：CU-17。"
+      ]
+    },
+    {
+      "id": "PVS_11B",
+      "title": "把 `holdout_push` 接到测试入口与 board regression",
+      "status": "open",
+      "acceptanceCriteria": [
+        "至少一个测试入口或 world hook 能显式使用 `holdout_push`",
+        "battle board regression 覆盖其布局、部署点与核心 prop 契约"
+      ],
+      "notes": [
+        "Owner：CU-17 / CU-18 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_12A",
+      "title": "抽出 BattleHitResolver 并锁定现有命中口径",
+      "status": "open",
+      "acceptanceCriteria": [
+        "命中判定有单一 `BattleHitResolver` owner",
+        "迁移前后现有 smoke 与 AI 回归的命中结果保持一致"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_12B",
+      "title": "让 preview、HUD 与 runtime 共用 BattleHitResolver",
+      "status": "open",
+      "acceptanceCriteria": [
+        "preview/HUD 不再各自维护独立命中口径",
+        "battle UI 与 runtime parity regression 能覆盖 resolver 共用结果"
+      ],
+      "notes": [
+        "Owner：CU-16 / CU-18。"
+      ]
+    },
+    {
+      "id": "PVS_13A",
+      "title": "把命中公式切到 BAB + 负 AC + d20",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`BattleHitResolver` 使用 BAB + 负 AC + d20 正式结算",
+        "battle log 与 preview 读取同一套新公式结果"
+      ],
+      "notes": [
+        "以 `PVS_12A` 为前置。"
+      ]
+    },
+    {
+      "id": "PVS_13B",
+      "title": "为新命中模型补 natural 1/20 与 seeded regression",
+      "status": "open",
+      "acceptanceCriteria": [
+        "natural 1 / natural 20 语义在 resolver 中显式固定",
+        "新增 deterministic regression 验证 seeded roll 与边界命中"
+      ],
+      "notes": [
+        "Owner：CU-16 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_14A",
+      "title": "实现 stamina_cost 的正式扣费路径",
+      "status": "open",
+      "acceptanceCriteria": [
+        "技能释放会正式扣除 stamina",
+        "battle state 与 snapshot 能稳定暴露当前 stamina"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_14B",
+      "title": "实现 cooldown_tu 的正式递减路径",
+      "status": "open",
+      "acceptanceCriteria": [
+        "技能施放后会写入 cooldown 状态",
+        "TU 推进或回合切换会按统一规则减少 cooldown"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_14C",
+      "title": "为 stamina/cooldown 补选择层与回归约束",
+      "status": "open",
+      "acceptanceCriteria": [
+        "selection gating、UI 提示和 AI 判定都能识别 stamina/cooldown 不可施放",
+        "text/headless 回归覆盖至少 1 条资源不足和 1 条 cooldown 未结束路径"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-18 / CU-21。"
+      ]
+    },
+    {
+      "id": "PVS_15A",
+      "title": "为 Aura 建立正式状态字段与 snapshot 表面",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`BattleUnitState`、runtime snapshot 和 text snapshot 能正式暴露 Aura",
+        "`aura_cost` 不再只是悬空 schema 字段"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16 / CU-21。"
+      ]
+    },
+    {
+      "id": "PVS_15B",
+      "title": "实现 Aura 消耗、gating 与回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "Aura 技能会正式扣 Aura",
+        "Aura 不足时 selection/runtime/AI 都会返回一致失败"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_16A",
+      "title": "引入状态效果语义表",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`status_effects` 有正式 semantic table 定义 stack、duration 与 tick 口径",
+        "`burning`、`slow`、`staggered` 至少接入表内定义"
+      ],
+      "notes": [
+        "Owner：CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_16B",
+      "title": "把状态持续时间管理接到 battle runtime 并补回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "状态的施加、续时、清除和 tick 走统一时序",
+        "battle smoke regression 覆盖状态持续时间与序列化"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_17A",
+      "title": "补齐 line 与 cone 范围图形收集器",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`combat_profile` 的 `line` 与 `cone` 都有正式 target collection",
+        "收集结果可被 selection 与 execute 共同复用"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_17B",
+      "title": "补齐 radius 与 self 范围图形收集器",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`combat_profile` 的 `radius` 与 `self` 都有正式 target collection",
+        "ground/unit/self 三类模式的最小契约保持清晰"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-16。"
+      ]
+    },
+    {
+      "id": "PVS_17C",
+      "title": "为范围图形补 selection/execute shared regression",
+      "status": "open",
+      "acceptanceCriteria": [
+        "selection、高亮、合法性校验和实际结算使用同一范围结果",
+        "battle UI 或 skill protocol regression 覆盖至少 1 个非单体技能"
+      ],
+      "notes": [
+        "Owner：CU-18 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_18A",
+      "title": "建立 AI 技能评分上下文",
+      "status": "open",
+      "acceptanceCriteria": [
+        "AI 评分至少能读取命中收益、目标数量、资源消耗与站位目标",
+        "`BattleAiService` 或 sidecar 有清晰的 score input owner"
+      ],
+      "notes": [
+        "Owner：CU-16 / CU-20。"
+      ]
+    },
+    {
+      "id": "PVS_18B",
+      "title": "让敌方按评分选择技能并补关键 brain 回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "AI 不再只按 action 顺序选技能",
+        "AI regression 覆盖 `melee_aggressor` 与 `ranged_controller` 的关键分支"
+      ],
+      "notes": [
+        "Owner：CU-16 / CU-20 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_19A",
+      "title": "为 enemy 或 roster 引入正式掉落 schema",
+      "status": "open",
+      "acceptanceCriteria": [
+        "至少一种 enemy/roster 有正式 drop profile 或等价 schema",
+        "掉落身份命名稳定，可供 battle resolution 直接消费"
+      ],
+      "notes": [
+        "Owner：CU-17 / CU-20。"
+      ]
+    },
+    {
+      "id": "PVS_19B",
+      "title": "在 battle resolution 中正式填充 loot_entries",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`_build_battle_resolution_result()` 会生成 canonical `loot_entries`",
+        "`BattleResolutionResult` regression 覆盖 loot round-trip 稳定性"
+      ],
+      "notes": [
+        "Owner：CU-15 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_20A",
+      "title": "把战后 loot 正式提交到 shared warehouse",
+      "status": "open",
+      "acceptanceCriteria": [
+        "battle victory 后 loot 会走正式入仓路径",
+        "warehouse mutation 不绕过 `PartyWarehouseService`"
+      ],
+      "notes": [
+        "Owner：CU-06 / CU-10 / CU-15。"
+      ]
+    },
+    {
+      "id": "PVS_20B",
+      "title": "实现 overflow_entries 与掉落溢出反馈",
+      "status": "open",
+      "acceptanceCriteria": [
+        "容量不足时 battle resolution 会生成 `overflow_entries`",
+        "runtime/message/snapshot 会显式提示未装下的掉落"
+      ],
+      "notes": [
+        "Owner：CU-10 / CU-15 / CU-21。"
+      ]
+    },
+    {
+      "id": "PVS_21A",
+      "title": "让 text snapshot 渲染 loot 与 overflow 结果",
+      "status": "open",
+      "acceptanceCriteria": [
+        "text snapshot 可见 loot 与 overflow 摘要",
+        "无 loot 场景不会破坏既有 snapshot 顺序"
+      ],
+      "notes": [
+        "Owner：CU-21。"
+      ]
+    },
+    {
+      "id": "PVS_21B",
+      "title": "为 loot/overflow 增加 text command 与 expect 回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "text command 场景可断言 loot 入仓与 overflow",
+        "headless 回归串起 `battle -> loot -> snapshot` 最小闭环"
+      ],
+      "notes": [
+        "Owner：CU-21 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_22A",
+      "title": "建立 profession resource schema 与 registry scan",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`data/configs/professions/` 下的 profession resources 可被扫描与校验",
+        "registry failure 会报告缺失 ID、重复 ID 与非法引用"
+      ],
+      "notes": [
+        "Owner：CU-13 / CU-14。"
+      ]
+    },
+    {
+      "id": "PVS_22B",
+      "title": "把正式 profession seed 迁出 ProgressionContentRegistry",
+      "status": "open",
+      "acceptanceCriteria": [
+        "正式 profession seed 由资源提供，不再硬编码在 `ProgressionContentRegistry`",
+        "progression regression 在迁移后继续通过"
+      ],
+      "notes": [
+        "Owner：CU-13 / CU-14 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_23A",
+      "title": "建立 skill resource schema、registry scan 与兼容桥",
+      "status": "open",
+      "acceptanceCriteria": [
+        "`data/configs/skills/` 下的 skill resources 可被扫描与校验",
+        "在 seed 未全迁完前，registry 仍有最小兼容桥接"
+      ],
+      "notes": [
+        "Owner：CU-13 / CU-14。"
+      ]
+    },
+    {
+      "id": "PVS_23B",
+      "title": "迁移 warrior 与 archer 正式技能 seed",
+      "status": "open",
+      "acceptanceCriteria": [
+        "warrior / archer 正式技能不再依赖 spec 文件作为唯一真相源",
+        "battle 与 progression regressions 在迁移后继续通过"
+      ],
+      "notes": [
+        "Owner：CU-13 / CU-14 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_23C",
+      "title": "迁移 mage 技能 seed 并固定 cast_variant 兼容回归",
+      "status": "open",
+      "acceptanceCriteria": [
+        "mage 正式技能迁到 resources 后，cast_variant 仍可被稳定加载",
+        "相关 regression 覆盖 root-level cast_variant 的兼容语义"
+      ],
+      "notes": [
+        "Owner：CU-13 / CU-14 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_24A",
+      "title": "建立 enemy resource schema 与 registry scan",
+      "status": "open",
+      "acceptanceCriteria": [
+        "enemy template、brain、roster 可通过资源目录扫描和校验",
+        "registry 能报告缺失模板、缺失 brain 与非法 roster 引用"
+      ],
+      "notes": [
+        "Owner：CU-20 / CU-17。"
+      ]
+    },
+    {
+      "id": "PVS_24B",
+      "title": "把 enemy template、brain 与 roster seed 迁出 EnemyContentRegistry",
+      "status": "open",
+      "acceptanceCriteria": [
+        "正式敌方 seed 由资源提供，不再硬编码在 `enemy_content_registry.gd`",
+        "wild encounter 与 battle AI regression 在迁移后继续通过"
+      ],
+      "notes": [
+        "Owner：CU-20 / CU-17 / CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_25A",
+      "title": "建立统一资源 validation runner 并覆盖 missing/duplicate/invalid",
+      "status": "open",
+      "acceptanceCriteria": [
+        "profession、skill、enemy、item、recipe、quest 至少覆盖 missing id、duplicate id、invalid reference 三类错误",
+        "validation runner 输出可直接用于回归与排障"
+      ],
+      "notes": [
+        "Owner：CU-19。"
+      ]
+    },
+    {
+      "id": "PVS_25B",
+      "title": "把 validation 输出接到 headless regression 面",
+      "status": "open",
+      "acceptanceCriteria": [
+        "资源校验失败可在 headless/test output 中稳定暴露",
+        "validation regression 不依赖人工读取随机日志定位"
+      ],
+      "notes": [
+        "Owner：CU-21 / CU-19。"
+      ]
+    }
+  ]
+}

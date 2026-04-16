@@ -15,17 +15,33 @@ const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progressio
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
 const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
+const RECIPE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const SKILL_BOOK_ITEM_FACTORY_SCRIPT = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
 const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/enemy_content_registry.gd")
 const PROGRESSION_SERIALIZATION_SCRIPT = preload("res://scripts/systems/progression_serialization.gd")
+const SAVE_SERIALIZER_SCRIPT = preload("res://scripts/systems/save_serializer.gd")
+const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/game_log_service.gd")
 const WORLD_PRESET_REGISTRY_SCRIPT = preload("res://scripts/utils/world_preset_registry.gd")
 
 const SAVE_DIRECTORY := "user://saves"
 const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
-const LEGACY_SAVE_PATH := "user://world_map_state.dat"
 const SAVE_VERSION := 5
 const SAVE_INDEX_VERSION := 1
 const MAX_ACTIVE_MEMBER_COUNT := 4
+const RANDOM_START_SKILL_TIER_BASIC: StringName = &"basic"
+const RANDOM_START_SKILL_TIER_INTERMEDIATE: StringName = &"intermediate"
+const RANDOM_START_SKILL_TIER_ADVANCED: StringName = &"advanced"
+const RANDOM_START_SKILL_TIER_ULTIMATE: StringName = &"ultimate"
+const RANDOM_START_SKILL_LEVEL_BY_TIER := {
+	RANDOM_START_SKILL_TIER_BASIC: 3,
+	RANDOM_START_SKILL_TIER_INTERMEDIATE: 2,
+	RANDOM_START_SKILL_TIER_ADVANCED: 1,
+	RANDOM_START_SKILL_TIER_ULTIMATE: 0,
+}
+const RANDOM_START_SKILL_KEYWORDS_ULTIMATE := ["终极", "大招"]
+const RANDOM_START_SKILL_KEYWORDS_ADVANCED := ["高阶", "招牌", "大型召唤"]
+const RANDOM_START_SKILL_KEYWORDS_INTERMEDIATE := ["中段", "中后期"]
+const RANDOM_START_SKILL_KEYWORDS_BASIC := ["基础", "低耗", "起手", "最小保障"]
 
 ## 字段说明：记录激活存档唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _active_save_id := ""
@@ -56,6 +72,8 @@ var _battle_save_dirty := false
 var _progression_content_registry = PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：记录物品内容注册表，会参与运行时状态流转、系统协作和存档恢复。
 var _item_content_registry = ITEM_CONTENT_REGISTRY_SCRIPT.new()
+## 字段说明：记录配方内容注册表，会参与运行时状态流转、系统协作和存档恢复。
+var _recipe_content_registry = RECIPE_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：记录敌方内容注册表，会参与运行时状态流转、系统协作和存档恢复。
 var _enemy_content_registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：记录技能书物品工厂，会参与运行时状态流转、系统协作和存档恢复。
@@ -66,21 +84,38 @@ var _skill_defs: Dictionary = {}
 var _profession_defs: Dictionary = {}
 ## 字段说明：缓存成就定义集合字典，集中保存可按键查询的运行时数据。
 var _achievement_defs: Dictionary = {}
+## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
+var _quest_defs: Dictionary = {}
 ## 字段说明：缓存物品定义集合字典，集中保存可按键查询的运行时数据。
 var _item_defs: Dictionary = {}
+## 字段说明：缓存配方定义集合字典，集中保存可按键查询的运行时数据。
+var _recipe_defs: Dictionary = {}
 ## 字段说明：缓存敌方模板集合字典，集中保存可按键查询的运行时数据。
 var _enemy_templates: Dictionary = {}
 ## 字段说明：缓存敌方 AI brain 集合字典，集中保存可按键查询的运行时数据。
 var _enemy_ai_brains: Dictionary = {}
 ## 字段说明：缓存野外遭遇编队配置集合字典，集中保存可按键查询的运行时数据。
 var _wild_encounter_rosters: Dictionary = {}
+var _save_serializer = SAVE_SERIALIZER_SCRIPT.new()
+var _log_service = GAME_LOG_SERVICE_SCRIPT.new()
 
 
 func _init() -> void:
-	_report_progression_content_errors()
-	_report_item_content_errors()
+	_save_serializer.setup(
+		PROGRESSION_SERIALIZATION_SCRIPT,
+		WORLD_PRESET_REGISTRY_SCRIPT,
+		PARTY_STATE_SCRIPT,
+		ENCOUNTER_ANCHOR_DATA_SCRIPT,
+		SAVE_VERSION,
+		SAVE_INDEX_VERSION,
+		MAX_ACTIVE_MEMBER_COUNT
+	)
 	_refresh_progression_content()
 	_refresh_item_content()
+	_refresh_recipe_content()
+	_report_progression_content_errors()
+	_report_item_content_errors()
+	_report_recipe_content_errors()
 	_refresh_enemy_content()
 
 
@@ -106,7 +141,10 @@ func create_new_save(
 ) -> int:
 	_reset_runtime_state()
 	if generation_config_path.is_empty():
-		push_error("GameSession requires a generation config path.")
+		_push_session_error(
+			"session.save.create.invalid_generation_config",
+			"GameSession requires a generation config path."
+		)
 		return ERR_INVALID_PARAMETER
 
 	var generation_config = _load_generation_config(generation_config_path)
@@ -120,22 +158,31 @@ func create_new_save(
 	var timestamp := int(Time.get_unix_time_from_system())
 	var save_id := _generate_unique_save_id(timestamp)
 	if save_id.is_empty():
-		push_error("GameSession failed to allocate a unique save id.")
+		_push_session_error("session.save.create.allocate_id_failed", "GameSession failed to allocate a unique save id.")
 		_reset_runtime_state()
 		return ERR_CANT_CREATE
 
 	_active_save_id = save_id
 	_active_save_path = _build_save_file_path(save_id)
+	var resolved_preset_name := preset_name if not preset_name.is_empty() else WORLD_PRESET_REGISTRY_SCRIPT.get_fallback_preset_name(generation_config_path)
 	_active_save_meta = _build_save_meta(
 		save_id,
 		generation_config_path,
 		preset_id,
-		preset_name,
+		resolved_preset_name,
 		generation_config.get_world_size_cells(),
 		timestamp,
 		timestamp
 	)
-	return _persist_game_state()
+	var persist_error := _persist_game_state()
+	if persist_error == OK:
+		_log_session_info("session.save.create.ok", "已创建新存档。", {
+			"save_id": _active_save_id,
+			"generation_config_path": generation_config_path,
+			"preset_id": String(preset_id),
+			"preset_name": preset_name,
+		})
+	return persist_error
 
 
 func load_bundled_save(
@@ -159,7 +206,14 @@ func load_bundled_save(
 
 	var generation_config_path := String(payload.get("generation_config_path", ""))
 	if generation_config_path.is_empty():
-		push_error("Bundled save template %s is missing generation_config_path." % template_path)
+		_push_session_error(
+			"session.save.bundle.missing_generation_config",
+			"Bundled save template %s is missing generation_config_path." % template_path,
+			{
+				"template_path": template_path,
+				"save_id": save_id,
+			}
+		)
 		return ERR_INVALID_DATA
 
 	var generation_config = _load_generation_config(generation_config_path)
@@ -167,11 +221,12 @@ func load_bundled_save(
 		return ERR_CANT_OPEN
 
 	var timestamp := int(Time.get_unix_time_from_system())
+	var resolved_preset_name := world_preset_name if not world_preset_name.is_empty() else WORLD_PRESET_REGISTRY_SCRIPT.get_fallback_preset_name(generation_config_path)
 	var save_meta := _build_save_meta(
 		save_id,
 		generation_config_path,
 		world_preset_id,
-		world_preset_name,
+		resolved_preset_name,
 		generation_config.get_world_size_cells(),
 		timestamp,
 		timestamp
@@ -184,7 +239,14 @@ func load_bundled_save(
 	if load_error != OK:
 		return load_error
 
-	return _persist_game_state()
+	var persist_error := _persist_game_state()
+	if persist_error == OK:
+		_log_session_info("session.save.bundle.ok", "已加载并落盘内置测试存档。", {
+			"template_path": template_path,
+			"save_id": save_id,
+			"generation_config_path": generation_config_path,
+		})
+	return persist_error
 
 
 func list_save_slots() -> Array[Dictionary]:
@@ -197,7 +259,9 @@ func load_save(save_id: String) -> int:
 
 	var save_meta := _get_save_meta_by_id(save_id)
 	if save_meta.is_empty():
-		push_error("GameSession could not find save slot %s." % save_id)
+		_push_session_error("session.save.load.missing_slot", "GameSession could not find save slot %s." % save_id, {
+			"save_id": save_id,
+		})
 		return ERR_DOES_NOT_EXIST
 
 	var save_path := _build_save_file_path(save_id)
@@ -208,19 +272,32 @@ func load_save(save_id: String) -> int:
 
 	var payload = read_result.get("payload", {})
 	if typeof(payload) != TYPE_DICTIONARY:
-		push_error("GameSession loaded an invalid payload from %s." % save_path)
+		_push_session_error("session.save.load.invalid_payload", "GameSession loaded an invalid payload from %s." % save_path, {
+			"save_id": save_id,
+			"save_path": save_path,
+		})
 		return ERR_INVALID_DATA
 
 	var generation_config_path := String(payload.get("generation_config_path", save_meta.get("generation_config_path", "")))
 	if generation_config_path.is_empty():
-		push_error("Save slot %s is missing generation_config_path." % save_id)
+		_push_session_error("session.save.load.missing_generation_config", "Save slot %s is missing generation_config_path." % save_id, {
+			"save_id": save_id,
+			"save_path": save_path,
+		})
 		return ERR_INVALID_DATA
 
 	var generation_config = _load_generation_config(generation_config_path)
 	if generation_config == null:
 		return ERR_CANT_OPEN
 
-	return _load_v5_payload(payload, generation_config_path, generation_config, save_meta)
+	var load_error := _load_v5_payload(payload, generation_config_path, generation_config, save_meta)
+	if load_error == OK:
+		_log_session_info("session.save.load.ok", "已加载存档。", {
+			"save_id": save_id,
+			"save_path": save_path,
+			"generation_config_path": generation_config_path,
+		})
+	return load_error
 
 
 func has_active_world() -> bool:
@@ -237,6 +314,26 @@ func get_active_save_path() -> String:
 
 func get_active_save_meta() -> Dictionary:
 	return _active_save_meta.duplicate(true)
+
+
+func get_log_service():
+	return _log_service
+
+
+func get_recent_logs(limit: int = 50) -> Array[Dictionary]:
+	return _log_service.get_recent_entries(limit) if _log_service != null else []
+
+
+func get_log_snapshot(limit: int = 50) -> Dictionary:
+	return _log_service.build_snapshot(limit) if _log_service != null else {}
+
+
+func get_active_log_file_path() -> String:
+	return _log_service.get_log_path() if _log_service != null else ""
+
+
+func log_event(level: String, domain: String, event_id: String, message: String, context: Dictionary = {}) -> Dictionary:
+	return _log_service.append_entry(level, domain, event_id, message, context) if _log_service != null else {}
 
 
 func get_generation_config():
@@ -323,8 +420,16 @@ func get_achievement_defs() -> Dictionary:
 	return _achievement_defs
 
 
+func get_quest_defs() -> Dictionary:
+	return _quest_defs
+
+
 func get_item_defs() -> Dictionary:
 	return _item_defs
+
+
+func get_recipe_defs() -> Dictionary:
+	return _recipe_defs
 
 
 func get_enemy_templates() -> Dictionary:
@@ -374,9 +479,7 @@ func clear_persisted_game() -> int:
 	var remove_error := _remove_directory_recursive(SAVE_DIRECTORY)
 	if remove_error != OK:
 		return remove_error
-
-	if FileAccess.file_exists(LEGACY_SAVE_PATH):
-		return DirAccess.remove_absolute(ProjectSettings.globalize_path(LEGACY_SAVE_PATH))
+	_log_session_info("session.save.clear.ok", "已清理存档目录。")
 	return OK
 
 
@@ -418,7 +521,7 @@ func _persist_game_state() -> int:
 	if not _has_active_world:
 		return ERR_UNCONFIGURED
 	if _active_save_id.is_empty() or _active_save_path.is_empty():
-		push_error("GameSession has world state but no active save slot.")
+		_push_session_error("session.save.persist.missing_slot", "GameSession has world state but no active save slot.")
 		return ERR_UNCONFIGURED
 
 	var ensure_dir_error := _ensure_save_directory()
@@ -439,7 +542,11 @@ func _persist_game_state() -> int:
 	var save_file := FileAccess.open(_active_save_path, FileAccess.WRITE)
 	if save_file == null:
 		var open_error := FileAccess.get_open_error()
-		push_error("Failed to open save file %s. Error: %s" % [_active_save_path, open_error])
+		_push_session_error("session.save.persist.open_failed", "Failed to open save file %s. Error: %s" % [_active_save_path, open_error], {
+			"save_id": _active_save_id,
+			"save_path": _active_save_path,
+			"open_error": open_error,
+		})
 		return open_error
 
 	save_file.store_var(_build_save_payload(now), false)
@@ -459,78 +566,43 @@ func _load_v5_payload(
 	generation_config,
 	save_meta: Dictionary
 ) -> int:
-	var save_version := int(payload.get("version", -1))
-	if save_version != SAVE_VERSION:
-		return ERR_INVALID_DATA
-
-	var world_state_data = payload.get("world_state", {})
-	if typeof(world_state_data) != TYPE_DICTIONARY:
-		return ERR_INVALID_DATA
-	var world_state: Dictionary = world_state_data
-
-	var world_data_raw = world_state.get("world_data", {})
-	if typeof(world_data_raw) != TYPE_DICTIONARY:
-		return ERR_INVALID_DATA
-	var world_data = _normalize_world_data(world_data_raw)
-	if world_data.is_empty():
-		return ERR_INVALID_DATA
-
-	var payload_save_id := String(payload.get("save_id", save_meta.get("save_id", "")))
-	if payload_save_id.is_empty():
-		return ERR_INVALID_DATA
-
-	var slot_meta_raw = payload.get("save_slot_meta", {})
-	var merged_meta: Dictionary = save_meta.duplicate(true)
-	if typeof(slot_meta_raw) == TYPE_DICTIONARY:
-		for key in slot_meta_raw.keys():
-			merged_meta[key] = slot_meta_raw[key]
-
-	merged_meta["save_id"] = payload_save_id
-	merged_meta["generation_config_path"] = generation_config_path
-	if not merged_meta.has("world_size_cells") or _read_vector2i(merged_meta.get("world_size_cells", Vector2i.ZERO)) == Vector2i.ZERO:
-		merged_meta["world_size_cells"] = generation_config.get_world_size_cells()
-
+	var decode_result := _save_serializer.decode_v5_payload(payload, generation_config_path, generation_config, save_meta)
+	var decode_error := int(decode_result.get("error", ERR_INVALID_DATA))
+	if decode_error != OK:
+		return decode_error
 	_reset_runtime_state()
-	_active_save_id = payload_save_id
-	_active_save_path = _build_save_file_path(payload_save_id)
-	_active_save_meta = _normalize_save_meta(merged_meta)
-	_generation_config_path = generation_config_path
-	_generation_config = generation_config
-	_world_data = world_data
-	_player_coord = world_state.get("player_coord", world_data.get("player_start_coord", generation_config.player_start_coord))
-	_player_faction_id = world_state.get("player_faction_id", "player")
-	_party_state = _normalize_party_state(
-		PROGRESSION_SERIALIZATION_SCRIPT.deserialize_party_state(payload.get("party_state", {}))
-	)
+	_active_save_id = String(decode_result.get("active_save_id", ""))
+	_active_save_path = _build_save_file_path(_active_save_id)
+	_active_save_meta = decode_result.get("active_save_meta", {}).duplicate(true)
+	_generation_config_path = String(decode_result.get("generation_config_path", generation_config_path))
+	_generation_config = decode_result.get("generation_config", generation_config)
+	_world_data = decode_result.get("world_data", {}).duplicate(true)
+	_player_coord = decode_result.get("player_coord", Vector2i.ZERO)
+	_player_faction_id = String(decode_result.get("player_faction_id", "player"))
+	_party_state = decode_result.get("party_state", PARTY_STATE_SCRIPT.new())
 	_has_active_world = true
 	return OK
 
 
 func _build_save_payload(saved_at_unix_time: int) -> Dictionary:
-	return {
-		"version": SAVE_VERSION,
-		"save_id": _active_save_id,
-		"generation_config_path": _generation_config_path,
-		"world_state": _build_world_state_payload(),
-		"party_state": PROGRESSION_SERIALIZATION_SCRIPT.serialize_party_state(_party_state),
-		"meta": _build_meta_payload(saved_at_unix_time),
-		"save_slot_meta": _active_save_meta.duplicate(true),
-	}
+	return _save_serializer.build_save_payload(
+		_active_save_id,
+		_generation_config_path,
+		_active_save_meta,
+		_world_data,
+		_player_coord,
+		_player_faction_id,
+		_party_state,
+		saved_at_unix_time
+	)
 
 
 func _build_world_state_payload() -> Dictionary:
-	return {
-		"world_data": _serialize_world_data(_world_data),
-		"player_coord": _player_coord,
-		"player_faction_id": _player_faction_id,
-	}
+	return _save_serializer.build_world_state_payload(_world_data, _player_coord, _player_faction_id)
 
 
 func _build_meta_payload(saved_at_unix_time: int) -> Dictionary:
-	return {
-		"saved_at_unix_time": saved_at_unix_time,
-		"save_format": "multi_save_total_save",
-	}
+	return _save_serializer.build_meta_payload(saved_at_unix_time)
 
 
 func _build_save_meta(
@@ -542,19 +614,15 @@ func _build_save_meta(
 	created_at_unix_time: int,
 	updated_at_unix_time: int
 ) -> Dictionary:
-	var resolved_preset_name := preset_name
-	if resolved_preset_name.is_empty():
-		resolved_preset_name = WORLD_PRESET_REGISTRY_SCRIPT.get_fallback_preset_name(generation_config_path)
-	return _normalize_save_meta({
-		"save_id": save_id,
-		"display_name": save_id,
-		"world_preset_id": String(preset_id),
-		"world_preset_name": resolved_preset_name,
-		"generation_config_path": generation_config_path,
-		"world_size_cells": world_size_cells,
-		"created_at_unix_time": created_at_unix_time,
-		"updated_at_unix_time": updated_at_unix_time,
-	})
+	return _save_serializer.build_save_meta(
+		save_id,
+		generation_config_path,
+		preset_id,
+		preset_name,
+		world_size_cells,
+		created_at_unix_time,
+		updated_at_unix_time
+	)
 
 
 func _generate_unique_save_id(timestamp: int) -> String:
@@ -580,20 +648,36 @@ func _generate_unique_save_id(timestamp: int) -> String:
 func _load_generation_config(generation_config_path: String):
 	var generation_config = load(generation_config_path)
 	if generation_config == null:
-		push_error("GameSession failed to load config from %s." % generation_config_path)
+		_push_session_error("session.config.load_failed", "GameSession failed to load config from %s." % generation_config_path, {
+			"generation_config_path": generation_config_path,
+		})
 	return generation_config
 
 
-func _read_save_payload(save_path: String) -> Dictionary:
+func _read_save_payload(save_path: String, emit_errors: bool = true) -> Dictionary:
 	if not FileAccess.file_exists(save_path):
-		push_error("GameSession could not find persisted save %s." % save_path)
+		if emit_errors:
+			_push_session_error("session.save.read.missing_file", "GameSession could not find persisted save %s." % save_path, {
+				"save_path": save_path,
+			})
 		return {"error": ERR_DOES_NOT_EXIST}
 
 	var save_file := FileAccess.open(save_path, FileAccess.READ)
 	if save_file == null:
 		var open_error := FileAccess.get_open_error()
-		push_error("Failed to open persisted save %s. Error: %s" % [save_path, open_error])
+		if emit_errors:
+			_push_session_error("session.save.read.open_failed", "Failed to open persisted save %s. Error: %s" % [save_path, open_error], {
+				"save_path": save_path,
+				"open_error": open_error,
+			})
 		return {"error": open_error}
+
+	var save_size := int(save_file.get_length())
+	# Corrupt or truncated files should be treated as invalid save payloads
+	# without invoking Variant decoding, which would otherwise emit engine errors.
+	if save_size < 8:
+		save_file.close()
+		return {"error": ERR_INVALID_DATA}
 
 	var raw_payload = save_file.get_var(false)
 	save_file.close()
@@ -616,14 +700,13 @@ func _build_save_file_path(save_id: String) -> String:
 
 func _load_save_index_entries() -> Array[Dictionary]:
 	if not FileAccess.file_exists(SAVE_INDEX_PATH):
-		return []
+		return _rebuild_save_index_entries_from_save_files()
 
 	var index_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.READ)
 	if index_file == null:
-		push_error("Failed to open save index %s." % SAVE_INDEX_PATH)
-		return []
+		return _rebuild_save_index_entries_from_save_files()
 
-	var raw_payload = index_file.get_var(false)
+	var raw_payload = _read_save_index_payload(index_file)
 	index_file.close()
 
 	var raw_entries: Array = []
@@ -631,20 +714,18 @@ func _load_save_index_entries() -> Array[Dictionary]:
 		raw_entries = raw_payload.get("saves", [])
 	elif typeof(raw_payload) == TYPE_ARRAY:
 		raw_entries = raw_payload
+	else:
+		var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
+		if not rebuilt_entries.is_empty():
+			_write_save_index(rebuilt_entries)
+		return rebuilt_entries
 
-	var entries: Array[Dictionary] = []
-	for raw_entry in raw_entries:
-		if typeof(raw_entry) != TYPE_DICTIONARY:
-			continue
-		var entry := _normalize_save_meta(raw_entry)
-		if entry.is_empty():
-			continue
-		if not FileAccess.file_exists(_build_save_file_path(String(entry.get("save_id", "")))):
-			continue
-		entries.append(entry)
-
-	entries.sort_custom(_sort_save_meta_newest_first)
-	return entries
+	var entries := _normalize_save_index_entries(raw_entries)
+	var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
+	var merged_entries := _merge_save_index_entries(entries, rebuilt_entries)
+	if merged_entries.size() != entries.size():
+		_write_save_index(merged_entries)
+	return merged_entries
 
 
 func _write_save_index(entries: Array[Dictionary]) -> int:
@@ -654,44 +735,114 @@ func _write_save_index(entries: Array[Dictionary]) -> int:
 
 	var index_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.WRITE)
 	if index_file == null:
-		var open_error := FileAccess.get_open_error()
-		push_error("Failed to open save index %s. Error: %s" % [SAVE_INDEX_PATH, open_error])
-		return open_error
+		# Save files remain authoritative; the index is a rebuildable cache.
+		return OK
 
-	var normalized_entries: Array[Dictionary] = []
-	for entry in entries:
-		var normalized_entry := _normalize_save_meta(entry)
-		if normalized_entry.is_empty():
-			continue
-		normalized_entries.append(normalized_entry)
-
-	index_file.store_var({
+	var normalized_entries := _normalize_save_index_entries(entries)
+	index_file.store_string(JSON.stringify({
 		"version": SAVE_INDEX_VERSION,
-		"saves": normalized_entries,
-	}, false)
+		"saves": _serialize_save_index_entries(normalized_entries),
+	}))
 	index_file.close()
 	return OK
 
 
+func _read_save_index_payload(index_file: FileAccess) -> Variant:
+	return _save_serializer.read_save_index_payload(index_file)
+
+
+func _is_ascii_save_index_buffer(raw_bytes: PackedByteArray) -> bool:
+	return _save_serializer.is_ascii_save_index_buffer(raw_bytes)
+
+
+func _ascii_buffer_to_string(raw_bytes: PackedByteArray) -> String:
+	return _save_serializer.ascii_buffer_to_string(raw_bytes)
+
+
+func _normalize_save_index_entries(raw_entries: Array) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for raw_entry in raw_entries:
+		if typeof(raw_entry) != TYPE_DICTIONARY:
+			continue
+		var entry := _normalize_save_meta(_deserialize_save_index_entry(raw_entry))
+		if entry.is_empty():
+			continue
+		if not FileAccess.file_exists(_build_save_file_path(String(entry.get("save_id", "")))):
+			continue
+		entries.append(entry)
+	entries.sort_custom(_sort_save_meta_newest_first)
+	return entries
+
+
+func _serialize_save_index_entries(entries: Array[Dictionary]) -> Array[Dictionary]:
+	return _save_serializer.serialize_save_index_entries(entries)
+
+
+func _deserialize_save_index_entry(raw_entry: Dictionary) -> Dictionary:
+	return _save_serializer.deserialize_save_index_entry(raw_entry)
+
+
+func _encode_save_index_string(value: String) -> String:
+	if value.is_empty():
+		return ""
+	return Marshalls.raw_to_base64(value.to_utf8_buffer())
+
+
+func _decode_save_index_string(value: String) -> String:
+	if value.is_empty():
+		return ""
+	return Marshalls.base64_to_raw(value).get_string_from_utf8()
+
+
+func _rebuild_save_index_entries_from_save_files() -> Array[Dictionary]:
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(SAVE_DIRECTORY)):
+		return []
+
+	var save_dir := DirAccess.open(SAVE_DIRECTORY)
+	if save_dir == null:
+		return []
+
+	var rebuilt_by_id: Dictionary = {}
+	save_dir.list_dir_begin()
+	while true:
+		var file_name := save_dir.get_next()
+		if file_name.is_empty():
+			break
+		if file_name == "." or file_name == ".." or save_dir.current_is_dir():
+			continue
+		if not file_name.ends_with(".dat") or file_name == "index.dat":
+			continue
+		var save_path := "%s/%s" % [SAVE_DIRECTORY, file_name]
+		var read_result := _read_save_payload(save_path, false)
+		if int(read_result.get("error", ERR_INVALID_DATA)) != OK:
+			continue
+		var payload_variant = read_result.get("payload", {})
+		if typeof(payload_variant) != TYPE_DICTIONARY:
+			continue
+		var payload: Dictionary = payload_variant
+		var save_meta := _extract_save_meta_from_payload(payload, file_name.trim_suffix(".dat"))
+		if save_meta.is_empty():
+			continue
+		rebuilt_by_id[String(save_meta.get("save_id", ""))] = save_meta
+	save_dir.list_dir_end()
+
+	var rebuilt_entries: Array[Dictionary] = []
+	for save_meta in rebuilt_by_id.values():
+		rebuilt_entries.append(save_meta)
+	rebuilt_entries.sort_custom(_sort_save_meta_newest_first)
+	return rebuilt_entries
+
+
+func _merge_save_index_entries(primary_entries: Array[Dictionary], fallback_entries: Array[Dictionary]) -> Array[Dictionary]:
+	return _save_serializer.merge_save_index_entries(primary_entries, fallback_entries)
+
+
+func _extract_save_meta_from_payload(payload: Dictionary, fallback_save_id: String = "") -> Dictionary:
+	return _save_serializer.extract_save_meta_from_payload(payload, fallback_save_id)
+
+
 func _upsert_save_meta(entries: Array[Dictionary], save_meta: Dictionary) -> Array[Dictionary]:
-	var normalized_meta := _normalize_save_meta(save_meta)
-	if normalized_meta.is_empty():
-		return entries
-
-	var updated_entries: Array[Dictionary] = []
-	var replaced := false
-	for entry in entries:
-		if String(entry.get("save_id", "")) == String(normalized_meta.get("save_id", "")):
-			updated_entries.append(normalized_meta)
-			replaced = true
-		else:
-			updated_entries.append(_normalize_save_meta(entry))
-
-	if not replaced:
-		updated_entries.append(normalized_meta)
-
-	updated_entries.sort_custom(_sort_save_meta_newest_first)
-	return updated_entries
+	return _save_serializer.upsert_save_meta(entries, save_meta)
 
 
 func _get_save_meta_by_id(save_id: String) -> Dictionary:
@@ -709,57 +860,15 @@ func _find_most_recent_save_by_config(generation_config_path: String) -> Diction
 
 
 func _normalize_save_meta(raw_meta: Dictionary) -> Dictionary:
-	var save_id := String(raw_meta.get("save_id", "")).strip_edges()
-	if save_id.is_empty():
-		return {}
-
-	var generation_config_path := String(raw_meta.get("generation_config_path", ""))
-	var display_name := String(raw_meta.get("display_name", save_id))
-	if display_name.is_empty():
-		display_name = save_id
-
-	var world_preset_name := String(raw_meta.get("world_preset_name", ""))
-	if world_preset_name.is_empty():
-		world_preset_name = WORLD_PRESET_REGISTRY_SCRIPT.get_fallback_preset_name(generation_config_path)
-
-	var created_at := int(raw_meta.get("created_at_unix_time", 0))
-	var updated_at := int(raw_meta.get("updated_at_unix_time", created_at))
-	if created_at <= 0:
-		created_at = updated_at
-	if updated_at <= 0:
-		updated_at = created_at
-
-	return {
-		"save_id": save_id,
-		"display_name": display_name,
-		"world_preset_id": String(raw_meta.get("world_preset_id", "")),
-		"world_preset_name": world_preset_name,
-		"generation_config_path": generation_config_path,
-		"world_size_cells": _read_vector2i(raw_meta.get("world_size_cells", Vector2i.ZERO)),
-		"created_at_unix_time": created_at,
-		"updated_at_unix_time": updated_at,
-	}
+	return _save_serializer.normalize_save_meta(raw_meta)
 
 
 func _read_vector2i(value: Variant, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
-	if value is Vector2i:
-		return value
-	if value is Vector2:
-		var vector2_value := value as Vector2
-		return Vector2i(int(vector2_value.x), int(vector2_value.y))
-	return fallback
+	return _save_serializer.read_vector2i(value, fallback)
 
 
 func _sort_save_meta_newest_first(a: Dictionary, b: Dictionary) -> bool:
-	var updated_a := int(a.get("updated_at_unix_time", 0))
-	var updated_b := int(b.get("updated_at_unix_time", 0))
-	if updated_a == updated_b:
-		var created_a := int(a.get("created_at_unix_time", 0))
-		var created_b := int(b.get("created_at_unix_time", 0))
-		if created_a == created_b:
-			return String(a.get("save_id", "")) > String(b.get("save_id", ""))
-		return created_a > created_b
-	return updated_a > updated_b
+	return _save_serializer.sort_save_meta_newest_first(a, b)
 
 
 func _remove_directory_recursive(virtual_path: String) -> int:
@@ -770,7 +879,10 @@ func _remove_directory_recursive(virtual_path: String) -> int:
 	var dir := DirAccess.open(virtual_path)
 	if dir == null:
 		var open_error := DirAccess.get_open_error()
-		push_error("Failed to open directory %s for cleanup. Error: %s" % [virtual_path, open_error])
+		_push_session_error("session.cleanup.open_directory_failed", "Failed to open directory %s for cleanup. Error: %s" % [virtual_path, open_error], {
+			"virtual_path": virtual_path,
+			"open_error": open_error,
+		})
 		return open_error
 
 	dir.list_dir_begin()
@@ -800,6 +912,7 @@ func _remove_directory_recursive(virtual_path: String) -> int:
 
 func _create_default_party_state():
 	var party_state = PARTY_STATE_SCRIPT.new()
+	party_state.gold = 180
 
 	var sword_member = _build_default_member_state(
 		&"player_sword_01",
@@ -883,89 +996,130 @@ func _build_default_member_state(
 	warrior_progress.is_active = true
 	warrior_progress.add_core_skill(starting_skill_id)
 	progression.set_profession_progress(warrior_progress)
+	_grant_random_starting_book_skill(progression)
 	progression.sync_active_core_skill_ids()
 
 	member_state.progression = progression
 	return member_state
 
 
+func _grant_random_starting_book_skill(progression) -> void:
+	if progression == null or _skill_defs.is_empty():
+		return
+
+	var eligible_skill_ids: Array[StringName] = []
+	for skill_key in ProgressionDataUtils.sorted_string_keys(_skill_defs):
+		var skill_id := StringName(skill_key)
+		var skill_def := _skill_defs.get(skill_id) as SkillDef
+		if not _is_random_start_book_skill_candidate(skill_def, progression):
+			continue
+		eligible_skill_ids.append(skill_id)
+
+	if eligible_skill_ids.is_empty():
+		return
+
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var selected_skill_id: StringName = eligible_skill_ids[rng.randi_range(0, eligible_skill_ids.size() - 1)]
+	var selected_skill_def := _skill_defs.get(selected_skill_id) as SkillDef
+	if selected_skill_def == null:
+		return
+
+	var skill_progress = progression.get_skill_progress(selected_skill_id)
+	if skill_progress == null:
+		skill_progress = UNIT_SKILL_PROGRESS_SCRIPT.new()
+		skill_progress.skill_id = selected_skill_id
+
+	skill_progress.is_learned = true
+	skill_progress.skill_level = _resolve_random_start_skill_initial_level(selected_skill_def)
+	skill_progress.current_mastery = 0
+	skill_progress.total_mastery_earned = 0
+	progression.set_skill_progress(skill_progress)
+
+
+func _is_random_start_book_skill_candidate(skill_def: SkillDef, progression) -> bool:
+	if skill_def == null or skill_def.skill_id == &"":
+		return false
+	if skill_def.learn_source != &"book":
+		return false
+	if skill_def.unlock_mode == &"composite_upgrade":
+		return false
+	var learned_progress = progression.get_skill_progress(skill_def.skill_id)
+	return learned_progress == null or not learned_progress.is_learned
+
+
+func _resolve_random_start_skill_initial_level(skill_def: SkillDef) -> int:
+	if skill_def == null:
+		return 0
+	var mapped_level := int(RANDOM_START_SKILL_LEVEL_BY_TIER.get(_resolve_random_start_skill_tier(skill_def), 0))
+	return clampi(mapped_level, 0, maxi(skill_def.max_level, 0))
+
+
+func _resolve_random_start_skill_tier(skill_def: SkillDef) -> StringName:
+	if skill_def == null:
+		return RANDOM_START_SKILL_TIER_BASIC
+
+	var description := String(skill_def.description)
+	if _description_contains_any_keyword(description, RANDOM_START_SKILL_KEYWORDS_ULTIMATE):
+		return RANDOM_START_SKILL_TIER_ULTIMATE
+	if _description_contains_any_keyword(description, RANDOM_START_SKILL_KEYWORDS_ADVANCED):
+		return RANDOM_START_SKILL_TIER_ADVANCED
+	if _description_contains_any_keyword(description, RANDOM_START_SKILL_KEYWORDS_INTERMEDIATE):
+		return RANDOM_START_SKILL_TIER_INTERMEDIATE
+	if _description_contains_any_keyword(description, RANDOM_START_SKILL_KEYWORDS_BASIC):
+		return RANDOM_START_SKILL_TIER_BASIC
+
+	var tier_score := _build_random_start_skill_tier_score(skill_def)
+	if tier_score >= 14:
+		return RANDOM_START_SKILL_TIER_ULTIMATE
+	if tier_score >= 9:
+		return RANDOM_START_SKILL_TIER_ADVANCED
+	if tier_score >= 6:
+		return RANDOM_START_SKILL_TIER_INTERMEDIATE
+	return RANDOM_START_SKILL_TIER_BASIC
+
+
+func _description_contains_any_keyword(description: String, keywords: Array) -> bool:
+	for keyword in keywords:
+		if description.contains(keyword):
+			return true
+	return false
+
+
+func _build_random_start_skill_tier_score(skill_def: SkillDef) -> int:
+	if skill_def == null or skill_def.combat_profile == null:
+		return 0
+
+	var combat_profile = skill_def.combat_profile
+	var score := 0
+	score += int(combat_profile.ap_cost) * 2
+	score += int(combat_profile.mp_cost)
+	score += int(combat_profile.stamina_cost)
+	score += int(combat_profile.aura_cost) * 2
+	score += maxi(int(combat_profile.cooldown_tu) - 1, 0)
+	if combat_profile.target_mode == &"ground":
+		score += 1
+	if combat_profile.area_pattern != &"" and combat_profile.area_pattern != &"single":
+		score += 1
+	if skill_def.tags.has(&"aoe"):
+		score += 1
+	if skill_def.tags.has(&"finisher"):
+		score += 2
+	if skill_def.unlock_mode == &"composite_upgrade":
+		score += 2
+	return score
+
+
 func _normalize_party_state(party_state):
-	if party_state == null:
-		return PARTY_STATE_SCRIPT.new()
-
-	var normalized = PROGRESSION_SERIALIZATION_SCRIPT.deserialize_party_state(
-		PROGRESSION_SERIALIZATION_SCRIPT.serialize_party_state(party_state)
-	)
-	var ordered_member_ids: Array[StringName] = []
-	for key in ProgressionDataUtils.sorted_string_keys(normalized.member_states):
-		ordered_member_ids.append(StringName(key))
-
-	var seen_ids: Dictionary = {}
-	var active_member_ids: Array[StringName] = []
-	for member_id in normalized.active_member_ids:
-		if member_id == &"" or seen_ids.has(member_id):
-			continue
-		if normalized.get_member_state(member_id) == null:
-			continue
-		if active_member_ids.size() >= MAX_ACTIVE_MEMBER_COUNT:
-			continue
-		seen_ids[member_id] = true
-		active_member_ids.append(member_id)
-
-	var reserve_member_ids: Array[StringName] = []
-	for member_id in normalized.reserve_member_ids:
-		if member_id == &"" or seen_ids.has(member_id):
-			continue
-		if normalized.get_member_state(member_id) == null:
-			continue
-		seen_ids[member_id] = true
-		reserve_member_ids.append(member_id)
-
-	for member_id in ordered_member_ids:
-		if seen_ids.has(member_id):
-			continue
-		if active_member_ids.size() < MAX_ACTIVE_MEMBER_COUNT:
-			active_member_ids.append(member_id)
-		else:
-			reserve_member_ids.append(member_id)
-		seen_ids[member_id] = true
-
-	if active_member_ids.is_empty() and not ordered_member_ids.is_empty():
-		active_member_ids.append(ordered_member_ids[0])
-
-	if normalized.leader_member_id == &"" or not active_member_ids.has(normalized.leader_member_id):
-		normalized.leader_member_id = active_member_ids[0] if not active_member_ids.is_empty() else &""
-
-	normalized.active_member_ids = ProgressionDataUtils.to_string_name_array(active_member_ids)
-	normalized.reserve_member_ids = ProgressionDataUtils.to_string_name_array(reserve_member_ids)
-	return normalized
+	return _save_serializer.normalize_party_state(party_state)
 
 
 func _normalize_world_data(world_data: Dictionary) -> Dictionary:
-	var normalized = world_data.duplicate(true)
-	normalized["world_step"] = maxi(int(world_data.get("world_step", 0)), 0)
-	var encounter_anchors: Array = []
-	for encounter_anchor_data in world_data.get("encounter_anchors", []):
-		if encounter_anchor_data is RefCounted and encounter_anchor_data.get_script() == ENCOUNTER_ANCHOR_DATA_SCRIPT:
-			encounter_anchors.append(encounter_anchor_data)
-		elif encounter_anchor_data is Dictionary:
-			encounter_anchors.append(PROGRESSION_SERIALIZATION_SCRIPT.deserialize_encounter_anchor(encounter_anchor_data))
-	normalized["encounter_anchors"] = encounter_anchors
-	return normalized
+	return _save_serializer.normalize_world_data(world_data)
 
 
 func _serialize_world_data(world_data: Dictionary) -> Dictionary:
-	var serialized_world_data = world_data.duplicate(true)
-	var encounter_anchor_payloads: Array[Dictionary] = []
-	for encounter_anchor_data in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_anchor_data
-		if encounter_anchor == null:
-			continue
-		encounter_anchor_payloads.append(
-			PROGRESSION_SERIALIZATION_SCRIPT.serialize_encounter_anchor(encounter_anchor)
-		)
-	serialized_world_data["encounter_anchors"] = encounter_anchor_payloads
-	return serialized_world_data
+	return _save_serializer.serialize_world_data(world_data)
 
 
 func _reset_runtime_state() -> void:
@@ -990,6 +1144,7 @@ func _refresh_progression_content() -> void:
 	_skill_defs = _progression_content_registry.get_skill_defs()
 	_profession_defs = _progression_content_registry.get_profession_defs()
 	_achievement_defs = _progression_content_registry.get_achievement_defs()
+	_quest_defs = _progression_content_registry.get_quest_defs()
 
 
 func _refresh_item_content() -> void:
@@ -1001,6 +1156,14 @@ func _refresh_item_content() -> void:
 		var generated_skill_book_defs := _skill_book_item_factory.build_generated_item_defs(_skill_defs, _item_defs)
 		for item_id in generated_skill_book_defs.keys():
 			_item_defs[item_id] = generated_skill_book_defs[item_id]
+
+
+func _refresh_recipe_content() -> void:
+	if _recipe_content_registry == null:
+		return
+
+	_recipe_content_registry.setup(_item_defs)
+	_recipe_defs = _recipe_content_registry.get_recipe_defs().duplicate()
 
 
 func _refresh_enemy_content() -> void:
@@ -1017,7 +1180,7 @@ func _report_progression_content_errors() -> void:
 		return
 
 	for validation_error in _progression_content_registry.validate():
-		push_error("Progression content error: %s" % validation_error)
+		_push_session_error("session.content.progression_validation_failed", "Progression content error: %s" % validation_error)
 
 
 func _report_item_content_errors() -> void:
@@ -1025,4 +1188,21 @@ func _report_item_content_errors() -> void:
 		return
 
 	for validation_error in _item_content_registry.validate():
-		push_error("Item content error: %s" % validation_error)
+		_push_session_error("session.content.item_validation_failed", "Item content error: %s" % validation_error)
+
+
+func _report_recipe_content_errors() -> void:
+	if _recipe_content_registry == null:
+		return
+
+	for validation_error in _recipe_content_registry.validate():
+		_push_session_error("session.content.recipe_validation_failed", "Recipe content error: %s" % validation_error)
+
+
+func _log_session_info(event_id: String, message: String, context: Dictionary = {}) -> void:
+	log_event("info", "session", event_id, message, context)
+
+
+func _push_session_error(event_id: String, message: String, context: Dictionary = {}) -> void:
+	push_error(message)
+	log_event("error", "session", event_id, message, context)

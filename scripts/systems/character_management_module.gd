@@ -12,21 +12,17 @@ const ACHIEVEMENT_PROGRESS_STATE_SCRIPT = preload("res://scripts/player/progress
 const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression_service.gd")
 const PROFESSION_RULE_SERVICE_SCRIPT = preload("res://scripts/systems/profession_rule_service.gd")
 const PROFESSION_ASSIGNMENT_SERVICE_SCRIPT = preload("res://scripts/systems/profession_assignment_service.gd")
+const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/skill_merge_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const QUEST_PROGRESS_SERVICE_SCRIPT = preload("res://scripts/systems/quest_progress_service.gd")
 const CHARACTER_PROGRESSION_DELTA_SCRIPT = preload("res://scripts/systems/character_progression_delta.gd")
-const PENDING_MASTERY_REWARD_SCRIPT = preload("res://scripts/systems/pending_mastery_reward.gd")
-const PENDING_MASTERY_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/pending_mastery_reward_entry.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/pending_character_reward.gd")
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/pending_character_reward_entry.gd")
 const PartyState = PARTY_STATE_SCRIPT
 const PartyMemberState = PARTY_MEMBER_STATE_SCRIPT
 const AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT
-const BattleUnitState = BATTLE_UNIT_STATE_SCRIPT
 const CharacterProgressionDelta = CHARACTER_PROGRESSION_DELTA_SCRIPT
-const PendingMasteryReward = PENDING_MASTERY_REWARD_SCRIPT
-const PendingMasteryRewardEntry = PENDING_MASTERY_REWARD_ENTRY_SCRIPT
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 const PendingCharacterRewardEntry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT
 
@@ -48,8 +44,12 @@ var _profession_defs: Dictionary = {}
 var _achievement_defs: Dictionary = {}
 ## 字段说明：缓存物品定义集合字典，集中保存可按键查询的运行时数据。
 var _item_defs: Dictionary = {}
+## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
+var _quest_defs: Dictionary = {}
 ## 字段说明：记录队伍装备服务，会参与运行时状态流转、系统协作和存档恢复。
 var _party_equipment_service = PARTY_EQUIPMENT_SERVICE_SCRIPT.new()
+## 字段说明：记录任务进度服务，会参与运行时状态流转、系统协作和存档恢复。
+var _quest_progress_service = QUEST_PROGRESS_SERVICE_SCRIPT.new()
 
 
 func setup(
@@ -57,14 +57,17 @@ func setup(
 	skill_defs: Dictionary,
 	profession_defs: Dictionary,
 	achievement_defs: Dictionary = {},
-	item_defs: Dictionary = {}
+	item_defs: Dictionary = {},
+	quest_defs: Dictionary = {}
 ) -> void:
 	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
 	_skill_defs = skill_defs if skill_defs != null else {}
 	_profession_defs = profession_defs if profession_defs != null else {}
 	_achievement_defs = achievement_defs if achievement_defs != null else {}
 	_item_defs = item_defs if item_defs != null else {}
+	_quest_defs = quest_defs if quest_defs != null else {}
 	_party_equipment_service.setup(_party_state, _item_defs)
+	_quest_progress_service.setup(_party_state, _quest_defs)
 
 
 func get_party_state() -> PartyState:
@@ -74,6 +77,7 @@ func get_party_state() -> PartyState:
 func set_party_state(party_state: PartyState) -> void:
 	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
 	_party_equipment_service.setup(_party_state, _item_defs)
+	_quest_progress_service.setup(_party_state, _quest_defs)
 
 
 func get_member_state(member_id: StringName) -> PartyMemberState:
@@ -96,6 +100,43 @@ func get_pending_character_rewards() -> Array[PendingCharacterReward]:
 	return _party_state.pending_character_rewards.duplicate()
 
 
+func get_active_quest_states() -> Array:
+	return _quest_progress_service.call("get_active_quests") if _quest_progress_service != null and _quest_progress_service.has_method("get_active_quests") else []
+
+
+func get_completed_quest_ids() -> Array[StringName]:
+	var quest_ids_variant = _quest_progress_service.call("get_completed_quest_ids") if _quest_progress_service != null and _quest_progress_service.has_method("get_completed_quest_ids") else []
+	return ProgressionDataUtils.to_string_name_array(quest_ids_variant)
+
+
+func accept_quest(quest_id: StringName, world_step: int = -1, allow_reaccept: bool = false) -> bool:
+	if _quest_progress_service == null:
+		return false
+	var accepted := bool(_quest_progress_service.call("accept_quest", quest_id, world_step, allow_reaccept)) if _quest_progress_service.has_method("accept_quest") else false
+	_party_state = _quest_progress_service.call("get_party_state") if _quest_progress_service.has_method("get_party_state") else _party_state
+	return accepted
+
+
+func complete_quest(quest_id: StringName, world_step: int = -1) -> bool:
+	if _quest_progress_service == null:
+		return false
+	var completed := bool(_quest_progress_service.call("complete_quest", quest_id, world_step)) if _quest_progress_service.has_method("complete_quest") else false
+	_party_state = _quest_progress_service.call("get_party_state") if _quest_progress_service.has_method("get_party_state") else _party_state
+	return completed
+
+
+func apply_quest_progress_events(event_variants: Array, world_step: int = -1) -> Dictionary:
+	if _quest_progress_service == null:
+		return {
+			"accepted_quest_ids": [],
+			"progressed_quest_ids": [],
+			"completed_quest_ids": [],
+		}
+	var summary: Dictionary = _quest_progress_service.call("apply_quest_progress_events", event_variants, world_step) if _quest_progress_service.has_method("apply_quest_progress_events") else {}
+	_party_state = _quest_progress_service.call("get_party_state") if _quest_progress_service.has_method("get_party_state") else _party_state
+	return summary
+
+
 func enqueue_pending_character_rewards(reward_variants: Array) -> void:
 	if _party_state == null:
 		_party_state = PARTY_STATE_SCRIPT.new()
@@ -104,16 +145,6 @@ func enqueue_pending_character_rewards(reward_variants: Array) -> void:
 		if reward == null or reward.is_empty():
 			continue
 		_party_state.enqueue_pending_character_reward(reward)
-
-
-func build_battle_party(member_ids: Array[StringName]) -> Array[BattleUnitState]:
-	var units: Array[BattleUnitState] = []
-	for member_id in member_ids:
-		var member_state: PartyMemberState = get_member_state(member_id)
-		if member_state == null or member_state.progression == null:
-			continue
-		units.append(_build_battle_unit_from_member(member_state))
-	return units
 
 
 func get_member_attribute_snapshot(member_id: StringName) -> AttributeSnapshot:
@@ -239,24 +270,26 @@ func build_pending_character_reward(
 	return reward if not reward.is_empty() else null
 
 
-func build_pending_mastery_reward(
+func build_pending_skill_mastery_reward(
 	member_id: StringName,
 	source_type: StringName,
 	source_label: String,
-	mastery_entries: Array,
+	entry_variants: Array,
 	summary_text: String = ""
-) -> PendingMasteryReward:
+) -> PendingCharacterReward:
 	var member_state: PartyMemberState = get_member_state(member_id)
 	if member_state == null or member_state.progression == null:
 		return null
 
-	var reward := PENDING_MASTERY_REWARD_SCRIPT.new()
-	reward.source_type = source_type
-	reward.source_label = source_label if not source_label.is_empty() else _build_default_source_label(source_type)
-	reward.summary_text = summary_text
+	var reward := PENDING_CHARACTER_REWARD_SCRIPT.new()
+	reward.reward_id = _build_reward_id(member_id, source_type)
 	reward.member_id = member_id
 	reward.member_name = member_state.display_name if not member_state.display_name.is_empty() else String(member_id)
-	reward.entries = _normalize_pending_mastery_entries(member_state.progression, mastery_entries, source_type)
+	reward.source_type = source_type
+	reward.source_id = source_type
+	reward.source_label = source_label if not source_label.is_empty() else _build_default_source_label(source_type)
+	reward.summary_text = summary_text
+	reward.entries = _normalize_pending_skill_mastery_entries(member_state.progression, entry_variants, source_type)
 	return reward if not reward.is_empty() else null
 
 
@@ -334,11 +367,6 @@ func apply_pending_character_reward(reward: PendingCharacterReward) -> Character
 
 	_remove_pending_character_reward_if_present(normalized_reward.reward_id)
 	return delta
-
-
-func apply_pending_mastery_reward(reward: PendingMasteryReward) -> CharacterProgressionDelta:
-	var normalized_reward: PendingCharacterReward = _normalize_pending_character_reward_variant(reward)
-	return apply_pending_character_reward(normalized_reward)
 
 
 func get_member_achievement_summary(member_id: StringName) -> Dictionary:
@@ -459,49 +487,6 @@ func flush_after_battle() -> int:
 	return OK
 
 
-func refresh_battle_unit(unit_state: BattleUnitState) -> void:
-	if unit_state == null or unit_state.source_member_id == &"":
-		return
-	var member_state: PartyMemberState = get_member_state(unit_state.source_member_id)
-	if member_state == null:
-		return
-	var snapshot: AttributeSnapshot = get_member_attribute_snapshot(unit_state.source_member_id)
-	unit_state.body_size = maxi(int(member_state.body_size), 1)
-	unit_state.attribute_snapshot = snapshot
-	unit_state.current_hp = clampi(unit_state.current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
-	unit_state.current_mp = clampi(unit_state.current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
-	unit_state.current_stamina = clampi(
-		unit_state.current_stamina,
-		0,
-		maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
-	)
-	unit_state.current_ap = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
-	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
-	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
-	unit_state.refresh_footprint()
-
-
-func _build_battle_unit_from_member(member_state: PartyMemberState) -> BattleUnitState:
-	var snapshot: AttributeSnapshot = _build_attribute_service(member_state).get_snapshot()
-	var unit_state: BattleUnitState = BATTLE_UNIT_STATE_SCRIPT.new()
-	unit_state.unit_id = member_state.member_id
-	unit_state.source_member_id = member_state.member_id
-	unit_state.display_name = member_state.display_name
-	unit_state.faction_id = member_state.faction_id
-	unit_state.control_mode = member_state.control_mode
-	unit_state.body_size = maxi(int(member_state.body_size), 1)
-	unit_state.refresh_footprint()
-	unit_state.attribute_snapshot = snapshot
-	unit_state.current_hp = clampi(member_state.current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
-	unit_state.current_mp = clampi(member_state.current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
-	unit_state.current_stamina = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
-	unit_state.current_ap = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
-	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
-	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
-	unit_state.is_alive = unit_state.current_hp > 0
-	return unit_state
-
-
 func _collect_known_active_skill_ids(progression_state) -> Array[StringName]:
 	var skill_ids: Array[StringName] = []
 	if progression_state == null:
@@ -548,6 +533,9 @@ func _build_progression_service(progression_state) -> ProgressionService:
 	var assignment_service: ProfessionAssignmentService = PROFESSION_ASSIGNMENT_SERVICE_SCRIPT.new()
 	assignment_service.setup(progression_state, _skill_defs, _profession_defs)
 
+	var merge_service: SkillMergeService = SKILL_MERGE_SERVICE_SCRIPT.new()
+	merge_service.setup(progression_state, _skill_defs, assignment_service)
+
 	var rule_service: ProfessionRuleService = PROFESSION_RULE_SERVICE_SCRIPT.new()
 	rule_service.setup(progression_state, _skill_defs, _profession_defs)
 
@@ -557,7 +545,8 @@ func _build_progression_service(progression_state) -> ProgressionService:
 		_skill_defs,
 		_profession_defs,
 		rule_service,
-		assignment_service
+		assignment_service,
+		merge_service
 	)
 	return progression_service
 
@@ -661,23 +650,25 @@ func _capture_profession_ranks(progression_state) -> Dictionary:
 	return profession_ranks
 
 
-func _normalize_pending_mastery_entries(
+func _normalize_pending_skill_mastery_entries(
 	progression_state,
-	mastery_entries: Array,
+	entry_variants: Array,
 	source_type: StringName
-) -> Array[PendingMasteryRewardEntry]:
-	var normalized_entries: Array[PendingMasteryRewardEntry] = []
+) -> Array[PendingCharacterRewardEntry]:
+	var normalized_entries: Array[PendingCharacterRewardEntry] = []
 	if progression_state == null:
 		return normalized_entries
 
 	var entry_map: Dictionary = {}
 	var mastery_source_type := _resolve_mastery_source_type(source_type)
-	for mastery_entry_variant in mastery_entries:
-		if mastery_entry_variant is not Dictionary:
+	for entry_variant in entry_variants:
+		if entry_variant is not Dictionary:
 			continue
-		var mastery_entry: Dictionary = mastery_entry_variant
-		var skill_id := ProgressionDataUtils.to_string_name(mastery_entry.get("skill_id", ""))
-		var mastery_amount := int(mastery_entry.get("mastery_amount", 0))
+		var entry_data: Dictionary = entry_variant
+		if ProgressionDataUtils.to_string_name(entry_data.get("entry_type", &"skill_mastery")) != &"skill_mastery":
+			continue
+		var skill_id := ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
+		var mastery_amount := int(entry_data.get("amount", 0))
 		if skill_id == &"" or mastery_amount <= 0:
 			continue
 
@@ -690,18 +681,19 @@ func _normalize_pending_mastery_entries(
 		if not skill_def.mastery_sources.is_empty() and not skill_def.mastery_sources.has(mastery_source_type):
 			continue
 
-		var reward_entry: PendingMasteryRewardEntry = entry_map.get(skill_id) as PendingMasteryRewardEntry
+		var reward_entry: PendingCharacterRewardEntry = entry_map.get(skill_id) as PendingCharacterRewardEntry
 		if reward_entry == null:
-			reward_entry = PENDING_MASTERY_REWARD_ENTRY_SCRIPT.new()
-			reward_entry.skill_id = skill_id
-			reward_entry.skill_name = _resolve_skill_label(skill_id)
-			reward_entry.reason_text = String(mastery_entry.get("reason_text", ""))
+			reward_entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
+			reward_entry.entry_type = &"skill_mastery"
+			reward_entry.target_id = skill_id
+			reward_entry.target_label = _resolve_skill_label(skill_id)
+			reward_entry.reason_text = String(entry_data.get("reason_text", ""))
 			entry_map[skill_id] = reward_entry
 			normalized_entries.append(reward_entry)
 
-		reward_entry.mastery_amount += mastery_amount
+		reward_entry.amount += mastery_amount
 		if reward_entry.reason_text.is_empty():
-			reward_entry.reason_text = String(mastery_entry.get("reason_text", ""))
+			reward_entry.reason_text = String(entry_data.get("reason_text", ""))
 
 	return normalized_entries
 
@@ -714,8 +706,8 @@ func _normalize_pending_character_reward_variant(reward_variant) -> PendingChara
 		if typed_reward.reward_id == &"":
 			typed_reward.reward_id = _build_reward_id(typed_reward.member_id, typed_reward.source_id if typed_reward.source_id != &"" else typed_reward.source_type)
 		return typed_reward if not typed_reward.is_empty() else null
-	if reward_variant is PendingMasteryReward or reward_variant is Dictionary:
-		var normalized_reward = PENDING_CHARACTER_REWARD_SCRIPT.from_legacy(reward_variant)
+	if reward_variant is Dictionary:
+		var normalized_reward = PENDING_CHARACTER_REWARD_SCRIPT.from_variant(reward_variant)
 		if normalized_reward == null or normalized_reward.is_empty():
 			return null
 		if normalized_reward.reward_id == &"":
@@ -742,8 +734,8 @@ func _normalize_pending_character_entry(entry_variant) -> PendingCharacterReward
 		return null
 	if entry_variant is PendingCharacterRewardEntry:
 		return PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_dict((entry_variant as PendingCharacterRewardEntry).to_dict())
-	if entry_variant is Dictionary or entry_variant is PendingMasteryRewardEntry:
-		var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_legacy(entry_variant)
+	if entry_variant is Dictionary:
+		var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_variant(entry_variant)
 		if entry == null:
 			return null
 		if entry.target_label.is_empty():

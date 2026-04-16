@@ -19,6 +19,8 @@ var skill_id: StringName = &""
 var skill_variant_id: StringName = &""
 ## 字段说明：记录目标单位唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var target_unit_id: StringName = &""
+## 字段说明：保存目标单位标识列表，便于按选择顺序执行多目标技能与稳定回放。
+var target_unit_ids: Array[StringName] = []
 ## 字段说明：记录目标坐标，用于定位对象、绘制内容或执行网格计算。
 var target_coord: Vector2i = Vector2i(-1, -1)
 ## 字段说明：保存目标坐标列表，供范围判定、占位刷新、批量渲染或目标选择复用。

@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result",
+    "changed",
+    "checks_run",
+    "learnings"
+  ],
+  "properties": {
+    "result": {
+      "type": "string",
+      "enum": [
+        "done",
+        "blocked"
+      ]
+    },
+    "changed": {
+      "type": "string"
+    },
+    "checks_run": {
+      "type": "string"
+    },
+    "learnings": {
+      "type": "string"
+    }
+  }
+}

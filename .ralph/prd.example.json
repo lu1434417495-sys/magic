@@ -1,0 +1,22 @@
+{
+  "branchName": "feat/forge-reforge-e2e",
+  "maxAttemptsPerStory": 3,
+  "commitPrefix": "feat:",
+  "userStories": [
+    {
+      "id": "FORGE_E2E_1",
+      "title": "把 service_master_reforge 补成真实可达的端到端回归路径",
+      "status": "open",
+      "acceptanceCriteria": [
+        "在可稳定进入的测试据点提供 forge 服务入口",
+        "用 GameSession + GameRuntimeFacade + text command 跑通 master_reforge_iron_greatsword",
+        "校验材料消耗、产物入仓、反馈文案、snapshot 与 text snapshot"
+      ],
+      "notes": [
+        "背景见仓库根目录 NEXTACTION.md",
+        "先不扩 save schema，也不做经济调优",
+        "优先做最小可验证切片，不要顺手做 ForgeWindow 抽离"
+      ]
+    }
+  ]
+}

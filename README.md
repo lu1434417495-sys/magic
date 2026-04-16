@@ -16,3 +16,8 @@ Starter structure for a Godot project organized by feature area.
 - Keep gameplay code close to its owning feature folder.
 - Use `scenes/common/` and `scripts/utils/` for shared pieces only.
 - Avoid manual edits inside `.godot/` because Godot regenerates it.
+
+## Developer Tooling
+
+- Codex CLI Ralph loop: see [docs/tooling/ralph_loop.md](docs/tooling/ralph_loop.md)
+- State and templates for the loop live under `.ralph/`

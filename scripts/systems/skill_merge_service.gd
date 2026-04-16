@@ -65,6 +65,57 @@ func merge_skills(
 	return attach_merged_result_skill(result_skill_id, keep_core, resolved_target_profession_id)
 
 
+func apply_composite_upgrade_result(
+	result_skill_id: StringName,
+	source_skill_ids: Array[StringName],
+	retain_source_skills_on_unlock: bool,
+	core_skill_transition_mode: StringName,
+	target_profession_id: StringName = &""
+) -> bool:
+	if _unit_progress == null:
+		return false
+	if result_skill_id == &"":
+		return false
+	if _unit_progress.is_skill_relearn_blocked(result_skill_id):
+		return false
+
+	var normalized_source_skill_ids := _normalize_source_skill_ids(source_skill_ids, result_skill_id)
+	if normalized_source_skill_ids.is_empty():
+		return false
+	if not _all_source_skills_exist(normalized_source_skill_ids):
+		return false
+
+	if not retain_source_skills_on_unlock:
+		return merge_skills(normalized_source_skill_ids, result_skill_id, core_skill_transition_mode == &"replace_sources_with_result", target_profession_id)
+
+	var result_progress := _get_or_create_result_skill_progress(result_skill_id, normalized_source_skill_ids)
+	if result_progress == null:
+		return false
+
+	result_progress.is_learned = true
+	result_progress.merged_from_skill_ids = normalized_source_skill_ids.duplicate()
+	_unit_progress.remember_merge_sources(result_skill_id, normalized_source_skill_ids)
+	_unit_progress.set_skill_progress(result_progress)
+
+	var resolved_target_profession_id := target_profession_id
+	if core_skill_transition_mode == &"replace_sources_with_result" and resolved_target_profession_id == &"":
+		resolved_target_profession_id = _infer_target_profession_id_from_sources(normalized_source_skill_ids)
+
+	if core_skill_transition_mode == &"replace_sources_with_result" and resolved_target_profession_id != &"":
+		if not _replace_source_cores_with_result(normalized_source_skill_ids, result_skill_id, resolved_target_profession_id):
+			result_progress.is_core = false
+			result_progress.clear_profession_assignment()
+		else:
+			result_progress.is_core = true
+			result_progress.assigned_profession_id = resolved_target_profession_id
+	elif core_skill_transition_mode == &"replace_sources_with_result":
+		result_progress.is_core = false
+		result_progress.clear_profession_assignment()
+
+	_unit_progress.sync_active_core_skill_ids()
+	return true
+
+
 func detach_merged_source_skills(source_skill_ids: Array[StringName]) -> void:
 	if _unit_progress == null:
 		return
@@ -288,3 +339,39 @@ func _get_profession_progress(profession_id: StringName) -> UnitProfessionProgre
 	if _unit_progress == null:
 		return null
 	return _unit_progress.get_profession_progress(profession_id)
+
+
+func _replace_source_cores_with_result(
+	source_skill_ids: Array[StringName],
+	result_skill_id: StringName,
+	target_profession_id: StringName
+) -> bool:
+	if _unit_progress == null or target_profession_id == &"":
+		return false
+
+	var profession_progress := _get_profession_progress(target_profession_id)
+	if profession_progress == null:
+		return false
+
+	for source_skill_id in source_skill_ids:
+		var source_skill_progress := _unit_progress.get_skill_progress(source_skill_id) as UnitSkillProgress
+		if source_skill_progress == null:
+			continue
+		if source_skill_progress.assigned_profession_id != target_profession_id:
+			continue
+		source_skill_progress.is_core = false
+		source_skill_progress.clear_profession_assignment()
+		profession_progress.remove_core_skill(source_skill_id)
+
+	_remove_source_skill_from_all_professions(result_skill_id, target_profession_id)
+	var result_skill_progress := _unit_progress.get_skill_progress(result_skill_id) as UnitSkillProgress
+	if result_skill_progress == null:
+		result_skill_progress = UnitSkillProgress.new()
+		result_skill_progress.skill_id = result_skill_id
+		result_skill_progress.is_learned = true
+
+	result_skill_progress.is_core = true
+	result_skill_progress.assigned_profession_id = target_profession_id
+	profession_progress.add_core_skill(result_skill_id)
+	_unit_progress.set_skill_progress(result_skill_progress)
+	return true

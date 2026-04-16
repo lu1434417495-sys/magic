@@ -11,6 +11,7 @@ const DERIVED_ATTRIBUTE_RULE_SCRIPT = preload("res://scripts/player/progression/
 const HP_MAX: StringName = &"hp_max"
 const MP_MAX: StringName = &"mp_max"
 const STAMINA_MAX: StringName = &"stamina_max"
+const AURA_MAX: StringName = &"aura_max"
 const ACTION_POINTS: StringName = &"action_points"
 const PHYSICAL_ATTACK: StringName = &"physical_attack"
 const MAGIC_ATTACK: StringName = &"magic_attack"
@@ -32,6 +33,7 @@ const RESOURCE_ATTRIBUTE_IDS := [
 	HP_MAX,
 	MP_MAX,
 	STAMINA_MAX,
+	AURA_MAX,
 	ACTION_POINTS,
 ]
 
@@ -353,7 +355,7 @@ func _clamp_attribute_value(attribute_id: StringName, value: int) -> int:
 	match attribute_id:
 		HP_MAX:
 			return maxi(value, 1)
-		MP_MAX, STAMINA_MAX:
+		MP_MAX, STAMINA_MAX, AURA_MAX:
 			return maxi(value, 0)
 		ACTION_POINTS:
 			return maxi(value, 1)

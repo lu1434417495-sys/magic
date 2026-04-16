@@ -32,11 +32,11 @@
 - 当前敌人构建链路只把敌人标记为 `control_mode = "ai"`，但没有承载“策略注入”的字段：
   - `BattleUnitState` 没有 `ai_brain_id`、`ai_state_id` 一类字段
   - `EncounterRosterBuilder` 只负责属性和默认技能
-- `BattleRuntimeModule.setup(...)` 虽然接收 `_enemy_templates`，但正式 `start_battle()` 路径并没有消费它；真正使用 `_enemy_templates` 的是偏 sidecar/fallback 的 `BattleStateFactory`。
+- `BattleRuntimeModule.setup(...)` 接收 `_enemy_templates`，敌方模板消费应保持在正式 `start_battle()` 主链内，而不是依赖额外 sidecar builder。
 - 世界遭遇生成目前把 `EncounterAnchorData.enemy_roster_template_id` 直接写成 `display_name`：
   - `WorldMapSpawnSystem._build_encounter_anchor(...)`
   - 这意味着当前模板 id 不是稳定 slug，而是显示名别名。
-- `WildSpawnRule` 当前只有 `monster_name`，没有正式的 `monster_template_id`。
+- `WildSpawnRule` 当前已包含正式 `monster_template_id`；`monster_name` 只负责展示文案。
 - `GameSession` 当前没有敌方模板或 AI brain 的正式加载/提供入口。
 
 ## 设计目标
@@ -95,7 +95,7 @@
 ### BattleRuntimeModule
 
 - `setup(...)` 增加敌方模板与 AI brain 注入。
-- 正式 `start_battle()` 路径补齐对敌方模板的读取，不再只有 `BattleStateFactory` 那条 sidecar 路径能消费模板。
+- 正式 `start_battle()` 路径补齐对敌方模板的读取，避免把模板消费散落到额外兼容层。
 - `advance()` 在 AI 单位行动时构建 `BattleAiContext`，并把 `preview_command(...)` 暴露给 AI 作为只读验证器。
 - battle log 追加 `brain/state/action` 级别的调试信息，便于验证 AI 是否按预期运作。
 
@@ -104,9 +104,7 @@
 - `WildSpawnRule` 新增 `monster_template_id: StringName`
 - `EncounterAnchorData.enemy_roster_template_id` 语义收敛为稳定模板 id，而不是显示名。
 - `WorldMapSpawnSystem` 改为优先写入 `monster_template_id`。
-- 兼容旧配置与旧存档：
-  - 若没有 `monster_template_id`，则继续用旧的 `monster_name/display_name`
-  - 敌方内容注册表提供旧名 alias 到正式模板 id 的映射
+- 当前主线不再为旧配置补 `monster_template_id` fallback。
 
 ### GameSession
 
@@ -253,7 +251,7 @@
 - 新增独立的 `battle_runtime` AI 回归脚本，不把状态机断言塞进现有 timed terrain smoke。
 - 覆盖模板接线：
   - `monster_template_id` 能正确映射到敌方模板
-  - 旧 `monster_name/display_name` 仍能通过 alias 找到模板
+- 旧 `monster_name/display_name` 不再参与模板解析
 - 覆盖命令生成：
   - 单体技能 action 能产出合法 `BattleCommand`
   - 地面技能 action 能写入 `skill_variant_id + target_coords`
@@ -275,4 +273,4 @@
 - 首版不引入脚本化表达式或可执行 DSL；brain/state/action 的配置能力保持有限而稳定。
 - 首版 AI 运行时黑板只保证单场战斗内有效，不作为世界存档长期真源。
 - 首版敌方内容先走代码注册表，后续如果策划密度上升，再迁到 `data/configs/enemies/`。
-- `enemy_roster_template_id` 最终应以 ASCII slug 为正式 id；中文显示名只负责展示和旧数据兼容。
+- `enemy_roster_template_id` 以稳定模板 id 为正式值；显示名只负责展示，不参与解析。

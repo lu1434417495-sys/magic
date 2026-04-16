@@ -6,7 +6,9 @@ class_name BattleUnitState
 extends RefCounted
 
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
 const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle_status_effect_state.gd")
 
 ## 字段说明：记录单位唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var unit_id: StringName = &""
@@ -54,9 +56,11 @@ var action_progress := 0
 var known_active_skill_ids: Array[StringName] = []
 ## 字段说明：按键缓存已知技能等级映射表，便于在较多对象中快速定位目标并减少重复遍历。
 var known_skill_level_map: Dictionary = {}
+## 字段说明：记录单位移动标签，供战斗网格规则按地形动态修正通行性与移动消耗。
+var movement_tags: Array[StringName] = []
 ## 字段说明：缓存冷却表字典，集中保存可按键查询的运行时数据。
 var cooldowns: Dictionary = {}
-## 字段说明：缓存状态效果集合字典，集中保存可按键查询的运行时数据。
+## 字段说明：缓存状态效果集合字典，内部 value 使用 BattleStatusEffectState。
 var status_effects: Dictionary = {}
 ## 字段说明：缓存连击态字典，集中保存可按键查询的运行时数据。
 var combo_state: Dictionary = {}
@@ -83,12 +87,55 @@ func occupies_coord(target_coord: Vector2i) -> bool:
 	return occupied_coords.has(target_coord)
 
 
+func has_movement_tag(tag: StringName) -> bool:
+	return movement_tags.has(tag)
+
+
+func has_status_effect(status_id: StringName) -> bool:
+	return get_status_effect(status_id) != null
+
+
+func get_status_effect(status_id: StringName):
+	var normalized := ProgressionDataUtils.to_string_name(status_id)
+	if normalized == &"" or not status_effects.has(normalized):
+		return null
+	var effect_variant: Variant = status_effects.get(normalized)
+	var effect_state: Variant = effect_variant if effect_variant is BattleStatusEffectState else null
+	if effect_state != null and not effect_state.is_empty():
+		return effect_state
+	effect_state = BATTLE_STATUS_EFFECT_STATE_SCRIPT.from_dict(effect_variant, normalized)
+	if effect_state == null or effect_state.is_empty():
+		status_effects.erase(normalized)
+		return null
+	status_effects[normalized] = effect_state
+	return effect_state
+
+
+func set_status_effect(effect_state: BattleStatusEffectState) -> void:
+	if effect_state == null or effect_state.is_empty():
+		return
+	status_effects[effect_state.status_id] = effect_state
+
+
+func erase_status_effect(status_id: StringName) -> void:
+	var normalized := ProgressionDataUtils.to_string_name(status_id)
+	if normalized != &"":
+		status_effects.erase(normalized)
+
+
 static func get_footprint_size_for_body_size(size_value: int) -> Vector2i:
 	return Vector2i(2, 2) if maxi(size_value, 1) >= 3 else Vector2i.ONE
 
 
 func to_dict() -> Dictionary:
 	refresh_footprint()
+	var status_payloads: Dictionary = {}
+	for status_id_str in ProgressionDataUtils.sorted_string_keys(status_effects):
+		var status_id := StringName(status_id_str)
+		var effect_state = get_status_effect(status_id)
+		if effect_state == null:
+			continue
+		status_payloads[status_id_str] = effect_state.to_dict()
 	return {
 		"unit_id": String(unit_id),
 		"source_member_id": String(source_member_id),
@@ -113,8 +160,9 @@ func to_dict() -> Dictionary:
 		"action_progress": action_progress,
 		"known_active_skill_ids": _string_name_array_to_strings(known_active_skill_ids),
 		"known_skill_level_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_level_map),
+		"movement_tags": _string_name_array_to_strings(movement_tags),
 		"cooldowns": cooldowns.duplicate(true),
-		"status_effects": status_effects.duplicate(true),
+		"status_effects": status_payloads,
 		"combo_state": combo_state.duplicate(true),
 	}
 
@@ -142,8 +190,9 @@ static func from_dict(data: Dictionary):
 	unit_state.action_progress = int(data.get("action_progress", 0))
 	unit_state.known_active_skill_ids = _strings_to_string_name_array(data.get("known_active_skill_ids", []))
 	unit_state.known_skill_level_map = ProgressionDataUtils.to_string_name_int_map(data.get("known_skill_level_map", {}))
+	unit_state.movement_tags = _strings_to_string_name_array(data.get("movement_tags", []))
 	unit_state.cooldowns = data.get("cooldowns", {}).duplicate(true)
-	unit_state.status_effects = data.get("status_effects", {}).duplicate(true)
+	unit_state.status_effects = _status_effects_from_dict(data.get("status_effects", {}))
 	unit_state.combo_state = data.get("combo_state", {}).duplicate(true)
 	unit_state.refresh_footprint()
 	return unit_state
@@ -155,6 +204,19 @@ static func _attribute_snapshot_from_dict(data: Variant) -> AttributeSnapshot:
 		for key in data.keys():
 			snapshot.set_value(StringName(String(key)), int(data[key]))
 	return snapshot
+
+
+static func _status_effects_from_dict(data: Variant) -> Dictionary:
+	var results: Dictionary = {}
+	if data is not Dictionary:
+		return results
+	for status_key in data.keys():
+		var status_id := ProgressionDataUtils.to_string_name(status_key)
+		var effect_state = BATTLE_STATUS_EFFECT_STATE_SCRIPT.from_dict(data.get(status_key), status_id)
+		if effect_state == null or effect_state.is_empty():
+			continue
+		results[effect_state.status_id] = effect_state
+	return results
 
 
 static func _string_name_array_to_strings(values: Array[StringName]) -> Array[String]:

@@ -95,7 +95,7 @@ func _on_load_button_pressed() -> void:
 	var save_slots := GameSession.list_save_slots()
 	save_list_window.show_window(save_slots)
 	if save_slots.is_empty():
-		status_label.text = "当前没有可加载的存档。可以先点击“开始游戏”或“测试地图”创建新存档。"
+		status_label.text = "当前没有可加载的存档。可以先点击“进入游戏”或“测试地图”创建新存档。"
 	else:
 		status_label.text = "请选择一个已有存档继续加载游戏。"
 
@@ -145,7 +145,10 @@ func _on_save_load_requested(save_id: String) -> void:
 	var load_error := GameSession.load_save(save_id)
 	if load_error != OK:
 		_set_transition_state(false)
-		_show_error("加载存档失败，请检查存档数据。")
+		if load_error == ERR_INVALID_DATA:
+			_show_error("该存档使用已废弃的旧仓库格式，当前版本拒绝加载。")
+		else:
+			_show_error("加载存档失败，请检查存档数据。")
 		push_error("Failed to load save slot %s. Error code: %s" % [save_id, load_error])
 		return
 
@@ -231,7 +234,7 @@ func _is_modal_open() -> bool:
 
 
 func _show_idle_status() -> void:
-	status_label.text = "点击“开始游戏”创建正式世界，点击“测试地图”快速生成独立的 200x200 测试世界，加载已有存档，或先打开“显示设置”调整分辨率与全屏。"
+	status_label.text = "点击“进入游戏”创建正式世界，点击“加载存档”继续已有进度，或点击“测试地图”快速生成独立的 200x200 测试世界。"
 
 
 func _show_error(message: String) -> void:

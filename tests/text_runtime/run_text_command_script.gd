@@ -1,3 +1,5 @@
+# Development script runner for text-runtime scenarios.
+# Use it for automation and smoke checks, not as a player startup flow.
 extends SceneTree
 
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
@@ -33,11 +35,13 @@ func _run() -> void:
 		executed_count += 1
 		print("LINE %d\n%s" % [line_index + 1, result.render()])
 		if not result.ok:
+			await runner.dispose()
 			push_error("Scenario failed at line %d: %s" % [line_index + 1, line])
 			quit(1)
 			return
 
 	print("Text command script: PASS (%d)" % executed_count)
+	await runner.dispose()
 	quit(0)
 
 

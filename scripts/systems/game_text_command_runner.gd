@@ -1,3 +1,5 @@
+# Development-only text command protocol over the headless runtime.
+# Keep command coverage aligned with automation needs, not player UX.
 class_name GameTextCommandRunner
 extends RefCounted
 
@@ -13,6 +15,12 @@ func initialize() -> void:
 
 func get_session():
 	return _session
+
+
+func dispose(clear_persisted_game: bool = false) -> void:
+	if _session != null and _session.has_method("dispose"):
+		await _session.dispose(clear_persisted_game)
+	_session = null
 
 
 func execute_line(command_text: String):
@@ -56,7 +64,7 @@ func _execute_command(tokens: Array[String]) -> Dictionary:
 			return {
 				"ok": true,
 				"message":
-					"Commands: preset/save/game/world/party/settlement/warehouse/battle/reward/promotion/close/snapshot/expect",
+				"Commands: preset/save/game/world/submap/party/quest/settlement/shop/stagecoach/warehouse/battle/reward/promotion/close/snapshot/expect",
 			}
 		"preset":
 			return await _execute_preset_command(tokens)
@@ -66,10 +74,18 @@ func _execute_command(tokens: Array[String]) -> Dictionary:
 			return await _execute_game_command(tokens)
 		"world":
 			return await _execute_world_command(tokens)
+		"submap":
+			return await _execute_submap_command(tokens)
 		"party":
 			return await _execute_party_command(tokens)
+		"quest":
+			return await _execute_quest_command(tokens)
 		"settlement":
 			return await _execute_settlement_command(tokens)
+		"shop":
+			return await _execute_shop_command(tokens)
+		"stagecoach":
+			return await _execute_stagecoach_command(tokens)
 		"warehouse":
 			return await _execute_warehouse_command(tokens)
 		"battle":
@@ -176,10 +192,43 @@ func _execute_world_command(tokens: Array[String]) -> Dictionary:
 					"message": "用法: world inspect <x> <y>",
 				}
 			return runtime.command_world_inspect(_parse_coord(tokens[2], tokens[3]))
+		"click":
+			if tokens.size() < 4:
+				return {
+					"ok": false,
+					"message": "用法: world click <x> <y>",
+				}
+			return runtime.select_world_cell(_parse_coord(tokens[2], tokens[3]))
 		_:
 			return {
 				"ok": false,
 				"message": "未知 world 子命令 %s。" % tokens[1],
+			}
+
+
+func _execute_submap_command(tokens: Array[String]) -> Dictionary:
+	var ensure_result: Dictionary = await _ensure_world_context()
+	if not bool(ensure_result.get("ok", false)):
+		return ensure_result
+	var runtime = _session.get_runtime_facade()
+	if runtime == null:
+		return _missing_world_error()
+	if tokens.size() < 2:
+		return {
+			"ok": false,
+			"message": "用法: submap confirm|cancel|return",
+		}
+	match tokens[1]:
+		"confirm":
+			return runtime.command_confirm_submap_entry()
+		"cancel":
+			return runtime.command_cancel_submap_entry()
+		"return":
+			return runtime.command_return_from_submap()
+		_:
+			return {
+				"ok": false,
+				"message": "未知 submap 子命令 %s。" % tokens[1],
 			}
 
 
@@ -250,6 +299,52 @@ func _execute_party_command(tokens: Array[String]) -> Dictionary:
 			}
 
 
+func _execute_quest_command(tokens: Array[String]) -> Dictionary:
+	var ensure_result: Dictionary = await _ensure_world_context()
+	if not bool(ensure_result.get("ok", false)):
+		return ensure_result
+	var runtime = _session.get_runtime_facade()
+	if runtime == null:
+		return _missing_world_error()
+	if tokens.size() < 2:
+		return {
+			"ok": false,
+			"message": "用法: quest accept|progress|complete <quest_id> ...",
+		}
+	match tokens[1]:
+		"accept":
+			if tokens.size() < 3:
+				return {
+					"ok": false,
+					"message": "用法: quest accept <quest_id>",
+				}
+			return runtime.command_accept_quest(StringName(tokens[2]))
+		"progress":
+			if tokens.size() < 5:
+				return {
+					"ok": false,
+					"message": "用法: quest progress <quest_id> <objective_id> <amount> [key=value ...]",
+				}
+			return runtime.command_progress_quest(
+				StringName(tokens[2]),
+				StringName(tokens[3]),
+				int(_parse_scalar(tokens[4])),
+				_parse_named_args(tokens, 5)
+			)
+		"complete":
+			if tokens.size() < 3:
+				return {
+					"ok": false,
+					"message": "用法: quest complete <quest_id>",
+				}
+			return runtime.command_complete_quest(StringName(tokens[2]))
+		_:
+			return {
+				"ok": false,
+				"message": "未知 quest 子命令 %s。" % tokens[1],
+			}
+
+
 func _execute_settlement_command(tokens: Array[String]) -> Dictionary:
 	var ensure_result: Dictionary = await _ensure_world_context()
 	if not bool(ensure_result.get("ok", false)):
@@ -263,6 +358,46 @@ func _execute_settlement_command(tokens: Array[String]) -> Dictionary:
 			"message": "用法: settlement action <action_id> [key=value ...]",
 		}
 	return runtime.command_execute_settlement_action(tokens[2], _parse_named_args(tokens, 3))
+
+
+func _execute_shop_command(tokens: Array[String]) -> Dictionary:
+	var ensure_result: Dictionary = await _ensure_world_context()
+	if not bool(ensure_result.get("ok", false)):
+		return ensure_result
+	var runtime = _session.get_runtime_facade()
+	if runtime == null:
+		return _missing_world_error()
+	if tokens.size() < 3:
+		return {
+			"ok": false,
+			"message": "用法: shop buy|sell <item_id> [quantity]",
+		}
+	var quantity := int(_parse_scalar(tokens[3])) if tokens.size() >= 4 else 1
+	match tokens[1]:
+		"buy":
+			return runtime.command_shop_buy(StringName(tokens[2]), quantity)
+		"sell":
+			return runtime.command_shop_sell(StringName(tokens[2]), quantity)
+		_:
+			return {
+				"ok": false,
+				"message": "未知 shop 子命令 %s。" % tokens[1],
+			}
+
+
+func _execute_stagecoach_command(tokens: Array[String]) -> Dictionary:
+	var ensure_result: Dictionary = await _ensure_world_context()
+	if not bool(ensure_result.get("ok", false)):
+		return ensure_result
+	var runtime = _session.get_runtime_facade()
+	if runtime == null:
+		return _missing_world_error()
+	if tokens.size() < 3 or tokens[1] != "travel":
+		return {
+			"ok": false,
+			"message": "用法: stagecoach travel <settlement_id>",
+		}
+	return runtime.command_stagecoach_travel(tokens[2])
 
 
 func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
@@ -309,9 +444,11 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 	if tokens.size() < 2:
 		return {
 			"ok": false,
-			"message": "用法: battle tick/skill/variant/move/wait/inspect ...",
+			"message": "用法: battle confirm/tick/skill/variant/move/wait/inspect ...",
 		}
 	match tokens[1]:
+		"confirm":
+			return runtime.command_confirm_battle_start()
 		"tick":
 			if tokens.size() < 3:
 				return {

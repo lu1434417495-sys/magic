@@ -1,64 +1,13 @@
-[gd_scene load_steps=9 format=3]
-; Scene purpose: Start screen scene containing backdrop art, entry buttons, and modal windows.
-; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
+[gd_scene load_steps=6 format=3 uid="uid://dragon_login_scene"]
 
+[ext_resource type="Script" path="res://scripts/ui/login_screen.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/main/login/backgroud.png" id="2_bg"]
+[ext_resource type="PackedScene" path="res://scenes/ui/world_preset_picker_window.tscn" id="3_world_preset"]
+[ext_resource type="PackedScene" path="res://scenes/ui/save_list_window.tscn" id="4_save_list"]
+[ext_resource type="PackedScene" path="res://scenes/ui/display_settings_window.tscn" id="5_display_settings"]
 
-; External scripts, scenes, and shared assets referenced by this scene.
-[ext_resource type="Script" path="res://scripts/ui/login_screen.gd" id="1_8o3i7"]
-[ext_resource type="PackedScene" path="res://scenes/ui/world_preset_picker_window.tscn" id="2_s54wf"]
-[ext_resource type="PackedScene" path="res://scenes/ui/save_list_window.tscn" id="3_h7kg0"]
-[ext_resource type="Texture2D" path="res://assets/main/login/backgroud.png" id="4_bgimg"]
-[ext_resource type="PackedScene" path="res://scenes/ui/display_settings_window.tscn" id="5_0q2mx"]
+[sub_resource type="Theme" id="Theme_dark_fantasy"]
 
-; Local sub-resources defined inline for this scene only.
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
-bg_color = Color(0.0862745, 0.117647, 0.219608, 0.96)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.278431, 0.368627, 0.580392, 0.85)
-corner_radius_top_left = 28
-corner_radius_top_right = 28
-corner_radius_bottom_right = 28
-corner_radius_bottom_left = 28
-shadow_color = Color(0, 0, 0, 0.28)
-shadow_size = 20
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_primary"]
-bg_color = Color(0.933333, 0.694118, 0.211765, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-content_margin_left = 18.0
-content_margin_top = 14.0
-content_margin_right = 18.0
-content_margin_bottom = 14.0
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_secondary"]
-bg_color = Color(0.25098, 0.360784, 0.619608, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-content_margin_left = 18.0
-content_margin_top = 14.0
-content_margin_right = 18.0
-content_margin_bottom = 14.0
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_disabled"]
-bg_color = Color(0.470588, 0.470588, 0.470588, 1)
-corner_radius_top_left = 18
-corner_radius_top_right = 18
-corner_radius_bottom_right = 18
-corner_radius_bottom_left = 18
-content_margin_left = 18.0
-content_margin_top = 14.0
-content_margin_right = 18.0
-content_margin_bottom = 14.0
-
-; Root node and primary scene tree.
 [node name="LoginScreen" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -66,10 +15,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_8o3i7")
+script = ExtResource("1_script")
 start_scene_path = "res://scenes/main/world_map.tscn"
+theme = SubResource("Theme_dark_fantasy")
 
-; Background branch for static color or texture presentation.
 [node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -78,24 +27,21 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("4_bgimg")
+texture = ExtResource("2_bg")
 expand_mode = 1
 stretch_mode = 6
 
-[node name="AccentGlow" type="ColorRect" parent="."]
+[node name="DarkOverlay" type="ColorRect" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.16
-anchor_top = 0.12
-anchor_right = 0.84
-anchor_bottom = 0.42
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.203922, 0.313726, 0.631373, 0.2)
+color = Color(0.07, 0.02, 0.02, 0.52)
 
-; Centered container that keeps the main panel anchored in the viewport.
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="CenterWrap" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -103,118 +49,92 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Card" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(580, 500)
+[node name="PanelRoot" type="PanelContainer" parent="CenterWrap"]
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+custom_minimum_size = Vector2(540, 430)
 
-[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Card"]
+[node name="MarginRoot" type="MarginContainer" parent="CenterWrap/PanelRoot"]
 layout_mode = 2
-theme_override_constants/margin_left = 36
-theme_override_constants/margin_top = 32
-theme_override_constants/margin_right = 36
-theme_override_constants/margin_bottom = 32
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 28
 
-[node name="Content" type="VBoxContainer" parent="CenterContainer/Card/MarginContainer"]
+[node name="VBoxRoot" type="VBoxContainer" parent="CenterWrap/PanelRoot/MarginRoot"]
 layout_mode = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 14
 
-[node name="Eyebrow" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
+[node name="Title" type="Label" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.717647, 0.788235, 0.92549, 1)
-theme_override_font_sizes/font_size = 16
-text = "MAGIC PROJECT"
+text = "Dragon Realm"
 horizontal_alignment = 1
+theme_override_font_sizes/font_size = 34
+theme_override_colors/font_color = Color(0.95, 0.87, 0.70, 1)
 
-[node name="Title" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
+[node name="Subtitle" type="Label" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 42
-text = "游戏登陆"
+text = "请选择你的入口"
 horizontal_alignment = 1
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.74, 0.66, 0.51, 1)
 
-[node name="Subtitle" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.819608, 0.866667, 0.952941, 1)
-theme_override_font_sizes/font_size = 18
-text = "进入奇幻世界前，先从这里选择入口。"
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="Spacer" type="Control" parent="CenterContainer/Card/MarginContainer/Content"]
-custom_minimum_size = Vector2(0, 8)
+[node name="SpacerTop" type="Control" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 
-[node name="StartButton" type="Button" parent="CenterContainer/Card/MarginContainer/Content"]
+[node name="StartButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 58)
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.101961, 0.0705882, 0.0156863, 1)
-theme_override_font_sizes/font_size = 24
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_primary")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_primary")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_primary")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_primary")
-theme_override_styles/disabled = SubResource("StyleBoxFlat_button_disabled")
-text = "开始游戏"
+text = "进入游戏"
 
-[node name="TestButton" type="Button" parent="CenterContainer/Card/MarginContainer/Content"]
+[node name="LoadButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 58)
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/disabled = SubResource("StyleBoxFlat_button_disabled")
+text = "加载存档"
+
+[node name="TestButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
 text = "测试地图"
 
-[node name="LoadButton" type="Button" parent="CenterContainer/Card/MarginContainer/Content"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 54)
+[node name="SpacerBottom" type="Control" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
+custom_minimum_size = Vector2(0, 6)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/disabled = SubResource("StyleBoxFlat_button_disabled")
-text = "加载游戏"
 
-[node name="SettingsButton" type="Button" parent="CenterContainer/Card/MarginContainer/Content"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 54)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 22
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_secondary")
-theme_override_styles/disabled = SubResource("StyleBoxFlat_button_disabled")
-text = "显示设置"
-
-[node name="StatusLabel" type="Label" parent="CenterContainer/Card/MarginContainer/Content"]
+[node name="StatusLabel" type="Label" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.717647, 0.788235, 0.92549, 1)
-theme_override_font_sizes/font_size = 16
-text = "点击“开始游戏”创建正式世界，点击“测试地图”快速进入测试世界，或加载已有存档。"
+text = ""
 horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.84, 0.55, 0.42, 1)
 autowrap_mode = 3
 
-[node name="WorldPresetPickerWindow" parent="." instance=ExtResource("2_s54wf")]
+[node name="FooterRow" type="HBoxContainer" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
+layout_mode = 2
+alignment = 1
+
+[node name="SettingsButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot/FooterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "显示设置"
+flat = true
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.75, 0.65, 0.42, 1)
+theme_override_colors/font_hover_color = Color(0.93, 0.81, 0.52, 1)
+theme_override_colors/font_pressed_color = Color(0.84, 0.69, 0.34, 1)
+
+[node name="WorldPresetPickerWindow" parent="." instance=ExtResource("3_world_preset")]
 unique_name_in_owner = true
 
-[node name="SaveListWindow" parent="." instance=ExtResource("3_h7kg0")]
+[node name="SaveListWindow" parent="." instance=ExtResource("4_save_list")]
 unique_name_in_owner = true
 
-[node name="DisplaySettingsWindow" parent="." instance=ExtResource("5_0q2mx")]
+[node name="DisplaySettingsWindow" parent="." instance=ExtResource("5_display_settings")]
 unique_name_in_owner = true

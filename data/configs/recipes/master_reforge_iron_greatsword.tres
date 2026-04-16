@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RecipeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/recipe_def.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+recipe_id = "master_reforge_iron_greatsword"
+display_name = "大师重铸：铁制大剑"
+description = "将一柄青铜短剑与两份铁矿石重铸为一柄铁制大剑。"
+input_item_ids = Array[StringName](["bronze_sword", "iron_ore"])
+input_item_quantities = PackedInt32Array(1, 2)
+output_item_id = "iron_greatsword"
+output_quantity = 1
+required_facility_tags = Array[StringName](["master_reforge"])
+failure_reason = "需要大师工坊。"

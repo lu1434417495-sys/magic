@@ -8,12 +8,16 @@ const AchievementDef = preload("res://scripts/player/progression/achievement_def
 const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
+const BattleUnitFactory = preload("res://scripts/systems/battle_unit_factory.gd")
 const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
+const GameSession = preload("res://scripts/systems/game_session.gd")
 const PartyManagementWindowScene = preload("res://scenes/ui/party_management_window.tscn")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const ProgressionSerialization = preload("res://scripts/systems/progression_serialization.gd")
+const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
+const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const WorldMapSystem = preload("res://scripts/systems/world_map_system.gd")
 
@@ -29,12 +33,16 @@ func _run() -> void:
 	_test_seed_achievement_registry_validates()
 	_test_seed_profession_catalog_includes_class_archetypes()
 	_test_archer_book_skill_catalog_registers_and_is_learnable()
+	_test_new_game_random_skill_tier_mapping_uses_representative_defs()
+	_test_random_start_skill_pool_excludes_composite_upgrade_skills()
 	_test_seed_growth_achievement_events_unlock_via_real_progression_actions()
+	_test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement()
+	_test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core()
 	_test_achievement_progress_is_member_scoped_and_unlocks_once()
 	_test_single_event_can_unlock_multiple_achievements_in_queue_order()
 	_test_pending_character_reward_applies_in_stable_order()
 	_test_pending_character_reward_round_trip_persists()
-	_test_legacy_pending_mastery_rewards_still_convert()
+	_test_party_state_quest_round_trip_persists()
 	_test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 	await _test_party_management_window_renders_achievement_summary()
 
@@ -127,6 +135,50 @@ func _test_archer_book_skill_catalog_registers_and_is_learnable() -> void:
 			_assert_true(skill_def.can_use_in_combat(), "主动技能 %s 应具备战斗配置。" % String(skill_id))
 
 
+func _test_new_game_random_skill_tier_mapping_uses_representative_defs() -> void:
+	var session := GameSession.new()
+	var skill_defs := session.get_skill_defs()
+	_assert_eq(
+		session._resolve_random_start_skill_initial_level(skill_defs.get(&"warrior_heavy_strike")),
+		3,
+		"基础技能在新开局随机授予时应初始化为 3 级。"
+	)
+	_assert_eq(
+		session._resolve_random_start_skill_initial_level(skill_defs.get(&"mage_molten_burst")),
+		2,
+		"带有中段信号的技能在新开局随机授予时应初始化为 2 级。"
+	)
+	_assert_eq(
+		session._resolve_random_start_skill_initial_level(skill_defs.get(&"mage_comet_drop")),
+		1,
+		"带有高阶信号的技能在新开局随机授予时应初始化为 1 级。"
+	)
+	_assert_eq(
+		session._resolve_random_start_skill_initial_level(skill_defs.get(&"warrior_true_dragon_slash")),
+		0,
+		"终极技能在新开局随机授予时应初始化为 0 级。"
+	)
+	session.free()
+
+
+func _test_random_start_skill_pool_excludes_composite_upgrade_skills() -> void:
+	var session := GameSession.new()
+	var skill_defs := session.get_skill_defs()
+	var progression := UnitProgress.new()
+	var standard_book_skill := skill_defs.get(&"warrior_heavy_strike") as SkillDef
+	var composite_book_skill := skill_defs.get(&"saint_blade_combo") as SkillDef
+
+	_assert_true(
+		session._is_random_start_book_skill_candidate(standard_book_skill, progression),
+		"普通技能书技能应保留在随机起始技能池中。"
+	)
+	_assert_true(
+		not session._is_random_start_book_skill_candidate(composite_book_skill, progression),
+		"复合升级技能不应进入随机起始技能池。"
+	)
+	session.free()
+
+
 func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var manager := _setup_manager(party_state)
@@ -182,6 +234,138 @@ func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() 
 		attributes.get_attribute_value(UnitBaseAttributes.AGILITY),
 		agility_before + 1,
 		"确认熟练度成就奖励后，应提高敏捷。"
+	)
+
+
+func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var achievement_defs := {
+		&"six_hit_combo": _make_achievement(
+			&"six_hit_combo",
+			"六击连斩",
+			&"skill_used",
+			6,
+			[
+				_make_reward(
+					AchievementRewardDef.TYPE_ATTRIBUTE_DELTA,
+					UnitBaseAttributes.STRENGTH,
+					1,
+					"力量"
+				),
+			],
+			&"warrior_combo_strike"
+		),
+	}
+	var manager := _setup_manager(party_state, achievement_defs)
+	var progression: UnitProgress = party_state.get_member_state(&"hero").progression
+
+	_assert_true(manager.learn_skill(&"hero", &"charge"), "前置条件：hero 应能学会冲锋。")
+	_assert_true(manager.learn_skill(&"hero", &"warrior_combo_strike"), "前置条件：hero 应能学会连击。")
+	_assert_true(manager.learn_skill(&"hero", &"warrior_aura_slash"), "前置条件：hero 应能学会斗气斩。")
+	_assert_true(
+		manager.grant_battle_mastery(&"hero", &"warrior_combo_strike", 999).mastery_changes.size() > 0,
+		"连击应能通过真实熟练度成长提升到满级。"
+	)
+	_assert_true(
+		manager.grant_battle_mastery(&"hero", &"warrior_aura_slash", 999).mastery_changes.size() > 0,
+		"斗气斩应能通过真实熟练度成长提升到满级。"
+	)
+	_assert_eq(int(progression.get_skill_progress(&"warrior_combo_strike").skill_level), 5, "连击应达到 5 级。")
+	_assert_eq(int(progression.get_skill_progress(&"warrior_aura_slash").skill_level), 5, "斗气斩应达到 5 级。")
+
+	_assert_true(
+		not manager.learn_skill(&"hero", &"saint_blade_combo"),
+		"缺少知识、等级与成就时不应提前解锁圣剑连斩。"
+	)
+
+	_assert_true(
+		manager.learn_knowledge(&"hero", &"compania_family_legacy"),
+		"真实成长链应允许 hero 学会圣剑连斩前置知识。"
+	)
+	_assert_true(
+		not manager.learn_skill(&"hero", &"saint_blade_combo"),
+		"缺少成就条件时不应提前解锁圣剑连斩。"
+	)
+
+	var achievement_unlocks := manager.record_achievement_event(&"hero", &"skill_used", 6, &"warrior_combo_strike")
+	_assert_eq(achievement_unlocks.size(), 1, "真实技能使用事件应能解锁测试成就。")
+	_assert_true(
+		progression.get_achievement_progress_state(&"six_hit_combo").is_unlocked,
+		"测试成就应在真实事件后解锁。"
+	)
+
+	_assert_true(
+		manager.learn_skill(&"hero", &"saint_blade_combo"),
+		"满足知识、双技能等级与成就条件后应能解锁圣剑连斩。"
+	)
+
+	var combo_progress = progression.get_skill_progress(&"saint_blade_combo")
+	_assert_true(combo_progress != null and combo_progress.is_learned, "圣剑连斩应被真正写入成长进度。")
+	_assert_eq(
+		progression.get_merged_source_skill_ids(&"saint_blade_combo"),
+		[&"warrior_combo_strike", &"warrior_aura_slash"],
+		"圣剑连斩应保留来源技能血缘。"
+	)
+	_assert_true(
+		progression.get_skill_progress(&"warrior_combo_strike").is_learned
+		and progression.get_skill_progress(&"warrior_aura_slash").is_learned,
+		"解锁圣剑连斩后不应删除来源技能。"
+	)
+
+
+func _test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	progress.display_name = "Hero"
+
+	var warrior_progress := UnitProfessionProgress.new()
+	warrior_progress.profession_id = &"warrior"
+	warrior_progress.rank = 1
+	progress.set_profession_progress(warrior_progress)
+
+	for source_skill_id in [&"warrior_combo_strike", &"warrior_aura_slash"]:
+		var source_progress := UnitSkillProgress.new()
+		source_progress.skill_id = source_skill_id
+		source_progress.is_learned = true
+		source_progress.skill_level = 5
+		source_progress.is_core = true
+		source_progress.assigned_profession_id = &"warrior"
+		progress.set_skill_progress(source_progress)
+		warrior_progress.add_core_skill(source_skill_id)
+
+	var merge_service := SkillMergeService.new()
+	merge_service.setup(progress, registry.get_skill_defs(), null)
+
+	_assert_true(
+		merge_service.apply_composite_upgrade_result(
+			&"saint_blade_combo",
+			[&"warrior_combo_strike", &"warrior_aura_slash"],
+			true,
+			&"replace_sources_with_result"
+		),
+		"replace_sources_with_result 应能在保留来源技能时完成复合升级。"
+	)
+
+	var combo_progress = progress.get_skill_progress(&"saint_blade_combo")
+	_assert_true(combo_progress != null and combo_progress.is_learned, "复合升级结果应被写入成长进度。")
+	_assert_true(combo_progress.is_core, "复合升级结果应接管核心位。")
+	_assert_eq(combo_progress.assigned_profession_id, &"warrior", "复合升级结果应继承原职业核心位。")
+	_assert_true(
+		progress.get_skill_progress(&"warrior_combo_strike").is_learned
+		and not progress.get_skill_progress(&"warrior_combo_strike").is_core,
+		"来源技能应保留，但不再占用核心位。"
+	)
+	_assert_true(
+		progress.get_skill_progress(&"warrior_aura_slash").is_learned
+		and not progress.get_skill_progress(&"warrior_aura_slash").is_core,
+		"另一条来源技能也应保留，但不再占用核心位。"
+	)
+	_assert_true(
+		warrior_progress.core_skill_ids.has(&"saint_blade_combo")
+		and not warrior_progress.core_skill_ids.has(&"warrior_combo_strike")
+		and not warrior_progress.core_skill_ids.has(&"warrior_aura_slash"),
+		"职业核心列表应从来源技能切换到结果技能。"
 	)
 
 
@@ -373,45 +557,42 @@ func _test_pending_character_reward_round_trip_persists() -> void:
 	_assert_true(restored_progress != null and restored_progress.is_unlocked, "成就进度应随 PartyState 一并恢复。")
 
 
-func _test_legacy_pending_mastery_rewards_still_convert() -> void:
+func _test_party_state_quest_round_trip_persists() -> void:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state, {})
-	_assert_true(manager.learn_skill(&"hero", &"warrior_heavy_strike"), "前置条件：hero 应能学会重击。")
-
-	var raw_data := party_state.to_dict()
-	raw_data.erase("pending_character_rewards")
-	raw_data["pending_mastery_rewards"] = [
+	var quest_def := QuestDef.new()
+	quest_def.quest_id = &"contract_wolf_pack"
+	quest_def.objective_defs = [
 		{
-			"member_id": "hero",
-			"member_name": "Hero",
-			"source_type": "training",
-			"source_label": "旧版训练奖励",
-			"summary_text": "旧版数据兼容",
-			"mastery_entries": [
-				{
-					"skill_id": "warrior_heavy_strike",
-					"skill_name": "重击",
-					"mastery_amount": 20,
-					"reason_text": "legacy",
-				},
-			],
+			"objective_id": "defeat_wolves",
+			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+			"target_value": 3,
+		},
+		{
+			"objective_id": "report_back",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_value": 1,
 		},
 	]
 
-	var restored_party_state = PartyState.from_dict(raw_data)
-	_assert_eq(restored_party_state.pending_character_rewards.size(), 1, "旧 pending_mastery_rewards 应自动转换为新奖励队列。")
-	_assert_eq(
-		restored_party_state.pending_character_rewards[0].entries[0].entry_type,
-		AchievementRewardDef.TYPE_SKILL_MASTERY,
-		"旧 mastery_entries 应转换成 skill_mastery 条目。"
-	)
+	var active_quest := QuestState.new()
+	active_quest.quest_id = quest_def.quest_id
+	active_quest.mark_accepted(4)
+	active_quest.record_objective_progress(&"defeat_wolves", 2, 3, {"enemy_template_id": "wolf_raider"})
+	party_state.set_active_quest_state(active_quest)
+	party_state.add_completed_quest_id(&"intro_contract")
 
-	var restored_manager := _setup_manager(restored_party_state, {})
-	var delta = restored_manager.apply_pending_character_reward(restored_party_state.get_next_pending_character_reward())
-	var basic_sword_progress = restored_party_state.get_member_state(&"hero").progression.get_skill_progress(&"warrior_heavy_strike")
-	_assert_eq(delta.mastery_changes.size(), 1, "旧版奖励转换后仍应能正确结算熟练度变化。")
-	_assert_eq(int(basic_sword_progress.total_mastery_earned), 20, "旧版奖励转换后应正确写入技能熟练度。")
-	_assert_true(restored_party_state.pending_character_rewards.is_empty(), "旧版奖励转换后消费完成也应正确出队。")
+	var serialized_party_state := ProgressionSerialization.serialize_party_state(party_state)
+	var restored_party_state = ProgressionSerialization.deserialize_party_state(serialized_party_state)
+	var restored_quest: QuestState = restored_party_state.get_active_quest_state(&"contract_wolf_pack")
+	_assert_true(restored_quest != null, "QuestState 应随 PartyState 一起序列化往返恢复。")
+	_assert_eq(restored_party_state.version, 3, "新增 quest schema 后 PartyState.version 应升级到 3。")
+	_assert_eq(restored_quest.get_objective_progress(&"defeat_wolves"), 2, "QuestState 进度应在往返后保持稳定。")
+	_assert_eq(restored_quest.accepted_at_world_step, 4, "QuestState 接取时间应在往返后保持稳定。")
+	_assert_true(restored_party_state.has_completed_quest(&"intro_contract"), "completed_quest_ids 应随 PartyState 一起序列化往返恢复。")
+
+	restored_quest.record_objective_progress(&"defeat_wolves", 1, 3, {"enemy_template_id": "wolf_raider"})
+	restored_quest.record_objective_progress(&"report_back", 1, 1, {"settlement_id": "spring_village_01"})
+	_assert_true(restored_quest.has_completed_all_objectives(quest_def), "恢复后的 QuestState 应能继续驱动 objective 完成判断。")
 
 
 func _test_battle_achievement_only_queues_reward_without_mutating_runtime_unit() -> void:
@@ -434,12 +615,15 @@ func _test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 	}
 	var manager := _setup_manager(party_state, achievement_defs)
 	_assert_true(manager.learn_skill(&"hero", &"warrior_heavy_strike"), "前置条件：hero 应能学会重击。")
+	_assert_true(not manager.has_method("build_battle_party"), "CharacterManagementModule 不应再暴露战斗编队构建 API。")
+	_assert_true(not manager.has_method("refresh_battle_unit"), "CharacterManagementModule 不应再暴露战斗单位刷新 API。")
 
-	var runtime_unit = manager.build_battle_party([&"hero"])[0]
+	var unit_factory := BattleUnitFactory.new()
+	var runtime_unit = unit_factory.build_ally_units(party_state, {})[0]
 	var skill_ids_before = runtime_unit.known_active_skill_ids.duplicate()
 
 	var unlocked_ids := manager.record_achievement_event(&"hero", &"battle_won", 1)
-	var future_unit = manager.build_battle_party([&"hero"])[0]
+	var future_unit = unit_factory.build_ally_units(party_state, {})[0]
 	var charge_progress = party_state.get_member_state(&"hero").progression.get_skill_progress(&"charge")
 
 	_assert_eq(unlocked_ids.size(), 1, "战斗成就应被正确解锁。")

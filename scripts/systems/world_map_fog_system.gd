@@ -5,13 +5,15 @@
 class_name WorldMapFogSystem
 extends RefCounted
 
+const WORLD_MAP_FOG_FACTION_STATE_SCRIPT = preload("res://scripts/systems/world_map_fog_faction_state.gd")
+
 const FOG_UNEXPLORED := 0
 const FOG_EXPLORED := 1
 const FOG_VISIBLE := 2
 
 ## 字段说明：保存世界尺寸（格子），便于顺序遍历、批量展示、批量运算和整体重建。
 var _world_size_cells := Vector2i.ZERO
-## 字段说明：缓存按阵营索引的状态集合字典，集中保存可按键查询的运行时数据。
+## 字段说明：缓存按阵营索引的状态集合字典，内部 value 使用 WorldMapFogFactionState。
 var _states_by_faction: Dictionary = {}
 
 
@@ -21,8 +23,8 @@ func setup(world_size_cells: Vector2i) -> void:
 
 
 func rebuild_visibility_for_faction(faction_id: String, sources: Array) -> void:
-	var faction_state := _get_or_create_state(faction_id)
-	var visible_now: Dictionary = {}
+	var faction_state = _get_or_create_state(faction_id)
+	faction_state.clear_visible()
 
 	for source in sources:
 		for offset_y in range(-source.range, source.range + 1):
@@ -34,20 +36,37 @@ func rebuild_visibility_for_faction(faction_id: String, sources: Array) -> void:
 				if not _is_inside_world(coord):
 					continue
 
-				visible_now[coord] = true
-				faction_state["explored"][coord] = true
+				faction_state.mark_visible(coord)
 
-	faction_state["visible_now"] = visible_now
+
+func mark_explored(coord: Vector2i, faction_id: String) -> void:
+	if not _is_inside_world(coord):
+		return
+	_get_or_create_state(faction_id).explored[coord] = true
+
+
+func reveal_diamond(center: Vector2i, reveal_range: int, faction_id: String) -> Array[Vector2i]:
+	var revealed_coords: Array[Vector2i] = []
+	var radius := maxi(reveal_range, 0)
+	var faction_state = _get_or_create_state(faction_id)
+	for offset_y in range(-radius, radius + 1):
+		for offset_x in range(-radius, radius + 1):
+			if abs(offset_x) + abs(offset_y) > radius:
+				continue
+			var coord := center + Vector2i(offset_x, offset_y)
+			if not _is_inside_world(coord):
+				continue
+			faction_state.explored[coord] = true
+			revealed_coords.append(coord)
+	return revealed_coords
 
 
 func is_visible(coord: Vector2i, faction_id: String) -> bool:
-	var faction_state := _get_or_create_state(faction_id)
-	return faction_state["visible_now"].has(coord)
+	return _get_or_create_state(faction_id).is_visible(coord)
 
 
 func is_explored(coord: Vector2i, faction_id: String) -> bool:
-	var faction_state := _get_or_create_state(faction_id)
-	return faction_state["explored"].has(coord)
+	return _get_or_create_state(faction_id).is_explored(coord)
 
 
 func get_fog_state(coord: Vector2i, faction_id: String) -> int:
@@ -58,14 +77,13 @@ func get_fog_state(coord: Vector2i, faction_id: String) -> int:
 	return FOG_UNEXPLORED
 
 
-func _get_or_create_state(faction_id: String) -> Dictionary:
+func _get_or_create_state(faction_id: String):
 	if _states_by_faction.has(faction_id):
-		return _states_by_faction[faction_id]
+		var existing_state: Variant = _states_by_faction[faction_id]
+		if existing_state is Object and existing_state.has_method("clear_visible"):
+			return existing_state
 
-	var state := {
-		"visible_now": {},
-		"explored": {},
-	}
+	var state = WORLD_MAP_FOG_FACTION_STATE_SCRIPT.new()
 	_states_by_faction[faction_id] = state
 	return state
 

@@ -1,3 +1,4 @@
+# Automation-oriented render payload for text command execution results.
 class_name GameTextCommandResult
 extends RefCounted
 

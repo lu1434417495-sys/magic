@@ -1,11 +1,11 @@
 # Magic 可玩纵切路线图
 
-更新日期：`2026-04-13`
+更新日期：`2026-04-16`
 
 ## Summary
 
-- 当前项目的核心循环已经通了，但“聚落服务”和“内容宽度”仍不足以支撑持续游玩。
-- 这份路线图采用“可玩纵切优先”策略：先补足探索、补给、成长、掉落、再出发的闭环，再处理大规模资源迁移与表现打磨。
+- 当前项目的核心循环已经通了，但”聚落服务”和”内容宽度”仍不足以支撑持续游玩。
+- 这份路线图采用”可玩纵切优先”策略：先补足探索、补给、成长、掉落、再出发的闭环，再处理大规模资源迁移与表现打磨。
 - 实施顺序固定为：
   1. 聚落服务运行化
   2. 内容宽度补齐
@@ -17,14 +17,77 @@
   - `CharacterManagementModule` 负责角色成长与奖励入账
   - `PartyWarehouseService` 负责共享仓库
 
+## 当前实施状态（2026-04-16）
+
+### Phase 1 聚落服务
+
+| 服务 | interaction_script_id | 状态 |
+| --- | --- | --- |
+| 仓储 | `party_warehouse` | ✅ 已落地 |
+| 休整（篝火） | `service_rest_basic` | ✅ 已落地（免费，恢复 30% HP） |
+| 休整（旅店整备） | `service_rest_full` | ✅ 已落地（50 金，全量恢复 HP/MP，推进世界时间） |
+| 补给/商店 | `service_basic_supply` 等 | ✅ 已落地（SettlementShopService） |
+| 驿站传送 | `service_stagecoach` 等 | ✅ 已落地（按格收费，已访问据点可选） |
+| 乡野传闻 | `service_village_rumor` | ✅ 已落地（免费揭雾） |
+| 情报网络 | `service_intel_network` | ✅ 已落地（50 金，大范围揭雾） |
+| 锻造/配方合成 | — | ❌ 未实现（`RecipeDef` schema 已新增，但执行器不存在） |
+| 委托/任务 | `service_contract_board` 等 | ⚠️ 部分接通（`QuestDef` / `QuestState` / `PartyState` 任务字段已新增，headless 可接取/推进/完成，battle/settlement 已能自动推进；正式任务板与奖励流程仍未实现） |
+| 研究 | — | ❌ 未实现（无独立服务入口，奖励队列链路已具备） |
+
+第二批服务（`service_repair_gear`、`service_join_guild`、`service_identify_relic` 等 17 项）仍在 `UNIMPLEMENTED_INTERACTION_IDS` 中，本轮不开工，保持锁定态。
+
+### Phase 2 内容宽度
+
+| 类别 | 当前 | 目标 |
+| --- | --- | --- |
+| 单手武器 | 1（bronze_sword） | ≥4 类 |
+| 双手武器 | 1（iron_greatsword） | — |
+| 防具 | 1（leather_jerkin） | 3 槽 |
+| 饰品 | 1（scout_charm） | — |
+| 消耗品 | 1（healing_herb） | ≥4 类 |
+| 材料 | 1（iron_ore） | ≥6 类 |
+| 任务物品 | 0 | ≥3 类 |
+| 敌人模板 | 不足（未达 8 个） | 8 个，覆盖 4 类职责 |
+| 战斗地形 profile | 2（default / canyon） | 补 “狭道突击” / “守点推进” |
+
+`ItemDef` 字段缺口：`buy_price` / `sell_price` 目前只有 `base_price` 一个字段；`tags` 字段不存在。这两项需要在 Phase 2 补齐才能支撑商店差价、配方过滤和任务条件引用。
+
+### Phase 3 装备/掉落/经济闭环
+
+- ❌ 战斗结算后无掉落池、无物品入仓链路（`EncounterRosterBuilder` 没有 drop pool）。
+- ❌ 仓库满时掉落无显式提示。
+- ❌ 锻造配方消耗/产出未实现。
+- ❌ 任务完成条件（提交物品、击败指定敌人、执行据点动作）未实现。
+
+### Phase 4 数据驱动迁移
+
+- ❌ 职业定义仍在 `ProgressionContentRegistry` 硬编码。
+- ❌ 技能定义仍在 `DesignSkillCatalog` 硬编码。
+- ❌ 敌人模板仍在 `EnemyContentRegistry` 硬编码。
+
+### 战斗系统技术欠债
+
+这些缺口不属于路线图四个 Phase 的内容宽度/服务任务，但会在 Phase 3 之前构成玩法质量瓶颈：
+
+| 缺口 | 说明 |
+| --- | --- |
+| 命中模型 | 当前仍是 `hit_rate - evasion` 百分比口径；应切到 BAB + 负 AC + d20 双缩放体系 |
+| 冷却/耐力循环 | `cooldown_tu` / `stamina_cost` 字段存在，但运行时扣费与回合推进闭环未完成 |
+| Aura 独立资源 | 无独立 Aura 资源链，当前 aura_cost 字段悬空 |
+| 状态效果语义表 | `status_effects` 是松散字典，无统一状态语义与持续时间管理 |
+| 范围图形 | `line / cone / radius / self` 模式不完整 |
+| AI 技能评分 | AI 选技能不走评分模型，仅走顺序优先 |
+
 ## 当前仓库事实
 
 - 聚落服务配置已经存在于 `data/configs/world_map/*.tres`，`service_type`、`interaction_script_id`、设施与 NPC 绑定关系已经接通。
-- `GameRuntimeFacade._on_settlement_action_requested()` 已经是聚落动作正式入口。
-- `party_warehouse` 已经是现有唯一真正落地的聚落服务，说明“聚落按钮 -> runtime -> modal / 持久化”链路可复用。
+- `GameRuntimeSettlementCommandHandler` 已是聚落动作正式分发入口（原 `_execute_settlement_action` 占位已替换为真实服务分发）。
+- 休整、商店、驿站、迷雾揭示均已落地真实状态变化；锻造、任务、研究三项仍无系统支撑。
 - `CharacterManagementModule.record_achievement_event(...)` 已经支持据点行为成就。
-- `PartyMemberState.current_hp/current_mp` 会持久化到世界态，因此“休整”可以做成真实恢复服务。
+- `PartyMemberState.current_hp/current_mp` 会持久化到世界态，休整已基于此实现真实恢复。
 - `ItemContentRegistry` 已经采用资源扫描模式；敌人、职业、技能仍主要依赖硬编码注册。
+- `PartyState` 已有 `gold`、`active_quests`、`completed_quest_ids` 字段，但任务流程仍未接入。
+- `QuestDef` / `QuestState` / `RecipeDef` schema 已存在；其中 `QuestDef` 已接入 registry，settlement / battle 已能产出最小 quest progress 事件，但完整玩法链仍未闭环。
 
 ## 目标与非目标
 
@@ -61,44 +124,36 @@
 
 ### 首批必须落地的服务
 
-- `仓储`
-  - 继续沿用 `interaction_script_id = "party_warehouse"`。
-  - 但逻辑入口收口到统一服务分发层，不再长期保留特判分叉。
-- `休整`
-  - 恢复全队 `current_hp/current_mp` 到属性上限。
-  - 不做按床位、按时间、按伤势分级的复杂规则。
-- `补给`
-  - 提供基础购买。
-  - 只卖首批正式物品，不做随机库存刷新。
-- `锻造`
-  - 支持固定配方：消耗材料，产生成品入仓。
-  - 不做失败率、品质、词缀。
-- `委托/任务`
-  - 先做静态任务板。
-  - 支持接取、完成、领奖。
-- `研究`
-  - 发放知识、技能或熟练度奖励。
-  - 统一复用 `PendingCharacterReward` 队列，不新增第二套奖励弹窗。
+- `仓储` ✅ 已落地
+  - 沿用 `interaction_script_id = "party_warehouse"`，逻辑入口已收口到 `GameRuntimeSettlementCommandHandler`。
+- `休整` ✅ 已落地
+  - `service_rest_basic`：免费，恢复全队约 30% HP。
+  - `service_rest_full`：消耗 50 金，全量恢复全队 HP/MP，推进世界时间 1 步。
+- `补给` ✅ 已落地
+  - `SettlementShopService` 已实现商店买卖；库存来自物品注册表。
+  - 驿站传送（`service_stagecoach`）同期落地。
+- `锻造` ❌ 待实现
+  - `RecipeDef` 不存在；`service_repair_gear` 在 `UNIMPLEMENTED_INTERACTION_IDS`。
+  - 落地需求：新增配方资源 `RecipeDef`，实现"消耗材料 -> 产出成品入仓"执行器，挂接到 `GameRuntimeSettlementCommandHandler`。
+- `委托/任务` ❌ 待实现（Phase 1 最大阻塞项）
+  - `QuestDef` 资源不存在；`PartyState` 中没有 `active_quests` / `completed_quest_ids`。
+  - `service_contract_board` / `service_bounty_registry` 在 `UNIMPLEMENTED_INTERACTION_IDS`。
+  - 落地需求：新增 `QuestDef` 资源 + `PartyState` 任务字段 + 静态任务板 modal + 接取/完成/领奖链路。
+- `研究` ❌ 待实现
+  - 无独立研务入口；`PendingCharacterReward` 奖励队列链路已具备，研究服务只需新增 `interaction_script_id` 和执行器。
+  - 落地需求：分配 `interaction_script_id`，在执行器中构造技能/知识奖励并推入 `pending_character_rewards`。
 
 ### 第二批保留锁定态的服务
 
-- `交易`
-- `政务`
-- `传送`
-- `部署`
-- `治理`
+以下 17 项在 `UNIMPLEMENTED_INTERACTION_IDS` 中，本轮不做真实系统，UI 保持锁定态（不能伪装成可成功办理）：
 
-这些服务本轮不做真实系统，但 UI 必须显示为明确锁定态或未开放态，不能继续伪装成可成功办理的事务。
+`service_repair_gear`、`service_contract_board`、`service_join_guild`、`service_identify_relic`、`service_bounty_registry`、`service_recruit_specialist`、`service_issue_regional_edict`、`service_unlock_archive`、`service_diplomatic_clearance`、`service_amnesty_review`、`service_elite_recruitment`、`service_master_reforge`、`service_respecialize_build`、`service_manage_reputation`、`service_open_trade_route`、`service_legend_contracts`、`service_hire_expert`
 
 ### Phase 1 完成标准
 
-- 从聚落点击首批服务后，至少有一类真实状态变化发生：
-  - 角色资源恢复
-  - 金币变化
-  - 仓库物品变化
-  - 奖励队列变化
-  - 任务状态变化
-- 奖励和持久化都继续走现有 runtime 主链。
+- 锻造、任务、研究三项服务均已落地真实状态变化。
+- 任务系统：接取 → 推进 → 完成 → 领奖闭环在 headless 文本回归中可验证。
+- 奖励和持久化继续走现有 runtime 主链（不新增奖励弹窗）。
 - 现有 `settlement action service:warehouse` 文本回归仍然通过。
 
 ## Phase 2：内容宽度补齐
@@ -115,13 +170,13 @@
   - 消耗品 4 类
   - 材料 6 类
   - 任务物品 3 类
-- `ItemDef` 需要扩展最小字段：
-  - `item_type`
-  - `equip_slot`
-  - `buy_price`
-  - `sell_price`
-  - `attribute_modifiers`
-  - `tags`
+- `ItemDef` 字段现状与待补项：
+  - `item_category`（misc / equipment / skill_book）✅ 已有
+  - `equipment_slot_ids` ✅ 已有
+  - `attribute_modifiers` ✅ 已有
+  - `base_price` ✅ 已有（商店当前用此字段生成买卖价）
+  - `buy_price` / `sell_price` ❌ 待拆分（当前商店差价依赖 `base_price` 推算，需要独立字段才能支撑配方引用和任务条件）
+  - `tags` ❌ 待添加（配方过滤、任务条件、掉落池筛选均需此字段）
 
 ### 敌人与遭遇目标
 
@@ -227,19 +282,19 @@
 ## Public Interfaces
 
 - `PartyState`
-  - 新增 `gold: int`
-  - 新增 `active_quests: Array`
-  - 新增 `completed_quest_ids: Array[StringName]`
+  - `gold: int` ✅ 已有
+  - `active_quests: Array` ✅ 已有（任务流程仍待接入）
+  - `completed_quest_ids: Array[StringName]` ✅ 已有（任务流程仍待接入）
 - `ItemDef`
-  - 新增 `item_type`
-  - 新增 `equip_slot`
-  - 新增 `buy_price`
-  - 新增 `sell_price`
-  - 新增 `attribute_modifiers`
-  - 新增 `tags`
-- 新增 `QuestDef` 资源与任务状态对象。
-- 聚落服务统一执行接口固定为：
-  - `execute(settlement_id, action_id, payload) -> Dictionary`
+  - `item_category`（替代原设计的 `item_type`）✅ 已有
+  - `equipment_slot_ids` / `occupied_slot_ids` ✅ 已有
+  - `attribute_modifiers` ✅ 已有
+  - `base_price` ✅ 已有
+  - `buy_price` / `sell_price` ✅ 已有
+  - `tags` ✅ 已有
+- `RecipeDef` 资源（锻造配方）✅ schema 已新增
+- `QuestDef` 资源与任务状态对象 ✅ schema 与 seed 内容已新增
+- 聚落服务统一执行接口：`execute(settlement_id, action_id, payload) -> Dictionary` ✅ 已通过 `GameRuntimeSettlementCommandHandler.execute_settlement_action()` 落地
 
 ## Test Plan
 
@@ -286,7 +341,9 @@
 
 ## Assumptions
 
-- 本路线图的唯一优先级是“尽快形成一个可持续游玩的单机版本”。
+- 本路线图的唯一优先级是”尽快形成一个可持续游玩的单机版本”。
 - 表现层升级、多人、复杂系统设计都不作为当前是否开工的前置条件。
 - 聚落仍采用窗口交付，不进入城内可行走地图。
-- 本轮只要求 5 个真实服务落地，其余服务保持锁定态即可。
+- Phase 1 首批服务已从原计划的 5 项扩展为 6 项（仓储 + 休整 + 补给 + 锻造 + 任务 + 研究），其余 17 项保持锁定态。
+- 战斗命中模型切换（BAB + 负 AC + d20）不强制纳入任一 Phase，但应在 Phase 3 前完成，否则经济闭环数值无法稳定校准。
+- 信仰系统（`faith_system_plan.md`）、装备耐久（`equipment_durability_plan.md`）、D&D 武器系统（`dnd_weapon_system_initial_plan.md`）均为计划内但本轮不开工的系统，不影响四个 Phase 的执行顺序。

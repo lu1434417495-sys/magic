@@ -9,4 +9,6 @@ display_name = "治疗草"
 description = "常见的止血与缓痛草药，适合在共享仓库中成批存放。"
 icon = "res://icon.svg"
 is_stackable = true
+base_price = 12
+sellable = true
 max_stack = 20

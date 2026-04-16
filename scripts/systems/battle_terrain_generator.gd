@@ -10,12 +10,17 @@ const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleEdgeFeatureState = preload("res://scripts/systems/battle_edge_feature_state.gd")
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
 const BATTLE_EDGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_edge_service.gd")
+const BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT = preload("res://scripts/systems/battle_terrain_topology_service.gd")
 const BattleEdgeService = preload("res://scripts/systems/battle_edge_service.gd")
+const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
 
 const TERRAIN_LAND := &"land"
 const TERRAIN_FOREST := &"forest"
 const TERRAIN_WATER := &"water"
+const TERRAIN_SHALLOW_WATER := &"shallow_water"
+const TERRAIN_FLOWING_WATER := &"flowing_water"
+const TERRAIN_DEEP_WATER := &"deep_water"
 const TERRAIN_MUD := &"mud"
 const TERRAIN_SPIKE := &"spike"
 const PROFILE_DEFAULT := &"default"
@@ -43,6 +48,8 @@ var _grid_service := BATTLE_GRID_SERVICE_SCRIPT.new()
 var _rng := RandomNumberGenerator.new()
 ## 字段说明：缓存边缘面服务实例，统一生成器内的连通性、出生点和部署位边规则。
 var _edge_service: BattleEdgeService = BATTLE_EDGE_SERVICE_SCRIPT.new()
+## 字段说明：缓存水体拓扑服务实例，用于把水体重分类为浅水/流水/深水。
+var _terrain_topology_service = BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT.new()
 ## 字段说明：缓存不同地图尺寸下的坐标列表，避免生成链路重复构建同一批 Vector2i。
 var _coord_cache: Dictionary = {}
 
@@ -50,6 +57,8 @@ var _coord_cache: Dictionary = {}
 func generate(encounter_anchor_or_context, seed: int = 0, context: Dictionary = {}) -> Dictionary:
 	var encounter_context := _build_encounter_context(encounter_anchor_or_context, seed, context)
 	var terrain_profile_id := _resolve_terrain_profile_id(encounter_context, context)
+	if terrain_profile_id == &"":
+		return {}
 	if terrain_profile_id == PROFILE_CANYON:
 		return _generate_canyon(encounter_context, terrain_profile_id)
 	return _generate_default(encounter_context, terrain_profile_id)
@@ -102,7 +111,7 @@ func _generate_default(encounter_context: Dictionary, terrain_profile_id: String
 			"terrain_profile_id": terrain_profile_id,
 		}
 
-	return _build_default_fallback(encounter_context, terrain_profile_id)
+	return {}
 
 
 func _build_default_cells(map_size: Vector2i) -> Dictionary:
@@ -128,6 +137,7 @@ func _build_default_cells(map_size: Vector2i) -> Dictionary:
 		_grid_service.recalculate_cell(cell_state)
 		cells[coord] = cell_state
 
+	_finalize_water_terrain(cells, map_size)
 	return cells
 
 
@@ -321,7 +331,7 @@ func _generate_canyon(encounter_context: Dictionary, terrain_profile_id: StringN
 			"terrain_profile_id": terrain_profile_id,
 		}
 
-	return _build_canyon_fallback(encounter_context, terrain_profile_id)
+	return {}
 
 
 func _build_canyon_cells(map_size: Vector2i) -> Dictionary:
@@ -340,6 +350,7 @@ func _build_canyon_cells(map_size: Vector2i) -> Dictionary:
 		_grid_service.recalculate_cell(cell_state)
 		cells[coord] = cell_state
 
+	_finalize_water_terrain(cells, map_size)
 	return cells
 
 
@@ -734,13 +745,13 @@ func _build_spawn_buffer_coords(map_size: Vector2i, center_coord: Vector2i) -> D
 func _can_host_tent(cell: BattleCellState) -> bool:
 	if cell == null or not cell.passable:
 		return false
-	return cell.base_terrain == TERRAIN_LAND or cell.base_terrain == TERRAIN_FOREST
+	return BattleTerrainRules.can_host_tent(cell.base_terrain)
 
 
 func _can_host_torch(cell: BattleCellState) -> bool:
 	if cell == null or not cell.passable:
 		return false
-	return cell.base_terrain != TERRAIN_WATER and cell.base_terrain != TERRAIN_SPIKE
+	return BattleTerrainRules.can_host_torch(cell.base_terrain)
 
 
 func _measure_visual_drop(cells: Dictionary, map_size: Vector2i, coord: Vector2i) -> int:
@@ -913,7 +924,9 @@ func _count_terrain_cells(cells: Dictionary) -> Dictionary:
 	var counts := {
 		TERRAIN_LAND: 0,
 		TERRAIN_FOREST: 0,
-		TERRAIN_WATER: 0,
+		TERRAIN_SHALLOW_WATER: 0,
+		TERRAIN_FLOWING_WATER: 0,
+		TERRAIN_DEEP_WATER: 0,
 		TERRAIN_MUD: 0,
 		TERRAIN_SPIKE: 0,
 	}
@@ -927,82 +940,16 @@ func _count_terrain_cells(cells: Dictionary) -> Dictionary:
 	return counts
 
 
-func _build_default_fallback(encounter_context: Dictionary, terrain_profile_id: StringName) -> Dictionary:
-	var map_size := Vector2i(11, 9)
-	var cells: Dictionary = {}
-
-	for coord in _collect_all_coords(map_size):
-		var cell_state := BATTLE_CELL_STATE_SCRIPT.new()
-		cell_state.coord = coord
-		cell_state.base_height = DEFAULT_MIN_HEIGHT
-		cell_state.base_terrain = TERRAIN_LAND
-		cell_state.prop_ids = []
-		cell_state.terrain_effect_ids = []
-		if coord.x == 5 and coord.y >= 2 and coord.y <= 6:
-			cell_state.base_terrain = TERRAIN_WATER
-			cell_state.base_height = DEFAULT_MIN_HEIGHT
-		elif coord.x >= 7 and coord.y >= 1 and coord.y <= 3:
-			cell_state.base_terrain = TERRAIN_FOREST
-			cell_state.base_height = DEFAULT_MIN_HEIGHT + 1
-		elif coord.x >= 2 and coord.x <= 3 and coord.y >= 5:
-			cell_state.base_terrain = TERRAIN_MUD
-		elif coord.x >= 8 and coord.y >= 6:
-			cell_state.base_terrain = TERRAIN_SPIKE
-			cell_state.base_height = DEFAULT_MIN_HEIGHT + 2
-		_grid_service.recalculate_cell(cell_state)
-		cells[coord] = cell_state
-
-	return {
-		"map_size": map_size,
-		"cells": cells,
-		"cell_columns": BattleCellState.build_columns_from_surface_cells(cells),
-		"terrain_counts": _count_terrain_cells(cells),
-		"ally_spawns": _collect_spawn_ring(cells, Vector2i(1, 1), _edge_service.build_edge_faces_for_cells(cells, map_size, BattleCellState.build_columns_from_surface_cells(cells))),
-		"enemy_spawns": _collect_spawn_ring(cells, Vector2i(9, 7), _edge_service.build_edge_faces_for_cells(cells, map_size, BattleCellState.build_columns_from_surface_cells(cells))),
-		"player_coord": Vector2i(1, 1),
-		"enemy_coord": Vector2i(9, 7),
-		"terrain_profile_id": terrain_profile_id,
-	}
-
-
-func _build_canyon_fallback(encounter_context: Dictionary, terrain_profile_id: StringName) -> Dictionary:
-	var map_size := CANYON_TEST_SIZE
-	var cells: Dictionary = {}
-	var center_x := float(map_size.x - 1) * 0.5
-
-	for coord in _collect_all_coords(map_size):
-		var cell_state := BATTLE_CELL_STATE_SCRIPT.new()
-		cell_state.coord = coord
-		cell_state.base_height = clampi(
-			CANYON_MIN_HEIGHT + int(round(absf(float(coord.x) - center_x))),
-			CANYON_MIN_HEIGHT,
-			CANYON_MAX_HEIGHT
-		)
-		cell_state.base_terrain = TERRAIN_LAND
-		cell_state.prop_ids = []
-		if coord.x == int(round(center_x)) and coord.y >= 2 and coord.y <= map_size.y - 3:
-			cell_state.base_terrain = TERRAIN_MUD
-			cell_state.base_height = CANYON_MIN_HEIGHT
-		elif coord.x == 1 or coord.x == map_size.x - 2:
-			cell_state.base_terrain = TERRAIN_SPIKE
-		elif coord.y % 3 == 0 and coord.x >= 2 and coord.x <= map_size.x - 3:
-			cell_state.base_terrain = TERRAIN_FOREST
-		_grid_service.recalculate_cell(cell_state)
-		cells[coord] = cell_state
-
-	_populate_canyon_props(cells, map_size, Vector2i(1, 1), Vector2i(map_size.x - 2, map_size.y - 2))
-
-	return {
-		"map_size": map_size,
-		"cells": cells,
-		"cell_columns": BattleCellState.build_columns_from_surface_cells(cells),
-		"terrain_counts": _count_terrain_cells(cells),
-		"ally_spawns": _collect_spawn_ring(cells, Vector2i(1, 1), _edge_service.build_edge_faces_for_cells(cells, map_size, BattleCellState.build_columns_from_surface_cells(cells))),
-		"enemy_spawns": _collect_spawn_ring(cells, Vector2i(map_size.x - 2, map_size.y - 2), _edge_service.build_edge_faces_for_cells(cells, map_size, BattleCellState.build_columns_from_surface_cells(cells))),
-		"player_coord": Vector2i(1, 1),
-		"enemy_coord": Vector2i(map_size.x - 2, map_size.y - 2),
-		"terrain_profile_id": terrain_profile_id,
-	}
+func _finalize_water_terrain(cells: Dictionary, map_size: Vector2i) -> void:
+	var changes: Array[Dictionary] = _terrain_topology_service.reclassify_all_water_terrain(cells, map_size)
+	for change in changes:
+		var coord: Vector2i = change.get("coord", Vector2i.ZERO)
+		var cell := cells.get(coord) as BattleCellState
+		if cell == null:
+			continue
+		cell.base_terrain = change.get("after_terrain", cell.base_terrain)
+		cell.flow_direction = change.get("after_flow_direction", Vector2i.ZERO)
+		_grid_service.recalculate_cell(cell)
 
 
 func _collect_spawn_ring(cells: Dictionary, center: Vector2i, edge_faces: Dictionary = {}) -> Array[Vector2i]:
@@ -1063,7 +1010,7 @@ func _normalize_terrain_profile_id(raw_profile_id: String) -> StringName:
 		"canyon":
 			return PROFILE_CANYON
 		_:
-			return PROFILE_DEFAULT
+			return &""
 
 
 func _build_battle_seed(encounter_context: Dictionary) -> int:

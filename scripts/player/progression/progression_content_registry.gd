@@ -11,6 +11,7 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const DESIGN_SKILL_CATALOG_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
+const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 
 const HP_MAX: StringName = &"hp_max"
 
@@ -20,6 +21,8 @@ var _skill_defs: Dictionary = {}
 var _profession_defs: Dictionary = {}
 ## 字段说明：缓存成就定义集合字典，集中保存可按键查询的运行时数据。
 var _achievement_defs: Dictionary = {}
+## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
+var _quest_defs: Dictionary = {}
 ## 字段说明：收集配置校验阶段发现的错误信息，便于启动时统一报告和定位问题。
 var _validation_errors: Array[String] = []
 
@@ -32,10 +35,10 @@ func rebuild() -> void:
 	_skill_defs.clear()
 	_profession_defs.clear()
 	_achievement_defs.clear()
+	_quest_defs.clear()
 	_validation_errors.clear()
 
 	_register_seed_melee_skills()
-	_register_class_skills()
 	_register_warrior_maneuver_catalog()
 	_register_archer_skill_catalog()
 	_register_mage_skill_catalog()
@@ -47,6 +50,7 @@ func rebuild() -> void:
 	_register_mage_content()
 	_register_archer_content()
 	_register_seed_achievements()
+	_register_seed_quests()
 	_validation_errors.append_array(_collect_validation_errors())
 
 
@@ -62,11 +66,16 @@ func get_achievement_defs() -> Dictionary:
 	return _achievement_defs
 
 
+func get_quest_defs() -> Dictionary:
+	return _quest_defs
+
+
 func get_bundle() -> Dictionary:
 	return {
 		"skill_defs": _skill_defs,
 		"profession_defs": _profession_defs,
 		"achievement_defs": _achievement_defs,
+		"quest_defs": _quest_defs,
 	}
 
 
@@ -97,72 +106,8 @@ func _register_seed_melee_skills() -> void:
 	)
 
 
-func _register_class_skills() -> void:
-	return
-
-
 func _register_warrior_maneuver_catalog() -> void:
 	DESIGN_SKILL_CATALOG_SCRIPT.new().register_warrior_skills(Callable(self, "_register_skill"))
-
-
-func _build_warrior_unit_skill_from_spec(spec: Dictionary) -> SkillDef:
-	var skill_id := ProgressionDataUtils.to_string_name(spec.get("skill_id", ""))
-	var effect_defs: Array[CombatEffectDef] = []
-	effect_defs.append(_build_damage_effect(int(spec.get("power", 10))))
-	var status_id := ProgressionDataUtils.to_string_name(spec.get("status_id", ""))
-	if status_id != &"":
-		effect_defs.append(_build_status_effect(status_id, int(spec.get("status_duration", 1)), 1))
-	return _build_skill(
-		skill_id,
-		String(spec.get("display_name", skill_id)),
-		String(spec.get("description", "")),
-		&"active",
-		3,
-		spec.get("mastery_curve", [28, 46, 72]),
-		ProgressionDataUtils.to_string_name_array(spec.get("tags", [&"warrior", &"melee"])),
-		&"book",
-		[],
-		[&"training", &"battle"],
-		[],
-		_build_unit_combat_profile(
-			skill_id,
-			int(spec.get("range", 1)),
-			int(spec.get("ap_cost", 1)),
-			&"enemy",
-			effect_defs
-		)
-	)
-
-
-func _build_warrior_ground_skill_from_spec(spec: Dictionary) -> SkillDef:
-	var skill_id := ProgressionDataUtils.to_string_name(spec.get("skill_id", ""))
-	var effect_defs: Array[CombatEffectDef] = []
-	effect_defs.append(_build_damage_effect(int(spec.get("power", 10))))
-	var status_id := ProgressionDataUtils.to_string_name(spec.get("status_id", ""))
-	if status_id != &"":
-		effect_defs.append(_build_status_effect(status_id, int(spec.get("status_duration", 1)), 1))
-	return _build_skill(
-		skill_id,
-		String(spec.get("display_name", skill_id)),
-		String(spec.get("description", "")),
-		&"active",
-		3,
-		spec.get("mastery_curve", [28, 46, 72]),
-		ProgressionDataUtils.to_string_name_array(spec.get("tags", [&"warrior", &"melee", &"aoe"])),
-		&"book",
-		[],
-		[&"training", &"battle"],
-		[],
-		_build_ground_aoe_combat_profile(
-			skill_id,
-			int(spec.get("range", 1)),
-			int(spec.get("ap_cost", 2)),
-			&"enemy",
-			ProgressionDataUtils.to_string_name(spec.get("area_pattern", "diamond")),
-			int(spec.get("area_value", 1)),
-			effect_defs
-		)
-	)
 
 
 func _register_archer_skill_catalog() -> void:
@@ -173,135 +118,6 @@ func _register_mage_skill_catalog() -> void:
 	DESIGN_SKILL_CATALOG_SCRIPT.new().register_mage_skills(Callable(self, "_register_skill"))
 
 
-func _build_archer_unit_skill_from_spec(spec: Dictionary) -> SkillDef:
-	var skill_id := ProgressionDataUtils.to_string_name(spec.get("skill_id", ""))
-	var effect_defs: Array[CombatEffectDef] = []
-	for effect_variant in spec.get("effect_defs", []):
-		var effect_def := effect_variant as CombatEffectDef
-		if effect_def != null:
-			effect_defs.append(effect_def)
-	if effect_defs.is_empty() and spec.has("power"):
-		effect_defs.append(_build_damage_effect(int(spec.get("power", 10))))
-	return _build_skill(
-		skill_id,
-		String(spec.get("display_name", skill_id)),
-		String(spec.get("description", "")),
-		&"active",
-		3,
-		spec.get("mastery_curve", [28, 46, 72]),
-		ProgressionDataUtils.to_string_name_array(spec.get("tags", [&"archer", &"ranged"])),
-		&"book",
-		[],
-		[&"training", &"battle"],
-		[],
-		_build_unit_combat_profile(
-			skill_id,
-			int(spec.get("range", 4)),
-			int(spec.get("ap_cost", 1)),
-			ProgressionDataUtils.to_string_name(spec.get("target_team_filter", "enemy")),
-			effect_defs,
-			int(spec.get("mp_cost", 0)),
-			int(spec.get("stamina_cost", 0)),
-			int(spec.get("cooldown_tu", 0))
-		)
-	)
-
-
-func _build_archer_ground_skill_from_spec(spec: Dictionary) -> SkillDef:
-	var skill_id := ProgressionDataUtils.to_string_name(spec.get("skill_id", ""))
-	var effect_defs: Array[CombatEffectDef] = []
-	for effect_variant in spec.get("effect_defs", []):
-		var effect_def := effect_variant as CombatEffectDef
-		if effect_def != null:
-			effect_defs.append(effect_def)
-	if effect_defs.is_empty() and spec.has("power"):
-		effect_defs.append(_build_damage_effect(int(spec.get("power", 10))))
-	return _build_skill(
-		skill_id,
-		String(spec.get("display_name", skill_id)),
-		String(spec.get("description", "")),
-		&"active",
-		3,
-		spec.get("mastery_curve", [28, 46, 72]),
-		ProgressionDataUtils.to_string_name_array(spec.get("tags", [&"archer", &"ranged", &"aoe"])),
-		&"book",
-		[],
-		[&"training", &"battle"],
-		[],
-		_build_ground_aoe_combat_profile(
-			skill_id,
-			int(spec.get("range", 4)),
-			int(spec.get("ap_cost", 1)),
-			ProgressionDataUtils.to_string_name(spec.get("target_team_filter", "enemy")),
-			ProgressionDataUtils.to_string_name(spec.get("area_pattern", "single")),
-			int(spec.get("area_value", 0)),
-			effect_defs,
-			int(spec.get("mp_cost", 0)),
-			int(spec.get("stamina_cost", 0)),
-			int(spec.get("cooldown_tu", 0))
-		)
-	)
-
-
-func _build_archer_passive_skill_from_spec(spec: Dictionary) -> SkillDef:
-	var skill_id := ProgressionDataUtils.to_string_name(spec.get("skill_id", ""))
-	var modifiers: Array[AttributeModifier] = []
-	for modifier_variant in spec.get("modifiers", []):
-		var modifier := modifier_variant as AttributeModifier
-		if modifier != null:
-			modifiers.append(modifier)
-	return _build_skill(
-		skill_id,
-		String(spec.get("display_name", skill_id)),
-		String(spec.get("description", "")),
-		&"passive",
-		1,
-		[],
-		ProgressionDataUtils.to_string_name_array(spec.get("tags", [&"archer", &"passive"])),
-		&"book",
-		[],
-		[],
-		modifiers
-	)
-
-
-func _build_archer_multishot_skill() -> SkillDef:
-	var cast_variant := _build_cast_variant(
-		&"multishot_volley",
-		"三重锁定",
-		"依次点选三个敌方目标格，对其中占位敌人分别结算射击。",
-		0,
-		&"unordered",
-		3,
-		[],
-		[
-			_build_damage_effect(8),
-			_build_status_effect(&"marked", 1, 1),
-		]
-	)
-	return _build_skill(
-		&"archer_multishot",
-		"连珠箭",
-		"通过依次锁定多个目标来铺开点杀火力，是弓箭手的招牌多目标技能。",
-		&"active",
-		3,
-		[30, 48, 76],
-		[&"archer", &"ranged", &"bow", &"multi"],
-		&"book",
-		[],
-		[&"training", &"battle"],
-		[],
-		_build_ground_variant_combat_profile(
-			&"archer_multishot",
-			5,
-			2,
-			[cast_variant],
-			&"enemy",
-			0,
-			8,
-			1
-		)
-	)
 
 
 func _register_warrior_content() -> void:
@@ -499,6 +315,60 @@ func _register_seed_achievements() -> void:
 			]
 		)
 	)
+
+
+func _register_seed_quests() -> void:
+	_register_quest(_build_quest(
+		&"contract_manual_drill",
+		"训练记录",
+		"在训练场完成两次记录，用于验证任务命令与状态推进链。",
+		&"service_contract_board",
+		[
+			{
+				"objective_id": "train_once",
+				"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+				"target_id": "service:training",
+				"target_value": 2,
+			},
+		],
+		[
+			{"reward_type": QuestDef.REWARD_GOLD, "amount": 30},
+		]
+	))
+	_register_quest(_build_quest(
+		&"contract_settlement_warehouse",
+		"据点仓储巡查",
+		"前往据点服务台完成一次仓储交接。",
+		&"service_contract_board",
+		[
+			{
+				"objective_id": "warehouse_visit",
+				"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+				"target_id": "service:warehouse",
+				"target_value": 1,
+			},
+		],
+		[
+			{"reward_type": QuestDef.REWARD_GOLD, "amount": 60},
+		]
+	))
+	_register_quest(_build_quest(
+		&"contract_first_hunt",
+		"首轮狩猎",
+		"击败任意一组敌对遭遇，证明队伍已具备外出作战能力。",
+		&"service_contract_board",
+		[
+			{
+				"objective_id": "defeat_enemy_once",
+				"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+				"target_id": "",
+				"target_value": 1,
+			},
+		],
+		[
+			{"reward_type": QuestDef.REWARD_GOLD, "amount": 80},
+		]
+	))
 	_register_achievement(
 		_build_achievement(
 			&"settlement_wayfarer",
@@ -659,6 +529,37 @@ func _build_achievement(
 	achievement.threshold = threshold
 	achievement.rewards = rewards.duplicate()
 	return achievement
+
+
+func _build_quest(
+	quest_id: StringName,
+	display_name: String,
+	description: String,
+	provider_interaction_id: StringName,
+	objective_defs: Array,
+	reward_entries: Array,
+	tags: Array[StringName] = []
+) -> QuestDef:
+	var quest_def := QuestDef.new()
+	quest_def.quest_id = quest_id
+	quest_def.display_name = display_name
+	quest_def.description = description
+	quest_def.provider_interaction_id = provider_interaction_id
+	var typed_tags: Array[StringName] = []
+	for tag in tags:
+		typed_tags.append(tag)
+	quest_def.tags = typed_tags
+	var typed_objective_defs: Array[Dictionary] = []
+	for objective_variant in objective_defs:
+		if objective_variant is Dictionary:
+			typed_objective_defs.append((objective_variant as Dictionary).duplicate(true))
+	quest_def.objective_defs = typed_objective_defs
+	var typed_reward_entries: Array[Dictionary] = []
+	for reward_variant in reward_entries:
+		if reward_variant is Dictionary:
+			typed_reward_entries.append((reward_variant as Dictionary).duplicate(true))
+	quest_def.reward_entries = typed_reward_entries
+	return quest_def
 
 
 func _build_achievement_reward(
@@ -1031,6 +932,16 @@ func _register_achievement(achievement_def: AchievementDef) -> void:
 	_achievement_defs[achievement_def.achievement_id] = achievement_def
 
 
+func _register_quest(quest_def: QuestDef) -> void:
+	if quest_def == null or quest_def.quest_id == &"":
+		_validation_errors.append("Encountered a quest definition without a quest_id.")
+		return
+	if _quest_defs.has(quest_def.quest_id):
+		_validation_errors.append("Duplicate quest_id registered: %s" % String(quest_def.quest_id))
+		return
+	_quest_defs[quest_def.quest_id] = quest_def
+
+
 func _collect_validation_errors() -> Array[String]:
 	var errors: Array[String] = []
 
@@ -1077,6 +988,11 @@ func _collect_validation_errors() -> Array[String]:
 		var achievement_id := StringName(achievement_key)
 		var achievement_def := _achievement_defs.get(achievement_id) as AchievementDef
 		_append_invalid_achievement_errors(errors, achievement_id, achievement_def)
+
+	for quest_key in ProgressionDataUtils.sorted_string_keys(_quest_defs):
+		var quest_id := StringName(quest_key)
+		var quest_def := _quest_defs.get(quest_id) as QuestDef
+		_append_invalid_quest_errors(errors, quest_id, quest_def)
 
 	return errors
 
@@ -1157,3 +1073,14 @@ func _append_invalid_achievement_errors(
 						String(reward.reward_type),
 					]
 				)
+
+
+func _append_invalid_quest_errors(
+	errors: Array[String],
+	quest_id: StringName,
+	quest_def: QuestDef
+) -> void:
+	if quest_def == null:
+		return
+	for validation_error in quest_def.validate_schema():
+		errors.append("Quest %s: %s" % [String(quest_id), validation_error])

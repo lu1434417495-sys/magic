@@ -15,10 +15,10 @@
 - 角色成长真源当前挂在 `PartyMemberState.progression -> UnitProgress`。
 - `GameSession` 当前通过 `party_state` 统一持久化角色成长数据，因此成就状态也应跟随 `party_state` 保存，而不是另开全局存档。
 - 仓库已经存在“待处理奖励 -> 世界地图统一弹窗 -> 确认后入账 -> 存档”的成熟链路：
-  - `BattleRuntimeModule.consume_pending_mastery_rewards()`
-  - `WorldMapSystem._enqueue_pending_mastery_rewards(...)`
+  - `BattleRuntimeModule.consume_battle_resolution_result()`
+  - `GameRuntimeFacade._enqueue_pending_character_rewards(...)`
   - `MasteryRewardWindow.show_reward(...)`
-  - `CharacterManagementModule.apply_pending_mastery_reward(...)`
+  - `CharacterManagementModule.apply_pending_character_reward(...)`
 - 当前 `CharacterInfoWindow` 只是轻量信息浮窗；真正适合承载角色成长详情的是 `PartyManagementWindow`。
 - 当前 `tests/` 目录存在，但 progression 专项测试入口尚未落地，成就系统需要一起补建。
 
@@ -163,7 +163,7 @@
 
 ### 据点链路
 
-- `SettlementWindowSystem.execute_settlement_action(...)` 返回成功结果后，由 `WorldMapSystem` 或 `CharacterManagementModule` 发 `settlement_action_completed`。
+- `GameRuntimeSettlementCommandHandler.execute_settlement_action(...)` 返回成功结果后，由 runtime handler 归并奖励并推进后续据点完成链。
 - `subject_id` 固定使用当前 `action_id` 或标准化 `service_type`，实现时二选一，但全仓必须统一。
 - 如果据点动作本身还带来 mastery 奖励、技能或知识变化，仍继续走成长链路补发对应事件，不做据点层重复结算。
 
@@ -255,14 +255,11 @@
 
 ## 与现有熟练度奖励链路的兼容策略
 
-- `PendingCharacterReward` / `PendingCharacterRewardEntry` 成为新真源。
-- 旧 `PendingMasteryReward` / `PendingMasteryRewardEntry` 不立即删除，先作为兼容层保留。
-- 兼容读取策略：
-  - `pending_mastery_rewards`
-  - `mastery_entries`
-  - 旧 mastery-only typed reward
-  - 都在进入统一队列前转换成 `PendingCharacterReward`
-- 现有训练、战后评分奖励、据点熟练度奖励都不需要一次性重写生成入口，只要在 `WorldMapSystem` 和 `CharacterManagementModule` 归一化即可。
+- `PendingCharacterReward` / `PendingCharacterRewardEntry` 是当前唯一真源。
+- 统一读取策略：
+  - `pending_character_rewards`
+  - `entries`
+- 训练、战后评分奖励、据点奖励都直接产出 canonical `PendingCharacterReward`。
 
 ## Public Interfaces / Runtime Data
 
@@ -309,7 +306,7 @@
   - `knowledge_unlock -> skill_unlock -> skill_mastery -> attribute_delta` 顺序稳定
   - 未确认的待领奖励会被 `party_state` 保存并在重载后恢复
   - 战斗中达成成就不会即时改当前 `BattleUnitState`
-  - 旧 `pending_mastery_rewards` 仍可被转换并正确结算
+  - `pending_character_rewards` 在重载后仍可被正确结算
   - 队伍管理窗口能正确显示角色成就摘要
 
 ## 默认假设

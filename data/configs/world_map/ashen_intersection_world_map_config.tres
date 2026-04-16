@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=36 format=3]
+[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=74 format=3]
 
 [ext_resource type="Script" path="res://scripts/utils/world_map_generation_config.gd" id="1_conf"]
 [ext_resource type="Script" path="res://scripts/utils/settlement_config.gd" id="2_settlement"]
@@ -8,13 +8,15 @@
 [ext_resource type="Script" path="res://scripts/utils/facility_npc_config.gd" id="6_npc"]
 [ext_resource type="Script" path="res://scripts/utils/settlement_distribution_rule.gd" id="7_distribution"]
 [ext_resource type="Script" path="res://scripts/utils/wild_spawn_rule.gd" id="8_wild"]
+[ext_resource type="Script" path="res://scripts/utils/world_event_config.gd" id="9_event"]
+[ext_resource type="Script" path="res://scripts/utils/mounted_submap_config.gd" id="10_submap"]
 
 [sub_resource type="Resource" id="Resource_notice_npc"]
 script = ExtResource("6_npc")
 npc_id = "npc_covenant_herald"
 display_name = "誓约传令官"
 service_type = "誓约"
-interaction_script_id = "service_quest"
+interaction_script_id = "service_contract_board"
 local_slot_id = "notice_slot"
 
 [sub_resource type="Resource" id="Resource_supply_npc"]
@@ -22,7 +24,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_exile_broker"
 display_name = "流亡经纪人"
 service_type = "流亡交易"
-interaction_script_id = "service_trade"
+interaction_script_id = "service_local_trade"
 local_slot_id = "supply_slot"
 
 [sub_resource type="Resource" id="Resource_warehouse_npc"]
@@ -38,7 +40,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_bonfire_keeper"
 display_name = "余火守望者"
 service_type = "余火"
-interaction_script_id = "service_rest"
+interaction_script_id = "service_rest_full"
 local_slot_id = "inn_slot"
 
 [sub_resource type="Resource" id="Resource_workshop_npc"]
@@ -46,7 +48,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_ash_smith"
 display_name = "灰烬铁匠"
 service_type = "锻火"
-interaction_script_id = "service_craft"
+interaction_script_id = "service_repair_gear"
 local_slot_id = "workshop_slot"
 
 [sub_resource type="Resource" id="Resource_guild_npc"]
@@ -54,7 +56,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_weapon_master"
 display_name = "旧战技教官"
 service_type = "战技"
-interaction_script_id = "service_training"
+interaction_script_id = "service_join_guild"
 local_slot_id = "guild_slot"
 
 [sub_resource type="Resource" id="Resource_market_npc"]
@@ -62,7 +64,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_memory_broker"
 display_name = "追忆行商"
 service_type = "追忆"
-interaction_script_id = "service_memory"
+interaction_script_id = "service_identify_relic"
 local_slot_id = "market_slot"
 
 [sub_resource type="Resource" id="Resource_council_npc"]
@@ -70,7 +72,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_cathedral_matriarch"
 display_name = "炭化主教母"
 service_type = "祷告"
-interaction_script_id = "service_research"
+interaction_script_id = "service_manage_reputation"
 local_slot_id = "council_slot"
 
 [sub_resource type="Resource" id="Resource_library_npc"]
@@ -78,7 +80,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_drowned_archivist"
 display_name = "沉钟书官"
 service_type = "咒术"
-interaction_script_id = "service_research"
+interaction_script_id = "service_unlock_archive"
 local_slot_id = "library_slot"
 
 [sub_resource type="Resource" id="Resource_gate_npc"]
@@ -86,7 +88,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_gatefire_warden"
 display_name = "裂界火门看守"
 service_type = "裂界行路"
-interaction_script_id = "service_travel"
+interaction_script_id = "service_open_trade_route"
 local_slot_id = "gate_slot"
 
 [sub_resource type="Resource" id="Resource_command_npc"]
@@ -94,7 +96,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_oath_captain"
 display_name = "誓火队长"
 service_type = "誓火部署"
-interaction_script_id = "service_command"
+interaction_script_id = "service_elite_recruitment"
 local_slot_id = "command_slot"
 
 [sub_resource type="Resource" id="Resource_notice_board"]
@@ -280,6 +282,37 @@ slot_id = "stronghold_service"
 local_coord = Vector2i(3, 2)
 slot_tag = "service"
 
+[sub_resource type="Resource" id="Resource_metropolis_slot_core"]
+script = ExtResource("3_slot")
+slot_id = "metropolis_core"
+local_coord = Vector2i(2, 2)
+slot_tag = "core"
+required = true
+
+[sub_resource type="Resource" id="Resource_metropolis_slot_civic"]
+script = ExtResource("3_slot")
+slot_id = "metropolis_civic"
+local_coord = Vector2i(0, 0)
+slot_tag = "civic"
+
+[sub_resource type="Resource" id="Resource_metropolis_slot_trade"]
+script = ExtResource("3_slot")
+slot_id = "metropolis_trade"
+local_coord = Vector2i(4, 1)
+slot_tag = "trade"
+
+[sub_resource type="Resource" id="Resource_metropolis_slot_service"]
+script = ExtResource("3_slot")
+slot_id = "metropolis_service"
+local_coord = Vector2i(1, 4)
+slot_tag = "service"
+
+[sub_resource type="Resource" id="Resource_metropolis_slot_support"]
+script = ExtResource("3_slot")
+slot_id = "metropolis_support"
+local_coord = Vector2i(4, 4)
+slot_tag = "support"
+
 [sub_resource type="Resource" id="Resource_optional_supply"]
 script = ExtResource("4_weighted")
 facility_id = "exile_bazaar"
@@ -355,6 +388,16 @@ guaranteed_facility_ids = Array[String](["worldgate_brazier"])
 optional_facility_pool = Array[Resource]([SubResource("Resource_optional_command")])
 max_optional_facilities = 1
 
+[sub_resource type="Resource" id="Resource_metropolis"]
+script = ExtResource("2_settlement")
+settlement_id = "silverlight_metropolis"
+display_name = "银辉都会"
+tier = 5
+facility_slots = Array[Resource]([SubResource("Resource_metropolis_slot_core"), SubResource("Resource_metropolis_slot_civic"), SubResource("Resource_metropolis_slot_trade"), SubResource("Resource_metropolis_slot_service"), SubResource("Resource_metropolis_slot_support")])
+guaranteed_facility_ids = Array[String](["council_hall", "world_gate"])
+optional_facility_pool = Array[Resource]([SubResource("Resource_optional_market"), SubResource("Resource_optional_library"), SubResource("Resource_optional_command")])
+max_optional_facilities = 3
+
 [sub_resource type="Resource" id="Resource_border_keep"]
 script = ExtResource("2_settlement")
 settlement_id = "broken_bridge_keep"
@@ -388,6 +431,12 @@ script = ExtResource("7_distribution")
 settlement_id = "embershrine_nexus"
 preferred_origin = Vector2i(48, 48)
 faction_id = "player"
+
+[sub_resource type="Resource" id="Resource_rule_metropolis"]
+script = ExtResource("7_distribution")
+settlement_id = "silverlight_metropolis"
+preferred_origin = Vector2i(66, 18)
+faction_id = "neutral"
 
 [sub_resource type="Resource" id="Resource_rule_border_keep"]
 script = ExtResource("7_distribution")
@@ -435,6 +484,24 @@ min_distance_to_settlement = 4
 vision_range = 1
 chunk_coords = Array[Vector2i]([Vector2i(7, 7), Vector2i(8, 7), Vector2i(9, 7), Vector2i(7, 8), Vector2i(8, 8), Vector2i(9, 8), Vector2i(8, 9)])
 
+[sub_resource type="Resource" id="Resource_ashen_submap"]
+script = ExtResource("10_submap")
+submap_id = &"ashen_ashlands"
+display_name = "灰烬地图"
+generation_config_path = "res://data/configs/world_map/ashen_wastes_submap_config.tres"
+return_hint_text = "灰烬地图中，点击任意地点返回原位置。"
+
+[sub_resource type="Resource" id="Resource_ashen_submap_event"]
+script = ExtResource("9_event")
+event_id = &"ashen_submap_gate"
+display_name = "灰烬裂隙"
+world_coord = Vector2i(52, 49)
+event_type = &"enter_submap"
+target_submap_id = &"ashen_ashlands"
+discovery_condition_id = &"always_true"
+prompt_title = "进入灰烬地图"
+prompt_text = "裂隙后的余灰仍在燃烧。确认后将进入灰烬地图，返回时会回到当前坐标。"
+
 [resource]
 script = ExtResource("1_conf")
 seed = 20260413
@@ -443,7 +510,9 @@ chunk_size = Vector2i(10, 10)
 player_start_coord = Vector2i(49, 49)
 player_vision_range = 4
 procedural_generation_enabled = false
-settlement_library = Array[Resource]([SubResource("Resource_village"), SubResource("Resource_town"), SubResource("Resource_city"), SubResource("Resource_capital"), SubResource("Resource_stronghold"), SubResource("Resource_border_keep")])
+settlement_library = Array[Resource]([SubResource("Resource_village"), SubResource("Resource_town"), SubResource("Resource_city"), SubResource("Resource_capital"), SubResource("Resource_stronghold"), SubResource("Resource_metropolis"), SubResource("Resource_border_keep")])
 facility_library = Array[Resource]([SubResource("Resource_notice_board"), SubResource("Resource_supply_stall"), SubResource("Resource_inn"), SubResource("Resource_workshop"), SubResource("Resource_guild_hall"), SubResource("Resource_market_square"), SubResource("Resource_council_hall"), SubResource("Resource_grand_library"), SubResource("Resource_world_gate"), SubResource("Resource_command_post")])
-settlement_distribution = Array[Resource]([SubResource("Resource_rule_stronghold"), SubResource("Resource_rule_capital"), SubResource("Resource_rule_city"), SubResource("Resource_rule_town"), SubResource("Resource_rule_border_keep")])
+settlement_distribution = Array[Resource]([SubResource("Resource_rule_stronghold"), SubResource("Resource_rule_capital"), SubResource("Resource_rule_city"), SubResource("Resource_rule_town"), SubResource("Resource_rule_metropolis"), SubResource("Resource_rule_border_keep")])
 wild_monster_distribution = Array[Resource]([SubResource("Resource_wild_cathedral"), SubResource("Resource_wild_archive"), SubResource("Resource_wild_graves"), SubResource("Resource_wild_abyss")])
+mounted_submaps = Array[Resource]([SubResource("Resource_ashen_submap")])
+world_events = Array[Resource]([SubResource("Resource_ashen_submap_event")])

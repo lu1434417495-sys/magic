@@ -12,6 +12,7 @@ const BattleCommand = preload("res://scripts/systems/battle_command.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const STATUS_TAUNTED: StringName = &"taunted"
 
 var _enemy_ai_brains: Dictionary = {}
 
@@ -27,9 +28,15 @@ func choose_command(context) -> BattleAiDecision:
 	var unit_state: BattleUnitState = context.unit_state
 	var brain = _resolve_brain(unit_state.ai_brain_id)
 	if brain == null:
-		var legacy_decision = _choose_legacy_command(context)
-		_commit_decision(unit_state, legacy_decision)
-		return legacy_decision
+		var missing_brain_decision = _build_wait_decision(
+			context,
+			&"",
+			&"",
+			&"wait_missing_brain",
+			"%s 缺少正式 AI brain，改为待机。" % unit_state.display_name
+		)
+		_commit_decision(unit_state, missing_brain_decision)
+		return missing_brain_decision
 
 	unit_state.ai_brain_id = brain.brain_id
 	var next_state_id: StringName = _resolve_state_id(context, brain)
@@ -180,79 +187,12 @@ func _commit_decision(unit_state: BattleUnitState, decision: BattleAiDecision) -
 	unit_state.ai_blackboard["turn_decision_count"] = int(unit_state.ai_blackboard.get("turn_decision_count", 0)) + 1
 
 
-func _choose_legacy_command(context) -> BattleAiDecision:
-	var unit_state: BattleUnitState = context.unit_state
-	var target_unit = _find_nearest_enemy(context)
-	if target_unit == null:
-		return _build_wait_decision(
-			context,
-			&"legacy",
-			&"legacy",
-			&"legacy_wait",
-			"%s 没有找到目标，按旧版逻辑待机。" % unit_state.display_name
-		)
-
-	for chosen_skill_id in unit_state.known_active_skill_ids:
-		if chosen_skill_id == &"":
-			continue
-		var skill_def = context.skill_defs.get(chosen_skill_id) as SkillDef
-		if skill_def == null or skill_def.combat_profile == null:
-			continue
-		if skill_def.combat_profile.target_mode != &"unit":
-			continue
-		if skill_def.combat_profile.target_team_filter != &"enemy":
-			continue
-		if unit_state.current_ap < skill_def.combat_profile.ap_cost:
-			continue
-		if context.grid_service.get_distance_between_units(unit_state, target_unit) > skill_def.combat_profile.range_value:
-			continue
-		var skill_command = BATTLE_COMMAND_SCRIPT.new()
-		skill_command.command_type = BattleCommand.TYPE_SKILL
-		skill_command.unit_id = unit_state.unit_id
-		skill_command.skill_id = chosen_skill_id
-		skill_command.target_unit_id = target_unit.unit_id
-		skill_command.target_coord = target_unit.coord
-		var skill_decision = BATTLE_AI_DECISION_SCRIPT.new()
-		skill_decision.command = skill_command
-		skill_decision.brain_id = &"legacy"
-		skill_decision.state_id = &"legacy"
-		skill_decision.action_id = &"legacy_skill"
-		skill_decision.reason_text = "%s 按旧版逻辑对 %s 使用 %s。" % [
-			unit_state.display_name,
-			target_unit.display_name,
-			skill_def.display_name,
-		]
-		return skill_decision
-
-	var next_coord = _pick_step_toward(context.state, unit_state, target_unit.coord, context.grid_service)
-	if next_coord != Vector2i(-1, -1):
-		var target_cell = context.grid_service.get_cell(context.state, next_coord)
-		var move_cost = int(target_cell.move_cost) if target_cell != null else 1
-		if context.grid_service.can_traverse(context.state, unit_state.coord, next_coord, unit_state) and unit_state.current_ap >= move_cost:
-			var move_command = BATTLE_COMMAND_SCRIPT.new()
-			move_command.command_type = BattleCommand.TYPE_MOVE
-			move_command.unit_id = unit_state.unit_id
-			move_command.target_coord = next_coord
-			var move_decision = BATTLE_AI_DECISION_SCRIPT.new()
-			move_decision.command = move_command
-			move_decision.brain_id = &"legacy"
-			move_decision.state_id = &"legacy"
-			move_decision.action_id = &"legacy_move"
-			move_decision.reason_text = "%s 按旧版逻辑逼近 %s。" % [unit_state.display_name, target_unit.display_name]
-			return move_decision
-
-	return _build_wait_decision(
-		context,
-		&"legacy",
-		&"legacy",
-		&"legacy_wait",
-		"%s 按旧版逻辑没有找到合法动作，待机。" % unit_state.display_name
-	)
-
-
 func _find_nearest_enemy(context) -> BattleUnitState:
 	if context == null or context.state == null or context.unit_state == null:
 		return null
+	var taunted_target = _resolve_taunted_target(context)
+	if taunted_target != null:
+		return taunted_target
 	var candidate_ids = context.state.enemy_unit_ids if context.unit_state.faction_id == &"player" else context.state.ally_unit_ids
 	var best_unit: BattleUnitState = null
 	var best_distance := 999999
@@ -265,6 +205,23 @@ func _find_nearest_enemy(context) -> BattleUnitState:
 			best_distance = distance
 			best_unit = candidate
 	return best_unit
+
+
+func _resolve_taunted_target(context) -> BattleUnitState:
+	if context == null or context.state == null or context.unit_state == null:
+		return null
+	var taunt_entry = context.unit_state.get_status_effect(STATUS_TAUNTED)
+	if taunt_entry == null:
+		return null
+	var source_unit_id: StringName = taunt_entry.source_unit_id
+	if source_unit_id == &"":
+		return null
+	var source_unit = context.state.units.get(source_unit_id) as BattleUnitState
+	if source_unit == null or not source_unit.is_alive:
+		return null
+	if source_unit.faction_id == context.unit_state.faction_id:
+		return null
+	return source_unit
 
 
 func _pick_step_toward(

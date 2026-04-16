@@ -1,3 +1,5 @@
+# Development-only headless bridge for automation and debugging.
+# This is not a player-facing startup path or UI layer.
 class_name HeadlessGameTestSession
 extends RefCounted
 
@@ -8,6 +10,7 @@ const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/game_tex
 
 var _game_session = null
 var _runtime = null
+var _owns_game_session := false
 
 
 func initialize() -> void:
@@ -121,7 +124,9 @@ func build_snapshot() -> Dictionary:
 		"modal": {
 			"id": "",
 		},
+		"logs": _game_session.get_log_snapshot() if _game_session != null else {},
 		"world": {},
+		"submap": {},
 		"party": {},
 		"settlement": {},
 		"character_info": {},
@@ -141,6 +146,19 @@ func build_text_snapshot() -> String:
 	return GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT.render_full_snapshot(build_snapshot())
 
 
+func dispose(clear_persisted_game: bool = false) -> void:
+	await _unload_world_scene()
+
+	if _game_session != null and is_instance_valid(_game_session):
+		if clear_persisted_game and _game_session.has_method("clear_persisted_game"):
+			_game_session.clear_persisted_game()
+		if _owns_game_session:
+			_game_session.queue_free()
+			await settle_frames(2)
+	_game_session = null
+	_owns_game_session = false
+
+
 func _ensure_game_session() -> void:
 	if _game_session != null and is_instance_valid(_game_session):
 		return
@@ -149,10 +167,12 @@ func _ensure_game_session() -> void:
 		return
 	_game_session = scene_tree.root.get_node_or_null("GameSession")
 	if _game_session != null:
+		_owns_game_session = false
 		return
 	_game_session = GAME_SESSION_SCRIPT.new()
 	_game_session.name = "GameSession"
 	scene_tree.root.add_child(_game_session)
+	_owns_game_session = true
 	await settle_frames(1)
 
 
@@ -160,6 +180,8 @@ func _unload_world_scene() -> void:
 	if not has_world_loaded():
 		_runtime = null
 		return
+	if _runtime != null and _runtime.has_method("dispose"):
+		_runtime.dispose()
 	_runtime = null
 	await settle_frames()
 

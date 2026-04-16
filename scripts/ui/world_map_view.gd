@@ -171,6 +171,20 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 
 
 func _draw_mobile_entities(camera_origin: Vector2, visible_rect: Rect2i) -> void:
+	var world_events: Array = _world_data.get("world_events", [])
+	for world_event_variant in world_events:
+		if world_event_variant is not Dictionary:
+			continue
+		var world_event: Dictionary = world_event_variant
+		if not bool(world_event.get("is_discovered", false)):
+			continue
+		var event_coord: Vector2i = world_event.get("world_coord", Vector2i.ZERO)
+		if not visible_rect.has_point(event_coord):
+			continue
+		if not _fog_system.is_visible(event_coord, _player_faction_id):
+			continue
+		_draw_world_event_marker(_get_cell_rect_for_origin(event_coord, camera_origin).get_center())
+
 	var encounter_anchors: Array = _world_data.get("encounter_anchors", [])
 	for encounter_anchor_data in encounter_anchors:
 		var encounter_anchor = encounter_anchor_data
@@ -197,6 +211,19 @@ func _draw_mobile_entities(camera_origin: Vector2, visible_rect: Rect2i) -> void
 		var center := _get_cell_rect_for_origin(coord, camera_origin).get_center()
 		draw_circle(center, cell_size * 0.18, Color(0.42, 0.77, 0.87, 0.95))
 		draw_circle(center + Vector2(0, -4), cell_size * 0.06, Color(0.88, 0.94, 0.98, 1.0))
+
+
+func _draw_world_event_marker(center: Vector2) -> void:
+	var radius := cell_size * 0.2
+	var diamond := PackedVector2Array([
+		center + Vector2(0, -radius),
+		center + Vector2(radius, 0),
+		center + Vector2(0, radius),
+		center + Vector2(-radius, 0),
+	])
+	draw_colored_polygon(diamond, Color(0.95, 0.78, 0.28, 0.96))
+	draw_polyline(diamond + PackedVector2Array([diamond[0]]), Color(0.25, 0.11, 0.02, 1.0), 2.0)
+	draw_circle(center, cell_size * 0.05, Color(0.32, 0.06, 0.02, 1.0))
 
 
 func _draw_player(camera_origin: Vector2) -> void:

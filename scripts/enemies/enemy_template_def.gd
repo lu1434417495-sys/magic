@@ -3,7 +3,6 @@ extends RefCounted
 
 var template_id: StringName = &""
 var display_name: String = ""
-var alias_ids: Array[StringName] = []
 var brain_id: StringName = &""
 var initial_state_id: StringName = &""
 var enemy_count := 1

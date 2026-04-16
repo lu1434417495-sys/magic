@@ -1,24 +1,37 @@
-# Project Agents Guide
+# Repository Guidelines
 
-## Scope
+## Project Structure & Module Organization
+This is a Godot 4.6 project. Core scenes live in `scenes/`, gameplay code in `scripts/`, art and audio in `assets/`, and data resources in `data/`. Entry points are under `scenes/main/`, reusable UI under `scenes/ui/` and `scripts/ui/`, shared scene fragments under `scenes/common/`, and cross-system logic under `scripts/systems/`. Player progression and inventory code live in `scripts/player/`; enemy content lives in `scripts/enemies/`. Put new regression scripts in the matching `tests/<domain>/` folder.
 
-This repository is organized by gameplay domain. Keep scenes, scripts, assets,
-and data in the matching top-level folders.
+## Design Context Workflow
+Before writing a design plan or changing code, read `docs/design/project_context_units.md`. Use it as the repository context map for loading related scenes, scripts, data, and tests before making changes. After any code change, update `docs/design/project_context_units.md` if the affected runtime relationships, ownership boundaries, or recommended read sets have changed.
 
-## Structure Rules
+## Build, Test, and Development Commands
+Run the game from the project root:
 
-- Put entry scenes in `scenes/main/`.
-- Put player content in `scenes/player/` and `scripts/player/`.
-- Put enemy content in `scenes/enemies/` and `scripts/enemies/`.
-- Put reusable UI in `scenes/ui/` and `scripts/ui/`.
-- Put cross-cutting game logic in `scripts/systems/`.
-- Put shared helpers in `scripts/utils/`.
-- Put reusable scenes in `scenes/common/`.
-- Put configuration data in `data/configs/`.
-- Keep generated Godot metadata inside `.godot/` untouched.
+```bash
+godot --path . scenes/main/login_screen.tscn
+```
 
-## Workflow
+Run focused headless regressions with Godot scripts:
 
-- Add new features from a prompt file in `prompts/` when possible.
-- Keep scene and script naming aligned by feature.
-- Prefer small, domain-scoped changes over large unrelated edits.
+```bash
+godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd
+godot --headless --script tests/battle_runtime/run_battle_board_regression.gd
+godot --headless --script tests/progression/run_progression_tests.gd
+godot --headless --script tests/warehouse/run_party_warehouse_regression.gd
+```
+
+There is no separate build or lint step; runtime parsing in Godot is the validation baseline.
+
+## Coding Style & Naming Conventions
+Follow existing GDScript style: tabs for indentation, `snake_case` for files, functions, and variables, and `PascalCase` for scene-facing node/class names such as `GameSession`. Keep gameplay state in plain data containers and put behavior in services or runtime modules. Prefer typed fields (`var value: Type`) when practical. Avoid manual edits inside `.godot/`; Godot regenerates that directory.
+
+## Testing Guidelines
+Tests are standalone `.gd` runners named `run_*_regression.gd`, `run_*_smoke.gd`, or similar. Add tests beside the system you changed, and run the narrowest relevant scripts before opening a PR. UI or battle-layout work should include a regression script when feasible and a screenshot when behavior is visual.
+
+## Commit & Pull Request Guidelines
+Recent history uses short subjects with Conventional Commit prefixes, for example `feat:` and `chore:`. Keep using that pattern: `feat: add warehouse item stacking`, `fix: preserve battle save lock`. Pull requests should include a brief summary, affected scenes/scripts, test commands run, and screenshots for UI changes. Call out save-format or serialization impacts explicitly.
+
+## Configuration & Safety Notes
+`project.godot` defines the main scene and the `GameSession` autoload. Treat save/load changes and serialization version bumps as high risk. Do not commit transient workspace state, generated `.godot` edits, or local save artifacts unless the change intentionally updates tracked fixtures.

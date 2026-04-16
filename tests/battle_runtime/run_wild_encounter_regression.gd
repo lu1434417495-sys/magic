@@ -12,6 +12,7 @@ const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world_time_syste
 const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/wild_encounter_growth_system.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
+const SMALL_WORLD_CONFIG := "res://data/configs/world_map/small_world_map_config.tres"
 
 var _failures: Array[String] = []
 
@@ -25,7 +26,10 @@ func _run() -> void:
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_wild_encounter_growth_respects_suppression_window()
 	_test_game_runtime_facade_move_advances_world_step()
+	_test_test_preset_uses_same_battle_terrain_profile_as_small_preset()
+	_test_game_runtime_facade_battle_requires_confirm_before_tu_advances()
 	_test_game_runtime_facade_single_victory_removes_encounter()
+	_test_game_runtime_facade_can_start_second_battle_after_first_victory()
 	_test_game_runtime_facade_settlement_victory_downgrades_encounter()
 	if _failures.is_empty():
 		print("Wild encounter regression: PASS")
@@ -161,6 +165,90 @@ func _test_game_runtime_facade_move_advances_world_step() -> void:
 	_cleanup_test_session(game_session)
 
 
+func _test_test_preset_uses_same_battle_terrain_profile_as_small_preset() -> void:
+	var test_session = _create_session(TEST_WORLD_CONFIG)
+	var small_session = _create_session(SMALL_WORLD_CONFIG)
+	if test_session == null or small_session == null:
+		_cleanup_test_session(test_session)
+		_cleanup_test_session(small_session)
+		return
+
+	var test_facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	var small_facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	test_facade.setup(test_session)
+	small_facade.setup(small_session)
+
+	var test_anchor = _find_encounter_anchor_by_region_tag(test_session.get_world_data(), &"north_wilds")
+	var small_anchor = _find_encounter_anchor_by_region_tag(small_session.get_world_data(), &"north_wilds")
+	_assert_true(test_anchor != null, "测试世界应至少包含一个 north_wilds 野外遭遇。")
+	_assert_true(small_anchor != null, "small 预设应至少包含一个 north_wilds 野外遭遇。")
+	if test_anchor == null or small_anchor == null:
+		_cleanup_test_session(test_session)
+		_cleanup_test_session(small_session)
+		return
+
+	var test_context: Dictionary = test_facade._build_battle_start_context(test_anchor)
+	var small_context: Dictionary = small_facade._build_battle_start_context(small_anchor)
+	_assert_eq(
+		String(test_context.get("battle_terrain_profile", "")),
+		String(small_context.get("battle_terrain_profile", "")),
+		"测试预设与 small 预设的同类野外区域应使用同一 battle terrain profile。"
+	)
+
+	var test_state = test_facade._battle_runtime.start_battle(test_anchor, 1201, test_context)
+	var small_state = small_facade._battle_runtime.start_battle(small_anchor, 1201, small_context)
+	_assert_true(test_state != null and not test_state.is_empty(), "测试预设应能基于正式 battle start 流程生成战斗状态。")
+	_assert_true(small_state != null and not small_state.is_empty(), "small 预设应能基于正式 battle start 流程生成战斗状态。")
+	if test_state != null and small_state != null:
+		_assert_eq(
+			String(test_state.terrain_profile_id),
+			String(small_state.terrain_profile_id),
+			"测试预设与 small 预设进入同类野外战斗时，最终战斗地形 profile 应保持一致。"
+		)
+
+	_cleanup_test_session(test_session)
+	_cleanup_test_session(small_session)
+
+
+func _test_game_runtime_facade_battle_requires_confirm_before_tu_advances() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var encounter_anchor = _find_encounter_anchor_by_kind(
+		game_session.get_world_data(),
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE
+	)
+	_assert_true(encounter_anchor != null, "确认开战回归需要至少一个单体野怪遭遇。")
+	if encounter_anchor == null:
+		_cleanup_test_session(game_session)
+		return
+
+	game_session.set_battle_save_lock(true)
+	facade._start_battle(encounter_anchor)
+	var started_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
+	_assert_true(bool(started_snapshot.get("active", false)), "正式 battle start 后应处于 battle active。")
+	_assert_true(bool(started_snapshot.get("start_confirm_visible", false)), "正式 battle start 后应先弹出开始战斗确认。")
+	_assert_eq(String(started_snapshot.get("modal_state", "")), "start_confirm", "确认前 battle modal_state 应保持在 start_confirm。")
+	_assert_eq(facade._battle_runtime.get_state().timeline.current_tu, 0, "确认前 TU 应从 0 开始。")
+
+	facade.advance(2.0)
+	_assert_eq(facade._battle_runtime.get_state().timeline.current_tu, 0, "未确认开始战斗前，TU 不应增长。")
+
+	var confirm_result: Dictionary = facade.command_confirm_battle_start()
+	_assert_true(bool(confirm_result.get("ok", false)), "确认开始战斗命令应成功。")
+	var confirmed_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
+	_assert_true(not bool(confirmed_snapshot.get("start_confirm_visible", false)), "确认后开始战斗确认窗应关闭。")
+	_assert_eq(String(confirmed_snapshot.get("modal_state", "")), "", "确认后 battle modal_state 应清空。")
+
+	facade.command_battle_tick(1.0)
+	_assert_eq(facade._battle_runtime.get_state().timeline.current_tu, 5, "确认后 battle tick 1 秒应推进 5 TU。")
+
+	_cleanup_test_session(game_session)
+
+
 func _test_game_runtime_facade_single_victory_removes_encounter() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
@@ -192,6 +280,42 @@ func _test_game_runtime_facade_single_victory_removes_encounter() -> void:
 		"战斗结算完成后，battle 快照应回到 inactive。"
 	)
 	_assert_true(not game_session.is_battle_save_locked(), "战斗结算完成后应释放 battle save lock。")
+	_cleanup_test_session(game_session)
+
+
+func _test_game_runtime_facade_can_start_second_battle_after_first_victory() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var first_anchor = _find_encounter_anchor_by_kind(
+		game_session.get_world_data(),
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE
+	)
+	_assert_true(first_anchor != null, "连续遭遇回归需要至少一个单体野怪遭遇作为首战。")
+	if first_anchor == null:
+		_cleanup_test_session(game_session)
+		return
+
+	game_session.set_battle_save_lock(true)
+	facade._start_battle(first_anchor)
+	_mark_active_battle_as_player_victory(facade)
+	facade._resolve_active_battle()
+
+	var second_anchor = _find_first_other_encounter_anchor(game_session.get_world_data(), first_anchor.entity_id)
+	_assert_true(second_anchor != null, "连续遭遇回归需要在首战后仍保留至少一个后续遭遇。")
+	if second_anchor == null:
+		_cleanup_test_session(game_session)
+		return
+
+	game_session.set_battle_save_lock(true)
+	facade._start_battle(second_anchor)
+	var second_state = facade._battle_runtime.get_state()
+	_assert_true(second_state != null and not second_state.is_empty(), "同一 world session 的第二场战斗应能成功启动。")
+	if second_state != null:
+		_assert_true(not second_state.ally_unit_ids.is_empty(), "第二场战斗应继续构建友军单位，而不是空队伍。")
 	_cleanup_test_session(game_session)
 
 
@@ -232,9 +356,13 @@ func _test_game_runtime_facade_settlement_victory_downgrades_encounter() -> void
 
 
 func _create_test_session():
+	return _create_session(TEST_WORLD_CONFIG)
+
+
+func _create_session(config_path: String):
 	var game_session = GAME_SESSION_SCRIPT.new()
-	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
-	_assert_true(create_error == OK, "GameSession 应能基于测试世界配置创建新存档。")
+	var create_error := int(game_session.create_new_save(config_path))
+	_assert_true(create_error == OK, "GameSession 应能基于配置 %s 创建新存档。" % config_path)
 	if create_error != OK:
 		_cleanup_test_session(game_session)
 		return null
@@ -291,6 +419,25 @@ func _find_encounter_anchor_by_id(world_data: Dictionary, encounter_id: StringNa
 			continue
 		if encounter_anchor.entity_id == encounter_id:
 			return encounter_anchor
+	return null
+
+
+func _find_encounter_anchor_by_region_tag(world_data: Dictionary, region_tag: StringName):
+	for encounter_variant in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+		if encounter_anchor == null:
+			continue
+		if encounter_anchor.region_tag == region_tag:
+			return encounter_anchor
+	return null
+
+
+func _find_first_other_encounter_anchor(world_data: Dictionary, excluded_encounter_id: StringName):
+	for encounter_variant in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+		if encounter_anchor == null or encounter_anchor.entity_id == excluded_encounter_id:
+			continue
+		return encounter_anchor
 	return null
 
 

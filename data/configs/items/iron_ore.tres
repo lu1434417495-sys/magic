@@ -9,4 +9,6 @@ display_name = "铁矿石"
 description = "粗加工前的矿石原料，用于测试大批量堆叠。"
 icon = "res://icon.svg"
 is_stackable = true
+base_price = 8
+sellable = true
 max_stack = 50

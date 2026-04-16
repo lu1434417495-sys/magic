@@ -61,12 +61,6 @@ func _register_template(template: EnemyTemplateDef) -> void:
 	if template == null or template.template_id == &"":
 		return
 	_enemy_templates[template.template_id] = template
-	for alias_id in template.alias_ids:
-		if alias_id == &"":
-			continue
-		_enemy_templates[alias_id] = template
-	if not template.display_name.is_empty():
-		_enemy_templates[StringName(template.display_name)] = template
 
 
 func _register_wild_encounter_roster(roster: WildEncounterRosterDef) -> void:
@@ -144,7 +138,6 @@ func _build_wolf_pack_template() -> EnemyTemplateDef:
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = &"wolf_pack"
 	template.display_name = "荒狼群"
-	template.alias_ids = ProgressionDataUtils.to_string_name_array(["荒狼群", "wolf_pack"])
 	template.brain_id = &"melee_aggressor"
 	template.initial_state_id = &"engage"
 	template.enemy_count = 2
@@ -167,7 +160,6 @@ func _build_wolf_raider_template() -> EnemyTemplateDef:
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = &"wolf_raider"
 	template.display_name = "荒狼"
-	template.alias_ids = ProgressionDataUtils.to_string_name_array(["荒狼", "wolf_raider"])
 	template.brain_id = &"melee_aggressor"
 	template.initial_state_id = &"engage"
 	template.enemy_count = 1
@@ -190,7 +182,6 @@ func _build_wolf_alpha_template() -> EnemyTemplateDef:
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = &"wolf_alpha"
 	template.display_name = "荒狼头目"
-	template.alias_ids = ProgressionDataUtils.to_string_name_array(["荒狼头目", "wolf_alpha"])
 	template.brain_id = &"melee_aggressor"
 	template.initial_state_id = &"engage"
 	template.enemy_count = 1
@@ -213,7 +204,6 @@ func _build_wolf_shaman_template() -> EnemyTemplateDef:
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = &"wolf_shaman"
 	template.display_name = "荒狼祭司"
-	template.alias_ids = ProgressionDataUtils.to_string_name_array(["荒狼祭司", "wolf_shaman"])
 	template.brain_id = &"ranged_controller"
 	template.initial_state_id = &"support"
 	template.enemy_count = 1
@@ -236,7 +226,6 @@ func _build_mist_beast_template() -> EnemyTemplateDef:
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = &"mist_beast"
 	template.display_name = "雾沼异兽"
-	template.alias_ids = ProgressionDataUtils.to_string_name_array(["雾沼异兽", "mist_beast"])
 	template.brain_id = &"ranged_controller"
 	template.initial_state_id = &"pressure"
 	template.enemy_count = 2

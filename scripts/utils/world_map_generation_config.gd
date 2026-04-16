@@ -57,6 +57,10 @@ const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.
 @export var settlement_distribution: Array = []
 ## 字段说明：在编辑器中暴露野外怪物相关配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var wild_monster_distribution: Array = []
+## 字段说明：在编辑器中暴露挂载子地图配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
+@export var mounted_submaps: Array = []
+## 字段说明：在编辑器中暴露世界事件配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
+@export var world_events: Array = []
 
 
 func get_world_size_cells() -> Vector2i:

@@ -17,6 +17,7 @@ Thumbs.db
 
 # Local Codex/MindFS state
 .mindfs/
+.ralph/runs/
 
 # Local temp and editor state
 .tmp/

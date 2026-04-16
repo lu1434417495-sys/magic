@@ -1,3 +1,5 @@
+# Stable text snapshots for regression diffing and agent/debug inspection.
+# This renderer is a development aid, not a player-facing presentation layer.
 class_name GameTextSnapshotRenderer
 extends RefCounted
 
@@ -6,9 +8,15 @@ static func render_full_snapshot(snapshot: Dictionary) -> String:
 	var sections: Array[String] = []
 	_append_section(sections, "SESSION", _build_session_lines(snapshot.get("session", {})))
 	_append_section(sections, "STATUS", _build_status_lines(snapshot.get("status", {}), snapshot.get("modal", {})))
+	_append_section(sections, "LOG", _build_log_lines(snapshot.get("logs", {})))
 	_append_section(sections, "WORLD", _build_world_lines(snapshot.get("world", {})))
+	_append_section(sections, "SUBMAP", _build_submap_lines(snapshot.get("submap", {})))
 	_append_section(sections, "PARTY", _build_party_lines(snapshot.get("party", {})))
+	_append_section(sections, "QUEST", _build_quest_lines(snapshot.get("party", {}).get("quests", {})))
 	_append_section(sections, "SETTLEMENT", _build_settlement_lines(snapshot.get("settlement", {})))
+	_append_section(sections, "SHOP", _build_shop_lines(snapshot.get("shop", {})))
+	_append_section(sections, "FORGE", _build_forge_lines(snapshot.get("forge", {})))
+	_append_section(sections, "STAGECOACH", _build_stagecoach_lines(snapshot.get("stagecoach", {})))
 	_append_section(sections, "CHARACTER", _build_character_lines(snapshot.get("character_info", {})))
 	_append_section(sections, "WAREHOUSE", _build_warehouse_lines(snapshot.get("warehouse", {})))
 	_append_section(sections, "BATTLE", _build_battle_lines(snapshot.get("battle", {})))
@@ -70,17 +78,59 @@ static func _build_status_lines(status: Dictionary, modal: Dictionary) -> Array[
 	]
 
 
+static func _build_log_lines(log_snapshot: Dictionary) -> Array[String]:
+	if log_snapshot.is_empty():
+		return []
+	var lines: Array[String] = [
+		"file_path=%s" % String(log_snapshot.get("file_path", "")),
+		"virtual_path=%s" % String(log_snapshot.get("virtual_path", "")),
+		"entry_count=%d" % int(log_snapshot.get("entry_count", 0)),
+	]
+	var entries_variant = log_snapshot.get("entries", [])
+	if entries_variant is Array:
+		for entry_variant in entries_variant:
+			if entry_variant is not Dictionary:
+				continue
+			var entry: Dictionary = entry_variant
+			lines.append("entry=%d | %s | %s | %s | %s" % [
+				int(entry.get("seq", 0)),
+				String(entry.get("level", "")),
+				String(entry.get("domain", "")),
+				String(entry.get("event_id", "")),
+				String(entry.get("message", "")),
+			])
+	return lines
+
+
 static func _build_world_lines(world: Dictionary) -> Array[String]:
 	if world.is_empty():
 		return []
 	var lines: Array[String] = [
+		"map_id=%s" % String(world.get("map_id", "")),
+		"map_display_name=%s" % String(world.get("map_display_name", "")),
+		"is_submap=%s" % _format_bool(bool(world.get("is_submap", false))),
+		"world_step=%d" % int(world.get("world_step", 0)),
 		"player_coord=%s" % _format_coord(world.get("player_coord", {})),
 		"selected_coord=%s" % _format_coord(world.get("selected_coord", {})),
 		"selected_settlement_id=%s" % String(world.get("selected_settlement_id", "")),
 		"selected_npc_name=%s" % String(world.get("selected_npc_name", "")),
+		"selected_world_event_id=%s" % String(world.get("selected_world_event_id", "")),
+		"selected_world_event_name=%s" % String(world.get("selected_world_event_name", "")),
 		"selected_encounter_id=%s" % String(world.get("selected_encounter_id", "")),
 		"selected_encounter_name=%s" % String(world.get("selected_encounter_name", "")),
 	]
+	var nearby_events_variant = world.get("nearby_world_events", [])
+	if nearby_events_variant is Array:
+		for world_event_variant in nearby_events_variant:
+			if world_event_variant is not Dictionary:
+				continue
+			var world_event: Dictionary = world_event_variant
+			lines.append("nearby_world_event=%s | %s | distance=%d | coord=%s" % [
+				String(world_event.get("event_id", "")),
+				String(world_event.get("display_name", "")),
+				int(world_event.get("distance", 0)),
+				_format_coord(world_event.get("coord", {})),
+			])
 	var nearby_variant = world.get("nearby_encounters", [])
 	if nearby_variant is Array:
 		for encounter_variant in nearby_variant:
@@ -96,10 +146,26 @@ static func _build_world_lines(world: Dictionary) -> Array[String]:
 	return lines
 
 
+static func _build_submap_lines(submap: Dictionary) -> Array[String]:
+	if submap.is_empty():
+		return []
+	var prompt: Dictionary = submap.get("prompt", {})
+	return [
+		"active=%s" % _format_bool(bool(submap.get("active", false))),
+		"map_id=%s" % String(submap.get("map_id", "")),
+		"map_display_name=%s" % String(submap.get("map_display_name", "")),
+		"return_hint=%s" % String(submap.get("return_hint_text", "")),
+		"confirm_visible=%s" % _format_bool(bool(submap.get("confirm_visible", false))),
+		"prompt_title=%s" % String(prompt.get("title", "")),
+		"prompt_target=%s" % String(prompt.get("target_display_name", "")),
+	]
+
+
 static func _build_party_lines(party: Dictionary) -> Array[String]:
 	if party.is_empty():
 		return []
 	var lines: Array[String] = [
+		"gold=%d" % int(party.get("gold", 0)),
 		"leader_member_id=%s" % String(party.get("leader_member_id", "")),
 		"active_member_ids=%s" % _format_array(party.get("active_member_ids", [])),
 		"reserve_member_ids=%s" % _format_array(party.get("reserve_member_ids", [])),
@@ -127,6 +193,100 @@ static func _build_party_lines(party: Dictionary) -> Array[String]:
 				int(attributes.get("physical_defense", 0)),
 				int(attributes.get("speed", 0)),
 				_format_equipment(member.get("equipment", [])),
+			])
+	return lines
+
+
+static func _build_quest_lines(quests: Dictionary) -> Array[String]:
+	if quests.is_empty():
+		return []
+	var lines: Array[String] = [
+		"active_quest_ids=%s" % _format_array(quests.get("active_quest_ids", [])),
+		"completed_quest_ids=%s" % _format_array(quests.get("completed_quest_ids", [])),
+	]
+	var active_quests_variant = quests.get("active_quests", [])
+	if active_quests_variant is Array:
+		for quest_variant in active_quests_variant:
+			if quest_variant is not Dictionary:
+				continue
+			var quest: Dictionary = quest_variant
+			lines.append("quest=%s | status=%s | progress=%s | accepted=%d | completed=%d | rewarded=%d | context=%s" % [
+				String(quest.get("quest_id", "")),
+				String(quest.get("status_id", "")),
+				_format_quest_progress(quest.get("objective_progress", {})),
+				int(quest.get("accepted_at_world_step", -1)),
+				int(quest.get("completed_at_world_step", -1)),
+				int(quest.get("reward_claimed_at_world_step", -1)),
+				_format_key_value_pairs(quest.get("last_progress_context", {})),
+			])
+	return lines
+
+
+static func _build_shop_lines(shop_snapshot: Dictionary) -> Array[String]:
+	if shop_snapshot.is_empty():
+		return []
+	var window_data: Dictionary = shop_snapshot.get("window_data", {})
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(shop_snapshot.get("visible", false))),
+		"title=%s" % String(window_data.get("title", "")),
+		"settlement_id=%s" % String(window_data.get("settlement_id", "")),
+	]
+	var entries_variant = window_data.get("entries", [])
+	if entries_variant is Array:
+		for entry_variant in entries_variant:
+			if entry_variant is not Dictionary:
+				continue
+			var entry: Dictionary = entry_variant
+			lines.append("entry=%s | state=%s | cost=%s" % [
+				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("state_label", "")),
+				String(entry.get("cost_label", "")),
+			])
+	return lines
+
+
+static func _build_stagecoach_lines(stagecoach_snapshot: Dictionary) -> Array[String]:
+	if stagecoach_snapshot.is_empty():
+		return []
+	var window_data: Dictionary = stagecoach_snapshot.get("window_data", {})
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(stagecoach_snapshot.get("visible", false))),
+		"title=%s" % String(window_data.get("title", "")),
+		"settlement_id=%s" % String(window_data.get("settlement_id", "")),
+	]
+	var entries_variant = window_data.get("entries", [])
+	if entries_variant is Array:
+		for entry_variant in entries_variant:
+			if entry_variant is not Dictionary:
+				continue
+			var entry: Dictionary = entry_variant
+			lines.append("route=%s | state=%s | cost=%s" % [
+				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("state_label", "")),
+				String(entry.get("cost_label", "")),
+			])
+	return lines
+
+
+static func _build_forge_lines(forge_snapshot: Dictionary) -> Array[String]:
+	if forge_snapshot.is_empty():
+		return []
+	var window_data: Dictionary = forge_snapshot.get("window_data", {})
+	var lines: Array[String] = [
+		"visible=%s" % _format_bool(bool(forge_snapshot.get("visible", false))),
+		"title=%s" % String(window_data.get("title", "")),
+		"settlement_id=%s" % String(window_data.get("settlement_id", "")),
+	]
+	var entries_variant = window_data.get("entries", [])
+	if entries_variant is Array:
+		for entry_variant in entries_variant:
+			if entry_variant is not Dictionary:
+				continue
+			var entry: Dictionary = entry_variant
+			lines.append("entry=%s | state=%s | cost=%s" % [
+				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("state_label", "")),
+				String(entry.get("cost_label", "")),
 			])
 	return lines
 
@@ -184,18 +344,19 @@ static func _build_warehouse_lines(warehouse: Dictionary) -> Array[String]:
 		"summary=%s" % String(window_data.get("summary_text", "")),
 		"status=%s" % String(window_data.get("status_text", "")),
 	]
-	var stacks_variant = window_data.get("stacks", [])
-	if stacks_variant is Array:
-		for stack_variant in stacks_variant:
-			if stack_variant is not Dictionary:
+	var entries_variant = window_data.get("entries", [])
+	if entries_variant is Array:
+		for entry_variant in entries_variant:
+			if entry_variant is not Dictionary:
 				continue
-			var stack: Dictionary = stack_variant
-			lines.append("stack=%s | qty=%d | total=%d | stackable=%s | limit=%d" % [
-				String(stack.get("item_id", "")),
-				int(stack.get("quantity", 0)),
-				int(stack.get("total_quantity", 0)),
-				_format_bool(bool(stack.get("is_stackable", false))),
-				int(stack.get("stack_limit", 0)),
+			var entry: Dictionary = entry_variant
+			lines.append("entry=%s | qty=%d | total=%d | stackable=%s | limit=%d | mode=%s" % [
+				String(entry.get("item_id", "")),
+				int(entry.get("quantity", 0)),
+				int(entry.get("total_quantity", 0)),
+				_format_bool(bool(entry.get("is_stackable", false))),
+				int(entry.get("stack_limit", 0)),
+				String(entry.get("storage_mode", "")),
 			])
 	return lines
 
@@ -216,6 +377,8 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 		"selected_skill_id=%s" % String(battle.get("selected_skill_id", "")),
 		"selected_skill_variant_id=%s" % String(battle.get("selected_skill_variant_id", "")),
 		"selected_target_coords=%s" % _format_coord_array(battle.get("selected_target_coords", [])),
+		"selected_target_unit_ids=%s" % _format_array(battle.get("selected_target_unit_ids", [])),
+		"selected_target_unit_count=%d" % int(battle.get("selected_target_unit_count", 0)),
 	]
 	var hud: Dictionary = battle.get("hud", {})
 	if not hud.is_empty():
@@ -334,4 +497,26 @@ static func _format_equipment(entries_variant: Variant) -> String:
 			String(entry.get("slot_id", "")),
 			String(entry.get("item_id", "")),
 		])
+	return " ".join(PackedStringArray(parts))
+
+
+static func _format_quest_progress(progress_variant: Variant) -> String:
+	if progress_variant is not Dictionary:
+		return ""
+	var progress: Dictionary = progress_variant
+	var keys := ProgressionDataUtils.sorted_string_keys(progress)
+	var parts: Array[String] = []
+	for key in keys:
+		parts.append("%s:%d" % [key, int(progress.get(key, 0))])
+	return " ".join(PackedStringArray(parts))
+
+
+static func _format_key_value_pairs(value_variant: Variant) -> String:
+	if value_variant is not Dictionary:
+		return ""
+	var value: Dictionary = value_variant
+	var keys := ProgressionDataUtils.sorted_string_keys(value)
+	var parts: Array[String] = []
+	for key in keys:
+		parts.append("%s=%s" % [key, String(value.get(key, ""))])
 	return " ".join(PackedStringArray(parts))

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=40 format=3]
+[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=41 format=3]
 
 [ext_resource type="Script" path="res://scripts/utils/world_map_generation_config.gd" id="1_conf"]
 [ext_resource type="Script" path="res://scripts/utils/settlement_config.gd" id="2_settlement"]
@@ -14,7 +14,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_notice_keeper"
 display_name = "告示书记员"
 service_type = "任务"
-interaction_script_id = "service_quest"
+interaction_script_id = "service_contract_board"
 local_slot_id = "notice_slot"
 
 [sub_resource type="Resource" id="Resource_supply_npc"]
@@ -22,7 +22,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_supply_vendor"
 display_name = "补给商"
 service_type = "补给"
-interaction_script_id = "service_supply"
+interaction_script_id = "service_basic_supply"
 local_slot_id = "supply_slot"
 
 [sub_resource type="Resource" id="Resource_warehouse_npc"]
@@ -38,7 +38,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_innkeeper"
 display_name = "旅店老板"
 service_type = "休整"
-interaction_script_id = "service_rest"
+interaction_script_id = "service_rest_full"
 local_slot_id = "inn_slot"
 
 [sub_resource type="Resource" id="Resource_workshop_npc"]
@@ -46,7 +46,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_crafter"
 display_name = "工匠"
 service_type = "锻造"
-interaction_script_id = "service_craft"
+interaction_script_id = "service_repair_gear"
 local_slot_id = "workshop_slot"
 
 [sub_resource type="Resource" id="Resource_guild_npc"]
@@ -54,7 +54,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_guild_clerk"
 display_name = "行会记录官"
 service_type = "委托"
-interaction_script_id = "service_guild"
+interaction_script_id = "service_join_guild"
 local_slot_id = "guild_slot"
 
 [sub_resource type="Resource" id="Resource_market_npc"]
@@ -62,7 +62,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_market_broker"
 display_name = "集市经纪人"
 service_type = "交易"
-interaction_script_id = "service_trade"
+interaction_script_id = "service_city_market"
 local_slot_id = "market_slot"
 
 [sub_resource type="Resource" id="Resource_council_npc"]
@@ -70,7 +70,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_council_officer"
 display_name = "内政官"
 service_type = "政务"
-interaction_script_id = "service_governance"
+interaction_script_id = "service_issue_regional_edict"
 local_slot_id = "council_slot"
 
 [sub_resource type="Resource" id="Resource_library_npc"]
@@ -78,7 +78,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_librarian"
 display_name = "大图书官"
 service_type = "研究"
-interaction_script_id = "service_research"
+interaction_script_id = "service_unlock_archive"
 local_slot_id = "library_slot"
 
 [sub_resource type="Resource" id="Resource_gate_npc"]
@@ -86,7 +86,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_gate_keeper"
 display_name = "界门守望者"
 service_type = "传送"
-interaction_script_id = "service_travel"
+interaction_script_id = "service_open_trade_route"
 local_slot_id = "gate_slot"
 
 [sub_resource type="Resource" id="Resource_command_npc"]
@@ -94,7 +94,7 @@ script = ExtResource("6_npc")
 npc_id = "npc_command_master"
 display_name = "战术指挥官"
 service_type = "部署"
-interaction_script_id = "service_command"
+interaction_script_id = "service_elite_recruitment"
 local_slot_id = "command_slot"
 
 [sub_resource type="Resource" id="Resource_notice_board"]
@@ -426,6 +426,12 @@ settlement_id = "worldgate_stronghold"
 preferred_origin = Vector2i(10, 10)
 faction_id = "neutral"
 
+[sub_resource type="Resource" id="Resource_rule_metropolis"]
+script = ExtResource("7_distribution")
+settlement_id = "aurora_metropolis"
+preferred_origin = Vector2i(18, 18)
+faction_id = "neutral"
+
 [sub_resource type="Resource" id="Resource_wild_north"]
 script = ExtResource("8_wild")
 region_tag = "north_wilds"
@@ -466,10 +472,9 @@ city_spacing_cells = 28
 capital_spacing_cells = 34
 world_stronghold_spacing_cells = 40
 metropolis_spacing_cells = 46
-guarantee_starting_wild_encounter = true
 starting_wild_spawn_min_distance = 3
 starting_wild_spawn_max_distance = 4
 settlement_library = Array[Resource]([SubResource("Resource_village"), SubResource("Resource_town"), SubResource("Resource_city"), SubResource("Resource_capital"), SubResource("Resource_stronghold"), SubResource("Resource_metropolis")])
 facility_library = Array[Resource]([SubResource("Resource_notice_board"), SubResource("Resource_supply_stall"), SubResource("Resource_inn"), SubResource("Resource_workshop"), SubResource("Resource_guild_hall"), SubResource("Resource_market_square"), SubResource("Resource_council_hall"), SubResource("Resource_grand_library"), SubResource("Resource_world_gate"), SubResource("Resource_command_post")])
-settlement_distribution = Array[Resource]([SubResource("Resource_rule_village"), SubResource("Resource_rule_town"), SubResource("Resource_rule_city"), SubResource("Resource_rule_capital"), SubResource("Resource_rule_stronghold")])
+settlement_distribution = Array[Resource]([SubResource("Resource_rule_village"), SubResource("Resource_rule_town"), SubResource("Resource_rule_city"), SubResource("Resource_rule_capital"), SubResource("Resource_rule_stronghold"), SubResource("Resource_rule_metropolis")])
 wild_monster_distribution = Array[Resource]([SubResource("Resource_wild_north"), SubResource("Resource_wild_south")])

@@ -9,9 +9,13 @@ const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_stat
 const BATTLE_TERRAIN_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_terrain_effect_state.gd")
 const BattleTerrainEffectState = preload("res://scripts/systems/battle_terrain_effect_state.gd")
 const BattleEdgeFeatureState = preload("res://scripts/systems/battle_edge_feature_state.gd")
+const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const TERRAIN_LAND := &"land"
 const TERRAIN_FOREST := &"forest"
 const TERRAIN_WATER := &"water"
+const TERRAIN_SHALLOW_WATER := &"shallow_water"
+const TERRAIN_FLOWING_WATER := &"flowing_water"
+const TERRAIN_DEEP_WATER := &"deep_water"
 const TERRAIN_MUD := &"mud"
 const TERRAIN_SPIKE := &"spike"
 const MIN_RUNTIME_HEIGHT := -5
@@ -41,6 +45,8 @@ var prop_ids: Array[StringName] = []
 var terrain_effect_ids: Array[StringName] = []
 ## 字段说明：保存计时地形效果集合，便于顺序遍历、批量展示、批量运算和整体重建。
 var timed_terrain_effects: Array[BattleTerrainEffectState] = []
+## 字段说明：记录流水地格的主导流向，供未来的移动结算与表现层读取。
+var flow_direction: Vector2i = Vector2i.ZERO
 ## 字段说明：记录东侧边缘 authoring 特征，作为统一 edge-face 系统的 source-of-truth。
 var edge_feature_east: BattleEdgeFeatureState = BattleEdgeFeatureState.make_none()
 ## 字段说明：记录南侧边缘 authoring 特征，作为统一 edge-face 系统的 source-of-truth。
@@ -52,10 +58,13 @@ func clear_occupant() -> void:
 
 
 func recalculate_runtime_values() -> void:
+	base_terrain = BattleTerrainRules.normalize_terrain_id(base_terrain)
+	if base_terrain != TERRAIN_FLOWING_WATER:
+		flow_direction = Vector2i.ZERO
 	current_height = clampi(base_height + height_offset, MIN_RUNTIME_HEIGHT, MAX_RUNTIME_HEIGHT)
 	stack_layer = current_height
-	passable = base_terrain != TERRAIN_WATER
-	move_cost = 2 if base_terrain == TERRAIN_MUD or base_terrain == TERRAIN_SPIKE else 1
+	passable = BattleTerrainRules.get_global_passable(base_terrain)
+	move_cost = BattleTerrainRules.get_base_move_cost(base_terrain)
 
 
 func set_base_terrain(terrain: StringName) -> void:
@@ -105,6 +114,7 @@ func duplicate_cell() -> BattleCellState:
 	cloned.prop_ids = prop_ids.duplicate()
 	cloned.terrain_effect_ids = terrain_effect_ids.duplicate()
 	cloned.timed_terrain_effects = BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.duplicate_array(timed_terrain_effects)
+	cloned.flow_direction = flow_direction
 	cloned.edge_feature_east = _normalize_edge_feature(edge_feature_east)
 	cloned.edge_feature_south = _normalize_edge_feature(edge_feature_south)
 	return cloned
@@ -124,6 +134,7 @@ func to_dict() -> Dictionary:
 		"prop_ids": _string_name_array_to_strings(prop_ids),
 		"terrain_effect_ids": _string_name_array_to_strings(terrain_effect_ids),
 		"timed_terrain_effects": BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.to_dict_array(timed_terrain_effects),
+		"flow_direction": flow_direction,
 		"edge_feature_east": edge_feature_east.to_dict() if edge_feature_east != null else {},
 		"edge_feature_south": edge_feature_south.to_dict() if edge_feature_south != null else {},
 	}
@@ -132,19 +143,17 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Dictionary) -> BattleCellState:
 	var cell_state := BATTLE_CELL_STATE_SCRIPT.new()
 	cell_state.coord = data.get("coord", Vector2i.ZERO)
-	cell_state.stack_layer = int(data.get("stack_layer", int(data.get("current_height", cell_state.base_height))))
-	cell_state.base_terrain = StringName(String(data.get("base_terrain", "land")))
+	cell_state.base_terrain = BattleTerrainRules.normalize_terrain_id(StringName(String(data.get("base_terrain", "land"))))
 	cell_state.base_height = int(data.get("base_height", 0))
 	cell_state.height_offset = int(data.get("height_offset", 0))
-	cell_state.current_height = int(data.get("current_height", cell_state.base_height))
-	cell_state.passable = bool(data.get("passable", true))
-	cell_state.move_cost = int(data.get("move_cost", 1))
 	cell_state.occupant_unit_id = StringName(String(data.get("occupant_unit_id", "")))
 	cell_state.prop_ids = _strings_to_string_name_array(data.get("prop_ids", []))
 	cell_state.terrain_effect_ids = _strings_to_string_name_array(data.get("terrain_effect_ids", []))
 	cell_state.timed_terrain_effects = BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.from_dict_array(data.get("timed_terrain_effects", []))
+	cell_state.flow_direction = data.get("flow_direction", Vector2i.ZERO)
 	cell_state.edge_feature_east = _normalize_edge_feature(BattleEdgeFeatureState.from_dict(data.get("edge_feature_east", {})))
 	cell_state.edge_feature_south = _normalize_edge_feature(BattleEdgeFeatureState.from_dict(data.get("edge_feature_south", {})))
+	cell_state.recalculate_runtime_values()
 	return cell_state
 
 
@@ -220,6 +229,7 @@ static func build_stacked_cells_from_surface_cell(surface_cell: BattleCellState)
 			support_cell.prop_ids = []
 			support_cell.terrain_effect_ids = []
 			support_cell.timed_terrain_effects = []
+			support_cell.flow_direction = Vector2i.ZERO
 			column.append(support_cell)
 	var top_cell := surface_cell.duplicate_cell()
 	top_cell.coord = surface_cell.coord

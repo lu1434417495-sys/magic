@@ -24,6 +24,8 @@ signal battle_skill_slot_selected(index: int)
 signal battle_skill_variant_cycle_requested(step: int)
 ## 信号说明：当界面请求战斗技能清除时发出的信号，具体处理由外层系统或控制器负责。
 signal battle_skill_clear_requested
+## 信号说明：当 battle 首帧准备状态变化时发出的信号，供外层切图遮罩同步黑屏与进度条。
+signal battle_loading_state_changed(is_loading: bool, progress_value: float)
 
 const HUD_PANEL_BG := Color(0.16, 0.06, 0.03, 0.9)
 const HUD_PANEL_BG_ALT := Color(0.2, 0.08, 0.04, 0.92)
@@ -33,6 +35,12 @@ const HUD_TEXT_PRIMARY := Color(0.98, 0.93, 0.82, 1.0)
 const HUD_TEXT_SECONDARY := Color(0.92, 0.82, 0.66, 0.94)
 const HUD_TEXT_MUTED := Color(0.78, 0.66, 0.54, 0.86)
 const HUD_DARK := Color(0.08, 0.03, 0.02, 0.9)
+const LOADING_PROGRESS_PREPARE := 12.0
+const LOADING_PROGRESS_DRAW_REQUESTED := 48.0
+const LOADING_PROGRESS_FRAME_QUEUED := 82.0
+const LOADING_PROGRESS_READY := 100.0
+const MIN_BATTLE_LOADING_DURATION_SECONDS := 0.35
+const MAX_BATTLE_RENDER_READY_FRAMES := 12
 
 ## 字段说明：记录战斗界面适配，作为界面刷新、输入处理和窗口联动的重要依据。
 var _hud_adapter := BattleHudAdapter.new()
@@ -40,6 +48,18 @@ var _hud_adapter := BattleHudAdapter.new()
 var _map_subviewport: SubViewport = null
 ## 字段说明：缓存战斗棋盘实例，作为界面刷新、输入处理和窗口联动的重要依据。
 var _battle_board: BattleBoard2D = null
+## 字段说明：记录当前正在等待首帧呈现的战斗唯一标识，避免重复触发加载遮罩或过早放开输入。
+var _revealing_battle_id: StringName = &""
+## 字段说明：记录最近一次已完成首帧呈现的战斗唯一标识，避免同一 battle 的普通刷新重复闪黑屏。
+var _revealed_battle_id: StringName = &""
+## 字段说明：记录首帧呈现握手版本号，用于丢弃过期的异步等待结果。
+var _battle_reveal_ticket := 0
+## 字段说明：记录当前 battle 首帧准备进度，供外层黑屏进度条同步显示。
+var _battle_loading_progress := 0.0
+## 字段说明：记录当前 battle loading 开始时间，用于保证黑屏过场至少可见一小段时间。
+var _battle_reveal_started_at_msec := 0
+## 字段说明：缓存首次进入 battle 时待应用的展示参数，确保黑屏先出图后再执行重型面板刷新。
+var _pending_show_battle_payload: Dictionary = {}
 
 ## 字段说明：缓存地图框架节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var map_frame: PanelContainer = %MapFrame
@@ -134,12 +154,25 @@ func _ready() -> void:
 	resolve_button.pressed.connect(_on_resolve_button_pressed)
 	_apply_static_skin()
 	_set_placeholder_state()
+	_update_battle_loading_state(false, 0.0)
 	_resize_map_viewport()
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_resize_map_viewport()
+
+
+func is_loading_battle() -> bool:
+	return _revealing_battle_id != &""
+
+
+func get_loading_progress() -> float:
+	return _battle_loading_progress
+
+
+func is_battle_render_content_ready() -> bool:
+	return _battle_board != null and _battle_board.is_render_content_ready()
 
 
 func show_battle(
@@ -149,9 +182,27 @@ func show_battle(
 	selected_skill_name: String = "",
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
+	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0
 ) -> void:
+	var battle_id := _resolve_battle_id(battle_state)
+	_store_pending_show_battle_payload(
+		battle_state,
+		selected_coord,
+		selected_skill_id,
+		selected_skill_name,
+		selected_skill_variant_name,
+		selected_skill_target_coords,
+		selected_skill_valid_target_coords,
+		selected_skill_required_coord_count
+	)
+	var reveal_ticket := _begin_battle_reveal_if_needed(battle_id)
 	visible = true
+	if reveal_ticket > 0:
+		_begin_battle_first_presented_frame(reveal_ticket, battle_id)
+		return
+	if _revealing_battle_id == battle_id:
+		return
 	refresh(
 		battle_state,
 		selected_coord,
@@ -159,8 +210,31 @@ func show_battle(
 		selected_skill_name,
 		selected_skill_variant_name,
 		selected_skill_target_coords,
+		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count
 	)
+
+
+func _store_pending_show_battle_payload(
+	battle_state: BattleState,
+	selected_coord: Vector2i,
+	selected_skill_id: StringName,
+	selected_skill_name: String,
+	selected_skill_variant_name: String,
+	selected_skill_target_coords: Array[Vector2i],
+	selected_skill_valid_target_coords: Array[Vector2i],
+	selected_skill_required_coord_count: int
+) -> void:
+	_pending_show_battle_payload = {
+		"battle_state": battle_state,
+		"selected_coord": selected_coord,
+		"selected_skill_id": selected_skill_id,
+		"selected_skill_name": selected_skill_name,
+		"selected_skill_variant_name": selected_skill_variant_name,
+		"selected_skill_target_coords": selected_skill_target_coords.duplicate(),
+		"selected_skill_valid_target_coords": selected_skill_valid_target_coords.duplicate(),
+		"selected_skill_required_coord_count": selected_skill_required_coord_count,
+	}
 
 
 func refresh_overlay(
@@ -170,6 +244,7 @@ func refresh_overlay(
 	selected_skill_name: String = "",
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
+	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0
 ) -> void:
 	_refresh_internal(
@@ -179,6 +254,7 @@ func refresh_overlay(
 		selected_skill_name,
 		selected_skill_variant_name,
 		selected_skill_target_coords,
+		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
 		false
 	)
@@ -191,6 +267,7 @@ func refresh(
 	selected_skill_name: String = "",
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
+	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0
 ) -> void:
 	_refresh_internal(
@@ -200,6 +277,7 @@ func refresh(
 		selected_skill_name,
 		selected_skill_variant_name,
 		selected_skill_target_coords,
+		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
 		true
 	)
@@ -212,6 +290,7 @@ func _refresh_internal(
 	selected_skill_name: String = "",
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
+	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
 	redraw_board: bool = true
 ) -> void:
@@ -231,20 +310,139 @@ func _refresh_internal(
 	_apply_snapshot(snapshot)
 	_update_button_states(selected_skill_id)
 	if _battle_board != null:
+		var selected_skill_target_selection_mode := StringName(snapshot.get("selected_skill_target_selection_mode", &"single_unit"))
+		if selected_skill_id == &"" and not selected_skill_valid_target_coords.is_empty():
+			selected_skill_target_selection_mode = &"movement"
+		var selected_skill_target_min_count := int(snapshot.get("selected_skill_target_min_count", 1))
+		var selected_skill_target_max_count := int(snapshot.get("selected_skill_target_max_count", 1))
 		if redraw_board:
-			_battle_board.configure(battle_state, selected_coord, selected_skill_target_coords)
+			_battle_board.configure(
+				battle_state,
+				selected_coord,
+				selected_skill_target_coords,
+				selected_skill_valid_target_coords,
+				selected_skill_target_selection_mode,
+				selected_skill_target_min_count,
+				selected_skill_target_max_count
+			)
 		else:
-			_battle_board.update_selection(selected_coord, selected_skill_target_coords)
+			_battle_board.update_selection(
+				selected_coord,
+				selected_skill_target_coords,
+				selected_skill_valid_target_coords,
+				selected_skill_target_selection_mode,
+				selected_skill_target_min_count,
+				selected_skill_target_max_count
+			)
 		_request_map_viewport_update()
 	if redraw_board:
 		_resize_map_viewport()
 
 
 func hide_battle() -> void:
+	_cancel_battle_reveal()
+	_pending_show_battle_payload.clear()
 	visible = false
 	if _battle_board != null:
 		_battle_board.clear_board()
 	_request_map_viewport_update()
+
+
+func _resolve_battle_id(battle_state: BattleState) -> StringName:
+	return battle_state.battle_id if battle_state != null else &""
+
+
+func _begin_battle_reveal_if_needed(battle_id: StringName) -> int:
+	if battle_id == &"":
+		return 0
+	if battle_id == _revealed_battle_id or battle_id == _revealing_battle_id:
+		return 0
+	_battle_reveal_ticket += 1
+	var reveal_ticket := _battle_reveal_ticket
+	_revealing_battle_id = battle_id
+	_revealed_battle_id = &""
+	_battle_reveal_started_at_msec = Time.get_ticks_msec()
+	_update_battle_loading_state(true, LOADING_PROGRESS_PREPARE)
+	return reveal_ticket
+
+
+func _cancel_battle_reveal() -> void:
+	_battle_reveal_ticket += 1
+	_revealing_battle_id = &""
+	_revealed_battle_id = &""
+	_update_battle_loading_state(false, 0.0)
+
+
+func _begin_battle_first_presented_frame(reveal_ticket: int, battle_id: StringName) -> void:
+	_complete_battle_reveal_async(reveal_ticket, battle_id)
+
+
+func _complete_battle_reveal_async(reveal_ticket: int, battle_id: StringName) -> void:
+	if not _is_battle_reveal_current(reveal_ticket, battle_id):
+		return
+	_update_battle_loading_state(true, LOADING_PROGRESS_DRAW_REQUESTED)
+	await get_tree().process_frame
+	if not _is_battle_reveal_current(reveal_ticket, battle_id):
+		return
+	_apply_pending_show_battle_payload()
+	if not _is_battle_reveal_current(reveal_ticket, battle_id):
+		return
+	var content_ready := is_battle_render_content_ready()
+	var waited_frames := 0
+	while not content_ready and waited_frames < MAX_BATTLE_RENDER_READY_FRAMES:
+		await get_tree().process_frame
+		if not _is_battle_reveal_current(reveal_ticket, battle_id):
+			return
+		_request_map_viewport_update()
+		content_ready = is_battle_render_content_ready()
+		waited_frames += 1
+	if not _is_battle_reveal_current(reveal_ticket, battle_id):
+		return
+	_update_battle_loading_state(true, LOADING_PROGRESS_FRAME_QUEUED)
+	if DisplayServer.get_name() == "headless":
+		await get_tree().process_frame
+	else:
+		await RenderingServer.frame_post_draw
+	if not _is_battle_reveal_current(reveal_ticket, battle_id):
+		return
+	var elapsed_seconds := float(Time.get_ticks_msec() - _battle_reveal_started_at_msec) / 1000.0
+	var remaining_seconds := MIN_BATTLE_LOADING_DURATION_SECONDS - elapsed_seconds
+	if remaining_seconds > 0.0:
+		var target_time_msec := _battle_reveal_started_at_msec + int(round(MIN_BATTLE_LOADING_DURATION_SECONDS * 1000.0))
+		while Time.get_ticks_msec() < target_time_msec:
+			await get_tree().process_frame
+			if not _is_battle_reveal_current(reveal_ticket, battle_id):
+				return
+	if not _is_battle_reveal_current(reveal_ticket, battle_id):
+		return
+	_revealing_battle_id = &""
+	_revealed_battle_id = battle_id
+	visible = true
+	_update_battle_loading_state(false, LOADING_PROGRESS_READY)
+
+
+func _apply_pending_show_battle_payload() -> void:
+	if _pending_show_battle_payload.is_empty():
+		return
+	refresh(
+		_pending_show_battle_payload.get("battle_state", null),
+		_pending_show_battle_payload.get("selected_coord", Vector2i.ZERO),
+		_pending_show_battle_payload.get("selected_skill_id", &""),
+		String(_pending_show_battle_payload.get("selected_skill_name", "")),
+		String(_pending_show_battle_payload.get("selected_skill_variant_name", "")),
+		_pending_show_battle_payload.get("selected_skill_target_coords", []),
+		_pending_show_battle_payload.get("selected_skill_valid_target_coords", []),
+		int(_pending_show_battle_payload.get("selected_skill_required_coord_count", 0))
+	)
+
+
+func _is_battle_reveal_current(reveal_ticket: int, battle_id: StringName) -> bool:
+	return reveal_ticket == _battle_reveal_ticket and battle_id != &"" and battle_id == _revealing_battle_id
+
+
+func _update_battle_loading_state(is_loading: bool, progress_value: float) -> void:
+	_battle_loading_progress = clampf(progress_value, 0.0, LOADING_PROGRESS_READY)
+	battle_loading_state_changed.emit(is_loading, _battle_loading_progress)
 
 
 func _on_battle_board_cell_clicked(coord: Vector2i) -> void:

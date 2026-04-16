@@ -28,6 +28,7 @@ const OVERLAY_LAYER_Z_OFFSET := 6
 const MARKER_LAYER_Z_BASE := 1000
 const PROP_LAYER_Z := 1100
 const UNIT_LAYER_Z := 1200
+const TARGET_HIGHLIGHT_LAYER_Z := 1300
 const PROFILE_DEFAULT := &"default"
 const PROFILE_CANYON := &"canyon"
 const SHARED_TILE_DIR := "res://assets/main/battle/terrain/canyon"
@@ -83,11 +84,19 @@ const TEXTURED_PREVIEW_FILES := [
 	"marker_preview.png",
 ]
 const ACTIVE_SELECTED_MARKER_COLOR := Color(0.0, 0.0, 1.0, 1.0)
-const ACTIVE_SELECTED_MARKER_ALPHA_SCALE := 0.72
+const MOVE_REACHABLE_MARKER_COLOR_DARK := Color(0.14, 0.37, 0.5, 1.0)
+const MOVE_REACHABLE_MARKER_COLOR_LIGHT := Color(0.46, 0.72, 0.84, 1.0)
+const VALID_TARGET_HIGHLIGHT_COLOR := Color(0.92, 0.12, 0.08, 0.42)
+const LOCKED_TARGET_HIGHLIGHT_COLOR := Color(0.96, 0.82, 0.28, 0.54)
+const CONFIRM_READY_TARGET_HIGHLIGHT_COLOR := Color(0.28, 0.8, 0.5, 0.5)
+const CONFIRM_READY_FOCUS_HALO_COLOR := Color(0.98, 0.9, 0.34, 0.35)
 
 const TERRAIN_LAND := &"land"
 const TERRAIN_FOREST := &"forest"
 const TERRAIN_WATER := &"water"
+const TERRAIN_SHALLOW_WATER := &"shallow_water"
+const TERRAIN_FLOWING_WATER := &"flowing_water"
+const TERRAIN_DEEP_WATER := &"deep_water"
 const TERRAIN_MUD := &"mud"
 const TERRAIN_SPIKE := &"spike"
 
@@ -102,6 +111,7 @@ const SOURCE_SCRUB := &"scrub"
 const SOURCE_RUBBLE := &"rubble"
 const SOURCE_SELECTED := &"selected"
 const SOURCE_ACTIVE_SELECTED := &"active_selected"
+const SOURCE_MOVE_REACHABLE := &"move_reachable"
 const SOURCE_PREVIEW := &"preview"
 const INVALID_VARIANT_COORD := Vector2i(-999999, -999999)
 
@@ -125,6 +135,8 @@ var _marker_layers: Array[TileMapLayer] = []
 var _prop_layer: Node2D = null
 ## 字段说明：缓存单位层节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 var _unit_layer: Node2D = null
+## 字段说明：缓存技能合法目标高亮层节点，用于把可点击格绘制在最顶层。
+var _target_highlight_layer: Node2D = null
 ## 字段说明：缓存瓦片集合实例，作为界面刷新、输入处理和窗口联动的重要依据。
 var _tile_set: TileSet = null
 ## 字段说明：保存来源标识列表，便于批量遍历、交叉查找和界面展示。
@@ -144,6 +156,14 @@ var _battle_state: BattleState = null
 var _selected_coord := Vector2i(-1, -1)
 ## 字段说明：保存预览目标坐标列表，供范围判定、占位刷新、批量渲染或目标选择复用。
 var _preview_target_coords: Array[Vector2i] = []
+## 字段说明：保存当前技能合法目标坐标列表，供最顶层高亮渲染复用。
+var _valid_target_coords: Array[Vector2i] = []
+## 字段说明：保存当前技能目标选择模式，供可视化区分 multi_unit 与普通单目标。
+var _target_selection_mode: StringName = &"single_unit"
+## 字段说明：保存当前技能最小目标数量，供确认态高亮判断使用。
+var _target_min_count := 1
+## 字段说明：保存当前技能最大目标数量，供确认态高亮判断使用。
+var _target_max_count := 1
 
 
 func bind_layers(
@@ -156,7 +176,8 @@ func bind_layers(
 	overlay_layers: Array[TileMapLayer],
 	marker_layers: Array[TileMapLayer],
 	prop_layer: Node2D,
-	unit_layer: Node2D
+	unit_layer: Node2D,
+	target_highlight_layer: Node2D
 ) -> void:
 	_input_layer = input_layer
 	_top_layers = top_layers.duplicate()
@@ -168,6 +189,7 @@ func bind_layers(
 	_marker_layers = marker_layers.duplicate()
 	_prop_layer = prop_layer
 	_unit_layer = unit_layer
+	_target_highlight_layer = target_highlight_layer
 
 	_ensure_tileset(PROFILE_DEFAULT)
 	_apply_tileset_to_layers()
@@ -178,25 +200,44 @@ func bind_layers(
 func configure(
 	battle_state: BattleState,
 	selected_coord: Vector2i,
-	preview_target_coords: Array[Vector2i] = []
+	preview_target_coords: Array[Vector2i] = [],
+	target_selection_mode: StringName = &"single_unit",
+	min_target_count: int = 1,
+	max_target_count: int = 1
 ) -> void:
 	_battle_state = battle_state
 	_selected_coord = selected_coord
 	_preview_target_coords = preview_target_coords.duplicate()
+	_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
+	_target_min_count = maxi(min_target_count, 1)
+	_target_max_count = maxi(max_target_count, _target_min_count)
 	_refresh_tileset_profile()
 	_redraw()
 
 
-func update_markers(selected_coord: Vector2i, preview_target_coords: Array[Vector2i] = []) -> void:
+func update_markers(
+	selected_coord: Vector2i,
+	preview_target_coords: Array[Vector2i] = [],
+	valid_target_coords: Array[Vector2i] = [],
+	target_selection_mode: StringName = &"single_unit",
+	min_target_count: int = 1,
+	max_target_count: int = 1
+) -> void:
 	_selected_coord = selected_coord
 	_preview_target_coords = preview_target_coords.duplicate()
+	_valid_target_coords = valid_target_coords.duplicate()
+	_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
+	_target_min_count = maxi(min_target_count, 1)
+	_target_max_count = maxi(max_target_count, _target_min_count)
 	_draw_marker_layer()
+	_draw_target_highlights()
 
 
 func clear() -> void:
 	_battle_state = null
 	_selected_coord = Vector2i(-1, -1)
 	_preview_target_coords.clear()
+	_valid_target_coords.clear()
 	_clear_tile_layers()
 	_clear_dynamic_nodes()
 
@@ -213,6 +254,20 @@ func has_layers_bound() -> bool:
 	return _input_layer != null and not _marker_layers.is_empty() and _tile_set != null
 
 
+func is_render_content_ready() -> bool:
+	if not has_layers_bound():
+		return false
+	if _battle_state == null or _battle_state.is_empty() or _battle_state.map_size == Vector2i.ZERO:
+		return false
+	if _count_rendered_top_cells() < _count_expected_drawable_cells():
+		return false
+	if _count_rendered_units() != _count_expected_rendered_units():
+		return false
+	if _count_rendered_props() != _count_expected_rendered_props():
+		return false
+	return true
+
+
 func _redraw() -> void:
 	_clear_tile_layers()
 	_clear_dynamic_nodes()
@@ -225,6 +280,7 @@ func _redraw() -> void:
 	_draw_marker_layer()
 	_draw_props(cells)
 	_draw_units()
+	_draw_target_highlights()
 
 
 func _draw_terrain_layers(cells: Array[BattleCellState]) -> void:
@@ -313,23 +369,23 @@ func _draw_marker_layer() -> void:
 	_clear_marker_layers()
 
 	if _selected_coord != Vector2i(-1, -1) and _is_cell_inside_battle(_selected_coord):
-		var selected_height_index := _get_cell_height_index(_selected_coord)
-		if selected_height_index >= 0 and selected_height_index < _marker_layers.size():
-			var selected_layer := _marker_layers[selected_height_index]
-			if selected_layer != null:
-				selected_layer.set_cell(_selected_coord, _get_selected_marker_source_id(_selected_coord), Vector2i.ZERO, 0)
+		_set_marker_cell(_selected_coord, _get_selected_marker_source_id(_selected_coord))
+
+	if _target_selection_mode == &"movement":
+		for reachable_coord in _valid_target_coords:
+			if reachable_coord == _selected_coord:
+				continue
+			if not _is_cell_inside_battle(reachable_coord):
+				continue
+			_set_marker_cell(reachable_coord, _get_move_reachable_marker_source_id())
+		return
 
 	for preview_coord in _preview_target_coords:
 		if preview_coord == _selected_coord:
 			continue
 		if not _is_cell_inside_battle(preview_coord):
 			continue
-		var preview_height_index := _get_cell_height_index(preview_coord)
-		if preview_height_index < 0 or preview_height_index >= _marker_layers.size():
-			continue
-		var preview_layer := _marker_layers[preview_height_index]
-		if preview_layer != null:
-			preview_layer.set_cell(preview_coord, _get_source_id(SOURCE_PREVIEW), Vector2i.ZERO, 0)
+		_set_marker_cell(preview_coord, _get_source_id(SOURCE_PREVIEW))
 
 
 func _draw_props(cells: Array[BattleCellState]) -> void:
@@ -522,6 +578,97 @@ func _clear_marker_layers() -> void:
 func _clear_dynamic_nodes() -> void:
 	_clear_child_nodes(_prop_layer)
 	_clear_child_nodes(_unit_layer)
+	_clear_child_nodes(_target_highlight_layer)
+
+
+func _draw_target_highlights() -> void:
+	if _target_highlight_layer == null:
+		return
+	_clear_child_nodes(_target_highlight_layer)
+	if _target_selection_mode == &"movement":
+		return
+	var preview_coord_set: Dictionary = {}
+	var is_multi_unit_selection := _target_selection_mode == &"multi_unit"
+	if is_multi_unit_selection:
+		for preview_coord in _preview_target_coords:
+			preview_coord_set[preview_coord] = true
+			var locked_highlight := _create_target_highlight(preview_coord, LOCKED_TARGET_HIGHLIGHT_COLOR, 0.88, 0.68)
+			if locked_highlight != null:
+				locked_highlight.name = "LockedTarget_%d_%d" % [preview_coord.x, preview_coord.y]
+				_target_highlight_layer.add_child(locked_highlight)
+	else:
+		for preview_coord in _preview_target_coords:
+			preview_coord_set[preview_coord] = true
+	var is_multi_unit_confirm_ready := is_multi_unit_selection \
+		and _preview_target_coords.size() >= _target_min_count \
+		and _preview_target_coords.size() < _target_max_count
+	for target_coord in _valid_target_coords:
+		if preview_coord_set.has(target_coord):
+			continue
+		if not _is_cell_inside_battle(target_coord):
+			continue
+		var target_color := CONFIRM_READY_TARGET_HIGHLIGHT_COLOR if is_multi_unit_confirm_ready else VALID_TARGET_HIGHLIGHT_COLOR
+		var target_scale := 0.92 if is_multi_unit_confirm_ready else 0.88
+		var highlight := _create_target_highlight(target_coord, target_color, target_scale, 0.0)
+		if highlight == null:
+			continue
+		highlight.name = "ValidTarget_%d_%d" % [target_coord.x, target_coord.y]
+		_target_highlight_layer.add_child(highlight)
+	var confirm_focus_coord := _resolve_multi_unit_confirm_focus_coord() if is_multi_unit_confirm_ready else Vector2i(-1, -1)
+	if is_multi_unit_confirm_ready and _is_cell_inside_battle(confirm_focus_coord):
+		var confirm_halo := _create_target_highlight(confirm_focus_coord, CONFIRM_READY_FOCUS_HALO_COLOR, 1.14, 0.0)
+		if confirm_halo != null:
+			confirm_halo.name = "ConfirmReady_%d_%d" % [confirm_focus_coord.x, confirm_focus_coord.y]
+			_target_highlight_layer.add_child(confirm_halo)
+
+
+func _resolve_multi_unit_confirm_focus_coord() -> Vector2i:
+	if _battle_state != null:
+		var active_unit := _battle_state.units.get(_battle_state.active_unit_id) as BattleUnitState
+		if active_unit != null and active_unit.is_alive and _is_cell_inside_battle(active_unit.coord):
+			return active_unit.coord
+	return _selected_coord
+
+
+func _create_target_highlight(
+	target_coord: Vector2i,
+	color: Color,
+	scale: float,
+	alpha_scale: float
+) -> Polygon2D:
+	if not _is_cell_inside_battle(target_coord):
+		return null
+	var highlight := Polygon2D.new()
+	highlight.position = _get_cell_anchor_position(target_coord, _get_cell_height_index(target_coord))
+	highlight.polygon = _build_target_highlight_polygon(scale)
+	if alpha_scale > 0.0:
+		highlight.color = Color(color.r, color.g, color.b, color.a * alpha_scale)
+	else:
+		highlight.color = color
+	highlight.antialiased = true
+	highlight.set_meta("board_coord", target_coord)
+	return highlight
+
+
+func _set_marker_cell(coord: Vector2i, source_id: int) -> void:
+	if source_id < 0:
+		return
+	var height_index := _get_cell_height_index(coord)
+	if height_index < 0 or height_index >= _marker_layers.size():
+		return
+	var marker_layer := _marker_layers[height_index]
+	if marker_layer != null:
+		marker_layer.set_cell(coord, source_id, Vector2i.ZERO, 0)
+
+
+func _build_target_highlight_polygon(scale: float) -> PackedVector2Array:
+	var safe_scale := maxf(scale, 0.2)
+	return PackedVector2Array([
+		Vector2(0.0, -13.0) * safe_scale,
+		Vector2(28.0, 0.0) * safe_scale,
+		Vector2(0.0, 13.0) * safe_scale,
+		Vector2(-28.0, 0.0) * safe_scale,
+	])
 
 
 func _clear_child_nodes(container: Node) -> void:
@@ -530,6 +677,55 @@ func _clear_child_nodes(container: Node) -> void:
 	for child in container.get_children():
 		container.remove_child(child)
 		child.queue_free()
+
+
+func _count_expected_drawable_cells() -> int:
+	if _battle_state == null:
+		return 0
+	var count := 0
+	for coord_variant in _battle_state.cells.keys():
+		if coord_variant is Vector2i and _is_cell_inside_battle(coord_variant):
+			count += 1
+	return count
+
+
+func _count_rendered_top_cells() -> int:
+	var count := 0
+	for layer in _top_layers:
+		if layer != null:
+			count += layer.get_used_cells().size()
+	return count
+
+
+func _count_expected_rendered_units() -> int:
+	if _battle_state == null:
+		return 0
+	var count := 0
+	for unit_variant in _battle_state.units.values():
+		var unit_state := unit_variant as BattleUnitState
+		if unit_state != null and unit_state.is_alive:
+			count += 1
+	return count
+
+
+func _count_rendered_units() -> int:
+	return _unit_layer.get_child_count() if _unit_layer != null else 0
+
+
+func _count_expected_rendered_props() -> int:
+	if _battle_state == null:
+		return 0
+	var count := 0
+	for cell_variant in _battle_state.cells.values():
+		var cell_state := cell_variant as BattleCellState
+		if cell_state == null or not _is_cell_inside_battle(cell_state.coord):
+			continue
+		count += _collect_prop_ids_for_cell(cell_state).size()
+	return count
+
+
+func _count_rendered_props() -> int:
+	return _prop_layer.get_child_count() if _prop_layer != null else 0
 
 
 func _collect_cells() -> Array[BattleCellState]:
@@ -645,6 +841,8 @@ func _apply_layer_draw_order() -> void:
 		_prop_layer.z_index = PROP_LAYER_Z
 	if _unit_layer != null:
 		_unit_layer.z_index = UNIT_LAYER_Z
+	if _target_highlight_layer != null:
+		_target_highlight_layer.z_index = TARGET_HIGHLIGHT_LAYER_Z
 
 
 func _create_prop_node(cell_state: BattleCellState, prop_id: StringName, stack_index: int) -> BattleBoardProp:
@@ -784,6 +982,7 @@ func _register_profile_textures(profile_id: StringName) -> void:
 			textures.append(texture)
 		_register_source_variants(StringName(source_spec.get("key", "")), textures)
 	_register_source_variants(SOURCE_ACTIVE_SELECTED, [_build_active_selected_marker_texture(tile_dir)])
+	_register_source_variants(SOURCE_MOVE_REACHABLE, [_build_move_reachable_marker_texture(tile_dir)])
 
 
 func _resolve_tile_dir(profile_id: StringName) -> String:
@@ -822,7 +1021,10 @@ func _build_active_selected_marker_texture(tile_dir: String) -> Texture2D:
 	if _texture_cache.has(cache_key):
 		return _texture_cache.get(cache_key) as Texture2D
 
-	var base_texture := _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_SELECTED_FILES[0]])
+	# Active-unit highlighting should read as a solid tile-cover, not a translucent frame.
+	var base_texture := _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_TOP_LAND_FILES[0]])
+	if base_texture == null:
+		base_texture = _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_SELECTED_FILES[0]])
 	if base_texture == null:
 		return null
 
@@ -843,8 +1045,44 @@ func _build_active_selected_marker_texture(tile_dir: String) -> Texture2D:
 					ACTIVE_SELECTED_MARKER_COLOR.r,
 					ACTIVE_SELECTED_MARKER_COLOR.g,
 					ACTIVE_SELECTED_MARKER_COLOR.b,
-					pixel.a * ACTIVE_SELECTED_MARKER_ALPHA_SCALE
+					1.0
 				)
+			)
+
+	var generated_texture := ImageTexture.create_from_image(image)
+	_texture_cache[cache_key] = generated_texture
+	return generated_texture
+
+
+func _build_move_reachable_marker_texture(tile_dir: String) -> Texture2D:
+	var cache_key := "__generated_move_reachable__%s" % tile_dir
+	if _texture_cache.has(cache_key):
+		return _texture_cache.get(cache_key) as Texture2D
+
+	var base_texture := _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_TOP_LAND_FILES[0]])
+	if base_texture == null:
+		base_texture = _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_SELECTED_FILES[0]])
+	if base_texture == null:
+		return null
+
+	var image := base_texture.get_image()
+	if image == null or image.is_empty():
+		return null
+	image = image.duplicate()
+	image.convert(Image.FORMAT_RGBA8)
+	for y in range(image.get_height()):
+		for x in range(image.get_width()):
+			var pixel := image.get_pixel(x, y)
+			if pixel.a <= 0.0:
+				continue
+			var shade := clampf(pixel.get_luminance(), 0.0, 1.0)
+			var mix_ratio := clampf(0.25 + shade * 0.5, 0.0, 1.0)
+			var tinted_color := MOVE_REACHABLE_MARKER_COLOR_DARK.lerp(MOVE_REACHABLE_MARKER_COLOR_LIGHT, mix_ratio)
+			var alpha := lerpf(0.3, 0.5, shade)
+			image.set_pixel(
+				x,
+				y,
+				Color(tinted_color.r, tinted_color.g, tinted_color.b, alpha)
 			)
 
 	var generated_texture := ImageTexture.create_from_image(image)
@@ -890,6 +1128,13 @@ func _get_selected_marker_source_id(coord: Vector2i) -> int:
 	return _get_source_id(SOURCE_SELECTED)
 
 
+func _get_move_reachable_marker_source_id() -> int:
+	var move_source_id := _get_source_id(SOURCE_MOVE_REACHABLE)
+	if move_source_id >= 0:
+		return move_source_id
+	return _get_source_id(SOURCE_SELECTED)
+
+
 func _is_active_unit_coord(coord: Vector2i) -> bool:
 	if _battle_state == null:
 		return false
@@ -906,7 +1151,7 @@ func _get_top_source_id(terrain: String, coord: Vector2i) -> int:
 			return _get_source_id(SOURCE_LAND, coord)
 		TERRAIN_FOREST:
 			return _get_source_id(SOURCE_LAND, coord, 1)
-		TERRAIN_WATER:
+		TERRAIN_WATER, TERRAIN_SHALLOW_WATER, TERRAIN_FLOWING_WATER, TERRAIN_DEEP_WATER:
 			return _get_source_id(SOURCE_WATER, coord)
 		TERRAIN_MUD:
 			return _get_source_id(SOURCE_MUD, coord)

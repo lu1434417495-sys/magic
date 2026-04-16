@@ -74,6 +74,31 @@ func get_stacks() -> Array:
 	return _get_warehouse_state().duplicate_state().stacks
 
 
+## 返回共享仓库的展示条目。
+## 该接口用于 UI / snapshot，避免调用方直接拼接 stacks 与 equipment_instances。
+func get_inventory_entries() -> Array[Dictionary]:
+	var warehouse_state = _get_warehouse_state().duplicate_state()
+	var entries: Array[Dictionary] = []
+
+	for stack in warehouse_state.get_non_empty_stacks():
+		if stack == null or stack.is_empty():
+			continue
+		entries.append(_build_inventory_entry(stack.item_id, int(stack.quantity), &"stack"))
+
+	var equipment_counts: Dictionary = {}
+	for inst in warehouse_state.get_non_empty_instances():
+		if inst == null or inst.item_id == &"":
+			continue
+		var item_id := ProgressionDataUtils.to_string_name(inst.item_id)
+		equipment_counts[item_id] = int(equipment_counts.get(item_id, 0)) + 1
+
+	for item_id_str in ProgressionDataUtils.sorted_string_keys(equipment_counts):
+		var item_id := StringName(item_id_str)
+		entries.append(_build_inventory_entry(item_id, int(equipment_counts.get(item_id, 0)), &"instance"))
+
+	return entries
+
+
 func get_item_def(item_id: StringName):
 	return _item_defs.get(ProgressionDataUtils.to_string_name(item_id))
 
@@ -315,3 +340,24 @@ func _compact_state(warehouse_state) -> void:
 		return
 	warehouse_state.stacks = warehouse_state.get_non_empty_stacks()
 	warehouse_state.equipment_instances = warehouse_state.get_non_empty_instances()
+
+
+func _build_inventory_entry(item_id: StringName, quantity: int, storage_mode: StringName) -> Dictionary:
+	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id)
+	var resolved_quantity := maxi(int(quantity), 0)
+	var item_def: ItemDef = get_item_def(normalized_item_id) as ItemDef
+	var granted_skill_id: StringName = item_def.granted_skill_id if item_def != null else &""
+	return {
+		"item_id": String(normalized_item_id),
+		"display_name": item_def.display_name if item_def != null and not item_def.display_name.is_empty() else String(normalized_item_id),
+		"description": item_def.description if item_def != null else "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
+		"icon": item_def.icon if item_def != null else "",
+		"quantity": resolved_quantity,
+		"total_quantity": count_item(normalized_item_id),
+		"is_stackable": item_def.is_stackable if item_def != null else resolved_quantity > 1,
+		"stack_limit": item_def.get_effective_max_stack() if item_def != null else maxi(resolved_quantity, 1),
+		"item_category": String(item_def.item_category) if item_def != null else "",
+		"is_skill_book": item_def != null and item_def.is_skill_book(),
+		"granted_skill_id": String(granted_skill_id),
+		"storage_mode": String(storage_mode),
+	}
