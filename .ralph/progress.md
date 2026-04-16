@@ -25,3 +25,7 @@ Updated `scripts/systems/game_runtime_snapshot_builder.gd` so forge snapshot dat
 ## 2026-04-17T01:34:45+08:00 | PVS_01C | done
 title: 新增首批通用 forge 配方资源与设施标签约束
 Added `data/configs/recipes/forge_smith_iron_greatsword.tres` as the first non-`master_reforge` formal forge recipe, tightened `scripts/player/warehouse/recipe_content_registry.gd` to require non-empty unique `required_facility_tags`, and extended `tests/warehouse/run_item_recipe_schema_regression.gd` so the new recipe’s item refs and `forge` facility tag are validated through both `RecipeContentRegistry` and `GameSession` cache paths.
+
+## 2026-04-17T01:48:16+08:00 | PVS_01D | done
+title: 跑通通用 forge 配方的据点端到端执行
+Routed generic forge (`service:repair_gear`) through `SettlementForgeService`, kept forge UI/feedback/action IDs service-specific, inferred forge tags from generic smith interactions even on non-`craft` facilities, and added world-map/text regressions for atomic warehouse consumption, shared-warehouse output, logs, and reload persistence.

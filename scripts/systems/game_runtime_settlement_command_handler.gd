@@ -25,7 +25,6 @@ const STAGECOACH_INTERACTION_IDS := {
 }
 
 const UNIMPLEMENTED_INTERACTION_IDS := {
-	"service_repair_gear": true,
 	"service_contract_board": true,
 	"service_join_guild": true,
 	"service_identify_relic": true,
@@ -176,6 +175,7 @@ func command_execute_settlement_action(action_id: String, payload: Dictionary = 
 	if settlement_id.is_empty():
 		return _command_error("当前没有可执行动作的据点。")
 	var merged_payload := build_settlement_action_payload(settlement_id, action_id, payload)
+	merged_payload["action_id"] = action_id
 	on_settlement_action_requested(settlement_id, action_id, merged_payload)
 	return _command_ok()
 
@@ -304,7 +304,7 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 	if SHOP_INTERACTION_IDS.has(interaction_script_id):
 		_open_shop_modal(settlement_id, payload)
 		return
-	if interaction_script_id == "service_master_reforge" and not _is_forge_modal_submission(payload):
+	if _is_forge_interaction(interaction_script_id) and not _is_forge_modal_submission(payload):
 		_open_forge_modal(settlement_id, payload)
 		return
 	if STAGECOACH_INTERACTION_IDS.has(interaction_script_id):
@@ -313,7 +313,7 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 	var result := execute_settlement_action(settlement_id, action_id, payload)
 	var message := String(result.get("message", "交互已完成。"))
 	_set_settlement_feedback_text(message)
-	if interaction_script_id == "service_master_reforge":
+	if _is_forge_interaction(interaction_script_id):
 		_refresh_active_forge_context(message)
 		if bool(result.get("success", false)):
 			var forge_persist_result := _finalize_successful_action(action_id, payload, result)
@@ -354,9 +354,11 @@ func on_shop_window_closed() -> void:
 
 
 func on_forge_window_closed() -> void:
+	var context := _get_active_forge_context()
+	var forge_label := _resolve_forge_service_label(context)
 	_clear_active_forge_context()
 	_set_active_modal_id("settlement")
-	_update_status("已关闭大师重铸，返回据点服务。")
+	_update_status("已关闭%s，返回据点服务。" % forge_label)
 
 
 func on_stagecoach_window_closed() -> void:
@@ -384,6 +386,7 @@ func build_settlement_action_payload(settlement_id: String, action_id: String, o
 		if String(service_data.get("action_id", "")) != action_id:
 			continue
 		payload = {
+			"action_id": action_id,
 			"facility_id": service_data.get("facility_id", ""),
 			"facility_name": service_data.get("facility_name", ""),
 			"npc_id": service_data.get("npc_id", ""),
@@ -427,8 +430,8 @@ func execute_settlement_action(settlement_id: String, action_id: String, payload
 		return _execute_fog_reveal(settlement, action_id, payload, VILLAGE_RUMOR_RANGE, 0, "乡野传闻让周边地貌更加清晰。")
 	if interaction_script_id == "service_intel_network":
 		return _execute_fog_reveal(settlement, action_id, payload, INTEL_NETWORK_RANGE, INTEL_NETWORK_COST, "情报网更新了周边的行路信息。")
-	if interaction_script_id == "service_master_reforge":
-		return _forge_service.execute_master_reforge(
+	if _is_forge_interaction(interaction_script_id):
+		return _forge_service.execute_recipe(
 			settlement,
 			payload,
 			_get_item_defs(),
@@ -621,8 +624,8 @@ func _build_service_metadata(settlement: Dictionary, service_data: Dictionary, _
 	if STAGECOACH_INTERACTION_IDS.has(interaction_script_id):
 		var destinations := _build_stagecoach_destinations(settlement, interaction_script_id)
 		return {"cost_label": "%d 金/格" % STAGECOACH_COST_PER_STEP, "is_enabled": not destinations.is_empty(), "disabled_reason": "" if not destinations.is_empty() else "暂无已访问路线"}
-	if interaction_script_id == "service_master_reforge":
-		var has_recipe := _forge_service.has_available_master_reforge_recipe(
+	if _is_forge_interaction(interaction_script_id):
+		var has_recipe := _forge_service.has_available_recipe(
 			settlement,
 			service_data,
 			_get_item_defs(),
@@ -631,7 +634,7 @@ func _build_service_metadata(settlement: Dictionary, service_data: Dictionary, _
 		return {
 			"cost_label": "按配方材料",
 			"is_enabled": has_recipe,
-			"disabled_reason": "" if has_recipe else "当前没有可用重铸配方",
+			"disabled_reason": "" if has_recipe else _build_forge_unavailable_reason(interaction_script_id),
 		}
 	if UNIMPLEMENTED_INTERACTION_IDS.has(interaction_script_id):
 		return {"cost_label": "未开放", "is_enabled": false, "disabled_reason": "系统未开放"}
@@ -694,7 +697,10 @@ func _open_forge_modal(settlement_id: String, payload: Dictionary) -> void:
 	window_data["service_payload"] = payload.duplicate(true)
 	_set_active_forge_context(window_data)
 	_set_active_modal_id("forge")
-	_update_status("已打开 %s 的大师工坊。" % String(payload.get("facility_name", "据点工坊")))
+	_update_status("已打开 %s 的%s窗口。" % [
+		String(payload.get("facility_name", "据点工坊")),
+		_resolve_forge_service_label(payload),
+	])
 
 
 func _open_stagecoach_modal(settlement_id: String, payload: Dictionary) -> void:
@@ -1068,6 +1074,21 @@ func _get_recipe_defs() -> Dictionary:
 
 func _is_forge_modal_submission(payload: Dictionary) -> bool:
 	return String(payload.get("submission_source", "")) == "forge"
+
+
+func _is_forge_interaction(interaction_script_id: String) -> bool:
+	return _forge_service != null and _forge_service.is_supported_interaction(interaction_script_id)
+
+
+func _build_forge_unavailable_reason(interaction_script_id: String) -> String:
+	return "当前没有可用重铸配方" if interaction_script_id == "service_master_reforge" else "当前没有可用锻造配方"
+
+
+func _resolve_forge_service_label(payload: Dictionary) -> String:
+	var service_type := String(payload.get("service_type", "")).strip_edges()
+	if not service_type.is_empty():
+		return service_type
+	return "大师重铸" if String(payload.get("interaction_script_id", "")).strip_edges() == "service_master_reforge" else "锻造"
 
 
 func _get_member_attribute_snapshot(member_id: StringName):

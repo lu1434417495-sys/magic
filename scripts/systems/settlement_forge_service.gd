@@ -1,6 +1,6 @@
 ## 文件说明：该脚本属于聚落重铸服务相关的服务脚本，集中处理配方筛选、设施标签校验和仓库原子换料逻辑。
 ## 审查重点：重点核对配方选择、材料校验、仓库原子提交和 SettlementServiceResult 的 canonical 字段是否保持稳定。
-## 备注：当前只实现最小 `service_master_reforge` 闭环，不承载装备耐久、正式锻造面板或经济调优。
+## 备注：当前实现通用 forge / `service_master_reforge` 的最小配方闭环，不承载装备耐久、正式锻造面板或经济调优。
 
 class_name SettlementForgeService
 extends RefCounted
@@ -8,10 +8,20 @@ extends RefCounted
 const RECIPE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement_service_result.gd")
 
+const MASTER_REFORGE_INTERACTION_ID := "service_master_reforge"
+const GENERIC_FORGE_INTERACTION_IDS := {
+	"service_repair_gear": true,
+}
+
 var _recipe_registry = RECIPE_CONTENT_REGISTRY_SCRIPT.new()
 
 
-func has_available_master_reforge_recipe(
+func is_supported_interaction(interaction_script_id: String) -> bool:
+	var normalized_interaction_id := interaction_script_id.strip_edges()
+	return normalized_interaction_id == MASTER_REFORGE_INTERACTION_ID or GENERIC_FORGE_INTERACTION_IDS.has(normalized_interaction_id)
+
+
+func has_available_recipe(
 	settlement: Dictionary,
 	payload: Dictionary,
 	item_defs: Dictionary,
@@ -23,7 +33,16 @@ func has_available_master_reforge_recipe(
 	return _resolve_recipe(settlement, payload, resolved_recipe_defs, null) != null
 
 
-func execute_master_reforge(
+func has_available_master_reforge_recipe(
+	settlement: Dictionary,
+	payload: Dictionary,
+	item_defs: Dictionary,
+	recipe_defs: Dictionary = {}
+) -> bool:
+	return has_available_recipe(settlement, payload, item_defs, recipe_defs)
+
+
+func execute_recipe(
 	settlement: Dictionary,
 	payload: Dictionary,
 	item_defs: Dictionary,
@@ -32,20 +51,21 @@ func execute_master_reforge(
 	party_state,
 	quest_progress_events: Array = []
 ) -> Dictionary:
+	var service_profile := _resolve_service_profile(payload)
 	if warehouse_service == null or party_state == null:
 		return _build_result(false, "当前工坊服务尚未准备完成。", quest_progress_events)
 
 	var resolved_recipe_defs := _resolve_recipe_defs(item_defs, recipe_defs)
 	if resolved_recipe_defs.is_empty():
-		return _build_result(false, "当前重铸配方配置缺失，暂时无法执行。", quest_progress_events)
+		return _build_result(false, "当前配方配置缺失，暂时无法执行。", quest_progress_events)
 
 	var recipe = _resolve_recipe(settlement, payload, resolved_recipe_defs, warehouse_service)
 	if recipe == null:
-		return _build_result(false, "当前大师工坊没有可执行的重铸配方。", quest_progress_events)
+		return _build_result(false, String(service_profile.get("no_recipe_message", "当前工坊没有可执行的配方。")), quest_progress_events)
 
 	var input_validation := _validate_recipe_items(recipe, item_defs)
 	if not bool(input_validation.get("ok", false)):
-		return _build_result(false, String(input_validation.get("message", "当前重铸配方引用了无效物品。")), quest_progress_events)
+		return _build_result(false, String(input_validation.get("message", "当前配方引用了无效物品。")), quest_progress_events)
 
 	var withdrawal_items := _expand_input_items(recipe)
 	var deposit_items := _build_repeated_item_array(recipe.output_item_id, int(recipe.output_quantity))
@@ -53,7 +73,7 @@ func execute_master_reforge(
 	if not bool(preview_result.get("allowed", false)):
 		return _build_result(
 			false,
-			_build_failed_forge_message(recipe, item_defs, warehouse_service, preview_result),
+			_build_failed_forge_message(recipe, item_defs, warehouse_service, preview_result, payload),
 			quest_progress_events
 		)
 
@@ -61,15 +81,12 @@ func execute_master_reforge(
 	if not bool(commit_result.get("allowed", false)):
 		return _build_result(
 			false,
-			_build_failed_forge_message(recipe, item_defs, warehouse_service, commit_result),
+			_build_failed_forge_message(recipe, item_defs, warehouse_service, commit_result, payload),
 			quest_progress_events
 		)
 
 	var output_item_def = item_defs.get(recipe.output_item_id)
-	var message := "大师工坊已将 %s 重铸为 %s。" % [
-		_build_recipe_input_summary(recipe, item_defs),
-		_build_item_label(recipe.output_item_id, item_defs, int(recipe.output_quantity), output_item_def),
-	]
+	var message := _build_success_message(recipe, item_defs, settlement, payload, output_item_def)
 	return _build_result(
 		true,
 		message,
@@ -89,6 +106,18 @@ func execute_master_reforge(
 	)
 
 
+func execute_master_reforge(
+	settlement: Dictionary,
+	payload: Dictionary,
+	item_defs: Dictionary,
+	recipe_defs: Dictionary,
+	warehouse_service,
+	party_state,
+	quest_progress_events: Array = []
+) -> Dictionary:
+	return execute_recipe(settlement, payload, item_defs, recipe_defs, warehouse_service, party_state, quest_progress_events)
+
+
 func build_window_data(
 	interaction_script_id: String,
 	settlement_record: Dictionary,
@@ -98,6 +127,7 @@ func build_window_data(
 	warehouse_service,
 	feedback_text: String = ""
 ) -> Dictionary:
+	var service_profile := _resolve_service_profile(payload, interaction_script_id)
 	var resolved_recipe_defs := _resolve_recipe_defs(item_defs, recipe_defs)
 	var recipe_entries := _build_recipe_window_entries(
 		settlement_record,
@@ -107,27 +137,27 @@ func build_window_data(
 		warehouse_service,
 		interaction_script_id
 	)
-	var facility_name := String(payload.get("facility_name", "大师工坊"))
+	var facility_name := String(payload.get("facility_name", service_profile.get("default_facility_name", "工坊")))
 	var settlement_name := String(settlement_record.get("display_name", "据点"))
-	var summary_text := "选择一个配方后即可消耗材料并将结果原子写入共享仓库。"
+	var summary_text := String(service_profile.get("summary_text", "选择一个配方后即可消耗材料并将结果原子写入共享仓库。"))
 	if recipe_entries.is_empty():
-		summary_text = "当前没有可用的重铸配方。"
+		summary_text = String(service_profile.get("empty_summary_text", "当前没有可用的配方。"))
 	return {
-		"title": "%s · 大师重铸" % settlement_name,
+		"title": "%s · %s" % [settlement_name, String(service_profile.get("title_suffix", "工坊"))],
 		"meta": "工坊：%s  |  规则：消耗材料并原子写入共享仓库。" % facility_name,
 		"summary_text": summary_text,
 		"state_summary_text": String(payload.get("state_summary_text", "")),
-		"feedback_text": feedback_text if not feedback_text.is_empty() else "选择一条配方后即可执行重铸。",
+		"feedback_text": feedback_text if not feedback_text.is_empty() else String(service_profile.get("default_feedback_text", "选择一条配方后即可执行配方操作。")),
 		"settlement_id": String(settlement_record.get("settlement_id", "")),
 		"interaction_script_id": interaction_script_id,
-		"action_id": String(payload.get("action_id", "service:master_reforge")),
+		"action_id": String(payload.get("action_id", service_profile.get("action_id", _build_default_action_id(interaction_script_id)))),
 		"facility_id": String(payload.get("facility_id", "")),
 		"facility_name": facility_name,
 		"npc_id": String(payload.get("npc_id", "")),
 		"npc_name": String(payload.get("npc_name", "")),
-		"service_type": String(payload.get("service_type", "重铸")),
+		"service_type": String(payload.get("service_type", service_profile.get("service_type", "工坊"))),
 		"panel_kind": "forge",
-		"confirm_label": "重铸",
+		"confirm_label": String(service_profile.get("confirm_label", "确认")),
 		"cancel_label": "返回",
 		"show_member_selector": false,
 		"allow_empty_entries": true,
@@ -216,6 +246,7 @@ func _build_recipe_window_entry(
 	var state_label := "状态：可重铸"
 	var disabled_reason := ""
 	var is_enabled := true
+	var service_profile := _resolve_service_profile(payload, interaction_script_id)
 
 	if warehouse_service == null:
 		is_enabled = false
@@ -233,11 +264,15 @@ func _build_recipe_window_entry(
 		if not bool(preview_result.get("allowed", false)):
 			is_enabled = false
 			state_label = "状态：无法写入"
-			disabled_reason = _build_failed_forge_message(recipe, item_defs, warehouse_service, preview_result)
+			disabled_reason = _build_failed_forge_message(recipe, item_defs, warehouse_service, preview_result, payload)
 
 	var details_text := String(recipe.description)
 	if details_text.is_empty():
-		details_text = "消耗 %s，可重铸为 %s。" % [material_summary, output_summary]
+		details_text = "消耗 %s，可%s %s。" % [
+			material_summary,
+			String(service_profile.get("recipe_action_phrase", "制作为")),
+			output_summary,
+		]
 	else:
 		details_text += "\n消耗：%s\n产出：%s" % [material_summary, output_summary]
 	var facility_tags := _build_facility_tags(settlement, payload)
@@ -290,6 +325,7 @@ func _build_facility_tag_set(settlement: Dictionary, payload: Dictionary) -> Dic
 func _build_facility_tags(settlement: Dictionary, payload: Dictionary) -> Array[String]:
 	var tags: Array[String] = []
 	var facility := _resolve_facility(settlement, payload)
+	var interaction_script_id := String(payload.get("interaction_script_id", ""))
 	var push_tag = func(raw_value) -> void:
 		var raw_text := String(raw_value)
 		if raw_text.is_empty():
@@ -298,7 +334,7 @@ func _build_facility_tags(settlement: Dictionary, payload: Dictionary) -> Array[
 			return
 		tags.append(raw_text)
 
-	push_tag.call(payload.get("interaction_script_id", ""))
+	push_tag.call(interaction_script_id)
 	push_tag.call(payload.get("service_type", ""))
 
 	if not facility.is_empty():
@@ -312,9 +348,12 @@ func _build_facility_tags(settlement: Dictionary, payload: Dictionary) -> Array[
 			push_tag.call("forge")
 			push_tag.call("craft")
 
-	if String(payload.get("interaction_script_id", "")) == "service_master_reforge":
-		push_tag.call("master_reforge")
+	if is_supported_interaction(interaction_script_id):
 		push_tag.call("forge")
+		push_tag.call("craft")
+
+	if _is_master_reforge_interaction(interaction_script_id):
+		push_tag.call("master_reforge")
 	return tags
 
 
@@ -344,25 +383,26 @@ func _validate_recipe_items(recipe, item_defs: Dictionary) -> Dictionary:
 		if normalized_input == &"" or not item_defs.has(normalized_input):
 			return {
 				"ok": false,
-				"message": "重铸配方 %s 引用了缺失的输入物品 %s。" % [String(recipe.recipe_id), String(normalized_input)],
+				"message": "配方 %s 引用了缺失的输入物品 %s。" % [String(recipe.recipe_id), String(normalized_input)],
 			}
 	if recipe.output_item_id == &"" or not item_defs.has(recipe.output_item_id):
 		return {
 			"ok": false,
-			"message": "重铸配方 %s 引用了缺失的产出物品 %s。" % [String(recipe.recipe_id), String(recipe.output_item_id)],
+			"message": "配方 %s 引用了缺失的产出物品 %s。" % [String(recipe.recipe_id), String(recipe.output_item_id)],
 		}
 	return {"ok": true}
 
 
-func _build_failed_forge_message(recipe, item_defs: Dictionary, warehouse_service, warehouse_result: Dictionary) -> String:
+func _build_failed_forge_message(recipe, item_defs: Dictionary, warehouse_service, warehouse_result: Dictionary, payload: Dictionary = {}) -> String:
+	var service_profile := _resolve_service_profile(payload)
 	var error_code := String(warehouse_result.get("error_code", ""))
 	if error_code == "warehouse_blocked_swap":
-		return "共享仓库空间不足，无法放入重铸成品。"
+		return String(service_profile.get("blocked_output_message", "共享仓库空间不足，无法放入配方成品。"))
 	if error_code == "warehouse_missing_item":
 		var missing_items := _build_missing_input_entries(recipe, item_defs, warehouse_service)
 		if not missing_items.is_empty():
-			return "缺少重铸材料：%s。" % "、".join(missing_items)
-	return recipe.failure_reason if not recipe.failure_reason.is_empty() else "当前无法完成该重铸。"
+			return "%s%s。" % [String(service_profile.get("missing_material_prefix", "缺少配方材料：")), "、".join(missing_items)]
+	return recipe.failure_reason if not recipe.failure_reason.is_empty() else String(service_profile.get("fallback_failure_message", "当前无法完成该配方。"))
 
 
 func _build_missing_input_entries(recipe, item_defs: Dictionary, warehouse_service) -> Array[String]:
@@ -425,6 +465,76 @@ func _build_item_label(item_id: StringName, item_defs: Dictionary, quantity: int
 	if item_def != null and not item_def.display_name.is_empty():
 		display_name = item_def.display_name
 	return "%d 件 %s" % [maxi(quantity, 0), display_name]
+
+
+func _build_success_message(recipe, item_defs: Dictionary, settlement: Dictionary, payload: Dictionary, output_item_def = null) -> String:
+	var service_profile := _resolve_service_profile(payload)
+	var input_summary := _build_recipe_input_summary(recipe, item_defs)
+	var output_summary := _build_item_label(recipe.output_item_id, item_defs, int(recipe.output_quantity), output_item_def)
+	if _is_master_reforge_interaction(String(payload.get("interaction_script_id", ""))):
+		return "大师工坊已将 %s 重铸为 %s。" % [input_summary, output_summary]
+	var actor_label := String(payload.get("npc_name", ""))
+	if actor_label.is_empty():
+		actor_label = String(payload.get("facility_name", ""))
+	if actor_label.is_empty():
+		actor_label = String(settlement.get("display_name", service_profile.get("default_facility_name", "工坊")))
+	return "%s 已将 %s %s %s。" % [
+		actor_label,
+		input_summary,
+		String(service_profile.get("recipe_action_phrase", "制作为")),
+		output_summary,
+	]
+
+
+func _resolve_service_profile(payload: Dictionary, interaction_script_id: String = "") -> Dictionary:
+	var resolved_interaction_id := interaction_script_id.strip_edges()
+	if resolved_interaction_id.is_empty():
+		resolved_interaction_id = String(payload.get("interaction_script_id", "")).strip_edges()
+	if _is_master_reforge_interaction(resolved_interaction_id):
+		return {
+			"title_suffix": "大师重铸",
+			"summary_text": "选择一个配方后即可消耗材料并将结果原子写入共享仓库。",
+			"empty_summary_text": "当前没有可用的重铸配方。",
+			"default_feedback_text": "选择一条配方后即可执行重铸。",
+			"confirm_label": "重铸",
+			"service_type": "重铸",
+			"recipe_action_phrase": "重铸为",
+			"no_recipe_message": "当前大师工坊没有可执行的重铸配方。",
+			"fallback_failure_message": "当前无法完成该重铸。",
+			"blocked_output_message": "共享仓库空间不足，无法放入重铸成品。",
+			"missing_material_prefix": "缺少重铸材料：",
+			"default_facility_name": "大师工坊",
+			"action_id": "service:master_reforge",
+		}
+	var generic_title_suffix := String(payload.get("service_type", "锻造")).strip_edges()
+	if generic_title_suffix.is_empty():
+		generic_title_suffix = "锻造"
+	return {
+		"title_suffix": generic_title_suffix,
+		"summary_text": "选择一个配方后即可消耗材料并将结果原子写入共享仓库。",
+		"empty_summary_text": "当前没有可用的锻造配方。",
+		"default_feedback_text": "选择一条配方后即可执行%s。" % generic_title_suffix,
+		"confirm_label": generic_title_suffix,
+		"service_type": generic_title_suffix,
+		"recipe_action_phrase": "打造为",
+		"no_recipe_message": "当前工坊没有可执行的锻造配方。",
+		"fallback_failure_message": "当前无法完成该锻造。",
+		"blocked_output_message": "共享仓库空间不足，无法放入锻造成品。",
+		"missing_material_prefix": "缺少配方材料：",
+		"default_facility_name": "工坊",
+		"action_id": _build_default_action_id(resolved_interaction_id),
+	}
+
+
+func _build_default_action_id(interaction_script_id: String) -> String:
+	var normalized_interaction_id := interaction_script_id.strip_edges()
+	if normalized_interaction_id.begins_with("service_"):
+		return "service:%s" % normalized_interaction_id.trim_prefix("service_")
+	return "service:master_reforge"
+
+
+func _is_master_reforge_interaction(interaction_script_id: String) -> bool:
+	return interaction_script_id.strip_edges() == MASTER_REFORGE_INTERACTION_ID
 
 
 func _build_result(

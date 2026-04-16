@@ -75,6 +75,7 @@ func _run() -> void:
 		return
 	await _walk_to_coord(runner, target_coord.get("coord", {}))
 	await _exercise_battle_flow(runner)
+	await _exercise_generic_forge_flow(runner)
 	await runner.dispose(true)
 	_finish()
 
@@ -163,6 +164,21 @@ func _exercise_battle_flow(runner) -> void:
 			await _run_command(runner, "close")
 
 
+func _exercise_generic_forge_flow(runner) -> void:
+	await _run_command(runner, "game new ashen_intersection")
+	var forge_save_id := String(runner.get_session().get_game_session().get_active_save_id())
+	_assert_true(not forge_save_id.is_empty(), "通用 forge 回归前置：新存档 ID 应可读取。")
+	await _run_command(runner, "warehouse add bronze_sword 1")
+	await _run_command(runner, "warehouse add iron_ore 3")
+	await _run_command(runner, "world open")
+	await _run_command(runner, "settlement action service:repair_gear")
+	_assert_generic_forge_modal_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _run_command(runner, "settlement action service:repair_gear submission_source=forge recipe_id=forge_smith_iron_greatsword")
+	_assert_generic_forge_command_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _run_command(runner, "game load %s" % forge_save_id)
+	_assert_generic_forge_persisted_after_load(runner.get_session().build_snapshot())
+
+
 func _assert_settlement_reward_queued_while_warehouse_open(snapshot: Dictionary) -> void:
 	var party_snapshot: Dictionary = snapshot.get("party", {})
 	var reward_snapshot: Dictionary = snapshot.get("reward", {})
@@ -172,6 +188,42 @@ func _assert_settlement_reward_queued_while_warehouse_open(snapshot: Dictionary)
 	_assert_true(not bool(reward_snapshot.get("visible", false)), "共享仓库打开时奖励弹窗应等待，不应抢占当前模态。")
 	_assert_eq(int(achievement_summary.get("unlocked_count", 0)), 1, "据点动作应推进当前角色的据点成就。")
 	_assert_eq(String(achievement_summary.get("recent_unlocked_name", "")), "行路借火", "最近解锁成就应记录据点成就。")
+
+
+func _assert_generic_forge_modal_open(snapshot: Dictionary, text_snapshot: String) -> void:
+	var forge_snapshot: Dictionary = snapshot.get("forge", {})
+	var window_data: Dictionary = forge_snapshot.get("window_data", {})
+	_assert_true(bool(forge_snapshot.get("visible", false)), "通用 forge 打开后应切换到 forge modal。")
+	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "forge", "通用 forge 打开后 modal 应为 forge。")
+	_assert_eq(String(window_data.get("action_id", "")), "service:repair_gear", "通用 forge modal 应保留原始 action_id。")
+	_assert_true(not String(window_data.get("title", "")).is_empty(), "通用 forge modal 应提供标题。")
+	_assert_true(String(window_data.get("title", "")).find("重铸") == -1, "通用 forge modal 标题不应回退成大师重铸。")
+	_assert_true((window_data.get("entries", []) as Array).size() > 0, "通用 forge modal 应暴露至少一个配方条目。")
+	_assert_true(text_snapshot.contains("熔炉锻打：铁制大剑"), "文本快照应渲染通用 forge 配方名称。")
+
+
+func _assert_generic_forge_command_applied(snapshot: Dictionary, text_snapshot: String) -> void:
+	var forge_snapshot: Dictionary = snapshot.get("forge", {})
+	var settlement_snapshot: Dictionary = snapshot.get("settlement", {})
+	_assert_true(bool(forge_snapshot.get("visible", false)), "通用 forge 执行后应继续停留在 forge modal。")
+	_assert_eq(_count_warehouse_item(snapshot, "bronze_sword"), 0, "通用 forge 成功后应消耗青铜短剑。")
+	_assert_eq(_count_warehouse_item(snapshot, "iron_ore"), 0, "通用 forge 成功后应消耗三份铁矿石。")
+	_assert_eq(_count_warehouse_item(snapshot, "iron_greatsword"), 1, "通用 forge 成功后共享仓库应新增铁制大剑。")
+	_assert_true(String(settlement_snapshot.get("feedback_text", "")).find("铁制大剑") >= 0, "通用 forge 完成后据点反馈应包含产物名称。")
+	var log_entry := _find_log_entry(snapshot, "settlement.execute_action")
+	_assert_true(not log_entry.is_empty(), "通用 forge 完成后应写入 settlement.execute_action 日志。")
+	if not log_entry.is_empty():
+		_assert_true(String(log_entry.get("message", "")).find("铁制大剑") >= 0, "通用 forge 日志文案应包含产物名称。")
+		var log_context: Dictionary = log_entry.get("context", {})
+		var after_state: Dictionary = log_context.get("after", {})
+		_assert_eq(String(after_state.get("active_modal_id", "")), "forge", "通用 forge 日志后态应保留 forge modal。")
+	_assert_true(text_snapshot.contains("[FORGE]"), "通用 forge 文本快照应包含 forge 分段。")
+
+
+func _assert_generic_forge_persisted_after_load(snapshot: Dictionary) -> void:
+	_assert_eq(_count_warehouse_item(snapshot, "bronze_sword"), 0, "重新载入后不应恢复已消耗的青铜短剑。")
+	_assert_eq(_count_warehouse_item(snapshot, "iron_ore"), 0, "重新载入后不应恢复已消耗的铁矿石。")
+	_assert_eq(_count_warehouse_item(snapshot, "iron_greatsword"), 1, "重新载入后应保留通用 forge 产出的铁制大剑。")
 
 
 func _assert_shop_purchase_applied(snapshot: Dictionary) -> void:

@@ -11,6 +11,7 @@ const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd"
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
+const ASHEN_INTERSECTION_CONFIG_PATH := "res://data/configs/world_map/ashen_intersection_world_map_config.tres"
 
 var _failures: Array[String] = []
 
@@ -82,6 +83,7 @@ class MockRuntime:
 	func get_recipe_defs() -> Dictionary:
 		return {
 			&"master_reforge_iron_greatsword": load("res://data/configs/recipes/master_reforge_iron_greatsword.tres"),
+			&"forge_smith_iron_greatsword": load("res://data/configs/recipes/forge_smith_iron_greatsword.tres"),
 		}
 
 	func get_active_settlement_id() -> String:
@@ -156,7 +158,9 @@ func _run() -> void:
 	_test_master_reforge_service_success()
 	_test_master_reforge_service_missing_materials()
 	_test_settlement_handler_routes_master_reforge()
+	_test_settlement_handler_routes_generic_forge()
 	await _test_new_world_generation_exposes_master_reforge_service()
+	await _test_ashen_intersection_generation_exposes_generic_forge_service()
 
 	if _failures.is_empty():
 		print("Settlement forge service regression: PASS")
@@ -294,6 +298,70 @@ func _test_settlement_handler_routes_master_reforge() -> void:
 	_assert_eq(runtime._active_modal_id, "settlement", "关闭 forge modal 后应返回 settlement modal。")
 
 
+func _test_settlement_handler_routes_generic_forge() -> void:
+	var item_defs := _load_item_defs()
+	var runtime := MockRuntime.new()
+	runtime._party_state = _build_party_state(6)
+	runtime._warehouse_service = PartyWarehouseService.new()
+	runtime._warehouse_service.setup(runtime._party_state, item_defs)
+	runtime._warehouse_service.add_item(&"bronze_sword", 1)
+	runtime._warehouse_service.add_item(&"iron_ore", 3)
+	runtime._item_defs = item_defs
+	runtime._selected_settlement = {
+		"settlement_id": "forge_town",
+	}
+	runtime._settlements_by_id = {
+		"forge_town": _build_settlement_record(true, true),
+	}
+	runtime._settlement_states = {
+		"forge_town": {
+			"visited": true,
+			"reputation": 0,
+			"active_conditions": [],
+			"cooldowns": {},
+			"shop_inventory_seed": 0,
+			"shop_last_refresh_step": 0,
+			"shop_states": {},
+		},
+	}
+
+	var handler := GameRuntimeSettlementCommandHandler.new()
+	handler.setup(runtime)
+
+	var window_data := handler.get_settlement_window_data("forge_town")
+	var generic_entry := _find_service_entry(window_data.get("available_services", []), "service_repair_gear")
+	_assert_true(not generic_entry.is_empty(), "据点窗口应暴露通用 forge 服务入口。")
+	_assert_true(bool(generic_entry.get("is_enabled", false)), "存在通用 forge 配方时，service_repair_gear 应可用。")
+	_assert_eq(String(generic_entry.get("cost_label", "")), "按配方材料", "通用 forge 入口应显示按配方材料计价。")
+
+	var open_result := handler.command_execute_settlement_action("service:repair_gear")
+	_assert_true(bool(open_result.get("ok", false)), "service:repair_gear 首次触发应成功打开 forge modal。")
+	_assert_eq(runtime._active_modal_id, "forge", "首次点击通用 forge 服务后应切换到 forge modal。")
+	_assert_eq(String(handler.get_forge_window_data().get("action_id", "")), "service:repair_gear", "通用 forge modal 应保留原始 action_id。")
+	_assert_true(String(handler.get_forge_window_data().get("title", "")).find("重铸") == -1, "通用 forge modal 标题不应回退成大师重铸。")
+	_assert_true((handler.get_forge_window_data().get("entries", []) as Array).size() > 0, "通用 forge window data 应暴露可选配方。")
+
+	var command_result := handler.command_execute_settlement_action("service:repair_gear", {
+		"submission_source": "forge",
+		"recipe_id": "forge_smith_iron_greatsword",
+	})
+	_assert_true(bool(command_result.get("ok", false)), "forge modal 提交通用配方后应成功执行锻造。")
+	_assert_eq(runtime._active_modal_id, "forge", "执行通用 forge 后应继续停留在 forge modal。")
+	_assert_eq(runtime._warehouse_service.count_item(&"bronze_sword"), 0, "通用 forge 成功后应消耗青铜短剑。")
+	_assert_eq(runtime._warehouse_service.count_item(&"iron_ore"), 0, "通用 forge 成功后应消耗三份铁矿石。")
+	_assert_eq(runtime._warehouse_service.count_item(&"iron_greatsword"), 1, "通用 forge 成功后应真正产出铁制大剑。")
+	_assert_eq(runtime.persist_calls, 1, "通用 forge 成功后应持久化队伍状态。")
+	_assert_eq(runtime.sync_party_calls, 1, "通用 forge 成功后应同步角色管理侧队伍状态。")
+	_assert_true(runtime._active_settlement_feedback_text.find("铁制大剑") >= 0, "handler 应把通用 forge 反馈写入据点窗口。")
+	_assert_true(runtime._current_status_message.find("铁制大剑") >= 0, "handler 应刷新通用 forge 完成状态文案。")
+	_assert_eq(runtime.applied_quest_event_batches.size(), 1, "通用 forge 成功后应把默认 quest progress 事件应用到运行时。")
+	_assert_eq(runtime.achievement_events.size(), 1, "通用 forge 成功后应记录据点动作成就事件。")
+	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:repair_gear", "成就事件应记录通用 forge 动作 ID。")
+
+	handler.on_forge_window_closed()
+	_assert_eq(runtime._active_modal_id, "settlement", "关闭通用 forge modal 后应返回 settlement modal。")
+
+
 func _test_new_world_generation_exposes_master_reforge_service() -> void:
 	var game_session = GameSessionScript.new()
 	game_session.name = "ForgeGameSession"
@@ -326,7 +394,31 @@ func _test_new_world_generation_exposes_master_reforge_service() -> void:
 	await process_frame
 
 
-func _build_settlement_record(include_service_entry: bool = false) -> Dictionary:
+func _test_ashen_intersection_generation_exposes_generic_forge_service() -> void:
+	var game_session = GameSessionScript.new()
+	game_session.name = "AshenForgeGameSession"
+	root.add_child(game_session)
+	await process_frame
+
+	var create_error := int(game_session.create_new_save(ASHEN_INTERSECTION_CONFIG_PATH, &"generic_forge_spawn_service", "通用 forge 入口验证"))
+	_assert_eq(create_error, OK, "创建灰烬交界世界应成功。")
+	if create_error == OK:
+		var world_data: Dictionary = game_session.get_world_data()
+		var player_start_coord: Vector2i = world_data.get("player_start_coord", Vector2i.ZERO)
+		var start_settlement := _find_settlement_covering_coord(world_data.get("settlements", []), player_start_coord)
+		var generic_entry := _find_service_entry(start_settlement.get("available_services", []), "service_repair_gear")
+		_assert_true(not start_settlement.is_empty(), "灰烬交界的起始坐标应落在一个据点上。")
+		_assert_true(not generic_entry.is_empty(), "灰烬交界的起始据点应暴露通用 forge 服务入口。")
+
+	var clear_error := int(game_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "清理通用 forge 入口验证存档应成功。")
+	if game_session.get_parent() != null:
+		game_session.get_parent().remove_child(game_session)
+	game_session.free()
+	await process_frame
+
+
+func _build_settlement_record(include_master_service_entry: bool = false, include_generic_service_entry: bool = false) -> Dictionary:
 	var facility := {
 		"facility_id": "ash_forge",
 		"display_name": "灰烬工坊",
@@ -334,6 +426,14 @@ func _build_settlement_record(include_service_entry: bool = false) -> Dictionary
 		"interaction_type": "craft",
 		"slot_tag": "support",
 		"service_npcs": [
+			{
+				"npc_id": "npc_blacksmith",
+				"display_name": "灰烬铁匠",
+				"service_type": "锻火",
+				"interaction_script_id": "service_repair_gear",
+				"facility_id": "ash_forge",
+				"facility_name": "灰烬工坊",
+			},
 			{
 				"npc_id": "npc_master_smith",
 				"display_name": "大师铁匠",
@@ -351,8 +451,21 @@ func _build_settlement_record(include_service_entry: bool = false) -> Dictionary
 		"facilities": [facility],
 		"available_services": [],
 	}
-	if include_service_entry:
-		settlement["available_services"] = [
+	var available_services: Array[Dictionary] = []
+	if include_generic_service_entry:
+		available_services.append(
+			{
+				"action_id": "service:repair_gear",
+				"facility_id": "ash_forge",
+				"facility_name": "灰烬工坊",
+				"npc_id": "npc_blacksmith",
+				"npc_name": "灰烬铁匠",
+				"service_type": "锻火",
+				"interaction_script_id": "service_repair_gear",
+			}
+		)
+	if include_master_service_entry:
+		available_services.append(
 			{
 				"action_id": "service:master_reforge",
 				"facility_id": "ash_forge",
@@ -361,8 +474,10 @@ func _build_settlement_record(include_service_entry: bool = false) -> Dictionary
 				"npc_name": "大师铁匠",
 				"service_type": "重铸",
 				"interaction_script_id": "service_master_reforge",
-			},
-		]
+			}
+		)
+	if not available_services.is_empty():
+		settlement["available_services"] = available_services
 	return settlement
 
 
@@ -375,6 +490,29 @@ func _build_reforge_payload() -> Dictionary:
 		"service_type": "重铸",
 		"interaction_script_id": "service_master_reforge",
 	}
+
+
+func _find_settlement_record(settlements: Array, settlement_id: String) -> Dictionary:
+	for settlement_variant in settlements:
+		if settlement_variant is not Dictionary:
+			continue
+		var settlement: Dictionary = settlement_variant
+		if String(settlement.get("settlement_id", "")) == settlement_id:
+			return settlement
+	return {}
+
+
+func _find_settlement_covering_coord(settlements: Array, coord: Vector2i) -> Dictionary:
+	for settlement_variant in settlements:
+		if settlement_variant is not Dictionary:
+			continue
+		var settlement: Dictionary = settlement_variant
+		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
+		var footprint_size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
+		var rect := Rect2i(origin, footprint_size)
+		if rect.has_point(coord):
+			return settlement
+	return {}
 
 
 func _build_party_state(storage_space: int) -> PartyState:

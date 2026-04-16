@@ -65,14 +65,22 @@
     {
       "id": "PVS_01D",
       "title": "跑通通用 forge 配方的据点端到端执行",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "据点执行通用 forge 配方会原子扣料并把成品写入 shared warehouse",
         "forge 成功后的反馈、日志和持久化回写有正式回归覆盖"
       ],
       "notes": [
         "验证入口优先用 world_map runtime regression。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T01:34:45+08:00",
+      "lastRunId": "20260417-013445-PVS_01D",
+      "startedAt": "2026-04-17T01:34:45+08:00",
+      "completedAt": "2026-04-17T01:48:16+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "godot --headless --path . --script tests/world_map/runtime/run_settlement_forge_service_regression.gd; godot --headless --path . --script tests/text_runtime/run_text_command_regression.gd; godot --headless --path . --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd; godot --headless --path . --script tests/runtime/run_game_runtime_snapshot_builder_regression.gd",
+      "lastLearnings": "Fixed-world start-flow checks should anchor on `player_start_coord` instead of `player_start_settlement_id`; generic forge services can live on non-`craft` facilities like `oath_command_post`, so forge recipe matching must derive forge tags from the interaction id, not only facility category/type."
     },
     {
       "id": "PVS_02A",
