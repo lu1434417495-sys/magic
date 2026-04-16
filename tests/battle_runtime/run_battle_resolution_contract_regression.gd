@@ -151,7 +151,7 @@ func _test_battle_resolution_result_round_trip() -> void:
 	result.terrain_profile_id = &"canyon"
 	result.winner_faction_id = &"player"
 	result.encounter_resolution = &"player_victory"
-	result.loot_entries = [{"item_id": "potion", "amount": 2}]
+	result.loot_entries = [_build_canonical_loot_entry()]
 	result.overflow_entries = [{"item_id": "ore", "amount": 1}]
 	result.pending_character_rewards = [reward]
 	result.quest_progress_events = [{"quest_id": "quest_contract", "amount": 1}]
@@ -167,6 +167,11 @@ func _test_battle_resolution_result_round_trip() -> void:
 	_assert_eq(String(round_tripped.battle_id), "battle_contract", "battle_id 应保持稳定。")
 	_assert_eq(String(round_tripped.winner_faction_id), "player", "winner_faction_id 应保持稳定。")
 	_assert_eq(String(round_tripped.encounter_resolution), "player_victory", "encounter_resolution 应保持稳定。")
+	_assert_eq(round_tripped.loot_entries.size(), 1, "loot_entries 应保持稳定。")
+	if round_tripped.loot_entries.size() > 0 and round_tripped.loot_entries[0] is Dictionary:
+		var loot_entry: Dictionary = round_tripped.loot_entries[0]
+		_assert_eq(String(loot_entry.get("drop_source_id", "")), "wolf_den", "掉落来源标识应在 round trip 后保留。")
+		_assert_eq(String(loot_entry.get("drop_entry_id", "")), "wolf_den_hide_bundle", "掉落 entry 标识应在 round trip 后保留。")
 	_assert_eq(round_tripped.pending_character_rewards.size(), 1, "pending_character_rewards 应保持稳定。")
 	_assert_true(
 		round_tripped.pending_character_rewards[0] is PendingCharacterReward,
@@ -180,6 +185,7 @@ func _test_battle_runtime_builds_resolution_result_on_battle_end() -> void:
 	runtime.setup(gateway, {}, {}, {}, null)
 	runtime._state = _build_battle_state_for_end_test()
 	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime._active_loot_entries = [_build_canonical_loot_entry()]
 
 	var batch := BattleEventBatch.new()
 	_assert_true(runtime._check_battle_end(batch), "_check_battle_end() 应在一方清场后结束战斗。")
@@ -192,6 +198,11 @@ func _test_battle_runtime_builds_resolution_result_on_battle_end() -> void:
 		result.pending_character_rewards[0] is PendingCharacterReward,
 		"战斗结算结果中的奖励应为正式角色奖励对象。"
 	)
+	_assert_eq(result.loot_entries.size(), 1, "战斗结算结果应包含 canonical 掉落条目。")
+	if result.loot_entries.size() > 0 and result.loot_entries[0] is Dictionary:
+		var loot_entry: Dictionary = result.loot_entries[0]
+		_assert_eq(String(loot_entry.get("drop_source_id", "")), "wolf_den", "战斗结算结果应保留稳定掉落来源标识。")
+		_assert_eq(String(loot_entry.get("drop_entry_id", "")), "wolf_den_hide_bundle", "战斗结算结果应保留稳定掉落 entry 标识。")
 	_assert_true(runtime.consume_battle_resolution_result() == result, "consume_battle_resolution_result() 应返回已构建的结果。")
 	_assert_true(runtime.consume_battle_resolution_result() == null, "consume_battle_resolution_result() 第二次调用后应清空缓存。")
 
@@ -270,6 +281,18 @@ func _build_resolution_result_with_reward(reward: PendingCharacterReward) -> Bat
 	result.pending_character_rewards = [reward]
 	result.quest_progress_events = [{"quest_id": "battle_contract", "objective_id": "defeat_enemy", "progress_delta": 1}]
 	return result
+
+
+func _build_canonical_loot_entry() -> Dictionary:
+	return {
+		"drop_type": "item",
+		"drop_source_kind": "encounter_roster",
+		"drop_source_id": "wolf_den",
+		"drop_source_label": "荒狼巢穴",
+		"drop_entry_id": "wolf_den_hide_bundle",
+		"item_id": "beast_hide",
+		"quantity": 2,
+	}
 
 
 func _build_battle_state_for_end_test() -> BattleState:

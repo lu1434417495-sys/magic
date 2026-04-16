@@ -704,6 +704,7 @@ HeadlessGameTestSession
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
   - 统计战斗评分并产出 canonical post-battle character reward。
   - 消费 `GameSession` 提供的 skill defs、enemy templates、enemy AI brains。
+  - `BattleRuntimeModule` 现在会把 `EncounterRosterBuilder` 提供的正式掉落条目原样写入 `BattleResolutionResult.loot_entries`，供战后结算直接消费稳定 drop identity。
   - `BattleRuntimeModule.start_battle()` 现在统一通过 `BattleUnitFactory` 构建友军 / 敌军 / terrain，`CharacterManagementModule` 不再直接产出 `BattleUnitState`。
   - 若以后实现“近战命中驱动的装备耐久 / 装备损坏”，这里是命中触发点，但正式状态写回仍要经过 CU-10 / CU-11 / CU-12。
 - 邻接单元：
@@ -780,11 +781,12 @@ HeadlessGameTestSession
   - `scripts/utils/battle_board_prop_catalog.gd`
 - 真相源：
   - battle terrain profile id。
-  - encounter -> enemy units / map / prop_ids 的构建规则。
+  - encounter -> enemy units / map / prop_ids / canonical loot entries 的构建规则。
 - 主要职责：
   - 生成 `default` / `canyon` 地形。
   - 维护 canyon 的高度、terrain、wall、spawn、objective marker / tent / torch / spike barricade。
   - 生成阶段会先标记水体区域，再通过 `BattleTerrainTopologyService` 归类成 `shallow_water / flowing_water / deep_water`。
+  - 为 roster 型遭遇生成稳定 `drop_source_id + drop_entry_id` 命名的正式 loot entries，供 battle resolution 直接消费。
   - 维护 prop id 枚举与排序优先级。
 - 说明：
   - 当前正式 battle start 由 `BattleRuntimeModule.start_battle()` 调 `BattleTerrainGenerator.generate()`。
@@ -928,6 +930,7 @@ HeadlessGameTestSession
 - 文件：
   - `scripts/enemies/enemy_content_registry.gd`
   - `scripts/enemies/enemy_template_def.gd`
+  - `scripts/enemies/wild_encounter_roster_def.gd`
   - `scripts/enemies/enemy_ai_brain_def.gd`
   - `scripts/enemies/enemy_ai_state_def.gd`
   - `scripts/enemies/enemy_ai_action.gd`
@@ -940,9 +943,10 @@ HeadlessGameTestSession
 - 真相源：
   - `enemy_template_id -> EnemyTemplateDef`
   - `brain_id -> EnemyAiBrainDef`
+  - `encounter_profile_id -> WildEncounterRosterDef`
   - 各状态下的 action 顺序、目标选择与距离策略。
 - 主要职责：
-  - 注册当前种子敌方模板与 AI brain。
+  - 注册当前种子敌方模板、wild encounter roster、AI brain 与 roster drop schema。
   - 定义近战压迫型、远程控制型等默认行为树形态。
   - 为 `BattleRuntimeModule / BattleAiService` 提供静态敌方内容。
 - 邻接单元：

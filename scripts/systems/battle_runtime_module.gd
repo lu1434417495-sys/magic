@@ -92,6 +92,8 @@ var _target_collection_service = BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT.new()
 var _battle_rating_stats: Dictionary = {}
 ## 字段说明：保存待处理后置战斗角色奖励列表，便于顺序遍历、批量展示、批量运算和整体重建。
 var _pending_post_battle_character_rewards: Array = []
+## 字段说明：缓存当前战斗的正式掉落条目，供 canonical battle resolution result 直接消费。
+var _active_loot_entries: Array = []
 ## 字段说明：缓存战斗结算结果，便于结算完成后由 session facade 统一消费。
 var _battle_resolution_result = null
 ## 字段说明：记录战斗结算结果是否已经被消费，避免重复重建与重复提交。
@@ -136,8 +138,11 @@ func start_battle(
 	enemy_build_context["skill_defs"] = _skill_defs
 	enemy_build_context["enemy_templates"] = _enemy_templates
 	enemy_build_context["enemy_ai_brains"] = _enemy_ai_brains
+	_active_loot_entries.clear()
 	if _encounter_builder != null and _encounter_builder.has_method("build_enemy_units"):
 		enemy_units = _encounter_builder.build_enemy_units(encounter_anchor, enemy_build_context)
+		if _encounter_builder.has_method("build_loot_entries"):
+			_active_loot_entries = _encounter_builder.build_loot_entries(encounter_anchor, enemy_build_context)
 	if enemy_units.is_empty():
 		enemy_units = _unit_factory.build_enemy_units(encounter_anchor, enemy_build_context)
 	var terrain_data := _unit_factory.build_terrain_data(encounter_anchor, seed, context)
@@ -459,6 +464,7 @@ func consume_battle_resolution_result():
 		resolution_result = _build_battle_resolution_result()
 	if resolution_result != null:
 		_pending_post_battle_character_rewards.clear()
+		_active_loot_entries.clear()
 	_battle_resolution_result = null
 	_battle_resolution_result_consumed = true
 	return resolution_result
@@ -477,6 +483,7 @@ func dispose() -> void:
 		_repeat_attack_resolver.dispose()
 	_battle_rating_stats.clear()
 	_pending_post_battle_character_rewards.clear()
+	_active_loot_entries.clear()
 	_battle_resolution_result = null
 	_battle_resolution_result_consumed = false
 	_terrain_effect_nonce = 0
@@ -2268,6 +2275,7 @@ func _build_battle_resolution_result():
 	resolution_result.terrain_profile_id = _state.terrain_profile_id
 	resolution_result.winner_faction_id = _state.winner_faction_id
 	resolution_result.encounter_resolution = _resolve_encounter_resolution()
+	resolution_result.loot_entries = _active_loot_entries.duplicate(true) if resolution_result.winner_faction_id == &"player" else []
 	resolution_result.set_pending_character_rewards(_pending_post_battle_character_rewards)
 	return resolution_result
 

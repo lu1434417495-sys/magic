@@ -38,6 +38,14 @@ func build_enemy_units(encounter_anchor, source: Dictionary = {}):
 	return _build_fallback_enemy_units(encounter_anchor, skill_defs, build_context)
 
 
+func build_loot_entries(encounter_anchor, source: Dictionary = {}) -> Array:
+	var build_context: Dictionary = source if not _looks_like_skill_def_dict(source) else {}
+	var encounter_roster = _resolve_wild_encounter_roster(encounter_anchor, build_context)
+	if encounter_roster == null:
+		return []
+	return _build_loot_entries_from_roster(encounter_roster)
+
+
 func _looks_like_skill_def_dict(source: Dictionary) -> bool:
 	for value in source.values():
 		if value == null:
@@ -74,6 +82,48 @@ func _resolve_wild_encounter_roster(encounter_anchor, build_context: Dictionary)
 		if candidate_id != &"" and _wild_encounter_rosters.has(candidate_id):
 			return _wild_encounter_rosters.get(candidate_id)
 	return null
+
+
+func _build_loot_entries_from_roster(encounter_roster) -> Array:
+	if encounter_roster == null:
+		return []
+	return _build_formal_loot_entries(
+		encounter_roster.get_drop_entries() if encounter_roster.has_method("get_drop_entries") else [],
+		&"encounter_roster",
+		encounter_roster.profile_id,
+		String(encounter_roster.display_name)
+	)
+
+
+func _build_formal_loot_entries(
+	drop_entries_variant: Variant,
+	drop_source_kind: StringName,
+	drop_source_id: StringName,
+	drop_source_label: String
+) -> Array:
+	var loot_entries: Array = []
+	if drop_entries_variant is not Array:
+		return loot_entries
+	for entry_variant in drop_entries_variant:
+		if entry_variant is not Dictionary:
+			continue
+		var entry_data := entry_variant as Dictionary
+		var drop_id := ProgressionDataUtils.to_string_name(entry_data.get("drop_id", ""))
+		var drop_type := ProgressionDataUtils.to_string_name(entry_data.get("drop_type", ""))
+		var item_id := ProgressionDataUtils.to_string_name(entry_data.get("item_id", ""))
+		var quantity := maxi(int(entry_data.get("quantity", 0)), 0)
+		if drop_id == &"" or drop_type == &"" or item_id == &"" or quantity <= 0:
+			continue
+		loot_entries.append({
+			"drop_type": String(drop_type),
+			"drop_source_kind": String(drop_source_kind),
+			"drop_source_id": String(drop_source_id),
+			"drop_source_label": drop_source_label,
+			"drop_entry_id": String(drop_id),
+			"item_id": String(item_id),
+			"quantity": quantity,
+		})
+	return loot_entries
 
 
 func _build_profile_enemy_units(

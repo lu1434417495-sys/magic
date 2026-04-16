@@ -432,6 +432,13 @@ func _build_wolf_den_roster() -> WildEncounterRosterDef:
 	roster.initial_stage = 0
 	roster.growth_step_interval = 2
 	roster.suppression_steps_on_victory = 3
+	roster.drop_entries.clear()
+	roster.drop_entries.append({
+		"drop_id": &"wolf_den_hide_bundle",
+		"drop_type": WildEncounterRosterDef.DROP_TYPE_ITEM,
+		"item_id": &"beast_hide",
+		"quantity": 2,
+	})
 	roster.stages.clear()
 	roster.stages.append({
 		"stage": 0,

@@ -25,6 +25,7 @@ func _run() -> void:
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_enemy_content_registry_registers_second_formal_roster()
+	_test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema()
 	_test_encounter_roster_builder_builds_mixed_mist_hollow_units()
 	_test_wild_encounter_growth_respects_suppression_window()
 	_test_game_runtime_facade_move_advances_world_step()
@@ -102,6 +103,24 @@ func _test_enemy_content_registry_registers_second_formal_roster() -> void:
 	_assert_true(mist_hollow != null, "mist_hollow roster 应能被正式查到。")
 	if mist_hollow != null:
 		_assert_eq(String(mist_hollow.display_name), "雾沼伏猎群", "mist_hollow roster 应暴露稳定显示名。")
+	game_session.free()
+
+
+func _test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	builder.setup(game_session.get_wild_encounter_rosters())
+
+	var encounter_anchor = _build_settlement_encounter_anchor(&"wolf_den_drop_schema", Vector2i(6, 6))
+	var loot_entries: Array = builder.build_loot_entries(encounter_anchor, {})
+	_assert_eq(loot_entries.size(), 1, "wolf_den 应暴露 1 条正式掉落 schema。")
+	if not loot_entries.is_empty():
+		var loot_entry: Dictionary = loot_entries[0]
+		_assert_eq(String(loot_entry.get("drop_source_kind", "")), "encounter_roster", "掉落 schema 应标记来源类型。")
+		_assert_eq(String(loot_entry.get("drop_source_id", "")), "wolf_den", "掉落 schema 应保留稳定 roster 标识。")
+		_assert_eq(String(loot_entry.get("drop_entry_id", "")), "wolf_den_hide_bundle", "掉落 schema 应保留稳定 entry 标识。")
+		_assert_eq(String(loot_entry.get("item_id", "")), "beast_hide", "wolf_den 掉落应指向正式物品标识。")
+		_assert_eq(int(loot_entry.get("quantity", 0)), 2, "wolf_den 掉落数量应保持稳定。")
 	game_session.free()
 
 

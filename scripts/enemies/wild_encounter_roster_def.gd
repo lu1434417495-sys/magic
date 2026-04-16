@@ -1,6 +1,7 @@
 class_name WildEncounterRosterDef
 extends RefCounted
 
+const DROP_TYPE_ITEM: StringName = &"item"
 
 var profile_id: StringName = &""
 var display_name: String = ""
@@ -8,6 +9,7 @@ var initial_stage := 0
 var growth_step_interval := 1
 var suppression_steps_on_victory := 0
 var stages: Array[Dictionary] = []
+var drop_entries: Array[Dictionary] = []
 
 
 func get_max_stage() -> int:
@@ -37,3 +39,12 @@ func get_stage_unit_entries(stage: int) -> Array[Dictionary]:
 		best_stage = stage_index
 		best_entries = entries
 	return best_entries
+
+
+func get_drop_entries() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry_variant in drop_entries:
+		if entry_variant is not Dictionary:
+			continue
+		result.append((entry_variant as Dictionary).duplicate(true))
+	return result

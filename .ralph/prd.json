@@ -965,14 +965,22 @@
     {
       "id": "PVS_19A",
       "title": "为 enemy 或 roster 引入正式掉落 schema",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "至少一种 enemy/roster 有正式 drop profile 或等价 schema",
         "掉落身份命名稳定，可供 battle resolution 直接消费"
       ],
       "notes": [
         "Owner：CU-17 / CU-20。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:28:58+08:00",
+      "lastRunId": "20260417-072858-PVS_19A",
+      "startedAt": "2026-04-17T07:28:58+08:00",
+      "completedAt": "2026-04-17T07:38:39+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Passed `godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd` and `godot --headless --script tests/battle_runtime/run_battle_resolution_contract_regression.gd`.",
+      "lastLearnings": "Formal battle drops now live on roster content, not `GameRuntimeFacade`: `WildEncounterRosterDef` owns the schema, `EncounterRosterBuilder` resolves canonical loot-entry dictionaries, and `BattleRuntimeModule` is the handoff point into `BattleResolutionResult`. `.ralph/prd.json` was left untouched."
     },
     {
       "id": "PVS_19B",

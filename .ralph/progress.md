@@ -205,3 +205,7 @@ Added `BattleAiScoreInput` and `BattleAiScoreService` as the formal CU-16 score-
 ## 2026-04-17T07:28:58+08:00 | PVS_18B | done
 title: 让敌方按评分选择技能并补关键 brain 回归
 Implemented bucketed AI skill scoring selection in `BattleAiService`/`BattleAiDecision`, attached score metadata from unit/ground/charge skill actions, tagged `ranged_controller`/`ranged_suppressor` competitive skill buckets in `enemy_content_registry`, and added focused AI regressions proving later higher-score skill actions win for `melee_aggressor` and `ranged_controller`. `docs/design/project_context_units.md` stayed valid as-is.
+
+## 2026-04-17T07:38:39+08:00 | PVS_19A | done
+title: 为 enemy 或 roster 引入正式掉落 schema
+Added a formal roster-owned drop schema on `wolf_den` via `WildEncounterRosterDef.drop_entries`, taught `EncounterRosterBuilder` to emit canonical loot entries with stable `drop_source_id/drop_entry_id`, copied those entries into `BattleResolutionResult.loot_entries` on player victory, extended the focused wild-encounter and battle-resolution regressions, and updated `docs/design/project_context_units.md` for the CU-15/CU-17/CU-20 ownership change.
