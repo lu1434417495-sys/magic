@@ -2,10 +2,13 @@ extends SceneTree
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
+const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
+const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -20,6 +23,7 @@ func _run() -> void:
 	_test_battle_unit_state_serialization_exposes_aura()
 	_test_facade_clicking_active_unit_casts_self_skill()
 	_test_facade_multi_unit_selection_tracks_target_unit_ids()
+	await _test_facade_ground_aoe_selection_highlight_preview_and_execution_share_range()
 	_test_facade_stamina_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_aura_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_selected_aura_skill_returns_formal_error_after_aura_drops()
@@ -147,6 +151,111 @@ func _test_facade_multi_unit_selection_tracks_target_unit_ids() -> void:
 		_extract_string_array(after_cast_snapshot.get("selected_target_unit_ids", [])),
 		[],
 		"多目标技能结算后，battle snapshot 不应残留已选单位目标。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_facade_ground_aoe_selection_highlight_preview_and_execution_share_range() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(5, 5))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"radius_skill_user",
+		"范围施法者",
+		&"player",
+		Vector2i(2, 2),
+		[&"mage_cold_snap"],
+		2,
+		6
+	)
+	var enemy_top: BattleUnitState = _build_manual_unit(&"radius_enemy_top", "敌人上", &"enemy", Vector2i(2, 0), [], 2, 0)
+	var enemy_left: BattleUnitState = _build_manual_unit(&"radius_enemy_left", "敌人左", &"enemy", Vector2i(1, 1), [], 2, 0)
+	var enemy_center: BattleUnitState = _build_manual_unit(&"radius_enemy_center", "敌人中", &"enemy", Vector2i(2, 1), [], 2, 0)
+	var enemy_right: BattleUnitState = _build_manual_unit(&"radius_enemy_right", "敌人右", &"enemy", Vector2i(3, 1), [], 2, 0)
+	var enemy_far: BattleUnitState = _build_manual_unit(&"radius_enemy_far", "敌人远", &"enemy", Vector2i(4, 4), [], 2, 0)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy_top, true)
+	_add_unit_to_state(facade, state, enemy_left, true)
+	_add_unit_to_state(facade, state, enemy_center, true)
+	_add_unit_to_state(facade, state, enemy_right, true)
+	_add_unit_to_state(facade, state, enemy_far, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(bool(select_result.get("ok", false)), "选择 radius 范围技能应返回成功结果。")
+	var target_coord := Vector2i(2, 1)
+	facade.set_runtime_battle_selected_coord(target_coord)
+	facade.set_battle_selection_target_coords_state([target_coord])
+
+	var selected_target_coords := facade.get_selected_battle_skill_target_coords()
+	_assert_true(
+		selected_target_coords.size() > 1 and selected_target_coords.has(target_coord),
+		"radius 范围技能的 selection 读面应暴露包含目标中心在内的正式多格范围。"
+	)
+
+	var battle_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
+	_assert_eq(
+		_extract_coord_pairs(battle_snapshot.get("selected_target_coords", [])),
+		_extract_vector2i_pairs(selected_target_coords),
+		"battle snapshot 应把同一范围结果原样暴露给 HUD/棋盘高亮。"
+	)
+
+	var preview_command = BATTLE_COMMAND_SCRIPT.new()
+	preview_command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	preview_command.unit_id = caster.unit_id
+	preview_command.skill_id = &"mage_cold_snap"
+	preview_command.target_coord = target_coord
+	var preview = facade.preview_battle_command(preview_command)
+	_assert_true(preview != null and preview.allowed, "radius 范围技能前置：preview_command 应允许测试目标。")
+	if preview != null:
+		_assert_eq(
+			_extract_vector2i_pairs(preview.target_coords),
+			_extract_vector2i_pairs(selected_target_coords),
+			"合法性校验 / preview 应复用与 selection 相同的范围结果。"
+		)
+
+	var board := await _instantiate_battle_board()
+	board.configure(
+		state,
+		target_coord,
+		selected_target_coords,
+		facade.get_battle_overlay_target_coords()
+	)
+	await process_frame
+	_assert_eq(
+		_extract_vector2i_pairs(_collect_marker_used_coords(board)),
+		_extract_vector2i_pairs(selected_target_coords),
+		"棋盘高亮应使用与 selection 相同的范围结果。"
+	)
+	board.queue_free()
+	await process_frame
+
+	var caster_hp_before := caster.current_hp
+	var enemy_top_hp_before := enemy_top.current_hp
+	var enemy_left_hp_before := enemy_left.current_hp
+	var enemy_center_hp_before := enemy_center.current_hp
+	var enemy_right_hp_before := enemy_right.current_hp
+	var enemy_far_hp_before := enemy_far.current_hp
+	var execute_refresh := String(facade.issue_battle_command(preview_command))
+	_assert_eq(execute_refresh, "full", "执行范围技能命令后应触发完整战斗刷新。")
+	_assert_true(enemy_top.current_hp < enemy_top_hp_before, "范围内顶部敌人应受到实际结算影响。")
+	_assert_true(enemy_left.current_hp < enemy_left_hp_before, "范围内左侧敌人应受到实际结算影响。")
+	_assert_true(enemy_center.current_hp < enemy_center_hp_before, "范围内中心敌人应受到实际结算影响。")
+	_assert_true(enemy_right.current_hp < enemy_right_hp_before, "范围内右侧敌人应受到实际结算影响。")
+	_assert_eq(enemy_far.current_hp, enemy_far_hp_before, "范围外敌人不应被误伤。")
+	_assert_eq(caster.current_hp, caster_hp_before, "敌对范围技能不应误伤施法者自身。")
+	_assert_eq(
+		_extract_coord_pairs(facade.build_headless_snapshot().get("battle", {}).get("selected_target_coords", [])),
+		[],
+		"范围技能结算后不应残留已选范围坐标。"
 	)
 
 	_cleanup_test_session(game_session)
@@ -420,6 +529,14 @@ func _cleanup_test_session(game_session) -> void:
 	game_session.free()
 
 
+func _instantiate_battle_board() -> BattleBoard2D:
+	var board := BATTLE_BOARD_SCENE.instantiate() as BattleBoard2D
+	root.add_child(board)
+	await process_frame
+	board.set_viewport_size(Vector2(1280.0, 720.0))
+	return board
+
+
 func _build_flat_state(map_size: Vector2i) -> BattleState:
 	var state: BattleState = BATTLE_STATE_SCRIPT.new()
 	state.battle_id = &"battle_skill_protocol"
@@ -505,6 +622,37 @@ func _extract_coord_pairs(coord_dicts: Array) -> Array:
 		var coord: Dictionary = coord_variant
 		pairs.append([int(coord.get("x", 0)), int(coord.get("y", 0))])
 	return pairs
+
+
+func _extract_vector2i_pairs(coords: Array) -> Array:
+	var pairs: Array = []
+	for coord_variant in coords:
+		if coord_variant is not Vector2i:
+			continue
+		var coord: Vector2i = coord_variant
+		pairs.append([coord.x, coord.y])
+	return pairs
+
+
+func _collect_marker_used_coords(board: BattleBoard2D) -> Array[Vector2i]:
+	var coord_set: Dictionary = {}
+	if board == null:
+		return []
+	for layer in board.marker_layers:
+		if layer == null:
+			continue
+		for coord in layer.get_used_cells():
+			coord_set[coord] = true
+	var coords: Array[Vector2i] = []
+	for coord_variant in coord_set.keys():
+		if coord_variant is Vector2i:
+			coords.append(coord_variant)
+	coords.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		if a.y == b.y:
+			return a.x < b.x
+		return a.y < b.y
+	)
+	return coords
 
 
 func _find_battle_unit_snapshot(battle_snapshot: Dictionary, unit_id: String) -> Dictionary:

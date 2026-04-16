@@ -193,3 +193,7 @@ Added `scripts/systems/battle_target_collection_service.gd` as the shared `line`
 ## 2026-04-17T07:00:51+08:00 | PVS_17B | done
 title: 补齐 radius 与 self 范围图形收集器
 Extended `BattleTargetCollectionService` into the shared `ground | unit | self` target collector, so `radius` ground AoE and `self` skills now use formal collection instead of ad hoc fallback. Routed battle runtime preview and selection readback through that owner, and added focused regression coverage for `radius` and `self` alongside the existing line/cone checks.
+
+## 2026-04-17T07:09:04+08:00 | PVS_17C | done
+title: 为范围图形补 selection/execute shared regression
+Extended `tests/battle_runtime/run_battle_skill_protocol_regression.gd` with a real `mage_cold_snap` radius-AoE contract test that locks selection state, battle snapshot/UI marker input, preview validation, and execution onto the same collected target range, including a real board-marker assertion and in-range vs out-of-range damage checks.

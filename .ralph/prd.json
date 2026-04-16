@@ -905,14 +905,22 @@
     {
       "id": "PVS_17C",
       "title": "为范围图形补 selection/execute shared regression",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "selection、高亮、合法性校验和实际结算使用同一范围结果",
         "battle UI 或 skill protocol regression 覆盖至少 1 个非单体技能"
       ],
       "notes": [
         "Owner：CU-18 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:00:51+08:00",
+      "lastRunId": "20260417-070051-PVS_17C",
+      "startedAt": "2026-04-17T07:00:51+08:00",
+      "completedAt": "2026-04-17T07:09:04+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd` and it passed.",
+      "lastLearnings": "`BattleTargetCollectionService` is still the shared owner for range-shape coord collection. For `area_pattern=radius`, the current runtime uses `BattleGridService`'s square/Chebyshev 3x3 collection, and the board marker surface can be validated directly from the same selected-target coord set exposed through the battle snapshot. `docs/design/project_context_units.md` stays valid as-is."
     },
     {
       "id": "PVS_18A",
