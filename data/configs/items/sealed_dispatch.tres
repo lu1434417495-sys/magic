@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "sealed_dispatch"
+display_name = "封缄急件"
+description = "交付给据点文书的加急文件，作为任务物品保留在共享仓库。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 0
+sellable = false
+max_stack = 20
+tags = Array[StringName](["quest_item", "document", "dispatch"])
+quest_groups = Array[StringName](["document", "delivery"])

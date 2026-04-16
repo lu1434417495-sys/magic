@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "bandit_insignia"
+display_name = "匪徒纹章"
+description = "清剿悬赏后带回的身份凭证，用于据点任务缴纳和文本快照回归。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 0
+sellable = false
+max_stack = 20
+tags = Array[StringName](["quest_item", "proof", "insignia"])
+quest_groups = Array[StringName](["proof", "bounty"])

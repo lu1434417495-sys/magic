@@ -17,6 +17,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_snapshot_builder_matches_facade_outputs()
 	_test_snapshot_builder_exposes_party_quest_snapshot()
+	_test_snapshot_builder_cross_references_quest_items_in_text_snapshot()
 	_test_snapshot_builder_exposes_contract_board_modal_snapshot()
 	_test_snapshot_builder_exposes_forge_modal_snapshot()
 	_test_snapshot_builder_exposes_generic_forge_modal_snapshot()
@@ -130,6 +131,72 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	_assert_true(text_snapshot.contains("completed_quest_ids=contract_intro"), "文本快照应渲染完成任务 ID。")
 	_assert_true(text_snapshot.contains("quest=contract_wolf_pack | stage=active"), "文本快照应渲染激活任务明细。")
 	_assert_true(text_snapshot.contains("quest=contract_settlement_warehouse | stage=claimable"), "文本快照应渲染待领奖励任务明细。")
+
+	builder.dispose()
+
+
+func _test_snapshot_builder_cross_references_quest_items_in_text_snapshot() -> void:
+	var runtime := FakeQuestRuntime.new()
+	var party_state := FakeQuestPartyState.new()
+	var quest_state := QuestState.new()
+	quest_state.quest_id = &"contract_archive_delivery"
+	quest_state.mark_accepted(7)
+	quest_state.record_objective_progress(&"deliver_dispatch", 1, 1, {
+		"item_id": "sealed_dispatch",
+		"submitted_quantity": 1,
+	})
+	party_state.active_quests = [quest_state]
+	runtime.party_state = party_state
+	runtime.active_modal_id = "warehouse"
+	runtime.warehouse_window_data = {
+		"title": "共享仓库",
+		"entries": [
+			{
+				"item_id": "sealed_dispatch",
+				"quantity": 1,
+				"total_quantity": 1,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+			},
+			{
+				"item_id": "bandit_insignia",
+				"quantity": 3,
+				"total_quantity": 3,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+			},
+			{
+				"item_id": "moonfern_sample",
+				"quantity": 2,
+				"total_quantity": 2,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+			},
+		],
+	}
+
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	var text_snapshot := builder.build_text_snapshot()
+	var warehouse_entry_ids := _extract_window_entry_value_strings(
+		snapshot.get("warehouse", {}).get("window_data", {}).get("entries", []),
+		"item_id"
+	)
+
+	_assert_true(bool(snapshot.get("warehouse", {}).get("visible", false)), "任务物品交叉引用回归中仓库快照应保持可见。")
+	_assert_eq(
+		warehouse_entry_ids,
+		["sealed_dispatch", "bandit_insignia", "moonfern_sample"],
+		"仓库快照应稳定暴露正式任务物品条目。"
+	)
+	_assert_true(text_snapshot.contains("context=item_id=sealed_dispatch submitted_quantity=1"), "文本快照应在 QUEST 分段保留任务物品上下文。")
+	_assert_true(text_snapshot.contains("entry=sealed_dispatch | qty=1 | total=1 | stackable=true"), "文本快照应在 WAREHOUSE 分段渲染封缄急件。")
+	_assert_true(text_snapshot.contains("entry=bandit_insignia | qty=3 | total=3 | stackable=true"), "文本快照应在 WAREHOUSE 分段渲染匪徒纹章。")
+	_assert_true(text_snapshot.contains("entry=moonfern_sample | qty=2 | total=2 | stackable=true"), "文本快照应在 WAREHOUSE 分段渲染月蕨样本。")
 
 	builder.dispose()
 
@@ -294,6 +361,7 @@ class FakeQuestRuntime:
 	var contract_board_window_data: Dictionary = {}
 	var forge_window_data: Dictionary = {}
 	var active_shop_context: Dictionary = {}
+	var warehouse_window_data: Dictionary = {}
 
 	func is_battle_active() -> bool:
 		return false
@@ -392,7 +460,7 @@ class FakeQuestRuntime:
 		return ""
 
 	func get_warehouse_window_data() -> Dictionary:
-		return {}
+		return warehouse_window_data.duplicate(true)
 
 	func get_battle_state():
 		return null

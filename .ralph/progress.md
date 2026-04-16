@@ -109,3 +109,7 @@ Added first-batch material seeds `beast_hide`, `hardwood_lumber`, and `linen_clo
 ## 2026-04-17T04:23:20+08:00 | PVS_08C | done
 title: 补齐第二批材料 seed 内容
 Added second-batch material seeds `forge_coal` and `whetstone`, added formal forge recipes `forge_militia_axe` and `forge_watchman_mace` that reference the new materials, and updated focused warehouse/recipe/forge regressions to require 6 material categories plus formal recipe exposure/execution.
+
+## 2026-04-17T04:34:05+08:00 | PVS_08D | done
+title: 新增任务物品 seed 并补交叉引用回归
+Added three formal quest-item seeds (`sealed_dispatch`, `bandit_insignia`, `moonfern_sample`), required `quest_item` ItemDefs to declare `quest_groups`, and extended focused warehouse/quest/text-snapshot regressions to cross-reference them.

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "moonfern_sample"
+display_name = "月蕨样本"
+description = "供研究员验收的稀有植株样本，作为正式任务物品参与仓库与快照链路。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 0
+sellable = false
+max_stack = 20
+tags = Array[StringName](["quest_item", "sample", "botanical"])
+quest_groups = Array[StringName](["sample", "research"])

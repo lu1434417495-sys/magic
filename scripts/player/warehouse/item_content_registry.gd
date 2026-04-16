@@ -87,6 +87,11 @@ func _register_item_resource(resource_path: String) -> void:
 			"Material item %s must declare at least one crafting_group." % String(item_def.item_id)
 		)
 		return
+	if item_tags.has(&"quest_item") and item_def.get_quest_groups().is_empty():
+		_validation_errors.append(
+			"Quest item %s must declare at least one quest_group." % String(item_def.item_id)
+		)
+		return
 	if item_def.item_category == ITEM_DEF_SCRIPT.ITEM_CATEGORY_SKILL_BOOK and item_def.granted_skill_id == &"":
 		_validation_errors.append("Skill book item %s must declare granted_skill_id." % String(item_def.item_id))
 		return

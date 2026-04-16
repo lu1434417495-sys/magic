@@ -47,6 +47,23 @@ const MATERIAL_SEED_EXPECTATIONS := {
 		"category_tag": &"abrasive",
 	},
 }
+const QUEST_ITEM_SEED_EXPECTATIONS := {
+	&"sealed_dispatch": {
+		"tags": [&"quest_item", &"document", &"dispatch"],
+		"quest_groups": [&"document", &"delivery"],
+		"category_tag": &"document",
+	},
+	&"bandit_insignia": {
+		"tags": [&"quest_item", &"proof", &"insignia"],
+		"quest_groups": [&"proof", &"bounty"],
+		"category_tag": &"proof",
+	},
+	&"moonfern_sample": {
+		"tags": [&"quest_item", &"sample", &"botanical"],
+		"quest_groups": [&"sample", &"research"],
+		"category_tag": &"sample",
+	},
+}
 const FORMAL_FORGE_RECIPE_EXPECTATIONS := {
 	&"forge_smith_iron_greatsword": {
 		"input_item_ids": [&"bronze_sword", &"iron_ore"],
@@ -91,6 +108,7 @@ func _run() -> void:
 	_test_item_schema_defaults_and_accessors()
 	_test_consumable_seed_coverage()
 	_test_material_seed_coverage()
+	_test_quest_item_seed_coverage()
 	_test_shop_pricing_uses_item_accessors()
 	_test_shop_seed_references_formal_item_seeds()
 	_test_recipe_schema_defaults_and_fields()
@@ -184,6 +202,32 @@ func _test_material_seed_coverage() -> void:
 		material_categories[expectation.get("category_tag", &"")] = true
 	_assert_true(MATERIAL_SEED_EXPECTATIONS.size() >= 6, "正式材料 seed 至少应达到 6 种。")
 	_assert_true(material_categories.size() >= 6, "正式材料种类应至少达到 6 类。")
+
+
+func _test_quest_item_seed_coverage() -> void:
+	var item_registry := ItemContentRegistry.new()
+	var item_defs := item_registry.get_item_defs()
+	_assert_true(item_registry.validate().is_empty(), "ItemContentRegistry 当前不应报告任务物品 seed 校验错误。")
+
+	var quest_item_categories: Dictionary = {}
+	for item_id in QUEST_ITEM_SEED_EXPECTATIONS.keys():
+		var expectation: Dictionary = QUEST_ITEM_SEED_EXPECTATIONS.get(item_id, {})
+		var item_def: ItemDef = item_defs.get(item_id) as ItemDef
+		_assert_true(item_def != null, "应存在正式任务物品 seed %s。" % String(item_id))
+		if item_def == null:
+			continue
+		_assert_true(item_def.is_stackable, "任务物品 %s 应保持可堆叠。" % String(item_id))
+		_assert_true(not item_def.is_equipment(), "任务物品 %s 不应进入装备实例流。" % String(item_id))
+		_assert_eq(String(item_def.item_category), "misc", "任务物品 %s 应保持 misc 分类。" % String(item_id))
+		_assert_eq(item_def.get_tags(), expectation.get("tags", []), "任务物品 %s 应保留稳定 tags 元数据。" % String(item_id))
+		_assert_eq(
+			item_def.get_quest_groups(),
+			expectation.get("quest_groups", []),
+			"任务物品 %s 应保留稳定 quest_groups 元数据。" % String(item_id)
+		)
+		quest_item_categories[expectation.get("category_tag", &"")] = true
+	_assert_true(QUEST_ITEM_SEED_EXPECTATIONS.size() >= 3, "正式任务物品 seed 至少应达到 3 种。")
+	_assert_true(quest_item_categories.size() >= 3, "正式任务物品种类应至少达到 3 类。")
 
 
 func _test_shop_pricing_uses_item_accessors() -> void:

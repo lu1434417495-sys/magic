@@ -38,6 +38,11 @@ const MATERIAL_ITEM_QUANTITIES := {
 	&"forge_coal": 3,
 	&"whetstone": 2,
 }
+const QUEST_ITEM_QUANTITIES := {
+	&"sealed_dispatch": 1,
+	&"bandit_insignia": 3,
+	&"moonfern_sample": 2,
+}
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
 var _failures: Array[String] = []
 ## 字段说明：记录游戏会话，用于构造测试场景、记录结果并支撑回归断言。
@@ -59,6 +64,7 @@ func _run() -> void:
 	await _test_item_registry_validation()
 	await _test_new_consumable_seed_warehouse_schema()
 	await _test_material_seed_warehouse_schema()
+	await _test_quest_item_seed_warehouse_schema()
 	await _test_save_round_trip()
 	await _test_world_map_entry_paths()
 	await _cleanup()
@@ -452,6 +458,46 @@ func _test_material_seed_warehouse_schema() -> void:
 		_assert_true(bool(entry.get("is_stackable", false)), "材料 %s 的展示条目应保持可堆叠。" % String(item_id))
 
 	_assert_true(material_categories.size() >= 6, "共享仓库链路中正式材料种类应至少覆盖 6 类。")
+
+
+func _test_quest_item_seed_warehouse_schema() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 8),
+	])
+	var service := PartyWarehouseService.new()
+	service.setup(party, item_defs)
+
+	var quest_item_categories: Dictionary = {}
+	for item_id in QUEST_ITEM_QUANTITIES.keys():
+		var item_def: ItemDef = item_defs.get(item_id) as ItemDef
+		_assert_true(item_def != null, "共享仓库回归应能加载任务物品 %s。" % String(item_id))
+		if item_def == null:
+			continue
+		_assert_true(item_def.is_stackable, "任务物品 %s 应走堆叠仓库流。" % String(item_id))
+		_assert_true(not item_def.is_equipment(), "任务物品 %s 不应进入装备实例流。" % String(item_id))
+		_assert_eq(String(item_def.item_category), "misc", "任务物品 %s 应保持 misc 分类。" % String(item_id))
+		_assert_true(item_def.get_tags().has(&"quest_item"), "任务物品 %s 应带有 quest_item 标签。" % String(item_id))
+		_assert_true(not item_def.get_quest_groups().is_empty(), "任务物品 %s 应声明 quest_groups。" % String(item_id))
+		quest_item_categories[item_def.get_quest_groups()[0]] = true
+
+		var quantity := int(QUEST_ITEM_QUANTITIES.get(item_id, 0))
+		var add_result := service.add_item(item_id, quantity)
+		_assert_eq(int(add_result.get("added_quantity", 0)), quantity, "任务物品 %s 应能完整写入共享仓库。" % String(item_id))
+		_assert_eq(service.count_item(item_id), quantity, "任务物品 %s 入仓后数量应正确累计。" % String(item_id))
+
+	var inventory_entries := service.get_inventory_entries()
+	for item_id in QUEST_ITEM_QUANTITIES.keys():
+		var entry := _find_inventory_entry(inventory_entries, String(item_id))
+		_assert_true(not entry.is_empty(), "共享仓库展示条目应包含任务物品 %s。" % String(item_id))
+		if entry.is_empty():
+			continue
+		_assert_eq(String(entry.get("storage_mode", "")), "stack", "任务物品 %s 应标记为 stack 存储模式。" % String(item_id))
+		_assert_eq(String(entry.get("item_category", "")), "misc", "任务物品 %s 的展示分类应保持 misc。" % String(item_id))
+		_assert_true(bool(entry.get("is_stackable", false)), "任务物品 %s 的展示条目应保持可堆叠。" % String(item_id))
+
+	_assert_true(QUEST_ITEM_QUANTITIES.size() >= 3, "共享仓库链路中的正式任务物品应至少覆盖 3 种。")
+	_assert_true(quest_item_categories.size() >= 3, "共享仓库链路中的正式任务物品种类应至少覆盖 3 类。")
 
 
 func _test_save_round_trip() -> void:

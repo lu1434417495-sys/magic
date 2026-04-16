@@ -1,7 +1,13 @@
 extends SceneTree
 
+const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const QUEST_ITEM_IDS := [
+	&"sealed_dispatch",
+	&"bandit_insignia",
+	&"moonfern_sample",
+]
 
 var _failures: Array[String] = []
 
@@ -12,6 +18,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_quest_def_round_trip_and_validation()
+	_test_quest_item_cross_reference()
 	_test_quest_state_progress_and_round_trip()
 
 	if _failures.is_empty():
@@ -168,6 +175,58 @@ func _test_quest_state_progress_and_round_trip() -> void:
 		String(restored.last_progress_context.get("settlement_id", "")),
 		"spring_village_01",
 		"QuestState 应保留最近一次进度上下文。"
+	)
+
+
+func _test_quest_item_cross_reference() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	for quest_item_id in QUEST_ITEM_IDS:
+		_assert_true(item_defs.has(quest_item_id), "任务 schema 回归前置：应存在正式任务物品 %s。" % String(quest_item_id))
+
+	var quest_def := QuestDef.new()
+	quest_def.quest_id = &"contract_archive_delivery"
+	quest_def.display_name = "归档交接"
+	quest_def.provider_interaction_id = &"service_contract_board"
+	quest_def.objective_defs = [
+		{
+			"objective_id": "deliver_dispatch",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": String(QUEST_ITEM_IDS[0]),
+			"target_value": 1,
+		},
+		{
+			"objective_id": "deliver_insignia",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": String(QUEST_ITEM_IDS[1]),
+			"target_value": 2,
+		},
+		{
+			"objective_id": "deliver_sample",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": String(QUEST_ITEM_IDS[2]),
+			"target_value": 1,
+		},
+	]
+	quest_def.reward_entries = [
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 36},
+	]
+
+	var restored: QuestDef = QuestDef.from_dict(quest_def.to_dict())
+	_assert_true(restored.validate_schema().is_empty(), "引用正式任务物品的 submit_item QuestDef 不应产生 schema 错误。")
+	_assert_eq(
+		String(restored.get_objective_def(&"deliver_dispatch").get("target_id", "")),
+		"sealed_dispatch",
+		"QuestDef 应保留封缄急件的正式 target_id。"
+	)
+	_assert_eq(
+		String(restored.get_objective_def(&"deliver_insignia").get("target_id", "")),
+		"bandit_insignia",
+		"QuestDef 应保留匪徒纹章的正式 target_id。"
+	)
+	_assert_eq(
+		String(restored.get_objective_def(&"deliver_sample").get("target_id", "")),
+		"moonfern_sample",
+		"QuestDef 应保留月蕨样本的正式 target_id。"
 	)
 
 

@@ -485,14 +485,22 @@
     {
       "id": "PVS_08D",
       "title": "新增任务物品 seed 并补交叉引用回归",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "正式任务物品至少达到 3 类",
         "任务物品可被 quest condition、warehouse schema 与 text snapshot 共同引用"
       ],
       "notes": [
         "Owner：CU-10 / CU-11 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:23:20+08:00",
+      "lastRunId": "20260417-042320-PVS_08D",
+      "startedAt": "2026-04-17T04:23:20+08:00",
+      "completedAt": "2026-04-17T04:34:05+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd`, `tests/warehouse/run_party_warehouse_regression.gd`, `tests/progression/run_quest_schema_regression.gd`, and `tests/runtime/run_game_runtime_snapshot_builder_regression.gd` — all PASS.",
+      "lastLearnings": "Formal quest items now live as normal `misc` ItemDefs tagged `quest_item` with non-empty `quest_groups`; cross-reference coverage is anchored in item schema, warehouse schema, quest schema, and snapshot/text-snapshot regressions without changing runtime ownership, so `docs/design/project_context_units.md` stays valid as-is."
     },
     {
       "id": "PVS_09A",
