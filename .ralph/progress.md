@@ -209,3 +209,7 @@ Implemented bucketed AI skill scoring selection in `BattleAiService`/`BattleAiDe
 ## 2026-04-17T07:38:39+08:00 | PVS_19A | done
 title: 为 enemy 或 roster 引入正式掉落 schema
 Added a formal roster-owned drop schema on `wolf_den` via `WildEncounterRosterDef.drop_entries`, taught `EncounterRosterBuilder` to emit canonical loot entries with stable `drop_source_id/drop_entry_id`, copied those entries into `BattleResolutionResult.loot_entries` on player victory, extended the focused wild-encounter and battle-resolution regressions, and updated `docs/design/project_context_units.md` for the CU-15/CU-17/CU-20 ownership change.
+
+## 2026-04-17T07:44:07+08:00 | PVS_19B | done
+title: 在 battle resolution 中正式填充 loot_entries
+Centralized `loot_entries` canonicalization in `scripts/systems/battle_resolution_result.gd` via `set_loot_entries()` and normalization on serialization/deserialization, updated `scripts/systems/battle_runtime_module.gd` so `_build_battle_resolution_result()` fills loot through that canonical path, and extended `tests/battle_runtime/run_battle_resolution_contract_regression.gd` to verify raw loot input is normalized and survives round-trip. `docs/design/project_context_units.md` stays valid as-is.

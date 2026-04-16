@@ -2275,7 +2275,7 @@ func _build_battle_resolution_result():
 	resolution_result.terrain_profile_id = _state.terrain_profile_id
 	resolution_result.winner_faction_id = _state.winner_faction_id
 	resolution_result.encounter_resolution = _resolve_encounter_resolution()
-	resolution_result.loot_entries = _active_loot_entries.duplicate(true) if resolution_result.winner_faction_id == &"player" else []
+	resolution_result.set_loot_entries(_active_loot_entries if resolution_result.winner_faction_id == &"player" else [])
 	resolution_result.set_pending_character_rewards(_pending_post_battle_character_rewards)
 	return resolution_result
 

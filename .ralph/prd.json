@@ -985,14 +985,22 @@
     {
       "id": "PVS_19B",
       "title": "在 battle resolution 中正式填充 loot_entries",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`_build_battle_resolution_result()` 会生成 canonical `loot_entries`",
         "`BattleResolutionResult` regression 覆盖 loot round-trip 稳定性"
       ],
       "notes": [
         "Owner：CU-15 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:38:40+08:00",
+      "lastRunId": "20260417-073840-PVS_19B",
+      "startedAt": "2026-04-17T07:38:40+08:00",
+      "completedAt": "2026-04-17T07:44:07+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_battle_resolution_contract_regression.gd` PASS; `godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd` PASS",
+      "lastLearnings": "`BattleResolutionResult` should remain the single contract owner for canonical battle loot shape; battle runtime should hand source loot into that setter instead of copying arrays raw. The focused regression now locks the raw-source -> canonical-result -> round-trip path, including dropping non-contract fields and normalizing `drop_id` to `drop_entry_id`."
     },
     {
       "id": "PVS_20A",
