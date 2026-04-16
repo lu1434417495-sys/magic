@@ -97,3 +97,7 @@ Added two new one-handed weapon seeds (`watchman_mace`, `scout_dagger`), expande
 ## 2026-04-17T04:02:58+08:00 | PVS_07C | done
 title: 补齐头部护具与新装备元数据校验
 Added `leather_cap` as the first formal head-slot armor seed, surfaced it in the existing town/city shop seed tables, extended equipment and item/schema regressions to cover head-slot metadata/equip/round-trip behavior, and updated the CU-10 read-set in `docs/design/project_context_units.md`.
+
+## 2026-04-17T04:09:14+08:00 | PVS_08A | done
+title: 补齐消耗品 seed 到最小可玩集合
+Added four consumable ItemDef seeds (`bandage_roll`, `travel_ration`, `torch_bundle`, `antidote_herb`), extended the focused shop/warehouse regressions so the new consumables are asserted in formal shop rotation and shared-warehouse schema coverage, and updated the CU-10 read-set in `docs/design/project_context_units.md`.

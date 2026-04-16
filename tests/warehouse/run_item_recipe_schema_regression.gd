@@ -8,6 +8,13 @@ const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content
 const SettlementShopService = preload("res://scripts/systems/settlement_shop_service.gd")
 
 const LEGACY_BRONZE_SWORD_PATH := "res://data/configs/items/bronze_sword.tres"
+const CONSUMABLE_SEED_IDS := [
+	&"healing_herb",
+	&"bandage_roll",
+	&"travel_ration",
+	&"torch_bundle",
+	&"antidote_herb",
+]
 
 var _failures: Array[String] = []
 
@@ -30,8 +37,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_item_schema_defaults_and_accessors()
+	_test_consumable_seed_coverage()
 	_test_shop_pricing_uses_item_accessors()
-	_test_shop_seed_references_formal_equipment_seeds()
+	_test_shop_seed_references_formal_item_seeds()
 	_test_recipe_schema_defaults_and_fields()
 	_test_recipe_registry_and_game_session_cache()
 
@@ -79,6 +87,24 @@ func _test_item_schema_defaults_and_accessors() -> void:
 	var tags_copy := item_def.get_tags()
 	tags_copy[0] = &"mutated"
 	_assert_eq(item_def.tags[0], &"forgeable", "get_tags() 不应暴露底层数组引用。")
+
+
+func _test_consumable_seed_coverage() -> void:
+	var item_registry := ItemContentRegistry.new()
+	var item_defs := item_registry.get_item_defs()
+	_assert_true(item_registry.validate().is_empty(), "ItemContentRegistry 当前不应报告物品校验错误。")
+
+	var resolved_seed_count := 0
+	for item_id in CONSUMABLE_SEED_IDS:
+		var item_def: ItemDef = item_defs.get(item_id) as ItemDef
+		_assert_true(item_def != null, "应存在正式消耗品 seed %s。" % String(item_id))
+		if item_def == null:
+			continue
+		resolved_seed_count += 1
+		_assert_true(item_def.is_stackable, "消耗品 %s 应保持可堆叠。" % String(item_id))
+		_assert_true(not item_def.is_equipment(), "消耗品 %s 不应进入装备实例流。" % String(item_id))
+		_assert_true(item_def.get_effective_max_stack() > 1, "消耗品 %s 应声明大于 1 的堆叠上限。" % String(item_id))
+	_assert_true(resolved_seed_count >= 4, "正式 consumable seed 至少应达到 4 种。")
 
 
 func _test_shop_pricing_uses_item_accessors() -> void:
@@ -142,9 +168,40 @@ func _test_shop_pricing_uses_item_accessors() -> void:
 	_assert_eq(int(custom_sell_entry.get("unit_price", -1)), 80, "商店卖价应读取 ItemDef.sell_price。")
 
 
-func _test_shop_seed_references_formal_equipment_seeds() -> void:
+func _test_shop_seed_references_formal_item_seeds() -> void:
 	var item_defs := ItemContentRegistry.new().get_item_defs()
 	var shop_service := SettlementShopService.new()
+	var basic_supply_window_data := shop_service.build_window_data(
+		"service_basic_supply",
+		{
+			"settlement_id": "seed_basic_supply",
+			"display_name": "Seed Basic Supply",
+		},
+		{"world_step": 0},
+		item_defs,
+		null,
+		999
+	)
+	var basic_supply_entries: Array = basic_supply_window_data.get("buy_entries", [])
+	_assert_true(not _find_entry(basic_supply_entries, "travel_ration").is_empty(), "临时补给应正式引用旅行口粮。")
+
+	var local_trade_window_data := shop_service.build_window_data(
+		"service_local_trade",
+		{
+			"settlement_id": "seed_local_trade",
+			"display_name": "Seed Local Trade",
+		},
+		{"world_step": 0},
+		item_defs,
+		null,
+		999
+	)
+	var local_trade_entries: Array = local_trade_window_data.get("buy_entries", [])
+	_assert_true(not _find_entry(local_trade_entries, "bandage_roll").is_empty(), "镇集交易应正式引用绷带卷。")
+	_assert_true(
+		_shop_rotation_contains_item(shop_service, item_defs, "service_local_trade", "torch_bundle", 24),
+		"镇集交易轮换中应能正式刷出火把束。"
+	)
 	var window_data := shop_service.build_window_data(
 		"service_city_market",
 		{
@@ -161,6 +218,7 @@ func _test_shop_seed_references_formal_equipment_seeds() -> void:
 	_assert_true(not _find_entry(buy_entries, "watchman_mace").is_empty(), "城市市场应正式引用卫兵钉锤。")
 	_assert_true(not _find_entry(buy_entries, "scout_dagger").is_empty(), "城市市场应正式引用斥候匕首。")
 	_assert_true(not _find_entry(buy_entries, "leather_cap").is_empty(), "城市市场应正式引用头部护具皮革护帽。")
+	_assert_true(not _find_entry(buy_entries, "antidote_herb").is_empty(), "城市市场应正式引用解毒草。")
 
 
 func _test_recipe_schema_defaults_and_fields() -> void:
@@ -237,6 +295,30 @@ func _find_entry(entries: Array, item_id: String) -> Dictionary:
 		if String(entry.get("item_id", "")) == item_id:
 			return entry
 	return {}
+
+
+func _shop_rotation_contains_item(
+	shop_service: SettlementShopService,
+	item_defs: Dictionary,
+	interaction_script_id: String,
+	item_id: String,
+	max_world_step: int
+) -> bool:
+	for world_step in range(max_world_step):
+		var window_data := shop_service.build_window_data(
+			interaction_script_id,
+			{
+				"settlement_id": "rotation_probe_%s" % interaction_script_id,
+				"display_name": "Rotation Probe",
+			},
+			{"world_step": world_step},
+			item_defs,
+			null,
+			999
+		)
+		if not _find_entry(window_data.get("buy_entries", []), item_id).is_empty():
+			return true
+	return false
 
 
 func _assert_true(condition: bool, message: String) -> void:

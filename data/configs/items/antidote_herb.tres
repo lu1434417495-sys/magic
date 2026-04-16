@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "antidote_herb"
+display_name = "解毒草"
+description = "经过晾晒处理的草药包，常被拿来应对沼地与毒物带来的突发状况。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 20
+sellable = true
+max_stack = 20
+tags = Array[StringName](["consumable", "medical", "antidote"])

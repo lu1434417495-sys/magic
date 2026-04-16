@@ -425,14 +425,22 @@
     {
       "id": "PVS_08A",
       "title": "补齐消耗品 seed 到最小可玩集合",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "消耗品从 1 类扩到至少 4 类",
         "新增消耗品能进入商店与仓库 schema 回归"
       ],
       "notes": [
         "Owner：CU-10 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:02:59+08:00",
+      "lastRunId": "20260417-040259-PVS_08A",
+      "startedAt": "2026-04-17T04:02:59+08:00",
+      "completedAt": "2026-04-17T04:09:14+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd` and `godot --headless --script tests/warehouse/run_party_warehouse_regression.gd`; both passed.",
+      "lastLearnings": "`SettlementShopService` already referenced the missing consumables, so the true gap was absent `data/configs/items/*.tres` seeds. The minimum durable slice for PVS_08A is data-only seed completion plus CU-19 regression assertions; no shop or warehouse runtime ownership changes were needed."
     },
     {
       "id": "PVS_08B",

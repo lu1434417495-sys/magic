@@ -479,6 +479,10 @@ HeadlessGameTestSession
   - `data/configs/items/leather_jerkin.tres`
   - `data/configs/items/scout_charm.tres`
   - `data/configs/items/healing_herb.tres`
+  - `data/configs/items/bandage_roll.tres`
+  - `data/configs/items/travel_ration.tres`
+  - `data/configs/items/torch_bundle.tres`
+  - `data/configs/items/antidote_herb.tres`
   - `data/configs/items/iron_ore.tres`
 - 真相源：
   - 物品定义与 `item_id -> ItemDef`。
