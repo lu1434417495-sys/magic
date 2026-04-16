@@ -885,14 +885,22 @@
     {
       "id": "PVS_17B",
       "title": "补齐 radius 与 self 范围图形收集器",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`combat_profile` 的 `radius` 与 `self` 都有正式 target collection",
         "ground/unit/self 三类模式的最小契约保持清晰"
       ],
       "notes": [
         "Owner：CU-15 / CU-16。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T06:53:41+08:00",
+      "lastRunId": "20260417-065341-PVS_17B",
+      "startedAt": "2026-04-17T06:53:41+08:00",
+      "completedAt": "2026-04-17T07:00:51+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_game_runtime_battle_selection_regression.gd`, `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd`, and `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`.",
+      "lastLearnings": "`BattleTargetCollectionService` is now the durable owner for battle target collection contracts: `ground` expands combat-profile area shapes, `unit` projects selected target footprints, and `self` projects the caster footprint/source. `docs/design/project_context_units.md` stays valid as-is, and `.ralph/prd.json` was left untouched."
     },
     {
       "id": "PVS_17C",

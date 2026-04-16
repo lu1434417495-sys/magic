@@ -189,3 +189,7 @@ Unified battle status duration handling onto a single owner-turn-end path in bat
 ## 2026-04-17T06:53:41+08:00 | PVS_17A | done
 title: 补齐 line 与 cone 范围图形收集器
 Added `scripts/systems/battle_target_collection_service.gd` as the shared `line`/`cone` collector, routed `BattleRuntimeModule` ground-effect coord building and `GameRuntimeBattleSelection` selected-ground target readback through it, and added focused regression coverage that matches selection coords against runtime preview output for both shapes.
+
+## 2026-04-17T07:00:51+08:00 | PVS_17B | done
+title: 补齐 radius 与 self 范围图形收集器
+Extended `BattleTargetCollectionService` into the shared `ground | unit | self` target collector, so `radius` ground AoE and `self` skills now use formal collection instead of ad hoc fallback. Routed battle runtime preview and selection readback through that owner, and added focused regression coverage for `radius` and `self` alongside the existing line/cone checks.

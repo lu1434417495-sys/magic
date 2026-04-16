@@ -926,26 +926,27 @@ func _validate_unit_skill_targets(active_unit: BattleUnitState, command: BattleC
 		target_unit_ids = _sort_target_unit_ids_for_execution(target_unit_ids)
 
 	var target_units: Array = []
-	var preview_coord_set: Dictionary = {}
 	for target_unit_id in target_unit_ids:
 		var target_unit := _state.units.get(target_unit_id) as BattleUnitState
 		if target_unit == null or not _can_skill_target_unit(active_unit, target_unit, skill_def):
 			result.message = "技能目标超出范围或不满足筛选条件。"
 			return result
 		target_units.append(target_unit)
-		target_unit.refresh_footprint()
-		for occupied_coord in target_unit.occupied_coords:
-			preview_coord_set[occupied_coord] = true
 
 	result.allowed = true
 	result.message = ""
 	result.target_unit_ids = target_unit_ids
 	result.target_units = target_units
-	var preview_coords: Array[Vector2i] = []
-	for coord_variant in preview_coord_set.keys():
-		if coord_variant is Vector2i:
-			preview_coords.append(coord_variant)
-	result.preview_coords = _sort_coords(preview_coords)
+	var collected_target_coords := _target_collection_service.collect_combat_profile_target_coords(
+		_state,
+		_grid_service,
+		active_unit.coord if active_unit != null else Vector2i(-1, -1),
+		skill_def.combat_profile,
+		[],
+		active_unit,
+		target_units
+	)
+	result.preview_coords = _sort_coords(collected_target_coords.get("target_coords", []))
 	return result
 
 
@@ -1320,30 +1321,7 @@ func _build_ground_effect_coords(
 	)
 	if bool(collected_target_coords.get("handled", false)):
 		return _sort_coords(collected_target_coords.get("target_coords", []))
-
-	var area_pattern: StringName = skill_def.combat_profile.area_pattern if skill_def.combat_profile.area_pattern != &"" else &"single"
-	var area_value := maxi(int(skill_def.combat_profile.area_value), 0)
-	var coord_set: Dictionary = {}
-	for target_coord in normalized_target_coords:
-		var area_direction := _resolve_ground_effect_direction(source_coord, target_coord)
-		for effect_coord in _grid_service.get_area_coords(_state, target_coord, area_pattern, area_value, area_direction):
-			coord_set[effect_coord] = true
-	if coord_set.is_empty():
-		for target_coord in normalized_target_coords:
-			if _grid_service.is_inside(_state, target_coord):
-				coord_set[target_coord] = true
-
-	var effect_coords: Array[Vector2i] = []
-	for coord_variant in coord_set.keys():
-		effect_coords.append(coord_variant)
-	return _sort_coords(effect_coords)
-
-
-func _resolve_ground_effect_direction(source_coord: Vector2i, target_coord: Vector2i) -> Vector2i:
-	if source_coord == Vector2i(-1, -1):
-		return Vector2i.ZERO
-	return target_coord - source_coord
-
+	return _sort_coords(normalized_target_coords)
 
 func _collect_ground_unit_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
 	var effect_defs: Array[CombatEffectDef] = []

@@ -917,28 +917,46 @@ func _refresh_selected_unit_target_coords_from_queue() -> void:
 func _collect_selected_battle_skill_target_coords() -> Array[Vector2i]:
 	if not _get_target_unit_ids_state().is_empty():
 		_refresh_selected_unit_target_coords_from_queue()
-	var target_coords := _get_target_coords_state().duplicate()
-	if target_coords.is_empty():
-		return target_coords
 	var active_unit: BattleUnitState = _get_manual_active_unit()
 	var skill_def = _get_selected_battle_skill_def(active_unit)
+	var target_coords := _get_target_coords_state().duplicate()
+	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
+		return target_coords
 	var cast_variant = _get_selected_battle_skill_variant(active_unit)
-	if active_unit == null or skill_def == null or skill_def.combat_profile == null or cast_variant == null:
-		return target_coords
-	if cast_variant.target_mode != &"ground":
-		return target_coords
-	if target_coords.size() < maxi(int(cast_variant.required_coord_count), 1):
-		return target_coords
+	if StringName(skill_def.combat_profile.target_mode) == &"ground":
+		if cast_variant == null or cast_variant.target_mode != &"ground":
+			return target_coords
+		if target_coords.size() < maxi(int(cast_variant.required_coord_count), 1):
+			return target_coords
 	var collected_target_coords := _target_collection_service.collect_combat_profile_target_coords(
 		_get_battle_state(),
 		_get_battle_grid_service(),
 		active_unit.coord,
 		skill_def.combat_profile,
-		target_coords
+		target_coords,
+		active_unit,
+		_collect_selected_target_units(active_unit, skill_def)
 	)
 	if bool(collected_target_coords.get("handled", false)):
 		return _sort_coords(collected_target_coords.get("target_coords", []))
 	return target_coords
+
+
+func _collect_selected_target_units(active_unit: BattleUnitState, skill_def) -> Array:
+	var target_units: Array = []
+	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
+		return target_units
+	for target_unit_id in _get_target_unit_ids_state():
+		var target_unit: BattleUnitState = _get_battle_unit_by_id(target_unit_id)
+		if target_unit != null:
+			target_units.append(target_unit)
+	if not target_units.is_empty():
+		return target_units
+	if _get_selected_battle_skill_target_selection_mode(active_unit) == &"self" \
+		or StringName(skill_def.combat_profile.target_team_filter) == &"self" \
+		or StringName(skill_def.combat_profile.area_pattern) == &"self":
+		target_units.append(active_unit)
+	return target_units
 
 
 func _clear_battle_skill_target_selection() -> void:
