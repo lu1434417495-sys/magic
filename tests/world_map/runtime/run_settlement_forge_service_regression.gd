@@ -5,6 +5,7 @@ const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_
 const GameSessionScript = preload("res://scripts/systems/game_session.gd")
 const PartyWarehouseService = preload("res://scripts/systems/party_warehouse_service.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
+const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
@@ -81,10 +82,8 @@ class MockRuntime:
 		return _item_defs
 
 	func get_recipe_defs() -> Dictionary:
-		return {
-			&"master_reforge_iron_greatsword": load("res://data/configs/recipes/master_reforge_iron_greatsword.tres"),
-			&"forge_smith_iron_greatsword": load("res://data/configs/recipes/forge_smith_iron_greatsword.tres"),
-		}
+		var registry := RecipeContentRegistry.new(_item_defs)
+		return registry.get_recipe_defs()
 
 	func get_active_settlement_id() -> String:
 		return _active_settlement_id
@@ -302,12 +301,14 @@ func _test_settlement_handler_routes_master_reforge() -> void:
 func _test_settlement_handler_routes_generic_forge() -> void:
 	var item_defs := _load_item_defs()
 	var runtime := MockRuntime.new()
-	runtime._party_state = _build_party_state(6)
+	runtime._party_state = _build_party_state(10)
 	runtime._warehouse_service = PartyWarehouseService.new()
 	runtime._warehouse_service.setup(runtime._party_state, item_defs)
-	runtime._warehouse_service.add_item(&"bronze_sword", 1)
-	runtime._warehouse_service.add_item(&"iron_ore", 3)
 	runtime._item_defs = item_defs
+	runtime._warehouse_service.add_item(&"iron_ore", 2)
+	runtime._warehouse_service.add_item(&"hardwood_lumber", 1)
+	runtime._warehouse_service.add_item(&"whetstone", 1)
+	runtime._warehouse_service.add_item(&"forge_coal", 1)
 	runtime._selected_settlement = {
 		"settlement_id": "forge_town",
 	}
@@ -338,23 +339,30 @@ func _test_settlement_handler_routes_generic_forge() -> void:
 	var open_result := handler.command_execute_settlement_action("service:repair_gear")
 	_assert_true(bool(open_result.get("ok", false)), "service:repair_gear 首次触发应成功打开 forge modal。")
 	_assert_eq(runtime._active_modal_id, "forge", "首次点击通用 forge 服务后应切换到 forge modal。")
-	_assert_eq(String(handler.get_forge_window_data().get("action_id", "")), "service:repair_gear", "通用 forge modal 应保留原始 action_id。")
-	_assert_true(String(handler.get_forge_window_data().get("title", "")).find("重铸") == -1, "通用 forge modal 标题不应回退成大师重铸。")
-	_assert_true((handler.get_forge_window_data().get("entries", []) as Array).size() > 0, "通用 forge window data 应暴露可选配方。")
+	var forge_window_data := handler.get_forge_window_data()
+	_assert_eq(String(forge_window_data.get("action_id", "")), "service:repair_gear", "通用 forge modal 应保留原始 action_id。")
+	_assert_true(String(forge_window_data.get("title", "")).find("重铸") == -1, "通用 forge modal 标题不应回退成大师重铸。")
+	var forge_entries: Array = forge_window_data.get("entries", [])
+	_assert_true(forge_entries.size() > 0, "通用 forge window data 应暴露可选配方。")
+	var recipe_ids := _collect_recipe_ids(forge_entries)
+	_assert_true(recipe_ids.has("forge_smith_iron_greatsword"), "通用 forge modal 应继续暴露铁制大剑配方。")
+	_assert_true(recipe_ids.has("forge_militia_axe"), "通用 forge modal 应暴露民兵手斧配方。")
+	_assert_true(recipe_ids.has("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。")
 
 	var command_result := handler.command_execute_settlement_action("service:repair_gear", {
 		"submission_source": "forge",
-		"recipe_id": "forge_smith_iron_greatsword",
+		"recipe_id": "forge_militia_axe",
 	})
 	_assert_true(bool(command_result.get("ok", false)), "forge modal 提交通用配方后应成功执行锻造。")
 	_assert_eq(runtime._active_modal_id, "forge", "执行通用 forge 后应继续停留在 forge modal。")
-	_assert_eq(runtime._warehouse_service.count_item(&"bronze_sword"), 0, "通用 forge 成功后应消耗青铜短剑。")
-	_assert_eq(runtime._warehouse_service.count_item(&"iron_ore"), 0, "通用 forge 成功后应消耗三份铁矿石。")
-	_assert_eq(runtime._warehouse_service.count_item(&"iron_greatsword"), 1, "通用 forge 成功后应真正产出铁制大剑。")
+	_assert_eq(runtime._warehouse_service.count_item(&"iron_ore"), 1, "通用 forge 成功后应按配方扣除铁矿石。")
+	_assert_eq(runtime._warehouse_service.count_item(&"hardwood_lumber"), 0, "通用 forge 成功后应消耗硬木板。")
+	_assert_eq(runtime._warehouse_service.count_item(&"whetstone"), 0, "通用 forge 成功后应消耗磨刃石。")
+	_assert_eq(runtime._warehouse_service.count_item(&"militia_axe"), 1, "通用 forge 成功后应真正产出民兵手斧。")
 	_assert_eq(runtime.persist_calls, 1, "通用 forge 成功后应持久化队伍状态。")
 	_assert_eq(runtime.sync_party_calls, 1, "通用 forge 成功后应同步角色管理侧队伍状态。")
-	_assert_true(runtime._active_settlement_feedback_text.find("铁制大剑") >= 0, "handler 应把通用 forge 反馈写入据点窗口。")
-	_assert_true(runtime._current_status_message.find("铁制大剑") >= 0, "handler 应刷新通用 forge 完成状态文案。")
+	_assert_true(runtime._active_settlement_feedback_text.find("民兵手斧") >= 0, "handler 应把通用 forge 反馈写入据点窗口。")
+	_assert_true(runtime._current_status_message.find("民兵手斧") >= 0, "handler 应刷新通用 forge 完成状态文案。")
 	_assert_eq(runtime.applied_quest_event_batches.size(), 1, "通用 forge 成功后应把默认 quest progress 事件应用到运行时。")
 	_assert_eq(runtime.achievement_events.size(), 1, "通用 forge 成功后应记录据点动作成就事件。")
 	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:repair_gear", "成就事件应记录通用 forge 动作 ID。")
@@ -552,6 +560,19 @@ func _find_service_entry(services: Array, interaction_script_id: String) -> Dict
 		if String(service_data.get("interaction_script_id", "")) == interaction_script_id:
 			return service_data
 	return {}
+
+
+func _collect_recipe_ids(entries: Array) -> Array[String]:
+	var recipe_ids: Array[String] = []
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry_data: Dictionary = entry_variant
+		var recipe_id := String(entry_data.get("recipe_id", ""))
+		if recipe_id.is_empty() or recipe_ids.has(recipe_id):
+			continue
+		recipe_ids.append(recipe_id)
+	return recipe_ids
 
 
 func _assert_true(condition: bool, message: String) -> void:

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RecipeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/recipe_def.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+recipe_id = "forge_militia_axe"
+display_name = "熔炉锻打：民兵手斧"
+description = "在普通熔炉中消耗一份铁矿石、一块硬木板与一块磨刃石，打造一柄民兵手斧。"
+input_item_ids = Array[StringName](["iron_ore", "hardwood_lumber", "whetstone"])
+input_item_quantities = PackedInt32Array(1, 1, 1)
+output_item_id = "militia_axe"
+output_quantity = 1
+required_facility_tags = Array[StringName](["forge"])
+failure_reason = "需要熔炉。"

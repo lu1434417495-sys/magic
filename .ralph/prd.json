@@ -465,14 +465,22 @@
     {
       "id": "PVS_08C",
       "title": "补齐第二批材料 seed 内容",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "材料从至少 3 类扩到至少 6 类",
         "新增材料可被正式配方或掉落表引用"
       ],
       "notes": [
         "Owner：CU-10 / CU-13。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:16:47+08:00",
+      "lastRunId": "20260417-041647-PVS_08C",
+      "startedAt": "2026-04-17T04:16:47+08:00",
+      "completedAt": "2026-04-17T04:23:20+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd`, `godot --headless --script tests/warehouse/run_party_warehouse_regression.gd`, and `godot --headless --script tests/world_map/runtime/run_settlement_forge_service_regression.gd` — all passed.",
+      "lastLearnings": "This story fit entirely in the CU-10 data-driven slice; runtime ownership and `docs/design/project_context_units.md` stayed valid as-is. Durable test improvement: the forge runtime regression now loads recipes through `RecipeContentRegistry` instead of a hardcoded recipe list, so future formal forge recipes surface automatically in coverage."
     },
     {
       "id": "PVS_08D",

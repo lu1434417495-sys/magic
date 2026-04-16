@@ -105,3 +105,7 @@ Added four consumable ItemDef seeds (`bandage_roll`, `travel_ration`, `torch_bun
 ## 2026-04-17T04:16:47+08:00 | PVS_08B | done
 title: 补齐第一批材料 seed 内容
 Added first-batch material seeds `beast_hide`, `hardwood_lumber`, and `linen_cloth`, backfilled `iron_ore` with stable `tags`/`crafting_groups`, enforced in `ItemContentRegistry` that `material` items must declare crafting groups, surfaced the new materials through settlement shop seed data, extended warehouse/schema regressions for material coverage, and updated `docs/design/project_context_units.md` CU-10 read-set entries.
+
+## 2026-04-17T04:23:20+08:00 | PVS_08C | done
+title: 补齐第二批材料 seed 内容
+Added second-batch material seeds `forge_coal` and `whetstone`, added formal forge recipes `forge_militia_axe` and `forge_watchman_mace` that reference the new materials, and updated focused warehouse/recipe/forge regressions to require 6 material categories plus formal recipe exposure/execution.

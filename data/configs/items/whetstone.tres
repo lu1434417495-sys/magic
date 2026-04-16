@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "whetstone"
+display_name = "磨刃石"
+description = "细颗粒打磨石，可用于粗修刃口与金属部件，是工坊整备常见的小型耗材。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 12
+sellable = true
+max_stack = 25
+tags = Array[StringName](["material", "abrasive", "stone"])
+crafting_groups = Array[StringName](["abrasive", "tooling", "weapon"])

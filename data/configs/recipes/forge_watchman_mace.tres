@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RecipeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/recipe_def.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+recipe_id = "forge_watchman_mace"
+display_name = "熔炉锻打：卫兵钉锤"
+description = "在普通熔炉中消耗两份铁矿石与一份锻炉焦煤，打造一柄卫兵钉锤。"
+input_item_ids = Array[StringName](["iron_ore", "forge_coal"])
+input_item_quantities = PackedInt32Array(2, 1)
+output_item_id = "watchman_mace"
+output_quantity = 1
+required_facility_tags = Array[StringName](["forge"])
+failure_reason = "需要熔炉。"

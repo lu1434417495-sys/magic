@@ -35,6 +35,8 @@ const MATERIAL_ITEM_QUANTITIES := {
 	&"beast_hide": 4,
 	&"hardwood_lumber": 5,
 	&"linen_cloth": 7,
+	&"forge_coal": 3,
+	&"whetstone": 2,
 }
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
 var _failures: Array[String] = []
@@ -449,7 +451,7 @@ func _test_material_seed_warehouse_schema() -> void:
 		_assert_eq(String(entry.get("item_category", "")), "misc", "材料 %s 的展示分类应保持 misc。" % String(item_id))
 		_assert_true(bool(entry.get("is_stackable", false)), "材料 %s 的展示条目应保持可堆叠。" % String(item_id))
 
-	_assert_true(material_categories.size() >= 3, "共享仓库链路中正式材料种类应至少覆盖 3 类。")
+	_assert_true(material_categories.size() >= 6, "共享仓库链路中正式材料种类应至少覆盖 6 类。")
 
 
 func _test_save_round_trip() -> void:

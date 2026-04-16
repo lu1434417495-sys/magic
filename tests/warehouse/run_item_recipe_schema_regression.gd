@@ -36,6 +36,36 @@ const MATERIAL_SEED_EXPECTATIONS := {
 		"crafting_groups": [&"cloth", &"tailoring", &"armor"],
 		"category_tag": &"cloth",
 	},
+	&"forge_coal": {
+		"tags": [&"material", &"fuel", &"coke"],
+		"crafting_groups": [&"fuel", &"smithing", &"metal"],
+		"category_tag": &"fuel",
+	},
+	&"whetstone": {
+		"tags": [&"material", &"abrasive", &"stone"],
+		"crafting_groups": [&"abrasive", &"tooling", &"weapon"],
+		"category_tag": &"abrasive",
+	},
+}
+const FORMAL_FORGE_RECIPE_EXPECTATIONS := {
+	&"forge_smith_iron_greatsword": {
+		"input_item_ids": [&"bronze_sword", &"iron_ore"],
+		"input_item_quantities": [1, 3],
+		"output_item_id": &"iron_greatsword",
+		"required_facility_tags": [&"forge"],
+	},
+	&"forge_militia_axe": {
+		"input_item_ids": [&"iron_ore", &"hardwood_lumber", &"whetstone"],
+		"input_item_quantities": [1, 1, 1],
+		"output_item_id": &"militia_axe",
+		"required_facility_tags": [&"forge"],
+	},
+	&"forge_watchman_mace": {
+		"input_item_ids": [&"iron_ore", &"forge_coal"],
+		"input_item_quantities": [2, 1],
+		"output_item_id": &"watchman_mace",
+		"required_facility_tags": [&"forge"],
+	},
 }
 
 var _failures: Array[String] = []
@@ -152,8 +182,8 @@ func _test_material_seed_coverage() -> void:
 			"材料 %s 应保留稳定 crafting_groups 元数据。" % String(item_id)
 		)
 		material_categories[expectation.get("category_tag", &"")] = true
-	_assert_true(MATERIAL_SEED_EXPECTATIONS.size() >= 4, "首批材料 seed 至少应达到 4 种。")
-	_assert_true(material_categories.size() >= 3, "正式材料种类应从 1 类扩到至少 3 类。")
+	_assert_true(MATERIAL_SEED_EXPECTATIONS.size() >= 6, "正式材料 seed 至少应达到 6 种。")
+	_assert_true(material_categories.size() >= 6, "正式材料种类应至少达到 6 类。")
 
 
 func _test_shop_pricing_uses_item_accessors() -> void:
@@ -314,28 +344,54 @@ func _test_recipe_registry_and_game_session_cache() -> void:
 		_assert_eq(recipe_def.output_item_id, &"iron_greatsword", "重铸配方应指向铁制大剑产出。")
 		_assert_eq(recipe_def.required_facility_tags, [&"master_reforge"], "重铸配方应保留大师工坊标签。")
 
-	var forge_recipe = recipe_defs.get(&"forge_smith_iron_greatsword") as RecipeDef
-	_assert_true(forge_recipe != null, "RecipeContentRegistry 应扫描到首批通用 forge 配方。")
-	if forge_recipe != null:
-		_assert_eq(forge_recipe.input_item_ids, [&"bronze_sword", &"iron_ore"], "通用 forge 配方应保留输入物品引用。")
-		_assert_eq(int(forge_recipe.input_item_quantities.size()), 2, "通用 forge 配方应保留输入数量列表。")
-		_assert_eq(int(forge_recipe.input_item_quantities[1]), 3, "通用 forge 配方应保留铁矿石数量。")
-		_assert_eq(forge_recipe.output_item_id, &"iron_greatsword", "通用 forge 配方应保留产出物品引用。")
-		_assert_eq(forge_recipe.required_facility_tags, [&"forge"], "通用 forge 配方应保留 forge 设施标签约束。")
+	for recipe_id in FORMAL_FORGE_RECIPE_EXPECTATIONS.keys():
+		var expectation: Dictionary = FORMAL_FORGE_RECIPE_EXPECTATIONS.get(recipe_id, {})
+		var forge_recipe = recipe_defs.get(recipe_id) as RecipeDef
+		_assert_true(forge_recipe != null, "RecipeContentRegistry 应扫描到正式 forge 配方 %s。" % String(recipe_id))
+		if forge_recipe == null:
+			continue
+		_assert_eq(
+			forge_recipe.input_item_ids,
+			expectation.get("input_item_ids", []),
+			"forge 配方 %s 应保留输入物品引用。" % String(recipe_id)
+		)
+		_assert_eq(
+			PackedInt32Array(expectation.get("input_item_quantities", [])),
+			forge_recipe.input_item_quantities,
+			"forge 配方 %s 应保留输入数量列表。" % String(recipe_id)
+		)
+		_assert_eq(
+			forge_recipe.output_item_id,
+			expectation.get("output_item_id", &""),
+			"forge 配方 %s 应保留产出物品引用。" % String(recipe_id)
+		)
+		_assert_eq(
+			forge_recipe.required_facility_tags,
+			expectation.get("required_facility_tags", []),
+			"forge 配方 %s 应保留 forge 设施标签约束。" % String(recipe_id)
+		)
 	_assert_true(recipe_registry.validate().is_empty(), "RecipeContentRegistry 当前不应报告校验错误。")
 
 	var game_session = GameSessionScript.new()
 	var session_recipe_defs := game_session.get_recipe_defs()
 	_assert_true(session_recipe_defs.has(&"master_reforge_iron_greatsword"), "GameSession 应缓存 recipe_defs。")
-	_assert_true(session_recipe_defs.has(&"forge_smith_iron_greatsword"), "GameSession 应缓存通用 forge 配方。")
+	for recipe_id in FORMAL_FORGE_RECIPE_EXPECTATIONS.keys():
+		_assert_true(session_recipe_defs.has(recipe_id), "GameSession 应缓存正式 forge 配方 %s。" % String(recipe_id))
 	var session_recipe = session_recipe_defs.get(&"master_reforge_iron_greatsword") as RecipeDef
 	_assert_true(session_recipe != null, "GameSession 缓存中的配方应仍为 RecipeDef。")
 	if session_recipe != null:
 		_assert_eq(session_recipe.output_item_id, &"iron_greatsword", "GameSession 缓存应保留重铸产出。")
-	var session_forge_recipe = session_recipe_defs.get(&"forge_smith_iron_greatsword") as RecipeDef
-	_assert_true(session_forge_recipe != null, "GameSession 缓存中的通用 forge 配方应仍为 RecipeDef。")
-	if session_forge_recipe != null:
-		_assert_eq(session_forge_recipe.required_facility_tags, [&"forge"], "GameSession 缓存应保留 forge 设施标签约束。")
+	for recipe_id in FORMAL_FORGE_RECIPE_EXPECTATIONS.keys():
+		var expectation: Dictionary = FORMAL_FORGE_RECIPE_EXPECTATIONS.get(recipe_id, {})
+		var session_forge_recipe = session_recipe_defs.get(recipe_id) as RecipeDef
+		_assert_true(session_forge_recipe != null, "GameSession 缓存中的 forge 配方 %s 应仍为 RecipeDef。" % String(recipe_id))
+		if session_forge_recipe == null:
+			continue
+		_assert_eq(
+			session_forge_recipe.required_facility_tags,
+			expectation.get("required_facility_tags", []),
+			"GameSession 缓存应保留 forge 配方 %s 的设施标签约束。" % String(recipe_id)
+		)
 	game_session.free()
 
 

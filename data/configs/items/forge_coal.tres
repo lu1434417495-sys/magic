@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "forge_coal"
+display_name = "锻炉焦煤"
+description = "压制成块的焦煤燃料，常用于维持锻炉高温，也是基础锻造配方里的稳定耗材。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 7
+sellable = true
+max_stack = 40
+tags = Array[StringName](["material", "fuel", "coke"])
+crafting_groups = Array[StringName](["fuel", "smithing", "metal"])
