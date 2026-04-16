@@ -21,3 +21,7 @@ Codex returned blocked: No code changed. I rebuilt context from `docs/design/pro
 ## 2026-04-17T01:31:19+08:00 | PVS_01B | done
 title: 让通用 forge modal 进入 snapshot 与 text snapshot
 Updated `scripts/systems/game_runtime_snapshot_builder.gd` so forge snapshot data can fall back to shared shop-style context when that context is tagged `panel_kind/submission_source = forge`, and so forge-tagged data no longer leaks into the shop snapshot. Added a runtime regression in `tests/runtime/run_game_runtime_snapshot_builder_regression.gd` that covers a generic forge modal/text snapshot entry instead of only `master_reforge`.
+
+## 2026-04-17T01:34:45+08:00 | PVS_01C | done
+title: 新增首批通用 forge 配方资源与设施标签约束
+Added `data/configs/recipes/forge_smith_iron_greatsword.tres` as the first non-`master_reforge` formal forge recipe, tightened `scripts/player/warehouse/recipe_content_registry.gd` to require non-empty unique `required_facility_tags`, and extended `tests/warehouse/run_item_recipe_schema_regression.gd` so the new recipe’s item refs and `forge` facility tag are validated through both `RecipeContentRegistry` and `GameSession` cache paths.

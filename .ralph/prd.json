@@ -45,14 +45,22 @@
     {
       "id": "PVS_01C",
       "title": "新增首批通用 forge 配方资源与设施标签约束",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "至少新增 1 条非 `master_reforge` 的正式 `RecipeDef` 资源",
         "`run_item_recipe_schema_regression` 可校验新配方的 item 引用和 facility tag"
       ],
       "notes": [
         "Owner：CU-10 / CU-13 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T01:31:23+08:00",
+      "lastRunId": "20260417-013123-PVS_01C",
+      "startedAt": "2026-04-17T01:31:23+08:00",
+      "completedAt": "2026-04-17T01:34:45+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd` and `godot --headless --script tests/world_map/runtime/run_settlement_forge_service_regression.gd`; both passed.",
+      "lastLearnings": "Generic forge seed content can be added without changing runtime ownership: `RecipeDef` resources remain owned by CU-10 data/registry, `GameSession` just caches validated defs, and `docs/design/project_context_units.md` stays valid as-is. Durable rule added: formal recipes must now declare at least one non-empty, non-duplicate facility tag so later forge routing can trust the schema."
     },
     {
       "id": "PVS_01D",

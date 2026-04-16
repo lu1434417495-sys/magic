@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RecipeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/recipe_def.gd" id="1_recipe"]
+
+[resource]
+script = ExtResource("1_recipe")
+recipe_id = "forge_smith_iron_greatsword"
+display_name = "熔炉锻打：铁制大剑"
+description = "在普通熔炉中消耗一柄青铜短剑与三份铁矿石，锻打一柄铁制大剑。"
+input_item_ids = Array[StringName](["bronze_sword", "iron_ore"])
+input_item_quantities = PackedInt32Array(1, 3)
+output_item_id = "iron_greatsword"
+output_quantity = 1
+required_facility_tags = Array[StringName](["forge"])
+failure_reason = "需要熔炉。"

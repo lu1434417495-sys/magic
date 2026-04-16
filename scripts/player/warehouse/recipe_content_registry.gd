@@ -100,6 +100,26 @@ func _register_recipe_resource(resource_path: String) -> void:
 	if int(recipe_def.output_quantity) <= 0:
 		_validation_errors.append("Recipe %s must have output_quantity >= 1." % String(recipe_def.recipe_id))
 		return
+	if recipe_def.required_facility_tags.is_empty():
+		_validation_errors.append(
+			"Recipe %s must declare at least one required_facility_tag." % String(recipe_def.recipe_id)
+		)
+		return
+
+	var facility_tag_set: Dictionary = {}
+	for raw_facility_tag in recipe_def.required_facility_tags:
+		var facility_tag := ProgressionDataUtils.to_string_name(raw_facility_tag)
+		if facility_tag == &"":
+			_validation_errors.append(
+				"Recipe %s declares an empty required_facility_tag." % String(recipe_def.recipe_id)
+			)
+			return
+		if facility_tag_set.has(facility_tag):
+			_validation_errors.append(
+				"Recipe %s declares duplicate required_facility_tag %s." % [String(recipe_def.recipe_id), String(facility_tag)]
+			)
+			return
+		facility_tag_set[facility_tag] = true
 
 	for input_index in range(recipe_def.input_item_ids.size()):
 		var input_item_id := ProgressionDataUtils.to_string_name(recipe_def.input_item_ids[input_index])

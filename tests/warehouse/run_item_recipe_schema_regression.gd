@@ -181,15 +181,29 @@ func _test_recipe_registry_and_game_session_cache() -> void:
 	if recipe_def != null:
 		_assert_eq(recipe_def.output_item_id, &"iron_greatsword", "重铸配方应指向铁制大剑产出。")
 		_assert_eq(recipe_def.required_facility_tags, [&"master_reforge"], "重铸配方应保留大师工坊标签。")
+
+	var forge_recipe = recipe_defs.get(&"forge_smith_iron_greatsword") as RecipeDef
+	_assert_true(forge_recipe != null, "RecipeContentRegistry 应扫描到首批通用 forge 配方。")
+	if forge_recipe != null:
+		_assert_eq(forge_recipe.input_item_ids, [&"bronze_sword", &"iron_ore"], "通用 forge 配方应保留输入物品引用。")
+		_assert_eq(int(forge_recipe.input_item_quantities.size()), 2, "通用 forge 配方应保留输入数量列表。")
+		_assert_eq(int(forge_recipe.input_item_quantities[1]), 3, "通用 forge 配方应保留铁矿石数量。")
+		_assert_eq(forge_recipe.output_item_id, &"iron_greatsword", "通用 forge 配方应保留产出物品引用。")
+		_assert_eq(forge_recipe.required_facility_tags, [&"forge"], "通用 forge 配方应保留 forge 设施标签约束。")
 	_assert_true(recipe_registry.validate().is_empty(), "RecipeContentRegistry 当前不应报告校验错误。")
 
 	var game_session = GameSessionScript.new()
 	var session_recipe_defs := game_session.get_recipe_defs()
 	_assert_true(session_recipe_defs.has(&"master_reforge_iron_greatsword"), "GameSession 应缓存 recipe_defs。")
+	_assert_true(session_recipe_defs.has(&"forge_smith_iron_greatsword"), "GameSession 应缓存通用 forge 配方。")
 	var session_recipe = session_recipe_defs.get(&"master_reforge_iron_greatsword") as RecipeDef
 	_assert_true(session_recipe != null, "GameSession 缓存中的配方应仍为 RecipeDef。")
 	if session_recipe != null:
 		_assert_eq(session_recipe.output_item_id, &"iron_greatsword", "GameSession 缓存应保留重铸产出。")
+	var session_forge_recipe = session_recipe_defs.get(&"forge_smith_iron_greatsword") as RecipeDef
+	_assert_true(session_forge_recipe != null, "GameSession 缓存中的通用 forge 配方应仍为 RecipeDef。")
+	if session_forge_recipe != null:
+		_assert_eq(session_forge_recipe.required_facility_tags, [&"forge"], "GameSession 缓存应保留 forge 设施标签约束。")
 	game_session.free()
 
 
