@@ -21,6 +21,15 @@ func _run() -> void:
 	await runner.initialize()
 
 	await _run_command(runner, "game new test")
+	runner.get_session().get_runtime_facade().get_party_state().set_gold(380)
+	await _run_command(runner, "world open")
+	await _run_command(runner, "settlement action service:research interaction_script_id=service_research facility_name=大图书馆 npc_name=大图书官 service_type=研究")
+	_assert_research_reward_queued_while_settlement_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _run_command(runner, "close")
+	_assert_research_reward_presented_after_modal_close(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _drain_visible_rewards(runner)
+
+	await _run_command(runner, "game new test")
 	_inject_submit_item_contract(runner.get_session().get_game_session())
 	_assert_log_snapshot_available(runner)
 	_assert_new_game_random_book_skill_grant(runner)
@@ -208,6 +217,37 @@ func _assert_settlement_reward_queued_while_warehouse_open(snapshot: Dictionary)
 	_assert_true(not bool(reward_snapshot.get("visible", false)), "共享仓库打开时奖励弹窗应等待，不应抢占当前模态。")
 	_assert_eq(int(achievement_summary.get("unlocked_count", 0)), 1, "据点动作应推进当前角色的据点成就。")
 	_assert_eq(String(achievement_summary.get("recent_unlocked_name", "")), "行路借火", "最近解锁成就应记录据点成就。")
+
+
+func _assert_research_reward_queued_while_settlement_open(snapshot: Dictionary, text_snapshot: String) -> void:
+	var settlement_snapshot: Dictionary = snapshot.get("settlement", {})
+	var party_snapshot: Dictionary = snapshot.get("party", {})
+	var reward_snapshot: Dictionary = snapshot.get("reward", {})
+	var reward_data: Dictionary = reward_snapshot.get("reward", {})
+	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "settlement", "research 完成后应先保留 settlement modal。")
+	_assert_true(bool(settlement_snapshot.get("visible", false)), "research 完成后据点窗口应继续保持打开。")
+	_assert_true(int(party_snapshot.get("pending_reward_count", 0)) >= 1, "research 完成后应先把奖励加入待处理队列。")
+	_assert_true(not bool(reward_snapshot.get("visible", false)), "settlement modal 打开时 research 奖励不应提前弹窗。")
+	_assert_eq(String(reward_data.get("source_label", "")), "大图书官·研究", "research 奖励快照应保留正式来源标签。")
+	_assert_eq(String(reward_data.get("member_id", "")), "player_sword_01", "research 奖励快照应保留当前成员。")
+	_assert_true(String(reward_data.get("summary_text", "")).find("野外手册") >= 0, "research 奖励快照应保留成果摘要。")
+	_assert_true(String(settlement_snapshot.get("feedback_text", "")).find("野外手册") >= 0, "据点反馈应包含 research 成果名称。")
+	_assert_true(text_snapshot.contains("[REWARD]"), "文本快照应包含 reward 分段。")
+	_assert_true(text_snapshot.contains("[REWARD]\nvisible=false"), "文本快照应标记 research 奖励尚未弹出。")
+	_assert_true(text_snapshot.contains("source_label=大图书官·研究"), "文本快照应渲染 research 奖励来源。")
+	_assert_true(text_snapshot.contains("entry=knowledge_unlock | field_manual"), "文本快照应渲染 research 奖励条目。")
+
+
+func _assert_research_reward_presented_after_modal_close(snapshot: Dictionary, text_snapshot: String) -> void:
+	var reward_snapshot: Dictionary = snapshot.get("reward", {})
+	var reward_data: Dictionary = reward_snapshot.get("reward", {})
+	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "reward", "关闭 settlement 后 research 奖励应进入正式 reward modal。")
+	_assert_true(bool(reward_snapshot.get("visible", false)), "关闭 settlement 后 research 奖励应立即显示。")
+	_assert_true(int(snapshot.get("party", {}).get("pending_reward_count", 0)) >= 1, "research 奖励展示时待处理数量应至少保留 research 奖励本身。")
+	_assert_eq(String(reward_data.get("source_label", "")), "大图书官·研究", "research 奖励弹窗应保留正式来源标签。")
+	_assert_true(String(reward_data.get("summary_text", "")).find("野外手册") >= 0, "research 奖励弹窗应保留成果摘要。")
+	_assert_true(text_snapshot.contains("[REWARD]\nvisible=true"), "文本快照应标记 research 奖励已经弹出。")
+	_assert_true(text_snapshot.contains("entry=knowledge_unlock | field_manual"), "文本快照应继续渲染 research 奖励条目。")
 
 
 func _assert_generic_forge_modal_open(snapshot: Dictionary, text_snapshot: String) -> void:
@@ -676,6 +716,17 @@ func _run_command_expect_fail(runner, command_text: String):
 	print(result.render())
 	_assert_true(not result.ok, "命令本应失败：%s" % command_text)
 	return result
+
+
+func _drain_visible_rewards(runner, max_confirms: int = 6) -> void:
+	var guard := 0
+	while guard < max_confirms:
+		var snapshot: Dictionary = runner.get_session().build_snapshot()
+		if not bool(snapshot.get("reward", {}).get("visible", false)):
+			return
+		await _run_command(runner, "reward confirm")
+		guard += 1
+	_assert_true(false, "research 奖励链路超出保护确认次数。")
 
 
 func _assert_true(condition: bool, message: String) -> void:

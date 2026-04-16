@@ -14,6 +14,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_reward_queue_confirmation()
+	_test_research_reward_dictionary_queue_and_presentation()
 	_test_reward_confirmation_promotion_follow_up()
 	_test_world_and_battle_promotion_routes()
 	_test_close_active_modal_paths()
@@ -44,6 +45,46 @@ func _test_reward_queue_confirmation() -> void:
 	_assert_eq(String(runtime._active_reward.reward_id), "reward_b", "确认第一条奖励后应自动展示下一条。")
 	_assert_eq(String(runtime._active_modal_id), "reward", "确认奖励后应继续停留在 reward modal。")
 	_assert_eq(runtime._party_state.pending_character_rewards.size(), 2, "已确认奖励应从队列移除。")
+
+
+func _test_research_reward_dictionary_queue_and_presentation() -> void:
+	var context := _create_context()
+	var runtime = context.get("runtime")
+	var handler = context.get("handler")
+
+	runtime._party_state = PARTY_STATE_SCRIPT.new()
+	runtime._character_management = _FakeCharacterManagement.new(runtime._party_state, false)
+	runtime._active_modal_id = "settlement"
+	handler.enqueue_pending_character_rewards([_build_research_reward_data()])
+	_assert_eq(runtime._party_state.pending_character_rewards.size(), 1, "research 生成的字典奖励应能正式入队。")
+
+	var queued_reward: PendingCharacterReward = runtime._party_state.get_next_pending_character_reward()
+	_assert_true(queued_reward != null, "research 奖励入队后应能读取到正式 PendingCharacterReward。")
+	if queued_reward != null:
+		_assert_eq(String(queued_reward.source_type), "npc_teach", "research 奖励应保留正式 source_type。")
+		_assert_eq(String(queued_reward.source_id), "research_field_manual", "research 奖励应保留具体 source_id。")
+		_assert_eq(String(queued_reward.source_label), "大图书官·研究", "research 奖励应保留正式 source_label。")
+		_assert_eq(String(queued_reward.summary_text), "大图书官 为 Hero 整理出新的研究成果：野外手册。", "research 奖励应保留摘要文本。")
+		_assert_eq(String(queued_reward.entries[0].entry_type), "knowledge_unlock", "research 奖励条目应保留知识解锁类型。")
+		_assert_eq(String(queued_reward.entries[0].target_id), "field_manual", "research 奖励条目应指向野外手册。")
+
+	_assert_true(not handler.present_pending_reward_if_ready(), "settlement modal 打开时 research 奖励不应抢占当前窗口。")
+	_assert_true(runtime._active_reward == null, "reward flow 被 settlement 阻塞时不应提前设置 active reward。")
+	_assert_eq(String(runtime._active_modal_id), "settlement", "reward flow 被 settlement 阻塞时 modal 应保持 settlement。")
+
+	runtime._active_modal_id = ""
+	_assert_true(handler.present_pending_reward_if_ready(), "research 奖励在无阻塞 modal 时应进入正式 reward flow。")
+	_assert_eq(String(runtime._active_modal_id), "reward", "research 奖励呈现时 modal 应切换为 reward。")
+	_assert_true(runtime._active_reward != null, "research 奖励呈现时应设置 active reward。")
+	if runtime._active_reward != null:
+		_assert_eq(String(runtime._active_reward.source_id), "research_field_manual", "active reward 应沿用 research source_id。")
+		_assert_eq(String(runtime._active_reward.entries[0].entry_type), "knowledge_unlock", "active reward 应沿用 research 奖励条目类型。")
+
+	var confirm_result: Dictionary = handler.command_confirm_pending_reward()
+	_assert_true(bool(confirm_result.get("ok", false)), "research active reward 应能通过正式确认命令结算。")
+	_assert_true(runtime._active_reward == null, "research 奖励确认后 active reward 应清空。")
+	_assert_eq(runtime._party_state.pending_character_rewards.size(), 0, "research 奖励确认后待处理队列应清空。")
+	_assert_eq(String(runtime._active_modal_id), "", "research 奖励确认完成后不应残留 reward modal。")
 
 
 func _test_reward_confirmation_promotion_follow_up() -> void:
@@ -179,6 +220,27 @@ func _build_reward(reward_id: String) -> PendingCharacterReward:
 	return reward
 
 
+func _build_research_reward_data() -> Dictionary:
+	return {
+		"reward_id": "hero_research_field_manual_reward",
+		"member_id": "hero",
+		"member_name": "Hero",
+		"source_type": "npc_teach",
+		"source_id": "research_field_manual",
+		"source_label": "大图书官·研究",
+		"summary_text": "大图书官 为 Hero 整理出新的研究成果：野外手册。",
+		"entries": [
+			{
+				"entry_type": "knowledge_unlock",
+				"target_id": "field_manual",
+				"target_label": "野外手册",
+				"amount": 1,
+				"reason_text": "研究员整理出一份可长期翻阅的野外手册抄本。",
+			},
+		],
+	}
+
+
 class _FakePromotionDelta extends RefCounted:
 	var needs_promotion_modal := false
 	var mastery_changes: Array = []
@@ -206,8 +268,9 @@ class _FakeCharacterManagement extends RefCounted:
 
 	func enqueue_pending_character_rewards(reward_variants: Array) -> void:
 		for reward_variant in reward_variants:
-			if reward_variant is PendingCharacterReward and not reward_variant.is_empty():
-				_party_state.enqueue_pending_character_reward(reward_variant)
+			var reward = PendingCharacterReward.from_variant(reward_variant)
+			if reward != null and not reward.is_empty():
+				_party_state.enqueue_pending_character_reward(reward)
 
 
 	func promote_profession(member_id: StringName, profession_id: StringName, selection: Dictionary):

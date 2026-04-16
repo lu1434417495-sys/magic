@@ -81,3 +81,7 @@ Added a formal `service_research -> service:research` settlement path by introdu
 ## 2026-04-17T03:36:45+08:00 | PVS_06B | done
 title: 实现 research 奖励构造器
 Implemented the research reward constructor in `SettlementResearchService`: it now selects the next available research outcome for the target member, builds canonical `pending_character_rewards` for knowledge (`field_manual`) or skill (`warrior_guard_break`) unlocks, preserves formal source fields (`source_type/source_id/source_label`), includes member-facing summary text, and disables the service when the member has no remaining research content. Extended settlement-handler and progression regressions to cover both knowledge and skill research rewards plus downstream achievement chaining. `docs/design/project_context_units.md` stayed valid as-is.
+
+## 2026-04-17T03:48:49+08:00 | PVS_06C | done
+title: 为 research 服务补 reward flow 与 text regression
+Added research-specific coverage in `tests/runtime/run_game_runtime_reward_flow_regression.gd` for research-shaped pending rewards entering, blocking on settlement modal, presenting in reward flow, and confirming. Extended `tests/text_runtime/run_text_command_regression.gd` with a focused headless research pass that verifies settlement-state timing, structured snapshot fields, and text snapshot rendering before/after the reward modal; `docs/design/project_context_units.md` stays valid as-is.

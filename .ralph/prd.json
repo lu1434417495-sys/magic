@@ -345,14 +345,22 @@
     {
       "id": "PVS_06C",
       "title": "为 research 服务补 reward flow 与 text regression",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "research 服务可在据点、snapshot、text snapshot 中验证奖励呈现时机",
         "reward flow regression 覆盖 research 生成的 pending reward"
       ],
       "notes": [
         "Owner：CU-06 / CU-21 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:36:46+08:00",
+      "lastRunId": "20260417-033646-PVS_06C",
+      "startedAt": "2026-04-17T03:36:46+08:00",
+      "completedAt": "2026-04-17T03:48:49+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/runtime/run_game_runtime_reward_flow_regression.gd` PASS; `godot --headless --script tests/text_runtime/run_text_command_regression.gd` PASS.",
+      "lastLearnings": "The default `test` start settlement does not surface `service_research`, so headless coverage should invoke research with explicit settlement payload fields (`interaction_script_id=service_research`, facility/NPC labels) when the goal is reward-flow timing rather than world-location routing. A successful research action can chain multiple pending rewards (the research reward itself plus achievement follow-ups), so text regressions should assert the first visible reward is the research reward and then drain the modal chain instead of assuming a single queued item."
     },
     {
       "id": "PVS_07A",
