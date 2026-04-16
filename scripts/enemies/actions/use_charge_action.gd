@@ -9,7 +9,7 @@ func decide(context):
 	var skill_def = _get_skill_def(context, skill_id)
 	if skill_def == null or skill_def.combat_profile == null or skill_def.combat_profile.target_mode != &"ground":
 		return null
-	if context.unit_state.current_ap < skill_def.combat_profile.ap_cost:
+	if not _get_skill_cast_block_reason(context, skill_def).is_empty():
 		return null
 	var targets = _sort_target_units(context, &"enemy", target_selector)
 	if targets.is_empty():

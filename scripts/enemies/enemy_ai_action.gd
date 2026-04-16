@@ -47,6 +47,25 @@ func _get_skill_def(context, skill_id: StringName) -> SkillDef:
 	return context.skill_defs.get(skill_id) as SkillDef
 
 
+func _get_skill_cast_block_reason(context, skill_def: SkillDef) -> String:
+	if context == null or context.unit_state == null or skill_def == null or skill_def.combat_profile == null:
+		return "技能或目标无效。"
+	var unit_state: BattleUnitState = context.unit_state
+	var combat_profile = skill_def.combat_profile
+	var cooldown := int(unit_state.cooldowns.get(skill_def.skill_id, 0))
+	if cooldown > 0:
+		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
+	if unit_state.current_ap < int(combat_profile.ap_cost):
+		return "行动点不足，无法施放该技能。"
+	if unit_state.current_mp < int(combat_profile.mp_cost):
+		return "法力不足，无法施放该技能。"
+	if unit_state.current_stamina < int(combat_profile.stamina_cost):
+		return "体力不足，无法施放该技能。"
+	if unit_state.current_aura < int(combat_profile.aura_cost):
+		return "斗气不足，无法施放该技能。"
+	return ""
+
+
 func _preview_allowed(context, command) -> bool:
 	if context == null or command == null:
 		return false

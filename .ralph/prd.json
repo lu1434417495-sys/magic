@@ -765,14 +765,22 @@
     {
       "id": "PVS_14C",
       "title": "为 stamina/cooldown 补选择层与回归约束",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "selection gating、UI 提示和 AI 判定都能识别 stamina/cooldown 不可施放",
         "text/headless 回归覆盖至少 1 条资源不足和 1 条 cooldown 未结束路径"
       ],
       "notes": [
         "Owner：CU-15 / CU-18 / CU-21。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:58:16+08:00",
+      "lastRunId": "20260417-055816-PVS_14C",
+      "startedAt": "2026-04-17T05:58:16+08:00",
+      "completedAt": "2026-04-17T06:10:16+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_game_runtime_battle_selection_regression.gd`, `godot --headless --script tests/battle_runtime/run_battle_ui_regression.gd`, `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd`, `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd`, and `godot --headless --script tests/text_runtime/run_text_command_regression.gd`.",
+      "lastLearnings": "For this story the durable ownership split is: `GameRuntimeBattleSelection` for selection refusal/status, `BattleHudAdapter`/`BattleMapPanel` for blocked-slot UI surfacing, enemy skill action classes for AI castability prefiltering, and `tests/text_runtime/run_text_command_regression.gd` for headless/text command coverage. No save/schema or context-unit boundary change was required."
     },
     {
       "id": "PVS_15A",

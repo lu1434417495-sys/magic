@@ -37,6 +37,7 @@ func _initialize() -> void:
 func _run() -> void:
 	await _test_multi_unit_hud_copy_and_selection_state()
 	await _test_repeat_attack_hud_preview_matches_runtime_resolver()
+	await _test_skill_slot_surfaces_stamina_and_cooldown_blockers()
 	await _test_multi_unit_board_highlights_confirm_state()
 	await _test_multi_unit_board_confirm_halo_follows_active_unit()
 	await _test_multi_unit_board_highlights_continue_state()
@@ -166,6 +167,51 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "HUD 副标题应显示 resolver 命中摘要。")
 	_assert_true(String(snapshot.get("command_text", "")).contains(hit_preview_text), "HUD 指令摘要应显示 resolver 命中摘要。")
+
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
+	var skill_def := _get_skill_def(&"archer_long_draw")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "UI blocker 回归前置：archer_long_draw 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+	var adapter := BattleHudAdapter.new()
+	var state := _build_state()
+	var active_unit := state.units.get(state.active_unit_id) as BattleUnitState
+	if active_unit == null:
+		_assert_true(false, "UI blocker 回归前置：测试状态应存在当前行动单位。")
+		game_session.queue_free()
+		await process_frame
+		return
+	active_unit.known_active_skill_ids = [skill_def.skill_id]
+	active_unit.known_skill_level_map[skill_def.skill_id] = 1
+	active_unit.current_ap = 2
+	active_unit.current_stamina = 1
+	active_unit.attribute_snapshot.set_value(&"stamina_max", 2)
+
+	var stamina_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var stamina_slots: Array = stamina_snapshot.get("skill_slots", [])
+	var stamina_slot: Dictionary = stamina_slots[0] if not stamina_slots.is_empty() and stamina_slots[0] is Dictionary else {}
+	_assert_true(bool(stamina_slot.get("is_disabled", false)), "体力不足时 HUD skill slot 应保持禁用。")
+	_assert_eq(String(stamina_slot.get("footer_text", "")), "ST不足", "体力不足时 HUD skill slot footer 应显示 ST不足。")
+	_assert_eq(String(stamina_slot.get("disabled_reason", "")), "体力不足", "体力不足时 HUD skill slot 应暴露明确的禁用原因。")
+
+	active_unit.current_stamina = 4
+	active_unit.attribute_snapshot.set_value(&"stamina_max", 4)
+	active_unit.cooldowns[skill_def.skill_id] = 2
+	var cooldown_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var cooldown_slots: Array = cooldown_snapshot.get("skill_slots", [])
+	var cooldown_slot: Dictionary = cooldown_slots[0] if not cooldown_slots.is_empty() and cooldown_slots[0] is Dictionary else {}
+	_assert_true(bool(cooldown_slot.get("is_disabled", false)), "冷却未结束时 HUD skill slot 应保持禁用。")
+	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 2", "冷却未结束时 HUD skill slot footer 应显示剩余 CD。")
+	_assert_true(String(cooldown_slot.get("disabled_reason", "")).contains("冷却"), "冷却未结束时 HUD skill slot 应暴露冷却禁用原因。")
 
 	game_session.queue_free()
 	await process_frame
@@ -454,6 +500,11 @@ func _add_unit_to_runtime_state(runtime: BattleRuntimeModule, state: BattleState
 func _get_repeat_attack_skill_def() -> SkillDef:
 	var registry := ProgressionContentRegistry.new()
 	return registry.get_skill_defs().get(&"saint_blade_combo") as SkillDef
+
+
+func _get_skill_def(skill_id: StringName) -> SkillDef:
+	var registry := ProgressionContentRegistry.new()
+	return registry.get_skill_defs().get(skill_id) as SkillDef
 
 
 func _instantiate_board() -> BattleBoard2D:

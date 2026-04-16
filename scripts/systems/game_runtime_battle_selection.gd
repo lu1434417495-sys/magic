@@ -63,24 +63,30 @@ func get_selected_battle_skill_required_coord_count() -> int:
 	return int(cast_variant.required_coord_count)
 
 
-func select_battle_skill_slot(index: int) -> void:
+func select_battle_skill_slot(index: int) -> Dictionary:
 	var active_unit = _get_manual_active_unit()
 	if active_unit == null:
 		_update_status("当前没有可手动操作的单位。")
-		return
+		return _selection_error("当前没有可手动操作的单位。")
 	if index < 0 or index >= active_unit.known_active_skill_ids.size():
 		_update_status("该技能栏当前没有技能。")
-		return
+		return _selection_error("该技能栏当前没有技能。")
 
 	var skill_id: StringName = active_unit.known_active_skill_ids[index]
 	var skill_def = _get_skill_def(skill_id)
 	if skill_def == null or skill_def.combat_profile == null:
 		_update_status("该技能当前不可用于战斗。")
-		return
+		return _selection_error("该技能当前不可用于战斗。")
 
 	if _get_selected_skill_id() == skill_id:
 		clear_battle_skill_selection(true)
-		return
+		return _selection_ok()
+
+	var block_reason := _get_skill_cast_block_reason(active_unit, skill_def)
+	if not block_reason.is_empty():
+		_refresh_battle_selection_state()
+		_update_status(block_reason)
+		return _selection_error(block_reason)
 
 	_set_selected_skill_id(skill_id)
 	_set_selected_skill_variant_id(&"")
@@ -90,6 +96,7 @@ func select_battle_skill_slot(index: int) -> void:
 		_set_selected_skill_variant_id(unlocked_variants[0].variant_id)
 	_refresh_battle_selection_state()
 	_update_status(_build_battle_skill_selection_status(skill_def, active_unit))
+	return _selection_ok()
 
 
 func cycle_selected_battle_skill_variant(step: int) -> void:
@@ -1038,3 +1045,16 @@ func _clear_target_unit_ids_state() -> void:
 func _set_battle_selected_coord(coord: Vector2i) -> void:
 	if _runtime != null and _runtime.has_method("set_runtime_battle_selected_coord"):
 		_runtime.set_runtime_battle_selected_coord(coord)
+
+
+func _selection_ok() -> Dictionary:
+	return {
+		"ok": true,
+	}
+
+
+func _selection_error(message: String) -> Dictionary:
+	return {
+		"ok": false,
+		"message": message,
+	}

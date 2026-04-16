@@ -713,7 +713,7 @@ func _create_skill_slot(slot: Dictionary) -> Control:
 	panel.custom_minimum_size = Vector2(92, 84)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.add_theme_stylebox_override("panel", _build_skill_slot_style(slot))
-	panel.tooltip_text = String(slot.get("display_name", ""))
+	panel.tooltip_text = _build_skill_slot_tooltip(slot)
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 8)
@@ -782,6 +782,7 @@ func _create_skill_slot(slot: Dictionary) -> Control:
 	click_target.disabled = bool(slot.get("is_empty", false)) or bool(slot.get("is_disabled", false))
 	click_target.text = ""
 	click_target.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+	click_target.tooltip_text = panel.tooltip_text
 	click_target.pressed.connect(_on_skill_slot_pressed.bind(int(slot.get("index", -1))))
 	panel.add_child(click_target)
 
@@ -798,6 +799,20 @@ func _update_button_states(selected_skill_id: StringName) -> void:
 	var has_skill := selected_skill_id != &""
 	for button in [prev_quick_button, next_quick_button, clear_quick_button, prev_variant_button, next_variant_button, clear_skill_button]:
 		button.disabled = not has_skill
+
+
+func _build_skill_slot_tooltip(slot: Dictionary) -> String:
+	if bool(slot.get("is_empty", false)):
+		return ""
+	var lines: Array[String] = [String(slot.get("display_name", ""))]
+	var disabled_reason := String(slot.get("disabled_reason", ""))
+	if not disabled_reason.is_empty():
+		lines.append("不可用：%s" % disabled_reason)
+	else:
+		var footer_text := String(slot.get("footer_text", ""))
+		if not footer_text.is_empty() and footer_text != "READY":
+			lines.append("信息：%s" % footer_text)
+	return "\n".join(PackedStringArray(lines))
 
 
 func _clear_container(container: Node) -> void:

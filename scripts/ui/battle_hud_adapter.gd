@@ -367,29 +367,21 @@ func _build_skill_slots(active_unit: BattleUnitState, selected_skill_id: StringN
 			var display_name := _get_skill_display_name(skill_def, skill_id)
 			var icon_key := _get_skill_icon_key(skill_def, skill_id)
 			var accent_color := _build_skill_color(icon_key, display_name)
-			var combat_profile = skill_def.combat_profile if skill_def != null else null
-			var ap_cost := int(combat_profile.ap_cost) if combat_profile != null else 0
-			var mp_cost := int(combat_profile.mp_cost) if combat_profile != null else 0
-			var stamina_cost := int(combat_profile.stamina_cost) if combat_profile != null else 0
-			var aura_cost := int(combat_profile.aura_cost) if combat_profile != null else 0
-			var cooldown := int(active_unit.cooldowns.get(skill_id, 0))
+			var slot_state := _build_skill_slot_state(active_unit, skill_def, skill_id)
 			skill_slots.append({
 				"index": index,
 				"is_empty": false,
 				"display_name": display_name,
 				"short_name": _build_skill_short_name(display_name),
 				"hotkey": str(index + 1) if index < 9 else "",
-				"footer_text": _build_skill_footer(ap_cost, mp_cost, stamina_cost, aura_cost, cooldown),
+				"footer_text": String(slot_state.get("footer_text", "")),
 				"is_selected": skill_id == selected_skill_id,
-				"is_disabled": cooldown > 0 \
-					or active_unit.current_ap < ap_cost \
-					or active_unit.current_mp < mp_cost \
-					or active_unit.current_stamina < stamina_cost \
-					or active_unit.current_aura < aura_cost,
+				"is_disabled": bool(slot_state.get("is_disabled", false)),
 				"accent_color": accent_color,
 				"accent_dark": accent_color.darkened(0.48),
 				"edge_color": accent_color.lightened(0.16),
-				"cooldown": cooldown,
+				"cooldown": int(slot_state.get("cooldown", 0)),
+				"disabled_reason": String(slot_state.get("disabled_reason", "")),
 			})
 	for index in range(skill_slots.size(), SKILL_GRID_SIZE):
 		skill_slots.append({
@@ -397,6 +389,57 @@ func _build_skill_slots(active_unit: BattleUnitState, selected_skill_id: StringN
 			"is_empty": true,
 		})
 	return skill_slots
+
+
+func _build_skill_slot_state(active_unit: BattleUnitState, skill_def, skill_id: StringName) -> Dictionary:
+	var combat_profile = skill_def.combat_profile if skill_def != null else null
+	var ap_cost := int(combat_profile.ap_cost) if combat_profile != null else 0
+	var mp_cost := int(combat_profile.mp_cost) if combat_profile != null else 0
+	var stamina_cost := int(combat_profile.stamina_cost) if combat_profile != null else 0
+	var aura_cost := int(combat_profile.aura_cost) if combat_profile != null else 0
+	var cooldown := int(active_unit.cooldowns.get(skill_id, 0)) if active_unit != null else 0
+	if cooldown > 0:
+		return {
+			"footer_text": "CD %d" % cooldown,
+			"is_disabled": true,
+			"cooldown": cooldown,
+			"disabled_reason": "冷却中（%d）" % cooldown,
+		}
+	if active_unit != null:
+		if active_unit.current_ap < ap_cost:
+			return {
+				"footer_text": "AP不足",
+				"is_disabled": true,
+				"cooldown": cooldown,
+				"disabled_reason": "行动点不足",
+			}
+		if active_unit.current_mp < mp_cost:
+			return {
+				"footer_text": "MP不足",
+				"is_disabled": true,
+				"cooldown": cooldown,
+				"disabled_reason": "法力不足",
+			}
+		if active_unit.current_stamina < stamina_cost:
+			return {
+				"footer_text": "ST不足",
+				"is_disabled": true,
+				"cooldown": cooldown,
+				"disabled_reason": "体力不足",
+			}
+		if active_unit.current_aura < aura_cost:
+			return {
+				"footer_text": "AU不足",
+				"is_disabled": true,
+				"cooldown": cooldown,
+				"disabled_reason": "斗气不足",
+			}
+	return {
+		"footer_text": _build_skill_footer(ap_cost, mp_cost, stamina_cost, aura_cost, cooldown),
+		"is_disabled": false,
+		"cooldown": cooldown,
+		"disabled_reason": "",
+	}
 
 
 func _build_skill_footer(ap_cost: int, mp_cost: int, stamina_cost: int, aura_cost: int, cooldown: int) -> String:

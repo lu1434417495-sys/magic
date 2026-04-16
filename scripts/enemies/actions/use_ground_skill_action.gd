@@ -14,7 +14,7 @@ func decide(context):
 			continue
 		if skill_def.combat_profile.target_mode != &"ground":
 			continue
-		if context.unit_state.current_ap < skill_def.combat_profile.ap_cost:
+		if not _get_skill_cast_block_reason(context, skill_def).is_empty():
 			continue
 		for cast_variant in _get_ground_variants(context, skill_def):
 			if cast_variant == null or _is_charge_variant(cast_variant):

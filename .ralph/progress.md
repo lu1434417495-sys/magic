@@ -165,3 +165,7 @@ Exposed battle-unit `current_stamina` and `stamina_max` in the headless battle s
 ## 2026-04-17T05:58:16+08:00 | PVS_14B | done
 title: 实现 cooldown_tu 的正式递减路径
 Implemented the formal `cooldown_tu` decrement path in `BattleRuntimeModule` by anchoring each unit to `BattleUnitState.last_turn_tu`, seeding mid-turn anchors on command entry, and reducing cooldowns from elapsed TU with a zero-TU turn-switch fallback. Added focused smoke and facade regressions to cover cooldown write, TU-driven decrement, zero-TU queued turn switches, and HUD cooldown refresh. `docs/design/project_context_units.md` stays valid as-is.
+
+## 2026-04-17T06:10:16+08:00 | PVS_14C | done
+title: 为 stamina/cooldown 补选择层与回归约束
+Selection now rejects stamina/cooldown-blocked skills without mutating battle selection, HUD skill slots surface explicit disabled reasons (`ST不足`, `CD n`, tooltip reason), AI skill actions prefilter blocked skills before previewing, and focused battle/UI/text regressions now cover stamina-insufficient and cooldown-active paths. `.ralph/prd.json` was left untouched; `docs/design/project_context_units.md` stays valid as-is.

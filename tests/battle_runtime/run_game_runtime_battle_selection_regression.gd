@@ -20,7 +20,8 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_selection_sidecar_tracks_multi_unit_targets()
 	_test_selection_sidecar_executes_multistep_reachable_movement()
-	_test_selection_sidecar_hides_targets_for_blocked_skill()
+	_test_selection_sidecar_hides_targets_for_stamina_blocked_skill()
+	_test_selection_sidecar_hides_targets_for_cooldown_blocked_skill()
 	_test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready()
 
 	if _failures.is_empty():
@@ -140,17 +141,16 @@ func _test_selection_sidecar_executes_multistep_reachable_movement() -> void:
 	_cleanup_test_session(game_session)
 
 
-func _test_selection_sidecar_hides_targets_for_blocked_skill() -> void:
+func _test_selection_sidecar_hides_targets_for_stamina_blocked_skill() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
 
-	var skill_def = game_session.get_skill_defs().get(&"mage_arcane_missile")
-	_assert_true(skill_def != null and skill_def.combat_profile != null, "不可施放高亮回归前置：mage_arcane_missile 定义应存在。")
+	var skill_def = game_session.get_skill_defs().get(&"archer_long_draw")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "耐力阻断回归前置：archer_long_draw 定义应存在。")
 	if skill_def == null or skill_def.combat_profile == null:
 		_cleanup_test_session(game_session)
 		return
-	skill_def.combat_profile.mp_cost = 3
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
@@ -163,10 +163,12 @@ func _test_selection_sidecar_hides_targets_for_blocked_skill() -> void:
 		"资源不足施法者",
 		&"player",
 		Vector2i(0, 0),
-		[&"mage_arcane_missile"],
+		[&"archer_long_draw"],
 		2,
 		0
 	)
+	caster.current_stamina = 1
+	caster.attribute_snapshot.set_value(&"stamina_max", 2)
 	var enemy_a: BattleUnitState = _build_manual_unit(&"blocked_enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
 	var enemy_b: BattleUnitState = _build_manual_unit(&"blocked_enemy_b", "敌人B", &"enemy", Vector2i(3, 0), [], 2, 0)
 	_add_unit_to_state(facade, state, caster, false)
@@ -177,14 +179,66 @@ func _test_selection_sidecar_hides_targets_for_blocked_skill() -> void:
 	_apply_battle_state(facade, state)
 
 	selection.select_battle_skill_slot(0)
+	_assert_eq(String(facade.get_selected_battle_skill_id()), "", "耐力不足时不应把技能写入选中状态。")
 	_assert_eq(
 		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()),
 		[],
-		"当前技能不可施放时，不应继续高亮任何合法目标。"
+		"耐力不足时，不应继续高亮任何合法目标。"
 	)
 	_assert_true(
-		String(facade.get_status_text()).contains("法力不足"),
-		"选择不可施放技能时，状态文案应直接说明阻断原因。"
+		String(facade.get_status_text()).contains("体力不足"),
+		"耐力不足时，状态文案应直接说明阻断原因。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_selection_sidecar_hides_targets_for_cooldown_blocked_skill() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var skill_def = game_session.get_skill_defs().get(&"archer_long_draw")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "冷却阻断回归前置：archer_long_draw 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		_cleanup_test_session(game_session)
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
+	selection.setup(facade)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"cooldown_skill_user",
+		"冷却施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"archer_long_draw"],
+		2,
+		0
+	)
+	caster.current_stamina = 12
+	caster.attribute_snapshot.set_value(&"stamina_max", 12)
+	caster.cooldowns[&"archer_long_draw"] = 2
+	var enemy_a: BattleUnitState = _build_manual_unit(&"cooldown_enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy_a, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	selection.select_battle_skill_slot(0)
+	_assert_eq(String(facade.get_selected_battle_skill_id()), "", "冷却未结束时不应把技能写入选中状态。")
+	_assert_eq(
+		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()),
+		[],
+		"冷却未结束时，不应继续高亮任何合法目标。"
+	)
+	_assert_true(
+		String(facade.get_status_text()).contains("冷却"),
+		"冷却未结束时，状态文案应直接说明阻断原因。"
 	)
 
 	_cleanup_test_session(game_session)

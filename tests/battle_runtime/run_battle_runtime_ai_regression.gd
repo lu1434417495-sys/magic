@@ -30,6 +30,8 @@ func _run() -> void:
 	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
 	_test_ai_ground_skill_generates_legal_command()
 	_test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster()
+	_test_ranged_suppressor_skips_stamina_blocked_suppressive_fire()
+	_test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire()
 	_test_healer_controller_uses_control_when_battle_is_stable()
 	_test_frontline_bulwark_guards_when_low_hp()
 	_test_ai_support_state_heals_low_hp_ally()
@@ -299,6 +301,72 @@ func _test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster() -> 
 	var preview = runtime.preview_command(decision.command)
 	_assert_true(preview != null and preview.allowed, "远程压制命令必须通过 preview_command。")
 	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "远程压制命令应至少覆盖 2 个敌对目标。")
+
+
+func _test_ranged_suppressor_skips_stamina_blocked_suppressive_fire() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var harrier = _build_ai_unit(
+		&"mist_harrier_stamina",
+		"雾沼猎压者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_suppressor",
+		&"pressure",
+		[&"archer_suppressive_fire", &"archer_pinning_shot"],
+		26,
+		2
+	)
+	harrier.current_stamina = 1
+	var player_a = _build_manual_unit(&"player_a", "玩家A", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	var player_b = _build_manual_unit(&"player_b", "玩家B", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, harrier, true)
+	_add_unit_to_state(runtime, state, player_a, false)
+	_add_unit_to_state(runtime, state, player_b, false)
+	var ai_context = _build_ai_context(runtime, harrier)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.command != null, "体力不足时 ranged_suppressor 仍应生成可执行的替代动作。")
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"archer_pinning_shot",
+		"体力不足时 ranged_suppressor 不应继续选择 archer_suppressive_fire。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "体力阻断后的 AI 替代命令仍必须通过 preview_command。")
+
+
+func _test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var harrier = _build_ai_unit(
+		&"mist_harrier_cooldown",
+		"雾沼猎压者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_suppressor",
+		&"pressure",
+		[&"archer_suppressive_fire", &"archer_pinning_shot"],
+		26,
+		2
+	)
+	harrier.cooldowns[&"archer_suppressive_fire"] = 2
+	var player_a = _build_manual_unit(&"player_a", "玩家A", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	var player_b = _build_manual_unit(&"player_b", "玩家B", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, harrier, true)
+	_add_unit_to_state(runtime, state, player_a, false)
+	_add_unit_to_state(runtime, state, player_b, false)
+	var ai_context = _build_ai_context(runtime, harrier)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.command != null, "冷却未结束时 ranged_suppressor 仍应生成可执行的替代动作。")
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"archer_pinning_shot",
+		"冷却未结束时 ranged_suppressor 不应继续选择 archer_suppressive_fire。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "冷却阻断后的 AI 替代命令仍必须通过 preview_command。")
 
 
 func _test_healer_controller_uses_control_when_battle_is_stable() -> void:
@@ -588,3 +656,8 @@ func _add_unit_to_state(runtime, state, unit, is_enemy: bool) -> void:
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
 		_failures.append(message)
+
+
+func _assert_eq(actual, expected, message: String) -> void:
+	if actual != expected:
+		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

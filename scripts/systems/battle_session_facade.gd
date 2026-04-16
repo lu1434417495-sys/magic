@@ -145,7 +145,9 @@ func command_battle_select_skill(slot_index: int) -> Dictionary:
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return _runtime_unavailable_error()
-	battle_selection.select_battle_skill_slot(slot_index)
+	var select_result: Dictionary = battle_selection.select_battle_skill_slot(slot_index)
+	if not bool(select_result.get("ok", false)):
+		return _command_error(String(select_result.get("message", "")))
 	return _command_ok("", "overlay")
 
 

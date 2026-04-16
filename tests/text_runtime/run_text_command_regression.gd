@@ -179,7 +179,8 @@ func _exercise_battle_flow(runner) -> void:
 	_assert_true(bool(battle_snapshot.get("start_confirm_visible", false)), "进入战斗后应先弹出开始战斗确认。")
 	await _run_command(runner, "battle confirm")
 	_assert_battle_command_log_contains_post_state(runner.get_session().build_snapshot(), "battle.confirm_start")
-	await _run_command(runner, "battle tick 1.0")
+	await _advance_to_manual_battle_turn(runner)
+	await _assert_battle_skill_selection_blockers_in_text_runtime(runner)
 	await _run_command(runner, "battle wait")
 	var units: Array = runner.get_session().build_snapshot().get("battle", {}).get("units", [])
 	if not units.is_empty():
@@ -191,6 +192,71 @@ func _exercise_battle_flow(runner) -> void:
 				int(coord.get("y", 0)),
 			])
 			await _run_command(runner, "close")
+
+
+func _advance_to_manual_battle_turn(runner, max_ticks: int = 64) -> void:
+	for _index in range(max_ticks):
+		var battle_snapshot: Dictionary = runner.get_session().build_snapshot().get("battle", {})
+		if not bool(battle_snapshot.get("active", false)):
+			break
+		var active_unit_id := String(battle_snapshot.get("active_unit_id", ""))
+		var active_unit := _find_unit(battle_snapshot.get("units", []), active_unit_id)
+		if String(active_unit.get("control_mode", "")) == "manual":
+			return
+		await _run_command(runner, "battle tick 1.0")
+	_assert_true(false, "文本 battle blocker 回归未能进入手动单位回合。")
+
+
+func _assert_battle_skill_selection_blockers_in_text_runtime(runner) -> void:
+	_prime_active_manual_skill_blocker(runner, 1, 0)
+	var stamina_result = await _run_command_expect_fail(runner, "battle skill 1")
+	_assert_true(stamina_result.message.contains("体力不足"), "文本 battle skill 选择在耐力不足时应返回明确错误。")
+	_assert_eq(String(stamina_result.snapshot.get("battle", {}).get("selected_skill_id", "")), "", "耐力不足时不应写入 selected_skill_id。")
+	var stamina_hud: Dictionary = stamina_result.snapshot.get("battle", {}).get("hud", {})
+	var stamina_slots: Array = stamina_hud.get("skill_slots", [])
+	var stamina_slot: Dictionary = stamina_slots[0] if not stamina_slots.is_empty() and stamina_slots[0] is Dictionary else {}
+	_assert_eq(String(stamina_slot.get("footer_text", "")), "ST不足", "耐力不足时 headless HUD skill slot footer 应显示 ST不足。")
+	_assert_eq(String(stamina_slot.get("disabled_reason", "")), "体力不足", "耐力不足时 headless HUD skill slot 应暴露体力不足原因。")
+	_assert_true(stamina_result.snapshot_text.contains("体力不足"), "耐力不足时文本快照应保留阻断文案。")
+
+	_prime_active_manual_skill_blocker(runner, 12, 2)
+	var cooldown_result = await _run_command_expect_fail(runner, "battle skill 1")
+	_assert_true(cooldown_result.message.contains("冷却"), "文本 battle skill 选择在冷却未结束时应返回明确错误。")
+	_assert_eq(String(cooldown_result.snapshot.get("battle", {}).get("selected_skill_id", "")), "", "冷却未结束时不应写入 selected_skill_id。")
+	var cooldown_hud: Dictionary = cooldown_result.snapshot.get("battle", {}).get("hud", {})
+	var cooldown_slots: Array = cooldown_hud.get("skill_slots", [])
+	var cooldown_slot: Dictionary = cooldown_slots[0] if not cooldown_slots.is_empty() and cooldown_slots[0] is Dictionary else {}
+	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 2", "冷却未结束时 headless HUD skill slot footer 应显示剩余 CD。")
+	_assert_true(String(cooldown_slot.get("disabled_reason", "")).contains("冷却"), "冷却未结束时 headless HUD skill slot 应暴露冷却原因。")
+	_assert_true(cooldown_result.snapshot_text.contains("冷却"), "冷却未结束时文本快照应保留阻断文案。")
+
+
+func _prime_active_manual_skill_blocker(runner, current_stamina: int, cooldown: int) -> void:
+	var facade = runner.get_session().get_runtime_facade()
+	_assert_true(facade != null, "文本 battle blocker 回归前置：runtime facade 应存在。")
+	if facade == null:
+		return
+	var battle_state = facade.get_battle_state()
+	_assert_true(battle_state != null and not battle_state.is_empty(), "文本 battle blocker 回归前置：battle state 应存在。")
+	if battle_state == null or battle_state.is_empty():
+		return
+	var active_unit = battle_state.units.get(battle_state.active_unit_id)
+	_assert_true(active_unit != null, "文本 battle blocker 回归前置：当前行动单位应存在。")
+	if active_unit == null:
+		return
+	active_unit.known_active_skill_ids = ProgressionDataUtils.to_string_name_array(["archer_long_draw"])
+	active_unit.known_skill_level_map.clear()
+	active_unit.known_skill_level_map[&"archer_long_draw"] = 1
+	active_unit.current_ap = 2
+	active_unit.current_stamina = current_stamina
+	active_unit.cooldowns.clear()
+	if cooldown > 0:
+		active_unit.cooldowns[&"archer_long_draw"] = cooldown
+	if active_unit.attribute_snapshot != null:
+		active_unit.attribute_snapshot.set_value(&"action_points", 2)
+		active_unit.attribute_snapshot.set_value(&"stamina_max", maxi(current_stamina, 2))
+	facade.command_battle_clear_skill()
+	facade.refresh_battle_selection_state()
 
 
 func _exercise_generic_forge_flow(runner) -> void:

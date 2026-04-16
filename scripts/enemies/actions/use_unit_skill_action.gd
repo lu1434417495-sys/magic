@@ -12,7 +12,7 @@ func decide(context):
 			continue
 		if skill_def.combat_profile.target_mode != &"unit":
 			continue
-		if context.unit_state.current_ap < skill_def.combat_profile.ap_cost:
+		if not _get_skill_cast_block_reason(context, skill_def).is_empty():
 			continue
 		for target_unit in _sort_target_units(context, skill_def.combat_profile.target_team_filter, target_selector):
 			var command = _build_unit_skill_command(context, skill_id, target_unit)
