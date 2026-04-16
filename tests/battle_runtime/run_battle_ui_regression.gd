@@ -130,7 +130,18 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
 	_assert_true(preview != null and not preview.hit_preview.is_empty(), "repeat_attack 预览应暴露共享的命中摘要。")
 	_assert_true(hit_preview_text.begins_with("预计命中率 "), "repeat_attack 预览摘要应使用统一的 resolver 文案前缀。")
+	_assert_true(hit_preview_text.contains("需 3+"), "repeat_attack 预览摘要应暴露首段 required roll。")
 	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 3, "repeat_attack 预览应默认展示 3 段命中率。")
+	_assert_eq(
+		preview.hit_preview.get("stage_required_rolls", []),
+		[3, 5, 7],
+		"repeat_attack 预览应按 d20 公式稳定暴露每段 required roll。"
+	)
+	_assert_eq(
+		preview.hit_preview.get("stage_preview_texts", []),
+		["90%（需 3+）", "80%（需 5+）", "70%（需 7+）"],
+		"repeat_attack 预览应按统一 resolver 文案输出阶段摘要。"
+	)
 
 	var adapter := BattleHudAdapter.new()
 	var snapshot := adapter.build_snapshot(

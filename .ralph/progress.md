@@ -149,3 +149,7 @@ Added `BattleHitResolver` as the single hit-logic owner, routed `BattleRuntimeMo
 ## 2026-04-17T05:30:19+08:00 | PVS_12B | done
 title: 让 preview、HUD 与 runtime 共用 BattleHitResolver
 BattleHitResolver now builds the shared repeat-attack hit preview summary (`summary_text` + staged hit rates), `BattlePreview` exposes that resolver output, and `BattleHudAdapter`/battle panel/snapshot plumbing consume the same data instead of formatting their own hit semantics. Added battle UI regression coverage that compares HUD output against runtime preview for `saint_blade_combo`.
+
+## 2026-04-17T05:38:59+08:00 | PVS_13A | done
+title: 把命中公式切到 BAB + 负 AC + d20
+Switched `BattleHitResolver` to deterministic BAB + descending AC + d20 repeat-attack checks, moved preview/log wording onto the resolver payload so battle log and preview read the same required-roll result, and updated the focused warrior/UI regressions. `docs/design/project_context_units.md` stays valid as-is.

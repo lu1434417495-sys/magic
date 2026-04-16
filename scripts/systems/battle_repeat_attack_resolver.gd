@@ -60,14 +60,15 @@ func apply_repeat_attack_skill_result(
 
 		var hit_result := _resolve_repeat_attack_stage_hit_result(active_unit, target_unit, skill_def, repeat_attack_effect, stage_index)
 		var stage_hit_rate: int = int(hit_result.get("hit_rate_percent", 0))
+		var stage_resolution_text := String(hit_result.get("resolution_text", "%d%%" % stage_hit_rate))
 		executed = true
 		if not bool(hit_result.get("success", false)):
-			batch.log_lines.append("%s 的 %s 第 %d 段未命中 %s，当前命中率 %d%%，AU 消耗 %d。" % [
+			batch.log_lines.append("%s 的 %s 第 %d 段未命中 %s，%s，AU 消耗 %d。" % [
 				active_unit.display_name,
 				skill_def.display_name,
 				stage_index + 1,
 				target_unit.display_name,
-				stage_hit_rate,
+				stage_resolution_text,
 				stage_aura_cost,
 			])
 			if _should_stop_repeat_attack_on_miss(repeat_attack_effect):
@@ -86,7 +87,7 @@ func apply_repeat_attack_skill_result(
 		total_damage += damage
 		total_healing += healing
 		if damage > 0:
-			batch.log_lines.append("%s 的 %s 第 %d 段命中 %s，倍率 x%s，造成 %d 伤害，AU 消耗 %d，命中率 %d%%。" % [
+			batch.log_lines.append("%s 的 %s 第 %d 段命中 %s，倍率 x%s，造成 %d 伤害，AU 消耗 %d，%s。" % [
 				active_unit.display_name,
 				skill_def.display_name,
 				stage_index + 1,
@@ -94,7 +95,7 @@ func apply_repeat_attack_skill_result(
 				_format_runtime_multiplier(stage_damage_multiplier),
 				damage,
 				stage_aura_cost,
-				stage_hit_rate,
+				stage_resolution_text,
 			])
 		if healing > 0:
 			batch.log_lines.append("%s 的 %s 第 %d 段为 %s 恢复 %d 点生命。" % [

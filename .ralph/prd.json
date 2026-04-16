@@ -685,14 +685,22 @@
     {
       "id": "PVS_13A",
       "title": "把命中公式切到 BAB + 负 AC + d20",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`BattleHitResolver` 使用 BAB + 负 AC + d20 正式结算",
         "battle log 与 preview 读取同一套新公式结果"
       ],
       "notes": [
         "以 `PVS_12A` 为前置。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T05:30:20+08:00",
+      "lastRunId": "20260417-053020-PVS_13A",
+      "startedAt": "2026-04-17T05:30:20+08:00",
+      "completedAt": "2026-04-17T05:38:59+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_warrior_advanced_skill_regression.gd`, `godot --headless --script tests/battle_runtime/run_battle_ui_regression.gd`, and `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`.",
+      "lastLearnings": "The legacy percent fields map cleanly into the new d20 formula with `BAB = round(hit_rate / 5) - 10`, `AC = 10 - round(evasion / 5)`, threshold `21`; repeat-attack tests now need staged seed search because stage 1 also consumes a d20 roll under natural-1/natural-20 rules."
     },
     {
       "id": "PVS_13B",

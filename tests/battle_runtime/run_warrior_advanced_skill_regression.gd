@@ -163,6 +163,14 @@ func _test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful
 	var runtime := _build_runtime()
 	var state := _build_state(Vector2i(5, 3))
 	state.timeline = BattleTimelineState.new()
+	var skill_def := _get_skill_def(&"saint_blade_combo")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "圣剑连斩成功回归需要有效技能定义。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+	var repeat_effect := _get_effect_def(skill_def.combat_profile.effect_defs, &"repeat_attack_until_fail")
+	_assert_true(repeat_effect != null, "圣剑连斩成功回归需要 repeat_attack_until_fail。")
+	if repeat_effect == null:
+		return
 	var warrior := _build_unit(&"saint_blade_user", Vector2i(1, 1), 2)
 	warrior.current_aura = 3
 	warrior.attribute_snapshot.set_value(&"hit_rate", 100)
@@ -178,6 +186,20 @@ func _test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful
 	state.enemy_unit_ids = [enemy.unit_id]
 	state.active_unit_id = warrior.unit_id
 	runtime._state = state
+	var success_seed := _find_repeat_attack_seed_for_stage_outcomes(
+		runtime,
+		state,
+		warrior,
+		enemy,
+		skill_def,
+		repeat_effect,
+		[true, true]
+	)
+	_assert_true(success_seed >= 0, "应能为圣剑连斩找到稳定的前两段命中 seed。")
+	if success_seed < 0:
+		return
+	state.seed = success_seed
+	state.attack_roll_nonce = 0
 
 	var hp_before := enemy.current_hp
 	var command := _build_unit_skill_command(warrior.unit_id, &"saint_blade_combo", enemy)
@@ -197,6 +219,14 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 	var runtime := _build_runtime()
 	var state := _build_state(Vector2i(5, 3))
 	state.timeline = BattleTimelineState.new()
+	var skill_def := _get_skill_def(&"saint_blade_combo")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "圣剑连斩未命中回归需要有效技能定义。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+	var repeat_effect := _get_effect_def(skill_def.combat_profile.effect_defs, &"repeat_attack_until_fail")
+	_assert_true(repeat_effect != null, "圣剑连斩未命中回归需要 repeat_attack_until_fail。")
+	if repeat_effect == null:
+		return
 	var warrior := _build_unit(&"saint_blade_miss_user", Vector2i(1, 1), 2)
 	warrior.current_aura = 3
 	warrior.attribute_snapshot.set_value(&"hit_rate", 100)
@@ -212,8 +242,16 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 	state.enemy_unit_ids = [enemy.unit_id]
 	state.active_unit_id = warrior.unit_id
 	runtime._state = state
-	var forced_miss_seed := _find_seed_for_hit_roll_outcome(runtime, state, 90, false)
-	_assert_true(forced_miss_seed >= 0, "应能为 90% 命中率找到稳定 miss 的 battle seed。")
+	var forced_miss_seed := _find_repeat_attack_seed_for_stage_outcomes(
+		runtime,
+		state,
+		warrior,
+		enemy,
+		skill_def,
+		repeat_effect,
+		[true, false]
+	)
+	_assert_true(forced_miss_seed >= 0, "应能为圣剑连斩找到首段命中、第二段 miss 的 battle seed。")
 	if forced_miss_seed < 0:
 		return
 	state.seed = forced_miss_seed
@@ -221,6 +259,14 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 
 	var hp_before := enemy.current_hp
 	var command := _build_unit_skill_command(warrior.unit_id, &"saint_blade_combo", enemy)
+	var preview := runtime.preview_command(command)
+	var stage_preview_texts := preview.hit_preview.get("stage_preview_texts", []) as Array
+	_assert_eq(stage_preview_texts.size(), 3, "圣剑连斩预览应暴露三段 shared resolver 文案。")
+	_assert_eq(
+		preview.hit_preview.get("stage_required_rolls", []),
+		[2, 3, 5],
+		"命中预览应把 100 命中/0 闪避夹具换算为 d20 required roll。"
+	)
 	var batch := runtime.issue_command(command)
 	_assert_eq(warrior.current_aura, 0, "圣剑连斩第二段即使未命中也应扣除尝试所需 Aura。")
 	_assert_true(enemy.current_hp == hp_before - 12, "圣剑连斩第二段未命中时应只保留首段伤害。 before=%d after=%d" % [hp_before, enemy.current_hp])
@@ -228,6 +274,15 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 		batch != null and batch.log_lines.any(func(line): return String(line).contains("未命中")),
 		"圣剑连斩未命中时应写入失败日志。 log=%s" % [str(batch.log_lines)]
 	)
+	_assert_true(
+		batch != null and batch.log_lines.any(func(line): return String(line).contains("d20=")),
+		"圣剑连斩 battle log 应记录 d20 明细。 log=%s" % [str(batch.log_lines)]
+	)
+	if stage_preview_texts.size() >= 2:
+		_assert_true(
+			batch != null and batch.log_lines.any(func(line): return String(line).contains(String(stage_preview_texts[1]))),
+			"圣剑连斩 battle log 应复用 preview 的第二段命中文案。 preview=%s log=%s" % [str(stage_preview_texts), str(batch.log_lines)]
+		)
 
 
 func _get_skill_def(skill_id: StringName) -> SkillDef:
@@ -316,19 +371,34 @@ func _build_unit_skill_command(unit_id: StringName, skill_id: StringName, target
 	return command
 
 
-func _find_seed_for_hit_roll_outcome(
+func _find_repeat_attack_seed_for_stage_outcomes(
 	runtime: BattleRuntimeModule,
 	state: BattleState,
-	hit_rate: int,
-	expect_success: bool
+	active_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	skill_def: SkillDef,
+	repeat_effect: CombatEffectDef,
+	expected_stage_outcomes: Array[bool]
 ) -> int:
-	if runtime == null or state == null:
+	if runtime == null or state == null or active_unit == null or target_unit == null or skill_def == null or repeat_effect == null:
 		return -1
-	for candidate_seed in range(1024):
+	for candidate_seed in range(4096):
 		state.seed = candidate_seed
 		state.attack_roll_nonce = 0
-		var roll_result: Dictionary = runtime._roll_hit_rate(hit_rate)
-		if bool(roll_result.get("success", false)) == expect_success:
+		var matched := true
+		for stage_index in range(expected_stage_outcomes.size()):
+			var roll_result: Dictionary = runtime._hit_resolver.resolve_repeat_attack_stage_hit(
+				state,
+				active_unit,
+				target_unit,
+				skill_def,
+				repeat_effect,
+				stage_index
+			)
+			if bool(roll_result.get("success", false)) != expected_stage_outcomes[stage_index]:
+				matched = false
+				break
+		if matched:
 			state.attack_roll_nonce = 0
 			return candidate_seed
 	state.attack_roll_nonce = 0
