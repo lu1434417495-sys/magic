@@ -17,9 +17,11 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_battle_unit_state_serialization_exposes_aura()
 	_test_facade_clicking_active_unit_casts_self_skill()
 	_test_facade_multi_unit_selection_tracks_target_unit_ids()
 	_test_facade_stamina_skill_updates_battle_state_snapshot_and_logs()
+	_test_facade_aura_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_cooldown_skill_reduces_after_battle_tick()
 	if _failures.is_empty():
 		print("Battle skill protocol regression: PASS")
@@ -149,6 +151,22 @@ func _test_facade_multi_unit_selection_tracks_target_unit_ids() -> void:
 	_cleanup_test_session(game_session)
 
 
+func _test_battle_unit_state_serialization_exposes_aura() -> void:
+	var unit := BATTLE_UNIT_STATE_SCRIPT.new()
+	unit.unit_id = &"aura_state_user"
+	unit.current_aura = 3
+	unit.attribute_snapshot.set_value(&"aura_max", 5)
+
+	var payload := unit.to_dict()
+	var restored = BATTLE_UNIT_STATE_SCRIPT.from_dict(payload) as BattleUnitState
+
+	_assert_eq(int(payload.get("current_aura", -1)), 3, "BattleUnitState.to_dict() 应稳定暴露 current_aura。")
+	_assert_eq(int(payload.get("aura_max", -1)), 5, "BattleUnitState.to_dict() 应稳定暴露 aura_max。")
+	_assert_true(restored != null, "BattleUnitState.from_dict() 应能恢复 Aura 字段。")
+	_assert_eq(restored.current_aura if restored != null else -1, 3, "BattleUnitState.from_dict() 应恢复 current_aura。")
+	_assert_eq(restored.get_aura_max() if restored != null else -1, 5, "BattleUnitState.from_dict() 应恢复 aura_max。")
+
+
 func _test_facade_stamina_skill_updates_battle_state_snapshot_and_logs() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
@@ -205,6 +223,66 @@ func _test_facade_stamina_skill_updates_battle_state_snapshot_and_logs() -> void
 	_assert_true(text_snapshot.contains("unit=stamina_cost_user |"), "battle 文本快照应渲染 stamina 施法者单位行。")
 	_assert_true(text_snapshot.contains("st=10"), "battle 文本快照应渲染扣费后的 stamina。")
 	_assert_eq(int(logged_caster.get("current_stamina", -1)), 10, "战斗命令日志后态也应暴露扣费后的 current_stamina。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_facade_aura_skill_updates_battle_state_snapshot_and_logs() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"aura_cost_user",
+		"斗气施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"warrior_aura_slash"],
+		2,
+		0
+	)
+	caster.current_aura = 2
+	caster.attribute_snapshot.set_value(&"aura_max", 2)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"aura_cost_enemy",
+		"敌人",
+		&"enemy",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(bool(select_result.get("ok", false)), "选择 aura 技能应返回成功结果。")
+	var cast_result: Dictionary = facade.command_battle_move_to(enemy.coord)
+	_assert_true(bool(cast_result.get("ok", false)), "执行 aura 技能应返回成功结果。")
+
+	var runtime_state := facade.get_battle_state()
+	var runtime_caster := runtime_state.units.get(caster.unit_id) as BattleUnitState if runtime_state != null else null
+	var battle_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
+	var caster_snapshot := _find_battle_unit_snapshot(battle_snapshot, String(caster.unit_id))
+	var text_snapshot := facade.build_text_snapshot()
+	var move_log := _find_log_entry(facade.get_log_snapshot(), "battle.move_to")
+	var logged_units: Array = move_log.get("context", {}).get("after", {}).get("battle", {}).get("units", [])
+	var logged_caster := _find_unit_entry(logged_units, String(caster.unit_id))
+
+	_assert_true(runtime_caster != null, "aura 回归中应能从 battle state 读取施法者单位。")
+	_assert_eq(runtime_caster.current_aura if runtime_caster != null else -1, 1, "技能释放后 battle state 应正式扣除 aura。")
+	_assert_eq(int(caster_snapshot.get("current_aura", -1)), 1, "battle snapshot 应稳定暴露扣费后的 current_aura。")
+	_assert_eq(int(caster_snapshot.get("aura_max", -1)), 2, "battle snapshot 应稳定暴露 aura_max。")
+	_assert_true(text_snapshot.contains("unit=aura_cost_user |"), "battle 文本快照应渲染 aura 施法者单位行。")
+	_assert_true(text_snapshot.contains("au=1/2"), "battle 文本快照应渲染扣费后的 aura。")
+	_assert_eq(int(logged_caster.get("current_aura", -1)), 1, "战斗命令日志后态也应暴露扣费后的 current_aura。")
 
 	_cleanup_test_session(game_session)
 

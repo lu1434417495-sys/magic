@@ -169,3 +169,7 @@ Implemented the formal `cooldown_tu` decrement path in `BattleRuntimeModule` by 
 ## 2026-04-17T06:10:16+08:00 | PVS_14C | done
 title: 为 stamina/cooldown 补选择层与回归约束
 Selection now rejects stamina/cooldown-blocked skills without mutating battle selection, HUD skill slots surface explicit disabled reasons (`ST不足`, `CD n`, tooltip reason), AI skill actions prefilter blocked skills before previewing, and focused battle/UI/text regressions now cover stamina-insufficient and cooldown-active paths. `.ralph/prd.json` was left untouched; `docs/design/project_context_units.md` stays valid as-is.
+
+## 2026-04-17T06:15:20+08:00 | PVS_15A | done
+title: 为 Aura 建立正式状态字段与 snapshot 表面
+Formalized Aura exposure across the battle/headless surface: `BattleUnitState` now serializes `aura_max`, battle snapshots now include `current_aura`/`aura_max`, battle command-log unit summaries now include `current_aura`, text battle snapshots render `au=current/max`, and `tests/battle_runtime/run_battle_skill_protocol_regression.gd` now covers both BattleUnitState Aura serialization and real aura-cost snapshot/log updates.

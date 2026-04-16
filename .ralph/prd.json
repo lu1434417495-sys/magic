@@ -785,14 +785,22 @@
     {
       "id": "PVS_15A",
       "title": "为 Aura 建立正式状态字段与 snapshot 表面",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`BattleUnitState`、runtime snapshot 和 text snapshot 能正式暴露 Aura",
         "`aura_cost` 不再只是悬空 schema 字段"
       ],
       "notes": [
         "Owner：CU-15 / CU-16 / CU-21。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T06:10:17+08:00",
+      "lastRunId": "20260417-061017-PVS_15A",
+      "startedAt": "2026-04-17T06:10:17+08:00",
+      "completedAt": "2026-04-17T06:15:20+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd` and `godot --headless --script tests/runtime/run_game_runtime_snapshot_builder_regression.gd` — both PASS.",
+      "lastLearnings": "`aura_cost` was already wired into battle selection/runtime consumption; the missing gap was formal visibility in state serialization and headless snapshot/text surfaces. Keep `aura_max` sourced from `attribute_snapshot` and expose it outward, rather than introducing a second mutable max-state owner. `docs/design/project_context_units.md` stayed valid as-is."
     },
     {
       "id": "PVS_15B",

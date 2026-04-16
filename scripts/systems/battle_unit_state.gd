@@ -97,6 +97,10 @@ func has_status_effect(status_id: StringName) -> bool:
 	return get_status_effect(status_id) != null
 
 
+func get_aura_max() -> int:
+	return attribute_snapshot.get_value(&"aura_max") if attribute_snapshot != null else 0
+
+
 func get_status_effect(status_id: StringName):
 	var normalized := ProgressionDataUtils.to_string_name(status_id)
 	if normalized == &"" or not status_effects.has(normalized):
@@ -157,6 +161,7 @@ func to_dict() -> Dictionary:
 		"current_mp": current_mp,
 		"current_stamina": current_stamina,
 		"current_aura": current_aura,
+		"aura_max": get_aura_max(),
 		"current_ap": current_ap,
 		"current_free_move_points": current_free_move_points,
 		"action_progress": action_progress,
@@ -188,6 +193,8 @@ static func from_dict(data: Dictionary):
 	unit_state.current_mp = int(data.get("current_mp", 0))
 	unit_state.current_stamina = int(data.get("current_stamina", 0))
 	unit_state.current_aura = int(data.get("current_aura", 0))
+	if data.has("aura_max") and unit_state.attribute_snapshot != null:
+		unit_state.attribute_snapshot.set_value(&"aura_max", maxi(int(data.get("aura_max", 0)), 0))
 	unit_state.current_ap = int(data.get("current_ap", 0))
 	unit_state.current_free_move_points = int(data.get("current_free_move_points", 0))
 	unit_state.action_progress = int(data.get("action_progress", 0))

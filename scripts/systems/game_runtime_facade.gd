@@ -2030,6 +2030,7 @@ func _build_battle_unit_log_entries(unit_ids: Array = []) -> Array[Dictionary]:
 			"current_hp": int(unit_state.current_hp),
 			"current_mp": int(unit_state.current_mp),
 			"current_stamina": int(unit_state.current_stamina),
+			"current_aura": int(unit_state.current_aura),
 			"current_ap": int(unit_state.current_ap),
 		})
 	return result
