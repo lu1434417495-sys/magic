@@ -323,7 +323,7 @@ func _handle_selected_ground_skill_click(active_unit, target_coord: Vector2i) ->
 	if not block_reason.is_empty():
 		_refresh_battle_selection_state()
 		_update_status(block_reason)
-		return &"overlay"
+		return &"error"
 
 	var required_coord_count := maxi(int(cast_variant.required_coord_count), 1)
 	var queued_target_coords := _get_target_coords_state()
@@ -380,6 +380,11 @@ func _handle_selected_unit_skill_click(active_unit, target_unit) -> StringName:
 	var skill_def = _get_selected_battle_skill_def(active_unit)
 	if skill_def == null or skill_def.combat_profile == null:
 		return &""
+	var block_reason := _get_skill_cast_block_reason(active_unit, skill_def)
+	if not block_reason.is_empty():
+		_refresh_battle_selection_state()
+		_update_status(block_reason)
+		return &"error"
 
 	var selection_mode := StringName(skill_def.combat_profile.target_selection_mode)
 	if selection_mode == &"multi_unit":

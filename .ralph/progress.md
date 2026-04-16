@@ -173,3 +173,7 @@ Selection now rejects stamina/cooldown-blocked skills without mutating battle se
 ## 2026-04-17T06:15:20+08:00 | PVS_15A | done
 title: 为 Aura 建立正式状态字段与 snapshot 表面
 Formalized Aura exposure across the battle/headless surface: `BattleUnitState` now serializes `aura_max`, battle snapshots now include `current_aura`/`aura_max`, battle command-log unit summaries now include `current_aura`, text battle snapshots render `au=current/max`, and `tests/battle_runtime/run_battle_skill_protocol_regression.gd` now covers both BattleUnitState Aura serialization and real aura-cost snapshot/log updates.
+
+## 2026-04-17T06:23:45+08:00 | PVS_15B | done
+title: 实现 Aura 消耗、gating 与回归
+Patched the battle selection/session handoff so a selected skill that becomes Aura-blocked now returns a formal battle command failure instead of an `ok` overlay result, and added focused Aura regressions for selection gating, runtime post-selection failure, and AI fallback behavior. `docs/design/project_context_units.md` stayed valid as-is.

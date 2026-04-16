@@ -805,14 +805,22 @@
     {
       "id": "PVS_15B",
       "title": "实现 Aura 消耗、gating 与回归",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "Aura 技能会正式扣 Aura",
         "Aura 不足时 selection/runtime/AI 都会返回一致失败"
       ],
       "notes": [
         "Owner：CU-15 / CU-16 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T06:15:20+08:00",
+      "lastRunId": "20260417-061520-PVS_15B",
+      "startedAt": "2026-04-17T06:15:20+08:00",
+      "completedAt": "2026-04-17T06:23:45+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_game_runtime_battle_selection_regression.gd`, `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd`, and `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd` successfully.",
+      "lastLearnings": "Aura ownership did not move: the existing CU-15/CU-16 chain already owned the rule, but the formal `battle.move_to` API needed an explicit error path when resources drop after selection. Selection, runtime, and AI Aura blockers are now regression-locked on the same failure semantics."
     },
     {
       "id": "PVS_16A",

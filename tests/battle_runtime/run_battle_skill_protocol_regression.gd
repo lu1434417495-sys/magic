@@ -22,6 +22,7 @@ func _run() -> void:
 	_test_facade_multi_unit_selection_tracks_target_unit_ids()
 	_test_facade_stamina_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_aura_skill_updates_battle_state_snapshot_and_logs()
+	_test_facade_selected_aura_skill_returns_formal_error_after_aura_drops()
 	_test_facade_cooldown_skill_reduces_after_battle_tick()
 	if _failures.is_empty():
 		print("Battle skill protocol regression: PASS")
@@ -283,6 +284,57 @@ func _test_facade_aura_skill_updates_battle_state_snapshot_and_logs() -> void:
 	_assert_true(text_snapshot.contains("unit=aura_cost_user |"), "battle 文本快照应渲染 aura 施法者单位行。")
 	_assert_true(text_snapshot.contains("au=1/2"), "battle 文本快照应渲染扣费后的 aura。")
 	_assert_eq(int(logged_caster.get("current_aura", -1)), 1, "战斗命令日志后态也应暴露扣费后的 current_aura。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_facade_selected_aura_skill_returns_formal_error_after_aura_drops() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"aura_runtime_block_user",
+		"Aura 运行时阻断者",
+		&"player",
+		Vector2i(0, 0),
+		[&"warrior_aura_slash"],
+		2,
+		0
+	)
+	caster.current_aura = 1
+	caster.attribute_snapshot.set_value(&"aura_max", 1)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"aura_runtime_block_enemy",
+		"敌人",
+		&"enemy",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(bool(select_result.get("ok", false)), "Aura 运行时阻断回归前置：选择技能应先成功。")
+	var enemy_hp_before := enemy.current_hp
+	caster.current_aura = 0
+	facade.refresh_battle_selection_state()
+
+	var cast_result: Dictionary = facade.command_battle_move_to(enemy.coord)
+	_assert_true(not bool(cast_result.get("ok", true)), "Aura 在点击前耗尽时，battle.move_to 应返回正式失败。")
+	_assert_true(String(cast_result.get("message", "")).contains("斗气不足"), "Aura 运行时阻断应沿正式命令结果返回明确原因。")
+	_assert_eq(enemy.current_hp, enemy_hp_before, "Aura 不足导致施法失败时，不应继续结算伤害。")
+	_assert_eq(caster.current_aura, 0, "Aura 不足导致施法失败时，不应继续扣费。")
+	_assert_eq(String(facade.get_selected_battle_skill_id()), "warrior_aura_slash", "Aura 运行时阻断后应保留当前技能选择，等待资源恢复或手动清除。")
 
 	_cleanup_test_session(game_session)
 

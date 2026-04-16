@@ -183,7 +183,10 @@ func command_battle_move_to(target_coord: Vector2i) -> Dictionary:
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return _runtime_unavailable_error()
-	return _command_ok("", String(battle_selection.attempt_battle_move_to(target_coord)))
+	var battle_refresh_mode := StringName(battle_selection.attempt_battle_move_to(target_coord))
+	if battle_refresh_mode == &"error":
+		return _command_error(_get_runtime_status_text("当前技能无法施放。"))
+	return _command_ok("", String(battle_refresh_mode))
 
 
 func command_battle_move_direction(direction: Vector2i) -> Dictionary:
@@ -193,7 +196,10 @@ func command_battle_move_direction(direction: Vector2i) -> Dictionary:
 		return _command_error("当前没有进行中的战斗。")
 	if direction == Vector2i.ZERO:
 		return _command_error("战斗移动方向不能为空。")
-	return _command_ok("", String(attempt_battle_move(direction)))
+	var battle_refresh_mode := attempt_battle_move(direction)
+	if battle_refresh_mode == &"error":
+		return _command_error(_get_runtime_status_text("当前技能无法施放。"))
+	return _command_ok("", String(battle_refresh_mode))
 
 
 func command_battle_wait_or_resolve() -> Dictionary:
@@ -592,6 +598,14 @@ func _get_battle_selection():
 
 func _is_battle_ready() -> bool:
 	return _runtime != null and _get_battle_selection() != null and _get_battle_runtime() != null
+
+
+func _get_runtime_status_text(fallback_message: String) -> String:
+	if _runtime != null and _runtime.has_method("get_status_text"):
+		var status_text := String(_runtime.get_status_text())
+		if not status_text.is_empty():
+			return status_text
+	return fallback_message
 
 
 func _command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:

@@ -9,6 +9,9 @@ const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timel
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
+const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
+const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -32,6 +35,7 @@ func _run() -> void:
 	_test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster()
 	_test_ranged_suppressor_skips_stamina_blocked_suppressive_fire()
 	_test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire()
+	_test_ai_unit_skill_action_skips_aura_blocked_primary_skill()
 	_test_healer_controller_uses_control_when_battle_is_stable()
 	_test_frontline_bulwark_guards_when_low_hp()
 	_test_ai_support_state_heals_low_hp_ally()
@@ -367,6 +371,54 @@ func _test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire() -> void:
 	)
 	var preview = runtime.preview_command(decision.command)
 	_assert_true(preview != null and preview.allowed, "冷却阻断后的 AI 替代命令仍必须通过 preview_command。")
+
+
+func _test_ai_unit_skill_action_skips_aura_blocked_primary_skill() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
+	brain.brain_id = &"aura_archer_brain"
+	brain.default_state_id = &"pressure"
+	brain.pressure_distance = 99
+	var state_def = ENEMY_AI_STATE_DEF_SCRIPT.new()
+	state_def.state_id = &"pressure"
+	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"aura_primary_then_fallback"
+	var action_skill_ids: Array[StringName] = [&"archer_far_horizon", &"archer_pinning_shot"]
+	action.skill_ids = action_skill_ids
+	action.target_selector = &"lowest_hp_enemy"
+	state_def.actions = [action]
+	brain.states = {&"pressure": state_def}
+	runtime._enemy_ai_brains[brain.brain_id] = brain
+	runtime._ai_service.setup(runtime._enemy_ai_brains)
+
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"aura_archer",
+		"Aura 猎手",
+		&"hostile",
+		Vector2i(1, 2),
+		brain.brain_id,
+		&"pressure",
+		[&"archer_far_horizon", &"archer_pinning_shot"],
+		26,
+		2
+	)
+	archer.current_aura = 0
+	archer.attribute_snapshot.set_value(&"aura_max", 1)
+	var player = _build_manual_unit(&"aura_target", "玩家", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.command != null, "Aura 不足时 AI 仍应生成可执行的替代动作。")
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"archer_pinning_shot",
+		"Aura 不足时 AI 不应继续选择需要 Aura 的 archer_far_horizon。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "Aura 阻断后的 AI 替代命令仍必须通过 preview_command。")
 
 
 func _test_healer_controller_uses_control_when_battle_is_stable() -> void:
