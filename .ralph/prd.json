@@ -445,14 +445,22 @@
     {
       "id": "PVS_08B",
       "title": "补齐第一批材料 seed 内容",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "材料从 1 类扩到至少 3 类",
         "新增材料有稳定 `tags` / `crafting_groups` 元数据"
       ],
       "notes": [
         "Owner：CU-10 / CU-13。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:09:14+08:00",
+      "lastRunId": "20260417-040914-PVS_08B",
+      "startedAt": "2026-04-17T04:09:14+08:00",
+      "completedAt": "2026-04-17T04:16:47+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/warehouse/run_item_recipe_schema_regression.gd`, `godot --headless --script tests/warehouse/run_party_warehouse_regression.gd`, and `godot --headless --script tests/equipment/run_party_equipment_regression.gd` — all passed.",
+      "lastLearnings": "Material seed ownership stays in CU-10; the minimal durable guardrail is `tags` + non-empty `crafting_groups` on `material` items. First-batch materials are now shop-reachable via `service_local_trade`/`service_city_market`, and the project-context read set should include the three new item resources."
     },
     {
       "id": "PVS_08C",

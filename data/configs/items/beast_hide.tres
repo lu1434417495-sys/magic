@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "beast_hide"
+display_name = "兽皮"
+description = "经过初步处理的兽皮，既能交给皮匠，也能作为轻甲与护具的基础材料。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 11
+sellable = true
+max_stack = 30
+tags = Array[StringName](["material", "hide", "leather"])
+crafting_groups = Array[StringName](["hide", "leatherworking", "armor"])

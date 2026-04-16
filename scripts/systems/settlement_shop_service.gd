@@ -28,6 +28,7 @@ const SHOP_DEFS := {
 			{"item_id": &"healing_herb", "min_qty": 3, "max_qty": 6, "price_multiplier": 0.95},
 			{"item_id": &"bandage_roll", "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
 			{"item_id": &"travel_ration", "min_qty": 2, "max_qty": 5, "price_multiplier": 0.95},
+			{"item_id": &"beast_hide", "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
 			{"item_id": &"bronze_sword", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
 			{"item_id": &"militia_axe", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
 			{"item_id": &"leather_cap", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
@@ -56,6 +57,8 @@ const SHOP_DEFS := {
 			{"item_id": &"scout_charm", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
 			{"item_id": &"iron_greatsword", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
 			{"item_id": &"antidote_herb", "min_qty": 2, "max_qty": 4, "price_multiplier": 0.95},
+			{"item_id": &"hardwood_lumber", "min_qty": 3, "max_qty": 6, "price_multiplier": 0.95},
+			{"item_id": &"linen_cloth", "min_qty": 3, "max_qty": 6, "price_multiplier": 0.95},
 		],
 		"random_pool": [
 			{"item_id": &"bandage_roll", "weight": 5, "min_qty": 2, "max_qty": 4, "price_multiplier": 0.95},

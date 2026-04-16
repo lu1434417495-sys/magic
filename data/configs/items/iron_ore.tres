@@ -12,3 +12,5 @@ is_stackable = true
 base_price = 8
 sellable = true
 max_stack = 50
+tags = Array[StringName](["material", "ore", "metal"])
+crafting_groups = Array[StringName](["ore", "smithing", "metal"])

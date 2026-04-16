@@ -484,6 +484,9 @@ HeadlessGameTestSession
   - `data/configs/items/torch_bundle.tres`
   - `data/configs/items/antidote_herb.tres`
   - `data/configs/items/iron_ore.tres`
+  - `data/configs/items/beast_hide.tres`
+  - `data/configs/items/hardwood_lumber.tres`
+  - `data/configs/items/linen_cloth.tres`
 - 真相源：
   - 物品定义与 `item_id -> ItemDef`。
   - 配方定义与 `recipe_id -> RecipeDef`。

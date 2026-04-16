@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "hardwood_lumber"
+display_name = "硬木板"
+description = "切割平整的硬木板材，可用于盾架、器柄与据点内的基础木工制作。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 9
+sellable = true
+max_stack = 30
+tags = Array[StringName](["material", "wood", "timber"])
+crafting_groups = Array[StringName](["wood", "woodworking", "weapon"])

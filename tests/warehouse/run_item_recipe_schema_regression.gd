@@ -15,6 +15,28 @@ const CONSUMABLE_SEED_IDS := [
 	&"torch_bundle",
 	&"antidote_herb",
 ]
+const MATERIAL_SEED_EXPECTATIONS := {
+	&"iron_ore": {
+		"tags": [&"material", &"ore", &"metal"],
+		"crafting_groups": [&"ore", &"smithing", &"metal"],
+		"category_tag": &"ore",
+	},
+	&"beast_hide": {
+		"tags": [&"material", &"hide", &"leather"],
+		"crafting_groups": [&"hide", &"leatherworking", &"armor"],
+		"category_tag": &"hide",
+	},
+	&"hardwood_lumber": {
+		"tags": [&"material", &"wood", &"timber"],
+		"crafting_groups": [&"wood", &"woodworking", &"weapon"],
+		"category_tag": &"wood",
+	},
+	&"linen_cloth": {
+		"tags": [&"material", &"cloth", &"fiber"],
+		"crafting_groups": [&"cloth", &"tailoring", &"armor"],
+		"category_tag": &"cloth",
+	},
+}
 
 var _failures: Array[String] = []
 
@@ -38,6 +60,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_item_schema_defaults_and_accessors()
 	_test_consumable_seed_coverage()
+	_test_material_seed_coverage()
 	_test_shop_pricing_uses_item_accessors()
 	_test_shop_seed_references_formal_item_seeds()
 	_test_recipe_schema_defaults_and_fields()
@@ -105,6 +128,32 @@ func _test_consumable_seed_coverage() -> void:
 		_assert_true(not item_def.is_equipment(), "消耗品 %s 不应进入装备实例流。" % String(item_id))
 		_assert_true(item_def.get_effective_max_stack() > 1, "消耗品 %s 应声明大于 1 的堆叠上限。" % String(item_id))
 	_assert_true(resolved_seed_count >= 4, "正式 consumable seed 至少应达到 4 种。")
+
+
+func _test_material_seed_coverage() -> void:
+	var item_registry := ItemContentRegistry.new()
+	var item_defs := item_registry.get_item_defs()
+	_assert_true(item_registry.validate().is_empty(), "ItemContentRegistry 当前不应报告材料 seed 校验错误。")
+
+	var material_categories: Dictionary = {}
+	for item_id in MATERIAL_SEED_EXPECTATIONS.keys():
+		var expectation: Dictionary = MATERIAL_SEED_EXPECTATIONS.get(item_id, {})
+		var item_def: ItemDef = item_defs.get(item_id) as ItemDef
+		_assert_true(item_def != null, "应存在正式材料 seed %s。" % String(item_id))
+		if item_def == null:
+			continue
+		_assert_true(item_def.is_stackable, "材料 %s 应保持可堆叠。" % String(item_id))
+		_assert_true(not item_def.is_equipment(), "材料 %s 不应进入装备实例流。" % String(item_id))
+		_assert_eq(String(item_def.item_category), "misc", "材料 %s 应保持 misc 分类。" % String(item_id))
+		_assert_eq(item_def.get_tags(), expectation.get("tags", []), "材料 %s 应保留稳定 tags 元数据。" % String(item_id))
+		_assert_eq(
+			item_def.get_crafting_groups(),
+			expectation.get("crafting_groups", []),
+			"材料 %s 应保留稳定 crafting_groups 元数据。" % String(item_id)
+		)
+		material_categories[expectation.get("category_tag", &"")] = true
+	_assert_true(MATERIAL_SEED_EXPECTATIONS.size() >= 4, "首批材料 seed 至少应达到 4 种。")
+	_assert_true(material_categories.size() >= 3, "正式材料种类应从 1 类扩到至少 3 类。")
 
 
 func _test_shop_pricing_uses_item_accessors() -> void:
@@ -198,6 +247,7 @@ func _test_shop_seed_references_formal_item_seeds() -> void:
 	)
 	var local_trade_entries: Array = local_trade_window_data.get("buy_entries", [])
 	_assert_true(not _find_entry(local_trade_entries, "bandage_roll").is_empty(), "镇集交易应正式引用绷带卷。")
+	_assert_true(not _find_entry(local_trade_entries, "beast_hide").is_empty(), "镇集交易应正式引用兽皮。")
 	_assert_true(
 		_shop_rotation_contains_item(shop_service, item_defs, "service_local_trade", "torch_bundle", 24),
 		"镇集交易轮换中应能正式刷出火把束。"
@@ -219,6 +269,8 @@ func _test_shop_seed_references_formal_item_seeds() -> void:
 	_assert_true(not _find_entry(buy_entries, "scout_dagger").is_empty(), "城市市场应正式引用斥候匕首。")
 	_assert_true(not _find_entry(buy_entries, "leather_cap").is_empty(), "城市市场应正式引用头部护具皮革护帽。")
 	_assert_true(not _find_entry(buy_entries, "antidote_herb").is_empty(), "城市市场应正式引用解毒草。")
+	_assert_true(not _find_entry(buy_entries, "hardwood_lumber").is_empty(), "城市市场应正式引用硬木板。")
+	_assert_true(not _find_entry(buy_entries, "linen_cloth").is_empty(), "城市市场应正式引用亚麻布。")
 
 
 func _test_recipe_schema_defaults_and_fields() -> void:

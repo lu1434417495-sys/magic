@@ -71,6 +71,8 @@ func _register_item_resource(resource_path: String) -> void:
 		return
 
 	var item_def = resource
+	var item_tags: Array[StringName] = item_def.get_tags()
+	var item_crafting_groups: Array[StringName] = item_def.get_crafting_groups()
 	if item_def.item_id == &"":
 		_validation_errors.append("Item config %s is missing item_id." % resource_path)
 		return
@@ -79,6 +81,11 @@ func _register_item_resource(resource_path: String) -> void:
 		return
 	if item_def.is_stackable and int(item_def.max_stack) <= 0:
 		_validation_errors.append("Item %s must have max_stack >= 1." % String(item_def.item_id))
+		return
+	if item_tags.has(&"material") and item_crafting_groups.is_empty():
+		_validation_errors.append(
+			"Material item %s must declare at least one crafting_group." % String(item_def.item_id)
+		)
 		return
 	if item_def.item_category == ITEM_DEF_SCRIPT.ITEM_CATEGORY_SKILL_BOOK and item_def.granted_skill_id == &"":
 		_validation_errors.append("Skill book item %s must declare granted_skill_id." % String(item_def.item_id))

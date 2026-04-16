@@ -101,3 +101,7 @@ Added `leather_cap` as the first formal head-slot armor seed, surfaced it in the
 ## 2026-04-17T04:09:14+08:00 | PVS_08A | done
 title: 补齐消耗品 seed 到最小可玩集合
 Added four consumable ItemDef seeds (`bandage_roll`, `travel_ration`, `torch_bundle`, `antidote_herb`), extended the focused shop/warehouse regressions so the new consumables are asserted in formal shop rotation and shared-warehouse schema coverage, and updated the CU-10 read-set in `docs/design/project_context_units.md`.
+
+## 2026-04-17T04:16:47+08:00 | PVS_08B | done
+title: 补齐第一批材料 seed 内容
+Added first-batch material seeds `beast_hide`, `hardwood_lumber`, and `linen_cloth`, backfilled `iron_ore` with stable `tags`/`crafting_groups`, enforced in `ItemContentRegistry` that `material` items must declare crafting groups, surfaced the new materials through settlement shop seed data, extended warehouse/schema regressions for material coverage, and updated `docs/design/project_context_units.md` CU-10 read-set entries.
