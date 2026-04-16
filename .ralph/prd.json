@@ -265,14 +265,22 @@
     {
       "id": "PVS_05A",
       "title": "为 submit_item 目标增加正式仓库扣除入口",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`submit_item` 目标能从 shared warehouse 扣除指定 item 与数量",
         "扣除失败时不会推进 quest objective，也不会吞库存"
       ],
       "notes": [
         "Owner：CU-10 / CU-11。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T03:02:52+08:00",
+      "lastRunId": "20260417-030252-PVS_05A",
+      "startedAt": "2026-04-17T03:02:52+08:00",
+      "completedAt": "2026-04-17T03:14:56+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "已运行并通过：godot --headless --script tests/progression/run_quest_schema_regression.gd；godot --headless --script tests/runtime/run_game_runtime_quest_progress_regression.gd；godot --headless --script tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd；godot --headless --script tests/text_runtime/run_text_command_regression.gd。",
+      "lastLearnings": "submit_item 的正式扣库应归 CharacterManagementModule 通过 PartyWarehouseService 原子处理，settlement handler 只负责解析和转发；文本快照上下文会混入 StringName，渲染时要用 str(...)；提交类回归要先清理测试仓库存量，避免被前序用例污染。"
     },
     {
       "id": "PVS_05B",

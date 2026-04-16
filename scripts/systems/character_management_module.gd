@@ -142,6 +142,78 @@ func complete_quest(quest_id: StringName, world_step: int = -1) -> bool:
 	return completed
 
 
+func submit_item_objective(quest_id: StringName, objective_id: StringName = &"", world_step: int = -1) -> Dictionary:
+	var result := {
+		"ok": false,
+		"error_code": "",
+		"objective_id": "",
+		"item_id": "",
+		"target_value": 0,
+		"required_quantity": 0,
+		"submitted_quantity": 0,
+		"accepted_quest_ids": [],
+		"progressed_quest_ids": [],
+		"claimable_quest_ids": [],
+		"completed_quest_ids": [],
+	}
+	var submission_preview := _preview_quest_submit_item_objective(quest_id, objective_id)
+	if not bool(submission_preview.get("ok", false)):
+		result["error_code"] = String(submission_preview.get("error_code", "objective_not_found"))
+		result["objective_id"] = String(submission_preview.get("objective_id", ""))
+		result["item_id"] = String(submission_preview.get("item_id", ""))
+		result["required_quantity"] = int(submission_preview.get("required_quantity", 0))
+		return result
+
+	var resolved_objective_id := ProgressionDataUtils.to_string_name(submission_preview.get("objective_id", ""))
+	var item_id := ProgressionDataUtils.to_string_name(submission_preview.get("item_id", ""))
+	var target_value := maxi(int(submission_preview.get("target_value", 0)), 0)
+	var required_quantity := maxi(int(submission_preview.get("required_quantity", 0)), 0)
+	result["objective_id"] = String(resolved_objective_id)
+	result["item_id"] = String(item_id)
+	result["target_value"] = target_value
+	result["required_quantity"] = required_quantity
+	if resolved_objective_id == &"" or item_id == &"" or target_value <= 0 or required_quantity <= 0:
+		result["error_code"] = "invalid_submit_item_objective"
+		return result
+
+	var warehouse_state_before = _party_state.warehouse_state.duplicate_state() if _party_state != null and _party_state.warehouse_state != null else null
+	var withdraw_item_ids := _build_repeated_item_ids(item_id, required_quantity)
+	var warehouse_commit := _party_warehouse_service.commit_batch_swap(withdraw_item_ids, [])
+	if not bool(warehouse_commit.get("allowed", false)):
+		result["error_code"] = "submit_item_missing_inventory" if String(warehouse_commit.get("error_code", "")) == "warehouse_missing_item" else "submit_item_commit_failed"
+		return result
+
+	var summary := apply_quest_progress_events([{
+		"event_type": "progress",
+		"quest_id": String(quest_id),
+		"objective_id": String(resolved_objective_id),
+		"objective_type": String(QuestDef.OBJECTIVE_SUBMIT_ITEM),
+		"target_id": String(item_id),
+		"target_value": target_value,
+		"progress_delta": required_quantity,
+		"item_id": String(item_id),
+		"quantity": required_quantity,
+		"context": {
+			"item_id": String(item_id),
+			"submitted_quantity": required_quantity,
+		},
+	}], world_step)
+	if not (summary.get("progressed_quest_ids", []) as Array).has(quest_id):
+		_party_state.warehouse_state = warehouse_state_before
+		_party_warehouse_service.setup(_party_state, _item_defs)
+		_quest_progress_service.setup(_party_state, _quest_defs)
+		result["error_code"] = "quest_progress_failed"
+		return result
+
+	result["ok"] = true
+	result["submitted_quantity"] = required_quantity
+	result["accepted_quest_ids"] = ProgressionDataUtils.to_string_name_array(summary.get("accepted_quest_ids", []))
+	result["progressed_quest_ids"] = ProgressionDataUtils.to_string_name_array(summary.get("progressed_quest_ids", []))
+	result["claimable_quest_ids"] = ProgressionDataUtils.to_string_name_array(summary.get("claimable_quest_ids", []))
+	result["completed_quest_ids"] = ProgressionDataUtils.to_string_name_array(summary.get("completed_quest_ids", []))
+	return result
+
+
 func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionary:
 	var result := {
 		"ok": false,
@@ -827,6 +899,77 @@ func _resolve_quest_reward_data(quest_id: StringName) -> Dictionary:
 		"display_name": "",
 		"reward_entries": [],
 	}
+
+
+func _preview_quest_submit_item_objective(quest_id: StringName, objective_id: StringName = &"") -> Dictionary:
+	var result := {
+		"ok": false,
+		"error_code": "",
+		"objective_id": "",
+		"item_id": "",
+		"target_value": 0,
+		"required_quantity": 0,
+	}
+	if _party_state == null or quest_id == &"":
+		result["error_code"] = "invalid_quest_id"
+		return result
+	var quest_state = _party_state.get_active_quest_state(quest_id)
+	if quest_state == null:
+		result["error_code"] = "quest_not_active"
+		return result
+
+	var quest_variant = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), null))
+	if quest_variant == null:
+		result["error_code"] = "quest_def_missing"
+		return result
+
+	var objective_defs_variant = []
+	if quest_variant is QuestDef:
+		objective_defs_variant = (quest_variant as QuestDef).objective_defs
+	elif quest_variant is Dictionary:
+		objective_defs_variant = (quest_variant as Dictionary).get("objective_defs", [])
+	elif quest_variant is Object and quest_variant.has_method("to_dict"):
+		var quest_data_variant = quest_variant.to_dict()
+		if quest_data_variant is Dictionary:
+			objective_defs_variant = (quest_data_variant as Dictionary).get("objective_defs", [])
+	if objective_defs_variant is not Array:
+		result["error_code"] = "quest_def_missing"
+		return result
+
+	var requested_objective_id := ProgressionDataUtils.to_string_name(objective_id)
+	var found_submit_item_objective := false
+	var found_completed_submit_item_objective := false
+	for objective_variant in objective_defs_variant:
+		if objective_variant is not Dictionary:
+			continue
+		var objective_data := objective_variant as Dictionary
+		if ProgressionDataUtils.to_string_name(objective_data.get("objective_type", "")) != QuestDef.OBJECTIVE_SUBMIT_ITEM:
+			continue
+		found_submit_item_objective = true
+		var current_objective_id := ProgressionDataUtils.to_string_name(objective_data.get("objective_id", ""))
+		if requested_objective_id != &"" and current_objective_id != requested_objective_id:
+			continue
+		var item_id := ProgressionDataUtils.to_string_name(objective_data.get("target_id", ""))
+		var target_value := maxi(int(objective_data.get("target_value", 1)), 1)
+		result["objective_id"] = String(current_objective_id)
+		result["item_id"] = String(item_id)
+		result["target_value"] = target_value
+		result["required_quantity"] = maxi(target_value - quest_state.get_objective_progress(current_objective_id), 0)
+		if current_objective_id == &"" or item_id == &"":
+			result["error_code"] = "invalid_submit_item_objective"
+			return result
+		if quest_state.is_objective_complete(current_objective_id, target_value):
+			found_completed_submit_item_objective = true
+			result["error_code"] = "objective_already_complete"
+			if requested_objective_id != &"":
+				return result
+			continue
+		result["ok"] = true
+		result["error_code"] = ""
+		return result
+
+	result["error_code"] = "objective_already_complete" if found_completed_submit_item_objective else "objective_not_found"
+	return result
 
 
 func _preview_quest_reward_claim(quest_id: StringName, quest_reward_data: Dictionary) -> Dictionary:

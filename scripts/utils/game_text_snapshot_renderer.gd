@@ -550,5 +550,5 @@ static func _format_key_value_pairs(value_variant: Variant) -> String:
 	var keys := ProgressionDataUtils.sorted_string_keys(value)
 	var parts: Array[String] = []
 	for key in keys:
-		parts.append("%s=%s" % [key, String(value.get(key, ""))])
+		parts.append("%s=%s" % [key, str(value.get(key, ""))])
 	return " ".join(PackedStringArray(parts))

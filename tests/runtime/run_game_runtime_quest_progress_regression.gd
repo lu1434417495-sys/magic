@@ -37,6 +37,7 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 		return
 	_inject_repeatable_quest_def(game_session)
 	_inject_item_reward_quest_defs(game_session)
+	_inject_submit_item_quest_defs(game_session)
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
@@ -131,6 +132,40 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_reward_overflow"), "容量不足时任务应继续停留在 claimable_quests。")
 	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_reward_overflow"), "容量不足时任务不应误写入 completed_quest_ids。")
 	_assert_eq(runtime_warehouse_service.count_item(&"bronze_sword"), bronze_sword_count_before_overflow_claim, "容量不足时不应额外写入奖励物品。")
+
+	var submit_accept_result := facade.command_accept_quest(&"contract_supply_delivery")
+	_assert_true(bool(submit_accept_result.get("ok", false)), "submit_item 任务接取应成功。")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	var preexisting_iron_ore := runtime_warehouse_service.count_item(&"iron_ore")
+	if preexisting_iron_ore > 0:
+		runtime_warehouse_service.remove_item(&"iron_ore", preexisting_iron_ore)
+	runtime_warehouse_service.add_item(&"iron_ore", 2)
+	var submit_result := facade.command_submit_quest_item(&"contract_supply_delivery")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	_assert_true(bool(submit_result.get("ok", false)), "submit_item 任务应能通过正式命令从共享仓库扣料。")
+	_assert_eq(String(submit_result.get("message", "")), "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 成功时应返回明确反馈。")
+	_assert_eq(int(submit_result.get("submitted_quantity", 0)), 2, "submit_item 结果应暴露实际扣除数量。")
+	_assert_eq(runtime_warehouse_service.count_item(&"iron_ore"), 0, "submit_item 成功后共享仓库应扣除对应物资。")
+	_assert_true(not facade.get_party_state().has_active_quest(&"contract_supply_delivery"), "submit_item 目标完成后任务应离开 active_quests。")
+	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_supply_delivery"), "submit_item 目标完成后任务应进入 claimable_quests。")
+
+	var submit_shortage_accept_result := facade.command_accept_quest(&"contract_supply_delivery_shortage")
+	_assert_true(bool(submit_shortage_accept_result.get("ok", false)), "submit_item 缺料任务接取应成功。")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	var iron_ore_to_clear := runtime_warehouse_service.count_item(&"iron_ore")
+	if iron_ore_to_clear > 0:
+		runtime_warehouse_service.remove_item(&"iron_ore", iron_ore_to_clear)
+	var iron_ore_count_before_submit_failure := runtime_warehouse_service.count_item(&"iron_ore")
+	var submit_shortage_result := facade.command_submit_quest_item(&"contract_supply_delivery_shortage")
+	var shortage_quest: QuestState = facade.get_party_state().get_active_quest_state(&"contract_supply_delivery_shortage")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	_assert_true(not bool(submit_shortage_result.get("ok", true)), "共享仓库缺料时 submit_item 命令应失败。")
+	_assert_eq(String(submit_shortage_result.get("message", "")), "共享仓库缺少铁矿石 x2，无法提交给任务《物资缴纳缺料》。", "submit_item 缺料时应返回明确反馈。")
+	_assert_eq(runtime_warehouse_service.count_item(&"iron_ore"), iron_ore_count_before_submit_failure, "submit_item 失败时不应吞掉共享仓库库存。")
+	_assert_true(shortage_quest != null, "submit_item 失败后任务应继续停留在 active_quests。")
+	if shortage_quest != null:
+		_assert_eq(shortage_quest.get_objective_progress(&"deliver_ore"), 0, "submit_item 失败时不应推进 quest objective。")
+	_assert_true(not facade.get_party_state().has_claimable_quest(&"contract_supply_delivery_shortage"), "submit_item 失败时任务不应误进入 claimable_quests。")
 
 	var growth_reward_member_id: StringName = facade.get_party_state().leader_member_id
 	var growth_reward_quest := QuestState.new()
@@ -262,6 +297,39 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "bronze_sword", "quantity": 1},
 	])
 	game_session.get_quest_defs()[overflow_quest.quest_id] = overflow_quest
+
+
+func _inject_submit_item_quest_defs(game_session) -> void:
+	if game_session == null:
+		return
+	var submit_item_quest := QuestDef.new()
+	submit_item_quest.quest_id = &"contract_supply_delivery"
+	submit_item_quest.display_name = "物资缴纳"
+	submit_item_quest.description = "向任务板提交两份铁矿石。"
+	submit_item_quest.provider_interaction_id = &"service_contract_board"
+	submit_item_quest.objective_defs = [
+		{
+			"objective_id": "deliver_ore",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": "iron_ore",
+			"target_value": 2,
+		},
+	]
+	submit_item_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 18},
+	])
+	game_session.get_quest_defs()[submit_item_quest.quest_id] = submit_item_quest
+
+	var submit_item_shortage_quest := QuestDef.new()
+	submit_item_shortage_quest.quest_id = &"contract_supply_delivery_shortage"
+	submit_item_shortage_quest.display_name = "物资缴纳缺料"
+	submit_item_shortage_quest.description = "用于验证缺料时 submit_item 不会吞库存。"
+	submit_item_shortage_quest.provider_interaction_id = &"service_contract_board"
+	submit_item_shortage_quest.objective_defs = submit_item_quest.objective_defs.duplicate(true)
+	submit_item_shortage_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 10},
+	])
+	game_session.get_quest_defs()[submit_item_shortage_quest.quest_id] = submit_item_shortage_quest
 
 
 func _inject_pending_reward_quest_def(game_session, member_id: StringName) -> void:

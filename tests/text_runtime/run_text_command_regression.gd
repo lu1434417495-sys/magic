@@ -3,6 +3,7 @@
 extends SceneTree
 
 const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
+const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
@@ -20,6 +21,7 @@ func _run() -> void:
 	await runner.initialize()
 
 	await _run_command(runner, "game new test")
+	_inject_submit_item_contract(runner.get_session().get_game_session())
 	_assert_log_snapshot_available(runner)
 	_assert_new_game_random_book_skill_grant(runner)
 	var book_skill := _pick_unlearned_book_skill_for_member(runner.get_session().get_game_session(), &"player_sword_01")
@@ -30,11 +32,16 @@ func _run() -> void:
 		return
 	var skill_book_skill_id := String(book_skill.get("skill_id", ""))
 	var skill_book_item_id := String(book_skill.get("item_id", ""))
+	await _run_command(runner, "warehouse add iron_ore 2")
 	await _run_command(runner, "world open")
 	await _run_command(runner, "settlement action service:contract_board interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务")
 	_assert_contract_board_modal_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
 	await _run_command(runner, "settlement action service:contract_board submission_source=contract_board quest_id=contract_manual_drill interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务 provider_interaction_id=service_contract_board")
-	_assert_contract_board_accept_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot(), "contract_manual_drill")
+	_assert_contract_board_accept_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot(), "contract_manual_drill", "训练记录")
+	await _run_command(runner, "settlement action service:contract_board submission_source=contract_board quest_id=contract_supply_drop interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务 provider_interaction_id=service_contract_board")
+	_assert_contract_board_accept_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot(), "contract_supply_drop", "物资缴纳")
+	await _run_command(runner, "settlement action service:contract_board submission_source=contract_board quest_id=contract_supply_drop interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务 provider_interaction_id=service_contract_board")
+	_assert_contract_board_submit_item_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot(), "contract_supply_drop", "iron_ore")
 	var duplicate_contract_result = await runner.execute_line("settlement action service:contract_board submission_source=contract_board quest_id=contract_manual_drill interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务 provider_interaction_id=service_contract_board")
 	if not duplicate_contract_result.skipped:
 		print(duplicate_contract_result.render())
@@ -272,17 +279,30 @@ func _assert_contract_board_closed_to_settlement(snapshot: Dictionary) -> void:
 	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "settlement", "关闭任务板后当前 modal 应回到 settlement。")
 
 
-func _assert_contract_board_accept_applied(snapshot: Dictionary, text_snapshot: String, quest_id: String) -> void:
+func _assert_contract_board_accept_applied(snapshot: Dictionary, text_snapshot: String, quest_id: String, quest_label: String) -> void:
 	var status_snapshot: Dictionary = snapshot.get("status", {})
 	var contract_board_snapshot: Dictionary = snapshot.get("contract_board", {})
 	var window_data: Dictionary = contract_board_snapshot.get("window_data", {})
 	var accepted_entry := _find_contract_board_entry(window_data.get("entries", []), quest_id)
 	_assert_true(bool(contract_board_snapshot.get("visible", false)), "任务板接取后应继续停留在 contract_board modal。")
 	_assert_true((snapshot.get("party", {}).get("quests", {}).get("active_quest_ids", []) as Array).has(quest_id), "任务板接取后 PartyState.active_quests 应包含该任务。")
-	_assert_eq(String(status_snapshot.get("text", "")), "已接取任务《训练记录》。", "任务板接取后状态栏应显示正式 quest accept 成功反馈。")
-	_assert_eq(String(window_data.get("summary_text", "")), "已接取任务《训练记录》。", "任务板接取后 contract board summary_text 应刷新为最新反馈。")
+	_assert_eq(String(status_snapshot.get("text", "")), "已接取任务《%s》。" % quest_label, "任务板接取后状态栏应显示正式 quest accept 成功反馈。")
+	_assert_eq(String(window_data.get("summary_text", "")), "已接取任务《%s》。" % quest_label, "任务板接取后 contract board summary_text 应刷新为最新反馈。")
 	_assert_eq(String(accepted_entry.get("state_id", "")), "active", "任务板接取后条目应刷新为 active。")
-	_assert_true(text_snapshot.contains("active_quest_ids=contract_manual_drill"), "文本快照应渲染任务板接取后的 active_quest_ids。")
+	_assert_true(text_snapshot.contains("quest=%s | stage=active" % quest_id), "文本快照应渲染任务板接取后的 active 任务明细。")
+
+
+func _assert_contract_board_submit_item_applied(snapshot: Dictionary, text_snapshot: String, quest_id: String, item_id: String) -> void:
+	var status_snapshot: Dictionary = snapshot.get("status", {})
+	var contract_board_snapshot: Dictionary = snapshot.get("contract_board", {})
+	var window_data: Dictionary = contract_board_snapshot.get("window_data", {})
+	var submitted_entry := _find_contract_board_entry(window_data.get("entries", []), quest_id)
+	_assert_true(bool(contract_board_snapshot.get("visible", false)), "submit_item 提交后应继续停留在 contract_board modal。")
+	_assert_eq(String(status_snapshot.get("text", "")), "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 提交后状态栏应显示正式扣料反馈。")
+	_assert_eq(String(window_data.get("summary_text", "")), "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 提交后 contract board summary_text 应同步反馈。")
+	_assert_eq(String(submitted_entry.get("state_id", "")), "claimable", "submit_item 提交后条目应刷新为 claimable。")
+	_assert_eq(_count_warehouse_item(snapshot, item_id), 0, "submit_item 提交成功后共享仓库应扣除对应物资。")
+	_assert_true(text_snapshot.contains("quest=%s | stage=claimable" % quest_id), "文本快照应渲染 submit_item 任务进入 claimable。")
 
 
 func _assert_contract_board_duplicate_feedback(snapshot: Dictionary) -> void:
@@ -506,6 +526,28 @@ func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
 		if String(entry.get("quest_id", entry.get("entry_id", ""))) == quest_id:
 			return entry.duplicate(true)
 	return {}
+
+
+func _inject_submit_item_contract(game_session) -> void:
+	if game_session == null:
+		return
+	var submit_item_quest := QuestDef.new()
+	submit_item_quest.quest_id = &"contract_supply_drop"
+	submit_item_quest.display_name = "物资缴纳"
+	submit_item_quest.description = "向任务板提交两份铁矿石。"
+	submit_item_quest.provider_interaction_id = &"service_contract_board"
+	submit_item_quest.objective_defs = [
+		{
+			"objective_id": "deliver_ore",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": "iron_ore",
+			"target_value": 2,
+		},
+	]
+	submit_item_quest.reward_entries = [
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 18},
+	]
+	game_session.get_quest_defs()[submit_item_quest.quest_id] = submit_item_quest
 
 
 func _assert_equipment_requirement_error_message(runner) -> void:

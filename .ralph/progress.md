@@ -65,3 +65,7 @@ Implemented quest item reward claiming through `CharacterManagementModule` + `Pa
 ## 2026-04-17T03:02:51+08:00 | PVS_04D | done
 title: 实现 quest pending_character_reward materializer
 Implemented quest `pending_character_reward` materialization in `CharacterManagementModule`, added `QuestDef` schema validation for that reward type, surfaced quest-claim summaries/errors through `GameRuntimeFacade`, and added focused progression/runtime regressions proving claimed quest growth rewards enter `pending_character_rewards` and continue through the existing reward modal flow. `docs/design/project_context_units.md` stayed valid and `.ralph/prd.json` was not edited.
+
+## 2026-04-17T03:14:56+08:00 | PVS_05A | done
+title: 为 submit_item 目标增加正式仓库扣除入口
+新增 submit_item 正式提交流程：由 CharacterManagementModule 统一预览需求、原子扣减 shared warehouse 并推进 quest objective，GameRuntimeFacade/SettlementCommandHandler 接入任务板入口；补了 quest schema 校验、文本快照兼容和相关回归，并更新了 project_context_units 的 ownership 说明。

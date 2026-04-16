@@ -110,6 +110,28 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	var pending_reward_errors: Array[String] = invalid_pending_reward_quest.validate_schema()
 	_assert_true(pending_reward_errors.size() >= 3, "无效 pending_character_reward 应被 validate_schema() 拒绝。")
 
+	var invalid_submit_item_quest := QuestDef.new()
+	invalid_submit_item_quest.quest_id = &"broken_submit_item_contract"
+	invalid_submit_item_quest.objective_defs = [
+		{
+			"objective_id": "deliver_ore",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": "",
+			"target_value": 2,
+		},
+	]
+	var submit_item_errors: Array[String] = invalid_submit_item_quest.validate_schema()
+	var found_submit_item_error := false
+	for submit_item_error in submit_item_errors:
+		if not submit_item_error.contains("submit_item objective deliver_ore 缺少 target_id"):
+			continue
+		found_submit_item_error = true
+		break
+	_assert_true(
+		found_submit_item_error,
+		"submit_item objective 缺少 target_id 时应被 validate_schema() 拒绝。"
+	)
+
 
 func _test_quest_state_progress_and_round_trip() -> void:
 	var quest_def := QuestDef.new()

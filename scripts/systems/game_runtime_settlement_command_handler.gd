@@ -905,7 +905,8 @@ func _describe_contract_board_objective(objective_data: Dictionary) -> String:
 		&"defeat_enemy":
 			return "击败敌对遭遇"
 		&"submit_item":
-			return "提交物资 %s" % (target_id if not target_id.is_empty() else "未命名")
+			var item_id := ProgressionDataUtils.to_string_name(target_id)
+			return "提交物资 %s" % (_get_item_display_name(item_id) if item_id != &"" else "未命名")
 		_:
 			return String(objective_data.get("objective_id", objective_type))
 
@@ -941,6 +942,39 @@ func _get_active_quest_state(quest_id: StringName):
 	if party_state == null or not party_state.has_method("get_active_quest_state"):
 		return null
 	return party_state.get_active_quest_state(quest_id)
+
+
+func _resolve_active_submit_item_objective_id(quest_id: StringName, quest_data: Dictionary) -> StringName:
+	var quest_state = _get_active_quest_state(quest_id)
+	if quest_state == null:
+		return &""
+	var objective_defs_variant = quest_data.get("objective_defs", [])
+	if objective_defs_variant is not Array:
+		return &""
+	for objective_variant in objective_defs_variant:
+		if objective_variant is not Dictionary:
+			continue
+		var objective_data := objective_variant as Dictionary
+		if ProgressionDataUtils.to_string_name(objective_data.get("objective_type", "")) != QUEST_DEF_SCRIPT.OBJECTIVE_SUBMIT_ITEM:
+			continue
+		var objective_id := ProgressionDataUtils.to_string_name(objective_data.get("objective_id", ""))
+		var target_value := maxi(int(objective_data.get("target_value", 1)), 1)
+		if objective_id == &"" or quest_state.is_objective_complete(objective_id, target_value):
+			continue
+		return objective_id
+	return &""
+
+
+func _quest_has_submit_item_objective(quest_data: Dictionary) -> bool:
+	var objective_defs_variant = quest_data.get("objective_defs", [])
+	if objective_defs_variant is not Array:
+		return false
+	for objective_variant in objective_defs_variant:
+		if objective_variant is not Dictionary:
+			continue
+		if ProgressionDataUtils.to_string_name((objective_variant as Dictionary).get("objective_type", "")) == QUEST_DEF_SCRIPT.OBJECTIVE_SUBMIT_ITEM:
+			return true
+	return false
 
 
 func _open_shop_modal(settlement_id: String, payload: Dictionary) -> void:
@@ -1412,6 +1446,13 @@ func _submit_contract_board_quest_action(settlement_id: String, _action_id: Stri
 	var command_result: Dictionary = {}
 	if state_id == "claimable":
 		command_result = _runtime.command_claim_quest(quest_id) if _runtime.has_method("command_claim_quest") else _command_error("运行时缺少 quest claim 接口。")
+	elif state_id == "active":
+		var submit_item_objective_id := _resolve_active_submit_item_objective_id(quest_id, quest_data)
+		if submit_item_objective_id != &"" or _quest_has_submit_item_objective(quest_data):
+			command_result = _runtime.command_submit_quest_item(quest_id, submit_item_objective_id) if _runtime.has_method("command_submit_quest_item") else _command_error("运行时缺少 quest submit_item 接口。")
+		else:
+			var allow_reaccept := bool(quest_data.get("is_repeatable", false))
+			command_result = _runtime.command_accept_quest(quest_id, allow_reaccept) if _runtime.has_method("command_accept_quest") else _command_error("运行时缺少 quest accept 接口。")
 	else:
 		var allow_reaccept := bool(quest_data.get("is_repeatable", false))
 		command_result = _runtime.command_accept_quest(quest_id, allow_reaccept) if _runtime.has_method("command_accept_quest") else _command_error("运行时缺少 quest accept 接口。")

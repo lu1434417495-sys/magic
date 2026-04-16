@@ -75,6 +75,7 @@ class MockRuntime:
 	var achievement_events: Array[Dictionary] = []
 	var accepted_quest_calls: Array[Dictionary] = []
 	var claimed_quest_calls: Array[Dictionary] = []
+	var submitted_quest_item_calls: Array[Dictionary] = []
 	var persist_calls := 0
 	var world_persist_calls := 0
 	var player_persist_calls := 0
@@ -256,6 +257,39 @@ class MockRuntime:
 			_current_status_message = "已领取任务《%s》奖励。" % quest_label
 		var result := build_command_ok(_current_status_message)
 		result["gold_delta"] = gold_delta
+		return result
+
+	func command_submit_quest_item(quest_id: StringName, objective_id: StringName = &"") -> Dictionary:
+		submitted_quest_item_calls.append({
+			"quest_id": String(quest_id),
+			"objective_id": String(objective_id),
+		})
+		var quest_data: Dictionary = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), {})).duplicate(true)
+		var quest_label := String(quest_data.get("display_name", quest_id))
+		var active_quest: QuestState = _party_state.get_active_quest_state(quest_id)
+		if quest_data.is_empty() or active_quest == null:
+			_current_status_message = "当前没有进行中的任务《%s》。" % quest_label
+			return build_command_error(_current_status_message)
+		var target_value := 1
+		var item_id := &""
+		for objective_variant in quest_data.get("objective_defs", []):
+			if objective_variant is not Dictionary:
+				continue
+			var objective_data := objective_variant as Dictionary
+			if ProgressionDataUtils.to_string_name(objective_data.get("objective_id", "")) != objective_id:
+				continue
+			target_value = maxi(int(objective_data.get("target_value", 1)), 1)
+			item_id = ProgressionDataUtils.to_string_name(objective_data.get("target_id", ""))
+			active_quest.record_objective_progress(objective_id, target_value, target_value, {
+				"item_id": String(item_id),
+			})
+			break
+		_party_state.mark_quest_completed(quest_id, world_step)
+		_current_status_message = "已为任务《%s》提交 铁矿石 x2，奖励待领取。" % quest_label
+		var result := build_command_ok(_current_status_message)
+		result["objective_id"] = String(objective_id)
+		result["item_id"] = String(item_id)
+		result["submitted_quantity"] = target_value
 		return result
 
 	func refresh_world_visibility() -> void:
@@ -551,6 +585,23 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 				{"reward_type": "gold", "amount": 120},
 			],
 		},
+		&"contract_supply_drop": {
+			"quest_id": "contract_supply_drop",
+			"display_name": "物资缴纳",
+			"description": "向任务板提交两份铁矿石。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "deliver_ore",
+					"objective_type": "submit_item",
+					"target_id": "iron_ore",
+					"target_value": 2,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 18},
+			],
+		},
 	}
 
 	var handler := GameRuntimeSettlementCommandHandler.new()
@@ -583,7 +634,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(runtime._active_modal_id, "contract_board", "任务板服务后应切换到 contract_board modal。")
 	_assert_eq(String(contract_board_window_data.get("action_id", "")), "service:contract_board", "任务板 modal 应保留原始 action_id。")
 	_assert_eq(String(contract_board_window_data.get("provider_interaction_id", "")), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。")
-	_assert_eq(contract_board_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol"], "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。")
+	_assert_eq(contract_board_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop"], "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。")
 	var accept_contract_result := handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_manual_drill",
@@ -641,6 +692,23 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_true(runtime._party_state.has_completed_quest(&"contract_repeatable_patrol"), "repeatable 契约领奖后应进入 completed_quest_ids。")
 	_assert_eq(String(repeatable_entry.get("state_id", "")), "repeatable", "repeatable 契约领奖后条目应刷新为 repeatable。")
 
+	var submit_item_quest := QuestState.new()
+	submit_item_quest.quest_id = &"contract_supply_drop"
+	submit_item_quest.mark_accepted(runtime.world_step)
+	runtime._party_state.set_active_quest_state(submit_item_quest)
+	handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_supply_drop",
+	})
+	var submit_item_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_supply_drop")
+	_assert_eq(runtime.accepted_quest_calls.size(), 2, "active submit_item 契约提交时不应再走 quest accept。")
+	_assert_eq(runtime.submitted_quest_item_calls.size(), 1, "active submit_item 契约提交时应走正式 quest submit_item 命令。")
+	_assert_eq(String(runtime.submitted_quest_item_calls[0].get("objective_id", "")), "deliver_ore", "submit_item 路由时应带上未完成 objective_id。")
+	_assert_eq(runtime._current_status_message, "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 提交后应刷新正式反馈。")
+	_assert_true(not runtime._party_state.has_active_quest(&"contract_supply_drop"), "submit_item 提交完成后任务应离开 active_quests。")
+	_assert_true(runtime._party_state.has_claimable_quest(&"contract_supply_drop"), "submit_item 提交完成后任务应进入 claimable_quests。")
+	_assert_eq(String(submit_item_entry.get("state_id", "")), "claimable", "submit_item 提交后条目应刷新为 claimable。")
+
 	handler.on_contract_board_window_closed()
 	_assert_eq(runtime._active_modal_id, "settlement", "关闭任务板后应返回 settlement modal。")
 	_assert_eq(runtime._active_settlement_id, "spring_village_01", "关闭任务板后应继续保留当前据点。")
@@ -657,7 +725,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	handler.on_contract_board_window_closed()
 	handler.command_execute_settlement_action("service:contract_board")
 	var reopened_contract_entry_ids := _extract_contract_board_entry_ids(handler.get_contract_board_window_data().get("entries", []))
-	_assert_eq(reopened_contract_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol"], "悬赏署 provider 不应污染正式 contract board 列表。")
+	_assert_eq(reopened_contract_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop"], "悬赏署 provider 不应污染正式 contract board 列表。")
 	handler.on_contract_board_window_closed()
 
 	var training_result := handler.command_execute_settlement_action("service:training", {

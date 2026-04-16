@@ -80,6 +80,13 @@ func validate_schema() -> Array[String]:
 			])
 		if target_value <= 0:
 			errors.append("QuestDef %s 的 objective %s 必须有正 target_value。" % [String(quest_id), String(objective_id)])
+		if objective_type == OBJECTIVE_SUBMIT_ITEM:
+			var submit_item_id := ProgressionDataUtils.to_string_name(objective_data.get("target_id", ""))
+			if submit_item_id == &"":
+				errors.append("QuestDef %s 的 submit_item objective %s 缺少 target_id。" % [
+					String(quest_id),
+					String(objective_id),
+				])
 
 	for reward_variant in reward_entries:
 		if reward_variant is not Dictionary:

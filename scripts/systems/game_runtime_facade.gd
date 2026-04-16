@@ -1406,6 +1406,69 @@ func command_complete_quest(quest_id: StringName) -> Dictionary:
 	)
 
 
+func command_submit_quest_item(quest_id: StringName, objective_id: StringName = &"") -> Dictionary:
+	return _execute_logged_command("quest.submit_item", "quest", {
+		"quest_id": quest_id,
+		"objective_id": objective_id,
+	}, func() -> Dictionary:
+		if _character_management == null:
+			return _command_error("运行时尚未初始化。")
+		if quest_id == &"":
+			return _command_error("任务 ID 不能为空。")
+		var quest_data := _get_quest_def_data(quest_id)
+		if quest_data.is_empty():
+			return _command_error("未找到任务 %s。" % String(quest_id))
+		var quest_label := _resolve_quest_label(quest_id, quest_data)
+		var submit_result := _character_management.submit_item_objective(quest_id, objective_id, get_world_step())
+		if not bool(submit_result.get("ok", false)):
+			var item_id := ProgressionDataUtils.to_string_name(submit_result.get("item_id", ""))
+			var item_label := _get_item_display_name(item_id)
+			var required_quantity := maxi(int(submit_result.get("required_quantity", 0)), 0)
+			match String(submit_result.get("error_code", "")):
+				"invalid_quest_id":
+					return _command_error("任务 ID 不能为空。")
+				"quest_not_active":
+					return _command_error("当前没有进行中的任务《%s》。" % quest_label)
+				"quest_def_missing":
+					return _command_error("任务《%s》缺少目标配置，当前无法提交。" % quest_label)
+				"invalid_submit_item_objective":
+					return _command_error("任务《%s》包含无效的物资提交目标，当前无法提交。" % quest_label)
+				"objective_already_complete":
+					return _command_error("任务《%s》的物资目标已完成，无需重复提交。" % quest_label)
+				"submit_item_missing_inventory":
+					return _command_error("共享仓库缺少%s x%d，无法提交给任务《%s》。" % [
+						item_label,
+						required_quantity,
+						quest_label,
+					])
+				"submit_item_commit_failed":
+					return _command_error("当前无法从共享仓库扣除任务《%s》所需物资。" % quest_label)
+				"quest_progress_failed":
+					return _command_error("共享仓库扣除已回滚，当前无法推进任务《%s》。" % quest_label)
+				_:
+					return _command_error("任务《%s》当前没有可提交的物资目标。" % quest_label)
+		_party_state = _character_management.get_party_state()
+		var item_id := ProgressionDataUtils.to_string_name(submit_result.get("item_id", ""))
+		var item_label := _get_item_display_name(item_id)
+		var submitted_quantity := maxi(int(submit_result.get("submitted_quantity", 0)), 0)
+		var claimable_quest_ids: Array = submit_result.get("claimable_quest_ids", [])
+		var message := "已为任务《%s》提交 %s x%d。" % [quest_label, item_label, submitted_quantity]
+		if claimable_quest_ids.has(quest_id):
+			message = "已为任务《%s》提交 %s x%d，奖励待领取。" % [quest_label, item_label, submitted_quantity]
+		var persist_error := _persist_party_state()
+		if persist_error != OK:
+			message = "%s 但队伍状态持久化失败。" % message
+			_update_status(message)
+			return _command_error(message)
+		_update_status(message)
+		var result := _command_ok(message)
+		result["objective_id"] = String(submit_result.get("objective_id", ""))
+		result["item_id"] = String(item_id)
+		result["submitted_quantity"] = submitted_quantity
+		return result
+	)
+
+
 func command_claim_quest(quest_id: StringName) -> Dictionary:
 	return _execute_logged_command("quest.claim", "quest", {
 		"quest_id": quest_id,
