@@ -79,6 +79,7 @@ func apply_repeat_attack_skill_result(
 		var stage_damage_multiplier: float = _get_repeat_attack_stage_damage_multiplier(repeat_attack_effect, stage_index)
 		var stage_effects := _build_repeat_attack_stage_effects(staged_effects, repeat_attack_effect, stage_damage_multiplier)
 		var result: Dictionary = _runtime._damage_resolver.resolve_effects(active_unit, target_unit, stage_effects)
+		_runtime._mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		_runtime._append_changed_unit_id(batch, target_unit.unit_id)
 		_runtime._append_changed_unit_coords(batch, target_unit)
 

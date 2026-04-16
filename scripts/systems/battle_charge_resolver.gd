@@ -236,6 +236,7 @@ func _apply_charge_path_step_aoe_effects(
 		seen_unit_ids[target_unit.unit_id] = true
 
 		var result: Dictionary = _runtime._damage_resolver.resolve_effects(active_unit, target_unit, [stage_effect])
+		_runtime._mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		if not bool(result.get("applied", false)):
 			continue
 

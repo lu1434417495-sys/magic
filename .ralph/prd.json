@@ -845,14 +845,22 @@
     {
       "id": "PVS_16B",
       "title": "把状态持续时间管理接到 battle runtime 并补回归",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "状态的施加、续时、清除和 tick 走统一时序",
         "battle smoke regression 覆盖状态持续时间与序列化"
       ],
       "notes": [
         "Owner：CU-15 / CU-16 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T06:36:14+08:00",
+      "lastRunId": "20260417-063614-PVS_16B",
+      "startedAt": "2026-04-17T06:36:14+08:00",
+      "completedAt": "2026-04-17T06:46:56+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Passed: `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd`; `godot --headless --script tests/battle_runtime/run_status_effect_semantics_regression.gd`; `godot --headless --script tests/battle_runtime/run_archer_skill_semantics_regression.gd`; `godot --headless --script tests/battle_runtime/run_battle_skill_protocol_regression.gd`. Known unrelated failure remains in `godot --headless --script tests/battle_runtime/run_warrior_skill_semantics_regression.gd` on the taunt AI fixture.",
+      "lastLearnings": "Status duration timing now relies on serialized `BattleStatusEffectState.skip_next_turn_end_decay`: self-buffs can survive their current turn end without reintroducing start-of-turn decay, while target debuffs still expire on the affected unit’s turn end. The older warrior taunt regression fixture is still not aligned with current AI skill gating."
     },
     {
       "id": "PVS_17A",

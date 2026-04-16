@@ -750,7 +750,7 @@ HeadlessGameTestSession
   - 处理 footprint、移动、墙边 / 高差 / 占位规则。
   - `BattleTerrainRules` 负责 `land / shallow_water / flowing_water / deep_water / mud / spike` 的基础通行与显示语义。
   - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
-  - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered`。
+- `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
   - `BattleHitResolver` 负责当前命中率合成、deterministic 命中掷骰，以及 repeat-attack 的正式命中口径。
   - 处理伤害、状态、AI 决策上下文与产出。
 - 邻接单元：
@@ -878,6 +878,7 @@ HeadlessGameTestSession
   - battle status semantics：
     - `status_effects` 的 stack / duration / tick 语义回归
     - `burning / slow / staggered` 的正式 runtime 口径
+    - battle smoke 对 self-buff / target-debuff 的持续时间与 `BattleUnitState` 序列化回归
   - battle resolution contract：
     - `BattleResolutionResult` round-trip
     - battle end 构造 canonical result

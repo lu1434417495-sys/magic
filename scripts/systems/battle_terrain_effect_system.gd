@@ -157,6 +157,7 @@ func apply_timed_terrain_effect_tick(
 	if not bool(result.get("applied", false)):
 		return
 
+	_runtime._mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 	_runtime._append_changed_unit_id(batch, target_unit.unit_id)
 	_runtime._append_changed_unit_coords(batch, target_unit)
 	var damage := int(result.get("damage", 0))

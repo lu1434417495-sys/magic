@@ -60,6 +60,8 @@ func _run() -> void:
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
 	_test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch()
+	_test_status_duration_serialization_preserves_owner_turn_skip()
+	_test_status_duration_blocks_target_turn_until_turn_end()
 	if _failures.is_empty():
 		print("Battle runtime smoke: PASS")
 		quit(0)
@@ -1381,6 +1383,157 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	_assert_true(turn_batch.changed_unit_ids.has(archer.unit_id), "零 TU 的队列回合切换也应记录 cooldown 单位变更。")
 	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 1, "零 TU 回合切换应继续按统一规则递减 cooldown。")
 	_assert_eq(archer.last_turn_tu, 1, "零 TU 回合切换不应篡改当前的 timeline TU 锚点。")
+
+
+func _test_status_duration_serialization_preserves_owner_turn_skip() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, registry.get_skill_defs(), {}, {})
+
+	var state := _build_skill_test_state(Vector2i(6, 4))
+	var archer := _build_unit(&"status_skip_archer", Vector2i(3, 1), 2)
+	archer.current_mp = 6
+	archer.current_stamina = 6
+	archer.current_aura = 6
+	archer.known_active_skill_ids = [&"archer_skirmish_step"]
+	archer.known_skill_level_map = {&"archer_skirmish_step": 1}
+	var enemy := _build_enemy_unit(&"status_skip_enemy", Vector2i(5, 1))
+
+	state.units = {
+		archer.unit_id: archer,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [archer.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = archer.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, archer, archer.coord, true), "状态持续时间回归中的施法者应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "状态持续时间回归中的敌人应能成功放入战场。")
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = archer.unit_id
+	command.skill_id = &"archer_skirmish_step"
+	command.target_unit_id = archer.unit_id
+	var batch := runtime.issue_command(command)
+	_assert_true(batch.changed_unit_ids.has(archer.unit_id), "游击步应记录施法者状态变更。")
+	var pre_aim_entry = archer.get_status_effect(&"archer_pre_aim")
+	_assert_true(
+		pre_aim_entry != null and pre_aim_entry.skip_next_turn_end_decay,
+		"自施放状态在当前行动窗口内应标记为跳过本次 turn-end 递减。"
+	)
+
+	var payload := archer.to_dict()
+	var payload_status_effects: Dictionary = payload.get("status_effects", {})
+	var pre_aim_payload: Dictionary = payload_status_effects.get("archer_pre_aim", {})
+	_assert_true(
+		bool(pre_aim_payload.get("skip_next_turn_end_decay", false)),
+		"BattleUnitState.to_dict() 应保留状态持续时间的当前回合跳过标记。"
+	)
+	var restored := BattleUnitState.from_dict(payload) as BattleUnitState
+	_assert_true(restored != null, "BattleUnitState.from_dict() 应能恢复带持续时间状态的单位。")
+	if restored == null:
+		return
+	var restored_pre_aim = restored.get_status_effect(&"archer_pre_aim")
+	_assert_true(
+		restored_pre_aim != null and restored_pre_aim.skip_next_turn_end_decay,
+		"BattleUnitState.from_dict() 应恢复状态持续时间的当前回合跳过标记。"
+	)
+	state.units[restored.unit_id] = restored
+	archer = restored
+
+	var wait_command := BattleCommand.new()
+	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.unit_id = archer.unit_id
+	runtime.issue_command(wait_command)
+	var carried_pre_aim = archer.get_status_effect(&"archer_pre_aim")
+	_assert_true(carried_pre_aim != null, "当前回合结束时，自施放状态不应被立即清除。")
+	_assert_true(
+		carried_pre_aim != null and not carried_pre_aim.skip_next_turn_end_decay,
+		"跳过当前回合后，状态应清掉 skip 标记并等待下一次正式递减。"
+	)
+
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	state.timeline.ready_unit_ids.clear()
+	state.timeline.ready_unit_ids.append(archer.unit_id)
+	runtime.advance(0.0)
+	_assert_true(archer.has_status_effect(&"archer_pre_aim"), "自施放状态应在下一次行动窗口开始时仍然保留。")
+
+	var second_wait_command := BattleCommand.new()
+	second_wait_command.command_type = BattleCommand.TYPE_WAIT
+	second_wait_command.unit_id = archer.unit_id
+	runtime.issue_command(second_wait_command)
+	_assert_true(not archer.has_status_effect(&"archer_pre_aim"), "自施放状态应在下一次正式回合结束后被移除。")
+
+
+func _test_status_duration_blocks_target_turn_until_turn_end() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, registry.get_skill_defs(), {}, {})
+
+	var state := _build_skill_test_state(Vector2i(6, 3))
+	var archer := _build_unit(&"status_pinned_archer", Vector2i(1, 1), 2)
+	archer.current_mp = 6
+	archer.current_stamina = 6
+	archer.current_aura = 6
+	archer.known_active_skill_ids = [&"archer_arrow_rain"]
+	archer.known_skill_level_map = {&"archer_arrow_rain": 1}
+	var enemy := _build_enemy_unit(&"status_pinned_enemy", Vector2i(3, 1))
+	enemy.current_ap = 1
+
+	state.units = {
+		archer.unit_id: archer,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [archer.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = archer.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, archer, archer.coord, true), "压制状态回归中的施法者应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "压制状态回归中的敌人应能成功放入战场。")
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = archer.unit_id
+	command.skill_id = &"archer_arrow_rain"
+	command.target_coord = enemy.coord
+	runtime.issue_command(command)
+	_assert_true(enemy.has_status_effect(&"pinned"), "箭雨命中后应把 pinned 写入正式 battle unit 状态。")
+
+	var enemy_payload := enemy.to_dict()
+	var enemy_status_effects: Dictionary = enemy_payload.get("status_effects", {})
+	var pinned_payload: Dictionary = enemy_status_effects.get("pinned", {})
+	_assert_eq(int(pinned_payload.get("duration", -1)), 1, "被施加的 pinned 应带着正式 duration 进入序列化 payload。")
+	var restored_enemy := BattleUnitState.from_dict(enemy_payload) as BattleUnitState
+	_assert_true(restored_enemy != null and restored_enemy.has_status_effect(&"pinned"), "BattleUnitState.from_dict() 应恢复敌方 pinned 状态。")
+	if restored_enemy == null:
+		return
+	state.units[restored_enemy.unit_id] = restored_enemy
+	enemy = restored_enemy
+
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	state.timeline.ready_unit_ids.clear()
+	state.timeline.ready_unit_ids.append(enemy.unit_id)
+	runtime.advance(0.0)
+	_assert_true(enemy.has_status_effect(&"pinned"), "目标进入行动窗口时，pinned 不应在 turn start 前被提前清除。")
+
+	var move_command := BattleCommand.new()
+	move_command.command_type = BattleCommand.TYPE_MOVE
+	move_command.unit_id = enemy.unit_id
+	move_command.target_coord = Vector2i(4, 1)
+	var move_preview := runtime.preview_command(move_command)
+	_assert_true(
+		move_preview != null and not move_preview.allowed and move_preview.log_lines.size() > 0 and String(move_preview.log_lines[-1]).contains("限制移动"),
+		"pinned 应在目标回合内稳定阻止移动。"
+	)
+
+	var wait_command := BattleCommand.new()
+	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.unit_id = enemy.unit_id
+	runtime.issue_command(wait_command)
+	_assert_true(not enemy.has_status_effect(&"pinned"), "目标回合结束后，pinned 应按统一时序被移除。")
 
 
 func _count_explicit_props(state: BattleState) -> Dictionary:

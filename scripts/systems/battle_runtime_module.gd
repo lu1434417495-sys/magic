@@ -1007,6 +1007,7 @@ func _apply_unit_skill_result(
 	batch: BattleEventBatch
 ) -> bool:
 	var result := _damage_resolver.resolve_effects(active_unit, target_unit, effect_defs) if not effect_defs.is_empty() else _damage_resolver.resolve_skill(active_unit, target_unit, skill_def)
+	_mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 	_append_changed_unit_id(batch, target_unit.unit_id)
 	_append_changed_unit_coords(batch, target_unit)
 	if not bool(result.get("applied", false)):
@@ -1399,6 +1400,7 @@ func _apply_ground_unit_effects(
 			continue
 
 		var result := _damage_resolver.resolve_effects(source_unit, target_unit, applicable_effects)
+		_mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		if not bool(result.get("applied", false)):
 			continue
 
@@ -2119,33 +2121,10 @@ func _advance_unit_turn_timers(unit_state: BattleUnitState, batch: BattleEventBa
 	if unit_state == null:
 		return
 	var changed := _consume_turn_cooldown_delta(unit_state)
-
-	var expired_status_ids: Array[StringName] = []
 	for status_id_variant in unit_state.status_effects.keys():
 		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
-		var status_entry = unit_state.get_status_effect(status_id)
-		if status_entry == null:
-			expired_status_ids.append(status_id)
+		if unit_state.get_status_effect(status_id) == null:
 			changed = true
-			continue
-		if BattleStatusSemanticTable.should_skip_legacy_turn_decrement(status_id):
-			continue
-		if _expires_on_turn_end(status_id):
-			continue
-		if not status_entry.has_duration():
-			continue
-		var previous_duration := int(status_entry.duration)
-		var remaining_duration := maxi(previous_duration - 1, 0)
-		if remaining_duration <= 0:
-			expired_status_ids.append(status_id)
-			changed = true
-			continue
-		status_entry.duration = remaining_duration
-		unit_state.set_status_effect(status_entry)
-		if remaining_duration != previous_duration:
-			changed = true
-	for expired_status_id in expired_status_ids:
-		unit_state.erase_status_effect(expired_status_id)
 
 	if changed:
 		_append_changed_unit_id(batch, unit_state.unit_id)
@@ -2190,8 +2169,9 @@ func _consume_turn_end_statuses(unit_state: BattleUnitState, batch: BattleEventB
 			expired_status_ids.append(status_id)
 			changed = true
 			continue
-		if status_id == STATUS_TAUNTED:
-			expired_status_ids.append(status_id)
+		if status_entry.skip_next_turn_end_decay:
+			status_entry.skip_next_turn_end_decay = false
+			unit_state.set_status_effect(status_entry)
 			changed = true
 			continue
 		var duration_result: Dictionary = BattleStatusSemanticTable.advance_turn_end_duration(status_entry)
@@ -2208,8 +2188,20 @@ func _consume_turn_end_statuses(unit_state: BattleUnitState, batch: BattleEventB
 		_append_changed_unit_id(batch, unit_state.unit_id)
 
 
-func _expires_on_turn_end(status_id: StringName) -> bool:
-	return status_id == STATUS_TAUNTED
+func _mark_applied_statuses_for_turn_timing(target_unit: BattleUnitState, status_effect_ids: Variant) -> void:
+	if _state == null or target_unit == null or _state.active_unit_id != target_unit.unit_id:
+		return
+	if status_effect_ids is not Array:
+		return
+	for status_id_variant in status_effect_ids:
+		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
+		var status_entry = target_unit.get_status_effect(status_id)
+		if status_entry == null or not status_entry.has_duration():
+			continue
+		if status_entry.skip_next_turn_end_decay:
+			continue
+		status_entry.skip_next_turn_end_decay = true
+		target_unit.set_status_effect(status_entry)
 
 
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:

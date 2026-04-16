@@ -181,3 +181,7 @@ Patched the battle selection/session handoff so a selected skill that becomes Au
 ## 2026-04-17T06:36:13+08:00 | PVS_16A | done
 title: 引入状态效果语义表
 Added a formal CU-16 status semantics owner in `scripts/systems/battle_status_semantic_table.gd`, routed `BattleDamageResolver` and `BattleRuntimeModule` through it for stack/duration/tick handling, integrated `burning`/`slow`/`staggered`, added `tests/battle_runtime/run_status_effect_semantics_regression.gd`, and updated `docs/design/project_context_units.md` for the new ownership/read-set.
+
+## 2026-04-17T06:46:56+08:00 | PVS_16B | done
+title: 把状态持续时间管理接到 battle runtime 并补回归
+Unified battle status duration handling onto a single owner-turn-end path in battle runtime, added serialized `skip_next_turn_end_decay` metadata for self-applied statuses, expanded `BattleStatusSemanticTable` to the current baseline buff/debuff set, extended resolver sidecars to preserve timing metadata, added battle smoke coverage for status duration plus `BattleUnitState` round-trip, and refreshed `docs/design/project_context_units.md`.

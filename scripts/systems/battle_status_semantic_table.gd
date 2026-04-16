@@ -14,9 +14,22 @@ const TICK_NONE: StringName = &"none"
 const TICK_TURN_START_AP_PENALTY: StringName = &"turn_start_ap_penalty"
 const TICK_TURN_START_DAMAGE: StringName = &"turn_start_damage"
 
+const STATUS_ARMOR_BREAK: StringName = &"armor_break"
+const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
+const STATUS_ATTACK_UP: StringName = &"attack_up"
 const STATUS_BURNING: StringName = &"burning"
+const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
+const STATUS_EVASION_UP: StringName = &"evasion_up"
+const STATUS_FROZEN: StringName = &"frozen"
+const STATUS_GUARDING: StringName = &"guarding"
+const STATUS_MARKED: StringName = &"marked"
+const STATUS_PINNED: StringName = &"pinned"
+const STATUS_ROOTED: StringName = &"rooted"
+const STATUS_SHOCKED: StringName = &"shocked"
 const STATUS_SLOW: StringName = &"slow"
 const STATUS_STAGGERED: StringName = &"staggered"
+const STATUS_TAUNTED: StringName = &"taunted"
+const STATUS_TENDON_CUT: StringName = &"tendon_cut"
 
 
 static func has_semantic(status_id: StringName) -> bool:
@@ -25,6 +38,10 @@ static func has_semantic(status_id: StringName) -> bool:
 
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
+		STATUS_ARMOR_BREAK, STATUS_ARCHER_PRE_AIM, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_EVASION_UP, STATUS_FROZEN, STATUS_GUARDING, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT:
+			return _build_refresh_turn_end_semantic(
+				DURATION_CONSUME_ON_TURN_END if ProgressionDataUtils.to_string_name(status_id) == STATUS_TAUNTED else DURATION_DECREMENT_ON_TURN_END
+			)
 		STATUS_BURNING:
 			return {
 				"stack_mode": STACK_ADD,
@@ -120,21 +137,10 @@ static func get_move_cost_delta(status_entry: BattleStatusEffectState) -> int:
 	return base_delta * _get_effect_intensity(status_entry)
 
 
-static func should_skip_legacy_turn_decrement(status_id: StringName) -> bool:
-	var semantic := get_semantic(status_id)
-	if semantic.is_empty():
-		return false
-	var duration_mode := ProgressionDataUtils.to_string_name(semantic.get("duration_mode", DURATION_NONE))
-	return duration_mode == DURATION_DECREMENT_ON_TURN_END or duration_mode == DURATION_CONSUME_ON_TURN_END
-
-
 static func advance_turn_end_duration(status_entry: BattleStatusEffectState) -> Dictionary:
 	if status_entry == null:
 		return {"expired": false, "changed": false}
-	var semantic := get_semantic(status_entry.status_id)
-	if semantic.is_empty():
-		return {"expired": false, "changed": false}
-	var duration_mode := ProgressionDataUtils.to_string_name(semantic.get("duration_mode", DURATION_NONE))
+	var duration_mode := _resolve_duration_mode(status_entry)
 	match duration_mode:
 		DURATION_CONSUME_ON_TURN_END:
 			return {"expired": true, "changed": true}
@@ -149,6 +155,27 @@ static func advance_turn_end_duration(status_entry: BattleStatusEffectState) -> 
 			return {"expired": false, "changed": remaining_duration != previous_duration}
 		_:
 			return {"expired": false, "changed": false}
+
+
+static func _build_refresh_turn_end_semantic(duration_mode: StringName, default_duration: int = 1) -> Dictionary:
+	return {
+		"stack_mode": STACK_REFRESH,
+		"max_stacks": 1,
+		"default_duration": default_duration,
+		"duration_mode": duration_mode,
+		"tick_mode": TICK_NONE,
+	}
+
+
+static func _resolve_duration_mode(status_entry: BattleStatusEffectState) -> StringName:
+	if status_entry == null:
+		return DURATION_NONE
+	var semantic := get_semantic(status_entry.status_id)
+	if not semantic.is_empty():
+		return ProgressionDataUtils.to_string_name(semantic.get("duration_mode", DURATION_NONE))
+	if status_entry.has_duration():
+		return DURATION_DECREMENT_ON_TURN_END
+	return DURATION_NONE
 
 
 static func _resolve_duration(effect_def, fallback_duration: int) -> int:
