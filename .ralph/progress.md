@@ -213,3 +213,7 @@ Added a formal roster-owned drop schema on `wolf_den` via `WildEncounterRosterDe
 ## 2026-04-17T07:44:07+08:00 | PVS_19B | done
 title: 在 battle resolution 中正式填充 loot_entries
 Centralized `loot_entries` canonicalization in `scripts/systems/battle_resolution_result.gd` via `set_loot_entries()` and normalization on serialization/deserialization, updated `scripts/systems/battle_runtime_module.gd` so `_build_battle_resolution_result()` fills loot through that canonical path, and extended `tests/battle_runtime/run_battle_resolution_contract_regression.gd` to verify raw loot input is normalized and survives round-trip. `docs/design/project_context_units.md` stays valid as-is.
+
+## 2026-04-17T07:51:05+08:00 | PVS_20A | done
+title: 把战后 loot 正式提交到 shared warehouse
+Updated `scripts/systems/game_runtime_facade.gd` so `finalize_battle_resolution()` now commits player-victory `loot_entries` through `PartyWarehouseService.commit_batch_swap` instead of leaving battle loot unstaged, and extended `tests/battle_runtime/run_wild_encounter_regression.gd` to assert a real settlement victory writes `beast_hide` into the shared warehouse. `docs/design/project_context_units.md` stayed valid as-is; `.ralph/prd.json` was not edited.

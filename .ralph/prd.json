@@ -1005,14 +1005,22 @@
     {
       "id": "PVS_20A",
       "title": "把战后 loot 正式提交到 shared warehouse",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "battle victory 后 loot 会走正式入仓路径",
         "warehouse mutation 不绕过 `PartyWarehouseService`"
       ],
       "notes": [
         "Owner：CU-06 / CU-10 / CU-15。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:44:08+08:00",
+      "lastRunId": "20260417-074408-PVS_20A",
+      "startedAt": "2026-04-17T07:44:08+08:00",
+      "completedAt": "2026-04-17T07:51:05+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd` PASS; `godot --headless --script tests/battle_runtime/run_battle_resolution_contract_regression.gd` PASS; `godot --headless --script tests/runtime/run_game_runtime_quest_progress_regression.gd` PASS",
+      "lastLearnings": "The right ownership split is unchanged: CU-15 builds canonical `BattleResolutionResult.loot_entries`, and CU-06 materializes them by reusing `PartyWarehouseService`’s formal transaction path. Overflow generation and explicit loot/overflow feedback are still a separate follow-up slice."
     },
     {
       "id": "PVS_20B",

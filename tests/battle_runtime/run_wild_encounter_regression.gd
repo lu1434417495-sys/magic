@@ -6,6 +6,7 @@ extends SceneTree
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
 const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world_time_system.gd")
@@ -404,6 +405,8 @@ func _test_game_runtime_facade_settlement_victory_downgrades_encounter() -> void
 		return
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
+	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
@@ -416,16 +419,19 @@ func _test_game_runtime_facade_settlement_victory_downgrades_encounter() -> void
 
 	encounter_anchor.growth_stage = 3
 	facade._world_data["world_step"] = 4
+	var beast_hide_before_victory := warehouse_service.count_item(&"beast_hide")
 	game_session.set_battle_save_lock(true)
 	facade._start_battle(encounter_anchor)
 	_mark_active_battle_as_player_victory(facade)
 	facade._resolve_active_battle()
+	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
 
 	var remaining_anchor = _find_encounter_anchor_by_id(game_session.get_world_data(), encounter_anchor.entity_id)
 	_assert_true(remaining_anchor != null, "聚落类野怪战斗胜利后应继续保留在世界锚点中。")
 	if remaining_anchor != null:
 		_assert_eq(remaining_anchor.growth_stage, 2, "聚落类野怪战斗胜利后应下降 1 个成长阶段。")
 		_assert_eq(remaining_anchor.suppressed_until_step, 7, "聚落类野怪战斗胜利后应写入压制截止 step。")
+	_assert_eq(warehouse_service.count_item(&"beast_hide"), beast_hide_before_victory + 2, "聚落类 wild encounter 胜利后应把正式 loot 写入 shared warehouse。")
 	_assert_true(
 		not bool(facade.build_headless_snapshot().get("battle", {}).get("active", false)),
 		"聚落类野怪战后结算完成后，battle 快照应回到 inactive。"

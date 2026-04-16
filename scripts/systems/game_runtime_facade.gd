@@ -1109,6 +1109,7 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 	merged_quest_progress_events.append_array(_build_default_battle_quest_progress_events(winner_faction_id))
 	var quest_summary := _character_management.apply_quest_progress_events(merged_quest_progress_events, get_world_step())
 	_party_state = _character_management.get_party_state()
+	var loot_commit_result := _commit_battle_loot_to_shared_warehouse(battle_resolution_result)
 	var party_persist_error: int = int(_game_session.set_party_state(_party_state))
 	_resolve_world_encounter_after_battle(winner_faction_id)
 	var world_persist_error: int = int(_game_session.set_world_data(_world_data))
@@ -1146,6 +1147,10 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 			"pending_reward_count": resolved_pending_rewards.size(),
 			"loot_entry_count": battle_resolution_result.loot_entries.size(),
 			"overflow_entry_count": battle_resolution_result.overflow_entries.size(),
+			"loot_commit_ok": bool(loot_commit_result.get("ok", false)),
+			"loot_commit_error_code": String(loot_commit_result.get("error_code", "")),
+			"loot_commit_blocked_item_id": String(loot_commit_result.get("blocked_item_id", "")),
+			"loot_committed_item_count": int(loot_commit_result.get("committed_item_count", 0)),
 			"quest_progress_summary": _quest_progress_summary_to_string_dict(quest_summary),
 			"party_persist_error": party_persist_error,
 			"world_persist_error": world_persist_error,
@@ -1153,6 +1158,46 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 		}
 	)
 	_present_pending_reward_if_ready()
+
+
+func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictionary:
+	if battle_resolution_result == null:
+		return {"ok": false, "error_code": "missing_battle_resolution_result", "blocked_item_id": "", "committed_item_count": 0}
+	if String(battle_resolution_result.winner_faction_id) != "player":
+		return {"ok": true, "error_code": "", "blocked_item_id": "", "committed_item_count": 0}
+	if _party_state == null or _party_warehouse_service == null or _game_session == null:
+		return {"ok": false, "error_code": "warehouse_service_unavailable", "blocked_item_id": "", "committed_item_count": 0}
+
+	_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
+	var deposit_item_ids: Array[StringName] = []
+	for loot_entry_variant in battle_resolution_result.loot_entries:
+		if loot_entry_variant is not Dictionary:
+			continue
+		var loot_entry_data := loot_entry_variant as Dictionary
+		var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
+		var quantity := maxi(int(loot_entry_data.get("quantity", 0)), 0)
+		if item_id == &"" or quantity <= 0:
+			continue
+		for _index in range(quantity):
+			deposit_item_ids.append(item_id)
+	if deposit_item_ids.is_empty():
+		return {"ok": true, "error_code": "", "blocked_item_id": "", "committed_item_count": 0}
+
+	# Battle loot reuses the same warehouse transaction path as quest item rewards and forge output.
+	var commit_result: Dictionary = _party_warehouse_service.commit_batch_swap([], deposit_item_ids)
+	if not bool(commit_result.get("allowed", false)):
+		return {
+			"ok": false,
+			"error_code": String(commit_result.get("error_code", "battle_loot_commit_failed")),
+			"blocked_item_id": String(commit_result.get("blocked_item_id", "")),
+			"committed_item_count": 0,
+		}
+	return {
+		"ok": true,
+		"error_code": "",
+		"blocked_item_id": "",
+		"committed_item_count": deposit_item_ids.size(),
+	}
 
 
 func advance(delta: float) -> bool:
