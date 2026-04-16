@@ -1,0 +1,19 @@
+# Contract-board accept scenario for the headless text runner.
+game new test
+expect field session.world_loaded == true
+world open
+expect window == settlement
+settlement action service:contract_board interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务
+expect window == contract_board
+expect field settlement.visible == false
+expect field contract_board.visible == true
+expect field contract_board.window_data.provider_interaction_id == service_contract_board
+expect field contract_board.window_data.entries.1.quest_id == contract_manual_drill
+expect field contract_board.window_data.entries.1.state_id == available
+settlement action service:contract_board submission_source=contract_board quest_id=contract_manual_drill interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务 provider_interaction_id=service_contract_board
+expect window == contract_board
+expect list party.quests.active_quest_ids contains contract_manual_drill
+expect field status.text == 已接取任务《训练记录》。
+expect field contract_board.window_data.summary_text == 已接取任务《训练记录》。
+expect field contract_board.window_data.entries.1.state_id == active
+snapshot

@@ -21,4 +21,5 @@ Typical commands:
 ```powershell
 godot --headless --script tests/text_runtime/run_text_command_script.gd
 godot --headless --script tests/text_runtime/run_text_command_regression.gd
+godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/contract_board_accept.txt
 ```

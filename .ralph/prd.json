@@ -165,14 +165,22 @@
     {
       "id": "PVS_03C",
       "title": "为 board 接取路径补 text/headless 回归",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "text/headless 场景可验证 `open board -> accept quest -> snapshot changed`",
         "现有最小 `quest accept` 命令回归继续通过"
       ],
       "notes": [
         "Owner：CU-21 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T02:20:20+08:00",
+      "lastRunId": "20260417-022020-PVS_03C",
+      "startedAt": "2026-04-17T02:20:20+08:00",
+      "completedAt": "2026-04-17T02:23:37+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/contract_board_accept.txt`; `godot --headless --script tests/runtime/run_game_runtime_quest_progress_regression.gd`; `godot --headless --script tests/text_runtime/run_text_command_regression.gd`.",
+      "lastLearnings": "`run_text_command_script.gd` reads `OS.get_cmdline_user_args()`, so scenario paths must be passed after `--`. No runtime ownership or context-unit boundaries changed, so `docs/design/project_context_units.md` stays valid as-is."
     },
     {
       "id": "PVS_04A",
