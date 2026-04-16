@@ -25,6 +25,7 @@ const TERRAIN_MUD := &"mud"
 const TERRAIN_SPIKE := &"spike"
 const PROFILE_DEFAULT := &"default"
 const PROFILE_CANYON := &"canyon"
+const PROFILE_NARROW_ASSAULT := &"narrow_assault"
 const DEFAULT_MIN_HEIGHT := 4
 const DEFAULT_MAX_HEIGHT := 8
 const DEFAULT_FORMAL_SIZES := [
@@ -40,6 +41,13 @@ const CANYON_FORMAL_SIZES := [
 	Vector2i(19, 11),
 	Vector2i(21, 13),
 	Vector2i(23, 13),
+]
+const NARROW_ASSAULT_MIN_HEIGHT := 4
+const NARROW_ASSAULT_MAX_HEIGHT := 6
+const NARROW_ASSAULT_FORMAL_SIZES := [
+	Vector2i(17, 11),
+	Vector2i(19, 11),
+	Vector2i(21, 13),
 ]
 
 ## 字段说明：记录网格服务，会参与运行时状态流转、系统协作和存档恢复。
@@ -61,6 +69,8 @@ func generate(encounter_anchor_or_context, seed: int = 0, context: Dictionary = 
 		return {}
 	if terrain_profile_id == PROFILE_CANYON:
 		return _generate_canyon(encounter_context, terrain_profile_id)
+	if terrain_profile_id == PROFILE_NARROW_ASSAULT:
+		return _generate_narrow_assault(encounter_context, terrain_profile_id)
 	return _generate_default(encounter_context, terrain_profile_id)
 
 
@@ -334,6 +344,37 @@ func _generate_canyon(encounter_context: Dictionary, terrain_profile_id: StringN
 	return {}
 
 
+func _generate_narrow_assault(encounter_context: Dictionary, terrain_profile_id: StringName) -> Dictionary:
+	var battle_seed := _build_battle_seed(encounter_context)
+	_rng.seed = battle_seed
+	var map_size := _resolve_narrow_assault_map_size(encounter_context)
+	var layout_spec := _build_narrow_assault_layout_spec(map_size)
+	var cells := _build_narrow_assault_cells(map_size, layout_spec)
+	var cell_columns := BattleCellState.build_columns_from_surface_cells(cells)
+	var edge_faces := _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
+	var player_coord := _pick_narrow_assault_spawn_coord(cells, map_size, layout_spec, true)
+	var enemy_coord := _pick_narrow_assault_spawn_coord(cells, map_size, layout_spec, false)
+	if player_coord == Vector2i(-1, -1) or enemy_coord == Vector2i(-1, -1):
+		return {}
+
+	var distance_from_player := _build_distance_map(cells, map_size, player_coord, edge_faces)
+	if not distance_from_player.has(enemy_coord):
+		return {}
+	_populate_narrow_assault_props(cells, map_size, player_coord, enemy_coord, layout_spec)
+
+	return {
+		"map_size": map_size,
+		"cells": cells,
+		"cell_columns": cell_columns,
+		"terrain_counts": _count_terrain_cells(cells),
+		"ally_spawns": _collect_spawn_ring(cells, player_coord, edge_faces),
+		"enemy_spawns": _collect_spawn_ring(cells, enemy_coord, edge_faces),
+		"player_coord": player_coord,
+		"enemy_coord": enemy_coord,
+		"terrain_profile_id": terrain_profile_id,
+	}
+
+
 func _build_canyon_cells(map_size: Vector2i) -> Dictionary:
 	var heights := _generate_canyon_heights(map_size)
 	var terrain_by_coord := _generate_canyon_terrain(heights, map_size)
@@ -352,6 +393,144 @@ func _build_canyon_cells(map_size: Vector2i) -> Dictionary:
 
 	_finalize_water_terrain(cells, map_size)
 	return cells
+
+
+func _build_narrow_assault_layout_spec(map_size: Vector2i) -> Dictionary:
+	var lane_center_y := clampi(
+		int(map_size.y / 2) + _rng.randi_range(-1, 1),
+		2,
+		maxi(map_size.y - 3, 2)
+	)
+	var left_stage_end := maxi(int(round(float(map_size.x) * 0.24)), 3)
+	var right_stage_start := mini(map_size.x - left_stage_end - 1, map_size.x - 4)
+	var breach_x := clampi(
+		int(round(float(map_size.x) * 0.55)) + _rng.randi_range(-1, 1),
+		left_stage_end + 3,
+		right_stage_start - 2
+	)
+	return {
+		"lane_center_y": lane_center_y,
+		"left_stage_end": left_stage_end,
+		"right_stage_start": right_stage_start,
+		"breach_x": breach_x,
+		"breach_top_y": lane_center_y,
+		"breach_bottom_y": mini(lane_center_y + 1, map_size.y - 2),
+	}
+
+
+func _build_narrow_assault_cells(map_size: Vector2i, layout_spec: Dictionary) -> Dictionary:
+	var cells: Dictionary = {}
+	for coord in _collect_all_coords(map_size):
+		var cell_state := BATTLE_CELL_STATE_SCRIPT.new()
+		cell_state.coord = coord
+		cell_state.base_height = _resolve_narrow_assault_height(coord, layout_spec)
+		cell_state.base_terrain = _resolve_narrow_assault_terrain(coord, map_size, layout_spec)
+		cell_state.height_offset = 0
+		cell_state.prop_ids = []
+		cell_state.terrain_effect_ids = []
+		_grid_service.recalculate_cell(cell_state)
+		cells[coord] = cell_state
+	return cells
+
+
+func _resolve_narrow_assault_terrain(
+	coord: Vector2i,
+	map_size: Vector2i,
+	layout_spec: Dictionary
+) -> StringName:
+	if not _is_narrow_assault_passable_coord(coord, map_size, layout_spec):
+		return TERRAIN_DEEP_WATER
+
+	var left_stage_end := int(layout_spec.get("left_stage_end", 3))
+	var right_stage_start := int(layout_spec.get("right_stage_start", map_size.x - 4))
+	var breach_x := int(layout_spec.get("breach_x", map_size.x / 2))
+	var band := _get_narrow_assault_lane_band(coord.x, map_size, layout_spec)
+	var top_y := int(band.get("top_y", coord.y))
+	var bottom_y := int(band.get("bottom_y", coord.y))
+
+	if coord.x <= left_stage_end or coord.x >= right_stage_start:
+		if coord.y == top_y or coord.y == bottom_y:
+			return TERRAIN_FOREST
+	if coord.x == breach_x - 2 or coord.x == breach_x - 1:
+		return TERRAIN_MUD
+	if coord.x == breach_x + 1:
+		return TERRAIN_SPIKE
+	return TERRAIN_LAND
+
+
+func _resolve_narrow_assault_height(coord: Vector2i, layout_spec: Dictionary) -> int:
+	var left_stage_end := int(layout_spec.get("left_stage_end", 3))
+	var right_stage_start := int(layout_spec.get("right_stage_start", 0))
+	var breach_x := int(layout_spec.get("breach_x", 0))
+	var height := NARROW_ASSAULT_MIN_HEIGHT
+	if coord.x <= left_stage_end or coord.x >= right_stage_start:
+		height += 1
+	elif coord.x >= breach_x - 1 and coord.x <= breach_x + 1:
+		height = NARROW_ASSAULT_MIN_HEIGHT
+	return clampi(height, NARROW_ASSAULT_MIN_HEIGHT, NARROW_ASSAULT_MAX_HEIGHT)
+
+
+func _get_narrow_assault_lane_band(
+	x: int,
+	map_size: Vector2i,
+	layout_spec: Dictionary
+) -> Dictionary:
+	var lane_center_y := int(layout_spec.get("lane_center_y", map_size.y / 2))
+	var left_stage_end := int(layout_spec.get("left_stage_end", 3))
+	var right_stage_start := int(layout_spec.get("right_stage_start", map_size.x - 4))
+	var breach_x := int(layout_spec.get("breach_x", map_size.x / 2))
+	if x <= left_stage_end or x >= right_stage_start:
+		return {
+			"top_y": maxi(lane_center_y - 2, 1),
+			"bottom_y": mini(lane_center_y + 2, map_size.y - 2),
+		}
+	if x >= breach_x - 1 and x <= breach_x:
+		return {
+			"top_y": int(layout_spec.get("breach_top_y", lane_center_y)),
+			"bottom_y": int(layout_spec.get("breach_bottom_y", lane_center_y)),
+		}
+	return {
+		"top_y": maxi(lane_center_y - 1, 1),
+		"bottom_y": mini(lane_center_y + 1, map_size.y - 2),
+	}
+
+
+func _is_narrow_assault_passable_coord(
+	coord: Vector2i,
+	map_size: Vector2i,
+	layout_spec: Dictionary
+) -> bool:
+	var band := _get_narrow_assault_lane_band(coord.x, map_size, layout_spec)
+	return coord.y >= int(band.get("top_y", coord.y)) and coord.y <= int(band.get("bottom_y", coord.y))
+
+
+func _pick_narrow_assault_spawn_coord(
+	cells: Dictionary,
+	map_size: Vector2i,
+	layout_spec: Dictionary,
+	prefer_left_side: bool
+) -> Vector2i:
+	var lane_center_y := int(layout_spec.get("lane_center_y", map_size.y / 2))
+	var min_x := 1 if prefer_left_side else int(layout_spec.get("right_stage_start", map_size.x - 4))
+	var max_x := int(layout_spec.get("left_stage_end", 3)) if prefer_left_side else map_size.x - 2
+	var best_coord := Vector2i(-1, -1)
+	var best_score := -999999
+
+	for coord in _collect_all_coords(map_size):
+		if coord.x < min_x or coord.x > max_x:
+			continue
+		var cell := cells.get(coord) as BattleCellState
+		if cell == null or not cell.passable or not BattleTerrainRules.is_safe_terrain(cell.base_terrain):
+			continue
+
+		var distance_to_center := absi(coord.y - lane_center_y)
+		var side_score := max_x - coord.x if prefer_left_side else coord.x - min_x
+		var score := side_score * 24 - distance_to_center * 12 + int(cell.current_height) * 3
+		if score > best_score:
+			best_score = score
+			best_coord = coord
+
+	return best_coord
 
 
 func _generate_canyon_heights(map_size: Vector2i) -> Dictionary:
@@ -622,6 +801,53 @@ func _populate_canyon_props(cells: Dictionary, map_size: Vector2i, player_coord:
 		reserved_coords[left_torch_coord] = true
 
 	var right_torch_coord := _pick_side_torch_coord(cells, map_size, reserved_coords, false, 4)
+	if right_torch_coord != Vector2i(-1, -1):
+		_append_prop_id(cells, right_torch_coord, BattleBoardPropCatalog.PROP_TORCH)
+
+
+func _populate_narrow_assault_props(
+	cells: Dictionary,
+	map_size: Vector2i,
+	player_coord: Vector2i,
+	enemy_coord: Vector2i,
+	layout_spec: Dictionary
+) -> void:
+	for cell_variant in cells.values():
+		var cell_state := cell_variant as BattleCellState
+		if cell_state == null:
+			continue
+		cell_state.prop_ids.clear()
+
+	var reserved_coords := _build_spawn_buffer_coords(map_size, player_coord)
+	for coord in _build_spawn_buffer_coords(map_size, enemy_coord).keys():
+		reserved_coords[coord] = true
+
+	var objective_coord := Vector2i(
+		int(layout_spec.get("breach_x", map_size.x / 2)),
+		int(layout_spec.get("breach_top_y", map_size.y / 2))
+	)
+	if (cells.get(objective_coord) as BattleCellState) == null or not (cells.get(objective_coord) as BattleCellState).passable:
+		objective_coord = _pick_objective_marker_coord(cells, map_size, player_coord, enemy_coord)
+	if objective_coord != Vector2i(-1, -1):
+		_append_prop_id(cells, objective_coord, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER)
+		reserved_coords[objective_coord] = true
+
+	var ally_tent_coord := _pick_spawn_prop_coord(cells, map_size, player_coord, reserved_coords, 5)
+	if ally_tent_coord != Vector2i(-1, -1):
+		_append_prop_id(cells, ally_tent_coord, BattleBoardPropCatalog.PROP_TENT)
+		reserved_coords[ally_tent_coord] = true
+
+	var enemy_tent_coord := _pick_spawn_prop_coord(cells, map_size, enemy_coord, reserved_coords, 6)
+	if enemy_tent_coord != Vector2i(-1, -1):
+		_append_prop_id(cells, enemy_tent_coord, BattleBoardPropCatalog.PROP_TENT)
+		reserved_coords[enemy_tent_coord] = true
+
+	var left_torch_coord := _pick_side_torch_coord(cells, map_size, reserved_coords, true, 7)
+	if left_torch_coord != Vector2i(-1, -1):
+		_append_prop_id(cells, left_torch_coord, BattleBoardPropCatalog.PROP_TORCH)
+		reserved_coords[left_torch_coord] = true
+
+	var right_torch_coord := _pick_side_torch_coord(cells, map_size, reserved_coords, false, 8)
 	if right_torch_coord != Vector2i(-1, -1):
 		_append_prop_id(cells, right_torch_coord, BattleBoardPropCatalog.PROP_TORCH)
 
@@ -983,6 +1209,12 @@ func _resolve_canyon_map_size(encounter_context: Dictionary) -> Vector2i:
 	return CANYON_FORMAL_SIZES[_rng.randi_range(0, CANYON_FORMAL_SIZES.size() - 1)]
 
 
+func _resolve_narrow_assault_map_size(encounter_context: Dictionary) -> Vector2i:
+	if encounter_context.get("battle_map_size", null) is Vector2i:
+		return encounter_context.get("battle_map_size", NARROW_ASSAULT_FORMAL_SIZES[0])
+	return NARROW_ASSAULT_FORMAL_SIZES[_rng.randi_range(0, NARROW_ASSAULT_FORMAL_SIZES.size() - 1)]
+
+
 func _resolve_terrain_profile_id(encounter_anchor_or_context, context: Dictionary) -> StringName:
 	var raw_profile_id := ""
 	if context.has("battle_terrain_profile"):
@@ -1009,6 +1241,8 @@ func _normalize_terrain_profile_id(raw_profile_id: String) -> StringName:
 			return PROFILE_DEFAULT
 		"canyon":
 			return PROFILE_CANYON
+		"narrow_assault":
+			return PROFILE_NARROW_ASSAULT
 		_:
 			return &""
 

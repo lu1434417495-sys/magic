@@ -62,6 +62,7 @@ func _run() -> void:
 	await _test_canyon_generation_is_deterministic()
 	await _test_canyon_generation_builds_true_stacked_columns()
 	await _test_canyon_generation_contains_connected_water()
+	await _test_narrow_assault_generation_builds_breakthrough_lane()
 	await _test_default_generation_respects_global_min_height()
 	await _test_default_water_height_normalization_is_component_local()
 	await _test_battle_board_contracts()
@@ -157,6 +158,49 @@ func _test_canyon_generation_contains_connected_water() -> void:
 				1,
 				"canyon 水域应保持空间连通，不能退化成随机散点：seed=%d" % seed
 			)
+
+
+func _test_narrow_assault_generation_builds_breakthrough_lane() -> void:
+	var first_layout := _build_narrow_assault_layout(TEST_SEED)
+	var second_layout := _build_narrow_assault_layout(TEST_SEED)
+	_assert_true(
+		_capture_layout_signature(first_layout) == _capture_layout_signature(second_layout),
+		"同 seed 的 narrow_assault 生成结果应保持稳定。"
+	)
+	_assert_eq(
+		String(first_layout.get("terrain_profile_id", "")),
+		"narrow_assault",
+		"narrow_assault 地图应回写正式 terrain_profile_id。"
+	)
+	var gate_info := _find_narrow_assault_gate_info(first_layout)
+	_assert_true(not gate_info.is_empty(), "narrow_assault 地图应在中线附近形成一个可识别的突破口。")
+	if gate_info.is_empty():
+		return
+
+	var map_size: Vector2i = first_layout.get("map_size", Vector2i.ZERO)
+	var gate_x := int(gate_info.get("gate_x", -1))
+	var opening_count := int(gate_info.get("opening_count", 0))
+	var player_coord: Vector2i = first_layout.get("player_coord", Vector2i.ZERO)
+	var enemy_coord: Vector2i = first_layout.get("enemy_coord", Vector2i.ZERO)
+	_assert_true(opening_count >= 1 and opening_count <= 2, "narrow_assault 的突破口应保持 1-2 格宽，而不是退化成开阔平推。")
+	_assert_true(absi(gate_x - int(map_size.x / 2)) <= 2, "narrow_assault 的突破口应位于战场中段附近，形成明确攻坚线。")
+	_assert_true(player_coord.x <= gate_x and enemy_coord.x > gate_x, "narrow_assault 的出生点应分列突破口两侧。")
+	_assert_true(int(gate_info.get("left_reachable_count", 0)) >= 10, "突破口左侧应保留足够 staging 区域供进攻方展开。")
+	_assert_true(int(gate_info.get("right_reachable_count", 0)) >= 10, "突破口右侧应保留足够 staging 区域供防守方站位。")
+
+	var objective_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER)
+	_assert_eq(objective_coords.size(), 1, "narrow_assault 地图应恰好生成一个突破目标点。")
+	if objective_coords.size() == 1:
+		_assert_true(absi(objective_coords[0].x - gate_x) <= 1, "突破目标点应贴近狭道中线，而不是刷到远端 staging 区。")
+
+	_assert_true(
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_MUD, gate_x - 2, gate_x - 1) >= 2,
+		"突破口前方应保留泥地区，形成进攻减速带。"
+	)
+	_assert_true(
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_SPIKE, gate_x + 1, gate_x + 2) >= 1,
+		"突破口后方应保留地刺 kill-zone，体现防守反突意图。"
+	)
 
 
 func _test_default_generation_respects_global_min_height() -> void:
@@ -722,6 +766,22 @@ func _build_canyon_layout(seed: int) -> Dictionary:
 	})
 
 
+func _build_narrow_assault_layout(seed: int) -> Dictionary:
+	var generator := BattleTerrainGenerator.new()
+	return generator.generate({
+		"monster": {
+			"entity_id": "battle_board_narrow_assault_test",
+			"display_name": "狭道突击测试",
+			"faction_id": "hostile",
+			"region_tag": "narrow_assault",
+		},
+		"world_coord": TEST_WORLD_COORD,
+		"world_seed": seed,
+		"battle_terrain_profile": "narrow_assault",
+		"battle_map_size": TEST_MAP_SIZE,
+	})
+
+
 func _build_default_layout(seed: int) -> Dictionary:
 	var generator := BattleTerrainGenerator.new()
 	return generator.generate({
@@ -1198,6 +1258,35 @@ func _count_layout_prop(layout: Dictionary, prop_id: StringName) -> int:
 	return count
 
 
+func _collect_layout_prop_coords(layout: Dictionary, prop_id: StringName) -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	for coord_variant in layout.get("cells", {}).keys():
+		if coord_variant is not Vector2i:
+			continue
+		var coord: Vector2i = coord_variant
+		var cell := layout.get("cells", {}).get(coord) as BattleCellState
+		if cell == null or not cell.prop_ids.has(prop_id):
+			continue
+		coords.append(coord)
+	return coords
+
+
+func _count_terrain_cells_in_x_range(layout: Dictionary, terrain_id: StringName, min_x: int, max_x: int) -> int:
+	var count := 0
+	for coord_variant in layout.get("cells", {}).keys():
+		if coord_variant is not Vector2i:
+			continue
+		var coord: Vector2i = coord_variant
+		if coord.x < min_x or coord.x > max_x:
+			continue
+		var cell := layout.get("cells", {}).get(coord) as BattleCellState
+		if cell == null:
+			continue
+		if cell.base_terrain == terrain_id:
+			count += 1
+	return count
+
+
 func _collect_terrain_coords(layout: Dictionary, terrain_id: StringName) -> Array[Vector2i]:
 	var coords: Array[Vector2i] = []
 	for coord_variant in layout.get("cells", {}).keys():
@@ -1246,6 +1335,105 @@ func _count_connected_components(coords: Array[Vector2i]) -> int:
 				if coord_set.has(neighbor) and not visited.has(neighbor):
 					frontier.append(neighbor)
 	return component_count
+
+
+func _find_narrow_assault_gate_info(layout: Dictionary) -> Dictionary:
+	var cells: Dictionary = layout.get("cells", {})
+	var map_size: Vector2i = layout.get("map_size", Vector2i.ZERO)
+	if cells.is_empty() or map_size == Vector2i.ZERO:
+		return {}
+	var cell_columns_variant: Variant = layout.get("cell_columns", {})
+	var cell_columns: Dictionary = cell_columns_variant if cell_columns_variant is Dictionary else BattleCellState.build_columns_from_surface_cells(cells)
+	var edge_faces := _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
+	var player_coord: Vector2i = layout.get("player_coord", Vector2i.ZERO)
+	var enemy_coord: Vector2i = layout.get("enemy_coord", Vector2i.ZERO)
+	var min_x := mini(player_coord.x, enemy_coord.x)
+	var max_x := maxi(player_coord.x, enemy_coord.x) - 1
+	var best_info := {}
+	var best_score := 2147483647
+
+	for gate_x in range(min_x, max_x + 1):
+		var opening_count := _count_traversable_openings_for_seam(cells, map_size, edge_faces, gate_x)
+		if opening_count <= 0:
+			continue
+		var left_reachable_count := _count_side_reachable_cells(cells, map_size, edge_faces, player_coord, 0, gate_x)
+		var right_reachable_count := _count_side_reachable_cells(cells, map_size, edge_faces, enemy_coord, gate_x + 1, map_size.x - 1)
+		if left_reachable_count <= 0 or right_reachable_count <= 0:
+			continue
+
+		var score := opening_count * 100 + absi(gate_x - int(map_size.x / 2)) * 10
+		if score < best_score:
+			best_score = score
+			best_info = {
+				"gate_x": gate_x,
+				"opening_count": opening_count,
+				"left_reachable_count": left_reachable_count,
+				"right_reachable_count": right_reachable_count,
+			}
+	return best_info
+
+
+func _count_traversable_openings_for_seam(
+	cells: Dictionary,
+	map_size: Vector2i,
+	edge_faces: Dictionary,
+	gate_x: int
+) -> int:
+	var opening_count := 0
+	for y in range(map_size.y):
+		if _is_layout_edge_traversable(cells, edge_faces, Vector2i(gate_x, y), Vector2i(gate_x + 1, y)):
+			opening_count += 1
+	return opening_count
+
+
+func _count_side_reachable_cells(
+	cells: Dictionary,
+	map_size: Vector2i,
+	edge_faces: Dictionary,
+	start_coord: Vector2i,
+	min_x: int,
+	max_x: int
+) -> int:
+	if start_coord.x < min_x or start_coord.x > max_x:
+		return 0
+	var visited: Dictionary = {}
+	var frontier: Array[Vector2i] = [start_coord]
+	var neighbor_offsets: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+	var count := 0
+
+	while not frontier.is_empty():
+		var current: Vector2i = frontier.pop_front()
+		if visited.has(current) or current.x < min_x or current.x > max_x:
+			continue
+		var cell := cells.get(current) as BattleCellState
+		if cell == null or not cell.passable:
+			continue
+		visited[current] = true
+		count += 1
+		for offset in neighbor_offsets:
+			var neighbor := current + offset
+			if neighbor.x < min_x or neighbor.x > max_x or neighbor.y < 0 or neighbor.y >= map_size.y:
+				continue
+			if visited.has(neighbor):
+				continue
+			if _is_layout_edge_traversable(cells, edge_faces, current, neighbor):
+				frontier.append(neighbor)
+	return count
+
+
+func _is_layout_edge_traversable(
+	cells: Dictionary,
+	edge_faces: Dictionary,
+	from_coord: Vector2i,
+	to_coord: Vector2i
+) -> bool:
+	var from_cell := cells.get(from_coord) as BattleCellState
+	var to_cell := cells.get(to_coord) as BattleCellState
+	if from_cell == null or to_cell == null:
+		return false
+	if not from_cell.passable or not to_cell.passable:
+		return false
+	return _edge_service.is_traversable_in_cache(edge_faces, from_coord, to_coord)
 
 
 func _assert_canyon_height_range(layout: Dictionary) -> void:

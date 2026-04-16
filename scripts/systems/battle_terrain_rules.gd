@@ -31,7 +31,7 @@ static func normalize_terrain_id(terrain_id: StringName) -> StringName:
 
 static func is_water_terrain(terrain_id: StringName) -> bool:
 	match normalize_terrain_id(terrain_id):
-		TERRAIN_SHALLOW_WATER, TERRAIN_FLOWING_WATER, TERRAIN_DEEP_WATER:
+		TERRAIN_WATER, TERRAIN_SHALLOW_WATER, TERRAIN_FLOWING_WATER, TERRAIN_DEEP_WATER:
 			return true
 		_:
 			return false

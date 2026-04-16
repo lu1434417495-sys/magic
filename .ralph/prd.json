@@ -565,14 +565,22 @@
     {
       "id": "PVS_10A",
       "title": "实现 `narrow_assault` 地形 profile 生成器",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`BattleTerrainGenerator` 支持 `narrow_assault` profile",
         "profile 生成结果有明确狭道/突破站位意图，并保持可通过"
       ],
       "notes": [
         "Owner：CU-17。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T04:49:14+08:00",
+      "lastRunId": "20260417-044914-PVS_10A",
+      "startedAt": "2026-04-17T04:49:14+08:00",
+      "completedAt": "2026-04-17T04:59:20+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "Ran `godot --headless --script tests/battle_runtime/run_battle_board_regression.gd` and `godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd` successfully.",
+      "lastLearnings": "`BattleTerrainTopologyService` only reclassifies cells that `BattleTerrainRules.is_water_terrain()` recognizes as water-like. The generator’s temporary `water` sentinel must stay included there, or canyon/default layouts silently lose their expected water topology in regressions."
     },
     {
       "id": "PVS_10B",

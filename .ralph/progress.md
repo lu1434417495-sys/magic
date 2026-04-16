@@ -125,3 +125,7 @@ Added two formal enemy templates, `mist_harrier` and `mist_weaver`, plus dedicat
 ## 2026-04-17T04:49:13+08:00 | PVS_09C | done
 title: 新增第二个正式 encounter roster 并接到 world encounter 映射
 Added a second formal wild encounter roster `mist_hollow`, exposed explicit world->roster mapping via `WildSpawnRule.encounter_profile_id`, mapped mist-beast world rules to that roster in the shipped world configs, and extended the focused wild-encounter regression to cover roster registration, mixed-unit buildout, and south-wild explicit mapping.
+
+## 2026-04-17T04:59:20+08:00 | PVS_10A | done
+title: 实现 `narrow_assault` 地形 profile 生成器
+Added `narrow_assault` support in `BattleTerrainGenerator` with a deterministic choke-point assault layout, explicit left/right staging, breach objective/props, and focused `run_battle_board_regression` coverage for the new profile. Also fixed shared water classification so canyon/default generator water cells enter the topology reclassification pass during validation.
