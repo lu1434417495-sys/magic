@@ -233,3 +233,7 @@ No code edits were required; the existing text-runtime loot commit/overflow scen
 ## 2026-04-17T22:02:32+08:00 | PVS_22A | done
 title: 建立 profession resource schema 与 registry scan
 Added a dedicated `ProfessionContentRegistry`, moved the seven seed professions into `data/configs/professions/*.tres`, wired `ProgressionContentRegistry` to scan them, added validation for missing IDs/duplicate IDs/illegal skill+profession refs, added `tests/progression/run_profession_schema_regression.gd` with invalid fixture resources, and updated `docs/design/project_context_units.md` for the new ownership/read-set.
+
+## 2026-04-17T22:05:54+08:00 | PVS_22B | done
+title: 把正式 profession seed 迁出 ProgressionContentRegistry
+Removed the leftover hardcoded profession seed builders/helpers from `scripts/player/progression/progression_content_registry.gd` and left profession ownership explicitly with `ProfessionContentRegistry` resource scans from `data/configs/professions`; `docs/design/project_context_units.md` stayed valid as-is.

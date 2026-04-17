@@ -46,14 +46,22 @@
     {
       "id": "PVS_22B",
       "title": "把正式 profession seed 迁出 ProgressionContentRegistry",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "正式 profession seed 由资源提供，不再硬编码在 `ProgressionContentRegistry`",
         "progression regression 在迁移后继续通过"
       ],
       "notes": [
         "Owner：CU-13 / CU-14 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T22:02:32+08:00",
+      "lastRunId": "20260417-220232-PVS_22B",
+      "startedAt": "2026-04-17T22:02:32+08:00",
+      "completedAt": "2026-04-17T22:05:54+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/progression/run_profession_schema_regression.gd` PASS; `godot --headless --script tests/progression/run_progression_tests.gd` PASS.",
+      "lastLearnings": "The runtime ownership was already correctly split: `ProgressionContentRegistry` only needs to assemble skill/achievement/quest catalogs and pass skill defs into `ProfessionContentRegistry` for profession resource validation/loading."
     },
     {
       "id": "PVS_23A",

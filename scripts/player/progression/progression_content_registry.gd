@@ -45,6 +45,7 @@ func rebuild() -> void:
 	_register_warrior_maneuver_catalog()
 	_register_archer_skill_catalog()
 	_register_mage_skill_catalog()
+	# Profession seed ownership lives in resource files under data/configs/professions.
 	_profession_content_registry.setup(_skill_defs)
 	_profession_defs = _profession_content_registry.get_profession_defs()
 	_register_seed_achievements()
@@ -118,183 +119,6 @@ func _register_archer_skill_catalog() -> void:
 
 func _register_mage_skill_catalog() -> void:
 	DESIGN_SKILL_CATALOG_SCRIPT.new().register_mage_skills(Callable(self, "_register_skill"))
-
-
-
-
-func _register_warrior_content() -> void:
-	var unlock_requirement := ProfessionPromotionRequirement.new()
-	unlock_requirement.required_tag_rules = [
-		_build_tag_requirement(
-			&"melee",
-			3,
-			TagRequirement.SKILL_STATE_LEARNED,
-			TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY,
-			TagRequirement.SELECTION_ROLE_QUALIFIER
-		),
-		_build_tag_requirement(
-			&"melee",
-			1,
-			TagRequirement.SKILL_STATE_CORE_MAX,
-			TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY,
-			TagRequirement.SELECTION_ROLE_ASSIGNED_CORE
-		),
-	]
-	unlock_requirement.assigned_core_must_be_subset_of_qualifiers = true
-
-	var rank_requirements: Array[ProfessionRankRequirement] = []
-	for target_rank in range(2, 6):
-		var rank_requirement := ProfessionRankRequirement.new()
-		rank_requirement.target_rank = target_rank
-		rank_requirement.required_tag_rules = [
-			_build_tag_requirement(
-				&"melee",
-				target_rank,
-				TagRequirement.SKILL_STATE_CORE_MAX,
-				TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY,
-				TagRequirement.SELECTION_ROLE_ASSIGNED_CORE
-			),
-		]
-		rank_requirements.append(rank_requirement)
-
-	var profession_def := ProfessionDef.new()
-	profession_def.profession_id = &"warrior"
-	profession_def.display_name = "战士"
-	profession_def.description = "门槛不高的通用近战职业。战士等级只提供基础体能与战斗素养，具体风格由玩家后续学习和融合出的技能体系决定。"
-	profession_def.max_rank = 5
-	profession_def.is_initial_profession = true
-	profession_def.unlock_requirement = unlock_requirement
-	profession_def.rank_requirements = rank_requirements
-	profession_def.granted_skills = []
-
-	_register_profession(profession_def)
-
-
-func _register_priest_content() -> void:
-	_register_tag_profession_content(
-		&"priest",
-		"牧师",
-		"以祷言、治疗和区域祝福维系队伍阵线的神职职业。",
-		[],
-		[2, 2, 3, 3]
-	)
-
-
-func _register_rogue_content() -> void:
-	_register_tag_profession_content(
-		&"rogue",
-		"盗贼",
-		"依赖机动、先手和压制手段撕开战局缝隙的轻装职业。",
-		[],
-		[2, 2, 3, 3]
-	)
-
-
-func _register_berserker_content() -> void:
-	_register_tag_profession_content(
-		&"berserker",
-		"狂战士",
-		"围绕高压近战和范围破阵构建输出节奏的暴烈职业。",
-		[],
-		[2, 2, 3, 3]
-	)
-
-
-func _register_paladin_content() -> void:
-	_register_tag_profession_content(
-		&"paladin",
-		"圣武士",
-		"兼顾前线惩击、祝福与小范围保护能力的重装圣职职业。",
-		[],
-		[2, 2, 3, 3]
-	)
-
-
-func _register_mage_content() -> void:
-	_register_tag_profession_content(
-		&"mage",
-		"法师",
-		"以范围法术、元素压制和远距离点杀为核心的施法职业。",
-		[],
-		[2, 2, 3, 3]
-	)
-
-
-func _register_archer_content() -> void:
-	_register_tag_profession_content(
-		&"archer",
-		"弓箭手",
-		"围绕中远距离点杀、牵制和区域火力展开的远程职业。",
-		[],
-		[2, 2, 3, 3]
-	)
-
-
-func _register_tag_profession_content(
-	profession_id: StringName,
-	display_name: String,
-	description: String,
-	granted_skills: Array,
-	rank_core_counts: Array
-) -> void:
-	var typed_granted_skills: Array[ProfessionGrantedSkill] = []
-	for granted_skill in granted_skills:
-		if granted_skill is ProfessionGrantedSkill:
-			typed_granted_skills.append(granted_skill)
-	var profession_def := ProfessionDef.new()
-	profession_def.profession_id = profession_id
-	profession_def.display_name = display_name
-	profession_def.description = description
-	profession_def.max_rank = 5
-	profession_def.is_initial_profession = true
-	profession_def.unlock_requirement = _build_profession_unlock_requirement(profession_id)
-	profession_def.rank_requirements = _build_ranked_core_requirements(profession_id, rank_core_counts)
-	profession_def.granted_skills = typed_granted_skills
-	_register_profession(profession_def)
-
-
-func _build_profession_unlock_requirement(
-	tag: StringName,
-	learned_count: int = 2,
-	core_count: int = 1
-) -> ProfessionPromotionRequirement:
-	var unlock_requirement := ProfessionPromotionRequirement.new()
-	unlock_requirement.required_tag_rules = [
-		_build_tag_requirement(
-			tag,
-			learned_count,
-			TagRequirement.SKILL_STATE_LEARNED,
-			TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY,
-			TagRequirement.SELECTION_ROLE_QUALIFIER
-		),
-		_build_tag_requirement(
-			tag,
-			core_count,
-			TagRequirement.SKILL_STATE_CORE_MAX,
-			TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY,
-			TagRequirement.SELECTION_ROLE_ASSIGNED_CORE
-		),
-	]
-	unlock_requirement.assigned_core_must_be_subset_of_qualifiers = true
-	return unlock_requirement
-
-
-func _build_ranked_core_requirements(tag: StringName, core_counts: Array) -> Array[ProfessionRankRequirement]:
-	var rank_requirements: Array[ProfessionRankRequirement] = []
-	for index in range(core_counts.size()):
-		var rank_requirement := ProfessionRankRequirement.new()
-		rank_requirement.target_rank = index + 2
-		rank_requirement.required_tag_rules = [
-			_build_tag_requirement(
-				tag,
-				maxi(int(core_counts[index]), 1),
-				TagRequirement.SKILL_STATE_CORE_MAX,
-				TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY,
-				TagRequirement.SELECTION_ROLE_ASSIGNED_CORE
-			),
-		]
-		rank_requirements.append(rank_requirement)
-	return rank_requirements
 
 
 func _register_seed_achievements() -> void:
@@ -901,30 +725,6 @@ func _build_timed_terrain_effect(
 	return effect_def
 
 
-func _build_tag_requirement(
-	tag: StringName,
-	count: int,
-	skill_state: StringName,
-	origin_filter: StringName,
-	selection_role: StringName
-) -> TagRequirement:
-	var requirement := TagRequirement.new()
-	requirement.tag = tag
-	requirement.count = count
-	requirement.skill_state = skill_state
-	requirement.origin_filter = origin_filter
-	requirement.selection_role = selection_role
-	return requirement
-
-
-func _build_granted_skill(skill_id: StringName, unlock_rank: int) -> ProfessionGrantedSkill:
-	var granted_skill := ProfessionGrantedSkill.new()
-	granted_skill.skill_id = skill_id
-	granted_skill.unlock_rank = unlock_rank
-	granted_skill.skill_type = &"passive"
-	return granted_skill
-
-
 func _register_skill(skill_def: SkillDef) -> void:
 	if skill_def == null or skill_def.skill_id == &"":
 		_validation_errors.append("Encountered a skill definition without a skill_id.")
@@ -933,16 +733,6 @@ func _register_skill(skill_def: SkillDef) -> void:
 		_validation_errors.append("Duplicate skill_id registered: %s" % String(skill_def.skill_id))
 		return
 	_skill_defs[skill_def.skill_id] = skill_def
-
-
-func _register_profession(profession_def: ProfessionDef) -> void:
-	if profession_def == null or profession_def.profession_id == &"":
-		_validation_errors.append("Encountered a profession definition without a profession_id.")
-		return
-	if _profession_defs.has(profession_def.profession_id):
-		_validation_errors.append("Duplicate profession_id registered: %s" % String(profession_def.profession_id))
-		return
-	_profession_defs[profession_def.profession_id] = profession_def
 
 
 func _register_achievement(achievement_def: AchievementDef) -> void:
