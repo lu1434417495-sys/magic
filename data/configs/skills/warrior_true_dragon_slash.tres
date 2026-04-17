@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_rsegf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_5rd6m"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_7jk33"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_t2xax"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_v3x2x"]
+
+[sub_resource type="Resource" id="Resource_dbrfq"]
+script = ExtResource("3_7jk33")
+effect_type = &"damage"
+power = 18
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_cx8we"]
+script = ExtResource("4_t2xax")
+skill_id = &"warrior_true_dragon_slash"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"line"
+area_value = 4
+ap_cost = 3
+stamina_cost = 2
+cooldown_tu = 3
+aura_cost = 1
+effect_defs = Array[ExtResource("3_7jk33")]([SubResource("Resource_dbrfq")])
+
+[resource]
+script = ExtResource("5_v3x2x")
+skill_id = &"warrior_true_dragon_slash"
+display_name = "真龙斩"
+icon_id = &"warrior_true_dragon_slash"
+description = "高代价直线终极范围技能。"
+max_level = 3
+mastery_curve = PackedInt32Array(30, 50, 78)
+tags = Array[StringName]([&"warrior", &"melee", &"aoe", &"finisher"])
+combat_profile = SubResource("Resource_cx8we")

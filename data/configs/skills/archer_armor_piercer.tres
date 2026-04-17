@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_orqgs"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_anp7d"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_s7wfb"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_12j4y"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_pb8ty"]
+
+[sub_resource type="Resource" id="Resource_jf3te"]
+script = ExtResource("3_s7wfb")
+effect_type = &"damage"
+power = 11
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_8hluy"]
+script = ExtResource("3_s7wfb")
+effect_type = &"status"
+power = 1
+status_id = &"armor_break"
+params = {
+"duration": 2
+}
+
+[sub_resource type="Resource" id="Resource_2235m"]
+script = ExtResource("4_12j4y")
+skill_id = &"archer_armor_piercer"
+range_value = 5
+stamina_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_s7wfb")]([SubResource("Resource_jf3te"), SubResource("Resource_8hluy")])
+
+[resource]
+script = ExtResource("5_pb8ty")
+skill_id = &"archer_armor_piercer"
+display_name = "破甲箭"
+icon_id = &"archer_armor_piercer"
+description = "命中后附加破甲，作为后续集火开口。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])
+combat_profile = SubResource("Resource_2235m")

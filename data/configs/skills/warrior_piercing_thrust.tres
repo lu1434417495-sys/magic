@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_0gtqq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_0gkqf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_agipl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_xjn4j"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_te35c"]
+
+[sub_resource type="Resource" id="Resource_x72kc"]
+script = ExtResource("3_agipl")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_axx0l"]
+script = ExtResource("4_xjn4j")
+skill_id = &"warrior_piercing_thrust"
+target_mode = &"ground"
+range_value = 2
+area_pattern = &"line"
+area_value = 2
+ap_cost = 2
+stamina_cost = 1
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_agipl")]([SubResource("Resource_x72kc")])
+
+[resource]
+script = ExtResource("5_te35c")
+skill_id = &"warrior_piercing_thrust"
+display_name = "穿刺"
+icon_id = &"warrior_piercing_thrust"
+description = "直线穿透的突刺技能。"
+max_level = 3
+mastery_curve = PackedInt32Array(24, 40, 62)
+tags = Array[StringName]([&"warrior", &"melee", &"thrust"])
+combat_profile = SubResource("Resource_axx0l")

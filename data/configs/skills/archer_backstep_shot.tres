@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_1x1t7"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_gcihy"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_fjo0d"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_r37ed"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_vyr5k"]
+
+[sub_resource type="Resource" id="Resource_wc65s"]
+script = ExtResource("3_fjo0d")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_wort7"]
+script = ExtResource("4_r37ed")
+skill_id = &"archer_backstep_shot"
+range_value = 4
+stamina_cost = 1
+cooldown_tu = 2
+hit_rate = 5
+effect_defs = Array[ExtResource("3_fjo0d")]([SubResource("Resource_wc65s")])
+
+[resource]
+script = ExtResource("5_vyr5k")
+skill_id = &"archer_backstep_shot"
+display_name = "后跃射"
+icon_id = &"archer_backstep_shot"
+description = "先攻击再后撤 `2` 格；若后撤路径被阻挡，则只结算攻击。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])
+combat_profile = SubResource("Resource_wort7")

@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_0kae6"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_xtbao"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_gdqyw"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_rohpg"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_bnxtv"]
+
+[sub_resource type="Resource" id="Resource_jx20s"]
+script = ExtResource("3_gdqyw")
+effect_type = &"damage"
+power = 16
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_3ssj4"]
+script = ExtResource("4_rohpg")
+skill_id = &"archer_long_draw"
+range_value = 6
+ap_cost = 2
+stamina_cost = 2
+cooldown_tu = 3
+hit_rate = 15
+effect_defs = Array[ExtResource("3_gdqyw")]([SubResource("Resource_jx20s")])
+
+[resource]
+script = ExtResource("5_bnxtv")
+skill_id = &"archer_long_draw"
+display_name = "满弦狙击"
+icon_id = &"archer_long_draw"
+description = "高蓄力狙杀技；若本回合已移动，则伤害降为 `135%`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])
+combat_profile = SubResource("Resource_3ssj4")

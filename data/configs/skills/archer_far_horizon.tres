@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_26hqd"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_16l2t"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_n3dvf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_dedob"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_g8ca7"]
+
+[sub_resource type="Resource" id="Resource_2v3qn"]
+script = ExtResource("3_n3dvf")
+effect_type = &"damage"
+power = 15
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_2eo21"]
+script = ExtResource("4_dedob")
+skill_id = &"archer_far_horizon"
+range_value = 7
+ap_cost = 2
+cooldown_tu = 3
+hit_rate = -10
+aura_cost = 1
+effect_defs = Array[ExtResource("3_n3dvf")]([SubResource("Resource_2v3qn")])
+
+[resource]
+script = ExtResource("5_g8ca7")
+skill_id = &"archer_far_horizon"
+display_name = "天际远射"
+icon_id = &"archer_far_horizon"
+description = "超远距离重箭；若自身处于 `预瞄` 或高地，则忽略命中惩罚。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])
+combat_profile = SubResource("Resource_2eo21")

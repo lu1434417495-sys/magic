@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_n2p70"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_oljqi"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_57ewk"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_r2n3l"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_x3p2b"]
+
+[sub_resource type="Resource" id="Resource_10qsy"]
+script = ExtResource("3_57ewk")
+effect_type = &"status"
+power = 1
+status_id = &"archer_range_up"
+effect_target_team_filter = &"ally"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_2y4pb"]
+script = ExtResource("4_r2n3l")
+skill_id = &"archer_grapple_redeploy"
+target_team_filter = &"ally"
+range_value = 4
+area_pattern = &"self"
+stamina_cost = 1
+cooldown_tu = 3
+target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_57ewk")]([SubResource("Resource_10qsy")])
+
+[resource]
+script = ExtResource("5_x3p2b")
+skill_id = &"archer_grapple_redeploy"
+display_name = "索钩转位"
+icon_id = &"archer_grapple_redeploy"
+description = "牵引至高地、障碍物边缘或己方布置点附近；转位后下一个弓技射程 `+1`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])
+combat_profile = SubResource("Resource_2y4pb")

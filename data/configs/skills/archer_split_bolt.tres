@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_gtxk4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_xdj0b"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_xfrxl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ejim8"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_toqsx"]
+
+[sub_resource type="Resource" id="Resource_j0glf"]
+script = ExtResource("3_xfrxl")
+effect_type = &"damage"
+power = 14
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_uv6by"]
+script = ExtResource("4_ejim8")
+skill_id = &"archer_split_bolt"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+stamina_cost = 2
+cooldown_tu = 2
+hit_rate = -5
+effect_defs = Array[ExtResource("3_xfrxl")]([SubResource("Resource_j0glf")])
+
+[resource]
+script = ExtResource("5_toqsx")
+skill_id = &"archer_split_bolt"
+display_name = "裂风重矢"
+icon_id = &"archer_split_bolt"
+description = "粗重箭矢沿直线贯穿最多 `2` 个敌人，适合打站位重叠目标。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])
+combat_profile = SubResource("Resource_uv6by")

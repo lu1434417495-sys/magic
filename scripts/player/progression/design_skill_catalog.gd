@@ -11,17 +11,7 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const DESIGN_SKILL_CATALOG_WARRIOR_SPECS_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog_warrior_specs.gd")
-const DESIGN_SKILL_CATALOG_ARCHER_SPECS_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog_archer_specs.gd")
 const DESIGN_SKILL_CATALOG_MAGE_SPECS_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog_mage_specs.gd")
-
-
-func register_warrior_skills(register_skill: Callable) -> void:
-	_register_skill_specs(DESIGN_SKILL_CATALOG_WARRIOR_SPECS_SCRIPT.get_specs(), register_skill)
-
-
-func register_archer_skills(register_skill: Callable) -> void:
-	_register_skill_specs(DESIGN_SKILL_CATALOG_ARCHER_SPECS_SCRIPT.get_specs(), register_skill)
 
 
 func register_mage_skills(register_skill: Callable) -> void:

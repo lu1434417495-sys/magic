@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_c11lj"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_dkvw7"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_i3bpm"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_hqefb"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_6n01g"]
+
+[sub_resource type="Resource" id="Resource_jwxlo"]
+script = ExtResource("3_i3bpm")
+effect_type = &"status"
+power = 1
+status_id = &"taunted"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_8rkps"]
+script = ExtResource("4_hqefb")
+skill_id = &"warrior_taunt"
+range_value = 3
+stamina_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_i3bpm")]([SubResource("Resource_jwxlo")])
+
+[resource]
+script = ExtResource("5_6n01g")
+skill_id = &"warrior_taunt"
+display_name = "挑衅"
+icon_id = &"warrior_taunt"
+description = "迫使敌人优先关注自己。"
+max_level = 3
+mastery_curve = PackedInt32Array(24, 40, 62)
+tags = Array[StringName]([&"warrior", &"melee", &"control"])
+combat_profile = SubResource("Resource_8rkps")

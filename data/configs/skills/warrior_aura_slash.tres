@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_cd08f"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2rb8p"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_26q4l"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_i75ye"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_iwx1l"]
+
+[sub_resource type="Resource" id="Resource_gq0mt"]
+script = ExtResource("3_26q4l")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_51iqi"]
+script = ExtResource("4_i75ye")
+skill_id = &"warrior_aura_slash"
+range_value = 3
+ap_cost = 2
+cooldown_tu = 2
+aura_cost = 1
+effect_defs = Array[ExtResource("3_26q4l")]([SubResource("Resource_gq0mt")])
+
+[resource]
+script = ExtResource("5_iwx1l")
+skill_id = &"warrior_aura_slash"
+display_name = "斗气斩"
+icon_id = &"warrior_aura_slash"
+description = "圣剑连斩的来源技能之一。"
+max_level = 5
+mastery_curve = PackedInt32Array(24, 40, 62, 90, 126)
+tags = Array[StringName]([&"warrior", &"melee", &"aura"])
+combat_profile = SubResource("Resource_51iqi")

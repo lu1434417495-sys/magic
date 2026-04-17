@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_mubko"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_68aty"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ucqm2"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_5ibie"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8cuot"]
+
+[sub_resource type="Resource" id="Resource_pfacn"]
+script = ExtResource("3_ucqm2")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_qbvyj"]
+script = ExtResource("4_5ibie")
+skill_id = &"warrior_sweeping_slash"
+target_mode = &"ground"
+area_pattern = &"cone"
+area_value = 1
+ap_cost = 2
+stamina_cost = 1
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_ucqm2")]([SubResource("Resource_pfacn")])
+
+[resource]
+script = ExtResource("5_8cuot")
+skill_id = &"warrior_sweeping_slash"
+display_name = "横扫"
+icon_id = &"warrior_sweeping_slash"
+description = "前方范围横扫。"
+max_level = 3
+mastery_curve = PackedInt32Array(24, 40, 62)
+tags = Array[StringName]([&"warrior", &"melee", &"aoe"])
+combat_profile = SubResource("Resource_qbvyj")

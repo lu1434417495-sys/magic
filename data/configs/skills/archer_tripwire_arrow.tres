@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_ieked"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_3yraf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_gvhgx"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_t3ldi"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_1o11f"]
+
+[sub_resource type="Resource" id="Resource_wfubx"]
+script = ExtResource("3_gvhgx")
+effect_type = &"damage"
+power = 6
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_q32yk"]
+script = ExtResource("4_t3ldi")
+skill_id = &"archer_tripwire_arrow"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"line"
+area_value = 1
+stamina_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_gvhgx")]([SubResource("Resource_wfubx")])
+
+[resource]
+script = ExtResource("5_1o11f")
+skill_id = &"archer_tripwire_arrow"
+display_name = "绊索箭"
+icon_id = &"archer_tripwire_arrow"
+description = "在直线 `3` 格上布置绊索带；首个穿过的敌人立即停止移动并获得 `压制`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])
+combat_profile = SubResource("Resource_q32yk")

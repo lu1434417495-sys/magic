@@ -241,3 +241,7 @@ Removed the leftover hardcoded profession seed builders/helpers from `scripts/pl
 ## 2026-04-17T22:21:10+08:00 | PVS_23A | done
 title: 建立 skill resource schema、registry scan 与兼容桥
 Added `SkillContentRegistry` to scan and structurally validate `data/configs/skills`, wired `ProgressionContentRegistry` to load resource skills first and keep a minimal code-seed fallback bridge, migrated `warrior_heavy_strike` into `data/configs/skills/warrior_heavy_strike.tres`, added invalid skill fixtures plus `tests/progression/run_skill_schema_regression.gd`, and updated `docs/design/project_context_units.md`.
+
+## 2026-04-17T22:33:38+08:00 | PVS_23B | done
+title: 迁移 warrior 与 archer 正式技能 seed
+Added 49 new warrior/archer SkillDef resources plus refreshed `warrior_heavy_strike`, cut `ProgressionContentRegistry` over so warrior/archer runtime seeds come from `data/configs/skills`, removed runtime preload/use of warrior/archer spec catalogs, and updated the skill-schema regression plus `project_context_units` ownership notes without touching `.ralph/prd.json`.

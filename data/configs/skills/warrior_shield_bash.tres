@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_q5gla"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_y8g81"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_mhiph"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_cughq"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_83vub"]
+
+[sub_resource type="Resource" id="Resource_w0g8u"]
+script = ExtResource("3_mhiph")
+effect_type = &"damage"
+power = 11
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_cycsq"]
+script = ExtResource("3_mhiph")
+effect_type = &"status"
+power = 1
+status_id = &"staggered"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_8hxbh"]
+script = ExtResource("4_cughq")
+skill_id = &"warrior_shield_bash"
+stamina_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_mhiph")]([SubResource("Resource_w0g8u"), SubResource("Resource_cycsq")])
+
+[resource]
+script = ExtResource("5_83vub")
+skill_id = &"warrior_shield_bash"
+display_name = "盾击"
+icon_id = &"warrior_shield_bash"
+description = "近身控制技。"
+max_level = 3
+mastery_curve = PackedInt32Array(24, 40, 62)
+tags = Array[StringName]([&"warrior", &"melee", &"control", &"shield"])
+combat_profile = SubResource("Resource_8hxbh")

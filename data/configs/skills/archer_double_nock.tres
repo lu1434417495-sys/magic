@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_fdp41"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_6egyy"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_whq1c"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ofv7n"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8f1kl"]
+
+[sub_resource type="Resource" id="Resource_o57a1"]
+script = ExtResource("3_whq1c")
+effect_type = &"damage"
+power = 7
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_2wt2j"]
+script = ExtResource("3_whq1c")
+effect_type = &"damage"
+power = 7
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_balku"]
+script = ExtResource("4_ofv7n")
+skill_id = &"archer_double_nock"
+range_value = 4
+ap_cost = 2
+stamina_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_whq1c")]([SubResource("Resource_o57a1"), SubResource("Resource_2wt2j")])
+
+[resource]
+script = ExtResource("5_8f1kl")
+skill_id = &"archer_double_nock"
+display_name = "双弦连射"
+icon_id = &"archer_double_nock"
+description = "连续射出两箭；第一箭未命中时不触发第二箭。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])
+combat_profile = SubResource("Resource_balku")

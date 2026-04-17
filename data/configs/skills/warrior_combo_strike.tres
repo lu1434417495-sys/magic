@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_70ynd"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2ya7s"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_wa3jm"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_id5ew"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_v7utl"]
+
+[sub_resource type="Resource" id="Resource_nnti8"]
+script = ExtResource("3_wa3jm")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_pc1q2"]
+script = ExtResource("3_wa3jm")
+effect_type = &"status"
+power = 1
+status_id = &"staggered"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_8476s"]
+script = ExtResource("4_id5ew")
+skill_id = &"warrior_combo_strike"
+stamina_cost = 1
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_wa3jm")]([SubResource("Resource_nnti8"), SubResource("Resource_pc1q2")])
+
+[resource]
+script = ExtResource("5_v7utl")
+skill_id = &"warrior_combo_strike"
+display_name = "连击"
+icon_id = &"warrior_combo_strike"
+description = "圣剑连斩的来源技能之一。"
+max_level = 5
+mastery_curve = PackedInt32Array(24, 40, 62, 90, 126)
+tags = Array[StringName]([&"warrior", &"melee", &"combo"])
+combat_profile = SubResource("Resource_8476s")

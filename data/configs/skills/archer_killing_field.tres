@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_om813"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_vcg2m"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ge818"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_kt5er"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_gbrkm"]
+
+[sub_resource type="Resource" id="Resource_kah2p"]
+script = ExtResource("3_ge818")
+effect_type = &"damage"
+power = 7
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_khpcn"]
+script = ExtResource("4_kt5er")
+skill_id = &"archer_killing_field"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 3
+cooldown_tu = 5
+hit_rate = -10
+aura_cost = 2
+effect_defs = Array[ExtResource("3_ge818")]([SubResource("Resource_kah2p")])
+
+[resource]
+script = ExtResource("5_gbrkm")
+skill_id = &"archer_killing_field"
+display_name = "猎场封锁"
+icon_id = &"archer_killing_field"
+description = "招牌领域技；区域持续 `2` 回合，敌人每次在其中结束行动时受到追击伤害并自动附加 `标记`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])
+combat_profile = SubResource("Resource_khpcn")

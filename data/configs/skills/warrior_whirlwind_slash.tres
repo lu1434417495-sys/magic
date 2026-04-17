@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_j0fpq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_657aj"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_l0y4u"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_h3ew0"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_gp03o"]
+
+[sub_resource type="Resource" id="Resource_hguor"]
+script = ExtResource("3_l0y4u")
+effect_type = &"charge"
+params = {
+"base_distance": 3,
+"collision_base_damage": 10,
+"collision_size_gap_damage": 10,
+"distance_by_level": {
+"1": 4,
+"3": 5,
+"5": 6
+},
+"skill_id": "warrior_whirlwind_slash"
+}
+
+[sub_resource type="Resource" id="Resource_ivcde"]
+script = ExtResource("3_l0y4u")
+effect_type = &"path_step_aoe"
+power = 10
+params = {
+"allow_repeat_hits_across_steps": true,
+"apply_on_successful_step_only": true,
+"step_radius": 1,
+"step_shape": "diamond"
+}
+
+[sub_resource type="Resource" id="Resource_xn254"]
+script = ExtResource("2_657aj")
+variant_id = &"whirlwind_charge"
+display_name = "旋风斩"
+description = "兼容期内仍沿用冲锋选点，但额外挂出路径 AOE 的定义语义。"
+effect_defs = Array[ExtResource("3_l0y4u")]([SubResource("Resource_hguor"), SubResource("Resource_ivcde")])
+
+[sub_resource type="Resource" id="Resource_qaif8"]
+script = ExtResource("4_h3ew0")
+skill_id = &"warrior_whirlwind_slash"
+target_mode = &"ground"
+range_value = 6
+ap_cost = 2
+stamina_cost = 2
+cooldown_tu = 3
+aura_cost = 1
+cast_variants = Array[ExtResource("2_657aj")]([SubResource("Resource_xn254")])
+
+[resource]
+script = ExtResource("5_gp03o")
+skill_id = &"warrior_whirlwind_slash"
+display_name = "旋风斩"
+icon_id = &"warrior_whirlwind_slash"
+description = "冲锋与旋斩合并后的升级技能。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"warrior", &"melee", &"aoe", &"mobility"])
+learn_requirements = Array[StringName]([&"charge", &"warrior_combo_strike"])
+combat_profile = SubResource("Resource_qaif8")

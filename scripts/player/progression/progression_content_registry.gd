@@ -68,8 +68,7 @@ func rebuild() -> void:
 	for skill_key in _skill_defs.keys():
 		_resource_skill_ids[StringName(skill_key)] = true
 	_register_seed_melee_skills()
-	_register_warrior_maneuver_catalog()
-	_register_archer_skill_catalog()
+	# Warrior / archer official skills now live in SkillDef resources under data/configs/skills.
 	_register_mage_skill_catalog()
 	_validation_errors.append_array(_skill_content_registry.validate())
 	# Profession seed ownership lives in resource files under data/configs/professions.
@@ -137,14 +136,6 @@ func _register_seed_melee_skills() -> void:
 			_build_charge_combat_profile(&"charge")
 		)
 	)
-
-
-func _register_warrior_maneuver_catalog() -> void:
-	DESIGN_SKILL_CATALOG_SCRIPT.new().register_warrior_skills(Callable(self, "_register_skill"))
-
-
-func _register_archer_skill_catalog() -> void:
-	DESIGN_SKILL_CATALOG_SCRIPT.new().register_archer_skills(Callable(self, "_register_skill"))
 
 
 func _register_mage_skill_catalog() -> void:

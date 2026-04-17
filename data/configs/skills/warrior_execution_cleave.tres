@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_bqivu"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_5320c"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_7k4xh"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_sc5i1"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_khg2g"]
+
+[sub_resource type="Resource" id="Resource_jyjl3"]
+script = ExtResource("3_7k4xh")
+effect_type = &"damage"
+power = 16
+damage_ratio_percent = 180
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+bonus_condition = &"target_low_hp"
+
+[sub_resource type="Resource" id="Resource_r1utu"]
+script = ExtResource("4_sc5i1")
+skill_id = &"warrior_execution_cleave"
+ap_cost = 2
+stamina_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_7k4xh")]([SubResource("Resource_jyjl3")])
+
+[resource]
+script = ExtResource("5_khg2g")
+skill_id = &"warrior_execution_cleave"
+display_name = "断头斩"
+icon_id = &"warrior_execution_cleave"
+description = "对低血目标有更高收益的斩杀技。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"warrior", &"melee", &"finisher"])
+combat_profile = SubResource("Resource_r1utu")

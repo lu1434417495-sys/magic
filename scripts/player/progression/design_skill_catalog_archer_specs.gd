@@ -511,7 +511,15 @@ const ARCHER_SKILL_CATALOG_SPEC := {
 			"mastery_curve": [28, 46, 72],
 			"max_level": 3,
 			"learn_source": &"book",
-			"effect_defs": [],
+			"effect_defs": [
+				{
+					"kind": "status",
+					"status_id": &"archer_range_up",
+					"duration": 1,
+					"power": 1,
+					"effect_target_team_filter": &"ally",
+				},
+			],
 		},
 		{
 			"kind": "active",
@@ -585,7 +593,15 @@ const ARCHER_SKILL_CATALOG_SPEC := {
 			"mastery_curve": [28, 46, 72],
 			"max_level": 3,
 			"learn_source": &"book",
-			"effect_defs": [],
+			"effect_defs": [
+				{
+					"kind": "status",
+					"status_id": &"archer_pre_aim",
+					"duration": 1,
+					"power": 1,
+					"effect_target_team_filter": &"ally",
+				},
+			],
 		},
 		{
 			"kind": "active",
@@ -926,7 +942,14 @@ const ARCHER_SKILL_CATALOG_SPEC := {
 			"mastery_curve": [28, 46, 72],
 			"max_level": 3,
 			"learn_source": &"book",
-			"effect_defs": [],
+			"effect_defs": [
+				{
+					"kind": "status",
+					"status_id": &"marked",
+					"duration": 2,
+					"power": 1,
+				},
+			],
 		},
 		{
 			"kind": "ground_variant",

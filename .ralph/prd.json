@@ -86,14 +86,22 @@
     {
       "id": "PVS_23B",
       "title": "迁移 warrior 与 archer 正式技能 seed",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "warrior / archer 正式技能不再依赖 spec 文件作为唯一真相源",
         "battle 与 progression regressions 在迁移后继续通过"
       ],
       "notes": [
         "Owner：CU-13 / CU-14 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T22:21:11+08:00",
+      "lastRunId": "20260417-222111-PVS_23B",
+      "startedAt": "2026-04-17T22:21:11+08:00",
+      "completedAt": "2026-04-17T22:33:38+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "PASS: `godot --headless --path . --script tests/progression/run_skill_schema_regression.gd`; `godot --headless --path . --script tests/progression/run_progression_tests.gd`; `godot --headless --path . --script tests/battle_runtime/run_warrior_advanced_skill_regression.gd`; `godot --headless --path . --script tests/battle_runtime/run_archer_skill_semantics_regression.gd`; `godot --headless --path . --script tests/battle_runtime/run_battle_runtime_smoke.gd`.",
+      "lastLearnings": "Warrior/archer formal skill ownership now sits cleanly in `SkillContentRegistry` resources; the remaining code-seed bridge is effectively `charge` plus mage, and a few legacy placeholder skills needed schema-valid effect payloads once they were promoted into formal `.tres` resources."
     },
     {
       "id": "PVS_23C",

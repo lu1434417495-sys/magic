@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_86v0x"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ihqik"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_f4lqa"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_jh8g6"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_vl1fd"]
+
+[sub_resource type="Resource" id="Resource_2h1ng"]
+script = ExtResource("3_f4lqa")
+effect_type = &"damage"
+power = 13
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_n7f4l"]
+script = ExtResource("3_f4lqa")
+effect_type = &"status"
+power = 1
+status_id = &"armor_break"
+params = {
+"duration": 2
+}
+
+[sub_resource type="Resource" id="Resource_xlwpv"]
+script = ExtResource("4_jh8g6")
+skill_id = &"warrior_guard_break"
+ap_cost = 2
+stamina_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_f4lqa")]([SubResource("Resource_2h1ng"), SubResource("Resource_n7f4l")])
+
+[resource]
+script = ExtResource("5_vl1fd")
+skill_id = &"warrior_guard_break"
+display_name = "裂甲斩"
+icon_id = &"warrior_guard_break"
+description = "用于撕开防御姿态的定点技能。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"warrior", &"melee", &"breaker"])
+combat_profile = SubResource("Resource_xlwpv")

@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_3pvug"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_1mjqn"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_k6vtb"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_t20up"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_yikjp"]
+
+[sub_resource type="Resource" id="Resource_25jub"]
+script = ExtResource("3_k6vtb")
+effect_type = &"damage"
+power = 8
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_lbxdn"]
+script = ExtResource("2_1mjqn")
+variant_id = &"multishot_volley"
+display_name = "连珠箭"
+description = "依次锁定 2 到 3 个不同敌方目标格，并按选择顺序逐个结算射击。"
+footprint_pattern = &"unordered"
+required_coord_count = 3
+effect_defs = Array[ExtResource("3_k6vtb")]([SubResource("Resource_25jub")])
+
+[sub_resource type="Resource" id="Resource_1xid3"]
+script = ExtResource("4_t20up")
+skill_id = &"archer_multishot"
+target_mode = &"ground"
+range_value = 5
+ap_cost = 2
+stamina_cost = 2
+cooldown_tu = 2
+hit_rate = -5
+ai_tags = Array[StringName]([&"multi_target", &"focus_fire"])
+target_selection_mode = &"multi_unit"
+min_target_count = 2
+max_target_count = 3
+selection_order_mode = &"manual"
+cast_variants = Array[ExtResource("2_1mjqn")]([SubResource("Resource_lbxdn")])
+
+[resource]
+script = ExtResource("5_yikjp")
+skill_id = &"archer_multishot"
+display_name = "连珠箭"
+icon_id = &"archer_multishot"
+description = "通过依次锁定多个目标来铺开点杀火力，是弓箭手的招牌多目标技能。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])
+combat_profile = SubResource("Resource_1xid3")

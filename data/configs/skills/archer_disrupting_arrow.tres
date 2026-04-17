@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_idp1d"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2gmeb"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_4ot32"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_pa42w"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_nt07w"]
+
+[sub_resource type="Resource" id="Resource_1t008"]
+script = ExtResource("3_4ot32")
+effect_type = &"damage"
+power = 8
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_cfykn"]
+script = ExtResource("4_pa42w")
+skill_id = &"archer_disrupting_arrow"
+range_value = 5
+stamina_cost = 1
+cooldown_tu = 3
+hit_rate = 5
+effect_defs = Array[ExtResource("3_4ot32")]([SubResource("Resource_1t008")])
+
+[resource]
+script = ExtResource("5_nt07w")
+skill_id = &"archer_disrupting_arrow"
+display_name = "扰咒箭"
+icon_id = &"archer_disrupting_arrow"
+description = "命中后令目标下一次技能消耗 `+1`，并使其施法类动作命中 `-15%`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])
+combat_profile = SubResource("Resource_cfykn")

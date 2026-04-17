@@ -1,0 +1,59 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_itsgd"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2kina"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_3q1il"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_d6vy7"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_6fcrx"]
+
+[sub_resource type="Resource" id="Resource_8n2oj"]
+script = ExtResource("3_3q1il")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_ndvel"]
+script = ExtResource("3_3q1il")
+effect_type = &"repeat_attack_until_fail"
+params = {
+"base_hit_rate": 0,
+"consume_cost_on_attempt": true,
+"cost_resource": "aura",
+"damage_multiplier_stage": "pre_resistance",
+"follow_up_cost_multiplier": 2,
+"follow_up_damage_multiplier": 2,
+"follow_up_hit_rate_penalty": 10,
+"same_target_only": true,
+"stop_on_insufficient_resource": true,
+"stop_on_miss": true,
+"stop_on_target_down": true
+}
+
+[sub_resource type="Resource" id="Resource_v8nna"]
+script = ExtResource("4_d6vy7")
+skill_id = &"saint_blade_combo"
+ap_cost = 2
+cooldown_tu = 3
+aura_cost = 1
+effect_defs = Array[ExtResource("3_3q1il")]([SubResource("Resource_8n2oj"), SubResource("Resource_ndvel")])
+
+[resource]
+script = ExtResource("5_6fcrx")
+skill_id = &"saint_blade_combo"
+display_name = "圣剑连斩"
+icon_id = &"saint_blade_combo"
+description = "连击与斗气斩的复合升级技能。当前仅在定义层记录循环追击与非破坏式合并语义。"
+max_level = 3
+mastery_curve = PackedInt32Array(30, 50, 78)
+tags = Array[StringName]([&"warrior", &"melee", &"combo", &"aura"])
+unlock_mode = &"composite_upgrade"
+knowledge_requirements = Array[StringName]([&"compania_family_legacy"])
+skill_level_requirements = {
+"warrior_aura_slash": 5,
+"warrior_combo_strike": 5
+}
+achievement_requirements = Array[StringName]([&"six_hit_combo"])
+upgrade_source_skill_ids = Array[StringName]([&"warrior_combo_strike", &"warrior_aura_slash"])
+core_skill_transition_mode = &"replace_sources_with_result"
+combat_profile = SubResource("Resource_v8nna")

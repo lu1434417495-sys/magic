@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_g8hvq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_xfs8w"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_twxhj"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_rsi8s"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_omw41"]
+
+[sub_resource type="Resource" id="Resource_jup7g"]
+script = ExtResource("3_twxhj")
+effect_type = &"status"
+power = 1
+status_id = &"guarding"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_ivol6"]
+script = ExtResource("3_twxhj")
+effect_type = &"status"
+power = 1
+status_id = &"damage_reduction_up"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_bwvrn"]
+script = ExtResource("4_rsi8s")
+skill_id = &"warrior_guard"
+target_team_filter = &"ally"
+range_value = 0
+stamina_cost = 1
+cooldown_tu = 2
+target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_twxhj")]([SubResource("Resource_jup7g"), SubResource("Resource_ivol6")])
+
+[resource]
+script = ExtResource("5_omw41")
+skill_id = &"warrior_guard"
+display_name = "格挡"
+icon_id = &"warrior_guard"
+description = "显著降低承受伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(24, 40, 62)
+tags = Array[StringName]([&"warrior", &"melee", &"defense"])
+combat_profile = SubResource("Resource_bwvrn")

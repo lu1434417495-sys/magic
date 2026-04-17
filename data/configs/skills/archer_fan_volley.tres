@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_b23xl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_muu3e"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_8r8br"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_7kee3"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_e82jx"]
+
+[sub_resource type="Resource" id="Resource_jory4"]
+script = ExtResource("3_8r8br")
+effect_type = &"damage"
+power = 9
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
+
+[sub_resource type="Resource" id="Resource_0e5fg"]
+script = ExtResource("4_7kee3")
+skill_id = &"archer_fan_volley"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"cone"
+area_value = 1
+ap_cost = 2
+stamina_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_8r8br")]([SubResource("Resource_jory4")])
+
+[resource]
+script = ExtResource("5_e82jx")
+skill_id = &"archer_fan_volley"
+display_name = "扇幕齐射"
+icon_id = &"archer_fan_volley"
+description = "中距离扇面清线技，对近距离多前排组合威胁较高。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])
+combat_profile = SubResource("Resource_0e5fg")

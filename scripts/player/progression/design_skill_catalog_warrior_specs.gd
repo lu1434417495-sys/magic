@@ -91,7 +91,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"learn_source": &"book",
 		"effect_defs": [
 			{"kind": &"damage", "power": 12},
-			{"kind": &"special", "effect_type": &"forced_move", "params": {"mode": "jump"}},
+			{"kind": &"special", "effect_type": &"forced_move", "params": {"mode": "jump", "distance": 1}},
 		],
 	},
 	{

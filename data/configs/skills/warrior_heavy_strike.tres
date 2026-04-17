@@ -1,52 +1,42 @@
-[gd_resource type="Resource" script_class="SkillDef" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="SkillDef" format=3]
 
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_rb7rl"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_r8wkt"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
 
-[sub_resource type="Resource" id="Resource_damage"]
+[sub_resource type="Resource" id="Resource_luwcv"]
 script = ExtResource("3_effect")
-effect_type = "damage"
+effect_type = &"damage"
 power = 15
-scaling_attribute_id = "physical_attack"
-defense_attribute_id = "physical_defense"
+scaling_attribute_id = &"physical_attack"
+defense_attribute_id = &"physical_defense"
 
-[sub_resource type="Resource" id="Resource_armor_break"]
+[sub_resource type="Resource" id="Resource_eju8k"]
 script = ExtResource("3_effect")
-effect_type = "status"
+effect_type = &"status"
 power = 1
-status_id = "armor_break"
+status_id = &"armor_break"
 params = {
 "duration": 1
 }
 
-[sub_resource type="Resource" id="Resource_combat_profile"]
+[sub_resource type="Resource" id="Resource_lbg6c"]
 script = ExtResource("2_combat")
-skill_id = "warrior_heavy_strike"
-target_mode = "unit"
-target_team_filter = "enemy"
-range_pattern = "single"
-range_value = 1
-area_pattern = "single"
-area_value = 0
+skill_id = &"warrior_heavy_strike"
 ap_cost = 2
 stamina_cost = 1
 cooldown_tu = 1
-target_selection_mode = "single_unit"
-min_target_count = 1
-max_target_count = 1
-selection_order_mode = "stable"
-effect_defs = Array[Resource]([SubResource("Resource_damage"), SubResource("Resource_armor_break")])
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_luwcv"), SubResource("Resource_eju8k")])
 
 [resource]
 script = ExtResource("1_skill")
-skill_id = "warrior_heavy_strike"
+skill_id = &"warrior_heavy_strike"
 display_name = "重击"
-icon_id = "warrior_heavy_strike"
+icon_id = &"warrior_heavy_strike"
 description = "150% 伤害并附带轻度破甲。"
-skill_type = "active"
 max_level = 3
 mastery_curve = PackedInt32Array(24, 40, 62)
-tags = Array[StringName](["warrior", "melee", "output"])
-learn_source = "book"
-combat_profile = SubResource("Resource_combat_profile")
+tags = Array[StringName]([&"warrior", &"melee", &"output"])
+combat_profile = SubResource("Resource_lbg6c")

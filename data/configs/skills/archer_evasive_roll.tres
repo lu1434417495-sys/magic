@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_7f2p8"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2lic5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_dni0c"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_oupf8"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_oyb7v"]
+
+[sub_resource type="Resource" id="Resource_b6xu7"]
+script = ExtResource("3_dni0c")
+effect_type = &"status"
+power = 1
+status_id = &"evasion_up"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_ipqg6"]
+script = ExtResource("3_dni0c")
+effect_type = &"forced_move"
+forced_move_mode = &"retreat"
+forced_move_distance = 2
+params = {
+"distance": 2,
+"mode": "retreat"
+}
+
+[sub_resource type="Resource" id="Resource_lbryq"]
+script = ExtResource("4_oupf8")
+skill_id = &"archer_evasive_roll"
+target_team_filter = &"ally"
+range_value = 0
+area_pattern = &"self"
+stamina_cost = 1
+cooldown_tu = 2
+target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_dni0c")]([SubResource("Resource_b6xu7"), SubResource("Resource_ipqg6")])
+
+[resource]
+script = ExtResource("5_oyb7v")
+skill_id = &"archer_evasive_roll"
+display_name = "翻滚卸力"
+icon_id = &"archer_evasive_roll"
+description = "向更安全的位置位移 `2` 格，并获得直到回合结束的 `闪避 +20%`，适合脱离贴身威胁。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])
+combat_profile = SubResource("Resource_lbryq")

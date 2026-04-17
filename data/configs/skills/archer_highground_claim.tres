@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_16lie"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_qkjxf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_6ld6h"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ix3qi"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_b5ixq"]
+
+[sub_resource type="Resource" id="Resource_7q6gf"]
+script = ExtResource("3_6ld6h")
+effect_type = &"status"
+power = 1
+status_id = &"archer_pre_aim"
+effect_target_team_filter = &"ally"
+params = {
+"duration": 1
+}
+
+[sub_resource type="Resource" id="Resource_1sogd"]
+script = ExtResource("4_ix3qi")
+skill_id = &"archer_highground_claim"
+target_team_filter = &"ally"
+range_value = 3
+area_pattern = &"self"
+ap_cost = 2
+stamina_cost = 2
+cooldown_tu = 3
+target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_6ld6h")]([SubResource("Resource_7q6gf")])
+
+[resource]
+script = ExtResource("5_b5ixq")
+skill_id = &"archer_highground_claim"
+display_name = "抢高位"
+icon_id = &"archer_highground_claim"
+description = "向指定高低差合法格位移动最多 `3` 格；若落点为高地，额外获得 `预瞄`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])
+combat_profile = SubResource("Resource_1sogd")
