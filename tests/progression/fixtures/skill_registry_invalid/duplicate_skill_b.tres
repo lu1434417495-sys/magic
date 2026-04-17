@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = "duplicate_skill"
+display_name = "重复技能 B"
+icon_id = "duplicate_skill"
+description = "用于验证重复 skill_id 的错误。"
+skill_type = "passive"
+max_level = 1
+mastery_curve = PackedInt32Array(10)
+learn_source = "book"
+tags = Array[StringName](["test"])

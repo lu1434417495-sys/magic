@@ -9,12 +9,29 @@ const CombatCastVariantDef = preload("res://scripts/player/progression/combat_ca
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const DESIGN_SKILL_CATALOG_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog.gd")
+const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
 const PROFESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/profession_content_registry.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 
 const HP_MAX: StringName = &"hp_max"
+const VALID_SKILL_TYPES := {
+	&"active": true,
+	&"passive": true,
+}
+const VALID_LEARN_SOURCES := {
+	&"book": true,
+	&"profession": true,
+}
+const VALID_UNLOCK_MODES := {
+	&"standard": true,
+	&"composite_upgrade": true,
+}
+const VALID_CORE_SKILL_TRANSITION_MODES := {
+	&"inherit": true,
+	&"replace_sources_with_result": true,
+}
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
@@ -24,10 +41,14 @@ var _profession_defs: Dictionary = {}
 var _achievement_defs: Dictionary = {}
 ## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
 var _quest_defs: Dictionary = {}
+## 字段说明：记录技能内容注册表，会参与运行时状态流转、系统协作和静态校验。
+var _skill_content_registry = SKILL_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：记录职业内容注册表，会参与运行时状态流转、系统协作和静态校验。
 var _profession_content_registry = PROFESSION_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：收集配置校验阶段发现的错误信息，便于启动时统一报告和定位问题。
 var _validation_errors: Array[String] = []
+## 字段说明：记录已由资源注册表提供的技能主键，供迁移期间的兼容桥跳过重复 code seed。
+var _resource_skill_ids: Dictionary = {}
 
 
 func _init() -> void:
@@ -40,11 +61,17 @@ func rebuild() -> void:
 	_achievement_defs.clear()
 	_quest_defs.clear()
 	_validation_errors.clear()
+	_resource_skill_ids.clear()
 
+	_skill_content_registry.rebuild()
+	_skill_defs = _skill_content_registry.get_skill_defs().duplicate()
+	for skill_key in _skill_defs.keys():
+		_resource_skill_ids[StringName(skill_key)] = true
 	_register_seed_melee_skills()
 	_register_warrior_maneuver_catalog()
 	_register_archer_skill_catalog()
 	_register_mage_skill_catalog()
+	_validation_errors.append_array(_skill_content_registry.validate())
 	# Profession seed ownership lives in resource files under data/configs/professions.
 	_profession_content_registry.setup(_skill_defs)
 	_profession_defs = _profession_content_registry.get_profession_defs()
@@ -81,6 +108,9 @@ func get_bundle() -> Dictionary:
 
 func validate() -> Array[String]:
 	var errors := _validation_errors.duplicate()
+	for validation_error in _skill_content_registry.validate():
+		if not errors.has(validation_error):
+			errors.append(validation_error)
 	for validation_error in _profession_content_registry.validate():
 		if not errors.has(validation_error):
 			errors.append(validation_error)
@@ -730,6 +760,8 @@ func _register_skill(skill_def: SkillDef) -> void:
 		_validation_errors.append("Encountered a skill definition without a skill_id.")
 		return
 	if _skill_defs.has(skill_def.skill_id):
+		if _resource_skill_ids.has(skill_def.skill_id):
+			return
 		_validation_errors.append("Duplicate skill_id registered: %s" % String(skill_def.skill_id))
 		return
 	_skill_defs[skill_def.skill_id] = skill_def
@@ -758,6 +790,11 @@ func _register_quest(quest_def: QuestDef) -> void:
 func _collect_validation_errors() -> Array[String]:
 	var errors: Array[String] = []
 
+	for skill_key in ProgressionDataUtils.sorted_string_keys(_skill_defs):
+		var skill_id := StringName(skill_key)
+		var skill_def := _skill_defs.get(skill_id) as SkillDef
+		_append_invalid_skill_errors(errors, skill_id, skill_def)
+
 	for achievement_key in ProgressionDataUtils.sorted_string_keys(_achievement_defs):
 		var achievement_id := StringName(achievement_key)
 		var achievement_def := _achievement_defs.get(achievement_id) as AchievementDef
@@ -771,6 +808,88 @@ func _collect_validation_errors() -> Array[String]:
 	return errors
 
 
+func _append_invalid_skill_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_def: SkillDef
+) -> void:
+	if skill_def == null:
+		return
+	if not VALID_SKILL_TYPES.has(skill_def.skill_type):
+		errors.append("Skill %s uses unsupported skill_type %s." % [String(skill_id), String(skill_def.skill_type)])
+	if not VALID_LEARN_SOURCES.has(skill_def.learn_source):
+		errors.append("Skill %s uses unsupported learn_source %s." % [String(skill_id), String(skill_def.learn_source)])
+	if not VALID_UNLOCK_MODES.has(skill_def.unlock_mode):
+		errors.append("Skill %s uses unsupported unlock_mode %s." % [String(skill_id), String(skill_def.unlock_mode)])
+	if not VALID_CORE_SKILL_TRANSITION_MODES.has(skill_def.core_skill_transition_mode):
+		errors.append(
+			"Skill %s uses unsupported core_skill_transition_mode %s." % [
+				String(skill_id),
+				String(skill_def.core_skill_transition_mode),
+			]
+		)
+	if skill_def.max_level <= 0:
+		errors.append("Skill %s must have max_level >= 1." % String(skill_id))
+	if skill_def.mastery_curve.size() != skill_def.max_level:
+		errors.append("Skill %s mastery_curve size must match max_level." % String(skill_id))
+
+	_append_skill_requirement_errors(errors, skill_id, skill_def.learn_requirements, "learn_requirements")
+	_append_skill_level_requirement_errors(errors, skill_id, skill_def.skill_level_requirements)
+	_append_skill_requirement_errors(errors, skill_id, skill_def.upgrade_source_skill_ids, "upgrade_source_skill_ids")
+	for achievement_id in skill_def.achievement_requirements:
+		if achievement_id == &"":
+			errors.append("Skill %s has an empty achievement requirement." % String(skill_id))
+
+	if skill_def.unlock_mode == &"composite_upgrade" and skill_def.upgrade_source_skill_ids.is_empty():
+		errors.append("Skill %s is composite_upgrade but missing upgrade_source_skill_ids." % String(skill_id))
+
+
+func _append_skill_requirement_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	requirement_ids: Array[StringName],
+	context_label: String
+) -> void:
+	for required_skill_id in requirement_ids:
+		if required_skill_id == &"":
+			errors.append("Skill %s has an empty skill reference in %s." % [String(skill_id), context_label])
+			continue
+		if not _skill_defs.has(required_skill_id):
+			errors.append(
+				"Skill %s references missing skill %s in %s." % [
+					String(skill_id),
+					String(required_skill_id),
+					context_label,
+				]
+			)
+
+
+func _append_skill_level_requirement_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_level_requirements: Dictionary
+) -> void:
+	for skill_key_variant in skill_level_requirements.keys():
+		var required_skill_id := ProgressionDataUtils.to_string_name(skill_key_variant)
+		if required_skill_id == &"":
+			errors.append("Skill %s has an empty skill_id in skill_level_requirements." % String(skill_id))
+			continue
+		if not _skill_defs.has(required_skill_id):
+			errors.append(
+				"Skill %s references missing skill %s in skill_level_requirements." % [
+					String(skill_id),
+					String(required_skill_id),
+				]
+			)
+		var required_level := int(skill_level_requirements[skill_key_variant])
+		if required_level <= 0:
+			errors.append(
+				"Skill %s requires non-positive level %d for %s in skill_level_requirements." % [
+					String(skill_id),
+					required_level,
+					String(required_skill_id),
+				]
+			)
 func _append_invalid_achievement_errors(
 	errors: Array[String],
 	achievement_id: StringName,

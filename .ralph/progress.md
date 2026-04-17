@@ -237,3 +237,7 @@ Added a dedicated `ProfessionContentRegistry`, moved the seven seed professions 
 ## 2026-04-17T22:05:54+08:00 | PVS_22B | done
 title: 把正式 profession seed 迁出 ProgressionContentRegistry
 Removed the leftover hardcoded profession seed builders/helpers from `scripts/player/progression/progression_content_registry.gd` and left profession ownership explicitly with `ProfessionContentRegistry` resource scans from `data/configs/professions`; `docs/design/project_context_units.md` stayed valid as-is.
+
+## 2026-04-17T22:21:10+08:00 | PVS_23A | done
+title: 建立 skill resource schema、registry scan 与兼容桥
+Added `SkillContentRegistry` to scan and structurally validate `data/configs/skills`, wired `ProgressionContentRegistry` to load resource skills first and keep a minimal code-seed fallback bridge, migrated `warrior_heavy_strike` into `data/configs/skills/warrior_heavy_strike.tres`, added invalid skill fixtures plus `tests/progression/run_skill_schema_regression.gd`, and updated `docs/design/project_context_units.md`.

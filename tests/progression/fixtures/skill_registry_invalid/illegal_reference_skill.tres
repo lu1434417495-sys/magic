@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+
+[sub_resource type="Resource" id="Resource_broken_effect"]
+script = ExtResource("3_effect")
+power = 7
+
+[sub_resource type="Resource" id="Resource_illegal_combat_profile"]
+script = ExtResource("2_combat")
+skill_id = "illegal_reference_skill"
+target_mode = "unit"
+target_team_filter = "enemy"
+range_pattern = "single"
+range_value = 1
+area_pattern = "single"
+area_value = 0
+ap_cost = 1
+target_selection_mode = "single_unit"
+min_target_count = 1
+max_target_count = 1
+selection_order_mode = "stable"
+effect_defs = Array[Resource]([SubResource("Resource_broken_effect")])
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = "illegal_reference_skill"
+display_name = "非法引用技能"
+icon_id = "illegal_reference_skill"
+description = "用于验证技能注册表的非法引用与嵌套 schema 错误。"
+skill_type = "active"
+max_level = 1
+mastery_curve = PackedInt32Array(10)
+learn_source = "book"
+learn_requirements = Array[StringName](["missing_skill"])
+tags = Array[StringName](["test"])
+combat_profile = SubResource("Resource_illegal_combat_profile")

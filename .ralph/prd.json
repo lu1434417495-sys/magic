@@ -66,14 +66,22 @@
     {
       "id": "PVS_23A",
       "title": "建立 skill resource schema、registry scan 与兼容桥",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`data/configs/skills/` 下的 skill resources 可被扫描与校验",
         "在 seed 未全迁完前，registry 仍有最小兼容桥接"
       ],
       "notes": [
         "Owner：CU-13 / CU-14。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T22:05:55+08:00",
+      "lastRunId": "20260417-220555-PVS_23A",
+      "startedAt": "2026-04-17T22:05:55+08:00",
+      "completedAt": "2026-04-17T22:21:10+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --path . --script tests/progression/run_skill_schema_regression.gd`; `godot --headless --path . --script tests/progression/run_profession_schema_regression.gd`; `godot --headless --path . --script tests/progression/run_progression_tests.gd`",
+      "lastLearnings": "The stable ownership split is `SkillContentRegistry` for resource scan/schema checks and `ProgressionContentRegistry` for the combined resource+code compatibility view; migrated skills can be identified by `resource_path`, while unmigrated skills still come from code seeds. `.ralph/prd.json` was already dirty in the worktree and was left untouched."
     },
     {
       "id": "PVS_23B",
