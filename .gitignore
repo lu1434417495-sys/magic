@@ -15,6 +15,10 @@ Thumbs.db
 *_runtime_stdout.log
 *_runtime_stderr.log
 
+# Python cache artifacts
+__pycache__/
+*.py[cod]
+
 # Local Codex/MindFS state
 .mindfs/
 .ralph/runs/
