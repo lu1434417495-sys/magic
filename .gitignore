@@ -21,11 +21,19 @@ __pycache__/
 
 # Local Codex/MindFS state
 .mindfs/
+.ralph/local/
 .ralph/runs/
+.ralph/reviews/
+.ralph/*.json
+!.ralph/output_schema.json
+!.ralph/prd.example.json
+!.ralph/review_output.schema.json
+!.ralph/review_state.json
 
 # Local temp and editor state
 .tmp/
 .vscode/
+.claude/settings.local.json
 
 # Runtime save files; keep committed fixtures explicit
 data/saves/*

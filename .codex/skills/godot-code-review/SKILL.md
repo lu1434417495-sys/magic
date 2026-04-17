@@ -19,10 +19,13 @@ If the user already gave a scope, use it. Otherwise ask what to review:
 
 Then inspect only the relevant diff plus the owner files around it.
 
+Ignore ordinary source changes under `tools/` by default. Remove normal `tools/**` paths from the review set before rebuilding context, do not read owner files for those paths, and do not report findings for them unless the user explicitly asks to include `tools/`. Also ignore `.ralph/prd.json` by default unless the user explicitly asks to include it. Exception: keep generated Python cache artifacts in scope, especially `tools/__pycache__/**`, `tools/**/*.pyc`, and `tools/**/*.pyo`; these should be reported because they do not belong in the repository. If nothing remains after filtering, say so and stop.
+
 ## Review Procedure
 
-1. Rebuild context around the diff.
-- Read the changed files.
+1. Rebuild context around the filtered diff.
+- Read the changed files that remain after excluding ordinary `tools/**` paths and `.ralph/prd.json`.
+- If the remaining path is only a generated cache artifact under `tools/`, report it directly without loading surrounding tool implementation files.
 - For `.tscn` changes, also read the attached script and verify node paths, exported fields, and signals.
 - For `scripts/systems/*`, read the nearby owner state, service, and regression tests.
 - Read [references/review-checklist.md](references/review-checklist.md) when the affected area spans multiple subsystems.
