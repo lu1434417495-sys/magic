@@ -21,6 +21,7 @@ static func render_full_snapshot(snapshot: Dictionary) -> String:
 	_append_section(sections, "CHARACTER", _build_character_lines(snapshot.get("character_info", {})))
 	_append_section(sections, "WAREHOUSE", _build_warehouse_lines(snapshot.get("warehouse", {})))
 	_append_section(sections, "BATTLE", _build_battle_lines(snapshot.get("battle", {})))
+	_append_section(sections, "LOOT", _build_loot_lines(snapshot.get("loot", {})))
 	_append_section(sections, "REWARD", _build_reward_lines(snapshot.get("reward", {})))
 	_append_section(sections, "PROMOTION", _build_promotion_lines(snapshot.get("promotion", {})))
 	return "\n\n".join(PackedStringArray(sections))
@@ -438,6 +439,20 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 				_format_bool(bool(unit.get("is_alive", false))),
 				_format_coord(unit.get("coord", {})),
 			])
+	return lines
+
+
+static func _build_loot_lines(loot: Dictionary) -> Array[String]:
+	if loot.is_empty():
+		return []
+	var lines: Array[String] = [
+		"battle_name=%s" % String(loot.get("battle_name", "")),
+		"winner_faction_id=%s" % String(loot.get("winner_faction_id", "")),
+		"loot_entry_count=%d" % int(loot.get("loot_entry_count", 0)),
+		"loot_summary=%s" % String(loot.get("loot_summary_text", "")),
+		"overflow_entry_count=%d" % int(loot.get("overflow_entry_count", 0)),
+		"overflow_summary=%s" % String(loot.get("overflow_summary_text", "")),
+	]
 	return lines
 
 

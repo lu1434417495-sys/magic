@@ -44,6 +44,7 @@ func build_headless_snapshot() -> Dictionary:
 		"character_info": _build_character_info_snapshot(),
 		"warehouse": _build_warehouse_snapshot(),
 		"battle": _build_battle_snapshot(),
+		"loot": _build_loot_snapshot(),
 		"reward": _build_reward_snapshot(),
 		"promotion": _build_promotion_snapshot(),
 	}
@@ -405,6 +406,20 @@ func _build_reward_snapshot() -> Dictionary:
 		"remaining_count": _runtime.get_pending_reward_count(),
 		"reward": reward.to_dict() if reward != null and reward.has_method("to_dict") else {},
 	}
+
+
+func _build_loot_snapshot() -> Dictionary:
+	if _runtime == null or not _runtime.has_method("get_last_battle_loot_snapshot"):
+		return {}
+	var loot_snapshot_variant = _runtime.get_last_battle_loot_snapshot()
+	if loot_snapshot_variant is not Dictionary:
+		return {}
+	var loot_snapshot := (loot_snapshot_variant as Dictionary).duplicate(true)
+	if loot_snapshot.is_empty():
+		return {}
+	if int(loot_snapshot.get("loot_entry_count", 0)) <= 0 and int(loot_snapshot.get("overflow_entry_count", 0)) <= 0:
+		return {}
+	return loot_snapshot
 
 
 func _build_promotion_snapshot() -> Dictionary:

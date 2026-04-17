@@ -221,3 +221,7 @@ Updated `scripts/systems/game_runtime_facade.gd` so `finalize_battle_resolution(
 ## 2026-04-17T07:58:26+08:00 | PVS_20B | done
 title: 实现 overflow_entries 与掉落溢出反馈
 `GameRuntimeFacade` now commits battle loot with partial deposit semantics, writes canonical `overflow_entries` back onto `BattleResolutionResult` when capacity blocks drops, and surfaces explicit overflow feedback through runtime status/command messages/text snapshot. `BattleResolutionResult` now normalizes `overflow_entries` with the same canonical drop schema as `loot_entries`, and focused battle regressions were added/updated for both round-trip contract coverage and real wild-encounter overflow feedback.
+
+## 2026-04-17T08:03:43+08:00 | PVS_21A | done
+title: 让 text snapshot 渲染 loot 与 overflow 结果
+在 `GameRuntimeFacade` 增加最近一次战斗 loot/overflow 摘要快照，`GameRuntimeSnapshotBuilder` 暴露 `loot` 段，`GameTextSnapshotRenderer` 新增 `[LOOT]` 文本分段；补充 snapshot-builder 与 wild-encounter 回归，保证有 loot 时可见摘要、无 loot 时不插入新分段而破坏既有顺序。

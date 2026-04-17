@@ -183,6 +183,8 @@ var _active_forge_context: Dictionary = {}
 var _active_stagecoach_context: Dictionary = {}
 ## 字段说明：缓存最近一次状态文本，供 headless 文本测试直接读取。
 var _current_status_message := ""
+## 字段说明：缓存最近一次战斗掉落结算摘要，供稳定快照与文本渲染复用。
+var _last_battle_loot_snapshot: Dictionary = {}
 var _active_command_log_scope: Dictionary = {}
 ## 字段说明：缓存当前人物信息窗的结构化上下文，供 headless 文本测试稳定读取。
 var _active_character_info_context: Dictionary = {}
@@ -251,6 +253,7 @@ func setup(game_session) -> void:
 	_active_shop_context.clear()
 	_active_forge_context.clear()
 	_active_stagecoach_context.clear()
+	_last_battle_loot_snapshot.clear()
 	_active_character_info_context.clear()
 	_party_selected_member_id = &""
 	_active_warehouse_entry_label = ""
@@ -309,6 +312,7 @@ func dispose() -> void:
 	_active_shop_context.clear()
 	_active_forge_context.clear()
 	_active_stagecoach_context.clear()
+	_last_battle_loot_snapshot.clear()
 	_battle_selection_state.reset_for_battle_end()
 	_held_world_move_keys.clear()
 	_active_reward = null
@@ -863,6 +867,10 @@ func get_battle_terrain_counts() -> Dictionary:
 	return _battle_session_facade.get_battle_terrain_counts()
 
 
+func get_last_battle_loot_snapshot() -> Dictionary:
+	return _last_battle_loot_snapshot.duplicate(true)
+
+
 func get_active_reward():
 	return _active_reward
 
@@ -1050,6 +1058,7 @@ func prepare_battle_start(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> voi
 		return
 	_active_battle_encounter_id = encounter_anchor.entity_id
 	_active_battle_encounter_name = encounter_anchor.display_name
+	_last_battle_loot_snapshot.clear()
 	_pending_battle_start_prompt.clear()
 	_pending_promotion_prompt.clear()
 	_battle_selection.clear_battle_skill_selection()
@@ -1123,6 +1132,12 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 	_battle_state = null
 	_battle_selected_coord = Vector2i(-1, -1)
 	var battle_name: String = _active_battle_encounter_name if not _active_battle_encounter_name.is_empty() else "遭遇"
+	_last_battle_loot_snapshot = _build_last_battle_loot_snapshot(
+		battle_name,
+		winner_faction_id,
+		battle_resolution_result,
+		loot_commit_result
+	)
 	_active_battle_encounter_id = &""
 	_active_battle_encounter_name = ""
 	_selected_coord = _player_coord
@@ -1278,6 +1293,32 @@ func _build_battle_loot_status_suffix(loot_commit_result: Dictionary) -> String:
 	if overflow_text.is_empty():
 		return ""
 	return "未装下的掉落：%s。" % overflow_text
+
+
+func _build_last_battle_loot_snapshot(
+	battle_name: String,
+	winner_faction_id: String,
+	battle_resolution_result,
+	loot_commit_result: Dictionary
+) -> Dictionary:
+	if battle_resolution_result == null:
+		return {}
+	var loot_entries: Array = battle_resolution_result.loot_entries.duplicate(true)
+	var overflow_entries: Array = battle_resolution_result.overflow_entries.duplicate(true)
+	if loot_entries.is_empty() and overflow_entries.is_empty():
+		return {}
+	return {
+		"battle_name": battle_name,
+		"winner_faction_id": winner_faction_id,
+		"loot_entries": loot_entries,
+		"loot_entry_count": loot_entries.size(),
+		"loot_summary_text": _format_battle_drop_entries(loot_entries),
+		"overflow_entries": overflow_entries,
+		"overflow_entry_count": overflow_entries.size(),
+		"overflow_summary_text": _format_battle_drop_entries(overflow_entries),
+		"commit_ok": bool(loot_commit_result.get("ok", false)),
+		"commit_error_code": String(loot_commit_result.get("error_code", "")),
+	}
 
 
 func _format_battle_drop_entries(drop_entry_variants: Array) -> String:

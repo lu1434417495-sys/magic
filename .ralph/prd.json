@@ -1045,14 +1045,22 @@
     {
       "id": "PVS_21A",
       "title": "让 text snapshot 渲染 loot 与 overflow 结果",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "text snapshot 可见 loot 与 overflow 摘要",
         "无 loot 场景不会破坏既有 snapshot 顺序"
       ],
       "notes": [
         "Owner：CU-21。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T07:58:26+08:00",
+      "lastRunId": "20260417-075826-PVS_21A",
+      "startedAt": "2026-04-17T07:58:26+08:00",
+      "completedAt": "2026-04-17T08:03:43+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "已运行 `godot --headless --script tests/runtime/run_game_runtime_snapshot_builder_regression.gd`、`godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd`、`godot --headless --script tests/text_runtime/run_text_command_regression.gd`，均通过。",
+      "lastLearnings": "battle resolution 的掉落结果不应从日志反推，稳定做法是由 `GameRuntimeFacade` 持有只读的最近结算摘要，再由 snapshot/text renderer 投影；`[LOOT]` 分段需仅在 loot/overflow 非空时渲染，才能保持无 loot 场景的既有 snapshot 顺序。"
     },
     {
       "id": "PVS_21B",

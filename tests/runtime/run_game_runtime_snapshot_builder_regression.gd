@@ -21,6 +21,8 @@ func _run() -> void:
 	_test_snapshot_builder_exposes_contract_board_modal_snapshot()
 	_test_snapshot_builder_exposes_forge_modal_snapshot()
 	_test_snapshot_builder_exposes_generic_forge_modal_snapshot()
+	_test_snapshot_builder_exposes_battle_loot_snapshot()
+	_test_snapshot_builder_omits_loot_section_when_empty()
 
 	if _failures.is_empty():
 		print("Game runtime snapshot builder regression: PASS")
@@ -302,6 +304,60 @@ func _test_snapshot_builder_exposes_generic_forge_modal_snapshot() -> void:
 	builder.dispose()
 
 
+func _test_snapshot_builder_exposes_battle_loot_snapshot() -> void:
+	var runtime := FakeQuestRuntime.new()
+	runtime.last_battle_loot_snapshot = {
+		"battle_name": "荒狼巢穴",
+		"winner_faction_id": "player",
+		"loot_entries": [
+			{
+				"item_id": "beast_hide",
+				"quantity": 2,
+			},
+		],
+		"loot_entry_count": 1,
+		"loot_summary_text": "兽皮 x2",
+		"overflow_entries": [
+			{
+				"item_id": "beast_hide",
+				"quantity": 1,
+			},
+		],
+		"overflow_entry_count": 1,
+		"overflow_summary_text": "兽皮 x1",
+	}
+
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	var text_snapshot := builder.build_text_snapshot()
+	var loot_snapshot: Dictionary = snapshot.get("loot", {})
+
+	_assert_eq(String(loot_snapshot.get("battle_name", "")), "荒狼巢穴", "loot 快照应保留最近一次战斗名称。")
+	_assert_eq(String(loot_snapshot.get("loot_summary_text", "")), "兽皮 x2", "loot 快照应暴露稳定 loot 摘要。")
+	_assert_eq(String(loot_snapshot.get("overflow_summary_text", "")), "兽皮 x1", "loot 快照应暴露稳定 overflow 摘要。")
+	_assert_true(text_snapshot.contains("[LOOT]"), "文本快照应为最近一次战斗掉落渲染 LOOT 分段。")
+	_assert_true(text_snapshot.contains("loot_summary=兽皮 x2"), "文本快照应渲染 loot 摘要。")
+	_assert_true(text_snapshot.contains("overflow_summary=兽皮 x1"), "文本快照应渲染 overflow 摘要。")
+
+	builder.dispose()
+
+
+func _test_snapshot_builder_omits_loot_section_when_empty() -> void:
+	var runtime := FakeQuestRuntime.new()
+
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	var text_snapshot := builder.build_text_snapshot()
+
+	_assert_true((snapshot.get("loot", {}) as Dictionary).is_empty(), "没有最近掉落时 headless snapshot 不应强行生成 loot 段。")
+	_assert_true(not text_snapshot.contains("[LOOT]"), "没有最近掉落时文本快照不应插入 LOOT 分段。")
+	_assert_true(text_snapshot.find("[BATTLE]") >= 0 and text_snapshot.find("[REWARD]") > text_snapshot.find("[BATTLE]"), "没有 loot 时既有 BATTLE -> REWARD 顺序应保持稳定。")
+
+	builder.dispose()
+
+
 func _create_test_session():
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
@@ -362,6 +418,7 @@ class FakeQuestRuntime:
 	var forge_window_data: Dictionary = {}
 	var active_shop_context: Dictionary = {}
 	var warehouse_window_data: Dictionary = {}
+	var last_battle_loot_snapshot: Dictionary = {}
 
 	func is_battle_active() -> bool:
 		return false
@@ -467,6 +524,9 @@ class FakeQuestRuntime:
 
 	func get_snapshot_reward():
 		return null
+
+	func get_last_battle_loot_snapshot() -> Dictionary:
+		return last_battle_loot_snapshot.duplicate(true)
 
 	func get_current_promotion_prompt() -> Dictionary:
 		return {}
