@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -234,6 +235,307 @@ def limit_text_length(text: str, max_length: int = 160) -> str:
     if len(normalized) <= max_length:
         return normalized
     return normalized[: max_length - 3].rstrip() + "..."
+
+
+def _extract_string(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _extract_text_from_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        chunks = [_extract_text_from_value(item) for item in value]
+        return "".join(chunk for chunk in chunks if chunk)
+    if isinstance(value, dict):
+        preferred_keys = ("text", "delta", "message", "content", "value", "output_text")
+        chunks = [_extract_text_from_value(value.get(key)) for key in preferred_keys if key in value]
+        return "".join(chunk for chunk in chunks if chunk)
+    return ""
+
+
+def _extract_event_message(event: dict[str, Any]) -> str:
+    error = event.get("error")
+    if isinstance(error, dict):
+        message = _extract_string(error.get("message", "")).strip()
+        if message:
+            return message
+
+    for key in ("message", "text", "delta", "content", "output_text"):
+        message = _extract_text_from_value(event.get(key)).strip()
+        if message:
+            return message
+
+    item = event.get("item")
+    if isinstance(item, dict):
+        for key in ("message", "text", "delta", "content", "output_text"):
+            message = _extract_text_from_value(item.get(key)).strip()
+            if message:
+                return message
+
+    return ""
+
+
+def _extract_tool_name(event: dict[str, Any]) -> str:
+    for candidate_key in ("tool_name", "name", "recipient_name"):
+        candidate = _extract_string(event.get(candidate_key, "")).strip()
+        if candidate:
+            return candidate
+
+    item = event.get("item")
+    if isinstance(item, dict):
+        for candidate_key in ("tool_name", "name", "recipient_name"):
+            candidate = _extract_string(item.get(candidate_key, "")).strip()
+            if candidate:
+                return candidate
+
+    call = event.get("call")
+    if isinstance(call, dict):
+        for candidate_key in ("tool_name", "name", "recipient_name"):
+            candidate = _extract_string(call.get(candidate_key, "")).strip()
+            if candidate:
+                return candidate
+
+    return ""
+
+
+def _strip_matching_quotes(text: str) -> str:
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+        return text[1:-1]
+    return text
+
+
+def _extract_first_regex_group(pattern: str, text: str) -> str:
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    if match is None:
+        return ""
+    return _strip_matching_quotes(match.group(1).strip())
+
+
+def _summarize_path_text(path_text: str) -> str:
+    normalized = _strip_matching_quotes(path_text.strip())
+    if not normalized:
+        return ""
+
+    normalized = normalized.replace("\\", "/")
+    drive_match = re.match(r"^[A-Za-z]:/(.+)$", normalized)
+    if drive_match:
+        normalized = drive_match.group(1)
+
+    home_match = re.match(r"^[A-Za-z]:/Users/[^/]+/(.+)$", normalized, flags=re.IGNORECASE)
+    if home_match:
+        normalized = home_match.group(1)
+
+    repo_match = re.match(r"^.+?/magic/(.+)$", normalized, flags=re.IGNORECASE)
+    if repo_match:
+        normalized = repo_match.group(1)
+
+    normalized = re.sub(r"/+", "/", normalized).strip("/")
+    return normalized
+
+
+def _summarize_shell_command(command: str) -> str:
+    normalized = normalize_compact_text(command)
+    if not normalized:
+        return ""
+
+    inner_command = _extract_first_regex_group(r"-Command\s+(.+)$", normalized)
+    if inner_command:
+        normalized = inner_command
+
+    normalized = _strip_matching_quotes(normalized.strip())
+
+    get_content_path = _extract_first_regex_group(r"Get-Content\s+-Path\s+(.+?)(?:\s*\|\s*Select-Object.*)?$", normalized)
+    if get_content_path:
+        return f"read {_summarize_path_text(get_content_path)}"
+
+    rg_files_match = re.search(r'rg\s+--files\s+(.+?)\s*\|\s*rg\s+["' + "'" + r'](.+?)["' + "'" + r']', normalized, flags=re.IGNORECASE)
+    if rg_files_match:
+        scope = normalize_compact_text(rg_files_match.group(1))
+        pattern = normalize_compact_text(rg_files_match.group(2))
+        return f"list files matching {pattern} in {scope}"
+
+    rg_search_match = re.search(r'rg\s+-n\s+["' + "'" + r'](.+?)["' + "'" + r']\s+(.+)$', normalized, flags=re.IGNORECASE)
+    if rg_search_match:
+        pattern = normalize_compact_text(rg_search_match.group(1))
+        scope = normalize_compact_text(rg_search_match.group(2))
+        return f"search {pattern} in {scope}"
+
+    git_status_match = re.search(r"git\s+status\s+--short$", normalized, flags=re.IGNORECASE)
+    if git_status_match:
+        return "git status --short"
+
+    select_object_match = re.search(r"Get-Content\s+-Path\s+(.+?)\s*\|\s*Select-Object\s+-Skip\s+(\d+)\s+-First\s+(\d+)$", normalized, flags=re.IGNORECASE)
+    if select_object_match:
+        path_text = _summarize_path_text(select_object_match.group(1))
+        skip = select_object_match.group(2)
+        first = select_object_match.group(3)
+        return f"read {path_text} [{skip}:{first}]"
+
+    return limit_text_length(normalized, 120)
+
+
+def _extract_command_execution_summary(item: dict[str, Any]) -> str:
+    command = _extract_string(item.get("command", "")).strip()
+    command_summary = _summarize_shell_command(command)
+    exit_code = item.get("exit_code")
+    status = _extract_string(item.get("status", "")).strip()
+
+    if status == "in_progress":
+        return f"[codex] command started: {command_summary}" if command_summary else "[codex] command started"
+
+    if status == "completed":
+        if command_summary and exit_code is not None:
+            return f"[codex] command completed ({exit_code}): {command_summary}"
+        if command_summary:
+            return f"[codex] command completed: {command_summary}"
+        return "[codex] command completed"
+
+    if status:
+        if command_summary:
+            return f"[codex] command {status}: {command_summary}"
+        return f"[codex] command {status}"
+
+    if command_summary:
+        return f"[codex] command: {command_summary}"
+    return ""
+
+
+def _extract_todo_summary(item: dict[str, Any]) -> str:
+    items = item.get("items", [])
+    if not isinstance(items, list) or not items:
+        return ""
+
+    total = len(items)
+    completed = 0
+    for entry in items:
+        if isinstance(entry, dict) and bool(entry.get("completed", False)):
+            completed += 1
+    return f"[codex] todo progress: {completed}/{total}"
+
+
+def _extract_item_summary(event: dict[str, Any]) -> str:
+    item = event.get("item")
+    if not isinstance(item, dict):
+        return ""
+
+    item_type = _extract_string(item.get("type", "")).strip()
+    event_type = _extract_string(event.get("type", "")).strip()
+
+    if item_type == "command_execution":
+        return _extract_command_execution_summary(item)
+
+    if item_type == "todo_list":
+        todo_summary = _extract_todo_summary(item)
+        if todo_summary:
+            return todo_summary
+
+    if event_type == "item.started" and item_type:
+        return f"[codex] item started: {item_type}"
+    if event_type == "item.completed" and item_type:
+        return f"[codex] item completed: {item_type}"
+    if event_type == "item.updated" and item_type:
+        return f"[codex] item updated: {item_type}"
+
+    return ""
+
+
+def render_codex_event(event: dict[str, Any]) -> dict[str, str] | None:
+    event_type = _extract_string(event.get("type", "")).strip()
+    message = _extract_event_message(event)
+
+    if event_type == "thread.started":
+        thread_id = _extract_string(event.get("thread_id", "")).strip()
+        if thread_id:
+            return {"kind": "line", "text": f"[codex] thread started: {thread_id}"}
+        return {"kind": "line", "text": "[codex] thread started"}
+
+    if event_type.endswith(".delta") or event_type.endswith(".chunk"):
+        if message:
+            return {"kind": "text", "text": message}
+        return None
+
+    if event_type in {"error", "turn.failed"}:
+        summary = message or "Codex reported an error."
+        return {"kind": "line", "text": f"[codex] {event_type}: {summary}"}
+
+    if event_type == "turn.started":
+        return {"kind": "line", "text": "[codex] turn started"}
+
+    if event_type == "turn.completed":
+        return {"kind": "line", "text": "[codex] turn completed"}
+
+    if event_type.startswith("item."):
+        item_summary = _extract_item_summary(event)
+        if item_summary:
+            return {"kind": "line", "text": item_summary}
+        return None
+
+    if "tool" in event_type or "call" in event_type:
+        tool_name = _extract_tool_name(event)
+        if message and tool_name:
+            return {"kind": "line", "text": f"[codex] {event_type}: {tool_name} | {message}"}
+        if tool_name:
+            return {"kind": "line", "text": f"[codex] {event_type}: {tool_name}"}
+        if message:
+            return {"kind": "line", "text": f"[codex] {event_type}: {message}"}
+        return {"kind": "line", "text": f"[codex] {event_type}"}
+
+    if message and event_type in {"message", "message.completed", "response.completed"}:
+        return {"kind": "line", "text": message}
+
+    if message and not event_type:
+        return {"kind": "line", "text": message}
+
+    return None
+
+
+def _ensure_console_newline(console_handle, render_state: dict[str, Any]) -> None:
+    if render_state.get("text_stream_open", False):
+        console_handle.write("\n")
+        console_handle.flush()
+        render_state["text_stream_open"] = False
+
+
+def render_codex_event_line(raw_line: str, console_handle, render_state: dict[str, Any]) -> None:
+    if not raw_line:
+        return
+
+    try:
+        event = json.loads(raw_line)
+    except json.JSONDecodeError:
+        _ensure_console_newline(console_handle, render_state)
+        console_handle.write(raw_line)
+        console_handle.flush()
+        return
+
+    if not isinstance(event, dict):
+        return
+
+    rendered = render_codex_event(event)
+    if rendered is None:
+        return
+
+    kind = rendered.get("kind", "")
+    text = rendered.get("text", "")
+    if not text:
+        return
+
+    if kind == "text":
+        console_handle.write(text)
+        console_handle.flush()
+        render_state["text_stream_open"] = not text.endswith("\n")
+        return
+
+    _ensure_console_newline(console_handle, render_state)
+    console_handle.write(text.rstrip() + "\n")
+    console_handle.flush()
 
 
 def build_commit_summary(commit_lines: list[str], max_lines: int = 12, max_subject_length: int = 140) -> str:
@@ -544,6 +846,7 @@ def build_codex_review_command(model: str, output_schema_path: Path | None, pers
         str(repo_root),
         "--sandbox",
         sandbox_mode,
+        "--json",
         "-o",
         str(report_path),
     ]
@@ -587,13 +890,63 @@ def invoke_codex_review(
         sandbox_mode=sandbox_mode,
         report_path=report_path,
     )
-    process = subprocess.run(
-        command,
-        cwd=repo_root,
-        input=prompt_text,
-        text=True,
-        encoding="utf-8",
-    )
+    events_path = Path(f"{report_path}.events.jsonl")
+    stderr_path = Path(f"{report_path}.stderr.log")
+    for path in (events_path, stderr_path):
+        if path.exists():
+            path.unlink()
+
+    with (
+        events_path.open("w", encoding="utf-8") as events_file,
+        stderr_path.open("w", encoding="utf-8") as stderr_file,
+    ):
+        process = subprocess.Popen(
+            command,
+            cwd=repo_root,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+        assert process.stdin is not None
+        assert process.stdout is not None
+        assert process.stderr is not None
+
+        def stream_pipe(pipe, log_handle, console_handle, render_events: bool) -> None:
+            render_state = {"text_stream_open": False}
+            try:
+                for line in iter(pipe.readline, ""):
+                    log_handle.write(line)
+                    log_handle.flush()
+                    if render_events:
+                        render_codex_event_line(line, console_handle, render_state)
+                    else:
+                        console_handle.write(line)
+                        console_handle.flush()
+            finally:
+                if render_events:
+                    _ensure_console_newline(console_handle, render_state)
+                pipe.close()
+
+        stdout_thread = threading.Thread(
+            target=stream_pipe,
+            args=(process.stdout, events_file, sys.stdout, True),
+            daemon=True,
+        )
+        stderr_thread = threading.Thread(
+            target=stream_pipe,
+            args=(process.stderr, stderr_file, sys.stderr, False),
+            daemon=True,
+        )
+        stdout_thread.start()
+        stderr_thread.start()
+        process.stdin.write(prompt_text)
+        process.stdin.close()
+        process.wait()
+        stdout_thread.join()
+        stderr_thread.join()
+
     return process.returncode
 
 

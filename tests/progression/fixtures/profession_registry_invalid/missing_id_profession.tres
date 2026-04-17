@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ProfessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/profession_def.gd" id="1_profession"]
+
+[resource]
+script = ExtResource("1_profession")
+display_name = "缺失标识职业"
+description = "用于验证 profession_id 缺失错误。"
+max_rank = 1
+is_initial_profession = true
+

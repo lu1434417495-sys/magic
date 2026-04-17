@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="ProfessionDef" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/profession_def.gd" id="1_profession"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_promotion_requirement.gd" id="2_unlock"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_rank_requirement.gd" id="3_rank"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_rank_gate.gd" id="4_gate"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_granted_skill.gd" id="5_granted"]
+
+[sub_resource type="Resource" id="Resource_unlock_gate"]
+script = ExtResource("4_gate")
+profession_id = "phantom_profession"
+min_rank = 1
+
+[sub_resource type="Resource" id="Resource_unlock_requirement"]
+script = ExtResource("2_unlock")
+required_skill_ids = Array[StringName](["missing_skill"])
+required_profession_ranks = Array[Resource]([SubResource("Resource_unlock_gate")])
+
+[sub_resource type="Resource" id="Resource_rank_gate"]
+script = ExtResource("4_gate")
+profession_id = "phantom_profession"
+min_rank = 2
+
+[sub_resource type="Resource" id="Resource_rank_requirement"]
+script = ExtResource("3_rank")
+target_rank = 2
+required_profession_ranks = Array[Resource]([SubResource("Resource_rank_gate")])
+
+[sub_resource type="Resource" id="Resource_missing_granted_skill"]
+script = ExtResource("5_granted")
+skill_id = "missing_skill"
+unlock_rank = 2
+skill_type = "passive"
+
+[resource]
+script = ExtResource("1_profession")
+profession_id = "illegal_reference_profession"
+display_name = "非法引用职业"
+description = "用于验证 profession registry 的非法引用错误。"
+max_rank = 2
+is_initial_profession = true
+unlock_requirement = SubResource("Resource_unlock_requirement")
+rank_requirements = Array[Resource]([SubResource("Resource_rank_requirement")])
+granted_skills = Array[Resource]([SubResource("Resource_missing_granted_skill")])

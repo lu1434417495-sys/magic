@@ -9,6 +9,7 @@ const CombatCastVariantDef = preload("res://scripts/player/progression/combat_ca
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const DESIGN_SKILL_CATALOG_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog.gd")
+const PROFESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/profession_content_registry.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
@@ -23,6 +24,8 @@ var _profession_defs: Dictionary = {}
 var _achievement_defs: Dictionary = {}
 ## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
 var _quest_defs: Dictionary = {}
+## 字段说明：记录职业内容注册表，会参与运行时状态流转、系统协作和静态校验。
+var _profession_content_registry = PROFESSION_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：收集配置校验阶段发现的错误信息，便于启动时统一报告和定位问题。
 var _validation_errors: Array[String] = []
 
@@ -42,15 +45,11 @@ func rebuild() -> void:
 	_register_warrior_maneuver_catalog()
 	_register_archer_skill_catalog()
 	_register_mage_skill_catalog()
-	_register_warrior_content()
-	_register_priest_content()
-	_register_rogue_content()
-	_register_berserker_content()
-	_register_paladin_content()
-	_register_mage_content()
-	_register_archer_content()
+	_profession_content_registry.setup(_skill_defs)
+	_profession_defs = _profession_content_registry.get_profession_defs()
 	_register_seed_achievements()
 	_register_seed_quests()
+	_validation_errors.append_array(_profession_content_registry.validate())
 	_validation_errors.append_array(_collect_validation_errors())
 
 
@@ -81,6 +80,9 @@ func get_bundle() -> Dictionary:
 
 func validate() -> Array[String]:
 	var errors := _validation_errors.duplicate()
+	for validation_error in _profession_content_registry.validate():
+		if not errors.has(validation_error):
+			errors.append(validation_error)
 	for validation_error in _collect_validation_errors():
 		if not errors.has(validation_error):
 			errors.append(validation_error)
@@ -966,45 +968,6 @@ func _register_quest(quest_def: QuestDef) -> void:
 func _collect_validation_errors() -> Array[String]:
 	var errors: Array[String] = []
 
-	for profession_key in ProgressionDataUtils.sorted_string_keys(_profession_defs):
-		var profession_id := StringName(profession_key)
-		var profession_def := _profession_defs.get(profession_id) as ProfessionDef
-		if profession_def == null:
-			continue
-
-		_append_invalid_profession_unlock_errors(errors, profession_id, profession_def)
-
-		for granted_skill in profession_def.granted_skills:
-			if granted_skill == null:
-				continue
-			if not _skill_defs.has(granted_skill.skill_id):
-				errors.append(
-					"Profession %s grants missing skill %s." % [String(profession_id), String(granted_skill.skill_id)]
-				)
-
-		var expected_rank := 2
-		while expected_rank <= profession_def.max_rank:
-			if profession_def.get_rank_requirement(expected_rank) == null:
-				errors.append(
-					"Profession %s is missing a rank requirement for rank %d." % [String(profession_id), expected_rank]
-				)
-			expected_rank += 1
-
-		if profession_def.unlock_requirement != null:
-			for tag_rule in profession_def.unlock_requirement.required_tag_rules:
-				_append_invalid_tag_rule_errors(errors, profession_id, tag_rule, "unlock")
-
-		for rank_requirement in profession_def.rank_requirements:
-			if rank_requirement == null:
-				continue
-			for tag_rule in rank_requirement.required_tag_rules:
-				_append_invalid_tag_rule_errors(
-					errors,
-					profession_id,
-					tag_rule,
-					"rank_%d" % rank_requirement.target_rank
-				)
-
 	for achievement_key in ProgressionDataUtils.sorted_string_keys(_achievement_defs):
 		var achievement_id := StringName(achievement_key)
 		var achievement_def := _achievement_defs.get(achievement_id) as AchievementDef
@@ -1016,39 +979,6 @@ func _collect_validation_errors() -> Array[String]:
 		_append_invalid_quest_errors(errors, quest_id, quest_def)
 
 	return errors
-
-
-func _append_invalid_profession_unlock_errors(
-	errors: Array[String],
-	profession_id: StringName,
-	profession_def: ProfessionDef
-) -> void:
-	if profession_def == null or not profession_def.requires_knowledge_unlock():
-		return
-	if profession_def.unlock_knowledge_id == &"":
-		errors.append("Profession %s is missing unlock_knowledge_id." % String(profession_id))
-
-
-func _append_invalid_tag_rule_errors(
-	errors: Array[String],
-	profession_id: StringName,
-	tag_rule: TagRequirement,
-	context_label: String
-) -> void:
-	if tag_rule == null:
-		return
-	if tag_rule.tag == &"":
-		errors.append(
-			"Profession %s has an empty tag requirement in %s." % [String(profession_id), String(context_label)]
-		)
-	if tag_rule.count <= 0:
-		errors.append(
-			"Profession %s has a non-positive tag count in %s for tag %s." % [
-				String(profession_id),
-				String(context_label),
-				String(tag_rule.tag),
-			]
-		)
 
 
 func _append_invalid_achievement_errors(

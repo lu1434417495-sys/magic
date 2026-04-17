@@ -229,3 +229,7 @@ title: 让 text snapshot 渲染 loot 与 overflow 结果
 ## 2026-04-17T21:51:28+08:00 | PVS_21B | done
 title: 为 loot/overflow 增加 text command 与 expect 回归
 No code edits were required; the existing text-runtime loot commit/overflow scenarios and regression already satisfy PVS_21B.
+
+## 2026-04-17T22:02:32+08:00 | PVS_22A | done
+title: 建立 profession resource schema 与 registry scan
+Added a dedicated `ProfessionContentRegistry`, moved the seven seed professions into `data/configs/professions/*.tres`, wired `ProgressionContentRegistry` to scan them, added validation for missing IDs/duplicate IDs/illegal skill+profession refs, added `tests/progression/run_profession_schema_regression.gd` with invalid fixture resources, and updated `docs/design/project_context_units.md` for the new ownership/read-set.

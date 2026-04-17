@@ -1,0 +1,90 @@
+[gd_resource type="Resource" script_class="ProfessionDef" load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/profession_def.gd" id="1_profession"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_promotion_requirement.gd" id="2_unlock"]
+[ext_resource type="Script" path="res://scripts/player/progression/tag_requirement.gd" id="3_tag"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_rank_requirement.gd" id="4_rank"]
+
+[sub_resource type="Resource" id="Resource_unlock_paladin_learned"]
+script = ExtResource("3_tag")
+tag = "paladin"
+count = 2
+skill_state = "learned"
+origin_filter = "unmerged_only"
+selection_role = "qualifier"
+
+[sub_resource type="Resource" id="Resource_unlock_paladin_core"]
+script = ExtResource("3_tag")
+tag = "paladin"
+count = 1
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_unlock_requirement"]
+script = ExtResource("2_unlock")
+required_tag_rules = Array[Resource]([SubResource("Resource_unlock_paladin_learned"), SubResource("Resource_unlock_paladin_core")])
+assigned_core_must_be_subset_of_qualifiers = true
+
+[sub_resource type="Resource" id="Resource_rank_2_paladin"]
+script = ExtResource("3_tag")
+tag = "paladin"
+count = 2
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_2_requirement"]
+script = ExtResource("4_rank")
+target_rank = 2
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_2_paladin")])
+
+[sub_resource type="Resource" id="Resource_rank_3_paladin"]
+script = ExtResource("3_tag")
+tag = "paladin"
+count = 2
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_3_requirement"]
+script = ExtResource("4_rank")
+target_rank = 3
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_3_paladin")])
+
+[sub_resource type="Resource" id="Resource_rank_4_paladin"]
+script = ExtResource("3_tag")
+tag = "paladin"
+count = 3
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_4_requirement"]
+script = ExtResource("4_rank")
+target_rank = 4
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_4_paladin")])
+
+[sub_resource type="Resource" id="Resource_rank_5_paladin"]
+script = ExtResource("3_tag")
+tag = "paladin"
+count = 3
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_5_requirement"]
+script = ExtResource("4_rank")
+target_rank = 5
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_5_paladin")])
+
+[resource]
+script = ExtResource("1_profession")
+profession_id = "paladin"
+display_name = "圣武士"
+description = "兼顾前线惩击、祝福与小范围保护能力的重装圣职职业。"
+max_rank = 5
+is_initial_profession = true
+unlock_requirement = SubResource("Resource_unlock_requirement")
+rank_requirements = Array[Resource]([SubResource("Resource_rank_2_requirement"), SubResource("Resource_rank_3_requirement"), SubResource("Resource_rank_4_requirement"), SubResource("Resource_rank_5_requirement")])
+

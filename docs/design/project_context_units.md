@@ -26,6 +26,7 @@
 - 数据与内容：
   - `data/configs/world_map/*.tres`
   - `data/configs/items/*.tres`
+  - `data/configs/professions/*.tres`
   - `data/saves/fixed_test_world_save.dat`
   - `assets/main/battle/terrain/canyon/*.png`
 - 自动化与辅助：
@@ -61,6 +62,7 @@ GameSession
   -> WorldMapSpawnSystem
   -> ProgressionSerialization
   -> ProgressionContentRegistry
+      -> ProfessionContentRegistry
   -> ItemContentRegistry
   -> EnemyContentRegistry
 
@@ -619,6 +621,7 @@ HeadlessGameTestSession
   - `scripts/player/progression/profession_granted_skill.gd`
   - `scripts/player/progression/profession_active_condition.gd`
   - `scripts/player/progression/profession_promotion_record.gd`
+  - `scripts/player/progression/profession_content_registry.gd`
   - `scripts/player/progression/attribute_modifier.gd`
   - `scripts/player/progression/derived_attribute_rule.gd`
   - `scripts/player/progression/achievement_def.gd`
@@ -626,12 +629,14 @@ HeadlessGameTestSession
   - `scripts/player/progression/quest_def.gd`
   - `scripts/player/progression/progression_content_registry.gd`
   - `scripts/player/progression/progression_data_utils.gd`
+  - `data/configs/professions/*.tres`
 - 真相源：
   - 技能、职业、条件、修正器、achievement、quest 的静态定义与 seed 内容。
 - 主要职责：
   - 定义 progression 语义，不直接执行业务流程。
   - `DesignSkillCatalog` 现在通过声明式 spec provider 装载 warrior / archer / mage 技能目录；新增技能优先改 spec 文件而不是继续堆 `_build_active_skill(...)` 调用。
-  - 注册当前职业原型、战斗技能、施法变体、achievement / quest seed 内容。
+  - `ProfessionContentRegistry` 负责扫描 `data/configs/professions/*.tres`，并报告 profession_id、技能/职业引用与 rank requirement 相关的静态错误。
+  - `ProgressionContentRegistry` 负责装载技能、achievement、quest seed，并汇总 profession registry 的静态校验结果。
   - 做静态内容校验。
 - 邻接单元：
   - CU-02

@@ -1,0 +1,90 @@
+[gd_resource type="Resource" script_class="ProfessionDef" load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/profession_def.gd" id="1_profession"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_promotion_requirement.gd" id="2_unlock"]
+[ext_resource type="Script" path="res://scripts/player/progression/tag_requirement.gd" id="3_tag"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_rank_requirement.gd" id="4_rank"]
+
+[sub_resource type="Resource" id="Resource_unlock_rogue_learned"]
+script = ExtResource("3_tag")
+tag = "rogue"
+count = 2
+skill_state = "learned"
+origin_filter = "unmerged_only"
+selection_role = "qualifier"
+
+[sub_resource type="Resource" id="Resource_unlock_rogue_core"]
+script = ExtResource("3_tag")
+tag = "rogue"
+count = 1
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_unlock_requirement"]
+script = ExtResource("2_unlock")
+required_tag_rules = Array[Resource]([SubResource("Resource_unlock_rogue_learned"), SubResource("Resource_unlock_rogue_core")])
+assigned_core_must_be_subset_of_qualifiers = true
+
+[sub_resource type="Resource" id="Resource_rank_2_rogue"]
+script = ExtResource("3_tag")
+tag = "rogue"
+count = 2
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_2_requirement"]
+script = ExtResource("4_rank")
+target_rank = 2
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_2_rogue")])
+
+[sub_resource type="Resource" id="Resource_rank_3_rogue"]
+script = ExtResource("3_tag")
+tag = "rogue"
+count = 2
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_3_requirement"]
+script = ExtResource("4_rank")
+target_rank = 3
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_3_rogue")])
+
+[sub_resource type="Resource" id="Resource_rank_4_rogue"]
+script = ExtResource("3_tag")
+tag = "rogue"
+count = 3
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_4_requirement"]
+script = ExtResource("4_rank")
+target_rank = 4
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_4_rogue")])
+
+[sub_resource type="Resource" id="Resource_rank_5_rogue"]
+script = ExtResource("3_tag")
+tag = "rogue"
+count = 3
+skill_state = "core_max"
+origin_filter = "unmerged_only"
+selection_role = "assigned_core"
+
+[sub_resource type="Resource" id="Resource_rank_5_requirement"]
+script = ExtResource("4_rank")
+target_rank = 5
+required_tag_rules = Array[Resource]([SubResource("Resource_rank_5_rogue")])
+
+[resource]
+script = ExtResource("1_profession")
+profession_id = "rogue"
+display_name = "盗贼"
+description = "依赖机动、先手和压制手段撕开战局缝隙的轻装职业。"
+max_rank = 5
+is_initial_profession = true
+unlock_requirement = SubResource("Resource_unlock_requirement")
+rank_requirements = Array[Resource]([SubResource("Resource_rank_2_requirement"), SubResource("Resource_rank_3_requirement"), SubResource("Resource_rank_4_requirement"), SubResource("Resource_rank_5_requirement")])
+

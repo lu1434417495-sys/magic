@@ -26,7 +26,7 @@
     {
       "id": "PVS_22A",
       "title": "建立 profession resource schema 与 registry scan",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "`data/configs/professions/` 下的 profession resources 可被扫描与校验",
         "registry failure 会报告缺失 ID、重复 ID 与非法引用"
@@ -34,10 +34,14 @@
       "notes": [
         "Owner：CU-13 / CU-14。"
       ],
-      "attemptCount": 1,
-      "lastAttemptAt": "2026-04-17T21:43:05+08:00",
-      "lastRunId": "20260417-214305-PVS_22A",
-      "startedAt": "2026-04-17T21:43:05+08:00"
+      "attemptCount": 2,
+      "lastAttemptAt": "2026-04-17T21:51:28+08:00",
+      "lastRunId": "20260417-215128-PVS_22A",
+      "startedAt": "2026-04-17T21:43:05+08:00",
+      "completedAt": "2026-04-17T22:02:32+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/progression/run_profession_schema_regression.gd` PASS; `godot --headless --script tests/progression/run_progression_tests.gd` PASS",
+      "lastLearnings": "Profession static data now lives in CU-13 resource files instead of hardcoded profession seed builders; `ProgressionContentRegistry` remains the top-level bundle owner, while profession scan/validation is isolated enough to report path-specific schema failures cleanly."
     },
     {
       "id": "PVS_22B",
