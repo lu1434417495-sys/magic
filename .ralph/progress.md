@@ -257,3 +257,7 @@ Moved enemy templates/brains/rosters into scanned `data/configs/enemies/**/*` re
 ## 2026-04-17T23:13:41+08:00 | PVS_24B | done
 title: 把 enemy template、brain 与 roster seed 迁出 EnemyContentRegistry
 Added a typed `EnemyContentSeed` manifest, switched `EnemyContentRegistry` to load the official enemy brains/templates/rosters from that resource, added fixture seed manifests, updated the wild-encounter regression, and refreshed CU-20 context docs.
+
+## 2026-04-17T23:26:47+08:00 | PVS_25A | done
+title: 建立统一资源 validation runner 并覆盖 missing/duplicate/invalid
+Added a unified resource validation runner and headless regression for profession/skill/enemy/item/recipe/quest, added item/recipe/enemy invalid fixtures, and updated CU-19 context docs for the new coverage.

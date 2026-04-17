@@ -166,14 +166,22 @@
     {
       "id": "PVS_25A",
       "title": "建立统一资源 validation runner 并覆盖 missing/duplicate/invalid",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "profession、skill、enemy、item、recipe、quest 至少覆盖 missing id、duplicate id、invalid reference 三类错误",
         "validation runner 输出可直接用于回归与排障"
       ],
       "notes": [
         "Owner：CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T23:13:42+08:00",
+      "lastRunId": "20260417-231342-PVS_25A",
+      "startedAt": "2026-04-17T23:13:42+08:00",
+      "completedAt": "2026-04-17T23:26:47+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "PASS: `godot --headless --script tests/runtime/run_resource_validation_regression.gd`",
+      "lastLearnings": "Skill invalid-reference coverage still needs ProgressionContentRegistry-level cross-checks beyond raw SkillContentRegistry scans, and quest validation needed explicit cross-domain checks for provider/item/enemy/skill references."
     },
     {
       "id": "PVS_25B",

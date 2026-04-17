@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyContentSeed" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_content_seed.gd" id="1_seed"]
+[ext_resource type="Resource" path="res://data/configs/enemies/brains/melee_aggressor.tres" id="2_brain_melee"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="3_template"]
+
+[sub_resource type="Resource" id="Resource_missing_template_id"]
+script = ExtResource("3_template")
+display_name = "Missing Template Id"
+brain_id = "melee_aggressor"
+initial_state_id = "engage"
+enemy_count = 1
+body_size = 1
+
+[resource]
+script = ExtResource("1_seed")
+enemy_ai_brains = Array[Resource]([ExtResource("2_brain_melee")])
+enemy_templates = Array[Resource]([SubResource("Resource_missing_template_id")])
+wild_encounter_rosters = Array[Resource]([])

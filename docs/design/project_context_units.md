@@ -867,6 +867,8 @@ HeadlessGameTestSession
   - `tests/runtime/run_game_log_service_regression.gd`
   - `tests/runtime/run_game_runtime_quest_progress_regression.gd`
   - `tests/runtime/run_game_runtime_snapshot_builder_regression.gd`
+  - `tests/runtime/content_validation_runner.gd`
+  - `tests/runtime/run_resource_validation_regression.gd`
   - `tests/runtime/run_settlement_service_result_regression.gd`
   - `tests/text_runtime/run_text_command_regression.gd`
   - `tests/text_runtime/run_text_command_script.gd`
@@ -915,6 +917,10 @@ HeadlessGameTestSession
     - `SettlementServiceResult` canonical 契约
     - battle / quest runtime 桥的最小回写链
     - runtime snapshot / text snapshot 的日志分段稳定性
+  - resource validation runner：
+    - 统一汇总 profession / skill / enemy / item / recipe / quest 的静态校验输出
+    - 覆盖 missing id / duplicate id / invalid reference 三类夹具回归
+    - 输出按 domain 分组，便于 headless 回归与本地排障直接复用
   - text runtime：
     - `game new/load`
     - `world/party/settlement/warehouse/battle/reward/promotion/close/snapshot/expect`

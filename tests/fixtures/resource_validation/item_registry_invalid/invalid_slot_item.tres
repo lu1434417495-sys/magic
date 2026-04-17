@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "invalid_slot_item"
+display_name = "Invalid Slot Item"
+description = "Fixture used by the unified validation runner."
+icon = "res://icon.svg"
+is_stackable = false
+max_stack = 1
+item_category = "equipment"
+equipment_slot_ids = Array[String](["phantom_slot"])
+equipment_type_id = "weapon"

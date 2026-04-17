@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "duplicate_item"
+display_name = "Duplicate Item A"
+description = "Fixture used by the unified validation runner."
+icon = "res://icon.svg"
