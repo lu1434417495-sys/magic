@@ -39,7 +39,7 @@ func build_ally_units(party_state, context: Dictionary) -> Array:
 	var units: Array = []
 	for index in range(member_ids.size()):
 		var member_id := StringName(String(member_ids[index]))
-		var member_state = party_state.get_member_state(member_id) if party_state != null and party_state.has_method("get_member_state") else null
+		var member_state = party_state.get_member_state(member_id) if party_state != null else null
 		if member_state != null and member_state.progression == null:
 			continue
 		var unit_state: BattleUnitState = _build_runtime_ally_unit(member_id, member_state, index, context)
@@ -51,10 +51,8 @@ func build_ally_units(party_state, context: Dictionary) -> Array:
 func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 	if unit_state == null or unit_state.source_member_id == &"" or _runtime == null:
 		return
-	var character_gateway: Object = _runtime._character_gateway
+	var character_gateway: Object = _runtime.get_character_gateway()
 	if character_gateway == null:
-		return
-	if not character_gateway.has_method("get_member_state") or not character_gateway.has_method("get_member_attribute_snapshot"):
 		return
 
 	var member_state = character_gateway.get_member_state(unit_state.source_member_id)
@@ -112,8 +110,8 @@ func build_terrain_data(encounter_anchor, seed: int, context: Dictionary) -> Dic
 		return build_fallback_terrain(context)
 
 	var terrain_data: Dictionary = {}
-	if _runtime != null and _runtime._terrain_generator != null and _runtime._terrain_generator.has_method("generate"):
-		terrain_data = _runtime._terrain_generator.generate(encounter_anchor, seed, context)
+	if _runtime != null and _runtime.get_terrain_generator() != null:
+		terrain_data = _runtime.get_terrain_generator().generate(encounter_anchor, seed, context)
 	return terrain_data
 
 
@@ -133,8 +131,8 @@ func build_fallback_terrain(context: Dictionary) -> Dictionary:
 			cell_state.height_offset = 0
 			cell_state.terrain_effect_ids.clear()
 			cell_state.timed_terrain_effects.clear()
-			if _runtime != null and _runtime._grid_service != null and _runtime._grid_service.has_method("recalculate_cell"):
-				_runtime._grid_service.recalculate_cell(cell_state)
+			if _runtime != null and _runtime.get_grid_service() != null:
+				_runtime.get_grid_service().recalculate_cell(cell_state)
 			else:
 				cell_state.recalculate_runtime_values()
 			cells[cell_state.coord] = cell_state
@@ -240,7 +238,7 @@ func _pick_default_enemy_skill_ids() -> Array[StringName]:
 		if _is_valid_enemy_skill(preferred_skill):
 			return [preferred_skill_id]
 
-	for skill_id_str in ProgressionDataUtils.sorted_string_keys(_runtime._skill_defs if _runtime != null and _runtime._skill_defs is Dictionary else {}):
+	for skill_id_str in ProgressionDataUtils.sorted_string_keys(_runtime.get_skill_defs() if _runtime != null and _runtime.get_skill_defs() is Dictionary else {}):
 		var skill_id := StringName(skill_id_str)
 		var skill_def := _skill_def_from_runtime(skill_id)
 		if _is_valid_enemy_skill(skill_def):
@@ -280,9 +278,9 @@ func _extract_ally_member_ids(context: Dictionary) -> Array:
 
 
 func _skill_def_from_runtime(skill_id: StringName) -> SkillDef:
-	if _runtime == null or not (_runtime._skill_defs is Dictionary):
+	if _runtime == null or not (_runtime.get_skill_defs() is Dictionary):
 		return null
-	return _runtime._skill_defs.get(skill_id) as SkillDef
+	return _runtime.get_skill_defs().get(skill_id) as SkillDef
 
 
 func _build_member_attribute_snapshot(member_state, context: Dictionary) -> AttributeSnapshot:
@@ -301,8 +299,8 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary) -> Attr
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPEED, int(context.get("default_ally_speed", 100)))
 		return snapshot
 
-	if _runtime != null and _runtime._character_gateway != null and _runtime._character_gateway.has_method("get_member_attribute_snapshot"):
-		var runtime_snapshot = _runtime._character_gateway.get_member_attribute_snapshot(member_state.member_id)
+	if _runtime != null and _runtime.get_character_gateway() != null:
+		var runtime_snapshot = _runtime.get_character_gateway().get_member_attribute_snapshot(member_state.member_id)
 		if runtime_snapshot != null:
 			return runtime_snapshot
 

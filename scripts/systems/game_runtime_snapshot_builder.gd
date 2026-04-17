@@ -409,7 +409,7 @@ func _build_reward_snapshot() -> Dictionary:
 
 
 func _build_loot_snapshot() -> Dictionary:
-	if _runtime == null or not _runtime.has_method("get_last_battle_loot_snapshot"):
+	if _runtime == null:
 		return {}
 	var loot_snapshot_variant = _runtime.get_last_battle_loot_snapshot()
 	if loot_snapshot_variant is not Dictionary:
@@ -455,7 +455,7 @@ func _resolve_forge_window_data() -> Dictionary:
 
 
 func _get_window_data_from_runtime(method_name: String) -> Dictionary:
-	if _runtime == null or not _runtime.has_method(method_name):
+	if _runtime == null:
 		return {}
 	var window_data_variant = _runtime.call(method_name)
 	return (window_data_variant as Dictionary).duplicate(true) if window_data_variant is Dictionary else {}

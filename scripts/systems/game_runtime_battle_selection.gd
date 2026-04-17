@@ -448,7 +448,7 @@ func _build_implicit_ground_cast_variant(skill_def):
 
 
 func _get_skill_def(skill_id: StringName):
-	return _runtime.get_skill_defs().get(skill_id) if _runtime != null and _runtime.has_method("get_skill_defs") else null
+	return _runtime.get_skill_defs().get(skill_id) if _runtime != null else null
 
 
 func _collect_selected_battle_skill_valid_target_coords() -> Array[Vector2i]:
@@ -986,88 +986,88 @@ func _sort_coords(target_coords: Array) -> Array[Vector2i]:
 
 
 func _get_manual_active_unit() -> BattleUnitState:
-	return _runtime.get_manual_battle_unit() if _runtime != null and _runtime.has_method("get_manual_battle_unit") else null
+	return _runtime.get_manual_battle_unit() if _runtime != null else null
 
 
 func _get_runtime_active_unit() -> BattleUnitState:
-	return _runtime.get_runtime_battle_active_unit() if _runtime != null and _runtime.has_method("get_runtime_battle_active_unit") else null
+	return _runtime.get_runtime_battle_active_unit() if _runtime != null else null
 
 
 func _get_runtime_unit_at_coord(coord: Vector2i) -> BattleUnitState:
-	return _runtime.get_runtime_battle_unit_at_coord(coord) if _runtime != null and _runtime.has_method("get_runtime_battle_unit_at_coord") else null
+	return _runtime.get_runtime_battle_unit_at_coord(coord) if _runtime != null else null
 
 
 func _get_battle_unit_by_id(unit_id: StringName) -> BattleUnitState:
-	return _runtime.get_runtime_battle_unit_by_id(unit_id) if _runtime != null and _runtime.has_method("get_runtime_battle_unit_by_id") else null
+	return _runtime.get_runtime_battle_unit_by_id(unit_id) if _runtime != null else null
 
 
 func _get_battle_state() -> BattleState:
-	return _runtime.get_battle_state() if _runtime != null and _runtime.has_method("get_battle_state") else null
+	return _runtime.get_battle_state() if _runtime != null else null
 
 
 func _get_battle_grid_service():
-	return _runtime.get_battle_grid_service() if _runtime != null and _runtime.has_method("get_battle_grid_service") else null
+	return _runtime.get_battle_grid_service() if _runtime != null else null
 
 
 func _preview_battle_command(command):
-	return _runtime.preview_battle_command(command) if _runtime != null and _runtime.has_method("preview_battle_command") else null
+	return _runtime.preview_battle_command(command) if _runtime != null else null
 
 
 func _issue_battle_command(command) -> StringName:
-	return _runtime.issue_battle_command(command) if _runtime != null and _runtime.has_method("issue_battle_command") else &"overlay"
+	return _runtime.issue_battle_command(command) if _runtime != null else &"overlay"
 
 
 func _refresh_battle_selection_state() -> void:
-	if _runtime != null and _runtime.has_method("refresh_battle_selection_state"):
+	if _runtime != null:
 		_runtime.refresh_battle_selection_state()
 
 
 func _update_status(message: String) -> void:
-	if _runtime != null and _runtime.has_method("update_status"):
+	if _runtime != null:
 		_runtime.update_status(message)
 
 
 func _format_coord(coord: Vector2i) -> String:
-	return _runtime.format_coord(coord) if _runtime != null and _runtime.has_method("format_coord") else "(%d,%d)" % [coord.x, coord.y]
+	return _runtime.format_coord(coord) if _runtime != null else "(%d,%d)" % [coord.x, coord.y]
 
 
 func _is_battle_active() -> bool:
-	return _runtime != null and _runtime.has_method("is_battle_active") and _runtime.is_battle_active()
+	return _runtime != null and _runtime.is_battle_active()
 
 
 func _get_selected_skill_id() -> StringName:
-	return _runtime.get_selected_battle_skill_id() if _runtime != null and _runtime.has_method("get_selected_battle_skill_id") else &""
+	return _runtime.get_selected_battle_skill_id() if _runtime != null else &""
 
 
 func _set_selected_skill_id(skill_id: StringName) -> void:
-	if _runtime != null and _runtime.has_method("set_battle_selection_skill_id"):
+	if _runtime != null:
 		_runtime.set_battle_selection_skill_id(skill_id)
 
 
 func _get_selected_skill_variant_id() -> StringName:
-	return _runtime.get_selected_battle_skill_variant_id() if _runtime != null and _runtime.has_method("get_selected_battle_skill_variant_id") else &""
+	return _runtime.get_selected_battle_skill_variant_id() if _runtime != null else &""
 
 
 func _set_selected_skill_variant_id(variant_id: StringName) -> void:
-	if _runtime != null and _runtime.has_method("set_battle_selection_skill_variant_id"):
+	if _runtime != null:
 		_runtime.set_battle_selection_skill_variant_id(variant_id)
 
 
 func _get_last_manual_unit_id() -> StringName:
-	return _runtime.get_battle_selection_last_manual_unit_id() if _runtime != null and _runtime.has_method("get_battle_selection_last_manual_unit_id") else &""
+	return _runtime.get_battle_selection_last_manual_unit_id() if _runtime != null else &""
 
 
 func _set_last_manual_unit_id(unit_id: StringName) -> void:
-	if _runtime != null and _runtime.has_method("set_battle_selection_last_manual_unit_id"):
+	if _runtime != null:
 		_runtime.set_battle_selection_last_manual_unit_id(unit_id)
 
 
 func _get_target_coords_state() -> Array[Vector2i]:
-	return _runtime.get_battle_selection_target_coords_state() if _runtime != null and _runtime.has_method("get_battle_selection_target_coords_state") else []
+	return _runtime.get_battle_selection_target_coords_state() if _runtime != null else []
 
 
 func _set_target_coords_state(target_coords: Array[Vector2i]) -> void:
-	if _runtime != null and _runtime.has_method("set_battle_selection_target_coords_state"):
+	if _runtime != null:
 		_runtime.set_battle_selection_target_coords_state(target_coords)
 
 
@@ -1076,11 +1076,11 @@ func _clear_target_coords_state() -> void:
 
 
 func _get_target_unit_ids_state() -> Array[StringName]:
-	return _runtime.get_battle_selection_target_unit_ids_state() if _runtime != null and _runtime.has_method("get_battle_selection_target_unit_ids_state") else []
+	return _runtime.get_battle_selection_target_unit_ids_state() if _runtime != null else []
 
 
 func _set_target_unit_ids_state(target_unit_ids: Array[StringName]) -> void:
-	if _runtime != null and _runtime.has_method("set_battle_selection_target_unit_ids_state"):
+	if _runtime != null:
 		_runtime.set_battle_selection_target_unit_ids_state(target_unit_ids)
 
 
@@ -1089,7 +1089,7 @@ func _clear_target_unit_ids_state() -> void:
 
 
 func _set_battle_selected_coord(coord: Vector2i) -> void:
-	if _runtime != null and _runtime.has_method("set_runtime_battle_selected_coord"):
+	if _runtime != null:
 		_runtime.set_runtime_battle_selected_coord(coord)
 
 

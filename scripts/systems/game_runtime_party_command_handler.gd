@@ -31,7 +31,7 @@ func command_open_party() -> Dictionary:
 		return _command_error("当前处于战斗中，不能打开队伍管理。")
 	if _is_modal_window_open():
 		return _command_error("当前有窗口打开，不能打开队伍管理。")
-	_open_party_management_window()
+	open_party_management_window()
 	return _command_ok()
 
 
@@ -58,7 +58,7 @@ func command_set_party_leader(member_id: StringName) -> Dictionary:
 		return _command_error("当前不存在队伍数据。")
 	if not party_state.active_member_ids.has(member_id):
 		return _command_error("只有上阵成员才能成为队长。")
-	_on_party_leader_change_requested(member_id)
+	on_party_leader_change_requested(member_id)
 	_set_party_selected_member_id(member_id)
 	return _command_ok()
 
@@ -77,7 +77,7 @@ func command_move_member_to_active(member_id: StringName) -> Dictionary:
 	var reserve_member_ids: Array[StringName] = ProgressionDataUtils.to_string_name_array(party_state.reserve_member_ids)
 	reserve_member_ids.erase(member_id)
 	active_member_ids.append(member_id)
-	_on_party_roster_change_requested(active_member_ids, reserve_member_ids)
+	on_party_roster_change_requested(active_member_ids, reserve_member_ids)
 	_set_party_selected_member_id(member_id)
 	return _command_ok()
 
@@ -96,7 +96,7 @@ func command_move_member_to_reserve(member_id: StringName) -> Dictionary:
 	var reserve_member_ids: Array[StringName] = ProgressionDataUtils.to_string_name_array(party_state.reserve_member_ids)
 	active_member_ids.erase(member_id)
 	reserve_member_ids.append(member_id)
-	_on_party_roster_change_requested(active_member_ids, reserve_member_ids)
+	on_party_roster_change_requested(active_member_ids, reserve_member_ids)
 	_set_party_selected_member_id(member_id)
 	return _command_ok()
 
@@ -173,11 +173,11 @@ func apply_party_roster(active_member_ids: Array[StringName], reserve_member_ids
 		return _runtime_unavailable_error()
 	if _get_party_state() == null:
 		return _command_error("当前不存在队伍数据。")
-	_on_party_roster_change_requested(active_member_ids, reserve_member_ids)
+	on_party_roster_change_requested(active_member_ids, reserve_member_ids)
 	return _command_ok()
 
 
-func _open_party_management_window() -> void:
+func open_party_management_window() -> void:
 	if not _has_runtime():
 		return
 	if _is_battle_active():
@@ -189,15 +189,15 @@ func _open_party_management_window() -> void:
 	_update_status("已打开队伍管理窗口。")
 
 
-func _on_party_leader_change_requested(member_id: StringName) -> void:
+func on_party_leader_change_requested(member_id: StringName) -> void:
 	var party_state = _get_party_state()
 	if not _has_runtime() or party_state == null:
 		return
 	party_state.leader_member_id = member_id
-	_apply_party_state_to_runtime("队长已切换为 %s。" % String(member_id))
+	apply_party_state_to_runtime("队长已切换为 %s。" % String(member_id))
 
 
-func _on_party_roster_change_requested(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> void:
+func on_party_roster_change_requested(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> void:
 	var party_state = _get_party_state()
 	if not _has_runtime() or party_state == null:
 		return
@@ -205,10 +205,10 @@ func _on_party_roster_change_requested(active_member_ids: Array[StringName], res
 	party_state.reserve_member_ids = reserve_member_ids.duplicate()
 	if not party_state.active_member_ids.has(party_state.leader_member_id) and not party_state.active_member_ids.is_empty():
 		party_state.leader_member_id = party_state.active_member_ids[0]
-	_apply_party_state_to_runtime("队伍编成已更新。")
+	apply_party_state_to_runtime("队伍编成已更新。")
 
 
-func _on_party_management_window_closed() -> void:
+func on_party_management_window_closed() -> void:
 	if not _has_runtime():
 		return
 	_set_active_modal_id("")
@@ -216,7 +216,7 @@ func _on_party_management_window_closed() -> void:
 	_present_pending_reward_if_ready()
 
 
-func _on_party_management_warehouse_requested() -> void:
+func on_party_management_warehouse_requested() -> void:
 	if not _has_runtime():
 		return
 	_set_active_modal_id("")
@@ -224,7 +224,7 @@ func _on_party_management_warehouse_requested() -> void:
 	_update_status("已从队伍管理打开共享仓库。")
 
 
-func _apply_party_state_to_runtime(success_message: String) -> void:
+func apply_party_state_to_runtime(success_message: String) -> void:
 	if not _has_runtime():
 		return
 	_sync_character_management_party_state()
@@ -238,60 +238,26 @@ func _apply_party_state_to_runtime(success_message: String) -> void:
 func _persist_party_state() -> int:
 	if not _has_runtime():
 		return ERR_UNAVAILABLE
-	if _runtime.has_method("persist_party_state"):
-		return int(_runtime.persist_party_state())
-	if _get_game_session() == null:
-		return ERR_UNAVAILABLE
-	var party_state = _get_party_state()
-	var game_session = _get_game_session()
-	var persist_error: int = int(game_session.set_party_state(party_state))
-	_set_party_state(game_session.get_party_state())
-	_sync_character_management_party_state()
-	if _get_party_warehouse_service() != null:
-		_get_party_warehouse_service().setup(_get_party_state(), game_session.get_item_defs())
-	if _get_party_item_use_service() != null:
-		_get_party_item_use_service().setup(
-			_get_party_state(),
-			game_session.get_item_defs(),
-			game_session.get_skill_defs(),
-			_get_party_warehouse_service(),
-			_get_character_management()
-		)
-	if _get_party_equipment_service() != null:
-		_get_party_equipment_service().setup(_get_party_state(), game_session.get_item_defs(), _get_party_warehouse_service())
-	_refresh_fog()
-	return persist_error
+	return int(_runtime.persist_party_state())
 
 
 func _get_item_display_name(item_id: StringName) -> String:
-	if _has_runtime() and _runtime.has_method("get_item_display_name"):
-		return _runtime.get_item_display_name(item_id)
-	var warehouse_service = _get_party_warehouse_service()
-	if warehouse_service == null:
+	if not _has_runtime():
 		return String(item_id)
-	var item_def = warehouse_service.get_item_def(item_id)
-	if item_def != null and not item_def.display_name.is_empty():
-		return item_def.display_name
-	return String(item_id)
+	return _runtime.get_item_display_name(item_id)
 
 
 func _get_member_display_name(member_id: StringName) -> String:
-	if _has_runtime() and _runtime.has_method("get_member_display_name"):
-		return _runtime.get_member_display_name(member_id)
-	var party_state = _get_party_state()
-	if party_state == null:
+	if not _has_runtime():
 		return String(member_id)
-	var member_state = party_state.get_member_state(member_id)
-	if member_state != null and not String(member_state.display_name).is_empty():
-		return String(member_state.display_name)
-	return String(member_id)
+	return _runtime.get_member_display_name(member_id)
 
 
 func _get_skill_display_name(skill_id: StringName) -> String:
-	var skill_def: SkillDef = null
 	var game_session = _get_game_session()
-	if game_session != null:
-		skill_def = game_session.get_skill_defs().get(skill_id) as SkillDef
+	if game_session == null:
+		return String(skill_id)
+	var skill_def: SkillDef = game_session.get_skill_defs().get(skill_id) as SkillDef
 	if skill_def != null and not skill_def.display_name.is_empty():
 		return skill_def.display_name
 	return String(skill_id)
@@ -339,213 +305,147 @@ func _has_runtime() -> bool:
 
 
 func _command_ok(message: String = "") -> Dictionary:
-	var resolved_message := message
-	if _has_runtime() and _runtime.has_method("build_command_ok"):
-		return _runtime.build_command_ok(resolved_message)
-	if resolved_message.is_empty() and _has_runtime():
-		resolved_message = _get_status_text()
-	return {
-		"ok": true,
-		"message": resolved_message,
-		"battle_refresh_mode": "",
-	}
+	if not _has_runtime():
+		return {"ok": true, "message": message, "battle_refresh_mode": ""}
+	return _runtime.build_command_ok(message)
 
 
 func _command_error(message: String) -> Dictionary:
-	if _has_runtime() and _runtime.has_method("build_command_error"):
-		return _runtime.build_command_error(message)
-	if _has_runtime() and not message.is_empty():
-		_update_status(message)
-	return {
-		"ok": false,
-		"message": message,
-	}
+	if not _has_runtime():
+		return {"ok": false, "message": message}
+	return _runtime.build_command_error(message)
 
 
 func _runtime_unavailable_error() -> Dictionary:
-	return {
-		"ok": false,
-		"message": RUNTIME_UNAVAILABLE_MESSAGE,
-	}
+	return {"ok": false, "message": RUNTIME_UNAVAILABLE_MESSAGE}
 
 
 func _get_generation_config():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_generation_config"):
-		return _runtime.get_generation_config()
-	return _runtime._generation_config if "_generation_config" in _runtime else null
+	return _runtime.get_generation_config()
 
 
 func _is_battle_active() -> bool:
 	if not _has_runtime():
 		return false
-	if _runtime.has_method("is_battle_active"):
-		return _runtime.is_battle_active()
-	return _runtime._is_battle_active() if _runtime.has_method("_is_battle_active") else false
+	return _runtime.is_battle_active()
 
 
 func _is_modal_window_open() -> bool:
 	if not _has_runtime():
 		return false
-	if _runtime.has_method("is_modal_window_open"):
-		return _runtime.is_modal_window_open()
-	return _runtime._is_modal_window_open() if _runtime.has_method("_is_modal_window_open") else false
+	return _runtime.is_modal_window_open()
 
 
 func _get_party_state():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_party_state"):
-		return _runtime.get_party_state()
-	return _runtime._party_state if "_party_state" in _runtime else null
+	return _runtime.get_party_state()
 
 
 func _set_party_state(party_state) -> void:
-	if not _has_runtime():
-		return
-	if "_party_state" in _runtime:
-		_runtime._party_state = party_state
+	if _has_runtime():
+		_runtime.set_party_state(party_state)
 
 
 func _get_active_modal_id() -> String:
 	if not _has_runtime():
 		return ""
-	if _runtime.has_method("get_active_modal_id"):
-		return _runtime.get_active_modal_id()
-	return String(_runtime._active_modal_id) if "_active_modal_id" in _runtime else ""
+	return _runtime.get_active_modal_id()
 
 
 func _set_active_modal_id(modal_id: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_runtime_active_modal_id"):
+	if _has_runtime():
 		_runtime.set_runtime_active_modal_id(modal_id)
-	elif "_active_modal_id" in _runtime:
-		_runtime._active_modal_id = modal_id
 
 
 func _get_party_selected_member_id() -> StringName:
 	if not _has_runtime():
 		return &""
-	if _runtime.has_method("get_party_selected_member_id"):
-		return _runtime.get_party_selected_member_id()
-	return _runtime._party_selected_member_id if "_party_selected_member_id" in _runtime else &""
+	return _runtime.get_party_selected_member_id()
 
 
 func _set_party_selected_member_id(member_id: StringName) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_party_selected_member_id"):
+	if _has_runtime():
 		_runtime.set_party_selected_member_id(member_id)
-	elif "_party_selected_member_id" in _runtime:
-		_runtime._party_selected_member_id = member_id
 
 
 func _equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName) -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("equip_party_item"):
-		return _runtime.equip_party_item(member_id, item_id, slot_id)
-	var party_equipment_service = _get_party_equipment_service()
-	return party_equipment_service.equip_item(member_id, item_id, slot_id) if party_equipment_service != null else {}
+	return _runtime.equip_party_item(member_id, item_id, slot_id)
 
 
 func _unequip_party_item(member_id: StringName, slot_id: StringName) -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("unequip_party_item"):
-		return _runtime.unequip_party_item(member_id, slot_id)
-	var party_equipment_service = _get_party_equipment_service()
-	return party_equipment_service.unequip_item(member_id, slot_id) if party_equipment_service != null else {}
+	return _runtime.unequip_party_item(member_id, slot_id)
 
 
 func _sync_character_management_party_state() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("sync_character_management_party_state"):
+	if _has_runtime():
 		_runtime.sync_character_management_party_state()
-		return
-	var character_management = _get_character_management()
-	if character_management != null:
-		character_management.set_party_state(_get_party_state())
 
 
 func _open_party_warehouse_window(entry_label: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("open_party_warehouse_window"):
+	if _has_runtime():
 		_runtime.open_party_warehouse_window(entry_label)
-		return
-	if _get_warehouse_handler() != null:
-		_get_warehouse_handler().open_party_warehouse_window(entry_label)
 
 
 func _present_pending_reward_if_ready() -> bool:
 	if not _has_runtime():
 		return false
-	if _runtime.has_method("present_pending_reward_if_ready"):
-		return _runtime.present_pending_reward_if_ready()
-	return _runtime._present_pending_reward_if_ready() if _runtime.has_method("_present_pending_reward_if_ready") else false
+	return _runtime.present_pending_reward_if_ready()
 
 
 func _update_status(message: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("update_status"):
+	if _has_runtime():
 		_runtime.update_status(message)
-	elif _runtime.has_method("_update_status"):
-		_runtime._update_status(message)
 
 
 func _get_status_text() -> String:
 	if not _has_runtime():
 		return ""
-	if _runtime.has_method("get_status_text"):
-		return _runtime.get_status_text()
-	return String(_runtime._current_status_message) if "_current_status_message" in _runtime else ""
+	return _runtime.get_status_text()
 
 
 func _get_game_session():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_game_session"):
-		return _runtime.get_game_session()
-	return _runtime._game_session if "_game_session" in _runtime else null
+	return _runtime.get_game_session()
 
 
 func _get_party_warehouse_service():
 	if not _has_runtime():
 		return null
-	return _runtime._party_warehouse_service if "_party_warehouse_service" in _runtime else null
+	return _runtime.get_party_warehouse_service()
 
 
 func _get_party_item_use_service():
 	if not _has_runtime():
 		return null
-	return _runtime._party_item_use_service if "_party_item_use_service" in _runtime else null
+	return _runtime.get_party_item_use_service()
 
 
 func _get_party_equipment_service():
 	if not _has_runtime():
 		return null
-	return _runtime._party_equipment_service if "_party_equipment_service" in _runtime else null
+	return _runtime.get_party_equipment_service()
 
 
 func _get_character_management():
 	if not _has_runtime():
 		return null
-	return _runtime._character_management if "_character_management" in _runtime else null
+	return _runtime.get_character_management()
 
 
 func _get_warehouse_handler():
 	if not _has_runtime():
 		return null
-	return _runtime._warehouse_handler if "_warehouse_handler" in _runtime else null
+	return _runtime.get_warehouse_handler()
 
 
 func _refresh_fog() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("_refresh_fog"):
-		_runtime._refresh_fog()
+	if _has_runtime():
+		_runtime.refresh_fog()

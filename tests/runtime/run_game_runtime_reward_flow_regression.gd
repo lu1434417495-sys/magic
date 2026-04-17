@@ -340,8 +340,16 @@ class _FakeRuntime extends RefCounted:
 		_pending_world_promotion_prompt.clear()
 
 
+	func set_pending_world_promotion_prompt_state(prompt: Dictionary) -> void:
+		_pending_world_promotion_prompt = prompt.duplicate(true)
+
+
 	func set_runtime_active_modal_id(modal_id: String) -> void:
 		_active_modal_id = modal_id
+
+
+	func get_active_modal_id() -> String:
+		return _active_modal_id
 
 
 	func get_active_reward_state():
@@ -354,6 +362,10 @@ class _FakeRuntime extends RefCounted:
 
 	func set_active_reward_state(reward) -> void:
 		_active_reward = reward
+
+
+	func get_party_state():
+		return _party_state
 
 
 	func _command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
@@ -372,6 +384,14 @@ class _FakeRuntime extends RefCounted:
 		}
 
 
+	func build_command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
+		return _command_ok(message, battle_refresh_mode)
+
+
+	func build_command_error(message: String) -> Dictionary:
+		return _command_error(message)
+
+
 	func _update_status(message: String) -> void:
 		_current_status_message = message
 
@@ -380,12 +400,22 @@ class _FakeRuntime extends RefCounted:
 		_update_status(message)
 
 
+	func clear_active_character_info_context() -> void:
+		_active_character_info_context.clear()
+
+
 	func _persist_party_state() -> int:
 		return OK
 
 
 	func persist_party_state() -> int:
 		return _persist_party_state()
+
+
+	func enqueue_character_rewards(reward_variants: Array) -> void:
+		if _character_management != null:
+			_character_management.enqueue_pending_character_rewards(reward_variants)
+			_party_state = _character_management.get_party_state()
 
 
 	func sync_party_state_from_character_management() -> void:
@@ -436,6 +466,18 @@ class _FakeRuntime extends RefCounted:
 
 	func apply_battle_batch(batch) -> void:
 		_apply_battle_batch(batch)
+
+
+	func submit_battle_promotion_choice(member_id: StringName, profession_id: StringName, selection: Dictionary):
+		return _battle_runtime.submit_promotion_choice(member_id, profession_id, selection) if _battle_runtime != null else {}
+
+
+	func apply_pending_character_reward_to_party(reward):
+		if _character_management == null:
+			return null
+		var delta = _character_management.apply_pending_character_reward(reward)
+		_party_state = _character_management.get_party_state()
+		return delta
 
 
 func _assert_true(condition: bool, message: String) -> void:

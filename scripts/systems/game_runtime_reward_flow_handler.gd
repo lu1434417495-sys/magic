@@ -261,286 +261,179 @@ func _runtime_unavailable_error() -> Dictionary:
 
 
 func _command_ok(message: String = "") -> Dictionary:
-	return _runtime.build_command_ok(message) if _has_runtime() and _runtime.has_method("build_command_ok") else {
-		"ok": true,
-		"message": message,
-	}
+	if not _has_runtime():
+		return {"ok": true, "message": message}
+	return _runtime.build_command_ok(message)
 
 
 func _command_error(message: String) -> Dictionary:
-	if _has_runtime() and _runtime.has_method("build_command_error"):
-		return _runtime.build_command_error(message)
-	if not message.is_empty():
-		_update_status(message)
-	return {
-		"ok": false,
-		"message": message,
-	}
+	if not _has_runtime():
+		return {"ok": false, "message": message}
+	return _runtime.build_command_error(message)
 
 
 func _get_pending_promotion_prompt() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_pending_promotion_prompt"):
-		return _runtime.get_pending_promotion_prompt()
-	return _runtime._pending_promotion_prompt if "_pending_promotion_prompt" in _runtime else {}
+	return _runtime.get_pending_promotion_prompt()
 
 
 func _get_pending_world_promotion_prompt() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_pending_world_promotion_prompt_state"):
-		return _runtime.get_pending_world_promotion_prompt_state()
-	return _runtime._pending_world_promotion_prompt if "_pending_world_promotion_prompt" in _runtime else {}
+	return _runtime.get_pending_world_promotion_prompt_state()
 
 
 func _get_active_reward():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_active_reward_state"):
-		return _runtime.get_active_reward_state()
-	return _runtime._active_reward if "_active_reward" in _runtime else null
+	return _runtime.get_active_reward_state()
 
 
 func _get_active_modal_id() -> String:
 	if not _has_runtime():
 		return ""
-	if _runtime.has_method("get_active_modal_id"):
-		return _runtime.get_active_modal_id()
-	return String(_runtime._active_modal_id) if "_active_modal_id" in _runtime else ""
+	return _runtime.get_active_modal_id()
 
 
 func _set_active_modal_id(modal_id: String) -> void:
-	if _has_runtime() and _runtime.has_method("set_runtime_active_modal_id"):
+	if _has_runtime():
 		_runtime.set_runtime_active_modal_id(modal_id)
-	elif _has_runtime() and "_active_modal_id" in _runtime:
-		_runtime._active_modal_id = modal_id
 
 
 func _update_status(message: String) -> void:
-	if _has_runtime() and _runtime.has_method("update_status"):
+	if _has_runtime():
 		_runtime.update_status(message)
-	elif _has_runtime() and _runtime.has_method("_update_status"):
-		_runtime._update_status(message)
 
 
 func _is_battle_active() -> bool:
 	if not _has_runtime():
 		return false
-	if _runtime.has_method("is_battle_active"):
-		return _runtime.is_battle_active()
-	return _runtime._is_battle_active() if _runtime.has_method("_is_battle_active") else false
+	return _runtime.is_battle_active()
 
 
 func _clear_active_character_info_context() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_active_character_info_context"):
+	if _has_runtime():
 		_runtime.clear_active_character_info_context()
-	elif "_active_character_info_context" in _runtime:
-		_runtime._active_character_info_context.clear()
 
 
 func _close_settlement_modal() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("close_settlement_modal"):
+	if _has_runtime():
 		_runtime.close_settlement_modal()
-	elif "_settlement_command_handler" in _runtime and _runtime._settlement_command_handler != null:
-		_runtime._settlement_command_handler.on_settlement_window_closed()
 
 
 func _close_contract_board_modal() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("close_contract_board_modal"):
+	if _has_runtime():
 		_runtime.close_contract_board_modal()
-	elif "_settlement_command_handler" in _runtime and _runtime._settlement_command_handler != null:
-		_runtime._settlement_command_handler.on_contract_board_window_closed()
 
 
 func _close_shop_modal() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("close_shop_modal"):
+	if _has_runtime():
 		_runtime.close_shop_modal()
-	elif "_settlement_command_handler" in _runtime and _runtime._settlement_command_handler != null:
-		_runtime._settlement_command_handler.on_shop_window_closed()
 
 
 func _close_forge_modal() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("close_forge_modal"):
+	if _has_runtime():
 		_runtime.close_forge_modal()
-	elif "_settlement_command_handler" in _runtime and _runtime._settlement_command_handler != null:
-		_runtime._settlement_command_handler.on_forge_window_closed()
 
 
 func _close_stagecoach_modal() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("close_stagecoach_modal"):
+	if _has_runtime():
 		_runtime.close_stagecoach_modal()
-	elif "_settlement_command_handler" in _runtime and _runtime._settlement_command_handler != null:
-		_runtime._settlement_command_handler.on_stagecoach_window_closed()
 
 
 func _close_party_management_modal() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("close_party_management_modal"):
+	if _has_runtime():
 		_runtime.close_party_management_modal()
-	elif "_party_command_handler" in _runtime and _runtime._party_command_handler != null:
-		_runtime._party_command_handler._on_party_management_window_closed()
 
 
 func _close_party_warehouse_modal() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("close_party_warehouse_modal"):
+	if _has_runtime():
 		_runtime.close_party_warehouse_modal()
-	elif "_warehouse_handler" in _runtime and _runtime._warehouse_handler != null:
-		_runtime._warehouse_handler.on_party_warehouse_window_closed()
 
 
 func _cancel_submap_entry_prompt() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("command_cancel_submap_entry"):
+	if _has_runtime():
 		_runtime.command_cancel_submap_entry()
 
 
 func _clear_pending_promotion_prompt() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_pending_promotion_prompt"):
+	if _has_runtime():
 		_runtime.clear_pending_promotion_prompt()
-	elif "_pending_promotion_prompt" in _runtime:
-		_runtime._pending_promotion_prompt.clear()
 
 
 func _clear_pending_world_promotion_prompt() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_pending_world_promotion_prompt_state"):
+	if _has_runtime():
 		_runtime.clear_pending_world_promotion_prompt_state()
-	elif "_pending_world_promotion_prompt" in _runtime:
-		_runtime._pending_world_promotion_prompt.clear()
 
 
 func _submit_battle_promotion_choice(member_id: StringName, profession_id: StringName, selection: Dictionary):
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("submit_battle_promotion_choice"):
-		return _runtime.submit_battle_promotion_choice(member_id, profession_id, selection)
-	if "_battle_runtime" in _runtime and _runtime._battle_runtime != null:
-		return _runtime._battle_runtime.submit_promotion_choice(member_id, profession_id, selection)
-	return null
+	return _runtime.submit_battle_promotion_choice(member_id, profession_id, selection)
 
 
 func _apply_battle_batch(batch) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("apply_battle_batch"):
+	if _has_runtime():
 		_runtime.apply_battle_batch(batch)
-	elif _runtime.has_method("_apply_battle_batch"):
-		_runtime._apply_battle_batch(batch)
 
 
 func _promote_profession(member_id: StringName, profession_id: StringName, selection: Dictionary):
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("promote_profession"):
-		return _runtime.promote_profession(member_id, profession_id, selection)
-	if "_character_management" in _runtime and _runtime._character_management != null:
-		return _runtime._character_management.promote_profession(member_id, profession_id, selection)
-	return null
+	return _runtime.promote_profession(member_id, profession_id, selection)
 
 
 func _sync_party_state_from_character_management() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("sync_party_state_from_character_management"):
+	if _has_runtime():
 		_runtime.sync_party_state_from_character_management()
-	elif "_character_management" in _runtime and _runtime._character_management != null and "_party_state" in _runtime:
-		_runtime._party_state = _runtime._character_management.get_party_state()
 
 
 func _persist_party_state() -> int:
 	if not _has_runtime():
 		return ERR_UNAVAILABLE
-	if _runtime.has_method("persist_party_state"):
-		return int(_runtime.persist_party_state())
-	return int(_runtime._persist_party_state()) if _runtime.has_method("_persist_party_state") else ERR_UNAVAILABLE
+	return int(_runtime.persist_party_state())
 
 
 func _build_runtime_promotion_prompt(delta, selection_hint: String) -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("build_runtime_promotion_prompt"):
-		return _runtime.build_runtime_promotion_prompt(delta, selection_hint)
-	return _runtime._build_promotion_prompt(delta, selection_hint) if _runtime.has_method("_build_promotion_prompt") else {}
+	return _runtime.build_runtime_promotion_prompt(delta, selection_hint)
 
 
 func _set_pending_world_promotion_prompt(prompt: Dictionary) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_pending_world_promotion_prompt_state"):
+	if _has_runtime():
 		_runtime.set_pending_world_promotion_prompt_state(prompt)
-	elif "_pending_world_promotion_prompt" in _runtime:
-		_runtime._pending_world_promotion_prompt = prompt.duplicate(true)
 
 
 func _get_member_display_name(member_id: StringName) -> String:
 	if not _has_runtime():
 		return String(member_id)
-	if _runtime.has_method("get_member_display_name"):
-		return _runtime.get_member_display_name(member_id)
-	return _runtime._get_member_display_name(member_id) if _runtime.has_method("_get_member_display_name") else String(member_id)
+	return _runtime.get_member_display_name(member_id)
 
 
 func _clear_active_reward() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_active_reward_state"):
+	if _has_runtime():
 		_runtime.clear_active_reward_state()
-	elif "_active_reward" in _runtime:
-		_runtime._active_reward = null
 
 
 func _apply_pending_character_reward_to_party(reward):
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("apply_pending_character_reward_to_party"):
-		return _runtime.apply_pending_character_reward_to_party(reward)
-	if "_character_management" in _runtime and _runtime._character_management != null:
-		return _runtime._character_management.apply_pending_character_reward(reward)
-	return null
+	return _runtime.apply_pending_character_reward_to_party(reward)
 
 
 func _enqueue_character_rewards(reward_variants: Array) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("enqueue_character_rewards"):
+	if _has_runtime():
 		_runtime.enqueue_character_rewards(reward_variants)
-	elif "_character_management" in _runtime and _runtime._character_management != null:
-		_runtime._character_management.enqueue_pending_character_rewards(reward_variants)
-		_sync_party_state_from_character_management()
 
 
 func _get_party_state():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_party_state"):
-		return _runtime.get_party_state()
-	return _runtime._party_state if "_party_state" in _runtime else null
+	return _runtime.get_party_state()
 
 
 func _set_active_reward(reward) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_active_reward_state"):
+	if _has_runtime():
 		_runtime.set_active_reward_state(reward)
-	elif "_active_reward" in _runtime:
-		_runtime._active_reward = reward

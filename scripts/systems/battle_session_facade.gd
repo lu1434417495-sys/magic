@@ -274,14 +274,14 @@ func start_battle(encounter_anchor) -> void:
 	var runtime_state = battle_runtime.start_battle(
 		encounter_anchor,
 		build_battle_seed(encounter_anchor),
-		_build_battle_start_context(encounter_anchor)
+		build_battle_start_context(encounter_anchor)
 	)
 	if runtime_state == null or runtime_state.is_empty():
 		_runtime.handle_battle_start_failure()
 		return
 
 	refresh_battle_runtime_state()
-	if _runtime != null and _runtime.has_method("present_battle_start_confirmation"):
+	if _runtime != null:
 		_runtime.present_battle_start_confirmation()
 	_update_status("遭遇 %s，战斗地图已载入，等待确认开始。" % _runtime.get_active_battle_encounter_name())
 
@@ -309,12 +309,7 @@ func resolve_active_battle() -> void:
 
 
 func _consume_battle_resolution_result(battle_runtime):
-	var battle_resolution_result = null
-	if battle_runtime.has_method("consume_battle_resolution_result"):
-		battle_resolution_result = battle_runtime.consume_battle_resolution_result()
-	elif battle_runtime.has_method("get_battle_resolution_result"):
-		battle_resolution_result = battle_runtime.get_battle_resolution_result()
-	return battle_resolution_result
+	return battle_runtime.consume_battle_resolution_result()
 
 
 func attempt_battle_move(direction: Vector2i) -> StringName:
@@ -405,8 +400,8 @@ func refresh_battle_runtime_state() -> void:
 
 
 func build_battle_seed(encounter_anchor) -> int:
-	var generation_config = _runtime.get_generation_config() if _runtime != null and _runtime.has_method("get_generation_config") else null
-	var player_coord: Vector2i = _runtime.get_player_coord() if _runtime != null and _runtime.has_method("get_player_coord") else Vector2i.ZERO
+	var generation_config = _runtime.get_generation_config() if _runtime != null else null
+	var player_coord: Vector2i = _runtime.get_player_coord() if _runtime != null else Vector2i.ZERO
 	var base_seed := int(generation_config.seed) if generation_config != null else 0
 	return base_seed ^ String(encounter_anchor.entity_id).hash() ^ (player_coord.x * 73856093) ^ (player_coord.y * 19349663)
 
@@ -486,7 +481,7 @@ func build_promotion_prompt(delta, selection_hint: String = "确认后将在战�
 	if delta == null or delta.pending_profession_choices.is_empty():
 		return {}
 
-	var party_state = _runtime.get_party_state() if _runtime != null and _runtime.has_method("get_party_state") else null
+	var party_state = _runtime.get_party_state() if _runtime != null else null
 	var game_session = _get_game_session()
 	var member_state = party_state.get_member_state(delta.member_id) if party_state != null else null
 	var member_name: String = member_state.display_name if member_state != null else str(delta.member_id)
@@ -574,15 +569,15 @@ func get_battle_unit_type_label(unit_id: String) -> String:
 	return "战斗单位"
 
 
-func _build_battle_start_context(encounter_anchor) -> Dictionary:
+func build_battle_start_context(encounter_anchor) -> Dictionary:
 	var context := {
 		"world_coord": encounter_anchor.world_coord if encounter_anchor != null else _runtime.get_player_coord(),
 	}
-	context["battle_terrain_profile"] = String(_resolve_battle_terrain_profile(encounter_anchor))
+	context["battle_terrain_profile"] = String(resolve_battle_terrain_profile(encounter_anchor))
 	return context
 
 
-func _resolve_battle_terrain_profile(encounter_anchor) -> StringName:
+func resolve_battle_terrain_profile(encounter_anchor) -> StringName:
 	if encounter_anchor == null:
 		return &"default"
 	match String(encounter_anchor.region_tag).strip_edges().to_lower():
@@ -593,7 +588,7 @@ func _resolve_battle_terrain_profile(encounter_anchor) -> StringName:
 
 
 func _get_battle_selection():
-	return _runtime.get_battle_selection() if _runtime != null and _runtime.has_method("get_battle_selection") else null
+	return _runtime.get_battle_selection() if _runtime != null else null
 
 
 func _is_battle_ready() -> bool:
@@ -601,7 +596,7 @@ func _is_battle_ready() -> bool:
 
 
 func _get_runtime_status_text(fallback_message: String) -> String:
-	if _runtime != null and _runtime.has_method("get_status_text"):
+	if _runtime != null:
 		var status_text := String(_runtime.get_status_text())
 		if not status_text.is_empty():
 			return status_text
@@ -609,94 +604,82 @@ func _get_runtime_status_text(fallback_message: String) -> String:
 
 
 func _command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
-	if _runtime != null and _runtime.has_method("build_command_ok"):
+	if _runtime != null:
 		return _runtime.build_command_ok(message, battle_refresh_mode)
-	return {
-		"ok": true,
-		"message": message,
-		"battle_refresh_mode": battle_refresh_mode,
-	}
+	return {"ok": true, "message": message, "battle_refresh_mode": battle_refresh_mode}
 
 
 func _command_error(message: String) -> Dictionary:
-	if _runtime != null and _runtime.has_method("build_command_error"):
+	if _runtime != null:
 		return _runtime.build_command_error(message)
-	if _runtime != null and not message.is_empty() and _runtime.has_method("update_status"):
-		_runtime.update_status(message)
-	return {
-		"ok": false,
-		"message": message,
-	}
+	return {"ok": false, "message": message}
 
 
 func _runtime_unavailable_error() -> Dictionary:
-	return {
-		"ok": false,
-		"message": RUNTIME_UNAVAILABLE_MESSAGE,
-	}
+	return {"ok": false, "message": RUNTIME_UNAVAILABLE_MESSAGE}
 
 
 func _get_battle_runtime():
-	return _runtime.get_battle_runtime() if _runtime != null and _runtime.has_method("get_battle_runtime") else null
+	return _runtime.get_battle_runtime() if _runtime != null else null
 
 
 func _get_battle_grid_service():
-	return _runtime.get_battle_grid_service() if _runtime != null and _runtime.has_method("get_battle_grid_service") else null
+	return _runtime.get_battle_grid_service() if _runtime != null else null
 
 
 func _get_battle_state() -> BattleState:
-	return _runtime.get_battle_state() if _runtime != null and _runtime.has_method("get_battle_state") else null
+	return _runtime.get_battle_state() if _runtime != null else null
 
 
 func _get_game_session():
-	return _runtime.get_game_session() if _runtime != null and _runtime.has_method("get_game_session") else null
+	return _runtime.get_game_session() if _runtime != null else null
 
 
 func _get_pending_promotion_prompt() -> Dictionary:
-	return _runtime.get_pending_promotion_prompt() if _runtime != null and _runtime.has_method("get_pending_promotion_prompt") else {}
+	return _runtime.get_pending_promotion_prompt() if _runtime != null else {}
 
 
 func _set_pending_promotion_prompt(prompt: Dictionary) -> void:
-	if _runtime != null and _runtime.has_method("set_pending_promotion_prompt"):
+	if _runtime != null:
 		_runtime.set_pending_promotion_prompt(prompt)
 
 
 func _set_battle_state(state: BattleState) -> void:
-	if _runtime != null and _runtime.has_method("set_runtime_battle_state"):
+	if _runtime != null:
 		_runtime.set_runtime_battle_state(state)
 
 
 func _set_battle_selected_coord(coord: Vector2i) -> void:
-	if _runtime != null and _runtime.has_method("set_runtime_battle_selected_coord"):
+	if _runtime != null:
 		_runtime.set_runtime_battle_selected_coord(coord)
 
 
 func _set_active_modal_id(modal_id: String) -> void:
-	if _runtime != null and _runtime.has_method("set_runtime_active_modal_id"):
+	if _runtime != null:
 		_runtime.set_runtime_active_modal_id(modal_id)
 
 
 func _clear_battle_selection_targets() -> void:
-	if _runtime != null and _runtime.has_method("clear_battle_selection_targets"):
+	if _runtime != null:
 		_runtime.clear_battle_selection_targets()
 
 
 func _is_battle_active() -> bool:
-	return _runtime != null and _runtime.has_method("is_battle_active") and _runtime.is_battle_active()
+	return _runtime != null and _runtime.is_battle_active()
 
 
 func _is_modal_window_open() -> bool:
-	return _runtime != null and _runtime.has_method("is_modal_window_open") and _runtime.is_modal_window_open()
+	return _runtime != null and _runtime.is_modal_window_open()
 
 
 func _batch_has_updates(batch) -> bool:
-	return _runtime != null and _runtime.has_method("batch_has_updates") and _runtime.batch_has_updates(batch)
+	return _runtime != null and _runtime.batch_has_updates(batch)
 
 
 func _update_status(message: String) -> void:
-	if _runtime != null and _runtime.has_method("update_status"):
+	if _runtime != null:
 		_runtime.update_status(message)
 
 
 func _try_open_character_info_at_battle_coord(coord: Vector2i) -> bool:
-	return _runtime != null and _runtime.has_method("try_open_character_info_at_battle_coord") and _runtime.try_open_character_info_at_battle_coord(coord)
+	return _runtime != null and _runtime.try_open_character_info_at_battle_coord(coord)

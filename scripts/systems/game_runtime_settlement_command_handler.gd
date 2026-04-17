@@ -1140,7 +1140,7 @@ func _restore_party_resources(restore_ratio: float, restore_full: bool) -> Dicti
 
 func _reveal_world_fog(center: Vector2i, reveal_range: int) -> Array[Vector2i]:
 	var fog_system = _get_fog_system()
-	return fog_system.reveal_diamond(center, reveal_range, _get_player_faction_id()) if fog_system != null and fog_system.has_method("reveal_diamond") else []
+	return fog_system.reveal_diamond(center, reveal_range, _get_player_faction_id()) if fog_system != null else []
 
 
 func _mark_settlement_visited(settlement_id: String) -> void:
@@ -1225,8 +1225,7 @@ func _extract_quest_progress_events(payload: Dictionary, action_id: String, sett
 func _apply_quest_progress_events(event_variants: Array) -> void:
 	if not _has_runtime() or event_variants.is_empty():
 		return
-	if _runtime.has_method("apply_quest_progress_events_to_party"):
-		_runtime.apply_quest_progress_events_to_party(event_variants, "settlement")
+	_runtime.apply_quest_progress_events_to_party(event_variants, "settlement")
 
 
 func _duplicate_dictionary_array(value) -> Array[Dictionary]:
@@ -1269,155 +1268,118 @@ func _has_runtime() -> bool:
 
 
 func _command_ok(message: String = "") -> Dictionary:
-	return _runtime.build_command_ok(message) if _has_runtime() and _runtime.has_method("build_command_ok") else {"ok": true, "message": message, "battle_refresh_mode": ""}
+	if not _has_runtime():
+		return {"ok": true, "message": message, "battle_refresh_mode": ""}
+	return _runtime.build_command_ok(message)
 
 
 func _command_error(message: String) -> Dictionary:
-	if _has_runtime() and _runtime.has_method("build_command_error"):
-		return _runtime.build_command_error(message)
-	if _has_runtime() and not message.is_empty():
-		_update_status(message)
-	return {"ok": false, "message": message}
+	if not _has_runtime():
+		return {"ok": false, "message": message}
+	return _runtime.build_command_error(message)
 
 
 func _is_battle_active() -> bool:
 	if not _has_runtime():
 		return false
-	return _runtime.is_battle_active() if _runtime.has_method("is_battle_active") else (_runtime._is_battle_active() if _runtime.has_method("_is_battle_active") else false)
+	return _runtime.is_battle_active()
 
 
 func _update_status(message: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("update_status"):
+	if _has_runtime():
 		_runtime.update_status(message)
-	elif _runtime.has_method("_update_status"):
-		_runtime._update_status(message)
 
 
 func _get_active_settlement_id() -> String:
 	if not _has_runtime():
 		return ""
-	if _runtime.has_method("get_active_settlement_id"):
-		return _runtime.get_active_settlement_id()
-	return String(_runtime._active_settlement_id) if "_active_settlement_id" in _runtime else ""
+	return _runtime.get_active_settlement_id()
 
 
 func _set_active_settlement_id(settlement_id: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_active_settlement_id"):
+	if _has_runtime():
 		_runtime.set_active_settlement_id(settlement_id)
-	elif "_active_settlement_id" in _runtime:
-		_runtime._active_settlement_id = settlement_id
 
 
 func _set_settlement_feedback_text(feedback_text: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_settlement_feedback_text"):
+	if _has_runtime():
 		_runtime.set_settlement_feedback_text(feedback_text)
-	elif "_active_settlement_feedback_text" in _runtime:
-		_runtime._active_settlement_feedback_text = feedback_text
 
 
 func _get_selected_settlement() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_selected_settlement"):
-		return _runtime.get_selected_settlement()
-	return {}
+	return _runtime.get_selected_settlement()
 
 
 func _get_party_state():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_party_state"):
-		return _runtime.get_party_state()
-	return _runtime._party_state if "_party_state" in _runtime else null
+	return _runtime.get_party_state()
 
 
 func _get_party_gold() -> int:
 	var party_state = _get_party_state()
 	if party_state == null:
 		return 0
-	return party_state.get_gold() if party_state.has_method("get_gold") else maxi(int(party_state.gold), 0)
+	return party_state.get_gold()
 
 
 func _get_settlement_record(settlement_id: String) -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_settlement_record"):
-		return _runtime.get_settlement_record(settlement_id)
-	return _runtime._settlements_by_id.get(settlement_id, {}) if "_settlements_by_id" in _runtime else {}
+	return _runtime.get_settlement_record(settlement_id)
 
 
 func _get_all_settlement_records() -> Array[Dictionary]:
 	if not _has_runtime():
 		return []
-	if _runtime.has_method("get_all_settlement_records"):
-		return _runtime.get_all_settlement_records()
-	return []
+	return _runtime.get_all_settlement_records()
 
 
 func _get_settlement_state(settlement_id: String) -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_settlement_state"):
-		return _runtime.get_settlement_state(settlement_id)
-	return _get_settlement_record(settlement_id).get("settlement_state", {}).duplicate(true)
+	return _runtime.get_settlement_state(settlement_id)
 
 
 func _set_active_settlement_state(settlement_id: String, settlement_state: Dictionary) -> bool:
 	if not _has_runtime():
 		return false
-	if _runtime.has_method("set_active_settlement_state"):
-		return _runtime.set_active_settlement_state(settlement_id, settlement_state)
-	return false
+	return _runtime.set_active_settlement_state(settlement_id, settlement_state)
 
 
 func _get_party_warehouse_service():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_party_warehouse_service"):
-		return _runtime.get_party_warehouse_service()
-	return _runtime._party_warehouse_service if "_party_warehouse_service" in _runtime else null
+	return _runtime.get_party_warehouse_service()
 
 
 func _get_item_defs() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_game_session"):
-		var game_session = _runtime.get_game_session()
-		return game_session.get_item_defs() if game_session != null and game_session.has_method("get_item_defs") else {}
-	return _runtime._game_session.get_item_defs() if "_game_session" in _runtime and _runtime._game_session != null else {}
+	var game_session = _runtime.get_game_session()
+	return game_session.get_item_defs() if game_session != null else {}
 
 
 func _get_item_display_name(item_id: StringName) -> String:
-	if _has_runtime() and _runtime.has_method("get_item_display_name"):
-		return _runtime.get_item_display_name(item_id)
-	var item_def = _get_item_defs().get(item_id, null)
-	if item_def != null and not String(item_def.display_name).is_empty():
-		return String(item_def.display_name)
-	return String(item_id)
+	if not _has_runtime():
+		return String(item_id)
+	return _runtime.get_item_display_name(item_id)
 
 
 func _get_recipe_defs() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_game_session"):
-		var game_session = _runtime.get_game_session()
-		return game_session.get_recipe_defs() if game_session != null and game_session.has_method("get_recipe_defs") else {}
-	return _runtime._game_session.get_recipe_defs() if "_game_session" in _runtime and _runtime._game_session != null else {}
+	var game_session = _runtime.get_game_session()
+	return game_session.get_recipe_defs() if game_session != null else {}
 
 
 func _get_quest_defs() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_game_session"):
-		var game_session = _runtime.get_game_session()
-		return game_session.get_quest_defs() if game_session != null and game_session.has_method("get_quest_defs") else {}
-	return _runtime._game_session.get_quest_defs() if "_game_session" in _runtime and _runtime._game_session != null else {}
+	var game_session = _runtime.get_game_session()
+	return game_session.get_quest_defs() if game_session != null else {}
 
 
 func _is_forge_modal_submission(payload: Dictionary) -> bool:
@@ -1457,17 +1419,17 @@ func _submit_contract_board_quest_action(settlement_id: String, _action_id: Stri
 	var state_id := _resolve_contract_board_quest_state_id(quest_id, quest_data)
 	var command_result: Dictionary = {}
 	if state_id == "claimable":
-		command_result = _runtime.command_claim_quest(quest_id) if _runtime.has_method("command_claim_quest") else _command_error("运行时缺少 quest claim 接口。")
+		command_result = _runtime.command_claim_quest(quest_id)
 	elif state_id == "active":
 		var submit_item_objective_id := _resolve_active_submit_item_objective_id(quest_id, quest_data)
 		if submit_item_objective_id != &"" or _quest_has_submit_item_objective(quest_data):
-			command_result = _runtime.command_submit_quest_item(quest_id, submit_item_objective_id) if _runtime.has_method("command_submit_quest_item") else _command_error("运行时缺少 quest submit_item 接口。")
+			command_result = _runtime.command_submit_quest_item(quest_id, submit_item_objective_id)
 		else:
 			var allow_reaccept := bool(quest_data.get("is_repeatable", false))
-			command_result = _runtime.command_accept_quest(quest_id, allow_reaccept) if _runtime.has_method("command_accept_quest") else _command_error("运行时缺少 quest accept 接口。")
+			command_result = _runtime.command_accept_quest(quest_id, allow_reaccept)
 	else:
 		var allow_reaccept := bool(quest_data.get("is_repeatable", false))
-		command_result = _runtime.command_accept_quest(quest_id, allow_reaccept) if _runtime.has_method("command_accept_quest") else _command_error("运行时缺少 quest accept 接口。")
+		command_result = _runtime.command_accept_quest(quest_id, allow_reaccept)
 	var message := String(command_result.get("message", "任务处理失败。"))
 	_set_active_settlement_id(settlement_id)
 	_set_active_modal_id("contract_board")
@@ -1517,263 +1479,167 @@ func _resolve_forge_service_label(payload: Dictionary) -> String:
 func _get_member_attribute_snapshot(member_id: StringName):
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_member_attribute_snapshot"):
-		return _runtime.get_member_attribute_snapshot(member_id)
-	return null
+	return _runtime.get_member_attribute_snapshot(member_id)
 
 
 func _get_member_display_name(member_id: StringName) -> String:
 	if not _has_runtime():
 		return String(member_id)
-	if _runtime.has_method("get_member_display_name"):
-		return _runtime.get_member_display_name(member_id)
-	return String(member_id)
+	return _runtime.get_member_display_name(member_id)
 
 
 func _open_party_warehouse_window(entry_label: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("open_party_warehouse_window"):
+	if _has_runtime():
 		_runtime.open_party_warehouse_window(entry_label)
-	elif "_warehouse_handler" in _runtime and _runtime._warehouse_handler != null:
-		_runtime._warehouse_handler.open_party_warehouse_window(entry_label)
 
 
 func _enqueue_pending_character_rewards(reward_variants: Array) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("enqueue_pending_character_rewards"):
+	if _has_runtime():
 		_runtime.enqueue_pending_character_rewards(reward_variants)
-	elif _runtime.has_method("_enqueue_pending_character_rewards"):
-		_runtime._enqueue_pending_character_rewards(reward_variants)
 
 
 func _record_member_achievement_event(member_id: StringName, event_id: StringName, value: int, detail_id: StringName = &"") -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("record_member_achievement_event"):
+	if _has_runtime():
 		_runtime.record_member_achievement_event(member_id, event_id, value, detail_id)
-	elif "_character_management" in _runtime and _runtime._character_management != null:
-		_runtime._character_management.record_achievement_event(member_id, event_id, value, detail_id)
 
 
 func _sync_party_state_from_character_management() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("sync_party_state_from_character_management"):
+	if _has_runtime():
 		_runtime.sync_party_state_from_character_management()
-	elif "_character_management" in _runtime and _runtime._character_management != null and "_party_state" in _runtime:
-		_runtime._party_state = _runtime._character_management.get_party_state()
 
 
 func _persist_party_state() -> int:
 	if not _has_runtime():
 		return ERR_UNAVAILABLE
-	if _runtime.has_method("persist_party_state"):
-		return int(_runtime.persist_party_state())
-	return int(_runtime._persist_party_state()) if _runtime.has_method("_persist_party_state") else ERR_UNAVAILABLE
+	return int(_runtime.persist_party_state())
 
 
 func _persist_world_data() -> int:
 	if not _has_runtime():
 		return ERR_UNAVAILABLE
-	if _runtime.has_method("persist_world_data"):
-		return int(_runtime.persist_world_data())
-	return int(_runtime._game_session.set_world_data(_runtime._world_data)) if "_game_session" in _runtime and "_world_data" in _runtime and _runtime._game_session != null else ERR_UNAVAILABLE
+	return int(_runtime.persist_world_data())
 
 
 func _persist_player_coord() -> int:
 	if not _has_runtime():
 		return ERR_UNAVAILABLE
-	if _runtime.has_method("persist_player_coord"):
-		return int(_runtime.persist_player_coord())
-	return int(_runtime._game_session.set_player_coord(_runtime._player_coord)) if "_game_session" in _runtime and "_player_coord" in _runtime and _runtime._game_session != null else ERR_UNAVAILABLE
+	return int(_runtime.persist_player_coord())
 
 
 func _get_fog_system():
 	if not _has_runtime():
 		return null
-	if _runtime.has_method("get_fog_system"):
-		return _runtime.get_fog_system()
-	return _runtime._fog_system if "_fog_system" in _runtime else null
+	return _runtime.get_fog_system()
 
 
 func _get_player_faction_id() -> String:
 	if not _has_runtime():
 		return "player"
-	if _runtime.has_method("get_player_faction_id"):
-		return _runtime.get_player_faction_id()
-	return String(_runtime._player_faction_id) if "_player_faction_id" in _runtime else "player"
+	return _runtime.get_player_faction_id()
 
 
 func _advance_world_time_by_steps(delta_steps: int) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("advance_world_time_by_steps"):
+	if _has_runtime():
 		_runtime.advance_world_time_by_steps(delta_steps)
-	elif _runtime.has_method("_advance_world_time_by_steps"):
-		_runtime._advance_world_time_by_steps(delta_steps)
 
 
 func _refresh_world_visibility() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("refresh_world_visibility"):
+	if _has_runtime():
 		_runtime.refresh_world_visibility()
-	elif _runtime.has_method("_refresh_fog"):
-		_runtime._refresh_fog()
 
 
 func _get_world_step() -> int:
 	if not _has_runtime():
 		return 0
-	if _runtime.has_method("get_world_step"):
-		return int(_runtime.get_world_step())
-	return 0
+	return int(_runtime.get_world_step())
 
 
 func _set_player_coord(coord: Vector2i) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_player_coord"):
+	if _has_runtime():
 		_runtime.set_player_coord(coord)
-	elif "_player_coord" in _runtime:
-		_runtime._player_coord = coord
 
 
 func _set_selected_coord(coord: Vector2i) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_selected_coord"):
+	if _has_runtime():
 		_runtime.set_selected_coord(coord)
-	elif "_selected_coord" in _runtime:
-		_runtime._selected_coord = coord
 
 
 func _get_active_modal_id() -> String:
 	if not _has_runtime():
 		return ""
-	if _runtime.has_method("get_active_modal_id"):
-		return _runtime.get_active_modal_id()
-	return String(_runtime._active_modal_id) if "_active_modal_id" in _runtime else ""
+	return _runtime.get_active_modal_id()
 
 
 func _set_active_modal_id(modal_id: String) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_runtime_active_modal_id"):
+	if _has_runtime():
 		_runtime.set_runtime_active_modal_id(modal_id)
-	elif "_active_modal_id" in _runtime:
-		_runtime._active_modal_id = modal_id
 
 
 func _present_pending_reward_if_ready() -> bool:
 	if not _has_runtime():
 		return false
-	if _runtime.has_method("present_pending_reward_if_ready"):
-		return _runtime.present_pending_reward_if_ready()
-	return _runtime._present_pending_reward_if_ready() if _runtime.has_method("_present_pending_reward_if_ready") else false
+	return _runtime.present_pending_reward_if_ready()
 
 
 func _set_active_shop_context(context: Dictionary) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_active_shop_context"):
+	if _has_runtime():
 		_runtime.set_active_shop_context(context)
-	elif "_active_shop_context" in _runtime:
-		_runtime._active_shop_context = context.duplicate(true)
 
 
 func _set_active_contract_board_context(context: Dictionary) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_active_contract_board_context"):
+	if _has_runtime():
 		_runtime.set_active_contract_board_context(context)
-	elif "_active_contract_board_context" in _runtime:
-		_runtime._active_contract_board_context = context.duplicate(true)
 
 
 func _set_active_forge_context(context: Dictionary) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_active_forge_context"):
+	if _has_runtime():
 		_runtime.set_active_forge_context(context)
-	elif "_active_forge_context" in _runtime:
-		_runtime._active_forge_context = context.duplicate(true)
 
 
 func _clear_active_shop_context() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_active_shop_context"):
+	if _has_runtime():
 		_runtime.clear_active_shop_context()
-	elif "_active_shop_context" in _runtime:
-		_runtime._active_shop_context.clear()
 
 
 func _clear_active_contract_board_context() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_active_contract_board_context"):
+	if _has_runtime():
 		_runtime.clear_active_contract_board_context()
-	elif "_active_contract_board_context" in _runtime:
-		_runtime._active_contract_board_context.clear()
 
 
 func _clear_active_forge_context() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_active_forge_context"):
+	if _has_runtime():
 		_runtime.clear_active_forge_context()
-	elif "_active_forge_context" in _runtime:
-		_runtime._active_forge_context.clear()
 
 
 func _get_active_shop_context() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_active_shop_context"):
-		return _runtime.get_active_shop_context()
-	return _runtime._active_shop_context.duplicate(true) if "_active_shop_context" in _runtime else {}
+	return _runtime.get_active_shop_context()
 
 
 func _get_active_contract_board_context() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_active_contract_board_context"):
-		return _runtime.get_active_contract_board_context()
-	return _runtime._active_contract_board_context.duplicate(true) if "_active_contract_board_context" in _runtime else {}
+	return _runtime.get_active_contract_board_context()
 
 
 func _get_active_forge_context() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_active_forge_context"):
-		return _runtime.get_active_forge_context()
-	return _runtime._active_forge_context.duplicate(true) if "_active_forge_context" in _runtime else {}
+	return _runtime.get_active_forge_context()
 
 
 func _set_active_stagecoach_context(context: Dictionary) -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("set_active_stagecoach_context"):
+	if _has_runtime():
 		_runtime.set_active_stagecoach_context(context)
-	elif "_active_stagecoach_context" in _runtime:
-		_runtime._active_stagecoach_context = context.duplicate(true)
 
 
 func _clear_active_stagecoach_context() -> void:
-	if not _has_runtime():
-		return
-	if _runtime.has_method("clear_active_stagecoach_context"):
+	if _has_runtime():
 		_runtime.clear_active_stagecoach_context()
-	elif "_active_stagecoach_context" in _runtime:
-		_runtime._active_stagecoach_context.clear()
 
 
 func _get_active_stagecoach_context() -> Dictionary:
 	if not _has_runtime():
 		return {}
-	if _runtime.has_method("get_active_stagecoach_context"):
-		return _runtime.get_active_stagecoach_context()
-	return _runtime._active_stagecoach_context.duplicate(true) if "_active_stagecoach_context" in _runtime else {}
+	return _runtime.get_active_stagecoach_context()

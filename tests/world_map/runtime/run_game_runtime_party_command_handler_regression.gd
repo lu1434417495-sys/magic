@@ -37,23 +37,23 @@ class MockPartyCommandHandler:
 	func apply_party_roster(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> Dictionary:
 		return _record("apply_party_roster", [active_member_ids.duplicate(), reserve_member_ids.duplicate()])
 
-	func _open_party_management_window() -> void:
-		_record_void("_open_party_management_window")
+	func open_party_management_window() -> void:
+		_record_void("open_party_management_window")
 
-	func _on_party_leader_change_requested(member_id: StringName) -> void:
-		_record_void("_on_party_leader_change_requested", [member_id])
+	func on_party_leader_change_requested(member_id: StringName) -> void:
+		_record_void("on_party_leader_change_requested", [member_id])
 
-	func _on_party_roster_change_requested(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> void:
-		_record_void("_on_party_roster_change_requested", [active_member_ids.duplicate(), reserve_member_ids.duplicate()])
+	func on_party_roster_change_requested(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> void:
+		_record_void("on_party_roster_change_requested", [active_member_ids.duplicate(), reserve_member_ids.duplicate()])
 
-	func _on_party_management_window_closed() -> void:
-		_record_void("_on_party_management_window_closed")
+	func on_party_management_window_closed() -> void:
+		_record_void("on_party_management_window_closed")
 
-	func _on_party_management_warehouse_requested() -> void:
-		_record_void("_on_party_management_warehouse_requested")
+	func on_party_management_warehouse_requested() -> void:
+		_record_void("on_party_management_warehouse_requested")
 
-	func _apply_party_state_to_runtime(success_message: String) -> void:
-		_record_void("_apply_party_state_to_runtime", [success_message])
+	func apply_party_state_to_runtime(success_message: String) -> void:
+		_record_void("apply_party_state_to_runtime", [success_message])
 
 	func open_party_warehouse_window(entry_label: String) -> void:
 		_record_void("open_party_warehouse_window", [entry_label])
@@ -204,6 +204,123 @@ class MockRuntime:
 	func _refresh_fog() -> void:
 		_refresh_fog_calls += 1
 
+	func build_command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
+		return {
+			"ok": true,
+			"message": message,
+			"battle_refresh_mode": battle_refresh_mode,
+		}
+
+	func build_command_error(message: String) -> Dictionary:
+		update_status(message)
+		return {
+			"ok": false,
+			"message": message,
+		}
+
+	func get_generation_config():
+		return _generation_config
+
+	func is_battle_active() -> bool:
+		return _is_battle_active()
+
+	func is_modal_window_open() -> bool:
+		return _is_modal_window_open()
+
+	func get_party_state():
+		return _party_state
+
+	func set_party_state(party_state) -> void:
+		_party_state = party_state
+
+	func get_active_modal_id() -> String:
+		return _active_modal_id
+
+	func set_runtime_active_modal_id(modal_id: String) -> void:
+		_active_modal_id = modal_id
+
+	func get_party_selected_member_id() -> StringName:
+		return _party_selected_member_id
+
+	func set_party_selected_member_id(member_id: StringName) -> void:
+		_party_selected_member_id = member_id
+
+	func equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName) -> Dictionary:
+		return _party_equipment_service.equip_item(member_id, item_id, slot_id)
+
+	func unequip_party_item(member_id: StringName, slot_id: StringName) -> Dictionary:
+		return _party_equipment_service.unequip_item(member_id, slot_id)
+
+	func sync_character_management_party_state() -> void:
+		if _character_management != null:
+			_character_management.set_party_state(_party_state)
+
+	func open_party_warehouse_window(entry_label: String) -> void:
+		if _warehouse_handler != null:
+			_warehouse_handler.open_party_warehouse_window(entry_label)
+
+	func present_pending_reward_if_ready() -> bool:
+		return _present_pending_reward_if_ready()
+
+	func update_status(message: String) -> void:
+		_update_status(message)
+
+	func get_status_text() -> String:
+		return _current_status_message
+
+	func get_game_session():
+		return _game_session
+
+	func get_party_warehouse_service():
+		return _party_warehouse_service
+
+	func get_party_item_use_service():
+		return _party_item_use_service
+
+	func get_party_equipment_service():
+		return _party_equipment_service
+
+	func get_character_management():
+		return _character_management
+
+	func get_warehouse_handler():
+		return _warehouse_handler
+
+	func get_item_display_name(item_id: StringName) -> String:
+		var game_session = get_game_session()
+		if game_session == null:
+			return String(item_id)
+		var item_def = game_session.get_item_defs().get(item_id)
+		return item_def.display_name if item_def != null and not String(item_def.display_name).is_empty() else String(item_id)
+
+	func get_member_display_name(member_id: StringName) -> String:
+		var member_state = _party_state.get_member_state(member_id) if _party_state != null else null
+		return String(member_state.display_name) if member_state != null and not String(member_state.display_name).is_empty() else String(member_id)
+
+	func persist_party_state() -> int:
+		if _game_session == null:
+			return ERR_UNAVAILABLE
+		var persist_error := int(_game_session.set_party_state(_party_state))
+		_party_state = _game_session.get_party_state()
+		sync_character_management_party_state()
+		if _party_warehouse_service != null:
+			_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
+		if _party_item_use_service != null:
+			_party_item_use_service.setup(
+				_party_state,
+				_game_session.get_item_defs(),
+				_game_session.get_skill_defs(),
+				_party_warehouse_service,
+				_character_management
+			)
+		if _party_equipment_service != null:
+			_party_equipment_service.setup(_party_state, _game_session.get_item_defs(), _party_warehouse_service)
+		refresh_fog()
+		return persist_error
+
+	func refresh_fog() -> void:
+		_refresh_fog()
+
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -245,12 +362,12 @@ func _test_facade_delegates_party_surface_to_handler() -> void:
 	facade._on_party_management_warehouse_requested()
 	facade._apply_party_state_to_runtime("队伍状态同步成功。")
 
-	_assert_true(_has_call(handler.calls, "_open_party_management_window"), "_open_party_management_window() 应委托给 party handler。")
-	_assert_true(_has_call(handler.calls, "_on_party_leader_change_requested"), "_on_party_leader_change_requested() 应委托给 party handler。")
-	_assert_true(_has_call(handler.calls, "_on_party_roster_change_requested"), "_on_party_roster_change_requested() 应委托给 party handler。")
-	_assert_true(_has_call(handler.calls, "_on_party_management_window_closed"), "_on_party_management_window_closed() 应委托给 party handler。")
-	_assert_true(_has_call(handler.calls, "_on_party_management_warehouse_requested"), "_on_party_management_warehouse_requested() 应委托给 party handler。")
-	_assert_true(_has_call(handler.calls, "_apply_party_state_to_runtime"), "_apply_party_state_to_runtime() 应委托给 party handler。")
+	_assert_true(_has_call(handler.calls, "open_party_management_window"), "_open_party_management_window() 应委托给 party handler。")
+	_assert_true(_has_call(handler.calls, "on_party_leader_change_requested"), "_on_party_leader_change_requested() 应委托给 party handler。")
+	_assert_true(_has_call(handler.calls, "on_party_roster_change_requested"), "_on_party_roster_change_requested() 应委托给 party handler。")
+	_assert_true(_has_call(handler.calls, "on_party_management_window_closed"), "_on_party_management_window_closed() 应委托给 party handler。")
+	_assert_true(_has_call(handler.calls, "on_party_management_warehouse_requested"), "_on_party_management_warehouse_requested() 应委托给 party handler。")
+	_assert_true(_has_call(handler.calls, "apply_party_state_to_runtime"), "_apply_party_state_to_runtime() 应委托给 party handler。")
 
 
 func _test_party_handler_updates_runtime_state_and_persists() -> void:
@@ -316,11 +433,11 @@ func _test_party_handler_updates_runtime_state_and_persists() -> void:
 	_assert_eq(runtime._party_selected_member_id, &"hero", "装备后应更新当前选中成员。")
 	_assert_true(String(runtime._current_status_message).find("青铜剑") >= 0, "装备成功消息应包含物品名称。")
 
-	handler._on_party_management_warehouse_requested()
+	handler.on_party_management_warehouse_requested()
 	_assert_eq(runtime._active_modal_id, "", "打开共享仓库时应关闭队伍窗口。")
 	_assert_true(runtime._warehouse_handler.calls.size() > 0, "打开共享仓库应委托给仓库入口。")
 
-	handler._on_party_management_window_closed()
+	handler.on_party_management_window_closed()
 	_assert_eq(runtime._active_modal_id, "", "关闭队伍窗口应清空 modal。")
 	_assert_true(runtime._present_reward_calls > 0, "关闭队伍窗口后应尝试恢复待确认奖励。")
 

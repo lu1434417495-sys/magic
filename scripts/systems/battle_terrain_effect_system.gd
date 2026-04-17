@@ -42,8 +42,8 @@ func upsert_timed_terrain_effect(
 	if not _has_runtime():
 		return false
 
-	var state = _runtime._state
-	var grid_service = _runtime._grid_service
+	var state = _runtime.get_state()
+	var grid_service = _runtime.get_grid_service()
 	if state == null or grid_service == null or effect_def == null or effect_def.terrain_effect_id == &"":
 		return false
 
@@ -77,8 +77,8 @@ func process_timed_terrain_effects(batch: BattleEventBatch) -> void:
 	if not _has_runtime():
 		return
 
-	var state = _runtime._state
-	var grid_service = _runtime._grid_service
+	var state = _runtime.get_state()
+	var grid_service = _runtime.get_grid_service()
 	if state == null or state.timeline == null or grid_service == null:
 		return
 
@@ -109,7 +109,7 @@ func process_timed_terrain_effects(batch: BattleEventBatch) -> void:
 
 		if cell_changed:
 			cell.timed_terrain_effects = retained_effects
-			_runtime._append_changed_coord(batch, coord)
+			_runtime.append_changed_coord(batch, coord)
 
 
 func apply_timed_terrain_effect_tick(
@@ -121,9 +121,9 @@ func apply_timed_terrain_effect_tick(
 	if not _has_runtime():
 		return
 
-	var state = _runtime._state
-	var grid_service = _runtime._grid_service
-	var damage_resolver = _runtime._damage_resolver
+	var state = _runtime.get_state()
+	var grid_service = _runtime.get_grid_service()
+	var damage_resolver = _runtime.get_damage_resolver()
 	if state == null or effect_state == null or processed_tick_keys == null or grid_service == null or damage_resolver == null:
 		return
 
@@ -157,35 +157,35 @@ func apply_timed_terrain_effect_tick(
 	if not bool(result.get("applied", false)):
 		return
 
-	_runtime._mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
-	_runtime._append_changed_unit_id(batch, target_unit.unit_id)
-	_runtime._append_changed_unit_coords(batch, target_unit)
+	_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
+	_runtime.append_changed_unit_id(batch, target_unit.unit_id)
+	_runtime.append_changed_unit_coords(batch, target_unit)
 	var damage := int(result.get("damage", 0))
 	var healing := int(result.get("healing", 0))
 	var kill_count := 0
 	if damage > 0:
-		_runtime._append_batch_log(batch, "%s 受到 %s 的 %d 点伤害。" % [
+		_runtime.append_batch_log(batch, "%s 受到 %s 的 %d 点伤害。" % [
 			target_unit.display_name,
 			_get_timed_terrain_effect_display_name(effect_state),
 			damage,
 		])
 	if healing > 0:
-		_runtime._append_batch_log(batch, "%s 受到 %s 影响，恢复 %d 点生命。" % [
+		_runtime.append_batch_log(batch, "%s 受到 %s 影响，恢复 %d 点生命。" % [
 			target_unit.display_name,
 			_get_timed_terrain_effect_display_name(effect_state),
 			healing,
 		])
 	for status_id in result.get("status_effect_ids", []):
-		_runtime._append_batch_log(batch, "%s 获得状态 %s。" % [target_unit.display_name, String(status_id)])
+		_runtime.append_batch_log(batch, "%s 获得状态 %s。" % [target_unit.display_name, String(status_id)])
 
 	if not target_unit.is_alive:
 		kill_count = 1
-		_runtime._clear_defeated_unit(target_unit, batch)
-		_runtime._append_batch_log(batch, "%s 被击倒。" % target_unit.display_name)
-		_runtime._record_enemy_defeated_achievement(source_unit, target_unit)
+		_runtime.clear_defeated_unit(target_unit, batch)
+		_runtime.append_batch_log(batch, "%s 被击倒。" % target_unit.display_name)
+		_runtime.record_enemy_defeated_achievement(source_unit, target_unit)
 
 	if source_unit != null:
-		_runtime._record_skill_effect_result(source_unit, damage, healing, kill_count)
+		_runtime.record_skill_effect_result(source_unit, damage, healing, kill_count)
 
 
 func _build_timed_terrain_effect(
@@ -207,7 +207,7 @@ func _build_timed_terrain_effect(
 	effect_state.resistance_attribute_id = effect_def.resistance_attribute_id
 	effect_state.tick_interval_tu = maxi(int(effect_def.tick_interval_tu), 1)
 	effect_state.remaining_tu = maxi(int(effect_def.duration_tu), effect_state.tick_interval_tu)
-	effect_state.next_tick_at_tu = _runtime._state.timeline.current_tu + effect_state.tick_interval_tu if _runtime != null and _runtime._state != null and _runtime._state.timeline != null else effect_state.tick_interval_tu
+	effect_state.next_tick_at_tu = _runtime.get_state().timeline.current_tu + effect_state.tick_interval_tu if _runtime != null and _runtime.get_state() != null and _runtime.get_state().timeline != null else effect_state.tick_interval_tu
 	effect_state.stack_behavior = _normalize_stack_behavior(effect_def.stack_behavior)
 	effect_state.params = effect_def.params.duplicate(true)
 	if effect_def.status_id != &"":
@@ -253,11 +253,11 @@ func _normalize_stack_behavior(stack_behavior: StringName) -> StringName:
 
 func _build_terrain_effect_instance_id(effect_id: StringName) -> StringName:
 	if _has_runtime():
-		_runtime._terrain_effect_nonce += 1
+		var nonce: int = _runtime.increment_terrain_effect_nonce()
 		return StringName("%s_%d_%d" % [
 			String(effect_id),
-			int(_runtime._state.timeline.current_tu) if _runtime._state != null and _runtime._state.timeline != null else 0,
-			_runtime._terrain_effect_nonce,
+			int(_runtime.get_state().timeline.current_tu) if _runtime.get_state() != null and _runtime.get_state().timeline != null else 0,
+			nonce,
 		])
 	return StringName("%s_%d_%d" % [String(effect_id), 0, 1])
 

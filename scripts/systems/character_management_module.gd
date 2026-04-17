@@ -109,36 +109,36 @@ func get_pending_character_rewards() -> Array[PendingCharacterReward]:
 
 
 func get_active_quest_states() -> Array:
-	return _quest_progress_service.call("get_active_quests") if _quest_progress_service != null and _quest_progress_service.has_method("get_active_quests") else []
+	return _quest_progress_service.get_active_quests() if _quest_progress_service != null else []
 
 
 func get_claimable_quest_states() -> Array:
-	return _quest_progress_service.call("get_claimable_quests") if _quest_progress_service != null and _quest_progress_service.has_method("get_claimable_quests") else []
+	return _quest_progress_service.get_claimable_quests() if _quest_progress_service != null else []
 
 
 func get_claimable_quest_ids() -> Array[StringName]:
-	var quest_ids_variant = _quest_progress_service.call("get_claimable_quest_ids") if _quest_progress_service != null and _quest_progress_service.has_method("get_claimable_quest_ids") else []
+	var quest_ids_variant = _quest_progress_service.get_claimable_quest_ids() if _quest_progress_service != null else []
 	return ProgressionDataUtils.to_string_name_array(quest_ids_variant)
 
 
 func get_completed_quest_ids() -> Array[StringName]:
-	var quest_ids_variant = _quest_progress_service.call("get_completed_quest_ids") if _quest_progress_service != null and _quest_progress_service.has_method("get_completed_quest_ids") else []
+	var quest_ids_variant = _quest_progress_service.get_completed_quest_ids() if _quest_progress_service != null else []
 	return ProgressionDataUtils.to_string_name_array(quest_ids_variant)
 
 
 func accept_quest(quest_id: StringName, world_step: int = -1, allow_reaccept: bool = false) -> bool:
 	if _quest_progress_service == null:
 		return false
-	var accepted := bool(_quest_progress_service.call("accept_quest", quest_id, world_step, allow_reaccept)) if _quest_progress_service.has_method("accept_quest") else false
-	_party_state = _quest_progress_service.call("get_party_state") if _quest_progress_service.has_method("get_party_state") else _party_state
+	var accepted := _quest_progress_service.accept_quest(quest_id, world_step, allow_reaccept)
+	_party_state = _quest_progress_service.get_party_state()
 	return accepted
 
 
 func complete_quest(quest_id: StringName, world_step: int = -1) -> bool:
 	if _quest_progress_service == null:
 		return false
-	var completed := bool(_quest_progress_service.call("complete_quest", quest_id, world_step)) if _quest_progress_service.has_method("complete_quest") else false
-	_party_state = _quest_progress_service.call("get_party_state") if _quest_progress_service.has_method("get_party_state") else _party_state
+	var completed := _quest_progress_service.complete_quest(quest_id, world_step)
+	_party_state = _quest_progress_service.get_party_state()
 	return completed
 
 
@@ -277,8 +277,8 @@ func apply_quest_progress_events(event_variants: Array, world_step: int = -1) ->
 			"claimable_quest_ids": [],
 			"completed_quest_ids": [],
 		}
-	var summary: Dictionary = _quest_progress_service.call("apply_quest_progress_events", event_variants, world_step) if _quest_progress_service.has_method("apply_quest_progress_events") else {}
-	_party_state = _quest_progress_service.call("get_party_state") if _quest_progress_service.has_method("get_party_state") else _party_state
+	var summary: Dictionary = _quest_progress_service.apply_quest_progress_events(event_variants, world_step)
+	_party_state = _quest_progress_service.get_party_state()
 	return summary
 
 

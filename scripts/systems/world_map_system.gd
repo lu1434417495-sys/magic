@@ -109,9 +109,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _runtime_proxy != null and _runtime_proxy.has_method("dispose"):
+	if _runtime_proxy != null:
 		_runtime_proxy.dispose()
-	if _runtime != null and _runtime.has_method("dispose"):
+	if _runtime != null:
 		_runtime.dispose()
 	_runtime = null
 

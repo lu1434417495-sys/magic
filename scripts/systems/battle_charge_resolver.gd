@@ -48,7 +48,7 @@ func handle_charge_skill_command(
 	if direction == Vector2i.ZERO or requested_distance <= 0:
 		return false
 
-	var charge_batch: BattleEventBatch = _runtime._new_batch()
+	var charge_batch: BattleEventBatch = _runtime.new_batch()
 	var moved_steps = 0
 	var path_step_trigger_count = 0
 	var path_step_hit_count = 0
@@ -72,13 +72,13 @@ func handle_charge_skill_command(
 				pass
 
 		var previous_coords = active_unit.occupied_coords.duplicate()
-		if not _runtime._grid_service.move_unit(_runtime._state, active_unit, next_anchor):
+		if not _runtime.get_grid_service().move_unit(_runtime.get_state(), active_unit, next_anchor):
 			stop_reason = "blocked"
 			break
 		moved_steps += 1
-		_runtime._append_changed_unit_id(charge_batch, active_unit.unit_id)
-		_runtime._append_changed_coords(charge_batch, previous_coords)
-		_runtime._append_changed_unit_coords(charge_batch, active_unit)
+		_runtime.append_changed_unit_id(charge_batch, active_unit.unit_id)
+		_runtime.append_changed_coords(charge_batch, previous_coords)
+		_runtime.append_changed_unit_coords(charge_batch, active_unit)
 
 		var step_aoe_result = _apply_charge_path_step_aoe_effects(
 			active_unit,
@@ -94,7 +94,7 @@ func handle_charge_skill_command(
 		trap_result = _trigger_charge_trap(active_unit)
 		if bool(trap_result.get("triggered", false)):
 			var trap_coord: Vector2i = trap_result.get("coord", active_unit.coord)
-			_runtime._append_changed_coord(charge_batch, trap_coord)
+			_runtime.append_changed_coord(charge_batch, trap_coord)
 			charge_batch.log_lines.append("%s 在 (%d, %d) 触发陷阱，冲锋被中断。" % [
 				active_unit.display_name,
 				trap_coord.x,
@@ -103,11 +103,11 @@ func handle_charge_skill_command(
 			stop_reason = "trap"
 			break
 
-	_runtime._merge_batch(batch, charge_batch)
+	_runtime.merge_batch(batch, charge_batch)
 	if moved_steps > 0:
 		batch.log_lines.append("%s 使用 %s，向%s冲锋 %d 格。" % [
 			active_unit.display_name,
-			_runtime._format_skill_variant_label(skill_def, cast_variant),
+			_runtime.format_skill_variant_label(skill_def, cast_variant),
 			_format_charge_direction(direction),
 			moved_steps,
 		])
@@ -121,7 +121,7 @@ func handle_charge_skill_command(
 	if not charge_batch.log_lines.is_empty():
 		batch.log_lines.append("%s 使用 %s，但在起步时被拦下。" % [
 			active_unit.display_name,
-			_runtime._format_skill_variant_label(skill_def, cast_variant),
+			_runtime.format_skill_variant_label(skill_def, cast_variant),
 		])
 		return true
 	return false
@@ -138,7 +138,7 @@ func validate_charge_command(
 		return result
 
 	var target_coord: Vector2i = normalized_coords[0]
-	if not _runtime._grid_service.is_inside(_runtime._state, target_coord):
+	if not _runtime.get_grid_service().is_inside(_runtime.get_state(), target_coord):
 		result.message = "目标地格超出战场范围。"
 		return result
 
@@ -178,7 +178,7 @@ func build_charge_step_aoe_preview_coords(
 			coord_set[effect_coord] = true
 	for coord_variant in coord_set.keys():
 		coords.append(coord_variant)
-	return _runtime._sort_coords(coords)
+	return _runtime.sort_coords(coords)
 
 
 func get_charge_path_step_aoe_effect_def(cast_variant: CombatCastVariantDef) -> CombatEffectDef:
@@ -220,7 +220,7 @@ func _apply_charge_path_step_aoe_effects(
 	var total_damage = 0
 	var total_healing = 0
 	var total_kill_count = 0
-	var target_filter: StringName = _runtime._resolve_effect_target_filter(skill_def, path_step_aoe_effect)
+	var target_filter: StringName = _runtime.resolve_effect_target_filter(skill_def, path_step_aoe_effect)
 	var stage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	stage_effect.effect_type = &"damage"
 	stage_effect.power = int(path_step_aoe_effect.power)
@@ -228,21 +228,21 @@ func _apply_charge_path_step_aoe_effects(
 	stage_effect.defense_attribute_id = path_step_aoe_effect.defense_attribute_id
 	stage_effect.resistance_attribute_id = path_step_aoe_effect.resistance_attribute_id
 
-	for target_unit in _runtime._collect_units_in_coords(effect_coords):
-		if not _runtime._is_unit_valid_for_effect(active_unit, target_unit, target_filter):
+	for target_unit in _runtime.collect_units_in_coords(effect_coords):
+		if not _runtime.is_unit_valid_for_effect(active_unit, target_unit, target_filter):
 			continue
 		if not allow_repeat_hits and seen_unit_ids.has(target_unit.unit_id):
 			continue
 		seen_unit_ids[target_unit.unit_id] = true
 
-		var result: Dictionary = _runtime._damage_resolver.resolve_effects(active_unit, target_unit, [stage_effect])
-		_runtime._mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
+		var result: Dictionary = _runtime.get_damage_resolver().resolve_effects(active_unit, target_unit, [stage_effect])
+		_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		if not bool(result.get("applied", false)):
 			continue
 
 		hit_count += 1
-		_runtime._append_changed_unit_id(batch, target_unit.unit_id)
-		_runtime._append_changed_unit_coords(batch, target_unit)
+		_runtime.append_changed_unit_id(batch, target_unit.unit_id)
+		_runtime.append_changed_unit_coords(batch, target_unit)
 		var damage = int(result.get("damage", 0))
 		var healing = int(result.get("healing", 0))
 		total_damage += damage
@@ -263,12 +263,12 @@ func _apply_charge_path_step_aoe_effects(
 			])
 		if not target_unit.is_alive:
 			total_kill_count += 1
-			_runtime._clear_defeated_unit(target_unit, batch)
+			_runtime.clear_defeated_unit(target_unit, batch)
 			batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-			_runtime._battle_rating_system.record_enemy_defeated_achievement(active_unit, target_unit)
+			_runtime.get_battle_rating_system().record_enemy_defeated_achievement(active_unit, target_unit)
 
 	if total_damage > 0 or total_healing > 0 or total_kill_count > 0:
-		_runtime._battle_rating_system.record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
+		_runtime.get_battle_rating_system().record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
 	return {
 		"triggered": true,
 		"hit_count": hit_count,
@@ -308,33 +308,33 @@ func _build_charge_step_effect_coords_for_anchor(
 	var step_shape = ProgressionDataUtils.to_string_name(path_step_aoe_effect.params.get("step_shape", "diamond"))
 	var step_radius = maxi(int(path_step_aoe_effect.params.get("step_radius", 1)), 0)
 	var coord_set: Dictionary = {}
-	for occupied_coord in _runtime._grid_service.get_unit_target_coords(active_unit, anchor_coord):
-		for effect_coord in _runtime._grid_service.get_area_coords(_runtime._state, occupied_coord, step_shape, step_radius):
+	for occupied_coord in _runtime.get_grid_service().get_unit_target_coords(active_unit, anchor_coord):
+		for effect_coord in _runtime.get_grid_service().get_area_coords(_runtime.get_state(), occupied_coord, step_shape, step_radius):
 			coord_set[effect_coord] = true
 	for coord_variant in coord_set.keys():
 		effect_coords.append(coord_variant)
-	return _runtime._sort_coords(effect_coords)
+	return _runtime.sort_coords(effect_coords)
 
 
 func _can_charge_enter_anchor(active_unit: BattleUnitState, target_anchor: Vector2i) -> bool:
-	if not _has_runtime() or _runtime._state == null or active_unit == null:
+	if not _has_runtime() or _runtime.get_state() == null or active_unit == null:
 		return false
 	active_unit.refresh_footprint()
 	var delta = target_anchor - active_unit.coord
-	if _runtime._grid_service.get_distance(active_unit.coord, target_anchor) != 1:
+	if _runtime.get_grid_service().get_distance(active_unit.coord, target_anchor) != 1:
 		return false
-	var target_coords: Array[Vector2i] = _runtime._grid_service.get_unit_target_coords(active_unit, target_anchor)
+	var target_coords: Array[Vector2i] = _runtime.get_grid_service().get_unit_target_coords(active_unit, target_anchor)
 	if not _can_charge_place_footprint_ignoring_occupants(active_unit, target_coords):
 		return false
 	if not _can_charge_step_across_edges(active_unit, delta):
 		return false
 
 	for footprint_coord in target_coords:
-		var target_cell: BattleCellState = _runtime._grid_service.get_cell(_runtime._state, footprint_coord) as BattleCellState
+		var target_cell: BattleCellState = _runtime.get_grid_service().get_cell(_runtime.get_state(), footprint_coord) as BattleCellState
 		if target_cell == null:
 			return false
 		var reference_coord: Vector2i = footprint_coord - delta
-		var reference_cell: BattleCellState = _runtime._grid_service.get_cell(_runtime._state, reference_coord) as BattleCellState
+		var reference_cell: BattleCellState = _runtime.get_grid_service().get_cell(_runtime.get_state(), reference_coord) as BattleCellState
 		if reference_cell == null:
 			return false
 		if absi(int(reference_cell.current_height) - int(target_cell.current_height)) > 1:
@@ -349,9 +349,9 @@ func _can_charge_place_footprint_ignoring_occupants(
 	var target_lookup: Dictionary = {}
 	for target_coord in target_coords:
 		target_lookup[target_coord] = true
-		if not _runtime._grid_service.is_inside(_runtime._state, target_coord):
+		if not _runtime.get_grid_service().is_inside(_runtime.get_state(), target_coord):
 			return false
-		var target_cell: BattleCellState = _runtime._grid_service.get_cell(_runtime._state, target_coord) as BattleCellState
+		var target_cell: BattleCellState = _runtime.get_grid_service().get_cell(_runtime.get_state(), target_coord) as BattleCellState
 		if target_cell == null:
 			return false
 		if not BattleTerrainRules.can_unit_enter_terrain(target_cell.base_terrain, active_unit.movement_tags):
@@ -390,7 +390,7 @@ func _can_charge_step_across_edges(active_unit: BattleUnitState, delta: Vector2i
 
 
 func _is_charge_edge_blocked(from_coord: Vector2i, to_coord: Vector2i, blocks_occupancy: bool) -> bool:
-	var edge_face = _runtime._grid_service.get_edge_face(_runtime._state, from_coord, to_coord)
+	var edge_face = _runtime.get_grid_service().get_edge_face(_runtime.get_state(), from_coord, to_coord)
 	if edge_face == null:
 		return true
 	if blocks_occupancy:
@@ -408,14 +408,14 @@ func _resolve_charge_step_blockers(
 	direction: Vector2i,
 	batch: BattleEventBatch
 ) -> Dictionary:
-	var reserved_coords: Array = _runtime._grid_service.get_unit_target_coords(active_unit, next_anchor)
+	var reserved_coords: Array = _runtime.get_grid_service().get_unit_target_coords(active_unit, next_anchor)
 	var reserved_coord_set: Dictionary = {}
 	for reserved_coord in reserved_coords:
 		reserved_coord_set[reserved_coord] = true
 
 	var seen_blockers: Dictionary = {}
 	for frontier_coord in _get_charge_frontier_coords(active_unit, next_anchor):
-		var blocker: BattleUnitState = _runtime._grid_service.get_unit_at_coord(_runtime._state, frontier_coord) as BattleUnitState
+		var blocker: BattleUnitState = _runtime.get_grid_service().get_unit_at_coord(_runtime.get_state(), frontier_coord) as BattleUnitState
 		if blocker == null or blocker.unit_id == active_unit.unit_id or not blocker.is_alive:
 			continue
 		if seen_blockers.has(blocker.unit_id):
@@ -438,10 +438,10 @@ func _get_charge_frontier_coords(active_unit: BattleUnitState, next_anchor: Vect
 	for occupied_coord in active_unit.occupied_coords:
 		current_coords[occupied_coord] = true
 	var frontier_coords: Array[Vector2i] = []
-	for target_coord in _runtime._grid_service.get_unit_target_coords(active_unit, next_anchor):
+	for target_coord in _runtime.get_grid_service().get_unit_target_coords(active_unit, next_anchor):
 		if not current_coords.has(target_coord):
 			frontier_coords.append(target_coord)
-	return _runtime._sort_coords(frontier_coords)
+	return _runtime.sort_coords(frontier_coords)
 
 
 func _resolve_charge_blocker(
@@ -455,54 +455,54 @@ func _resolve_charge_blocker(
 	if bool(side_push.get("available", false)):
 		var previous_coords = blocker.occupied_coords.duplicate()
 		var side_coord: Vector2i = side_push.get("coord", blocker.coord)
-		if _runtime._grid_service.move_unit_force(_runtime._state, blocker, side_coord):
-			_runtime._append_changed_coords(batch, previous_coords)
-			_runtime._append_changed_unit_coords(batch, blocker)
-			_runtime._append_changed_unit_id(batch, blocker.unit_id)
+		if _runtime.get_grid_service().move_unit_force(_runtime.get_state(), blocker, side_coord):
+			_runtime.append_changed_coords(batch, previous_coords)
+			_runtime.append_changed_unit_coords(batch, blocker)
+			_runtime.append_changed_unit_id(batch, blocker.unit_id)
 			batch.log_lines.append("%s 将 %s 顶向侧面。" % [active_unit.display_name, blocker.display_name])
 			var fall_layers: int = int(side_push.get("fall_layers", 0))
 			if fall_layers > 0:
-				var fall_damage: int = int(_runtime._damage_resolver.resolve_fall_damage(blocker, fall_layers))
+				var fall_damage: int = int(_runtime.get_damage_resolver().resolve_fall_damage(blocker, fall_layers))
 				if fall_damage > 0:
 					batch.log_lines.append("%s 因侧推跌落 %d 层，受到 %d 点坠落伤害。" % [
 						blocker.display_name,
 						fall_layers,
 						fall_damage,
 					])
-					_runtime._append_changed_unit_id(batch, blocker.unit_id)
+					_runtime.append_changed_unit_id(batch, blocker.unit_id)
 					if not blocker.is_alive:
-						_runtime._clear_defeated_unit(blocker, batch)
+						_runtime.clear_defeated_unit(blocker, batch)
 						batch.log_lines.append("%s 被击倒。" % blocker.display_name)
 			return "continue"
 
 	var forward_coord = blocker.coord + direction
 	if not reserved_coord_set.has(forward_coord):
 		var previous_coords = blocker.occupied_coords.duplicate()
-		if _runtime._grid_service.move_unit(_runtime._state, blocker, forward_coord):
-			_runtime._append_changed_coords(batch, previous_coords)
-			_runtime._append_changed_unit_coords(batch, blocker)
-			_runtime._append_changed_unit_id(batch, blocker.unit_id)
+		if _runtime.get_grid_service().move_unit(_runtime.get_state(), blocker, forward_coord):
+			_runtime.append_changed_coords(batch, previous_coords)
+			_runtime.append_changed_unit_coords(batch, blocker)
+			_runtime.append_changed_unit_id(batch, blocker.unit_id)
 			batch.log_lines.append("%s 将 %s 向前顶开。" % [active_unit.display_name, blocker.display_name])
 			return "continue"
 
-	var collision_damage: int = int(_runtime._damage_resolver.resolve_collision_damage(blocker, active_unit.body_size, blocker.body_size))
-	_runtime._append_changed_unit_id(batch, blocker.unit_id)
+	var collision_damage: int = int(_runtime.get_damage_resolver().resolve_collision_damage(blocker, active_unit.body_size, blocker.body_size))
+	_runtime.append_changed_unit_id(batch, blocker.unit_id)
 	batch.log_lines.append("%s 撞上 %s，造成 %d 点碰撞伤害。" % [
 		active_unit.display_name,
 		blocker.display_name,
 		collision_damage,
 	])
 	if not blocker.is_alive:
-		_runtime._clear_defeated_unit(blocker, batch)
+		_runtime.clear_defeated_unit(blocker, batch)
 		batch.log_lines.append("%s 被击倒。" % blocker.display_name)
 		return "continue"
 
 	if not reserved_coord_set.has(forward_coord):
 		var previous_coords = blocker.occupied_coords.duplicate()
-		if _runtime._grid_service.move_unit_force(_runtime._state, blocker, forward_coord):
-			_runtime._append_changed_coords(batch, previous_coords)
-			_runtime._append_changed_unit_coords(batch, blocker)
-			_runtime._append_changed_unit_id(batch, blocker.unit_id)
+		if _runtime.get_grid_service().move_unit_force(_runtime.get_state(), blocker, forward_coord):
+			_runtime.append_changed_coords(batch, previous_coords)
+			_runtime.append_changed_unit_coords(batch, blocker)
+			_runtime.append_changed_unit_id(batch, blocker.unit_id)
 			batch.log_lines.append("%s 被强行撞退一格。" % blocker.display_name)
 			return "continue"
 	return "stop"
@@ -515,7 +515,7 @@ func _pick_charge_side_push(
 ) -> Dictionary:
 	if blocker == null:
 		return {"available": false}
-	var blocker_cell: BattleCellState = _runtime._grid_service.get_cell(_runtime._state, blocker.coord) as BattleCellState
+	var blocker_cell: BattleCellState = _runtime.get_grid_service().get_cell(_runtime.get_state(), blocker.coord) as BattleCellState
 	if blocker_cell == null:
 		return {"available": false}
 	var current_height = int(blocker_cell.current_height)
@@ -525,9 +525,9 @@ func _pick_charge_side_push(
 		var side_coord = blocker.coord + side_direction
 		if reserved_coord_set.has(side_coord):
 			continue
-		if not _runtime._grid_service.can_place_footprint(_runtime._state, side_coord, blocker.footprint_size, blocker.unit_id):
+		if not _runtime.get_grid_service().can_place_footprint(_runtime.get_state(), side_coord, blocker.footprint_size, blocker.unit_id):
 			continue
-		var side_cell: BattleCellState = _runtime._grid_service.get_cell(_runtime._state, side_coord) as BattleCellState
+		var side_cell: BattleCellState = _runtime.get_grid_service().get_cell(_runtime.get_state(), side_coord) as BattleCellState
 		if side_cell == null:
 			continue
 		var side_height = int(side_cell.current_height)
@@ -558,8 +558,8 @@ func _get_side_directions_for_charge(direction: Vector2i) -> Array[Vector2i]:
 func _trigger_charge_trap(active_unit: BattleUnitState) -> Dictionary:
 	if not _has_runtime() or active_unit == null:
 		return {"triggered": false}
-	for occupied_coord in _runtime._sort_coords(active_unit.occupied_coords):
-		var cell: BattleCellState = _runtime._grid_service.get_cell(_runtime._state, occupied_coord) as BattleCellState
+	for occupied_coord in _runtime.sort_coords(active_unit.occupied_coords):
+		var cell: BattleCellState = _runtime.get_grid_service().get_cell(_runtime.get_state(), occupied_coord) as BattleCellState
 		if cell == null or cell.terrain_effect_ids.is_empty():
 			continue
 		var removed_ids: Array[StringName] = []
@@ -623,19 +623,19 @@ func _build_charge_preview_coords(
 	var preview_anchor: Vector2i = active_unit.coord
 	for _step in range(distance):
 		preview_anchor += direction
-		for occupied_coord in _runtime._grid_service.get_unit_target_coords(active_unit, preview_anchor):
+		for occupied_coord in _runtime.get_grid_service().get_unit_target_coords(active_unit, preview_anchor):
 			if seen_coords.has(occupied_coord):
 				continue
 			seen_coords[occupied_coord] = true
 			preview_coords.append(occupied_coord)
-	return _runtime._sort_coords(preview_coords)
+	return _runtime.sort_coords(preview_coords)
 
 
 func _get_charge_max_distance(active_unit: BattleUnitState, cast_variant: CombatCastVariantDef) -> int:
 	var charge_effect: CombatEffectDef = get_charge_effect_def(cast_variant)
 	if charge_effect == null or not _has_runtime():
 		return 0
-	var skill_level: int = int(_runtime._get_unit_skill_level(active_unit, charge_effect.params.get("skill_id", &"charge")))
+	var skill_level: int = int(_runtime.get_unit_skill_level(active_unit, charge_effect.params.get("skill_id", &"charge")))
 	var max_distance: int = maxi(int(charge_effect.params.get("base_distance", 3)), 0)
 	var distance_by_level: Dictionary = charge_effect.params.get("distance_by_level", {})
 	for breakpoint_key in distance_by_level.keys():

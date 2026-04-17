@@ -272,19 +272,19 @@ func setup(game_session) -> void:
 func dispose() -> void:
 	if _battle_runtime != null:
 		_battle_runtime.dispose()
-	if _snapshot_builder != null and _snapshot_builder.has_method("dispose"):
+	if _snapshot_builder != null:
 		_snapshot_builder.dispose()
-	if _battle_session_facade != null and _battle_session_facade.has_method("dispose"):
+	if _battle_session_facade != null:
 		_battle_session_facade.dispose()
-	if _battle_selection != null and _battle_selection.has_method("dispose"):
+	if _battle_selection != null:
 		_battle_selection.dispose()
-	if _settlement_command_handler != null and _settlement_command_handler.has_method("dispose"):
+	if _settlement_command_handler != null:
 		_settlement_command_handler.dispose()
-	if _warehouse_handler != null and _warehouse_handler.has_method("dispose"):
+	if _warehouse_handler != null:
 		_warehouse_handler.dispose()
-	if _party_command_handler != null and _party_command_handler.has_method("dispose"):
+	if _party_command_handler != null:
 		_party_command_handler.dispose()
-	if _reward_flow_handler != null and _reward_flow_handler.has_method("dispose"):
+	if _reward_flow_handler != null:
 		_reward_flow_handler.dispose()
 
 	_game_session = null
@@ -699,6 +699,14 @@ func get_party_item_use_service():
 	return _party_item_use_service
 
 
+func get_party_equipment_service():
+	return _party_equipment_service
+
+
+func get_warehouse_handler():
+	return _warehouse_handler
+
+
 func get_active_battle_encounter_id() -> StringName:
 	return _active_battle_encounter_id
 
@@ -955,7 +963,7 @@ func clear_battle_selection_targets() -> void:
 
 func close_party_management_modal() -> void:
 	if _party_command_handler != null:
-		_party_command_handler._on_party_management_window_closed()
+		_party_command_handler.on_party_management_window_closed()
 
 
 func close_party_warehouse_modal() -> void:
@@ -1373,6 +1381,14 @@ func advance_world_time_by_steps(delta_steps: int) -> void:
 func refresh_world_visibility() -> void:
 	_refresh_world_event_discovery()
 	_refresh_fog()
+
+
+func refresh_fog() -> void:
+	_refresh_fog()
+
+
+func set_party_state(party_state) -> void:
+	_party_state = party_state
 
 
 func persist_world_data() -> int:
@@ -2139,7 +2155,7 @@ func _build_runtime_log_state() -> Dictionary:
 
 
 func _log_runtime_event(level: String, domain: String, event_id: String, message: String, context: Dictionary = {}) -> void:
-	if _game_session == null or not _game_session.has_method("log_event"):
+	if _game_session == null:
 		return
 	_game_session.log_event(level, domain, event_id, message, context)
 
@@ -2346,16 +2362,20 @@ func _resolve_world_encounter_after_battle(winner_faction_id: String) -> void:
 	_remove_active_battle_encounter_anchor()
 
 
+func start_battle(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> void:
+	_start_battle(encounter_anchor)
+
+
 func _start_battle(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> void:
 	_battle_session_facade.start_battle(encounter_anchor)
 
 
 func _build_battle_start_context(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> Dictionary:
-	return _battle_session_facade._build_battle_start_context(encounter_anchor)
+	return _battle_session_facade.build_battle_start_context(encounter_anchor)
 
 
 func _resolve_battle_terrain_profile(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> StringName:
-	return _battle_session_facade._resolve_battle_terrain_profile(encounter_anchor)
+	return _battle_session_facade.resolve_battle_terrain_profile(encounter_anchor)
 
 
 func _resolve_active_battle() -> void:
@@ -2626,23 +2646,23 @@ func _on_character_info_window_closed() -> void:
 
 
 func _open_party_management_window() -> void:
-	_party_command_handler._open_party_management_window()
+	_party_command_handler.open_party_management_window()
 
 
 func _on_party_leader_change_requested(member_id: StringName) -> void:
-	_party_command_handler._on_party_leader_change_requested(member_id)
+	_party_command_handler.on_party_leader_change_requested(member_id)
 
 
 func _on_party_roster_change_requested(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> void:
-	_party_command_handler._on_party_roster_change_requested(active_member_ids, reserve_member_ids)
+	_party_command_handler.on_party_roster_change_requested(active_member_ids, reserve_member_ids)
 
 
 func _on_party_management_window_closed() -> void:
-	_party_command_handler._on_party_management_window_closed()
+	_party_command_handler.on_party_management_window_closed()
 
 
 func _on_party_management_warehouse_requested() -> void:
-	_party_command_handler._on_party_management_warehouse_requested()
+	_party_command_handler.on_party_management_warehouse_requested()
 
 
 func _on_promotion_choice_submitted(member_id: StringName, profession_id: StringName, selection: Dictionary) -> void:
@@ -2661,7 +2681,7 @@ func _on_character_reward_confirmed() -> void:
 
 
 func _apply_party_state_to_runtime(success_message: String) -> void:
-	_party_command_handler._apply_party_state_to_runtime(success_message)
+	_party_command_handler.apply_party_state_to_runtime(success_message)
 
 
 func _batch_has_updates(batch) -> bool:
@@ -2681,6 +2701,10 @@ func _batch_has_updates(batch) -> bool:
 func _apply_battle_batch(batch) -> void:
 	_battle_session_facade.apply_battle_batch(batch)
 	_log_battle_batch_entries(batch)
+
+
+func refresh_battle_runtime_state() -> void:
+	_refresh_battle_runtime_state()
 
 
 func _refresh_battle_runtime_state() -> void:

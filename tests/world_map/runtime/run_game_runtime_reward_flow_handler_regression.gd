@@ -89,7 +89,7 @@ class MockPartyHandler:
 
 	var close_calls := 0
 
-	func _on_party_management_window_closed() -> void:
+	func on_party_management_window_closed() -> void:
 		close_calls += 1
 
 
@@ -128,6 +128,63 @@ class MockRuntime:
 	func _update_status(message: String) -> void:
 		_current_status_message = message
 		update_status_calls.append(message)
+
+	func build_command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
+		return _command_ok(message, battle_refresh_mode)
+
+	func build_command_error(message: String) -> Dictionary:
+		return _command_error(message)
+
+	func get_pending_world_promotion_prompt_state() -> Dictionary:
+		return _pending_world_promotion_prompt.duplicate(true)
+
+	func get_active_reward_state():
+		return _active_reward
+
+	func set_active_reward_state(reward) -> void:
+		_active_reward = reward
+
+	func get_active_modal_id() -> String:
+		return _active_modal_id
+
+	func set_runtime_active_modal_id(modal_id: String) -> void:
+		_active_modal_id = modal_id
+
+	func update_status(message: String) -> void:
+		_update_status(message)
+
+	func is_battle_active() -> bool:
+		return _is_battle_active()
+
+	func clear_active_character_info_context() -> void:
+		_active_character_info_context.clear()
+
+	func close_settlement_modal() -> void:
+		_settlement_command_handler.on_settlement_window_closed()
+		_active_modal_id = ""
+
+	func close_contract_board_modal() -> void:
+		_active_modal_id = "settlement"
+
+	func close_shop_modal() -> void:
+		_active_modal_id = "settlement"
+
+	func close_forge_modal() -> void:
+		_active_modal_id = "settlement"
+
+	func close_stagecoach_modal() -> void:
+		_active_modal_id = "settlement"
+
+	func close_party_management_modal() -> void:
+		_party_command_handler.on_party_management_window_closed()
+		_active_modal_id = ""
+
+	func close_party_warehouse_modal() -> void:
+		_warehouse_handler.on_party_warehouse_window_closed()
+		_active_modal_id = ""
+
+	func get_party_state():
+		return _party_state
 
 
 func _initialize() -> void:

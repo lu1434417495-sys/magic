@@ -64,6 +64,7 @@ class MockRuntime:
 	var _active_settlement_feedback_text := ""
 	var _active_contract_board_context: Dictionary = {}
 	var _active_shop_context: Dictionary = {}
+	var _active_forge_context: Dictionary = {}
 	var _active_stagecoach_context: Dictionary = {}
 	var _current_status_message := ""
 	var _selected_settlement: Dictionary = {}
@@ -118,6 +119,9 @@ class MockRuntime:
 	func set_runtime_active_modal_id(modal_id: String) -> void:
 		_active_modal_id = modal_id
 
+	func get_active_modal_id() -> String:
+		return _active_modal_id
+
 	func set_player_coord(coord: Vector2i) -> void:
 		_player_coord = coord
 
@@ -141,6 +145,15 @@ class MockRuntime:
 
 	func get_active_shop_context() -> Dictionary:
 		return _active_shop_context.duplicate(true)
+
+	func set_active_forge_context(context: Dictionary) -> void:
+		_active_forge_context = context.duplicate(true)
+
+	func clear_active_forge_context() -> void:
+		_active_forge_context.clear()
+
+	func get_active_forge_context() -> Dictionary:
+		return _active_forge_context.duplicate(true)
 
 	func set_active_stagecoach_context(context: Dictionary) -> void:
 		_active_stagecoach_context = context.duplicate(true)
@@ -189,6 +202,13 @@ class MockRuntime:
 
 	func get_item_defs() -> Dictionary:
 		return {}
+
+	func get_item_display_name(item_id: StringName) -> String:
+		match String(item_id):
+			"iron_ore":
+				return "铁矿石"
+			_:
+				return String(item_id)
 
 	func get_quest_defs() -> Dictionary:
 		return _quest_defs.duplicate(true)

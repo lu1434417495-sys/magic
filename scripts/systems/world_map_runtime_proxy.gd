@@ -109,6 +109,10 @@ func get_selected_battle_skill_target_coords() -> Array[Vector2i]:
 	return _call_runtime_read(&"get_selected_battle_skill_target_coords", [])
 
 
+func get_selected_battle_skill_target_unit_ids() -> Array[StringName]:
+	return _call_runtime_read(&"get_selected_battle_skill_target_unit_ids", [])
+
+
 func get_battle_overlay_target_coords() -> Array[Vector2i]:
 	return _call_runtime_read(&"get_battle_overlay_target_coords", [])
 

@@ -128,7 +128,7 @@ func start_battle(
 	context: Dictionary = {}
 ) -> BattleState:
 	_ensure_sidecars_ready()
-	var party_state = _character_gateway.get_party_state() if _character_gateway != null and _character_gateway.has_method("get_party_state") else null
+	var party_state = _character_gateway.get_party_state() if _character_gateway != null else null
 	var ally_units: Array = _unit_factory.build_ally_units(party_state, context)
 	if ally_units.is_empty():
 		ally_units = _unit_factory.build_ally_units(null, context)
@@ -139,10 +139,9 @@ func start_battle(
 	enemy_build_context["enemy_templates"] = _enemy_templates
 	enemy_build_context["enemy_ai_brains"] = _enemy_ai_brains
 	_active_loot_entries.clear()
-	if _encounter_builder != null and _encounter_builder.has_method("build_enemy_units"):
+	if _encounter_builder != null:
 		enemy_units = _encounter_builder.build_enemy_units(encounter_anchor, enemy_build_context)
-		if _encounter_builder.has_method("build_loot_entries"):
-			_active_loot_entries = _encounter_builder.build_loot_entries(encounter_anchor, enemy_build_context)
+		_active_loot_entries = _encounter_builder.build_loot_entries(encounter_anchor, enemy_build_context)
 	if enemy_units.is_empty():
 		enemy_units = _unit_factory.build_enemy_units(encounter_anchor, enemy_build_context)
 	var terrain_data := _unit_factory.build_terrain_data(encounter_anchor, seed, context)
@@ -345,9 +344,8 @@ func submit_promotion_choice(
 	var batch := _new_batch()
 	if _state == null or _character_gateway == null:
 		return batch
-	if _character_gateway.has_method("promote_profession"):
-		var delta = _character_gateway.promote_profession(member_id, profession_id, selection)
-		batch.progression_deltas.append(delta)
+	var delta = _character_gateway.promote_profession(member_id, profession_id, selection)
+	batch.progression_deltas.append(delta)
 	var unit_state := _find_unit_by_member_id(member_id)
 	if unit_state != null:
 		_unit_factory.refresh_battle_unit(unit_state)
@@ -441,13 +439,10 @@ func end_battle(result: Dictionary = {}) -> void:
 			if unit_state == null:
 				continue
 			if unit_state.is_alive:
-				if _character_gateway.has_method("commit_battle_resources"):
-					_character_gateway.commit_battle_resources(unit_state.source_member_id, unit_state.current_hp, unit_state.current_mp)
+				_character_gateway.commit_battle_resources(unit_state.source_member_id, unit_state.current_hp, unit_state.current_mp)
 			else:
-				if _character_gateway.has_method("commit_battle_ko"):
-					_character_gateway.commit_battle_ko(unit_state.source_member_id)
-		if _character_gateway.has_method("flush_after_battle"):
-			_character_gateway.flush_after_battle()
+				_character_gateway.commit_battle_ko(unit_state.source_member_id)
+		_character_gateway.flush_after_battle()
 	if _battle_resolution_result == null and not _battle_resolution_result_consumed and _state.phase == &"battle_ended":
 		_battle_resolution_result = _build_battle_resolution_result()
 
@@ -470,16 +465,133 @@ func consume_battle_resolution_result():
 	return resolution_result
 
 
+func get_grid_service():
+	return _grid_service
+
+
+func get_character_gateway():
+	return _character_gateway
+
+
+func get_damage_resolver():
+	return _damage_resolver
+
+
+func get_hit_resolver():
+	return _hit_resolver
+
+
+func get_terrain_generator():
+	return _terrain_generator
+
+
+func get_skill_defs() -> Dictionary:
+	return _skill_defs
+
+
+func get_battle_rating_stats() -> Dictionary:
+	return _battle_rating_stats
+
+
+func get_battle_rating_system():
+	return _battle_rating_system
+
+
+func get_pending_post_battle_character_rewards() -> Array:
+	return _pending_post_battle_character_rewards
+
+
+func get_terrain_effect_nonce() -> int:
+	return _terrain_effect_nonce
+
+
+func increment_terrain_effect_nonce() -> int:
+	_terrain_effect_nonce += 1
+	return _terrain_effect_nonce
+
+
+func new_batch() -> BattleEventBatch:
+	return _new_batch()
+
+
+func merge_batch(target_batch: BattleEventBatch, source_batch: BattleEventBatch) -> void:
+	_merge_batch(target_batch, source_batch)
+
+
+func append_changed_coord(batch: BattleEventBatch, coord: Vector2i) -> void:
+	_append_changed_coord(batch, coord)
+
+
+func append_changed_coords(batch: BattleEventBatch, coords: Array[Vector2i]) -> void:
+	_append_changed_coords(batch, coords)
+
+
+func append_changed_unit_id(batch: BattleEventBatch, unit_id: StringName) -> void:
+	_append_changed_unit_id(batch, unit_id)
+
+
+func append_changed_unit_coords(batch: BattleEventBatch, unit_state: BattleUnitState) -> void:
+	_append_changed_unit_coords(batch, unit_state)
+
+
+func append_batch_log(batch: BattleEventBatch, message: String) -> void:
+	_append_batch_log(batch, message)
+
+
+func clear_defeated_unit(unit_state: BattleUnitState, batch: BattleEventBatch = null) -> void:
+	_clear_defeated_unit(unit_state, batch)
+
+
+func sort_coords(target_coords: Variant) -> Array[Vector2i]:
+	return _sort_coords(target_coords)
+
+
+func format_skill_variant_label(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> String:
+	return _format_skill_variant_label(skill_def, cast_variant)
+
+
+func mark_applied_statuses_for_turn_timing(target_unit: BattleUnitState, status_effect_ids: Variant) -> void:
+	_mark_applied_statuses_for_turn_timing(target_unit, status_effect_ids)
+
+
+func resolve_effect_target_filter(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:
+	return _resolve_effect_target_filter(skill_def, effect_def)
+
+
+func is_unit_valid_for_effect(source_unit: BattleUnitState, target_unit: BattleUnitState, target_filter: StringName) -> bool:
+	return _is_unit_valid_for_effect(source_unit, target_unit, target_filter)
+
+
+func is_unit_effect(effect_def: CombatEffectDef) -> bool:
+	return _is_unit_effect(effect_def)
+
+
+func collect_units_in_coords(effect_coords: Array[Vector2i]) -> Array[BattleUnitState]:
+	return _collect_units_in_coords(effect_coords)
+
+
+func get_unit_skill_level(unit_state: BattleUnitState, skill_id: StringName) -> int:
+	return _get_unit_skill_level(unit_state, skill_id)
+
+
+func record_enemy_defeated_achievement(active_unit: BattleUnitState, target_unit: BattleUnitState) -> void:
+	_battle_rating_system.record_enemy_defeated_achievement(active_unit, target_unit)
+
+
+func record_skill_effect_result(source_unit: BattleUnitState, damage: int, healing: int, kill_count: int) -> void:
+	_battle_rating_system.record_skill_effect_result(source_unit, damage, healing, kill_count)
+
+
 func dispose() -> void:
-	if _terrain_effect_system != null and _terrain_effect_system.has_method("dispose"):
+	if _terrain_effect_system != null:
 		_terrain_effect_system.dispose()
-	if _battle_rating_system != null and _battle_rating_system.has_method("dispose"):
+	if _battle_rating_system != null:
 		_battle_rating_system.dispose()
-	if _unit_factory != null and _unit_factory.has_method("dispose"):
+	if _unit_factory != null:
 		_unit_factory.dispose()
-	if _charge_resolver != null and _charge_resolver.has_method("dispose"):
+	if _charge_resolver != null:
 		_charge_resolver.dispose()
-	if _repeat_attack_resolver != null and _repeat_attack_resolver.has_method("dispose"):
+	if _repeat_attack_resolver != null:
 		_repeat_attack_resolver.dispose()
 	_battle_rating_stats.clear()
 	_pending_post_battle_character_rewards.clear()
@@ -1685,8 +1797,7 @@ func _grant_skill_mastery_if_needed(active_unit: BattleUnitState, skill_id: Stri
 		return
 
 	_battle_rating_system.record_skill_success(active_unit, skill_id)
-	if _character_gateway.has_method("record_achievement_event"):
-		_character_gateway.record_achievement_event(active_unit.source_member_id, &"skill_used", 1, skill_id)
+	_character_gateway.record_achievement_event(active_unit.source_member_id, &"skill_used", 1, skill_id)
 	var delta = _character_gateway.grant_battle_mastery(active_unit.source_member_id, skill_id, 5)
 	batch.progression_deltas.append(delta)
 	_unit_factory.refresh_battle_unit(active_unit)

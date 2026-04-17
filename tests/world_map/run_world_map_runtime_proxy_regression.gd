@@ -22,6 +22,7 @@ class MockRuntime:
 		"title": "开始战斗",
 		"confirm_text": "开始战斗",
 	}
+	var selected_battle_skill_target_unit_ids: Array[StringName] = [&"enemy_alpha", &"enemy_beta"]
 	var headless_snapshot := {
 		"status": {
 			"view": "world",
@@ -54,6 +55,9 @@ class MockRuntime:
 
 	func get_pending_battle_start_prompt() -> Dictionary:
 		return pending_battle_start_prompt
+
+	func get_selected_battle_skill_target_unit_ids() -> Array[StringName]:
+		return selected_battle_skill_target_unit_ids
 
 	func build_headless_snapshot() -> Dictionary:
 		calls.append({
@@ -178,6 +182,11 @@ func _test_getters_forward_to_runtime() -> void:
 	_assert_eq(proxy.get_active_map_display_name(), "灰烬地图", "get_active_map_display_name() 应直接读取 runtime。")
 	_assert_eq(proxy.get_submap_return_hint_text(), "点击任意地点返回原位置。", "get_submap_return_hint_text() 应直接读取 runtime。")
 	_assert_eq(proxy.get_pending_battle_start_prompt().get("confirm_text", ""), "开始战斗", "get_pending_battle_start_prompt() 应直接读取 runtime。")
+	_assert_eq(
+		_string_name_array_to_string_array(proxy.get_selected_battle_skill_target_unit_ids()),
+		["enemy_alpha", "enemy_beta"],
+		"get_selected_battle_skill_target_unit_ids() 应直接读取 runtime。"
+	)
 	_assert_true(proxy.is_submap_active(), "is_submap_active() 应直接读取 runtime。")
 	_assert_eq(render_spy.calls.size(), 0, "纯 getter 调用不应触发 render。")
 
@@ -286,6 +295,13 @@ func _has_call(calls: Array[Dictionary], method_name: String) -> bool:
 		if String(call.get("method", "")) == method_name:
 			return true
 	return false
+
+
+func _string_name_array_to_string_array(values: Array[StringName]) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(String(value))
+	return result
 
 
 func _assert_true(condition: bool, message: String) -> void:

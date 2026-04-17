@@ -92,6 +92,7 @@ func _test_world_map_runtime_proxy_keeps_expected_contract() -> void:
 		"get_active_settlement_id",
 		"get_active_map_id",
 		"get_pending_battle_start_prompt",
+		"get_selected_battle_skill_target_unit_ids",
 		"build_headless_snapshot",
 		"build_text_snapshot",
 		"command_world_move",

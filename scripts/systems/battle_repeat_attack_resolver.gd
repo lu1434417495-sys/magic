@@ -56,7 +56,7 @@ func apply_repeat_attack_skill_result(
 				break
 			if _should_consume_repeat_attack_cost_on_attempt(repeat_attack_effect):
 				_consume_repeat_attack_stage_cost(active_unit, repeat_attack_effect, stage_aura_cost)
-				_runtime._append_changed_unit_id(batch, active_unit.unit_id)
+				_runtime.append_changed_unit_id(batch, active_unit.unit_id)
 
 		var hit_result := _resolve_repeat_attack_stage_hit_result(active_unit, target_unit, skill_def, repeat_attack_effect, stage_index)
 		var stage_hit_rate: int = int(hit_result.get("hit_rate_percent", 0))
@@ -78,10 +78,10 @@ func apply_repeat_attack_skill_result(
 
 		var stage_damage_multiplier: float = _get_repeat_attack_stage_damage_multiplier(repeat_attack_effect, stage_index)
 		var stage_effects := _build_repeat_attack_stage_effects(staged_effects, repeat_attack_effect, stage_damage_multiplier)
-		var result: Dictionary = _runtime._damage_resolver.resolve_effects(active_unit, target_unit, stage_effects)
-		_runtime._mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
-		_runtime._append_changed_unit_id(batch, target_unit.unit_id)
-		_runtime._append_changed_unit_coords(batch, target_unit)
+		var result: Dictionary = _runtime.get_damage_resolver().resolve_effects(active_unit, target_unit, stage_effects)
+		_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
+		_runtime.append_changed_unit_id(batch, target_unit.unit_id)
+		_runtime.append_changed_unit_coords(batch, target_unit)
 
 		var damage := int(result.get("damage", 0))
 		var healing := int(result.get("healing", 0))
@@ -111,9 +111,9 @@ func apply_repeat_attack_skill_result(
 
 		if not target_unit.is_alive:
 			total_kill_count += 1
-			_runtime._clear_defeated_unit(target_unit, batch)
+			_runtime.clear_defeated_unit(target_unit, batch)
 			batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-			_runtime._battle_rating_system.record_enemy_defeated_achievement(active_unit, target_unit)
+			_runtime.get_battle_rating_system().record_enemy_defeated_achievement(active_unit, target_unit)
 			if _should_stop_repeat_attack_on_target_down(repeat_attack_effect):
 				break
 
@@ -126,7 +126,7 @@ func apply_repeat_attack_skill_result(
 		])
 
 	if total_damage > 0 or total_healing > 0 or total_kill_count > 0:
-		_runtime._battle_rating_system.record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
+		_runtime.get_battle_rating_system().record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
 	return executed
 
 
@@ -140,7 +140,7 @@ func get_repeat_attack_effect_def(effect_defs: Array[CombatEffectDef]) -> Combat
 func collect_repeat_attack_base_effects(effect_defs: Array[CombatEffectDef]) -> Array[CombatEffectDef]:
 	var staged_effects: Array[CombatEffectDef] = []
 	for effect_def in effect_defs:
-		if _runtime._is_unit_effect(effect_def):
+		if _runtime.is_unit_effect(effect_def):
 			staged_effects.append(effect_def)
 	return staged_effects
 
@@ -152,8 +152,8 @@ func _resolve_repeat_attack_stage_hit_result(
 	repeat_attack_effect: CombatEffectDef,
 	stage_index: int
 ) -> Dictionary:
-	var hit_resolver = _runtime._hit_resolver if _has_runtime() and _runtime._hit_resolver != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
-	var battle_state = _runtime._state if _has_runtime() else null
+	var hit_resolver = _runtime.get_hit_resolver() if _has_runtime() and _runtime.get_hit_resolver() != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
+	var battle_state = _runtime.get_state() if _has_runtime() else null
 	return hit_resolver.resolve_repeat_attack_stage_hit(
 		battle_state,
 		active_unit,

@@ -18,7 +18,7 @@ func get_session():
 
 
 func dispose(clear_persisted_game: bool = false) -> void:
-	if _session != null and _session.has_method("dispose"):
+	if _session != null:
 		await _session.dispose(clear_persisted_game)
 	_session = null
 

@@ -167,7 +167,7 @@ func start_battle_by_kind(encounter_kind: StringName) -> Dictionary:
 			"message": "未找到 encounter_kind=%s 的遭遇。" % String(encounter_kind),
 		}
 	_game_session.set_battle_save_lock(true)
-	_runtime._start_battle(encounter_anchor)
+	_runtime.start_battle(encounter_anchor)
 	await settle_frames(1)
 	if not _runtime.is_battle_active():
 		_game_session.set_battle_save_lock(false)
@@ -208,7 +208,7 @@ func finish_active_battle(winner_faction_id: StringName) -> Dictionary:
 	battle_state.active_unit_id = &""
 	battle_state.timeline.ready_unit_ids.clear()
 	battle_state.timeline.frozen = true
-	_runtime._refresh_battle_runtime_state()
+	_runtime.refresh_battle_runtime_state()
 	var result: Dictionary = _runtime.command_battle_wait_or_resolve()
 	await settle_frames(1)
 	return result
@@ -258,7 +258,7 @@ func dispose(clear_persisted_game: bool = false) -> void:
 	await _unload_world_scene()
 
 	if _game_session != null and is_instance_valid(_game_session):
-		if clear_persisted_game and _game_session.has_method("clear_persisted_game"):
+		if clear_persisted_game:
 			_game_session.clear_persisted_game()
 		if _owns_game_session:
 			_game_session.queue_free()
@@ -288,7 +288,7 @@ func _unload_world_scene() -> void:
 	if not has_world_loaded():
 		_runtime = null
 		return
-	if _runtime != null and _runtime.has_method("dispose"):
+	if _runtime != null:
 		_runtime.dispose()
 	_runtime = null
 	await settle_frames()
