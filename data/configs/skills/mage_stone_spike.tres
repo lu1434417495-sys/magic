@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_ao6i5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ed4hq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_bewvj"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_iuadr"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_urtcc"]
+
+[sub_resource type="Resource" id="Resource_x8prf"]
+script = ExtResource("3_bewvj")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_jfvov"]
+script = ExtResource("4_iuadr")
+skill_id = &"mage_stone_spike"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+mp_cost = 1
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_bewvj")]([SubResource("Resource_x8prf")])
+
+[resource]
+script = ExtResource("5_urtcc")
+skill_id = &"mage_stone_spike"
+display_name = "岩刺术"
+icon_id = &"mage_stone_spike"
+description = "沿直线突起石刺；对被 `rooted` 或站在 `mud` 中的目标额外伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"earth"])
+combat_profile = SubResource("Resource_jfvov")

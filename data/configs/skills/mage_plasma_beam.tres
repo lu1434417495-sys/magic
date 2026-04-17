@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_cmv8e"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_jbpch"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_j85dn"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ku10o"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_1375s"]
+
+[sub_resource type="Resource" id="Resource_wtd42"]
+script = ExtResource("3_j85dn")
+effect_type = &"damage"
+power = 14
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"lightning_resistance"
+
+[sub_resource type="Resource" id="Resource_7hifr"]
+script = ExtResource("4_ku10o")
+skill_id = &"mage_plasma_beam"
+target_mode = &"ground"
+range_value = 6
+area_pattern = &"line"
+area_value = 1
+ap_cost = 3
+mp_cost = 3
+cooldown_tu = 3
+hit_rate = -5
+effect_defs = Array[ExtResource("3_j85dn")]([SubResource("Resource_wtd42")])
+
+[resource]
+script = ExtResource("5_1375s")
+skill_id = &"mage_plasma_beam"
+display_name = "等离子光束"
+icon_id = &"mage_plasma_beam"
+description = "高穿透直线法术；若路径上单位已 `感电`，则本次对其无视部分抗性。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"lightning"])
+combat_profile = SubResource("Resource_7hifr")

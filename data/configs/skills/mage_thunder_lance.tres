@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_1wpmf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_r3yob"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_75vpm"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_mab2x"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_qnd0t"]
+
+[sub_resource type="Resource" id="Resource_xk6lt"]
+script = ExtResource("3_75vpm")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"lightning_resistance"
+
+[sub_resource type="Resource" id="Resource_y7cpo"]
+script = ExtResource("4_mab2x")
+skill_id = &"mage_thunder_lance"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_75vpm")]([SubResource("Resource_xk6lt")])
+
+[resource]
+script = ExtResource("5_qnd0t")
+skill_id = &"mage_thunder_lance"
+display_name = "惊雷贯枪"
+icon_id = &"mage_thunder_lance"
+description = "直线穿透雷击；对大型单位或成排敌人收益明显。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"lightning"])
+combat_profile = SubResource("Resource_y7cpo")

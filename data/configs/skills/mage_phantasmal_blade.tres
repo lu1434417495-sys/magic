@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_i8yc7"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_u51lv"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_bu1eq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_x0qha"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_cenur"]
+
+[sub_resource type="Resource" id="Resource_03476"]
+script = ExtResource("3_bu1eq")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_nwtoq"]
+script = ExtResource("4_x0qha")
+skill_id = &"mage_phantasmal_blade"
+range_value = 5
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 1
+hit_rate = 10
+effect_defs = Array[ExtResource("3_bu1eq")]([SubResource("Resource_03476")])
+
+[resource]
+script = ExtResource("5_cenur")
+skill_id = &"mage_phantasmal_blade"
+display_name = "幻刃诱杀"
+icon_id = &"mage_phantasmal_blade"
+description = "若目标已 `blinded` 或 `staggered`，则本次改为 `140%` 伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"illusion"])
+combat_profile = SubResource("Resource_nwtoq")

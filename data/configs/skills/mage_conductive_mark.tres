@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_au4km"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_1cn6h"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ee62o"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_mwgbm"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_47ypr"]
+
+[sub_resource type="Resource" id="Resource_m70dv"]
+script = ExtResource("3_ee62o")
+effect_type = &"damage"
+power = 6
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"lightning_resistance"
+
+[sub_resource type="Resource" id="Resource_kbdto"]
+script = ExtResource("4_mwgbm")
+skill_id = &"mage_conductive_mark"
+range_value = 5
+mp_cost = 1
+cooldown_tu = 1
+hit_rate = 10
+effect_defs = Array[ExtResource("3_ee62o")]([SubResource("Resource_m70dv")])
+
+[resource]
+script = ExtResource("5_47ypr")
+skill_id = &"mage_conductive_mark"
+display_name = "导电印记"
+icon_id = &"mage_conductive_mark"
+description = "纯联动技能；目标在 `2` 回合内承受的第一个雷系技能必定附加 `shocked`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"lightning"])
+combat_profile = SubResource("Resource_kbdto")

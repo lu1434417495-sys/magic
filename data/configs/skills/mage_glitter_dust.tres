@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_4sfnw"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_wjsif"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_nuich"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ync7f"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_cdcxv"]
+
+[sub_resource type="Resource" id="Resource_ix3xt"]
+script = ExtResource("3_nuich")
+effect_type = &"damage"
+power = 7
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_7w06q"]
+script = ExtResource("4_ync7f")
+skill_id = &"mage_glitter_dust"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 1
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_nuich")]([SubResource("Resource_ix3xt")])
+
+[resource]
+script = ExtResource("5_cdcxv")
+skill_id = &"mage_glitter_dust"
+display_name = "炫尘术"
+icon_id = &"mage_glitter_dust"
+description = "扬起闪耀粉尘；命中敌人获得 `blinded`，并揭示隐身或潜伏单位。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"illusion"])
+combat_profile = SubResource("Resource_7w06q")

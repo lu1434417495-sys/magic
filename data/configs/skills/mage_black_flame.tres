@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_rg86u"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_y2ab5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_cgad7"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_4nsnc"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_kl3no"]
+
+[sub_resource type="Resource" id="Resource_f0thj"]
+script = ExtResource("3_cgad7")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"negative_energy_resistance"
+
+[sub_resource type="Resource" id="Resource_cjwwx"]
+script = ExtResource("4_4nsnc")
+skill_id = &"mage_black_flame"
+range_value = 5
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_cgad7")]([SubResource("Resource_f0thj")])
+
+[resource]
+script = ExtResource("5_kl3no")
+skill_id = &"mage_black_flame"
+display_name = "冥火术"
+icon_id = &"mage_black_flame"
+description = "施加不可被普通净化立刻清除的暗焰 `灼烧`；对高回复敌人特别克制。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
+combat_profile = SubResource("Resource_cjwwx")

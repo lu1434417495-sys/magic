@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_og6tx"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ui7p1"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_7wjx4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_uo4dg"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_c1cjq"]
+
+[sub_resource type="Resource" id="Resource_y8jps"]
+script = ExtResource("3_7wjx4")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"fire_resistance"
+
+[sub_resource type="Resource" id="Resource_unfl3"]
+script = ExtResource("4_uo4dg")
+skill_id = &"mage_phoenix_arc"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_7wjx4")]([SubResource("Resource_y8jps")])
+
+[resource]
+script = ExtResource("5_c1cjq")
+skill_id = &"mage_phoenix_arc"
+display_name = "凤焰弧"
+icon_id = &"mage_phoenix_arc"
+description = "火焰掠过路径时优先打击血量最低的目标；若击杀，施法者获得 `咏唱`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+combat_profile = SubResource("Resource_unfl3")

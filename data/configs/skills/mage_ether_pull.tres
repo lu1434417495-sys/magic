@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_odqx6"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_lk348"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_dgj6s"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_863ed"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_tf341"]
+
+[sub_resource type="Resource" id="Resource_0qk2p"]
+script = ExtResource("3_dgj6s")
+effect_type = &"damage"
+power = 6
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_gtqok"]
+script = ExtResource("4_863ed")
+skill_id = &"mage_ether_pull"
+range_value = 5
+mp_cost = 1
+cooldown_tu = 1
+hit_rate = 10
+effect_defs = Array[ExtResource("3_dgj6s")]([SubResource("Resource_0qk2p")])
+
+[resource]
+script = ExtResource("5_tf341")
+skill_id = &"mage_ether_pull"
+display_name = "以太牵引"
+icon_id = &"mage_ether_pull"
+description = "轻伤并把目标拉近或推远 `1` 格；用于把敌人拖进 `fire_wall`、`mud` 或 `null_zone`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane"])
+combat_profile = SubResource("Resource_gtqok")

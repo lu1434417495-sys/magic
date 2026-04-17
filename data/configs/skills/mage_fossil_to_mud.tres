@@ -1,0 +1,86 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_jioog"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_0vatg"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_o0jes"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_f3njh"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_d2mrt"]
+
+[sub_resource type="Resource" id="Resource_pu46y"]
+script = ExtResource("3_o0jes")
+effect_type = &"terrain_replace"
+terrain_replace_to = &"mud"
+
+[sub_resource type="Resource" id="Resource_cb1ig"]
+script = ExtResource("2_0vatg")
+variant_id = &"mud_single"
+display_name = "单格泥沼"
+description = "将单格平地或地刺改为泥沼。"
+allowed_base_terrains = Array[StringName]([&"land", &"spike"])
+effect_defs = Array[ExtResource("3_o0jes")]([SubResource("Resource_pu46y")])
+
+[sub_resource type="Resource" id="Resource_lcj11"]
+script = ExtResource("3_o0jes")
+effect_type = &"height_delta"
+height_delta = -1
+
+[sub_resource type="Resource" id="Resource_6qv13"]
+script = ExtResource("2_0vatg")
+variant_id = &"lower_single_1"
+display_name = "单格降一层"
+description = "将单格平地或地刺降低 1 层。"
+min_skill_level = 1
+allowed_base_terrains = Array[StringName]([&"land", &"spike"])
+effect_defs = Array[ExtResource("3_o0jes")]([SubResource("Resource_lcj11")])
+
+[sub_resource type="Resource" id="Resource_sinru"]
+script = ExtResource("3_o0jes")
+effect_type = &"height_delta"
+height_delta = -1
+
+[sub_resource type="Resource" id="Resource_pkivc"]
+script = ExtResource("2_0vatg")
+variant_id = &"lower_line2_1"
+display_name = "双格各降一层"
+description = "将两个正交连续地格各降低 1 层。"
+min_skill_level = 3
+footprint_pattern = &"line2"
+required_coord_count = 2
+allowed_base_terrains = Array[StringName]([&"land", &"spike"])
+effect_defs = Array[ExtResource("3_o0jes")]([SubResource("Resource_sinru")])
+
+[sub_resource type="Resource" id="Resource_7wo80"]
+script = ExtResource("3_o0jes")
+effect_type = &"terrain_replace"
+terrain_replace_to = &"mud"
+
+[sub_resource type="Resource" id="Resource_c0vs3"]
+script = ExtResource("2_0vatg")
+variant_id = &"mud_square2"
+display_name = "二乘二泥沼"
+description = "将 2x2 地格整体改为泥沼。"
+min_skill_level = 5
+footprint_pattern = &"square2"
+required_coord_count = 4
+allowed_base_terrains = Array[StringName]([&"land", &"spike"])
+effect_defs = Array[ExtResource("3_o0jes")]([SubResource("Resource_7wo80")])
+
+[sub_resource type="Resource" id="Resource_sjstb"]
+script = ExtResource("4_f3njh")
+skill_id = &"mage_fossil_to_mud"
+target_mode = &"ground"
+range_value = 3
+mp_cost = 2
+cooldown_tu = 1
+cast_variants = Array[ExtResource("2_0vatg")]([SubResource("Resource_cb1ig"), SubResource("Resource_6qv13"), SubResource("Resource_pkivc"), SubResource("Resource_c0vs3")])
+
+[resource]
+script = ExtResource("5_d2mrt")
+skill_id = &"mage_fossil_to_mud"
+display_name = "化石为泥"
+icon_id = &"mage_fossil_to_mud"
+description = "法师地形改造技能的文档前缀别名，当前继续沿用既有 ground + cast_variants 兼容表达。"
+max_level = 5
+mastery_curve = PackedInt32Array(20, 30, 45, 60, 80)
+tags = Array[StringName]([&"mage", &"magic", &"earth", &"terrain"])
+combat_profile = SubResource("Resource_sjstb")

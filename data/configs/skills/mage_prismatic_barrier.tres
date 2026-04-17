@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_c2ttp"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_okaxh"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_7pj8o"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_a7rdk"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_63rsa"]
+
+[sub_resource type="Resource" id="Resource_vwsas"]
+script = ExtResource("4_a7rdk")
+skill_id = &"mage_prismatic_barrier"
+target_team_filter = &"ally"
+range_value = 3
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+
+[resource]
+script = ExtResource("5_63rsa")
+skill_id = &"mage_prismatic_barrier"
+display_name = "棱彩屏障"
+icon_id = &"mage_prismatic_barrier"
+description = "给友军附加多属性抗性，适合保前排或防敌方法师爆发。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_vwsas")

@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_qa8oe"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_opwo4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_63dcl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_4ndsn"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_u1rin"]
+
+[sub_resource type="Resource" id="Resource_1c508"]
+script = ExtResource("3_63dcl")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"fire_resistance"
+
+[sub_resource type="Resource" id="Resource_ivcl5"]
+script = ExtResource("4_4ndsn")
+skill_id = &"mage_sunflare_bomb"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 3
+mp_cost = 3
+cooldown_tu = 4
+aura_cost = 1
+effect_defs = Array[ExtResource("3_63dcl")]([SubResource("Resource_1c508")])
+
+[resource]
+script = ExtResource("5_u1rin")
+skill_id = &"mage_sunflare_bomb"
+display_name = "日耀焚弹"
+icon_id = &"mage_sunflare_bomb"
+description = "火焰与强光并发；命中的敌人获得 `blinded`，是火系招牌清场与拆阵技能。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+combat_profile = SubResource("Resource_ivcl5")

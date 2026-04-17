@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_85fhd"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_d22k4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ktawl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_y33uv"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_44cps"]
+
+[sub_resource type="Resource" id="Resource_xasur"]
+script = ExtResource("3_ktawl")
+effect_type = &"damage"
+power = 9
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"lightning_resistance"
+
+[sub_resource type="Resource" id="Resource_blmuj"]
+script = ExtResource("4_y33uv")
+skill_id = &"mage_tempest_ring"
+target_mode = &"ground"
+range_value = 0
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 3
+mp_cost = 2
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_ktawl")]([SubResource("Resource_xasur")])
+
+[resource]
+script = ExtResource("5_44cps")
+skill_id = &"mage_tempest_ring"
+display_name = "风暴环"
+icon_id = &"mage_tempest_ring"
+description = "以自身为中心向外释放电弧；对试图包围法师的敌人压制力极强。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"lightning"])
+combat_profile = SubResource("Resource_blmuj")

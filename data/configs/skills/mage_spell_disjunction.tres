@@ -1,0 +1,59 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_l0g1t"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ng8s8"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_xlsww"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_628t1"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_iuvjb"]
+
+[sub_resource type="Resource" id="Resource_r8gt0"]
+script = ExtResource("3_xlsww")
+effect_type = &"damage"
+power = 11
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_x8cf6"]
+script = ExtResource("3_xlsww")
+effect_type = &"break_equipment_on_hit"
+params = {
+"base_break_chance": 35,
+"max_broken_items": 1,
+"require_damage_applied": true,
+"slot_break_chance_map": {
+"accessory_1": 0.7,
+"accessory_2": 0.7,
+"body": 0.6,
+"head": 0.85,
+"main_hand": 1.0,
+"off_hand": 0.9
+},
+"slot_weight_map": {
+"accessory_1": 10,
+"accessory_2": 10,
+"body": 10,
+"head": 20,
+"main_hand": 30,
+"off_hand": 20
+}
+}
+
+[sub_resource type="Resource" id="Resource_2ps32"]
+script = ExtResource("4_628t1")
+skill_id = &"mage_spell_disjunction"
+range_value = 5
+ap_cost = 2
+mp_cost = 3
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_xlsww")]([SubResource("Resource_r8gt0"), SubResource("Resource_x8cf6")])
+
+[resource]
+script = ExtResource("5_iuvjb")
+skill_id = &"mage_spell_disjunction"
+display_name = "裂解术"
+icon_id = &"mage_spell_disjunction"
+description = "单体法术伤害附带装备破坏定义语义；当前运行时仅稳定执行首段法术伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane", &"breaker"])
+combat_profile = SubResource("Resource_2ps32")

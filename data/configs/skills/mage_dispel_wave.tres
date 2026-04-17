@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_a3p3x"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_5f3ip"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_6igoy"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_nrnby"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8yvi0"]
+
+[sub_resource type="Resource" id="Resource_wtxb0"]
+script = ExtResource("3_6igoy")
+effect_type = &"damage"
+power = 5
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_7eode"]
+script = ExtResource("4_nrnby")
+skill_id = &"mage_dispel_wave"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_6igoy")]([SubResource("Resource_wtxb0")])
+
+[resource]
+script = ExtResource("5_8yvi0")
+skill_id = &"mage_dispel_wave"
+display_name = "驱散波"
+icon_id = &"mage_dispel_wave"
+description = "同时清理敌方增益与友方减益，是中后期泛用解场技。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_7eode")

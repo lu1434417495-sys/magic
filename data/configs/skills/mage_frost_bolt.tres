@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_6bjye"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_on8qb"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_6pfqh"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_vw6lx"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_3cjfk"]
+
+[sub_resource type="Resource" id="Resource_lke28"]
+script = ExtResource("3_6pfqh")
+effect_type = &"damage"
+power = 9
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"freeze_resistance"
+
+[sub_resource type="Resource" id="Resource_42ml5"]
+script = ExtResource("4_vw6lx")
+skill_id = &"mage_frost_bolt"
+range_value = 5
+mp_cost = 1
+hit_rate = 10
+effect_defs = Array[ExtResource("3_6pfqh")]([SubResource("Resource_lke28")])
+
+[resource]
+script = ExtResource("5_3cjfk")
+skill_id = &"mage_frost_bolt"
+display_name = "霜击术"
+icon_id = &"mage_frost_bolt"
+description = "低耗冰系基础法术；命中施加 `寒蚀`，给队友近战和弓箭补伤口。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"ice"])
+combat_profile = SubResource("Resource_42ml5")

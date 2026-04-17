@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_iqed6"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ackve"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_vtw5q"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_op6k2"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_q4h26"]
+
+[sub_resource type="Resource" id="Resource_guoxj"]
+script = ExtResource("3_vtw5q")
+effect_type = &"damage"
+power = 9
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_gkvop"]
+script = ExtResource("4_op6k2")
+skill_id = &"mage_arcane_turret"
+target_mode = &"ground"
+range_value = 4
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_vtw5q")]([SubResource("Resource_guoxj")])
+
+[resource]
+script = ExtResource("5_q4h26")
+skill_id = &"mage_arcane_turret"
+display_name = "奥术炮台"
+icon_id = &"mage_arcane_turret"
+description = "固定炮台型召唤物；优先攻击带 `奥脆` 的目标。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"summon"])
+combat_profile = SubResource("Resource_gkvop")

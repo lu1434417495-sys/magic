@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_tq2dr"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_0p3st"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_f1vv4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_7fkiq"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_2c60e"]
+
+[sub_resource type="Resource" id="Resource_88m0x"]
+script = ExtResource("3_f1vv4")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_3uni0"]
+script = ExtResource("4_7fkiq")
+skill_id = &"mage_runic_trap"
+target_mode = &"ground"
+range_value = 4
+ap_cost = 2
+mp_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_f1vv4")]([SubResource("Resource_88m0x")])
+
+[resource]
+script = ExtResource("5_2c60e")
+skill_id = &"mage_runic_trap"
+display_name = "符印陷阱"
+icon_id = &"mage_runic_trap"
+description = "在指定地格布置奥术印记；被触发时爆发奥术伤害并施加 `奥脆`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane"])
+combat_profile = SubResource("Resource_3uni0")

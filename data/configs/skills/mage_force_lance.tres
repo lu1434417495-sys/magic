@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_dkafh"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_eyfhf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_b5vy3"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_br4qw"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_cqxl6"]
+
+[sub_resource type="Resource" id="Resource_pq75f"]
+script = ExtResource("3_b5vy3")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_nlt8v"]
+script = ExtResource("4_br4qw")
+skill_id = &"mage_force_lance"
+range_value = 5
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 1
+hit_rate = 5
+effect_defs = Array[ExtResource("3_b5vy3")]([SubResource("Resource_pq75f")])
+
+[resource]
+script = ExtResource("5_cqxl6")
+skill_id = &"mage_force_lance"
+display_name = "力场矛"
+icon_id = &"mage_force_lance"
+description = "奥术直刺；对 `armor_break` 目标额外 `+20%` 伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane"])
+combat_profile = SubResource("Resource_nlt8v")

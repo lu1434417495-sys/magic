@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_i8mh8"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_r6nys"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_3034b"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_d2j34"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_oobsk"]
+
+[sub_resource type="Resource" id="Resource_bq4fp"]
+script = ExtResource("3_3034b")
+effect_type = &"damage"
+power = 8
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_6lw6t"]
+script = ExtResource("4_d2j34")
+skill_id = &"mage_sandstorm"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 3
+mp_cost = 2
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_3034b")]([SubResource("Resource_bq4fp")])
+
+[resource]
+script = ExtResource("5_oobsk")
+skill_id = &"mage_sandstorm"
+display_name = "沙暴术"
+icon_id = &"mage_sandstorm"
+description = "低伤高扰乱法术；区域内敌人获得 `blinded`，远程单位尤其难受。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"earth"])
+combat_profile = SubResource("Resource_6lw6t")

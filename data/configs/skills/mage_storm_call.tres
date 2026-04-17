@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_5mwrf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_saqsk"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_so6bw"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ynkql"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_hmqbi"]
+
+[sub_resource type="Resource" id="Resource_giwvv"]
+script = ExtResource("3_so6bw")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"lightning_resistance"
+
+[sub_resource type="Resource" id="Resource_mhc4k"]
+script = ExtResource("4_ynkql")
+skill_id = &"mage_storm_call"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_so6bw")]([SubResource("Resource_giwvv")])
+
+[resource]
+script = ExtResource("5_hmqbi")
+skill_id = &"mage_storm_call"
+display_name = "唤雷术"
+icon_id = &"mage_storm_call"
+description = "从空中落下直击雷；对高地或空旷地格额外 `+10%` 伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"lightning"])
+combat_profile = SubResource("Resource_mhc4k")

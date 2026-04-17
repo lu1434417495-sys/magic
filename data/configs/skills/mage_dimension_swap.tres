@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_ptoxe"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_1ayi7"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_8noml"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_x4co0"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_4j0wa"]
+
+[sub_resource type="Resource" id="Resource_vqav6"]
+script = ExtResource("4_x4co0")
+skill_id = &"mage_dimension_swap"
+range_value = 4
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+
+[resource]
+script = ExtResource("5_4j0wa")
+skill_id = &"mage_dimension_swap"
+display_name = "移形换位"
+icon_id = &"mage_dimension_swap"
+description = "与友军或敌方互换站位；把目标换进 `mud`、火墙或包夹点的收益很高。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_vqav6")

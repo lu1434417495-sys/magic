@@ -245,3 +245,7 @@ Added `SkillContentRegistry` to scan and structurally validate `data/configs/ski
 ## 2026-04-17T22:33:38+08:00 | PVS_23B | done
 title: 迁移 warrior 与 archer 正式技能 seed
 Added 49 new warrior/archer SkillDef resources plus refreshed `warrior_heavy_strike`, cut `ProgressionContentRegistry` over so warrior/archer runtime seeds come from `data/configs/skills`, removed runtime preload/use of warrior/archer spec catalogs, and updated the skill-schema regression plus `project_context_units` ownership notes without touching `.ralph/prd.json`.
+
+## 2026-04-17T22:46:39+08:00 | PVS_23C | done
+title: 迁移 mage 技能 seed 并固定 cast_variant 兼容回归
+Added 135 mage SkillDef resources under data/configs/skills, taught DesignSkillCatalog to canonicalize legacy/root-level cast_variant specs, removed the runtime mage catalog fallback from ProgressionContentRegistry, and updated the skill-schema regression plus project context ownership notes.

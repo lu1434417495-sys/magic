@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_iwgcf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_62ahm"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_u4pa4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_5b618"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_2yoto"]
+
+[sub_resource type="Resource" id="Resource_chxcw"]
+script = ExtResource("3_u4pa4")
+effect_type = &"damage"
+power = 14
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_nwxjt"]
+script = ExtResource("4_5b618")
+skill_id = &"mage_phase_beam"
+target_mode = &"ground"
+range_value = 6
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_u4pa4")]([SubResource("Resource_chxcw")])
+
+[resource]
+script = ExtResource("5_2yoto")
+skill_id = &"mage_phase_beam"
+display_name = "相位射线"
+icon_id = &"mage_phase_beam"
+description = "穿透直线法术；若路径上存在召唤物或掩体，则优先无视其阻挡。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane"])
+combat_profile = SubResource("Resource_nwxjt")

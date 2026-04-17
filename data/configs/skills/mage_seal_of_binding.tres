@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_ju5ur"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_brq1u"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_4rkt0"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_vtfwm"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_e4v12"]
+
+[sub_resource type="Resource" id="Resource_uihy3"]
+script = ExtResource("3_4rkt0")
+effect_type = &"damage"
+power = 7
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_ts78b"]
+script = ExtResource("4_vtfwm")
+skill_id = &"mage_seal_of_binding"
+range_value = 5
+mp_cost = 1
+cooldown_tu = 2
+hit_rate = 5
+effect_defs = Array[ExtResource("3_4rkt0")]([SubResource("Resource_uihy3")])
+
+[resource]
+script = ExtResource("5_e4v12")
+skill_id = &"mage_seal_of_binding"
+display_name = "束缚印"
+icon_id = &"mage_seal_of_binding"
+description = "在目标身上刻下奥术符印；目标下一个位移或冲锋类动作会直接失败。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane"])
+combat_profile = SubResource("Resource_ts78b")

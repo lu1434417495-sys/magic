@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_0nll5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_w6kpn"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_408kx"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6uebt"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_uve3t"]
+
+[sub_resource type="Resource" id="Resource_07wau"]
+script = ExtResource("4_6uebt")
+skill_id = &"mage_blink"
+target_team_filter = &"ally"
+range_value = 0
+area_pattern = &"self"
+mp_cost = 1
+cooldown_tu = 1
+target_selection_mode = &"self"
+
+[resource]
+script = ExtResource("5_uve3t")
+skill_id = &"mage_blink"
+display_name = "闪现术"
+icon_id = &"mage_blink"
+description = "立即位移最多 `3` 格；不穿重障碍，但可快速脱离近战。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_07wau")

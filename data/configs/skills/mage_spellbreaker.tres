@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_wqxe4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_15t55"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_cubid"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_frqxo"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_qhkvn"]
+
+[sub_resource type="Resource" id="Resource_q3ihs"]
+script = ExtResource("3_cubid")
+effect_type = &"damage"
+power = 9
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_1qgp0"]
+script = ExtResource("4_frqxo")
+skill_id = &"mage_spellbreaker"
+range_value = 5
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+hit_rate = 10
+effect_defs = Array[ExtResource("3_cubid")]([SubResource("Resource_q3ihs")])
+
+[resource]
+script = ExtResource("5_qhkvn")
+skill_id = &"mage_spellbreaker"
+display_name = "裂咒术"
+icon_id = &"mage_spellbreaker"
+description = "拆除目标身上的一个增益或法盾；对带护盾的施法敌人压制力很强。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane"])
+combat_profile = SubResource("Resource_1qgp0")

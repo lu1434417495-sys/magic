@@ -636,10 +636,10 @@ HeadlessGameTestSession
   - 技能、职业、条件、修正器、achievement、quest 的静态定义与 seed 内容。
 - 主要职责：
   - 定义 progression 语义，不直接执行业务流程。
-  - `SkillContentRegistry` 负责扫描 `data/configs/skills/*.tres`，并报告 skill_id、嵌套战斗资源结构与基础 schema 相关的静态错误；warrior / archer 正式技能 seed 现在以这些 SkillDef 资源为真相源。
-  - `DesignSkillCatalog` 现在只保留未迁移目录的 code seed provider；当前正式运行时只继续通过它补齐 mage 技能目录。
+  - `SkillContentRegistry` 负责扫描 `data/configs/skills/*.tres`，并报告 skill_id、嵌套战斗资源结构与基础 schema 相关的静态错误；warrior / archer / mage 正式技能 seed 现在都以这些 SkillDef 资源为真相源。
+  - `DesignSkillCatalog` 现在只保留设计兼容与资源迁移辅助语义，不再作为正式运行时补种 mage 技能目录的 owner。
   - `ProfessionContentRegistry` 负责扫描 `data/configs/professions/*.tres`，并报告 profession_id、技能/职业引用与 rank requirement 相关的静态错误。
-  - `ProgressionContentRegistry` 负责聚合 skill/profession registry、补齐剩余未迁移的 code fallback（当前主要是 `charge` 与 mage catalog），并汇总 skill/profession registry 的静态校验结果。
+  - `ProgressionContentRegistry` 负责聚合 skill/profession registry、补齐剩余未迁移的 code fallback（当前主要只剩 `charge`），并汇总 skill/profession registry 的静态校验结果。
   - 做静态内容校验。
 - 邻接单元：
   - CU-02

@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_hkqsl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_nykm6"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_75tpg"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_n4m3s"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_x7oth"]
+
+[sub_resource type="Resource" id="Resource_jgrdm"]
+script = ExtResource("3_75tpg")
+effect_type = &"damage"
+power = 6
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_njhvu"]
+script = ExtResource("4_n4m3s")
+skill_id = &"mage_silence_orb"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_75tpg")]([SubResource("Resource_jgrdm")])
+
+[resource]
+script = ExtResource("5_x7oth")
+skill_id = &"mage_silence_orb"
+display_name = "寂声法球"
+icon_id = &"mage_silence_orb"
+description = "区域内敌方施法类技能命中 `-20%`，并更难触发高阶连锁。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"illusion"])
+combat_profile = SubResource("Resource_njhvu")

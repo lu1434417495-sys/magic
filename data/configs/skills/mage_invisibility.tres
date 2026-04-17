@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_o1mbd"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_g15c1"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_7dy5j"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_wwjck"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_3ndqs"]
+
+[sub_resource type="Resource" id="Resource_3fyf5"]
+script = ExtResource("4_wwjck")
+skill_id = &"mage_invisibility"
+target_team_filter = &"ally"
+range_value = 3
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+
+[resource]
+script = ExtResource("5_3ndqs")
+skill_id = &"mage_invisibility"
+display_name = "隐形术"
+icon_id = &"mage_invisibility"
+description = "直到攻击前提升闪避与走位安全性；适合保法师或辅助突击职业切入。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"illusion"])
+combat_profile = SubResource("Resource_3fyf5")

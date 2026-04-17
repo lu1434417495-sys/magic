@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_s7i2v"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_0b1pv"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_yqq87"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_spfip"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_xfyga"]
+
+[sub_resource type="Resource" id="Resource_d0kmo"]
+script = ExtResource("3_yqq87")
+effect_type = &"damage"
+power = 8
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"fire_resistance"
+
+[sub_resource type="Resource" id="Resource_2emyi"]
+script = ExtResource("4_spfip")
+skill_id = &"mage_ember_wisp"
+target_mode = &"ground"
+range_value = 4
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_yqq87")]([SubResource("Resource_d0kmo")])
+
+[resource]
+script = ExtResource("5_xfyga")
+skill_id = &"mage_ember_wisp"
+display_name = "余烬灵"
+icon_id = &"mage_ember_wisp"
+description = "召出火焰精灵；每回合优先攻击最近敌人并施加 `灼烧`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"summon"])
+combat_profile = SubResource("Resource_2emyi")

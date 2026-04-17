@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_1x4kf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_as80b"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_qi0kj"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_dlsci"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_6islm"]
+
+[sub_resource type="Resource" id="Resource_qjy6g"]
+script = ExtResource("3_qi0kj")
+effect_type = &"damage"
+power = 9
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"fire_resistance"
+
+[sub_resource type="Resource" id="Resource_5q4va"]
+script = ExtResource("4_dlsci")
+skill_id = &"mage_ember_mine"
+target_mode = &"ground"
+range_value = 4
+ap_cost = 2
+mp_cost = 1
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_qi0kj")]([SubResource("Resource_qjy6g")])
+
+[resource]
+script = ExtResource("5_6islm")
+skill_id = &"mage_ember_mine"
+display_name = "灰烬雷"
+icon_id = &"mage_ember_mine"
+description = "在指定地格埋下火种；首个踩入的敌人受到伤害并获得 `灼烧`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+combat_profile = SubResource("Resource_5q4va")

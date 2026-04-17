@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_75qe7"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_50dhy"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_38txc"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6gola"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_od2om"]
+
+[sub_resource type="Resource" id="Resource_utev8"]
+script = ExtResource("4_6gola")
+skill_id = &"mage_mislead"
+target_team_filter = &"ally"
+range_value = 3
+mp_cost = 1
+cooldown_tu = 2
+
+[resource]
+script = ExtResource("5_od2om")
+skill_id = &"mage_mislead"
+display_name = "误导术"
+icon_id = &"mage_mislead"
+description = "为友军制造短暂伪像，令敌方下一次单体技能有概率转空。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"illusion"])
+combat_profile = SubResource("Resource_utev8")

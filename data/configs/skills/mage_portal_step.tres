@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_iqwxl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_cprul"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_86r5h"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_nnu2u"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_w01t6"]
+
+[sub_resource type="Resource" id="Resource_iurwt"]
+script = ExtResource("2_cprul")
+variant_id = &"coord_pair"
+display_name = "双点门径"
+description = "在两格之间建立短时门户，供一名友军穿越。"
+
+[sub_resource type="Resource" id="Resource_xkdrh"]
+script = ExtResource("4_nnu2u")
+skill_id = &"mage_portal_step"
+target_mode = &"ground"
+range_value = 4
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+target_selection_mode = &"coord_pair"
+min_target_count = 2
+max_target_count = 2
+cast_variants = Array[ExtResource("2_cprul")]([SubResource("Resource_iurwt")])
+
+[resource]
+script = ExtResource("5_w01t6")
+skill_id = &"mage_portal_step"
+display_name = "门径跨越"
+icon_id = &"mage_portal_step"
+description = "建议做成双点 `cast_variant`；在两格之间建立短时门户，供一名友军穿越。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_xkdrh")

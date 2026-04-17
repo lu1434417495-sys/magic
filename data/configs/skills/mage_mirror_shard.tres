@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_1mwkx"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_s4qoe"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ek8xl"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_mqqmw"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_fwaj5"]
+
+[sub_resource type="Resource" id="Resource_pnuvx"]
+script = ExtResource("3_ek8xl")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_tab1s"]
+script = ExtResource("4_mqqmw")
+skill_id = &"mage_mirror_shard"
+range_value = 5
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_ek8xl")]([SubResource("Resource_pnuvx")])
+
+[resource]
+script = ExtResource("5_fwaj5")
+skill_id = &"mage_mirror_shard"
+display_name = "棱镜碎反"
+icon_id = &"mage_mirror_shard"
+description = "命中后可对与其相邻的另一目标折射一次 `60%` 奥术伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"arcane"])
+combat_profile = SubResource("Resource_tab1s")

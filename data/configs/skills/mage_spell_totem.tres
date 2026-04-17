@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_1aw7b"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_cpbqg"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_xqrjm"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_oy4st"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_n4wfq"]
+
+[sub_resource type="Resource" id="Resource_bn8sx"]
+script = ExtResource("4_oy4st")
+skill_id = &"mage_spell_totem"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+
+[resource]
+script = ExtResource("5_n4wfq")
+skill_id = &"mage_spell_totem"
+display_name = "咒能图腾"
+icon_id = &"mage_spell_totem"
+description = "图腾周围友军获得 `咏唱` 或小幅 `mp` 回复；适合阵地战。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"summon"])
+combat_profile = SubResource("Resource_bn8sx")

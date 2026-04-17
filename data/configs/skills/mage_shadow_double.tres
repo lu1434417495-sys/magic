@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_f0mco"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_db3wu"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_t13vd"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_00paa"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_cfhfn"]
+
+[sub_resource type="Resource" id="Resource_abl5y"]
+script = ExtResource("3_t13vd")
+effect_type = &"damage"
+power = 8
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"negative_energy_resistance"
+
+[sub_resource type="Resource" id="Resource_k6cbk"]
+script = ExtResource("4_00paa")
+skill_id = &"mage_shadow_double"
+target_team_filter = &"ally"
+range_value = 0
+area_pattern = &"self"
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_t13vd")]([SubResource("Resource_abl5y")])
+
+[resource]
+script = ExtResource("5_cfhfn")
+skill_id = &"mage_shadow_double"
+display_name = "阴影分身"
+icon_id = &"mage_shadow_double"
+description = "复制施法者的上一个单体技能一次低配版本，适合作为节奏延伸器。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"summon"])
+combat_profile = SubResource("Resource_k6cbk")

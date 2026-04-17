@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_3bufc"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_xmbge"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_omo2u"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_k13kr"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_ik2ex"]
+
+[sub_resource type="Resource" id="Resource_8268l"]
+script = ExtResource("3_omo2u")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_ob00m"]
+script = ExtResource("4_k13kr")
+skill_id = &"mage_crystal_pike"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_omo2u")]([SubResource("Resource_8268l")])
+
+[resource]
+script = ExtResource("5_ik2ex")
+skill_id = &"mage_crystal_pike"
+display_name = "晶簇突刺"
+icon_id = &"mage_crystal_pike"
+description = "在落点形成高密度水晶刺群；对 `frozen` 目标追加一次碎裂伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"earth"])
+combat_profile = SubResource("Resource_ob00m")

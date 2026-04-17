@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_03kay"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_kk27b"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_if6wa"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_8cock"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_p8fxu"]
+
+[sub_resource type="Resource" id="Resource_lhwai"]
+script = ExtResource("4_8cock")
+skill_id = &"mage_force_wall"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+
+[resource]
+script = ExtResource("5_p8fxu")
+skill_id = &"mage_force_wall"
+display_name = "力场墙"
+icon_id = &"mage_force_wall"
+description = "生成持续 `2` 回合的不可穿越力场；专门用来切割阵型。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_lhwai")

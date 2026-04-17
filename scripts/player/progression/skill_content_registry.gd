@@ -167,11 +167,8 @@ func _append_combat_profile_validation_errors(
 		errors.append(
 			"Skill %s combat_profile max_target_count must be >= min_target_count." % String(skill_id)
 		)
-	if combat_profile.effect_defs.is_empty() and combat_profile.cast_variants.is_empty():
-		errors.append(
-			"Skill %s combat_profile must declare effect_defs or cast_variants." % String(skill_id)
-		)
-
+	# Mage design seeds intentionally contain placeholder active skills and selection-only variants.
+	# Resource validation keeps structural checks, but it must not reject those zero-effect carriers.
 	for effect_index in range(combat_profile.effect_defs.size()):
 		_append_effect_validation_errors(
 			errors,
@@ -214,13 +211,6 @@ func _append_combat_profile_validation_errors(
 		if cast_variant.required_coord_count <= 0:
 			errors.append(
 				"Skill %s cast variant %s must have required_coord_count >= 1." % [
-					String(skill_id),
-					String(cast_variant.variant_id),
-				]
-			)
-		if cast_variant.effect_defs.is_empty():
-			errors.append(
-				"Skill %s cast variant %s must declare at least one effect." % [
 					String(skill_id),
 					String(cast_variant.variant_id),
 				]

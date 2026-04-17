@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_y4kdv"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_g8h4m"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_sne8a"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_xf85s"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8txyi"]
+
+[sub_resource type="Resource" id="Resource_n0fxb"]
+script = ExtResource("3_sne8a")
+effect_type = &"damage"
+power = 8
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"negative_energy_resistance"
+
+[sub_resource type="Resource" id="Resource_85ktq"]
+script = ExtResource("4_xf85s")
+skill_id = &"mage_soul_cage"
+range_value = 5
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_sne8a")]([SubResource("Resource_n0fxb")])
+
+[resource]
+script = ExtResource("5_8txyi")
+skill_id = &"mage_soul_cage"
+display_name = "灵魂囚笼"
+icon_id = &"mage_soul_cage"
+description = "禁止目标在 `2` 回合内获得治疗或复活类收益；对精英和首领战很有价值。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
+combat_profile = SubResource("Resource_85ktq")

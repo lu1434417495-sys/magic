@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_88lj7"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_16gor"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_wc31t"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_gypov"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_0sheu"]
+
+[sub_resource type="Resource" id="Resource_bdqds"]
+script = ExtResource("3_wc31t")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_n3b8b"]
+script = ExtResource("4_gypov")
+skill_id = &"mage_searing_orb"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 1
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_wc31t")]([SubResource("Resource_bdqds")])
+
+[resource]
+script = ExtResource("5_0sheu")
+skill_id = &"mage_searing_orb"
+display_name = "灼热法珠"
+icon_id = &"mage_searing_orb"
+description = "轻量范围技；中心目标若已 `寒蚀`，则本次额外触发一次 `40%` 爆燃伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+combat_profile = SubResource("Resource_n3b8b")

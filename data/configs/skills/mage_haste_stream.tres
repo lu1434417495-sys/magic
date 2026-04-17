@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_qe5fy"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_yrqma"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_lt6ba"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_b5u3w"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_jkxm5"]
+
+[sub_resource type="Resource" id="Resource_aascj"]
+script = ExtResource("4_b5u3w")
+skill_id = &"mage_haste_stream"
+target_team_filter = &"ally"
+range_value = 3
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+
+[resource]
+script = ExtResource("5_jkxm5")
+skill_id = &"mage_haste_stream"
+display_name = "急速流"
+icon_id = &"mage_haste_stream"
+description = "赋予友军短时加速；非常适合战士冲锋和弓手转线。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_aascj")

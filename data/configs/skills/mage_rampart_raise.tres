@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_5i4k0"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_mudpc"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_aewbb"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_gb2d1"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_dv31k"]
+
+[sub_resource type="Resource" id="Resource_v3suk"]
+script = ExtResource("2_mudpc")
+variant_id = &"short_wall"
+display_name = "短墙"
+description = "提供短距离切线屏障。"
+
+[sub_resource type="Resource" id="Resource_favh6"]
+script = ExtResource("2_mudpc")
+variant_id = &"pillar"
+display_name = "单柱高地"
+description = "制造单点高地支撑。"
+
+[sub_resource type="Resource" id="Resource_orjcm"]
+script = ExtResource("2_mudpc")
+variant_id = &"double_cover"
+display_name = "双格掩体"
+description = "形成双格掩体屏障。"
+
+[sub_resource type="Resource" id="Resource_mq4xh"]
+script = ExtResource("4_gb2d1")
+skill_id = &"mage_rampart_raise"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+cast_variants = Array[ExtResource("2_mudpc")]([SubResource("Resource_v3suk"), SubResource("Resource_favh6"), SubResource("Resource_orjcm")])
+
+[resource]
+script = ExtResource("5_dv31k")
+skill_id = &"mage_rampart_raise"
+display_name = "升墙术"
+icon_id = &"mage_rampart_raise"
+description = "建议做成 `cast_variants`，提供“短墙 / 单柱高地 / 双格掩体”三种形态，用于切线和保后排。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"earth"])
+combat_profile = SubResource("Resource_mq4xh")

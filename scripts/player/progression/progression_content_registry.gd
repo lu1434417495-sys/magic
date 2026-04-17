@@ -8,7 +8,6 @@ extends RefCounted
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const DESIGN_SKILL_CATALOG_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog.gd")
 const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
 const PROFESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/profession_content_registry.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
@@ -68,8 +67,7 @@ func rebuild() -> void:
 	for skill_key in _skill_defs.keys():
 		_resource_skill_ids[StringName(skill_key)] = true
 	_register_seed_melee_skills()
-	# Warrior / archer official skills now live in SkillDef resources under data/configs/skills.
-	_register_mage_skill_catalog()
+	# Official profession skill seeds now live in SkillDef resources under data/configs/skills.
 	_validation_errors.append_array(_skill_content_registry.validate())
 	# Profession seed ownership lives in resource files under data/configs/professions.
 	_profession_content_registry.setup(_skill_defs)
@@ -136,10 +134,6 @@ func _register_seed_melee_skills() -> void:
 			_build_charge_combat_profile(&"charge")
 		)
 	)
-
-
-func _register_mage_skill_catalog() -> void:
-	DESIGN_SKILL_CATALOG_SCRIPT.new().register_mage_skills(Callable(self, "_register_skill"))
 
 
 func _register_seed_achievements() -> void:

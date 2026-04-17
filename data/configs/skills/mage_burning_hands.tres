@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_1ex6e"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_5p3a2"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ymrxf"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_2jcg7"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_fqnkt"]
+
+[sub_resource type="Resource" id="Resource_1xdhh"]
+script = ExtResource("3_ymrxf")
+effect_type = &"damage"
+power = 11
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"fire_resistance"
+
+[sub_resource type="Resource" id="Resource_7yom8"]
+script = ExtResource("4_2jcg7")
+skill_id = &"mage_burning_hands"
+target_mode = &"ground"
+range_value = 0
+area_pattern = &"cone"
+area_value = 1
+ap_cost = 2
+mp_cost = 1
+cooldown_tu = 1
+hit_rate = 5
+effect_defs = Array[ExtResource("3_ymrxf")]([SubResource("Resource_1xdhh")])
+
+[resource]
+script = ExtResource("5_fqnkt")
+skill_id = &"mage_burning_hands"
+display_name = "焚掌喷流"
+icon_id = &"mage_burning_hands"
+description = "近距离扇形压制；对贴脸敌人清场效率高，适合法师被近战压迫时反打。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+combat_profile = SubResource("Resource_7yom8")

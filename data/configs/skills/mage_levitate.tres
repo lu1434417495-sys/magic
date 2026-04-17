@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_u3bd0"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_xkmm3"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_m82ov"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ybyso"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_rolio"]
+
+[sub_resource type="Resource" id="Resource_ammvw"]
+script = ExtResource("4_ybyso")
+skill_id = &"mage_levitate"
+target_team_filter = &"ally"
+range_value = 3
+mp_cost = 1
+cooldown_tu = 2
+
+[resource]
+script = ExtResource("5_rolio")
+skill_id = &"mage_levitate"
+display_name = "浮空术"
+icon_id = &"mage_levitate"
+description = "使目标短时无视 `mud`、地刺和轻度高差；非常适合辅助重装前排。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_ammvw")

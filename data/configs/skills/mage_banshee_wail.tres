@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_ft5s8"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_314ln"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_psl42"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_8nau6"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_ganhp"]
+
+[sub_resource type="Resource" id="Resource_ydf86"]
+script = ExtResource("3_psl42")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"negative_energy_resistance"
+
+[sub_resource type="Resource" id="Resource_sqr10"]
+script = ExtResource("4_8nau6")
+skill_id = &"mage_banshee_wail"
+target_mode = &"ground"
+range_value = 0
+area_pattern = &"cone"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 2
+effect_defs = Array[ExtResource("3_psl42")]([SubResource("Resource_ydf86")])
+
+[resource]
+script = ExtResource("5_ganhp")
+skill_id = &"mage_banshee_wail"
+display_name = "女妖哀嚎"
+icon_id = &"mage_banshee_wail"
+description = "近距离群体压制；命中的敌人获得 `staggered`，并优先后退。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
+combat_profile = SubResource("Resource_sqr10")

@@ -1,5 +1,6 @@
 extends SceneTree
 
+const DesignSkillCatalog = preload("res://scripts/player/progression/design_skill_catalog.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
@@ -69,6 +70,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_design_mage_catalog_root_cast_variant_compatibility()
 	_test_seed_skill_resources_scan_and_validate()
 	_test_progression_registry_keeps_skill_resource_and_compat_bridge()
 	_test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs()
@@ -88,10 +90,12 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	var registry := SkillContentRegistry.new()
 	var skill_defs := registry.get_skill_defs()
 	var heavy_strike := skill_defs.get(&"warrior_heavy_strike") as SkillDef
+	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
 
 	_assert_true(registry.validate().is_empty(), "SkillContentRegistry 的正式技能资源当前不应报告校验错误。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
+	_assert_resource_backed_skill_ids(skill_defs, _build_mage_catalog_skill_ids(), &"mage", "法师")
 	_assert_true(skill_defs.has(&"warrior_heavy_strike"), "SkillContentRegistry 应扫描到已迁移的重击资源。")
 	_assert_true(heavy_strike != null, "重击资源应成功转成 SkillDef。")
 	if heavy_strike == null:
@@ -106,6 +110,7 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(heavy_strike.combat_profile.effect_defs.size()), 2, "重击资源应保留两条 effect_defs。")
 		_assert_eq(int(heavy_strike.combat_profile.ap_cost), 2, "重击资源应保留 2 点 AP 消耗。")
 		_assert_eq(int(heavy_strike.combat_profile.stamina_cost), 1, "重击资源应保留 1 点体力消耗。")
+	_assert_cast_variant_compat_shape(fossil_to_mud, "SkillContentRegistry")
 
 
 func _test_progression_registry_keeps_skill_resource_and_compat_bridge() -> void:
@@ -113,18 +118,27 @@ func _test_progression_registry_keeps_skill_resource_and_compat_bridge() -> void
 	var skill_defs := registry.get_skill_defs()
 	var heavy_strike := skill_defs.get(&"warrior_heavy_strike") as SkillDef
 	var charge := skill_defs.get(&"charge") as SkillDef
-	var mage_fireball := skill_defs.get(&"mage_fireball") as SkillDef
+	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
 
 	_assert_true(registry.validate().is_empty(), "ProgressionContentRegistry 接入 skill resource 后仍应通过静态校验。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
+	_assert_resource_backed_skill_ids(skill_defs, _build_mage_catalog_skill_ids(), &"mage", "法师")
 	_assert_true(heavy_strike != null, "ProgressionContentRegistry 应暴露已迁移的重击资源。")
 	_assert_true(charge != null, "seed 未全迁完前，兼容桥仍应保留 code seed 的冲锋。")
-	_assert_true(mage_fireball != null, "兼容桥仍应保留未迁移的设计技能目录。")
 	if heavy_strike != null:
 		_assert_eq(String(heavy_strike.resource_path), OFFICIAL_HEAVY_STRIKE_PATH, "已迁移技能在 ProgressionContentRegistry 中不应被 code seed 覆盖。")
 	if charge != null:
 		_assert_true(String(charge.resource_path).is_empty(), "冲锋当前仍应通过兼容桥从 code seed 提供。")
+	_assert_cast_variant_compat_shape(fossil_to_mud, "ProgressionContentRegistry")
+
+
+func _test_design_mage_catalog_root_cast_variant_compatibility() -> void:
+	var skill_defs := _build_mage_catalog_skill_defs()
+	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
+
+	_assert_true(fossil_to_mud != null, "DesignSkillCatalog 应继续解析根级 cast_variant 技能。")
+	_assert_cast_variant_compat_shape(fossil_to_mud, "DesignSkillCatalog")
 
 
 func _test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs() -> void:
@@ -178,6 +192,64 @@ func _assert_resource_backed_skill_ids(
 			skill_def.tags.has(expected_tag),
 			"%s技能 %s 应保留 %s 标签。" % [label, String(skill_id), String(expected_tag)]
 		)
+
+
+func _build_mage_catalog_skill_ids() -> Array[StringName]:
+	var skill_defs := _build_mage_catalog_skill_defs()
+	var skill_ids: Array[StringName] = []
+	for skill_key in skill_defs.keys():
+		skill_ids.append(StringName(skill_key))
+	return skill_ids
+
+
+func _build_mage_catalog_skill_defs() -> Dictionary:
+	var skill_defs: Dictionary = {}
+	DesignSkillCatalog.new().register_mage_skills(func(skill_def: SkillDef) -> void:
+		if skill_def == null or skill_def.skill_id == &"":
+			return
+		skill_defs[skill_def.skill_id] = skill_def
+	)
+	return skill_defs
+
+
+func _assert_cast_variant_compat_shape(skill_def: SkillDef, source_label: String) -> void:
+	_assert_true(skill_def != null, "%s 应提供 mage_fossil_to_mud。" % source_label)
+	if skill_def == null:
+		return
+	_assert_true(skill_def.combat_profile != null, "%s 的 mage_fossil_to_mud 应保留 combat_profile。" % source_label)
+	if skill_def.combat_profile == null:
+		return
+	_assert_eq(skill_def.combat_profile.target_mode, &"ground", "%s 的 mage_fossil_to_mud 应保持 ground 目标模式。" % source_label)
+	_assert_eq(int(skill_def.combat_profile.effect_defs.size()), 0, "%s 的根级 cast_variant 兼容归一后不应残留根级 effect_defs。" % source_label)
+	_assert_eq(int(skill_def.combat_profile.cast_variants.size()), 4, "%s 的 mage_fossil_to_mud 应保留 4 个 cast_variant。" % source_label)
+	_assert_cast_variant_compat_entry(skill_def, 0, &"mud_single", &"single", 1, source_label)
+	_assert_cast_variant_compat_entry(skill_def, 1, &"lower_single_1", &"single", 1, source_label)
+	_assert_cast_variant_compat_entry(skill_def, 2, &"lower_line2_1", &"line2", 2, source_label)
+	_assert_cast_variant_compat_entry(skill_def, 3, &"mud_square2", &"square2", 4, source_label)
+
+
+func _assert_cast_variant_compat_entry(
+	skill_def: SkillDef,
+	index: int,
+	expected_variant_id: StringName,
+	expected_footprint_pattern: StringName,
+	expected_coord_count: int,
+	source_label: String
+) -> void:
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+	if index >= skill_def.combat_profile.cast_variants.size():
+		_failures.append("%s 的 mage_fossil_to_mud 缺少 cast_variant[%d]。" % [source_label, index])
+		return
+	var cast_variant = skill_def.combat_profile.cast_variants[index]
+	_assert_true(cast_variant != null, "%s 的 mage_fossil_to_mud cast_variant[%d] 不应为空。" % [source_label, index])
+	if cast_variant == null:
+		return
+	_assert_eq(cast_variant.variant_id, expected_variant_id, "%s 的 mage_fossil_to_mud cast_variant[%d] 应保留稳定 variant_id。" % [source_label, index])
+	_assert_eq(cast_variant.target_mode, &"ground", "%s 的 mage_fossil_to_mud cast_variant[%d] 应归一为 ground。" % [source_label, index])
+	_assert_eq(cast_variant.footprint_pattern, expected_footprint_pattern, "%s 的 mage_fossil_to_mud cast_variant[%d] 应保留 footprint_pattern。" % [source_label, index])
+	_assert_eq(int(cast_variant.required_coord_count), expected_coord_count, "%s 的 mage_fossil_to_mud cast_variant[%d] 应保留 required_coord_count。" % [source_label, index])
+	_assert_true(not cast_variant.effect_defs.is_empty(), "%s 的 mage_fossil_to_mud cast_variant[%d] 应保留 effect_defs。" % [source_label, index])
 
 
 func _has_error_containing(errors: Array[String], expected_fragment: String) -> bool:

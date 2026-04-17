@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_vqus5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_j3cqn"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_luif8"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_k6mfv"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_tqoh2"]
+
+[sub_resource type="Resource" id="Resource_yjrv0"]
+script = ExtResource("3_luif8")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"negative_energy_resistance"
+
+[sub_resource type="Resource" id="Resource_plji0"]
+script = ExtResource("4_k6mfv")
+skill_id = &"mage_life_drain"
+range_value = 4
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_luif8")]([SubResource("Resource_yjrv0")])
+
+[resource]
+script = ExtResource("5_tqoh2")
+skill_id = &"mage_life_drain"
+display_name = "生命虹吸"
+icon_id = &"mage_life_drain"
+description = "造成伤害并按比例回复自身生命，是法师少数能自我续航的术式。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
+combat_profile = SubResource("Resource_plji0")

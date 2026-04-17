@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_vuo1d"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ttqtq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_5iih8"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_il35j"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_0acpl"]
+
+[sub_resource type="Resource" id="Resource_sewox"]
+script = ExtResource("4_il35j")
+skill_id = &"mage_sleep_dust"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 3
+
+[resource]
+script = ExtResource("5_0acpl")
+skill_id = &"mage_sleep_dust"
+display_name = "沉眠粉雾"
+icon_id = &"mage_sleep_dust"
+description = "低伤纯控制；优先延后低意志目标的下一次行动。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"illusion"])
+combat_profile = SubResource("Resource_sewox")

@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_7hq4u"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ae3s6"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_gmcf5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_p5y5w"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_riqx1"]
+
+[sub_resource type="Resource" id="Resource_bkmmn"]
+script = ExtResource("3_gmcf5")
+effect_type = &"damage"
+power = 12
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"freeze_resistance"
+
+[sub_resource type="Resource" id="Resource_h0lk8"]
+script = ExtResource("4_p5y5w")
+skill_id = &"mage_glacier_edge"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"line"
+area_value = 1
+ap_cost = 2
+mp_cost = 2
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_gmcf5")]([SubResource("Resource_bkmmn")])
+
+[resource]
+script = ExtResource("5_riqx1")
+skill_id = &"mage_glacier_edge"
+display_name = "冰棱穿刺"
+icon_id = &"mage_glacier_edge"
+description = "冰棱从地面连续突起；若目标站在 `mud` 中，则额外施加 `浸湿`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"ice"])
+combat_profile = SubResource("Resource_h0lk8")

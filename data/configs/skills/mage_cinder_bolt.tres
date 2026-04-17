@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_fp70i"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_wti7x"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_kqcw5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_g8xe8"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_s6413"]
+
+[sub_resource type="Resource" id="Resource_o511e"]
+script = ExtResource("3_kqcw5")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"fire_resistance"
+
+[sub_resource type="Resource" id="Resource_i5qqo"]
+script = ExtResource("4_g8xe8")
+skill_id = &"mage_cinder_bolt"
+range_value = 5
+mp_cost = 1
+hit_rate = 10
+effect_defs = Array[ExtResource("3_kqcw5")]([SubResource("Resource_o511e")])
+
+[resource]
+script = ExtResource("5_s6413")
+skill_id = &"mage_cinder_bolt"
+display_name = "余烬飞弹"
+icon_id = &"mage_cinder_bolt"
+description = "低耗起手法术；命中后施加 `灼烧`，用于给后续火焰连段打底。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+combat_profile = SubResource("Resource_i5qqo")

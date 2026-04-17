@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_uedqb"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_urrys"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_2s8nx"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_77mlr"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_jggo6"]
+
+[sub_resource type="Resource" id="Resource_jkvuk"]
+script = ExtResource("3_2s8nx")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"negative_energy_resistance"
+
+[sub_resource type="Resource" id="Resource_6avyh"]
+script = ExtResource("4_77mlr")
+skill_id = &"mage_shadow_bolt"
+range_value = 5
+mp_cost = 1
+hit_rate = 5
+effect_defs = Array[ExtResource("3_2s8nx")]([SubResource("Resource_jkvuk")])
+
+[resource]
+script = ExtResource("5_jggo6")
+skill_id = &"mage_shadow_bolt"
+display_name = "暗蚀飞弹"
+icon_id = &"mage_shadow_bolt"
+description = "死灵系基础点杀术；命中后施加 `奥脆`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
+combat_profile = SubResource("Resource_6avyh")

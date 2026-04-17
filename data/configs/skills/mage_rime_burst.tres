@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_8cv0c"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_tclwg"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_4ln3o"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_e2262"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_vft77"]
+
+[sub_resource type="Resource" id="Resource_gat30"]
+script = ExtResource("3_4ln3o")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"freeze_resistance"
+
+[sub_resource type="Resource" id="Resource_cf8m0"]
+script = ExtResource("4_e2262")
+skill_id = &"mage_rime_burst"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+mp_cost = 1
+cooldown_tu = 1
+effect_defs = Array[ExtResource("3_4ln3o")]([SubResource("Resource_gat30")])
+
+[resource]
+script = ExtResource("5_vft77")
+skill_id = &"mage_rime_burst"
+display_name = "冻雾爆"
+icon_id = &"mage_rime_burst"
+description = "落点扩散冰雾；区域内敌人移动力 `-1`，持续 `1` 回合。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"ice"])
+combat_profile = SubResource("Resource_cf8m0")

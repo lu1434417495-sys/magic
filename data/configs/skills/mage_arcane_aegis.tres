@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_vs36w"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ck63s"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_0uu8j"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_b3smv"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_shcgr"]
+
+[sub_resource type="Resource" id="Resource_b000k"]
+script = ExtResource("4_b3smv")
+skill_id = &"mage_arcane_aegis"
+target_mode = &"ground"
+range_value = 4
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 3
+mp_cost = 3
+cooldown_tu = 4
+
+[resource]
+script = ExtResource("5_shcgr")
+skill_id = &"mage_arcane_aegis"
+display_name = "奥术圣域"
+icon_id = &"mage_arcane_aegis"
+description = "范围内友军获得 `法盾`、净化一层负面效果，并提高法术命中。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_b000k")

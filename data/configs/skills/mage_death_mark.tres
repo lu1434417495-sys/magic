@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_wrbc1"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_an3wy"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_q8g3g"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_8tn8k"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_t480j"]
+
+[sub_resource type="Resource" id="Resource_56sbg"]
+script = ExtResource("4_8tn8k")
+skill_id = &"mage_death_mark"
+range_value = 5
+mp_cost = 1
+cooldown_tu = 2
+hit_rate = 10
+
+[resource]
+script = ExtResource("5_t480j")
+skill_id = &"mage_death_mark"
+display_name = "死兆印记"
+icon_id = &"mage_death_mark"
+description = "纯功能收割印记；目标生命越低，承受的法术伤害越高。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
+combat_profile = SubResource("Resource_56sbg")

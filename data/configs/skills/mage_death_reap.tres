@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_ohqe5"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_nfiye"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_7w65i"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_jev42"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_ycucy"]
+
+[sub_resource type="Resource" id="Resource_cemgu"]
+script = ExtResource("3_7w65i")
+effect_type = &"damage"
+power = 14
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"negative_energy_resistance"
+
+[sub_resource type="Resource" id="Resource_tni4b"]
+script = ExtResource("3_7w65i")
+effect_type = &"on_kill_gain_resources"
+params = {
+"ap_gain": 1,
+"free_move_points_gain": 2,
+"grant_scope": "current_turn",
+"require_target_defeated_by_same_skill": true,
+"stack_on_multiple_kills": true
+}
+
+[sub_resource type="Resource" id="Resource_bp68o"]
+script = ExtResource("4_jev42")
+skill_id = &"mage_death_reap"
+range_value = 5
+ap_cost = 2
+mp_cost = 3
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_7w65i")]([SubResource("Resource_cemgu"), SubResource("Resource_tni4b")])
+
+[resource]
+script = ExtResource("5_ycucy")
+skill_id = &"mage_death_reap"
+display_name = "死亡收割"
+icon_id = &"mage_death_reap"
+description = "高耗魔单体收割技，命中后可记录击杀返 AP 与免费移动额度的定义语义。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"finisher"])
+combat_profile = SubResource("Resource_bp68o")

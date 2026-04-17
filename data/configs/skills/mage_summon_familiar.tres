@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_twd61"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_36kvn"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_nvq5y"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6nph4"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8fck3"]
+
+[sub_resource type="Resource" id="Resource_g6c5p"]
+script = ExtResource("4_6nph4")
+skill_id = &"mage_summon_familiar"
+target_team_filter = &"ally"
+range_value = 0
+area_pattern = &"self"
+mp_cost = 1
+cooldown_tu = 3
+target_selection_mode = &"self"
+
+[resource]
+script = ExtResource("5_8fck3")
+skill_id = &"mage_summon_familiar"
+display_name = "召唤魔宠"
+icon_id = &"mage_summon_familiar"
+description = "召唤小型辅助单位；提供视野、补刀或触发器效果。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"summon"])
+combat_profile = SubResource("Resource_g6c5p")

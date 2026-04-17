@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_uv5a8"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_mesuq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ayp6q"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_7yi5m"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_ebd8h"]
+
+[sub_resource type="Resource" id="Resource_j76ly"]
+script = ExtResource("3_ayp6q")
+effect_type = &"heal"
+power = 12
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_6us5o"]
+script = ExtResource("4_7yi5m")
+skill_id = &"mage_temporal_rewind"
+target_team_filter = &"ally"
+range_value = 3
+ap_cost = 2
+mp_cost = 3
+cooldown_tu = 4
+effect_defs = Array[ExtResource("3_ayp6q")]([SubResource("Resource_j76ly")])
+
+[resource]
+script = ExtResource("5_ebd8h")
+skill_id = &"mage_temporal_rewind"
+display_name = "时序回溯"
+icon_id = &"mage_temporal_rewind"
+description = "回退目标到上次受击前的状态片段。兼容期内先落成友军单体回复技能。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+combat_profile = SubResource("Resource_6us5o")

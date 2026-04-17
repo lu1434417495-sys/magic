@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_bpt0b"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_paocq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_87clk"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_j687s"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_7kmrl"]
+
+[sub_resource type="Resource" id="Resource_nkgfc"]
+script = ExtResource("3_87clk")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_pv1ns"]
+script = ExtResource("4_j687s")
+skill_id = &"mage_terra_pulse"
+target_mode = &"ground"
+range_value = 0
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 3
+mp_cost = 2
+cooldown_tu = 3
+effect_defs = Array[ExtResource("3_87clk")]([SubResource("Resource_nkgfc")])
+
+[resource]
+script = ExtResource("5_7kmrl")
+skill_id = &"mage_terra_pulse"
+display_name = "地脉脉冲"
+icon_id = &"mage_terra_pulse"
+description = "以自身为中心扩散地脉震波；可把靠近的敌人推出关键格位。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"earth"])
+combat_profile = SubResource("Resource_pv1ns")

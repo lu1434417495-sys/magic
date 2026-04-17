@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_u5fln"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_xf0qi"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_oirlq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6h6wp"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_12ucy"]
+
+[sub_resource type="Resource" id="Resource_rcqvq"]
+script = ExtResource("3_oirlq")
+effect_type = &"damage"
+power = 15
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+
+[sub_resource type="Resource" id="Resource_p3i87"]
+script = ExtResource("4_6h6wp")
+skill_id = &"mage_comet_drop"
+target_mode = &"ground"
+range_value = 5
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 3
+mp_cost = 3
+cooldown_tu = 3
+hit_rate = -10
+effect_defs = Array[ExtResource("3_oirlq")]([SubResource("Resource_rcqvq")])
+
+[resource]
+script = ExtResource("5_12ucy")
+skill_id = &"mage_comet_drop"
+display_name = "焰星坠"
+icon_id = &"mage_comet_drop"
+description = "高阶落点爆破技；中心敌人额外承受 `+25%` 伤害。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+combat_profile = SubResource("Resource_p3i87")

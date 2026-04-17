@@ -12,6 +12,12 @@ const CombatCastVariantDef = preload("res://scripts/player/progression/combat_ca
 const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const DESIGN_SKILL_CATALOG_MAGE_SPECS_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog_mage_specs.gd")
+const LEGACY_GROUND_VARIANT_PATTERNS := {
+	&"single": &"single",
+	&"line2": &"line2",
+	&"square2": &"square2",
+	&"unordered": &"unordered",
+}
 
 
 func register_mage_skills(register_skill: Callable) -> void:
@@ -28,7 +34,7 @@ func _register_skill_specs(specs: Array[Dictionary], register_skill: Callable) -
 func _build_skill_from_catalog_spec(spec: Dictionary) -> SkillDef:
 	var kind := ProgressionDataUtils.to_string_name(spec.get("kind", "active"))
 	match kind:
-		&"active", &"special", &"cast_variant_hint", &"ground_variant":
+		&"active", &"special", &"cast_variant", &"cast_variant_hint", &"ground_variant":
 			var combat_profile := _build_combat_profile_from_catalog_spec(spec)
 			var skill_def := _build_skill(
 				ProgressionDataUtils.to_string_name(spec.get("skill_id", "")),
@@ -73,13 +79,21 @@ func _build_combat_profile_from_catalog_spec(spec: Dictionary) -> CombatSkillDef
 	combat_profile.max_target_count = int(targeting.get("max_target_count", combat_profile.min_target_count))
 	combat_profile.selection_order_mode = ProgressionDataUtils.to_string_name(targeting.get("selection_order_mode", "stable"))
 	combat_profile.effect_defs = _build_effect_defs_from_catalog_spec(spec.get("effect_defs", spec.get("effects", [])))
+	_append_cast_variants_from_catalog_specs(combat_profile, spec.get("cast_variants", []))
 	if custom is Dictionary:
 		combat_profile.ai_tags = ProgressionDataUtils.to_string_name_array(custom.get("ai_tags", []))
-		for cast_variant_spec in custom.get("cast_variants", []):
-			if cast_variant_spec is not Dictionary:
-				continue
-			combat_profile.cast_variants.append(_build_cast_variant_from_catalog_spec(cast_variant_spec))
+		_append_cast_variants_from_catalog_specs(combat_profile, custom.get("cast_variants", []))
+	_canonicalize_shared_variant_effect_defs(combat_profile)
 	return combat_profile
+
+
+func _append_cast_variants_from_catalog_specs(combat_profile: CombatSkillDef, variant_specs: Variant) -> void:
+	if combat_profile == null or variant_specs is not Array:
+		return
+	for cast_variant_spec in variant_specs:
+		if cast_variant_spec is not Dictionary:
+			continue
+		combat_profile.cast_variants.append(_build_cast_variant_from_catalog_spec(cast_variant_spec))
 
 
 func _build_effect_defs_from_catalog_spec(effect_specs: Array) -> Array[CombatEffectDef]:
@@ -163,16 +177,59 @@ func _build_effect_defs_from_catalog_spec(effect_specs: Array) -> Array[CombatEf
 
 func _build_cast_variant_from_catalog_spec(spec: Dictionary) -> CombatCastVariantDef:
 	var cast_variant := CombatCastVariantDef.new()
+	var raw_target_mode := ProgressionDataUtils.to_string_name(spec.get("target_mode", ""))
+	var footprint_pattern := ProgressionDataUtils.to_string_name(spec.get("footprint_pattern", ""))
 	cast_variant.variant_id = ProgressionDataUtils.to_string_name(spec.get("variant_id", ""))
 	cast_variant.display_name = String(spec.get("display_name", ""))
 	cast_variant.description = String(spec.get("description", ""))
 	cast_variant.min_skill_level = int(spec.get("min_skill_level", 0))
-	cast_variant.target_mode = ProgressionDataUtils.to_string_name(spec.get("target_mode", "ground"))
-	cast_variant.footprint_pattern = ProgressionDataUtils.to_string_name(spec.get("footprint_pattern", "single"))
+	cast_variant.target_mode = _resolve_cast_variant_target_mode(raw_target_mode)
+	cast_variant.footprint_pattern = _resolve_cast_variant_footprint_pattern(raw_target_mode, footprint_pattern)
 	cast_variant.required_coord_count = int(spec.get("required_coord_count", 1))
 	cast_variant.allowed_base_terrains = ProgressionDataUtils.to_string_name_array(spec.get("allowed_base_terrains", []))
 	cast_variant.effect_defs = _build_effect_defs_from_catalog_spec(spec.get("effect_defs", spec.get("effects", [])))
 	return cast_variant
+
+
+func _resolve_cast_variant_target_mode(raw_target_mode: StringName) -> StringName:
+	if LEGACY_GROUND_VARIANT_PATTERNS.has(raw_target_mode):
+		return &"ground"
+	return raw_target_mode if raw_target_mode != &"" else &"ground"
+
+
+func _resolve_cast_variant_footprint_pattern(
+	raw_target_mode: StringName,
+	explicit_footprint_pattern: StringName
+) -> StringName:
+	if explicit_footprint_pattern != &"":
+		return explicit_footprint_pattern
+	if LEGACY_GROUND_VARIANT_PATTERNS.has(raw_target_mode):
+		return LEGACY_GROUND_VARIANT_PATTERNS[raw_target_mode]
+	return &"single"
+
+
+func _canonicalize_shared_variant_effect_defs(combat_profile: CombatSkillDef) -> void:
+	if combat_profile == null or combat_profile.cast_variants.is_empty() or combat_profile.effect_defs.is_empty():
+		return
+	var shared_effect_defs := _duplicate_effect_defs(combat_profile.effect_defs)
+	for variant_index in range(combat_profile.cast_variants.size()):
+		var cast_variant := combat_profile.cast_variants[variant_index] as CombatCastVariantDef
+		if cast_variant == null:
+			continue
+		var merged_effect_defs := _duplicate_effect_defs(shared_effect_defs)
+		merged_effect_defs.append_array(_duplicate_effect_defs(cast_variant.effect_defs))
+		cast_variant.effect_defs = merged_effect_defs
+	combat_profile.effect_defs.clear()
+
+
+func _duplicate_effect_defs(effect_defs: Array) -> Array[CombatEffectDef]:
+	var duplicates: Array[CombatEffectDef] = []
+	for effect_variant in effect_defs:
+		var effect_def := effect_variant as CombatEffectDef
+		if effect_def == null:
+			continue
+		duplicates.append(effect_def.duplicate(true) as CombatEffectDef)
+	return duplicates
 
 
 func _apply_skill_spec_overrides(skill_def: SkillDef, spec: Dictionary) -> void:

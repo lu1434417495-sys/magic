@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_lnh1m"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_yi6ns"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_868eb"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_rdkyg"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_3iomw"]
+
+[sub_resource type="Resource" id="Resource_aytwb"]
+script = ExtResource("3_868eb")
+effect_type = &"damage"
+power = 10
+scaling_attribute_id = &"magic_attack"
+defense_attribute_id = &"magic_defense"
+resistance_attribute_id = &"lightning_resistance"
+
+[sub_resource type="Resource" id="Resource_b7i6m"]
+script = ExtResource("4_rdkyg")
+skill_id = &"mage_spark_javelin"
+range_value = 5
+mp_cost = 1
+hit_rate = 5
+effect_defs = Array[ExtResource("3_868eb")]([SubResource("Resource_aytwb")])
+
+[resource]
+script = ExtResource("5_3iomw")
+skill_id = &"mage_spark_javelin"
+display_name = "电矛术"
+icon_id = &"mage_spark_javelin"
+description = "低耗雷系点射；命中后施加 `感电`。"
+max_level = 3
+mastery_curve = PackedInt32Array(28, 46, 72)
+tags = Array[StringName]([&"mage", &"magic", &"lightning"])
+combat_profile = SubResource("Resource_b7i6m")
