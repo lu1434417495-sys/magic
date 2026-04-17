@@ -16,11 +16,13 @@ Entry points:
 - `run_text_command_repl.gd`: local interactive debugging.
 - `run_text_command_script.gd`: run a scenario file.
 - `run_text_command_regression.gd`: end-to-end regression coverage.
+- `run_validation_text_surface_regression.gd`: validation snapshot/text-surface regression without log scraping.
 
 Typical commands:
 ```powershell
 godot --headless --script tests/text_runtime/run_text_command_script.gd
 godot --headless --script tests/text_runtime/run_text_command_regression.gd
+godot --headless --script tests/text_runtime/run_validation_text_surface_regression.gd
 godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/contract_board_accept.txt
 godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_commit.txt
 godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_overflow.txt

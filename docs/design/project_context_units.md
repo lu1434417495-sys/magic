@@ -871,6 +871,7 @@ HeadlessGameTestSession
   - `tests/runtime/run_resource_validation_regression.gd`
   - `tests/runtime/run_settlement_service_result_regression.gd`
   - `tests/text_runtime/run_text_command_regression.gd`
+  - `tests/text_runtime/run_validation_text_surface_regression.gd`
   - `tests/text_runtime/run_text_command_script.gd`
   - `tests/text_runtime/run_text_command_repl.gd`
   - `tests/text_runtime/scenarios/smoke_startup.txt`
@@ -925,6 +926,7 @@ HeadlessGameTestSession
     - `game new/load`
     - `world/party/settlement/warehouse/battle/reward/promotion/close/snapshot/expect`
     - headless snapshot 与文本快照稳定性
+    - `validation` 结构化快照 / `[VALIDATION]` 文本分段，以及不依赖日志抓取的校验失败断言面
   - capture：
     - 导出 `battle_board_canyon_capture.png` 做人工验收
   - world_map runtime：
@@ -1004,7 +1006,7 @@ HeadlessGameTestSession
   - 用 `HeadlessGameTestSession` 在无 UI 环境挂起 `GameSession + GameRuntimeFacade`。
   - 用 `GameTextCommandRunner` 执行命令与断言。
   - 用 `GameTextCommandResult` 输出可读结果。
-  - 用 `GameTextSnapshotRenderer` 渲染稳定文本快照；当前快照已正式包含 `logs` 段和 `[LOG]` 文本分段，以及据点 `contract_board` / forge modal 的 `[CONTRACT_BOARD]` / `[FORGE]` 分段，供自动化 / agent / 人工排障读取最近运行日志与服务窗口状态。
+  - 用 `GameTextSnapshotRenderer` 渲染稳定文本快照；当前快照已正式包含 `validation` 段与 `[VALIDATION]` 文本分段、`logs` 段与 `[LOG]` 文本分段，以及据点 `contract_board` / forge modal 的 `[CONTRACT_BOARD]` / `[FORGE]` 分段，供自动化 / agent / 人工排障读取结构化校验摘要、最近运行日志与服务窗口状态。
   - 当前还覆盖 mounted submap 的确认进入、返回原坐标和 active map snapshot / 文本命令。
   - 当前文本命令域已包含最小 `quest accept/progress/complete` 调试接口；party 快照与文本快照会稳定暴露 `party.quests` / `[QUEST]` 分段，其中 quest state 至少区分 `active_quest_ids` / `claimable_quest_ids` / `completed_quest_ids`，并可验证 settlement / battle 自动 quest progress 结果。
   - 为回归、调试、agent 驱动提供非 UI 入口，但不参与正式启动链。

@@ -186,14 +186,22 @@
     {
       "id": "PVS_25B",
       "title": "把 validation 输出接到 headless regression 面",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "资源校验失败可在 headless/test output 中稳定暴露",
         "validation regression 不依赖人工读取随机日志定位"
       ],
       "notes": [
         "Owner：CU-21 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T23:26:47+08:00",
+      "lastRunId": "20260417-232647-PVS_25B",
+      "startedAt": "2026-04-17T23:26:47+08:00",
+      "completedAt": "2026-04-17T23:36:18+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/text_runtime/run_validation_text_surface_regression.gd` PASS; `godot --headless --script tests/runtime/run_resource_validation_regression.gd` PASS; `godot --headless --script tests/text_runtime/run_text_command_regression.gd` PASS.",
+      "lastLearnings": "Validation failures were only discoverable through session logs before; caching a structured report in GameSession and surfacing `snapshot.validation` gives deterministic headless assertions without relying on log order or retention."
     }
   ]
 }

@@ -28,6 +28,7 @@ const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
 const SAVE_VERSION := 5
 const SAVE_INDEX_VERSION := 1
 const MAX_ACTIVE_MEMBER_COUNT := 4
+const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "item", "recipe", "enemy"]
 const RANDOM_START_SKILL_TIER_BASIC: StringName = &"basic"
 const RANDOM_START_SKILL_TIER_INTERMEDIATE: StringName = &"intermediate"
 const RANDOM_START_SKILL_TIER_ADVANCED: StringName = &"advanced"
@@ -96,6 +97,8 @@ var _enemy_templates: Dictionary = {}
 var _enemy_ai_brains: Dictionary = {}
 ## 字段说明：缓存野外遭遇编队配置集合字典，集中保存可按键查询的运行时数据。
 var _wild_encounter_rosters: Dictionary = {}
+## 字段说明：缓存内容校验快照，供 headless/test 快照稳定暴露各 domain 的错误摘要。
+var _content_validation_snapshot: Dictionary = {}
 var _save_serializer = SAVE_SERIALIZER_SCRIPT.new()
 var _log_service = GAME_LOG_SERVICE_SCRIPT.new()
 
@@ -113,11 +116,9 @@ func _init() -> void:
 	_refresh_progression_content()
 	_refresh_item_content()
 	_refresh_recipe_content()
-	_report_progression_content_errors()
-	_report_item_content_errors()
-	_report_recipe_content_errors()
 	_refresh_enemy_content()
-	_report_enemy_content_errors()
+	_refresh_content_validation_snapshot()
+	_report_content_validation_errors()
 
 
 func ensure_world_ready(generation_config_path: String) -> int:
@@ -331,6 +332,15 @@ func get_log_snapshot(limit: int = 50) -> Dictionary:
 
 func get_active_log_file_path() -> String:
 	return _log_service.get_log_path() if _log_service != null else ""
+
+
+func get_content_validation_snapshot() -> Dictionary:
+	return _content_validation_snapshot.duplicate(true)
+
+
+func refresh_content_validation_snapshot() -> Dictionary:
+	_refresh_content_validation_snapshot()
+	return get_content_validation_snapshot()
 
 
 func log_event(level: String, domain: String, event_id: String, message: String, context: Dictionary = {}) -> Dictionary:
@@ -1176,36 +1186,60 @@ func _refresh_enemy_content() -> void:
 	_wild_encounter_rosters = _enemy_content_registry.get_wild_encounter_rosters()
 
 
-func _report_progression_content_errors() -> void:
-	if _progression_content_registry == null:
+func _refresh_content_validation_snapshot() -> void:
+	var domain_snapshots := {
+		"progression": _build_content_validation_domain_snapshot(_progression_content_registry),
+		"item": _build_content_validation_domain_snapshot(_item_content_registry),
+		"recipe": _build_content_validation_domain_snapshot(_recipe_content_registry),
+		"enemy": _build_content_validation_domain_snapshot(_enemy_content_registry),
+	}
+	var error_count := 0
+	for domain_id in CONTENT_VALIDATION_DOMAIN_ORDER:
+		error_count += int((domain_snapshots.get(domain_id, {}) as Dictionary).get("error_count", 0))
+	_content_validation_snapshot = {
+		"ok": error_count == 0,
+		"error_count": error_count,
+		"domain_order": CONTENT_VALIDATION_DOMAIN_ORDER.duplicate(),
+		"domains": domain_snapshots,
+	}
+
+
+func _build_content_validation_domain_snapshot(registry) -> Dictionary:
+	var errors: Array[String] = []
+	if registry != null and registry.has_method("validate"):
+		for validation_error in registry.validate():
+			errors.append(String(validation_error))
+	return {
+		"ok": errors.is_empty(),
+		"error_count": errors.size(),
+		"errors": errors,
+	}
+
+
+func _report_content_validation_errors() -> void:
+	var domains_variant = _content_validation_snapshot.get("domains", {})
+	if domains_variant is not Dictionary:
 		return
-
-	for validation_error in _progression_content_registry.validate():
-		_push_session_error("session.content.progression_validation_failed", "Progression content error: %s" % validation_error)
-
-
-func _report_item_content_errors() -> void:
-	if _item_content_registry == null:
-		return
-
-	for validation_error in _item_content_registry.validate():
-		_push_session_error("session.content.item_validation_failed", "Item content error: %s" % validation_error)
+	var domains := domains_variant as Dictionary
+	for domain_id in CONTENT_VALIDATION_DOMAIN_ORDER:
+		var domain_snapshot_variant = domains.get(domain_id, {})
+		if domain_snapshot_variant is not Dictionary:
+			continue
+		var domain_snapshot := domain_snapshot_variant as Dictionary
+		for validation_error_variant in domain_snapshot.get("errors", []):
+			_report_content_validation_error(domain_id, String(validation_error_variant))
 
 
-func _report_recipe_content_errors() -> void:
-	if _recipe_content_registry == null:
-		return
-
-	for validation_error in _recipe_content_registry.validate():
-		_push_session_error("session.content.recipe_validation_failed", "Recipe content error: %s" % validation_error)
-
-
-func _report_enemy_content_errors() -> void:
-	if _enemy_content_registry == null:
-		return
-
-	for validation_error in _enemy_content_registry.validate():
-		_push_session_error("session.content.enemy_validation_failed", "Enemy content error: %s" % validation_error)
+func _report_content_validation_error(domain_id: String, validation_error: String) -> void:
+	match domain_id:
+		"progression":
+			_push_session_error("session.content.progression_validation_failed", "Progression content error: %s" % validation_error)
+		"item":
+			_push_session_error("session.content.item_validation_failed", "Item content error: %s" % validation_error)
+		"recipe":
+			_push_session_error("session.content.recipe_validation_failed", "Recipe content error: %s" % validation_error)
+		"enemy":
+			_push_session_error("session.content.enemy_validation_failed", "Enemy content error: %s" % validation_error)
 
 
 func _log_session_info(event_id: String, message: String, context: Dictionary = {}) -> void:

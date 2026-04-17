@@ -224,6 +224,7 @@ func build_snapshot() -> Dictionary:
 			"presets": WORLD_PRESET_REGISTRY_SCRIPT.list_presets(),
 			"save_slots": _game_session.list_save_slots() if _game_session != null else [],
 		},
+		"validation": _game_session.get_content_validation_snapshot() if _game_session != null else {},
 		"status": {
 			"view": "none",
 			"text": "",

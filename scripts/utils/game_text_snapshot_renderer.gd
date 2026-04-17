@@ -8,6 +8,7 @@ static func render_full_snapshot(snapshot: Dictionary) -> String:
 	var sections: Array[String] = []
 	_append_section(sections, "SESSION", _build_session_lines(snapshot.get("session", {})))
 	_append_section(sections, "STATUS", _build_status_lines(snapshot.get("status", {}), snapshot.get("modal", {})))
+	_append_section(sections, "VALIDATION", _build_validation_lines(snapshot.get("validation", {})))
 	_append_section(sections, "LOG", _build_log_lines(snapshot.get("logs", {})))
 	_append_section(sections, "WORLD", _build_world_lines(snapshot.get("world", {})))
 	_append_section(sections, "SUBMAP", _build_submap_lines(snapshot.get("submap", {})))
@@ -78,6 +79,43 @@ static func _build_status_lines(status: Dictionary, modal: Dictionary) -> Array[
 		"modal=%s" % String(modal.get("id", "")),
 		"text=%s" % String(status.get("text", "")),
 	]
+
+
+static func _build_validation_lines(validation_snapshot: Dictionary) -> Array[String]:
+	if validation_snapshot.is_empty():
+		return []
+	var lines: Array[String] = [
+		"ok=%s" % _format_bool(bool(validation_snapshot.get("ok", false))),
+		"error_count=%d" % int(validation_snapshot.get("error_count", 0)),
+	]
+	var domains_variant = validation_snapshot.get("domains", {})
+	if domains_variant is not Dictionary:
+		return lines
+	var domains := domains_variant as Dictionary
+	var domain_order_variant = validation_snapshot.get("domain_order", [])
+	var domain_ids: Array[String] = []
+	if domain_order_variant is Array:
+		for domain_id_variant in domain_order_variant:
+			domain_ids.append(String(domain_id_variant))
+	if domain_ids.is_empty():
+		for domain_key_variant in domains.keys():
+			domain_ids.append(String(domain_key_variant))
+		domain_ids.sort()
+	for domain_id in domain_ids:
+		var domain_snapshot_variant = domains.get(domain_id, {})
+		if domain_snapshot_variant is not Dictionary:
+			continue
+		var domain_snapshot := domain_snapshot_variant as Dictionary
+		lines.append("domain=%s | errors=%d" % [
+			domain_id,
+			int(domain_snapshot.get("error_count", 0)),
+		])
+		var errors_variant = domain_snapshot.get("errors", [])
+		if errors_variant is not Array:
+			continue
+		for error_variant in errors_variant:
+			lines.append("  - %s" % String(error_variant))
+	return lines
 
 
 static func _build_log_lines(log_snapshot: Dictionary) -> Array[String]:

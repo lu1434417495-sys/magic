@@ -261,3 +261,7 @@ Added a typed `EnemyContentSeed` manifest, switched `EnemyContentRegistry` to lo
 ## 2026-04-17T23:26:47+08:00 | PVS_25A | done
 title: 建立统一资源 validation runner 并覆盖 missing/duplicate/invalid
 Added a unified resource validation runner and headless regression for profession/skill/enemy/item/recipe/quest, added item/recipe/enemy invalid fixtures, and updated CU-19 context docs for the new coverage.
+
+## 2026-04-17T23:36:18+08:00 | PVS_25B | done
+title: 把 validation 输出接到 headless regression 面
+Added a GameSession-owned validation snapshot, exposed it in HeadlessGameTestSession and the text snapshot `[VALIDATION]` section, added `tests/text_runtime/run_validation_text_surface_regression.gd`, and updated the context doc/README for the new headless validation surface.
