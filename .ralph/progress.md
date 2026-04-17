@@ -225,3 +225,7 @@ title: 实现 overflow_entries 与掉落溢出反馈
 ## 2026-04-17T08:03:43+08:00 | PVS_21A | done
 title: 让 text snapshot 渲染 loot 与 overflow 结果
 在 `GameRuntimeFacade` 增加最近一次战斗 loot/overflow 摘要快照，`GameRuntimeSnapshotBuilder` 暴露 `loot` 段，`GameTextSnapshotRenderer` 新增 `[LOOT]` 文本分段；补充 snapshot-builder 与 wild-encounter 回归，保证有 loot 时可见摘要、无 loot 时不插入新分段而破坏既有顺序。
+
+## 2026-04-17T21:51:28+08:00 | PVS_21B | done
+title: 为 loot/overflow 增加 text command 与 expect 回归
+No code edits were required; the existing text-runtime loot commit/overflow scenarios and regression already satisfy PVS_21B.

@@ -1,0 +1,16 @@
+# Battle loot overflow scenario for the headless text runner.
+game new test
+warehouse capacity 1
+warehouse add bronze_sword 1
+expect warehouse bronze_sword == 1
+battle start settlement
+expect field battle.start_confirm_visible == true
+battle confirm
+battle finish player
+expect field battle.active == false
+expect field loot.loot_entry_count == 1
+expect field loot.overflow_entry_count == 1
+expect warehouse bronze_sword == 1
+expect warehouse beast_hide == 0
+expect status contains 未装下的掉落
+snapshot

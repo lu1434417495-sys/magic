@@ -68,7 +68,7 @@
 先把 `prd.example.json` 复制或整理成 `prd.json`，再执行：
 
 ```powershell
-pwsh -File tools/run_ralph_loop.ps1 -MaxIterations 5
+python tools/run_ralph_loop.py -MaxIterations 5
 ```
 
 常用参数：
@@ -80,6 +80,8 @@ pwsh -File tools/run_ralph_loop.ps1 -MaxIterations 5
 - `-PersistCodexSessions`：不传 `--ephemeral`
 - `-AllowDirtyWorktree`：允许在起步时工作树非干净
 - `-ContinueAfterFailure`：失败后继续 loop；默认失败即停
+- `-PrdPath <PATH>`：显式指定 PRD 文件
+- `-PruneDoneStories`：删除 `status = done` 的 story 并退出
 
 ## 默认固定 Skills
 
@@ -88,7 +90,7 @@ pwsh -File tools/run_ralph_loop.ps1 -MaxIterations 5
 - `$godot-master`
 - `$algorithm-design`
 
-这属于“把 skill 固定写进全局模板”的做法。要修改默认 skill 列表，直接编辑 [run_ralph_loop.ps1](</E:/game/magic/tools/run_ralph_loop.ps1>) 顶部的 `$script:DefaultRalphSkills`。
+这属于“把 skill 固定写进全局模板”的做法。要修改默认 skill 列表，直接编辑 [run_ralph_loop.py](</E:/game/magic/tools/run_ralph_loop.py>) 顶部的 `DEFAULT_RALPH_SKILLS`。
 
 ## 默认安全策略
 
@@ -107,4 +109,4 @@ pwsh -File tools/run_ralph_loop.ps1 -MaxIterations 5
 - `codex exec --sandbox`
 - `codex exec --ephemeral`
 
-如果本地 Codex CLI 参数形态将来变化，只需要改 `tools/run_ralph_loop.ps1` 里的 `Invoke-CodexIteration`。
+如果本地 Codex CLI 参数形态将来变化，只需要改 `tools/run_ralph_loop.py` 里的 `invoke_codex_iteration()`。

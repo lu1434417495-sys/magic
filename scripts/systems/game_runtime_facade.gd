@@ -206,7 +206,7 @@ func setup(game_session) -> void:
 	if _generation_config == null:
 		return
 	_world_data = _game_session.get_world_data()
-	_wild_encounter_rosters = _game_session.get_wild_encounter_rosters()
+	_wild_encounter_rosters = _game_session.get_wild_encounter_rosters().duplicate()
 	_encounter_roster_builder.setup(_wild_encounter_rosters)
 	_party_state = _game_session.get_party_state()
 	_player_coord = _game_session.get_player_coord()
@@ -302,7 +302,7 @@ func dispose() -> void:
 	_world_npc_by_coord.clear()
 	_encounter_anchor_by_coord.clear()
 	_settlements_by_id.clear()
-	_wild_encounter_rosters.clear()
+	_wild_encounter_rosters = {}
 	_party_state = null
 	_battle_state = null
 	_pending_promotion_prompt.clear()

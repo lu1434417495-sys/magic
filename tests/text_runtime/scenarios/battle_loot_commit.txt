@@ -1,0 +1,13 @@
+# Battle loot commit scenario for the headless text runner.
+game new test
+expect field session.world_loaded == true
+battle start settlement
+expect field battle.active == true
+expect field battle.start_confirm_visible == true
+battle confirm
+battle finish player
+expect field battle.active == false
+expect field loot.loot_entry_count == 1
+expect field loot.overflow_entry_count == 0
+expect warehouse beast_hide == 2
+snapshot

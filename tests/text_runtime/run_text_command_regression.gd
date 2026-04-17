@@ -8,6 +8,8 @@ const ProgressionDataUtils = preload("res://scripts/player/progression/progressi
 const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
+const BATTLE_LOOT_COMMIT_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_commit.txt"
+const BATTLE_LOOT_OVERFLOW_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_overflow.txt"
 
 var _failures: Array[String] = []
 
@@ -106,6 +108,8 @@ func _run() -> void:
 	await _exercise_battle_flow(runner)
 	await _exercise_generic_forge_flow(runner)
 	await runner.dispose(true)
+	await _run_expect_scenario_file(BATTLE_LOOT_COMMIT_SCENARIO_PATH)
+	await _run_expect_scenario_file(BATTLE_LOOT_OVERFLOW_SCENARIO_PATH)
 	_finish()
 
 
@@ -272,6 +276,33 @@ func _exercise_generic_forge_flow(runner) -> void:
 	_assert_generic_forge_command_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
 	await _run_command(runner, "game load %s" % forge_save_id)
 	_assert_generic_forge_persisted_after_load(runner.get_session().build_snapshot())
+
+
+func _run_expect_scenario_file(scenario_path: String) -> void:
+	var file := FileAccess.open(scenario_path, FileAccess.READ)
+	_assert_true(file != null, "应能读取文本场景 %s。" % scenario_path)
+	if file == null:
+		return
+	var lines: PackedStringArray = file.get_as_text().split("\n", false)
+	file.close()
+	var runner = GAME_TEXT_COMMAND_RUNNER_SCRIPT.new()
+	await runner.initialize()
+	for line_index in range(lines.size()):
+		var command_text := String(lines[line_index])
+		var result = await runner.execute_line(command_text)
+		if result.skipped:
+			continue
+		print("SCENARIO %s LINE %d\n%s" % [scenario_path.get_file(), line_index + 1, result.render()])
+		_assert_true(result.ok, "文本场景失败：%s:%d | %s | %s" % [
+			scenario_path,
+			line_index + 1,
+			command_text,
+			result.message,
+		])
+		if not result.ok:
+			await runner.dispose(true)
+			return
+	await runner.dispose(true)
 
 
 func _assert_settlement_reward_queued_while_warehouse_open(snapshot: Dictionary) -> void:

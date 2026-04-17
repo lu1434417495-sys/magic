@@ -410,7 +410,7 @@ func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
 	if tokens.size() < 3:
 		return {
 			"ok": false,
-			"message": "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one|discard-all <item_id>",
+			"message": "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one|discard-all <item_id> | warehouse capacity <value>",
 		}
 	match tokens[1]:
 		"add":
@@ -423,6 +423,13 @@ func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
 		"use":
 			var member_id := StringName(tokens[3]) if tokens.size() >= 4 else &""
 			return runtime.command_warehouse_use_item(StringName(tokens[2]), member_id)
+		"capacity":
+			if tokens.size() < 3:
+				return {
+					"ok": false,
+					"message": "用法: warehouse capacity <value>",
+				}
+			return await _session.set_party_storage_capacity(int(_parse_scalar(tokens[2])))
 		"discard-one":
 			return runtime.command_warehouse_discard_one(StringName(tokens[2]))
 		"discard-all":
@@ -444,9 +451,16 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 	if tokens.size() < 2:
 		return {
 			"ok": false,
-			"message": "用法: battle confirm/tick/skill/variant/move/wait/inspect ...",
+			"message": "用法: battle start/confirm/tick/skill/variant/move/wait/inspect/finish ...",
 		}
 	match tokens[1]:
+		"start":
+			if tokens.size() < 3:
+				return {
+					"ok": false,
+					"message": "用法: battle start <settlement|single>",
+				}
+			return await _session.start_battle_by_kind(StringName(tokens[2]))
 		"confirm":
 			return runtime.command_confirm_battle_start()
 		"tick":
@@ -488,6 +502,13 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 					"message": "用法: battle inspect <x> <y>",
 				}
 			return runtime.command_battle_inspect(_parse_coord(tokens[2], tokens[3]))
+		"finish":
+			if tokens.size() < 3:
+				return {
+					"ok": false,
+					"message": "用法: battle finish <player|hostile>",
+				}
+			return await _session.finish_active_battle(StringName(tokens[2]))
 		"clear":
 			return runtime.command_battle_clear_skill()
 		_:
@@ -602,6 +623,23 @@ func _execute_expect(tokens: Array[String], snapshot: Dictionary) -> Dictionary:
 				"list %s contains %s" % [tokens[2], String(expected_item)],
 				_stringify_value(list_value),
 				_stringify_value(expected_item)
+			)
+		"warehouse":
+			if tokens.size() < 5 or tokens[3] != "==":
+				return _expect_error("expect warehouse <item_id> == <quantity>", "", "")
+			var item_id := String(tokens[2])
+			var expected_quantity := int(_parse_scalar(_join_tokens(tokens, 4)))
+			var actual_quantity := _get_warehouse_item_total(snapshot, item_id)
+			if actual_quantity == expected_quantity:
+				return _expect_ok(
+					"warehouse %s == %d" % [item_id, expected_quantity],
+					str(actual_quantity),
+					str(expected_quantity)
+				)
+			return _expect_error(
+				"warehouse %s == %d" % [item_id, expected_quantity],
+				str(actual_quantity),
+				str(expected_quantity)
 			)
 		_:
 			return _expect_error("unknown expect target %s" % tokens[1], "", "")
@@ -745,6 +783,20 @@ func _join_tokens(tokens: Array[String], start_index: int) -> String:
 	for index in range(start_index, tokens.size()):
 		parts.append(tokens[index])
 	return " ".join(PackedStringArray(parts))
+
+
+func _get_warehouse_item_total(snapshot: Dictionary, item_id: String) -> int:
+	var entries_variant = snapshot.get("warehouse", {}).get("window_data", {}).get("entries", [])
+	if entries_variant is not Array:
+		return 0
+	for entry_variant in entries_variant:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("item_id", "")) != item_id:
+			continue
+		return int(entry.get("total_quantity", 0))
+	return 0
 
 
 func _expect_ok(summary: String, actual: String, expected: String) -> Dictionary:

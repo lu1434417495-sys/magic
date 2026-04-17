@@ -22,4 +22,12 @@ Typical commands:
 godot --headless --script tests/text_runtime/run_text_command_script.gd
 godot --headless --script tests/text_runtime/run_text_command_regression.gd
 godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/contract_board_accept.txt
+godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_commit.txt
+godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_overflow.txt
 ```
+
+Automation-only helpers used by scenarios:
+- `battle start <settlement|single>`
+- `battle finish <player|hostile>`
+- `warehouse capacity <value>`
+- `expect warehouse <item_id> == <quantity>`
