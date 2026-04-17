@@ -1,8 +1,8 @@
 class_name RetreatAction
 extends "res://scripts/enemies/enemy_ai_action.gd"
 
-var target_selector: StringName = &"nearest_enemy"
-var minimum_safe_distance := 3
+@export var target_selector: StringName = &"nearest_enemy"
+@export var minimum_safe_distance := 3
 
 
 func decide(context):
@@ -31,3 +31,12 @@ func decide(context):
 			"%s 准备与 %s 拉开到 %d 格。" % [context.unit_state.display_name, focus_target.display_name, predicted_distance]
 		)
 	return best_decision
+
+
+func validate_schema() -> Array[String]:
+	var errors := _collect_base_validation_errors()
+	if target_selector == &"":
+		errors.append("RetreatAction %s is missing target_selector." % String(action_id))
+	if minimum_safe_distance <= 0:
+		errors.append("RetreatAction %s minimum_safe_distance must be >= 1." % String(action_id))
+	return errors

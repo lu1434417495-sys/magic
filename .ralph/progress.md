@@ -249,3 +249,7 @@ Added 49 new warrior/archer SkillDef resources plus refreshed `warrior_heavy_str
 ## 2026-04-17T22:46:39+08:00 | PVS_23C | done
 title: 迁移 mage 技能 seed 并固定 cast_variant 兼容回归
 Added 135 mage SkillDef resources under data/configs/skills, taught DesignSkillCatalog to canonicalize legacy/root-level cast_variant specs, removed the runtime mage catalog fallback from ProgressionContentRegistry, and updated the skill-schema regression plus project context ownership notes.
+
+## 2026-04-17T23:04:15+08:00 | PVS_24A | done
+title: 建立 enemy resource schema 与 registry scan
+Moved enemy templates/brains/rosters into scanned `data/configs/enemies/**/*` resources, converted enemy schema/action classes to Resource-backed definitions, replaced hardcoded `EnemyContentRegistry` builders with directory scan + validation, surfaced enemy validation through `GameSession`, added regression coverage for missing brain and invalid roster template references, and updated `docs/design/project_context_units.md`.

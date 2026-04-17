@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"wolf_alpha"
+display_name = "荒狼头目"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+skill_ids = Array[StringName]([&"charge", &"warrior_guard_break"])
+attribute_overrides = {
+"hp_max": 34,
+"mp_max": 0,
+"stamina_max": 0,
+"action_points": 2,
+"physical_attack": 12,
+"physical_defense": 5,
+"magic_attack": 0,
+"magic_defense": 2,
+"speed": 11
+}

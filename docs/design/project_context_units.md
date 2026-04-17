@@ -28,6 +28,7 @@
   - `data/configs/items/*.tres`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
+  - `data/configs/enemies/**/*.tres`
   - `data/saves/fixed_test_world_save.dat`
   - `assets/main/battle/terrain/canyon/*.png`
 - 自动化与辅助：
@@ -948,13 +949,17 @@ HeadlessGameTestSession
   - `scripts/enemies/actions/use_ground_skill_action.gd`
   - `scripts/enemies/actions/use_unit_skill_action.gd`
   - `scripts/enemies/actions/wait_action.gd`
+  - `data/configs/enemies/brains/*.tres`
+  - `data/configs/enemies/templates/*.tres`
+  - `data/configs/enemies/rosters/*.tres`
 - 真相源：
   - `enemy_template_id -> EnemyTemplateDef`
   - `brain_id -> EnemyAiBrainDef`
   - `encounter_profile_id -> WildEncounterRosterDef`
   - 各状态下的 action 顺序、目标选择与距离策略。
 - 主要职责：
-  - 注册当前种子敌方模板、wild encounter roster、AI brain 与 roster drop schema。
+  - 扫描 `data/configs/enemies/{brains,templates,rosters}` 并注册当前种子敌方模板、wild encounter roster、AI brain 与 roster drop schema。
+  - 在 registry 阶段校验 template -> brain、roster stage -> template 等静态引用。
   - 定义近战压迫型、远程控制型等默认行为树形态。
   - 为 `BattleRuntimeModule / BattleAiService` 提供静态敌方内容。
 - 邻接单元：

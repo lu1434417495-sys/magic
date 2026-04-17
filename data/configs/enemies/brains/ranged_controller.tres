@@ -1,0 +1,96 @@
+[gd_resource type="Resource" script_class="EnemyAiBrainDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_brain_def.gd" id="1_brain"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_state_def.gd" id="2_state"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_ground_skill_action.gd" id="3_ground"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_unit_skill_action.gd" id="4_unit"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/move_to_range_action.gd" id="5_move"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/wait_action.gd" id="6_wait"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/retreat_action.gd" id="7_retreat"]
+
+[sub_resource type="Resource" id="Action_pressure_aoe"]
+script = ExtResource("3_ground")
+action_id = &"mist_aoe"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_fireball"])
+minimum_hit_count = 2
+
+[sub_resource type="Resource" id="Action_pressure_single"]
+script = ExtResource("4_unit")
+action_id = &"mist_ranged_single"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_ice_lance"])
+target_selector = &"lowest_hp_enemy"
+
+[sub_resource type="Resource" id="Action_pressure_move"]
+script = ExtResource("5_move")
+action_id = &"mist_keep_range"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+
+[sub_resource type="Resource" id="Action_wait"]
+script = ExtResource("6_wait")
+action_id = &"mist_wait"
+
+[sub_resource type="Resource" id="State_engage"]
+script = ExtResource("2_state")
+state_id = &"engage"
+actions = Array[Resource]([SubResource("Action_pressure_aoe"), SubResource("Action_pressure_single"), SubResource("Action_pressure_move"), SubResource("Action_wait")])
+
+[sub_resource type="Resource" id="State_pressure"]
+script = ExtResource("2_state")
+state_id = &"pressure"
+actions = Array[Resource]([SubResource("Action_pressure_aoe"), SubResource("Action_pressure_single"), SubResource("Action_pressure_move"), SubResource("Action_wait")])
+
+[sub_resource type="Resource" id="Action_support_heal"]
+script = ExtResource("4_unit")
+action_id = &"mist_support"
+score_bucket_id = &"mist_support"
+skill_ids = Array[StringName]([&"mage_temporal_rewind"])
+target_selector = &"lowest_hp_ally"
+
+[sub_resource type="Resource" id="Action_support_aoe"]
+script = ExtResource("3_ground")
+action_id = &"mist_aoe_support"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_fireball"])
+minimum_hit_count = 1
+
+[sub_resource type="Resource" id="Action_support_single"]
+script = ExtResource("4_unit")
+action_id = &"mist_ranged_single_support"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_ice_lance"])
+target_selector = &"lowest_hp_enemy"
+
+[sub_resource type="Resource" id="State_support"]
+script = ExtResource("2_state")
+state_id = &"support"
+actions = Array[Resource]([SubResource("Action_support_heal"), SubResource("Action_support_aoe"), SubResource("Action_support_single"), SubResource("Action_wait")])
+
+[sub_resource type="Resource" id="Action_retreat"]
+script = ExtResource("7_retreat")
+action_id = &"mist_retreat"
+minimum_safe_distance = 4
+
+[sub_resource type="Resource" id="Action_retreat_heal"]
+script = ExtResource("4_unit")
+action_id = &"mist_support_retreat"
+score_bucket_id = &"mist_support"
+skill_ids = Array[StringName]([&"mage_temporal_rewind"])
+target_selector = &"lowest_hp_ally"
+
+[sub_resource type="Resource" id="State_retreat"]
+script = ExtResource("2_state")
+state_id = &"retreat"
+actions = Array[Resource]([SubResource("Action_retreat"), SubResource("Action_retreat_heal"), SubResource("Action_wait")])
+
+[resource]
+script = ExtResource("1_brain")
+brain_id = &"ranged_controller"
+default_state_id = &"pressure"
+retreat_hp_ratio = 0.4
+support_hp_ratio = 0.6
+pressure_distance = 4
+states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_support"), SubResource("State_retreat")])

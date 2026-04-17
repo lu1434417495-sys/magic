@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"mist_beast"
+display_name = "雾沼异兽"
+brain_id = &"ranged_controller"
+initial_state_id = &"pressure"
+enemy_count = 2
+skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
+attribute_overrides = {
+"hp_max": 24,
+"mp_max": 8,
+"stamina_max": 0,
+"action_points": 2,
+"physical_attack": 4,
+"physical_defense": 2,
+"magic_attack": 12,
+"magic_defense": 5,
+"fire_resistance": 2,
+"speed": 9
+}

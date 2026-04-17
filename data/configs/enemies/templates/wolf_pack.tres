@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"wolf_pack"
+display_name = "荒狼群"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+enemy_count = 2
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+attribute_overrides = {
+"hp_max": 28,
+"mp_max": 0,
+"stamina_max": 0,
+"action_points": 2,
+"physical_attack": 9,
+"physical_defense": 3,
+"magic_attack": 0,
+"magic_defense": 1,
+"speed": 10
+}

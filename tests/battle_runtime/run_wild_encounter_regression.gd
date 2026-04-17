@@ -10,12 +10,19 @@ const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_ware
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
+const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/enemy_content_registry.gd")
 const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world_time_system.gd")
 const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/wild_encounter_growth_system.gd")
 const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SMALL_WORLD_CONFIG := "res://data/configs/world_map/small_world_map_config.tres"
+const ENEMY_TEMPLATE_CONFIG_DIR := "res://data/configs/enemies/templates"
+const ENEMY_BRAIN_CONFIG_DIR := "res://data/configs/enemies/brains"
+const ENEMY_ROSTER_CONFIG_DIR := "res://data/configs/enemies/rosters"
+const FIXTURE_MISSING_BRAIN_TEMPLATE_DIR := "res://tests/fixtures/enemy_content/missing_brain/templates"
+const FIXTURE_EMPTY_ROSTER_DIR := "res://tests/fixtures/enemy_content/missing_brain/rosters"
+const FIXTURE_INVALID_ROSTER_DIR := "res://tests/fixtures/enemy_content/invalid_roster/rosters"
 
 var _failures: Array[String] = []
 
@@ -25,6 +32,9 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_enemy_content_registry_scans_enemy_resource_directories()
+	_test_enemy_content_registry_reports_missing_brain_reference()
+	_test_enemy_content_registry_reports_missing_roster_template_reference()
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_enemy_content_registry_registers_second_formal_roster()
@@ -48,6 +58,43 @@ func _run() -> void:
 		push_error(failure)
 	print("Wild encounter regression: FAIL (%d)" % _failures.size())
 	quit(1)
+
+
+func _test_enemy_content_registry_scans_enemy_resource_directories() -> void:
+	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
+	var validation_errors := registry.validate()
+	_assert_true(validation_errors.is_empty(), "EnemyContentRegistry 的正式资源目录扫描不应产出校验错误。")
+	_assert_eq(registry.get_enemy_ai_brains().size(), 5, "正式 enemy brain 资源目录应注册 5 个 brain。")
+	_assert_eq(registry.get_enemy_templates().size(), 8, "正式 enemy template 资源目录应注册 8 个模板。")
+	_assert_eq(registry.get_wild_encounter_rosters().size(), 2, "正式 roster 资源目录应注册 2 个编队。")
+
+
+func _test_enemy_content_registry_reports_missing_brain_reference() -> void:
+	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
+	registry.configure_directories(
+		FIXTURE_MISSING_BRAIN_TEMPLATE_DIR,
+		ENEMY_BRAIN_CONFIG_DIR,
+		FIXTURE_EMPTY_ROSTER_DIR
+	)
+	var validation_errors := registry.validate()
+	_assert_true(
+		_errors_contain_fragment(validation_errors, "references missing brain missing_brain"),
+		"EnemyContentRegistry 应报告 template 引用缺失 brain 的配置错误。"
+	)
+
+
+func _test_enemy_content_registry_reports_missing_roster_template_reference() -> void:
+	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
+	registry.configure_directories(
+		ENEMY_TEMPLATE_CONFIG_DIR,
+		ENEMY_BRAIN_CONFIG_DIR,
+		FIXTURE_INVALID_ROSTER_DIR
+	)
+	var validation_errors := registry.validate()
+	_assert_true(
+		_errors_contain_fragment(validation_errors, "references missing template missing_template"),
+		"EnemyContentRegistry 应报告 roster 非法引用缺失 template 的配置错误。"
+	)
 
 
 func _test_encounter_anchor_round_trip_preserves_growth_fields() -> void:
@@ -703,6 +750,13 @@ func _unit_has_skill(units: Array, display_name: String, skill_id: StringName) -
 		if String(unit_variant.display_name) != display_name:
 			continue
 		return unit_variant.known_active_skill_ids.has(skill_id)
+	return false
+
+
+func _errors_contain_fragment(errors: Array[String], fragment: String) -> bool:
+	for error_text in errors:
+		if String(error_text).find(fragment) >= 0:
+			return true
 	return false
 
 

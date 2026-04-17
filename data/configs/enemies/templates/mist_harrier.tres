@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"mist_harrier"
+display_name = "雾沼猎压者"
+brain_id = &"ranged_suppressor"
+initial_state_id = &"pressure"
+skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
+attribute_overrides = {
+"hp_max": 26,
+"mp_max": 0,
+"stamina_max": 4,
+"action_points": 2,
+"physical_attack": 9,
+"physical_defense": 3,
+"magic_attack": 0,
+"magic_defense": 2,
+"speed": 11
+}

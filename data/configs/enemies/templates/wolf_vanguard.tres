@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"wolf_vanguard"
+display_name = "荒狼先锋"
+brain_id = &"frontline_bulwark"
+initial_state_id = &"engage"
+skill_ids = Array[StringName]([&"charge", &"warrior_shield_bash", &"warrior_taunt", &"warrior_guard"])
+attribute_overrides = {
+"hp_max": 42,
+"mp_max": 0,
+"stamina_max": 0,
+"action_points": 2,
+"physical_attack": 10,
+"physical_defense": 6,
+"magic_attack": 0,
+"magic_defense": 3,
+"speed": 8
+}

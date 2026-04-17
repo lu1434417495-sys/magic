@@ -1,8 +1,8 @@
 class_name UseGroundSkillAction
 extends "res://scripts/enemies/enemy_ai_action.gd"
 
-var skill_ids: Array[StringName] = []
-var minimum_hit_count := 1
+@export var skill_ids: Array[StringName] = []
+@export var minimum_hit_count := 1
 
 
 func decide(context):
@@ -56,3 +56,12 @@ func decide(context):
 					]
 				)
 	return best_decision
+
+
+func validate_schema() -> Array[String]:
+	var errors := _collect_base_validation_errors()
+	if skill_ids.is_empty():
+		errors.append("UseGroundSkillAction %s must declare at least one skill_id." % String(action_id))
+	if minimum_hit_count <= 0:
+		errors.append("UseGroundSkillAction %s minimum_hit_count must be >= 1." % String(action_id))
+	return errors

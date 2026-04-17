@@ -1,9 +1,9 @@
 class_name MoveToRangeAction
 extends "res://scripts/enemies/enemy_ai_action.gd"
 
-var target_selector: StringName = &"nearest_enemy"
-var desired_min_distance := 1
-var desired_max_distance := 1
+@export var target_selector: StringName = &"nearest_enemy"
+@export var desired_min_distance := 1
+@export var desired_max_distance := 1
 
 
 func decide(context):
@@ -40,3 +40,14 @@ func _distance_band_score(distance_value: int) -> int:
 	if distance_value < desired_min_distance:
 		return 500 - (desired_min_distance - distance_value) * 100
 	return 500 - (distance_value - desired_max_distance) * 100
+
+
+func validate_schema() -> Array[String]:
+	var errors := _collect_base_validation_errors()
+	if target_selector == &"":
+		errors.append("MoveToRangeAction %s is missing target_selector." % String(action_id))
+	if desired_min_distance < 0:
+		errors.append("MoveToRangeAction %s desired_min_distance must be >= 0." % String(action_id))
+	if desired_max_distance < desired_min_distance:
+		errors.append("MoveToRangeAction %s desired_max_distance must be >= desired_min_distance." % String(action_id))
+	return errors

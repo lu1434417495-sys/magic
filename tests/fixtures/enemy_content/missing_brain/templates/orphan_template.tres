@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"orphan_template"
+display_name = "断链敌人"
+brain_id = &"missing_brain"
+initial_state_id = &"engage"
+skill_ids = Array[StringName]([&"warrior_heavy_strike"])

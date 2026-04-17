@@ -1,5 +1,5 @@
 class_name EnemyAiAction
-extends RefCounted
+extends Resource
 
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle_ai_decision.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
@@ -10,12 +10,23 @@ const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
-var action_id: StringName = &""
-var score_bucket_id: StringName = &""
+@export var action_id: StringName = &""
+@export var score_bucket_id: StringName = &""
 
 
 func decide(_context):
 	return null
+
+
+func validate_schema() -> Array[String]:
+	return _collect_base_validation_errors()
+
+
+func _collect_base_validation_errors() -> Array[String]:
+	var errors: Array[String] = []
+	if action_id == &"":
+		errors.append("AI action is missing action_id.")
+	return errors
 
 
 func _create_decision(command, reason_text: String = "") -> BattleAiDecision:

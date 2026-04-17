@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/wild_encounter_roster_def.gd" id="1_roster"]
+
+[resource]
+script = ExtResource("1_roster")
+profile_id = &"mist_hollow"
+display_name = "雾沼伏猎群"
+initial_stage = 0
+growth_step_interval = 3
+suppression_steps_on_victory = 2
+stages = Array[Dictionary]([{
+"stage": 0,
+"unit_entries": [{
+"template_id": &"mist_beast",
+"count": 1
+}, {
+"template_id": &"mist_harrier",
+"count": 1
+}]
+}, {
+"stage": 1,
+"unit_entries": [{
+"template_id": &"mist_beast",
+"count": 1
+}, {
+"template_id": &"mist_harrier",
+"count": 2
+}]
+}, {
+"stage": 2,
+"unit_entries": [{
+"template_id": &"mist_beast",
+"count": 2
+}, {
+"template_id": &"mist_harrier",
+"count": 2
+}, {
+"template_id": &"mist_weaver",
+"count": 1
+}]
+}])

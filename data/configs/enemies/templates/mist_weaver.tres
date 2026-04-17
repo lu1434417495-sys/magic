@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"mist_weaver"
+display_name = "雾沼织咒者"
+brain_id = &"healer_controller"
+initial_state_id = &"pressure"
+skill_ids = Array[StringName]([&"mage_temporal_rewind", &"mage_glacial_prison", &"mage_ice_lance"])
+attribute_overrides = {
+"hp_max": 24,
+"mp_max": 14,
+"stamina_max": 0,
+"action_points": 2,
+"physical_attack": 3,
+"physical_defense": 2,
+"magic_attack": 12,
+"magic_defense": 6,
+"speed": 9
+}

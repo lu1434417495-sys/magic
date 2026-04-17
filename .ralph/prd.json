@@ -126,14 +126,22 @@
     {
       "id": "PVS_24A",
       "title": "建立 enemy resource schema 与 registry scan",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "enemy template、brain、roster 可通过资源目录扫描和校验",
         "registry 能报告缺失模板、缺失 brain 与非法 roster 引用"
       ],
       "notes": [
         "Owner：CU-20 / CU-17。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T22:46:42+08:00",
+      "lastRunId": "20260417-224642-PVS_24A",
+      "startedAt": "2026-04-17T22:46:42+08:00",
+      "completedAt": "2026-04-17T23:04:15+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd` PASS; `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd` PASS.",
+      "lastLearnings": "AI brain/state definitions needed serialization-friendly Resource schemas, but existing AI tests still mutate them at runtime; keeping `EnemyAiBrainDef.states` compatible with both scanned resource arrays and test-injected dictionaries preserved current battle regression behavior while enabling resource-directory validation."
     },
     {
       "id": "PVS_24B",

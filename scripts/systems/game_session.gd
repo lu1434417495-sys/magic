@@ -117,6 +117,7 @@ func _init() -> void:
 	_report_item_content_errors()
 	_report_recipe_content_errors()
 	_refresh_enemy_content()
+	_report_enemy_content_errors()
 
 
 func ensure_world_ready(generation_config_path: String) -> int:
@@ -1197,6 +1198,14 @@ func _report_recipe_content_errors() -> void:
 
 	for validation_error in _recipe_content_registry.validate():
 		_push_session_error("session.content.recipe_validation_failed", "Recipe content error: %s" % validation_error)
+
+
+func _report_enemy_content_errors() -> void:
+	if _enemy_content_registry == null:
+		return
+
+	for validation_error in _enemy_content_registry.validate():
+		_push_session_error("session.content.enemy_validation_failed", "Enemy content error: %s" % validation_error)
 
 
 func _log_session_info(event_id: String, message: String, context: Dictionary = {}) -> void:

@@ -1,8 +1,8 @@
 class_name UseUnitSkillAction
 extends "res://scripts/enemies/enemy_ai_action.gd"
 
-var skill_ids: Array[StringName] = []
-var target_selector: StringName = &"nearest_enemy"
+@export var skill_ids: Array[StringName] = []
+@export var target_selector: StringName = &"nearest_enemy"
 
 
 func decide(context):
@@ -52,3 +52,12 @@ func decide(context):
 		if best_decision != null:
 			return best_decision
 	return null
+
+
+func validate_schema() -> Array[String]:
+	var errors := _collect_base_validation_errors()
+	if skill_ids.is_empty():
+		errors.append("UseUnitSkillAction %s must declare at least one skill_id." % String(action_id))
+	if target_selector == &"":
+		errors.append("UseUnitSkillAction %s is missing target_selector." % String(action_id))
+	return errors

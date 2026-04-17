@@ -7,3 +7,7 @@ func decide(context):
 		_build_wait_command(context),
 		"%s 没有更优动作，选择待机。" % [context.unit_state.display_name]
 	)
+
+
+func validate_schema() -> Array[String]:
+	return _collect_base_validation_errors()

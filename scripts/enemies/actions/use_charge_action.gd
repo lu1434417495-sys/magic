@@ -1,8 +1,8 @@
 class_name UseChargeAction
 extends "res://scripts/enemies/enemy_ai_action.gd"
 
-var skill_id: StringName = &"charge"
-var target_selector: StringName = &"nearest_enemy"
+@export var skill_id: StringName = &"charge"
+@export var target_selector: StringName = &"nearest_enemy"
 
 
 func decide(context):
@@ -110,3 +110,12 @@ func _resolve_charge_target_info(unit_state: BattleUnitState, target_coord: Vect
 				"predicted_anchor": unit_state.coord + Vector2i.DOWN * down_distance,
 			}
 	return {"valid": false}
+
+
+func validate_schema() -> Array[String]:
+	var errors := _collect_base_validation_errors()
+	if skill_id == &"":
+		errors.append("UseChargeAction %s is missing skill_id." % String(action_id))
+	if target_selector == &"":
+		errors.append("UseChargeAction %s is missing target_selector." % String(action_id))
+	return errors
