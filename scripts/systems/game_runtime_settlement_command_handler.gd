@@ -415,8 +415,10 @@ func build_settlement_action_payload(settlement_id: String, action_id: String, o
 		payload = {
 			"action_id": action_id,
 			"facility_id": service_data.get("facility_id", ""),
+			"facility_template_id": service_data.get("facility_template_id", ""),
 			"facility_name": service_data.get("facility_name", ""),
 			"npc_id": service_data.get("npc_id", ""),
+			"npc_template_id": service_data.get("npc_template_id", ""),
 			"npc_name": service_data.get("npc_name", ""),
 			"service_type": service_data.get("service_type", ""),
 			"interaction_script_id": service_data.get("interaction_script_id", ""),

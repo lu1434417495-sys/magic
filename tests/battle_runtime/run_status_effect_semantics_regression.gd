@@ -16,9 +16,9 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_staggered_refreshes_without_stacking()
+	_test_staggered_refreshes_without_stacking_and_expires_on_tu_progress()
 	_test_burning_stacks_and_ticks_each_turn()
-	_test_slow_increases_move_cost_and_expires_on_turn_end()
+	_test_slow_increases_move_cost_and_expires_on_tu_progress()
 	if _failures.is_empty():
 		print("Status effect semantics regression: PASS")
 		quit(0)
@@ -29,7 +29,7 @@ func _run() -> void:
 	quit(1)
 
 
-func _test_staggered_refreshes_without_stacking() -> void:
+func _test_staggered_refreshes_without_stacking_and_expires_on_tu_progress() -> void:
 	var runtime := _build_runtime()
 	var state := _build_state(Vector2i(4, 3))
 	var striker := _build_unit(&"staggered_source", Vector2i(1, 1), 2)
@@ -42,11 +42,12 @@ func _test_staggered_refreshes_without_stacking() -> void:
 	state.enemy_unit_ids = [target.unit_id]
 	runtime._state = state
 
-	_apply_status(runtime, striker, target, &"staggered", 1)
-	_apply_status(runtime, striker, target, &"staggered", 1)
+	_apply_status(runtime, striker, target, &"staggered", 3)
+	_apply_status(runtime, striker, target, &"staggered", 3)
 	var stagger_entry = target.get_status_effect(&"staggered")
 	_assert_true(stagger_entry != null, "重复施加 staggered 后应保留正式状态。")
 	_assert_eq(int(stagger_entry.stacks) if stagger_entry != null else -1, 1, "staggered 应按 refresh 语义而不是累加层数。")
+	_assert_eq(int(stagger_entry.duration) if stagger_entry != null else -1, 3, "staggered 应记录剩余 TU。")
 
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
@@ -59,7 +60,9 @@ func _test_staggered_refreshes_without_stacking() -> void:
 	wait_command.command_type = BattleCommand.TYPE_WAIT
 	wait_command.unit_id = target.unit_id
 	runtime.issue_command(wait_command)
-	_assert_true(not target.has_status_effect(&"staggered"), "staggered 应在目标回合结束后被移除。")
+	_assert_true(target.has_status_effect(&"staggered"), "staggered 不应在目标回合结束后被立即移除。")
+	_advance_timeline_tu(runtime, state, 3)
+	_assert_true(not target.has_status_effect(&"staggered"), "staggered 应在 TU 走完后移除。")
 
 
 func _test_burning_stacks_and_ticks_each_turn() -> void:
@@ -77,12 +80,12 @@ func _test_burning_stacks_and_ticks_each_turn() -> void:
 	state.enemy_unit_ids = [target.unit_id]
 	runtime._state = state
 
-	_apply_status(runtime, caster, target, &"burning", 2)
-	_apply_status(runtime, caster, target, &"burning", 2)
+	_apply_status(runtime, caster, target, &"burning", 4)
+	_apply_status(runtime, caster, target, &"burning", 4)
 	var burning_entry = target.get_status_effect(&"burning")
 	_assert_true(burning_entry != null, "burning 应在重复施加后存在于正式状态字典中。")
 	_assert_eq(int(burning_entry.stacks) if burning_entry != null else -1, 2, "burning 应按 add 语义累加层数。")
-	_assert_eq(int(burning_entry.duration) if burning_entry != null else -1, 2, "burning 应沿用施加时给定的持续轮次。")
+	_assert_eq(int(burning_entry.duration) if burning_entry != null else -1, 4, "burning 应沿用施加时给定的剩余 TU。")
 
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
@@ -95,7 +98,11 @@ func _test_burning_stacks_and_ticks_each_turn() -> void:
 	first_wait.unit_id = target.unit_id
 	runtime.issue_command(first_wait)
 	burning_entry = target.get_status_effect(&"burning")
-	_assert_eq(int(burning_entry.duration) if burning_entry != null else -1, 1, "burning 在回合结束后应递减持续轮次。")
+	_assert_eq(int(burning_entry.duration) if burning_entry != null else -1, 4, "burning 不应在回合结束后递减 TU。")
+
+	_advance_timeline_tu(runtime, state, 2)
+	burning_entry = target.get_status_effect(&"burning")
+	_assert_eq(int(burning_entry.duration) if burning_entry != null else -1, 2, "burning 应随时间轴推进递减剩余 TU。")
 
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
@@ -107,10 +114,12 @@ func _test_burning_stacks_and_ticks_each_turn() -> void:
 	second_wait.command_type = BattleCommand.TYPE_WAIT
 	second_wait.unit_id = target.unit_id
 	runtime.issue_command(second_wait)
-	_assert_true(not target.has_status_effect(&"burning"), "burning 到期后应在回合结束时正式移除。")
+	_assert_true(target.has_status_effect(&"burning"), "burning 不应在第二个回合结束时被 turn end 提前清除。")
+	_advance_timeline_tu(runtime, state, 2)
+	_assert_true(not target.has_status_effect(&"burning"), "burning 到期后应按 TU 正式移除。")
 
 
-func _test_slow_increases_move_cost_and_expires_on_turn_end() -> void:
+func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
 	var runtime := _build_runtime()
 	var state := _build_state(Vector2i(5, 3))
 	var source := _build_unit(&"slow_source", Vector2i(0, 1), 2)
@@ -125,7 +134,7 @@ func _test_slow_increases_move_cost_and_expires_on_turn_end() -> void:
 	state.enemy_unit_ids = [enemy.unit_id]
 	runtime._state = state
 
-	_apply_status(runtime, source, target, &"slow", 1)
+	_apply_status(runtime, source, target, &"slow", 3)
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
@@ -151,9 +160,11 @@ func _test_slow_increases_move_cost_and_expires_on_turn_end() -> void:
 	wait_command.unit_id = target.unit_id
 	runtime.issue_command(wait_command)
 	_assert_true(
-		not target.has_status_effect(&"slow"),
-		"slow 应在目标回合结束后按持续时间移除。"
+		target.has_status_effect(&"slow"),
+		"slow 不应在目标回合结束后按 turn end 立刻移除。"
 	)
+	_advance_timeline_tu(runtime, state, 3)
+	_assert_true(not target.has_status_effect(&"slow"), "slow 应在 TU 走完后移除。")
 
 
 func _apply_status(
@@ -161,15 +172,15 @@ func _apply_status(
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
 	status_id: StringName,
-	duration: int,
+	duration_tu: int,
 	power: int = 1
 ) -> void:
 	var effect_def := CombatEffectDef.new()
 	effect_def.effect_type = &"status"
 	effect_def.status_id = status_id
 	effect_def.power = power
-	if duration > 0:
-		effect_def.params = {"duration": duration}
+	if duration_tu > 0:
+		effect_def.duration_tu = duration_tu
 	runtime._damage_resolver.resolve_effects(source_unit, target_unit, [effect_def])
 
 
@@ -191,6 +202,18 @@ func _build_state(map_size: Vector2i) -> BattleState:
 			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 	return state
+
+
+func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, total_tu: int) -> void:
+	if runtime == null or state == null or total_tu <= 0:
+		return
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	state.timeline.ready_unit_ids.clear()
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 1
+	state.timeline.action_threshold = 1000000
+	runtime.advance(float(total_tu))
 
 
 func _build_cell(coord: Vector2i) -> BattleCellState:

@@ -11,9 +11,7 @@ script = ExtResource("3_i3bpm")
 effect_type = &"status"
 power = 1
 status_id = &"taunted"
-params = {
-"duration": 1
-}
+duration_tu = 90
 
 [sub_resource type="Resource" id="Resource_8rkps"]
 script = ExtResource("4_hqefb")

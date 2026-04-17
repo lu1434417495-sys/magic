@@ -87,10 +87,16 @@ func _build_libraries() -> void:
 	_settlement_library_by_id.clear()
 
 	for facility_config in _generation_config.facility_library:
-		_facility_library_by_id[facility_config.facility_id] = facility_config
+		var facility_template_id := _get_facility_template_id(facility_config)
+		if facility_template_id.is_empty():
+			continue
+		_facility_library_by_id[facility_template_id] = facility_config
 
 	for settlement_config in _generation_config.settlement_library:
-		_settlement_library_by_id[settlement_config.settlement_id] = settlement_config
+		var settlement_template_id := _get_settlement_template_id(settlement_config)
+		if settlement_template_id.is_empty():
+			continue
+		_settlement_library_by_id[settlement_template_id] = settlement_config
 
 
 func _generate_settlements() -> Array[Dictionary]:
@@ -105,7 +111,8 @@ func _generate_fixed_settlements() -> Array[Dictionary]:
 	var instance_counts: Dictionary = {}
 
 	for distribution_rule in _generation_config.settlement_distribution:
-		var settlement_config = _settlement_library_by_id.get(distribution_rule.settlement_id)
+		var settlement_template_id := _get_distribution_rule_template_id(distribution_rule)
+		var settlement_config = _settlement_library_by_id.get(settlement_template_id)
 		if settlement_config == null:
 			continue
 
@@ -213,16 +220,17 @@ func _create_settlement_instance(
 ) -> Dictionary:
 	var footprint_size: Vector2i = settlement_config.get_footprint_size()
 	if not _grid_system.can_place_footprint(origin, footprint_size):
-		push_error("Invalid settlement placement for %s at %s" % [settlement_config.settlement_id, origin])
+		push_error("Invalid settlement placement for %s at %s" % [_get_settlement_template_id(settlement_config), origin])
 		return {}
 
-	var template_id: String = settlement_config.settlement_id
+	var template_id := _get_settlement_template_id(settlement_config)
+	if template_id.is_empty():
+		push_error("Settlement template is missing template_id for placement at %s." % origin)
+		return {}
 	var instance_index: int = int(instance_counts.get(template_id, 0)) + 1
 	instance_counts[template_id] = instance_index
 
-	var settlement_id := template_id
-	if instance_index > 1 or _generation_config.procedural_generation_enabled:
-		settlement_id = "%s_%02d" % [template_id, instance_index]
+	var settlement_id := _build_settlement_instance_id(template_id, instance_index)
 
 	var display_name: String = settlement_config.display_name
 	if instance_index > 1:
@@ -231,8 +239,7 @@ func _create_settlement_instance(
 	var entity_id := "settlement_%s" % settlement_id
 	_grid_system.register_footprint(entity_id, origin, footprint_size)
 
-	var facilities := _generate_facilities_for_settlement(settlement_config, origin)
-	facilities = _augment_facilities_for_settlement(settlement_config, origin, facilities)
+	var facilities := _generate_facilities_for_settlement(settlement_id, settlement_config, origin)
 	var settlement := {
 		"entity_id": entity_id,
 		"template_id": template_id,
@@ -247,21 +254,27 @@ func _create_settlement_instance(
 		"is_player_start": is_player_start,
 		"settlement_state": _build_default_settlement_state(is_player_start),
 	}
-	settlement["available_services"] = _collect_services(facilities)
+	settlement["available_services"] = _collect_services(settlement_id, facilities)
 	settlement["service_npcs"] = _collect_service_npcs(facilities)
 	return settlement
 
 
-func _generate_facilities_for_settlement(settlement_config, settlement_origin: Vector2i) -> Array[Dictionary]:
+func _generate_facilities_for_settlement(settlement_id: String, settlement_config, settlement_origin: Vector2i) -> Array[Dictionary]:
 	var generated_facilities: Array[Dictionary] = []
 	var used_slot_ids: Dictionary = {}
 
-	for facility_id in settlement_config.guaranteed_facility_ids:
-		var facility_config = _facility_library_by_id.get(facility_id)
+	for facility_template_id in settlement_config.guaranteed_facility_ids:
+		var facility_config = _facility_library_by_id.get(facility_template_id)
 		if facility_config == null:
 			continue
 
-		var placed_facility := _try_place_facility(facility_config, settlement_config, settlement_origin, used_slot_ids)
+		var placed_facility := _try_place_facility(
+			settlement_id,
+			facility_config,
+			settlement_config,
+			settlement_origin,
+			used_slot_ids
+		)
 		if not placed_facility.is_empty():
 			generated_facilities.append(placed_facility)
 
@@ -272,187 +285,41 @@ func _generate_facilities_for_settlement(settlement_config, settlement_origin: V
 	var optional_pool: Array = settlement_config.optional_facility_pool.duplicate()
 
 	for _optional_index in range(optional_limit):
-		var selected_facility_id := _pick_weighted_facility(optional_pool)
-		if selected_facility_id.is_empty():
+		var selected_facility_template_id := _pick_weighted_facility(optional_pool)
+		if selected_facility_template_id.is_empty():
 			break
 
-		var facility_config = _facility_library_by_id.get(selected_facility_id)
+		var facility_config = _facility_library_by_id.get(selected_facility_template_id)
 		if facility_config == null:
 			continue
 
-		var placed_facility := _try_place_facility(facility_config, settlement_config, settlement_origin, used_slot_ids)
+		var placed_facility := _try_place_facility(
+			settlement_id,
+			facility_config,
+			settlement_config,
+			settlement_origin,
+			used_slot_ids
+		)
 		if placed_facility.is_empty():
 			continue
 
 		generated_facilities.append(placed_facility)
-		_remove_weighted_entry(optional_pool, selected_facility_id)
+		_remove_weighted_entry(optional_pool, selected_facility_template_id)
 
 	return generated_facilities
 
 
-func _augment_facilities_for_settlement(settlement_config, settlement_origin: Vector2i, facilities: Array[Dictionary]) -> Array[Dictionary]:
-	var next_facilities: Array[Dictionary] = []
-	for facility_variant in facilities:
-		if facility_variant is Dictionary:
-			next_facilities.append((facility_variant as Dictionary).duplicate(true))
-	var tier: int = int(settlement_config.tier)
-	var existing_interaction_ids := _collect_interaction_ids(next_facilities)
-	if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.VILLAGE:
-		if not existing_interaction_ids.has("service_rest_basic") or not existing_interaction_ids.has("service_basic_supply") or not existing_interaction_ids.has("service_village_rumor"):
-			next_facilities.append(_build_synthetic_facility(
-				"village_hearth",
-				"篝烟灶",
-				"rest",
-				"rest",
-				settlement_origin,
-				"core",
-				[
-					{"npc_id": "npc_village_elder", "display_name": "村长", "service_type": "歇脚", "interaction_script_id": "service_rest_basic", "local_slot_id": "hearth_rest"},
-					{"npc_id": "npc_village_teller", "display_name": "猎径向导", "service_type": "传闻", "interaction_script_id": "service_village_rumor", "local_slot_id": "hearth_rumor"},
-					{"npc_id": "npc_village_vendor", "display_name": "补给商", "service_type": "补给", "interaction_script_id": "service_basic_supply", "local_slot_id": "hearth_supply"},
-					{"npc_id": "npc_village_keeper", "display_name": "仓管", "service_type": "仓储", "interaction_script_id": "party_warehouse", "local_slot_id": "hearth_warehouse"},
-				]
-			))
-	if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.TOWN:
-		if not existing_interaction_ids.has("service_local_trade"):
-			next_facilities.append(_build_synthetic_facility(
-				"town_market",
-				"镇集摊位",
-				"trade",
-				"shop",
-				settlement_origin + Vector2i.ONE,
-				"commerce",
-				[
-					{"npc_id": "npc_town_merchant", "display_name": "杂货商", "service_type": "交易", "interaction_script_id": "service_local_trade", "local_slot_id": "market_trade"},
-				]
-			))
-		if not existing_interaction_ids.has("service_stagecoach"):
-			next_facilities.append(_build_synthetic_facility(
-				"coach_station",
-				"驿站",
-				"transport",
-				"travel",
-				settlement_origin + Vector2i.ONE,
-				"service",
-				[
-					{"npc_id": "npc_coachman", "display_name": "驿夫", "service_type": "驿站", "interaction_script_id": "service_stagecoach", "local_slot_id": "coach_route"},
-				]
-			))
-		if not existing_interaction_ids.has("service_repair_gear"):
-			next_facilities.append(_build_synthetic_facility(
-				"repair_workshop",
-				"工坊",
-				"craft",
-				"craft",
-				settlement_origin + Vector2i.ONE,
-				"support",
-				[
-					{"npc_id": "npc_blacksmith", "display_name": "铁匠", "service_type": "修整", "interaction_script_id": "service_repair_gear", "local_slot_id": "workshop_repair"},
-					{"npc_id": "npc_town_keeper", "display_name": "仓管", "service_type": "仓储", "interaction_script_id": "party_warehouse", "local_slot_id": "workshop_warehouse"},
-				]
-			))
-	next_facilities = _ensure_master_reforge_service(next_facilities)
-	return next_facilities
-
-
-func _collect_interaction_ids(facilities: Array[Dictionary]) -> Dictionary:
-	var interaction_ids: Dictionary = {}
-	for facility_variant in facilities:
-		if facility_variant is not Dictionary:
-			continue
-		var facility_data: Dictionary = facility_variant
-		for npc_variant in facility_data.get("service_npcs", []):
-			if npc_variant is not Dictionary:
-				continue
-			var interaction_script_id := String((npc_variant as Dictionary).get("interaction_script_id", ""))
-			if not interaction_script_id.is_empty():
-				interaction_ids[interaction_script_id] = true
-	return interaction_ids
-
-
-func _build_synthetic_facility(
-	facility_id: String,
-	display_name: String,
-	category: String,
-	interaction_type: String,
-	world_coord: Vector2i,
-	slot_tag: String,
-	npc_entries: Array
+func _try_place_facility(
+	settlement_id: String,
+	facility_config,
+	settlement_config,
+	settlement_origin: Vector2i,
+	used_slot_ids: Dictionary
 ) -> Dictionary:
-	var service_npcs: Array[Dictionary] = []
-	for npc_variant in npc_entries:
-		if npc_variant is not Dictionary:
-			continue
-		var npc_data: Dictionary = (npc_variant as Dictionary).duplicate(true)
-		npc_data["facility_id"] = facility_id
-		npc_data["facility_name"] = display_name
-		service_npcs.append(npc_data)
-	return {
-		"facility_id": facility_id,
-		"display_name": display_name,
-		"category": category,
-		"interaction_type": interaction_type,
-		"slot_id": "generated_%s" % facility_id,
-		"slot_tag": slot_tag,
-		"local_coord": Vector2i.ZERO,
-		"world_coord": world_coord,
-		"service_npcs": service_npcs,
-	}
-
-
-func _ensure_master_reforge_service(facilities: Array[Dictionary]) -> Array[Dictionary]:
-	var next_facilities: Array[Dictionary] = []
-	var has_master_reforge := false
-	for facility_variant in facilities:
-		if facility_variant is not Dictionary:
-			continue
-		var facility_copy: Dictionary = (facility_variant as Dictionary).duplicate(true)
-		for npc_variant in facility_copy.get("service_npcs", []):
-			if npc_variant is not Dictionary:
-				continue
-			if String((npc_variant as Dictionary).get("interaction_script_id", "")) == "service_master_reforge":
-				has_master_reforge = true
-				break
-		next_facilities.append(facility_copy)
-	if has_master_reforge:
-		return next_facilities
-
-	for facility_index in range(next_facilities.size()):
-		var facility := next_facilities[facility_index]
-		if not _facility_supports_master_reforge(facility):
-			continue
-		var service_npcs: Array = facility.get("service_npcs", []).duplicate(true)
-		service_npcs.append({
-			"npc_id": "npc_master_smith",
-			"display_name": "大师铁匠",
-			"service_type": "重铸",
-			"interaction_script_id": "service_master_reforge",
-			"local_slot_id": "master_reforge_slot",
-			"facility_id": facility.get("facility_id", ""),
-			"facility_name": facility.get("display_name", ""),
-		})
-		facility["service_npcs"] = service_npcs
-		next_facilities[facility_index] = facility
-		break
-	return next_facilities
-
-
-func _facility_supports_master_reforge(facility: Dictionary) -> bool:
-	var facility_id := String(facility.get("facility_id", ""))
-	if String(facility.get("interaction_type", "")) == "craft":
-		return true
-	if facility_id.contains("forge") or facility_id.contains("workshop"):
-		return true
-	for npc_variant in facility.get("service_npcs", []):
-		if npc_variant is not Dictionary:
-			continue
-		if String((npc_variant as Dictionary).get("interaction_script_id", "")) == "service_repair_gear":
-			return true
-	return false
-
-
-func _try_place_facility(facility_config, settlement_config, settlement_origin: Vector2i, used_slot_ids: Dictionary) -> Dictionary:
 	if facility_config.min_settlement_tier > settlement_config.tier:
+		return {}
+	var facility_template_id := _get_facility_template_id(facility_config)
+	if facility_template_id.is_empty():
 		return {}
 
 	for slot_config in settlement_config.facility_slots:
@@ -462,20 +329,30 @@ func _try_place_facility(facility_config, settlement_config, settlement_origin: 
 			continue
 
 		used_slot_ids[slot_config.slot_id] = true
+		var facility_id := _build_facility_instance_id(settlement_id, facility_template_id, slot_config.slot_id)
 		var service_npcs: Array[Dictionary] = []
+		var npc_index := 0
 		for npc_config in facility_config.bound_service_npcs:
+			var npc_template_id := _get_npc_template_id(npc_config)
+			if npc_template_id.is_empty():
+				continue
 			service_npcs.append({
-				"npc_id": npc_config.npc_id,
+				"template_id": npc_template_id,
+				"npc_id": _build_npc_instance_id(facility_id, npc_template_id, npc_config.local_slot_id, npc_index),
 				"display_name": npc_config.display_name,
 				"service_type": npc_config.service_type,
 				"interaction_script_id": npc_config.interaction_script_id,
 				"local_slot_id": npc_config.local_slot_id,
-				"facility_id": facility_config.facility_id,
+				"facility_id": facility_id,
+				"facility_template_id": facility_template_id,
 				"facility_name": facility_config.display_name,
+				"settlement_id": settlement_id,
 			})
+			npc_index += 1
 
 		return {
-			"facility_id": facility_config.facility_id,
+			"template_id": facility_template_id,
+			"facility_id": facility_id,
 			"display_name": facility_config.display_name,
 			"category": facility_config.category,
 			"interaction_type": facility_config.interaction_type,
@@ -483,13 +360,14 @@ func _try_place_facility(facility_config, settlement_config, settlement_origin: 
 			"slot_tag": slot_config.slot_tag,
 			"local_coord": slot_config.local_coord,
 			"world_coord": settlement_origin + slot_config.local_coord,
+			"settlement_id": settlement_id,
 			"service_npcs": service_npcs,
 		}
 
 	return {}
 
 
-func _collect_services(facilities: Array[Dictionary]) -> Array[Dictionary]:
+func _collect_services(settlement_id: String, facilities: Array[Dictionary]) -> Array[Dictionary]:
 	var services: Array[Dictionary] = []
 	var has_party_warehouse_service := false
 
@@ -499,9 +377,12 @@ func _collect_services(facilities: Array[Dictionary]) -> Array[Dictionary]:
 			if interaction_script_id == "party_warehouse":
 				has_party_warehouse_service = true
 			services.append({
+				"settlement_id": settlement_id,
 				"facility_id": facility.get("facility_id", ""),
+				"facility_template_id": facility.get("template_id", ""),
 				"facility_name": facility.get("display_name", ""),
 				"npc_id": npc.get("npc_id", ""),
+				"npc_template_id": npc.get("template_id", ""),
 				"npc_name": npc.get("display_name", ""),
 				"service_type": npc.get("service_type", ""),
 				"action_id": _build_service_action_id(
@@ -513,9 +394,12 @@ func _collect_services(facilities: Array[Dictionary]) -> Array[Dictionary]:
 
 	if not has_party_warehouse_service:
 		services.append({
-			"facility_id": "settlement_service_desk",
+			"settlement_id": settlement_id,
+			"facility_id": "%s__settlement_service_desk" % settlement_id,
+			"facility_template_id": "",
 			"facility_name": "据点服务台",
-			"npc_id": "npc_quartermaster",
+			"npc_id": "%s__settlement_quartermaster" % settlement_id,
+			"npc_template_id": "",
 			"npc_name": "军需官",
 			"service_type": "仓储",
 			"action_id": String(SERVICE_ACTION_ID_BY_INTERACTION.get("party_warehouse", "service:warehouse")),
@@ -556,6 +440,77 @@ func _build_service_action_id(service_type: String, interaction_script_id: Strin
 	return "service:%s" % normalized_service_type
 
 
+func _get_settlement_template_id(settlement_config) -> String:
+	if settlement_config == null:
+		return ""
+	if settlement_config.has_method("get_template_id"):
+		return String(settlement_config.get_template_id())
+	return String(settlement_config.settlement_id).strip_edges()
+
+
+func _get_distribution_rule_template_id(distribution_rule) -> String:
+	if distribution_rule == null:
+		return ""
+	if distribution_rule.has_method("get_settlement_template_id"):
+		return String(distribution_rule.get_settlement_template_id())
+	return String(distribution_rule.settlement_id).strip_edges()
+
+
+func _get_facility_template_id(facility_config) -> String:
+	if facility_config == null:
+		return ""
+	if facility_config.has_method("get_template_id"):
+		return String(facility_config.get_template_id())
+	return String(facility_config.facility_id).strip_edges()
+
+
+func _get_npc_template_id(npc_config) -> String:
+	if npc_config == null:
+		return ""
+	if npc_config.has_method("get_template_id"):
+		return String(npc_config.get_template_id())
+	return String(npc_config.npc_id).strip_edges()
+
+
+func _get_weighted_facility_template_id(weighted_entry) -> String:
+	if weighted_entry == null:
+		return ""
+	if weighted_entry.has_method("get_facility_template_id"):
+		return String(weighted_entry.get_facility_template_id())
+	return String(weighted_entry.facility_id).strip_edges()
+
+
+func _build_settlement_instance_id(template_id: String, instance_index: int) -> String:
+	if template_id.is_empty():
+		return ""
+	return "%s_%02d" % [template_id, maxi(instance_index, 1)]
+
+
+func _build_facility_instance_id(settlement_id: String, template_id: String, slot_id: String) -> String:
+	var normalized_template_id := template_id.strip_edges().to_snake_case()
+	var normalized_slot_id := slot_id.strip_edges().to_snake_case()
+	if normalized_template_id.is_empty():
+		normalized_template_id = "facility"
+	if normalized_slot_id.is_empty():
+		normalized_slot_id = "slot"
+	return "%s__%s__%s" % [settlement_id, normalized_template_id, normalized_slot_id]
+
+
+func _build_npc_instance_id(
+	facility_id: String,
+	template_id: String,
+	local_slot_id: String,
+	npc_index: int
+) -> String:
+	var normalized_template_id := template_id.strip_edges().to_snake_case()
+	var normalized_slot_id := local_slot_id.strip_edges().to_snake_case()
+	if normalized_template_id.is_empty():
+		normalized_template_id = "npc"
+	if normalized_slot_id.is_empty():
+		normalized_slot_id = "slot_%02d" % maxi(npc_index + 1, 1)
+	return "%s__%s__%s" % [facility_id, normalized_template_id, normalized_slot_id]
+
+
 func _pick_weighted_facility(optional_pool: Array) -> String:
 	if optional_pool.is_empty():
 		return ""
@@ -573,15 +528,15 @@ func _pick_weighted_facility(optional_pool: Array) -> String:
 	for entry in optional_pool:
 		cursor += max(entry.weight, 0.0)
 		if roll <= cursor:
-			return entry.facility_id
+			return _get_weighted_facility_template_id(entry)
 
-	return optional_pool[0].facility_id
+	return _get_weighted_facility_template_id(optional_pool[0])
 
 
 func _remove_weighted_entry(optional_pool: Array, facility_id: String) -> void:
 	for index in range(optional_pool.size()):
 		var entry = optional_pool[index]
-		if entry.facility_id == facility_id:
+		if _get_weighted_facility_template_id(entry) == facility_id:
 			optional_pool.remove_at(index)
 			return
 

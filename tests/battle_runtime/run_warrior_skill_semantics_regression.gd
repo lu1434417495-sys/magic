@@ -7,6 +7,7 @@ const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 
 var _failures: Array[String] = []
@@ -124,7 +125,9 @@ func _test_shield_bash_reduces_target_ap_on_next_turn() -> void:
 	wait_command.command_type = BattleCommand.TYPE_WAIT
 	wait_command.unit_id = enemy.unit_id
 	runtime.issue_command(wait_command)
-	_assert_true(not enemy.status_effects.has(&"staggered"), "目标回合结束后 staggered 应被消耗。")
+	_assert_true(enemy.status_effects.has(&"staggered"), "目标回合结束后 staggered 不应再因 turn end 被消耗。")
+	_advance_timeline_tu(runtime, state, 60)
+	_assert_true(not enemy.status_effects.has(&"staggered"), "TU 走完后 staggered 应被移除。")
 
 
 func _test_guard_reduces_incoming_damage() -> void:
@@ -227,13 +230,15 @@ func _test_taunt_redirects_ai_target() -> void:
 	var enemy := _build_unit(&"taunted_enemy", Vector2i(1, 1), 2)
 	enemy.faction_id = &"enemy"
 	enemy.control_mode = &"ai"
+	enemy.ai_brain_id = &"melee_aggressor"
+	enemy.current_stamina = 1
 	enemy.known_active_skill_ids = [&"warrior_heavy_strike"]
 	enemy.known_skill_level_map = {&"warrior_heavy_strike": 1}
 	enemy.status_effects[&"taunted"] = {
 		"status_id": &"taunted",
 		"source_unit_id": &"taunt_source",
 		"power": 1,
-		"duration": 1,
+		"duration": 90,
 	}
 	var taunt_source := _build_unit(&"taunt_source", Vector2i(2, 1), 2)
 	var other_target := _build_unit(&"other_target", Vector2i(1, 2), 2)
@@ -422,8 +427,9 @@ func _measure_execution_cleave_damage(target_current_hp: int) -> int:
 
 func _build_runtime() -> BattleRuntimeModule:
 	var registry := ProgressionContentRegistry.new()
+	var enemy_content_registry := EnemyContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
-	runtime.setup(null, registry.get_skill_defs(), {}, {})
+	runtime.setup(null, registry.get_skill_defs(), {}, enemy_content_registry.get_enemy_ai_brains())
 	return runtime
 
 
@@ -439,6 +445,18 @@ func _build_skill_test_state(map_size: Vector2i) -> BattleState:
 			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 	return state
+
+
+func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, total_tu: int) -> void:
+	if runtime == null or state == null or total_tu <= 0:
+		return
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	state.timeline.ready_unit_ids.clear()
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 1
+	state.timeline.action_threshold = 1000000
+	runtime.advance(float(total_tu))
 
 
 func _build_cell(coord: Vector2i) -> BattleCellState:

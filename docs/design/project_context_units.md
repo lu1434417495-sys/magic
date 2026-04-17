@@ -1,6 +1,6 @@
 # 当前 Godot 项目的最优上下文单元
 
-更新日期：`2026-04-17`
+更新日期：`2026-04-18`
 
 ## 目的
 
@@ -243,7 +243,8 @@ HeadlessGameTestSession
   - `data/configs/world_map/demo_world_map_config.tres`
 - 真相源：
   - 世界尺寸、chunk、玩家视野、程序化生成开关。
-  - 据点模板、设施模板、设施槽位、服务 NPC、野外遭遇规则。
+  - 据点模板、设施模板、设施槽位、服务 NPC 模板、野外遭遇规则。
+  - `tres` 资源只负责模板语义；运行时实例 id 由世界生成阶段分配。
 - 主要职责：
   - 定义 world spawn 输入资源。
   - 为登录预设与 `GameSession` 提供 generation config。
@@ -262,6 +263,7 @@ HeadlessGameTestSession
 ### CU-04 世界生成、据点服务注入、遭遇锚点
 
 - 文件：
+  - `docs/design/settlement.md`
   - `scripts/systems/world_map_spawn_system.gd`
   - `scripts/systems/encounter_anchor_data.gd`
   - `scripts/utils/world_event_config.gd`
@@ -270,9 +272,11 @@ HeadlessGameTestSession
 - 真相源：
   - `world_data` 的生成结构。
   - settlements / world_npcs / encounter_anchors / world_events / mounted_submaps / player_start_* 的输出形状。
+  - settlement / facility / service npc 的实例 id 与 `template_id` 绑定关系。
+  - 据点实例内部对象图与字段解释见 `docs/design/settlement.md` 第 3 节。
 - 主要职责：
   - 生成固定或程序化据点。
-  - 生成设施、服务 NPC、available services。
+  - 按模板生成据点实例、设施实例、服务 NPC 实例与 `available_services` 绑定。
   - 注入兜底的共享仓库服务 `interaction_script_id = "party_warehouse"`。
   - 生成玩家开局位置、遭遇锚点、世界事件与挂载子地图定义。
 - 邻接单元：

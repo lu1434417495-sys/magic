@@ -529,9 +529,7 @@ func _build_status_effect(
 	if target_team_filter != &"":
 		effect_def.effect_target_team_filter = target_team_filter
 	if duration > 0:
-		effect_def.params = {
-			"duration": duration,
-		}
+		effect_def.duration_tu = duration
 	return effect_def
 
 
@@ -734,9 +732,7 @@ func _build_timed_terrain_effect(
 			effect_def.resistance_attribute_id = resistance_attribute_id
 	if status_id != &"":
 		effect_def.status_id = status_id
-		effect_def.params = {
-			"duration": 1,
-		}
+		effect_def.duration_tu = maxi(tick_interval_tu, 1)
 	return effect_def
 
 

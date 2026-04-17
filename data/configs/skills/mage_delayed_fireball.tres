@@ -32,8 +32,8 @@ resistance_attribute_id = &"fire_resistance"
 [sub_resource type="Resource" id="Resource_khn4w"]
 script = ExtResource("2_mp6e3")
 variant_id = &"delayed_burst"
-display_name = "延后一回合"
-description = "延后一回合引爆并额外施加 `灼烧`。"
+display_name = "延后 60 TU"
+description = "延后 `60 TU` 引爆并额外施加 `灼烧`。"
 effect_defs = Array[ExtResource("3_nub84")]([SubResource("Resource_tgmlv")])
 
 [sub_resource type="Resource" id="Resource_241ad"]
@@ -53,7 +53,7 @@ script = ExtResource("5_epdtn")
 skill_id = &"mage_delayed_fireball"
 display_name = "延爆火球"
 icon_id = &"mage_delayed_fireball"
-description = "建议使用 `cast_variants` 实现即时引爆与延后一回合引爆两种形态；延后形态额外施加 `灼烧`。"
+description = "建议使用 `cast_variants` 实现即时引爆与延后 `60 TU` 引爆两种形态；延后形态额外施加 `灼烧`。"
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

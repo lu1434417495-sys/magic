@@ -665,6 +665,7 @@ func _normalize_settlement_facilities(facilities_variant: Variant) -> Array[Dict
 			continue
 		var facility_data: Dictionary = facility_variant.duplicate(true)
 		normalized_facilities.append({
+			"template_id": String(facility_data.get("template_id", "")),
 			"facility_id": String(facility_data.get("facility_id", "")),
 			"display_name": String(facility_data.get("display_name", "")),
 			"category": String(facility_data.get("category", "")),
@@ -673,6 +674,7 @@ func _normalize_settlement_facilities(facilities_variant: Variant) -> Array[Dict
 			"slot_tag": String(facility_data.get("slot_tag", "")),
 			"local_coord": read_vector2i(facility_data.get("local_coord", Vector2i.ZERO)),
 			"world_coord": read_vector2i(facility_data.get("world_coord", Vector2i.ZERO)),
+			"settlement_id": String(facility_data.get("settlement_id", "")),
 			"service_npcs": _normalize_settlement_service_npcs(facility_data.get("service_npcs", [])),
 		})
 	return normalized_facilities
@@ -687,13 +689,16 @@ func _normalize_settlement_service_npcs(service_npcs_variant: Variant) -> Array[
 			continue
 		var npc_data: Dictionary = npc_variant.duplicate(true)
 		normalized_service_npcs.append({
+			"template_id": String(npc_data.get("template_id", "")),
 			"npc_id": String(npc_data.get("npc_id", "")),
 			"display_name": String(npc_data.get("display_name", "")),
 			"service_type": String(npc_data.get("service_type", "")),
 			"interaction_script_id": String(npc_data.get("interaction_script_id", "")),
 			"local_slot_id": String(npc_data.get("local_slot_id", "")),
 			"facility_id": String(npc_data.get("facility_id", "")),
+			"facility_template_id": String(npc_data.get("facility_template_id", "")),
 			"facility_name": String(npc_data.get("facility_name", "")),
+			"settlement_id": String(npc_data.get("settlement_id", "")),
 		})
 	return normalized_service_npcs
 
@@ -707,9 +712,12 @@ func _normalize_settlement_services(services_variant: Variant) -> Array[Dictiona
 			continue
 		var service_data: Dictionary = service_variant.duplicate(true)
 		normalized_services.append({
+			"settlement_id": String(service_data.get("settlement_id", "")),
 			"facility_id": String(service_data.get("facility_id", "")),
+			"facility_template_id": String(service_data.get("facility_template_id", "")),
 			"facility_name": String(service_data.get("facility_name", "")),
 			"npc_id": String(service_data.get("npc_id", "")),
+			"npc_template_id": String(service_data.get("npc_template_id", "")),
 			"npc_name": String(service_data.get("npc_name", "")),
 			"service_type": String(service_data.get("service_type", "")),
 			"action_id": String(service_data.get("action_id", "")),

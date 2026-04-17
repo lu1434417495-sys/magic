@@ -18,9 +18,7 @@ script = ExtResource("3_mhiph")
 effect_type = &"status"
 power = 1
 status_id = &"staggered"
-params = {
-"duration": 1
-}
+duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_8hxbh"]
 script = ExtResource("4_cughq")

@@ -11,9 +11,7 @@ script = ExtResource("3_yp2aw")
 effect_type = &"status"
 power = 1
 status_id = &"archer_pre_aim"
-params = {
-"duration": 1
-}
+duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_kdu31"]
 script = ExtResource("3_yp2aw")

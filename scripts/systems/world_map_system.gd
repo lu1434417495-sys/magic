@@ -256,7 +256,12 @@ func _process(delta: float) -> void:
 		return
 	var changed := _runtime_proxy.advance(delta)
 	if changed:
-		_render_from_runtime()
+		var render_result: Dictionary = {}
+		if _runtime_proxy.is_battle_active():
+			var battle_refresh_mode := _runtime_proxy.get_last_advance_battle_refresh_mode()
+			if not battle_refresh_mode.is_empty():
+				render_result["battle_refresh_mode"] = battle_refresh_mode
+		_render_from_runtime(true, render_result)
 	if _runtime_proxy.is_battle_active() or _runtime_proxy.is_modal_window_open():
 		_clear_world_move_hold()
 		return

@@ -281,11 +281,53 @@ func _viewport_position_to_board_coord(viewport_position: Vector2) -> Vector2i:
 	if input_layer == null or _pending_battle_state == null:
 		return Vector2i(-1, -1)
 	var board_local := to_local(viewport_position)
+	var visual_coord := _pick_visual_surface_coord(board_local)
+	if visual_coord != Vector2i(-1, -1):
+		return visual_coord
 	var input_local := input_layer.to_local(to_global(board_local))
 	var coord := input_layer.local_to_map(input_local)
 	if not _pending_battle_state.cells.has(coord):
 		return Vector2i(-1, -1)
 	return coord
+
+
+func _pick_visual_surface_coord(board_local: Vector2) -> Vector2i:
+	if _pending_battle_state == null or _pending_battle_state.cells.is_empty():
+		return Vector2i(-1, -1)
+	var best_coord := Vector2i(-1, -1)
+	var best_sort_key := -1e20
+	var best_distance_sq := INF
+	for cell_variant in _pending_battle_state.cells.values():
+		var cell_state := cell_variant as BattleCellState
+		if cell_state == null:
+			continue
+		var anchor := _get_coord_anchor(cell_state.coord)
+		if not _point_hits_cell_top_surface(board_local, anchor):
+			continue
+		var plane_anchor := input_layer.map_to_local(cell_state.coord)
+		var sort_key := _build_visual_pick_sort_key(int(cell_state.current_height), plane_anchor.y)
+		var distance_sq := board_local.distance_squared_to(anchor)
+		if sort_key > best_sort_key:
+			best_coord = cell_state.coord
+			best_sort_key = sort_key
+			best_distance_sq = distance_sq
+			continue
+		if is_equal_approx(sort_key, best_sort_key) and distance_sq < best_distance_sq:
+			best_coord = cell_state.coord
+			best_distance_sq = distance_sq
+	return best_coord
+
+
+func _point_hits_cell_top_surface(point: Vector2, anchor: Vector2) -> bool:
+	var delta := point - anchor
+	var normalized_x := absf(delta.x) / maxf(TILE_HALF_SIZE.x, 1.0)
+	var normalized_y := absf(delta.y) / maxf(TILE_HALF_SIZE.y, 1.0)
+	return normalized_x + normalized_y <= 1.0
+
+
+func _build_visual_pick_sort_key(height_value: int, plane_anchor_y: float) -> float:
+	var clamped_height := clampi(height_value, 0, MAX_RENDER_HEIGHT)
+	return float(clamped_height) * 1000000.0 + plane_anchor_y
 
 
 func _fit_to_viewport(force_focus: bool = false) -> void:

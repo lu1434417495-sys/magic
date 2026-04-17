@@ -9,3 +9,7 @@ extends Resource
 @export var facility_id: String = ""
 ## 字段说明：在编辑器中暴露权重配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export_range(0.0, 100.0, 0.1) var weight := 1.0
+
+
+func get_facility_template_id() -> String:
+	return facility_id.strip_edges()

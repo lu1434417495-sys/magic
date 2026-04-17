@@ -1,6 +1,6 @@
 # Settlement Design — 可落地执行版
 
-更新日期：`2026-04-16`
+更新日期：`2026-04-18`
 
 ## 1. 文档目的
 
@@ -62,85 +62,193 @@
 
 ## 3. 通用运行时数据结构
 
-以下结构体贯穿所有据点层级。
+以下结构以当前仓库真实实现为准，对应：
 
-### 3.1 settlement_record（运行时 Dictionary）
+- `scripts/systems/world_map_spawn_system.gd`
+- `scripts/systems/save_serializer.gd`
+- `scripts/systems/game_runtime_settlement_command_handler.gd`
 
-由 `WorldMapSpawnSystem` 生成并写入 `world_data.settlements[]`，全生命周期不变：
+当前语义红线：
+
+- `SettlementConfig / FacilityConfig / FacilityNpcConfig` 等 `tres` 资源只负责模板。
+- 运行时会为 `settlement / facility / npc` 生成实例 id，同时保留 `template_id`。
+- `settlement.service_npcs` 是据点级扁平索引。
+- `settlement.available_services` 是从设施内 NPC 再投影出的可交互入口，不是新的模板定义。
+
+### 3.1 据点实例内部对象图
+
+```mermaid
+flowchart TD
+	S["SettlementRecord
+	template_id
+	settlement_id
+	display_name
+	tier / tier_name
+	origin / footprint_size
+	facilities[]
+	service_npcs[]
+	available_services[]
+	settlement_state"]
+
+	F["FacilityRecord
+	template_id
+	facility_id
+	display_name
+	category / interaction_type
+	slot_id / slot_tag
+	local_coord / world_coord
+	settlement_id
+	service_npcs[]"]
+
+	N["NpcRecord
+	template_id
+	npc_id
+	display_name
+	service_type
+	interaction_script_id
+	local_slot_id
+	facility_id
+	facility_template_id
+	facility_name
+	settlement_id"]
+
+	A["ServiceEntry
+	settlement_id
+	facility_id
+	facility_template_id
+	facility_name
+	npc_id
+	npc_template_id
+	npc_name
+	service_type
+	action_id
+	interaction_script_id"]
+
+	W["Synthetic ServiceEntry
+	party_warehouse fallback
+	facility_template_id = ''
+	npc_template_id = ''
+	没有真实 facility/npc 实体"]
+
+	S -->|"owns facilities[]"| F
+	F -->|"owns service_npcs[]"| N
+	S -->|"flattened service_npcs[]"| N
+	S -->|"projected available_services[]"| A
+	A -.->|"facility_id / facility_template_id"| F
+	A -.->|"npc_id / npc_template_id"| N
+	S -->|"only when no warehouse service exists"| W
+```
+
+对象关系说明：
+
+- `facility.service_npcs[]` 是嵌套真相源。
+- `settlement.service_npcs[]` 是把所有 facility 下的 NPC 扁平化后形成的快捷索引。
+- `settlement.available_services[]` 是从 NPC 再映射出的交互入口，供据点窗口与 handler 使用。
+- 如果据点里没有真实的 `party_warehouse` NPC，世界生成阶段会额外注入一条合成 `ServiceEntry` 作为兜底仓库入口。
+
+### 3.2 settlement_record（运行时 Dictionary）
+
+由 `WorldMapSpawnSystem` 生成并写入 `world_data.settlements[]`：
 
 ```text
 settlement_record: Dictionary
-├── settlement_id: String          # 唯一标识，如 "village_hearthmound"
-├── display_name: String           # 显示名，如 "篝烟村"
+├── entity_id: String              # 如 "settlement_village_01"
+├── template_id: String            # 据点模板 id，如 "village"
+├── settlement_id: String          # 据点实例 id，如 "village_01"
+├── display_name: String           # 显示名；同模板多实例时会自动编号
 ├── tier: int                      # SettlementConfig.SettlementTier enum 值
 ├── tier_name: String              # "村" / "镇" / "城市" / "主城" / "世界据点" / "都会"
-├── footprint_size: Vector2i       # 占地，如 (1,1)
-├── origin: Vector2i               # 左上角世界坐标
 ├── faction_id: String             # 阵营标识，如 "neutral" / "player"
-├── facilities: Array[Dictionary]  # → 3.2 facility_record
-├── available_services: Array[Dictionary]  # → 3.3 service_entry
-├── service_npcs: Array[Dictionary]        # → 3.4 npc_record
-├── settlement_state: Dictionary   # → 3.5 settlement_runtime_state（Phase 2+）
+├── origin: Vector2i               # 左上角世界坐标
+├── footprint_size: Vector2i       # 占地尺寸
+├── facilities: Array[Dictionary]  # → 3.3 facility_record
+├── service_npcs: Array[Dictionary]  # → 3.5 npc_record（扁平索引）
+├── available_services: Array[Dictionary]  # → 3.4 service_entry
+├── is_player_start: bool          # 是否玩家起始据点
+├── settlement_state: Dictionary   # → 3.6 settlement_runtime_state
 ```
 
-### 3.2 facility_record（运行时 Dictionary）
+### 3.3 facility_record（运行时 Dictionary）
 
-每个据点内的一处设施：
+每个据点内的一处设施实例：
 
 ```text
 facility_record: Dictionary
-├── facility_id: String            # 如 "village_hearth"
-├── display_name: String           # 如 "篝烟灶"
+├── template_id: String            # 设施模板 id，如 "blacksmith"
+├── facility_id: String            # 设施实例 id，如 "village_01__blacksmith__forge_slot"
+├── display_name: String           # 显示名
 ├── category: String               # 如 "rest" / "trade" / "craft" / "intel" / "recruit"
 ├── interaction_type: String       # 如 "rest" / "trade" / "warehouse"
 ├── slot_id: String                # 所占槽位 id
 ├── slot_tag: String               # 槽位标签，如 "core" / "support" / "service"
 ├── local_coord: Vector2i          # 设施在据点内的本地坐标
 ├── world_coord: Vector2i          # 设施世界坐标 = origin + local_coord
-├── service_npcs: Array[Dictionary]  # 该设施下绑定的 NPC
+├── settlement_id: String          # 所属据点实例 id
+├── service_npcs: Array[Dictionary]  # → 3.5 npc_record
 ```
 
-### 3.3 service_entry（运行时 Dictionary）
+### 3.4 service_entry（运行时 Dictionary）
 
-玩家可点击执行的一条服务，由 `_collect_services()` 从 facilities 展开：
+玩家可点击执行的一条服务，由 `_collect_services()` 从设施内 NPC 展开：
 
 ```text
 service_entry: Dictionary
-├── facility_id: String            # 来源设施
+├── settlement_id: String          # 所属据点实例 id
+├── facility_id: String            # 来源设施实例 id
+├── facility_template_id: String   # 来源设施模板 id；合成仓库服务时可为空
 ├── facility_name: String          # 设施显示名
-├── npc_id: String                 # 提供该服务的 NPC
+├── npc_id: String                 # 提供该服务的 NPC 实例 id
+├── npc_template_id: String        # 提供该服务的 NPC 模板 id；合成仓库服务时可为空
 ├── npc_name: String               # NPC 显示名
 ├── service_type: String           # 服务类型标签，如 "歇脚" / "补给" / "交易" / "传授"
-├── action_id: String              # 动作 id，格式 "service:<service_type>"
+├── action_id: String              # 交互动作 id；优先按 interaction 映射，否则回退到 "service:<normalized_service_type>"
 ├── interaction_script_id: String  # 服务执行器路由 id，如 "service_rest_basic" / "party_warehouse"
 ```
 
-### 3.4 npc_record（运行时 Dictionary）
+### 3.5 npc_record（运行时 Dictionary）
 
 ```text
 npc_record: Dictionary
-├── npc_id: String
+├── template_id: String            # NPC 模板 id
+├── npc_id: String                 # NPC 实例 id
 ├── display_name: String
 ├── service_type: String
 ├── interaction_script_id: String
 ├── local_slot_id: String
-├── facility_id: String
+├── facility_id: String            # 所属设施实例 id
+├── facility_template_id: String   # 所属设施模板 id
 ├── facility_name: String
+├── settlement_id: String          # 所属据点实例 id
 ```
 
-### 3.5 settlement_runtime_state（Phase 2+ 可变状态）
+### 3.6 settlement_runtime_state（Phase 2+ 可变状态）
 
 据点运行时可变状态，挂在 `settlement_record.settlement_state` 下，需序列化进存档：
 
 ```text
 settlement_runtime_state: Dictionary
-├── visited: bool                  # 是否访问过
+├── visited: bool                  # 是否访问过；玩家起始据点默认 true
 ├── reputation: int                # 玩家在该据点的声望值（-100 ~ 100）
 ├── active_conditions: Array[String]  # 当前激活的条件行为 id 列表
 ├── cooldowns: Dictionary          # { service_action_id: remaining_world_steps }
 ├── shop_inventory_seed: int       # 商店物品池随机种子（用于刷新）
 ├── shop_last_refresh_step: int    # 上次商店刷新时的 world_step
+├── shop_states: Dictionary        # 各商店 interaction/provider 的运行时状态
 ```
+
+### 3.7 窗口层派生字段
+
+`GameRuntimeSettlementCommandHandler.get_settlement_window_data()` 不直接把 `settlement.available_services[]` 原样交给 UI，而是补一层窗口态派生字段：
+
+```text
+service_window_entry: Dictionary
+├── ...service_entry 的全部字段
+├── cost_label: String             # 展示成本文案
+├── is_enabled: bool               # 当前是否可点击
+├── disabled_reason: String        # 禁用原因
+```
+
+这些字段属于展示层派生数据，不应回写到 `world_data.settlements[]`。
 
 ---
 

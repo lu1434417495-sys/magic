@@ -18,9 +18,7 @@ script = ExtResource("3_s7wfb")
 effect_type = &"status"
 power = 1
 status_id = &"armor_break"
-params = {
-"duration": 2
-}
+duration_tu = 180
 
 [sub_resource type="Resource" id="Resource_2235m"]
 script = ExtResource("4_12j4y")

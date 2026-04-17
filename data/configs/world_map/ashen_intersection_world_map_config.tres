@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=74 format=3]
+[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=79 format=3]
 
 [ext_resource type="Script" path="res://scripts/utils/world_map_generation_config.gd" id="1_conf"]
 [ext_resource type="Script" path="res://scripts/utils/settlement_config.gd" id="2_settlement"]
@@ -99,6 +99,22 @@ service_type = "誓火部署"
 interaction_script_id = "service_elite_recruitment"
 local_slot_id = "command_slot"
 
+[sub_resource type="Resource" id="Resource_coach_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_coachman"
+display_name = "裂界驿夫"
+service_type = "驿站"
+interaction_script_id = "service_stagecoach"
+local_slot_id = "coach_route"
+
+[sub_resource type="Resource" id="Resource_master_smith_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_master_smith"
+display_name = "余烬大师匠"
+service_type = "重铸"
+interaction_script_id = "service_master_reforge"
+local_slot_id = "master_reforge_slot"
+
 [sub_resource type="Resource" id="Resource_notice_board"]
 script = ExtResource("5_facility")
 facility_id = "covenant_hall"
@@ -136,7 +152,7 @@ display_name = "灰烬铁砧"
 category = "support"
 min_settlement_tier = 1
 allowed_slot_tags = Array[String](["support", "service"])
-bound_service_npcs = Array[Resource]([SubResource("Resource_workshop_npc")])
+bound_service_npcs = Array[Resource]([SubResource("Resource_workshop_npc"), SubResource("Resource_warehouse_npc"), SubResource("Resource_master_smith_npc")])
 interaction_type = "craft"
 
 [sub_resource type="Resource" id="Resource_guild_hall"]
@@ -199,6 +215,16 @@ allowed_slot_tags = Array[String](["support", "service"])
 bound_service_npcs = Array[Resource]([SubResource("Resource_command_npc"), SubResource("Resource_guild_npc"), SubResource("Resource_workshop_npc")])
 interaction_type = "command"
 
+[sub_resource type="Resource" id="Resource_coach_station"]
+script = ExtResource("5_facility")
+facility_id = "coach_station"
+display_name = "裂界驿站"
+category = "transport"
+min_settlement_tier = 1
+allowed_slot_tags = Array[String](["service"])
+bound_service_npcs = Array[Resource]([SubResource("Resource_coach_npc")])
+interaction_type = "travel"
+
 [sub_resource type="Resource" id="Resource_village_slot"]
 script = ExtResource("3_slot")
 slot_id = "village_core"
@@ -213,11 +239,23 @@ local_coord = Vector2i(0, 0)
 slot_tag = "core"
 required = true
 
+[sub_resource type="Resource" id="Resource_town_slot_market"]
+script = ExtResource("3_slot")
+slot_id = "town_market"
+local_coord = Vector2i(1, 0)
+slot_tag = "trade"
+
 [sub_resource type="Resource" id="Resource_town_slot_support"]
 script = ExtResource("3_slot")
 slot_id = "town_support"
-local_coord = Vector2i(1, 1)
+local_coord = Vector2i(0, 1)
 slot_tag = "support"
+
+[sub_resource type="Resource" id="Resource_town_slot_service"]
+script = ExtResource("3_slot")
+slot_id = "town_service"
+local_coord = Vector2i(1, 1)
+slot_tag = "service"
 
 [sub_resource type="Resource" id="Resource_city_slot_core"]
 script = ExtResource("3_slot")
@@ -353,10 +391,10 @@ script = ExtResource("2_settlement")
 settlement_id = "gravefall_town"
 display_name = "坠墓镇"
 tier = 1
-facility_slots = Array[Resource]([SubResource("Resource_town_slot_core"), SubResource("Resource_town_slot_support")])
-guaranteed_facility_ids = Array[String](["bonfire_sanctum"])
-optional_facility_pool = Array[Resource]([SubResource("Resource_optional_workshop")])
-max_optional_facilities = 1
+facility_slots = Array[Resource]([SubResource("Resource_town_slot_core"), SubResource("Resource_town_slot_market"), SubResource("Resource_town_slot_support"), SubResource("Resource_town_slot_service")])
+guaranteed_facility_ids = Array[String](["bonfire_sanctum", "ash_forge", "exile_bazaar", "coach_station"])
+optional_facility_pool = Array[Resource]([])
+max_optional_facilities = 0
 
 [sub_resource type="Resource" id="Resource_city"]
 script = ExtResource("2_settlement")
@@ -394,7 +432,7 @@ settlement_id = "silverlight_metropolis"
 display_name = "银辉都会"
 tier = 5
 facility_slots = Array[Resource]([SubResource("Resource_metropolis_slot_core"), SubResource("Resource_metropolis_slot_civic"), SubResource("Resource_metropolis_slot_trade"), SubResource("Resource_metropolis_slot_service"), SubResource("Resource_metropolis_slot_support")])
-guaranteed_facility_ids = Array[String](["council_hall", "world_gate"])
+guaranteed_facility_ids = Array[String](["cathedral_choir", "worldgate_brazier"])
 optional_facility_pool = Array[Resource]([SubResource("Resource_optional_market"), SubResource("Resource_optional_library"), SubResource("Resource_optional_command")])
 max_optional_facilities = 3
 
@@ -513,7 +551,7 @@ player_start_coord = Vector2i(49, 49)
 player_vision_range = 4
 procedural_generation_enabled = false
 settlement_library = Array[Resource]([SubResource("Resource_village"), SubResource("Resource_town"), SubResource("Resource_city"), SubResource("Resource_capital"), SubResource("Resource_stronghold"), SubResource("Resource_metropolis"), SubResource("Resource_border_keep")])
-facility_library = Array[Resource]([SubResource("Resource_notice_board"), SubResource("Resource_supply_stall"), SubResource("Resource_inn"), SubResource("Resource_workshop"), SubResource("Resource_guild_hall"), SubResource("Resource_market_square"), SubResource("Resource_council_hall"), SubResource("Resource_grand_library"), SubResource("Resource_world_gate"), SubResource("Resource_command_post")])
+facility_library = Array[Resource]([SubResource("Resource_coach_station"), SubResource("Resource_notice_board"), SubResource("Resource_supply_stall"), SubResource("Resource_inn"), SubResource("Resource_workshop"), SubResource("Resource_guild_hall"), SubResource("Resource_market_square"), SubResource("Resource_council_hall"), SubResource("Resource_grand_library"), SubResource("Resource_world_gate"), SubResource("Resource_command_post")])
 settlement_distribution = Array[Resource]([SubResource("Resource_rule_stronghold"), SubResource("Resource_rule_capital"), SubResource("Resource_rule_city"), SubResource("Resource_rule_town"), SubResource("Resource_rule_metropolis"), SubResource("Resource_rule_border_keep")])
 wild_monster_distribution = Array[Resource]([SubResource("Resource_wild_cathedral"), SubResource("Resource_wild_archive"), SubResource("Resource_wild_graves"), SubResource("Resource_wild_abyss")])
 mounted_submaps = Array[Resource]([SubResource("Resource_ashen_submap")])

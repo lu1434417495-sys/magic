@@ -12,9 +12,7 @@ effect_type = &"status"
 power = 1
 status_id = &"archer_pre_aim"
 effect_target_team_filter = &"ally"
-params = {
-"duration": 1
-}
+duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_1sogd"]
 script = ExtResource("4_ix3qi")

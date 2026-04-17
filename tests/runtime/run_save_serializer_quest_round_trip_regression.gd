@@ -14,6 +14,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_save_serializer_round_trip_preserves_party_quest_schema()
+	_test_world_map_template_bindings_round_trip()
 
 	if _failures.is_empty():
 		print("Save serializer quest round trip regression: PASS")
@@ -93,6 +94,87 @@ func _test_save_serializer_round_trip_preserves_party_quest_schema() -> void:
 	_cleanup_test_session(game_session)
 
 
+func _test_world_map_template_bindings_round_trip() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_true(create_error == OK, "GameSession 应能基于测试世界配置生成模板绑定世界。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var serializer = game_session._save_serializer
+	_assert_true(serializer != null, "模板绑定回归需要已初始化的 SaveSerializer。")
+	if serializer == null:
+		_cleanup_test_session(game_session)
+		return
+
+	var binding_snapshot := _extract_first_template_binding(game_session.get_world_data())
+	_assert_true(not binding_snapshot.is_empty(), "测试世界应至少生成一条 settlement/facility/npc 模板绑定。")
+	if binding_snapshot.is_empty():
+		_cleanup_test_session(game_session)
+		return
+
+	_assert_true(
+		String(binding_snapshot.get("settlement_template_id", "")) != String(binding_snapshot.get("settlement_id", "")),
+		"据点运行时记录应区分 settlement 模板 id 与实例 id。"
+	)
+	_assert_true(
+		String(binding_snapshot.get("facility_template_id", "")) != String(binding_snapshot.get("facility_id", "")),
+		"设施运行时记录应区分 facility 模板 id 与实例 id。"
+	)
+	_assert_true(
+		String(binding_snapshot.get("npc_template_id", "")) != String(binding_snapshot.get("npc_id", "")),
+		"NPC 运行时记录应区分 npc 模板 id 与实例 id。"
+	)
+	_assert_eq(
+		String(binding_snapshot.get("service_facility_id", "")),
+		String(binding_snapshot.get("facility_id", "")),
+		"服务入口应绑定到设施实例 id。"
+	)
+	_assert_eq(
+		String(binding_snapshot.get("service_facility_template_id", "")),
+		String(binding_snapshot.get("facility_template_id", "")),
+		"服务入口应保留设施模板 id。"
+	)
+	_assert_eq(
+		String(binding_snapshot.get("service_npc_id", "")),
+		String(binding_snapshot.get("npc_id", "")),
+		"服务入口应绑定到 NPC 实例 id。"
+	)
+	_assert_eq(
+		String(binding_snapshot.get("service_npc_template_id", "")),
+		String(binding_snapshot.get("npc_template_id", "")),
+		"服务入口应保留 NPC 模板 id。"
+	)
+
+	var payload: Dictionary = serializer.build_save_payload(
+		game_session.get_active_save_id(),
+		game_session.get_generation_config_path(),
+		game_session.get_active_save_meta(),
+		game_session.get_world_data(),
+		game_session.get_player_coord(),
+		game_session.get_player_faction_id(),
+		game_session.get_party_state(),
+		int(Time.get_unix_time_from_system())
+	)
+	var decode_result: Dictionary = serializer.decode_v5_payload(
+		payload,
+		game_session.get_generation_config_path(),
+		game_session.get_generation_config(),
+		game_session.get_active_save_meta()
+	)
+	_assert_eq(int(decode_result.get("error", ERR_INVALID_DATA)), OK, "模板绑定 world_data 应能成功穿过 SaveSerializer。")
+	if int(decode_result.get("error", ERR_INVALID_DATA)) == OK:
+		var restored_binding_snapshot := _extract_first_template_binding(decode_result.get("world_data", {}))
+		_assert_eq(
+			restored_binding_snapshot,
+			binding_snapshot,
+			"SaveSerializer 往返后应保留据点模板绑定快照。"
+		)
+
+	_cleanup_test_session(game_session)
+
+
 func _cleanup_test_session(game_session) -> void:
 	if game_session == null:
 		return
@@ -108,3 +190,55 @@ func _assert_true(condition: bool, message: String) -> void:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+
+
+func _extract_first_template_binding(world_data: Dictionary) -> Dictionary:
+	for settlement_variant in world_data.get("settlements", []):
+		if settlement_variant is not Dictionary:
+			continue
+		var settlement: Dictionary = settlement_variant
+		var facilities_variant: Variant = settlement.get("facilities", [])
+		if facilities_variant is not Array:
+			continue
+		for facility_variant in facilities_variant:
+			if facility_variant is not Dictionary:
+				continue
+			var facility: Dictionary = facility_variant
+			var npcs_variant: Variant = facility.get("service_npcs", [])
+			if npcs_variant is not Array:
+				continue
+			for npc_variant in npcs_variant:
+				if npc_variant is not Dictionary:
+					continue
+				var npc: Dictionary = npc_variant
+				var matched_service := _find_matching_service_entry(settlement.get("available_services", []), facility, npc)
+				if matched_service.is_empty():
+					continue
+				return {
+					"settlement_template_id": String(settlement.get("template_id", "")),
+					"settlement_id": String(settlement.get("settlement_id", "")),
+					"facility_template_id": String(facility.get("template_id", "")),
+					"facility_id": String(facility.get("facility_id", "")),
+					"npc_template_id": String(npc.get("template_id", "")),
+					"npc_id": String(npc.get("npc_id", "")),
+					"service_facility_id": String(matched_service.get("facility_id", "")),
+					"service_facility_template_id": String(matched_service.get("facility_template_id", "")),
+					"service_npc_id": String(matched_service.get("npc_id", "")),
+					"service_npc_template_id": String(matched_service.get("npc_template_id", "")),
+				}
+	return {}
+
+
+func _find_matching_service_entry(service_variants, facility: Dictionary, npc: Dictionary) -> Dictionary:
+	if service_variants is not Array:
+		return {}
+	for service_variant in service_variants:
+		if service_variant is not Dictionary:
+			continue
+		var service: Dictionary = service_variant
+		if String(service.get("facility_id", "")) != String(facility.get("facility_id", "")):
+			continue
+		if String(service.get("npc_id", "")) != String(npc.get("npc_id", "")):
+			continue
+		return service.duplicate(true)
+	return {}

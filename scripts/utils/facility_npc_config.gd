@@ -15,3 +15,7 @@ extends Resource
 @export var interaction_script_id: String = ""
 ## 字段说明：在编辑器中暴露本地槽位唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var local_slot_id: String = ""
+
+
+func get_template_id() -> String:
+	return npc_id.strip_edges()

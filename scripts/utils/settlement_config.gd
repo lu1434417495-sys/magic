@@ -30,6 +30,10 @@ enum SettlementTier {
 @export_range(0, 16, 1) var max_optional_facilities: int = 0
 
 
+func get_template_id() -> String:
+	return settlement_id.strip_edges()
+
+
 func get_footprint_size() -> Vector2i:
 	match tier:
 		SettlementTier.VILLAGE:

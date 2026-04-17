@@ -387,7 +387,7 @@ func _build_status_effect(
 	effect_def.status_id = status_id
 	effect_def.power = maxi(power, 1)
 	if duration > 0:
-		effect_def.params = {"duration": duration}
+		effect_def.duration_tu = duration
 	if target_team_filter != &"":
 		effect_def.effect_target_team_filter = target_team_filter
 	return effect_def

@@ -18,7 +18,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"learn_source": &"book",
 		"effect_defs": [
 			{"kind": &"damage", "power": 15},
-			{"kind": &"status", "status_id": &"armor_break", "duration": 1, "power": 1},
+			{"kind": &"status", "status_id": &"armor_break", "duration_tu": 90, "power": 1},
 		],
 	},
 	{
@@ -60,7 +60,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"learn_source": &"book",
 		"effect_defs": [
 			{"kind": &"damage", "power": 13},
-			{"kind": &"status", "status_id": &"armor_break", "duration": 2, "power": 1},
+			{"kind": &"status", "status_id": &"armor_break", "duration_tu": 180, "power": 1},
 		],
 	},
 	{
@@ -105,7 +105,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"mastery_curve": [24, 40, 62],
 		"max_level": 3,
 		"learn_source": &"book",
-		"effect_defs": [{"kind": &"status", "status_id": &"evasion_up", "duration": 1, "power": 1}],
+		"effect_defs": [{"kind": &"status", "status_id": &"evasion_up", "duration_tu": 60, "power": 1}],
 	},
 	{
 		"kind": &"active",
@@ -119,8 +119,8 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"max_level": 3,
 		"learn_source": &"book",
 		"effect_defs": [
-			{"kind": &"status", "status_id": &"guarding", "duration": 1, "power": 1},
-			{"kind": &"status", "status_id": &"damage_reduction_up", "duration": 1, "power": 1},
+			{"kind": &"status", "status_id": &"guarding", "duration_tu": 60, "power": 1},
+			{"kind": &"status", "status_id": &"damage_reduction_up", "duration_tu": 60, "power": 1},
 		],
 	},
 	{
@@ -134,7 +134,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"mastery_curve": [28, 46, 72],
 		"max_level": 3,
 		"learn_source": &"book",
-		"effect_defs": [{"kind": &"status", "status_id": &"damage_reduction_up", "duration": 1, "power": 1, "effect_target_team_filter": &"ally"}],
+		"effect_defs": [{"kind": &"status", "status_id": &"damage_reduction_up", "duration_tu": 60, "power": 1, "effect_target_team_filter": &"ally"}],
 	},
 	{
 		"kind": &"active",
@@ -162,7 +162,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"learn_source": &"book",
 		"effect_defs": [
 			{"kind": &"damage", "power": 11},
-			{"kind": &"status", "status_id": &"staggered", "duration": 1, "power": 1},
+			{"kind": &"status", "status_id": &"staggered", "duration_tu": 60, "power": 1},
 		],
 	},
 	{
@@ -176,7 +176,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"mastery_curve": [24, 40, 62],
 		"max_level": 3,
 		"learn_source": &"book",
-		"effect_defs": [{"kind": &"status", "status_id": &"taunted", "duration": 1, "power": 1}],
+		"effect_defs": [{"kind": &"status", "status_id": &"taunted", "duration_tu": 90, "power": 1}],
 	},
 	{
 		"kind": &"active",
@@ -189,7 +189,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"mastery_curve": [24, 40, 62],
 		"max_level": 3,
 		"learn_source": &"book",
-		"effect_defs": [{"kind": &"status", "status_id": &"attack_up", "duration": 1, "power": 1, "effect_target_team_filter": &"ally"}],
+		"effect_defs": [{"kind": &"status", "status_id": &"attack_up", "duration_tu": 60, "power": 1, "effect_target_team_filter": &"ally"}],
 	},
 	{
 		"kind": &"active",
@@ -217,7 +217,7 @@ const WARRIOR_SKILL_SPECS: Array[Dictionary] = [
 		"learn_source": &"book",
 		"effect_defs": [
 			{"kind": &"damage", "power": 10},
-			{"kind": &"status", "status_id": &"staggered", "duration": 1, "power": 1},
+			{"kind": &"status", "status_id": &"staggered", "duration_tu": 60, "power": 1},
 		],
 	},
 	{

@@ -11,18 +11,14 @@ script = ExtResource("3_twxhj")
 effect_type = &"status"
 power = 1
 status_id = &"guarding"
-params = {
-"duration": 1
-}
+duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_ivol6"]
 script = ExtResource("3_twxhj")
 effect_type = &"status"
 power = 1
 status_id = &"damage_reduction_up"
-params = {
-"duration": 1
-}
+duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_bwvrn"]
 script = ExtResource("4_rsi8s")

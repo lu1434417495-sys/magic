@@ -6,16 +6,17 @@ const BattleStatusEffectState = preload("res://scripts/systems/battle_status_eff
 const STACK_REFRESH: StringName = &"refresh"
 const STACK_ADD: StringName = &"add"
 
-const DURATION_NONE: StringName = &"none"
-const DURATION_DECREMENT_ON_TURN_END: StringName = &"decrement_on_turn_end"
-const DURATION_CONSUME_ON_TURN_END: StringName = &"consume_on_turn_end"
-
 const TICK_NONE: StringName = &"none"
 const TICK_TURN_START_AP_PENALTY: StringName = &"turn_start_ap_penalty"
 const TICK_TURN_START_DAMAGE: StringName = &"turn_start_damage"
 
+const SHORT_DURATION_TU := 60
+const STANDARD_DURATION_TU := 90
+const LONG_DURATION_TU := 120
+
 const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
+const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
 const STATUS_ATTACK_UP: StringName = &"attack_up"
 const STATUS_BURNING: StringName = &"burning"
 const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
@@ -38,35 +39,27 @@ static func has_semantic(status_id: StringName) -> bool:
 
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_ARMOR_BREAK, STATUS_ARCHER_PRE_AIM, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_EVASION_UP, STATUS_FROZEN, STATUS_GUARDING, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT:
-			return _build_refresh_turn_end_semantic(
-				DURATION_CONSUME_ON_TURN_END if ProgressionDataUtils.to_string_name(status_id) == STATUS_TAUNTED else DURATION_DECREMENT_ON_TURN_END
-			)
+		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_EVASION_UP, STATUS_GUARDING:
+			return _build_refresh_timeline_semantic(SHORT_DURATION_TU)
+		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT:
+			return _build_refresh_timeline_semantic(STANDARD_DURATION_TU)
 		STATUS_BURNING:
 			return {
 				"stack_mode": STACK_ADD,
 				"max_stacks": 3,
-				"default_duration": 3,
-				"duration_mode": DURATION_DECREMENT_ON_TURN_END,
+				"default_duration_tu": LONG_DURATION_TU,
 				"tick_mode": TICK_TURN_START_DAMAGE,
 			}
 		STATUS_SLOW:
 			return {
 				"stack_mode": STACK_REFRESH,
 				"max_stacks": 1,
-				"default_duration": 1,
-				"duration_mode": DURATION_DECREMENT_ON_TURN_END,
+				"default_duration_tu": SHORT_DURATION_TU,
 				"tick_mode": TICK_NONE,
 				"move_cost_delta": 1,
 			}
 		STATUS_STAGGERED:
-			return {
-				"stack_mode": STACK_REFRESH,
-				"max_stacks": 1,
-				"default_duration": 1,
-				"duration_mode": DURATION_CONSUME_ON_TURN_END,
-				"tick_mode": TICK_TURN_START_AP_PENALTY,
-			}
+			return _build_refresh_timeline_semantic(SHORT_DURATION_TU, TICK_TURN_START_AP_PENALTY)
 		_:
 			return {}
 
@@ -87,7 +80,7 @@ static func merge_status(effect_def, source_unit_id: StringName, existing_entry:
 	if semantic.is_empty():
 		status_entry.power = int(effect_def.power)
 		status_entry.stacks = maxi(previous_stacks + 1, 1)
-		var legacy_duration := _resolve_duration(effect_def, -1)
+		var legacy_duration := _resolve_duration_tu(effect_def, -1)
 		if legacy_duration >= 0:
 			status_entry.duration = legacy_duration
 		return status_entry
@@ -102,7 +95,7 @@ static func merge_status(effect_def, source_unit_id: StringName, existing_entry:
 		_:
 			status_entry.stacks = 1
 
-	var semantic_duration := _resolve_duration(effect_def, int(semantic.get("default_duration", -1)))
+	var semantic_duration := _resolve_duration_tu(effect_def, int(semantic.get("default_duration_tu", -1)))
 	if semantic_duration >= 0:
 		var previous_duration := int(status_entry.duration) if status_entry.has_duration() else -1
 		status_entry.duration = maxi(semantic_duration, previous_duration)
@@ -137,55 +130,36 @@ static func get_move_cost_delta(status_entry: BattleStatusEffectState) -> int:
 	return base_delta * _get_effect_intensity(status_entry)
 
 
-static func advance_turn_end_duration(status_entry: BattleStatusEffectState) -> Dictionary:
-	if status_entry == null:
+static func advance_timeline_duration(status_entry: BattleStatusEffectState, elapsed_tu: int) -> Dictionary:
+	if status_entry == null or elapsed_tu <= 0 or not status_entry.has_duration():
 		return {"expired": false, "changed": false}
-	var duration_mode := _resolve_duration_mode(status_entry)
-	match duration_mode:
-		DURATION_CONSUME_ON_TURN_END:
-			return {"expired": true, "changed": true}
-		DURATION_DECREMENT_ON_TURN_END:
-			if not status_entry.has_duration():
-				return {"expired": false, "changed": false}
-			var previous_duration := int(status_entry.duration)
-			var remaining_duration := maxi(previous_duration - 1, 0)
-			if remaining_duration <= 0:
-				return {"expired": true, "changed": true}
-			status_entry.duration = remaining_duration
-			return {"expired": false, "changed": remaining_duration != previous_duration}
-		_:
-			return {"expired": false, "changed": false}
+	var previous_duration := int(status_entry.duration)
+	var remaining_duration := maxi(previous_duration - elapsed_tu, 0)
+	if remaining_duration <= 0:
+		return {"expired": true, "changed": true}
+	status_entry.duration = remaining_duration
+	return {"expired": false, "changed": remaining_duration != previous_duration}
 
 
-static func _build_refresh_turn_end_semantic(duration_mode: StringName, default_duration: int = 1) -> Dictionary:
+static func _build_refresh_timeline_semantic(default_duration_tu: int, tick_mode: StringName = TICK_NONE) -> Dictionary:
 	return {
 		"stack_mode": STACK_REFRESH,
 		"max_stacks": 1,
-		"default_duration": default_duration,
-		"duration_mode": duration_mode,
-		"tick_mode": TICK_NONE,
+		"default_duration_tu": maxi(default_duration_tu, 0),
+		"tick_mode": tick_mode,
 	}
 
 
-static func _resolve_duration_mode(status_entry: BattleStatusEffectState) -> StringName:
-	if status_entry == null:
-		return DURATION_NONE
-	var semantic := get_semantic(status_entry.status_id)
-	if not semantic.is_empty():
-		return ProgressionDataUtils.to_string_name(semantic.get("duration_mode", DURATION_NONE))
-	if status_entry.has_duration():
-		return DURATION_DECREMENT_ON_TURN_END
-	return DURATION_NONE
-
-
-static func _resolve_duration(effect_def, fallback_duration: int) -> int:
+static func _resolve_duration_tu(effect_def, fallback_duration_tu: int) -> int:
 	if effect_def == null:
-		return fallback_duration
-	if effect_def.params != null and effect_def.params.has("duration"):
-		return maxi(int(effect_def.params.get("duration", fallback_duration)), 1)
+		return fallback_duration_tu
+	if effect_def.params != null and effect_def.params.has("duration_tu"):
+		return maxi(int(effect_def.params.get("duration_tu", fallback_duration_tu)), 1)
 	if int(effect_def.duration_tu) > 0:
 		return maxi(int(effect_def.duration_tu), 1)
-	return fallback_duration
+	if effect_def.params != null and effect_def.params.has("duration"):
+		return maxi(int(effect_def.params.get("duration", fallback_duration_tu)), 1)
+	return fallback_duration_tu
 
 
 static func _clone_effect_params(effect_def) -> Dictionary:

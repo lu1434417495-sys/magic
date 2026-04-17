@@ -93,6 +93,10 @@ func get_battle_selected_coord() -> Vector2i:
 	return _call_runtime_read(&"get_battle_selected_coord", Vector2i(-1, -1))
 
 
+func get_last_advance_battle_refresh_mode() -> String:
+	return String(_call_runtime_read(&"get_last_advance_battle_refresh_mode", ""))
+
+
 func get_selected_battle_skill_id() -> StringName:
 	return _call_runtime_read(&"get_selected_battle_skill_id", &"")
 

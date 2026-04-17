@@ -69,6 +69,7 @@ func _run() -> void:
 	await _test_default_generation_respects_global_min_height()
 	await _test_default_water_height_normalization_is_component_local()
 	await _test_battle_board_contracts()
+	await _test_raised_top_surface_click_maps_to_visual_cell()
 	await _test_board_initial_camera_fills_ultrawide_width()
 	await _test_east_face_assets_anchor_to_neighbor_side()
 	await _test_south_face_assets_anchor_to_neighbor_side()
@@ -393,6 +394,38 @@ func _test_battle_board_contracts() -> void:
 
 	board_a.queue_free()
 	board_b.queue_free()
+	await process_frame
+
+
+func _test_raised_top_surface_click_maps_to_visual_cell() -> void:
+	var state := BattleState.new()
+	state.battle_id = &"raised_top_surface_pick"
+	state.seed = TEST_SEED
+	state.map_size = Vector2i(3, 3)
+	state.world_coord = TEST_WORLD_COORD
+	state.terrain_profile_id = &"default"
+	state.cells = {}
+	for y in range(3):
+		for x in range(3):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y), 0)
+	_set_cell_height(state, Vector2i(1, 1), 3)
+	state.units = {}
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+
+	var board := await _instantiate_board(state)
+	var raised_coord := Vector2i(1, 1)
+	var raised_anchor: Vector2 = board._get_coord_anchor(raised_coord)
+	var viewport_position := board.to_global(raised_anchor)
+	var mapped_coord := board._viewport_position_to_board_coord(viewport_position)
+
+	_assert_eq(
+		mapped_coord,
+		raised_coord,
+		"抬高顶面的视觉中心点击应命中对应高地格，而不是回落到底层平面格。"
+	)
+
+	board.queue_free()
 	await process_frame
 
 

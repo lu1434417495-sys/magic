@@ -19,9 +19,7 @@ script = ExtResource("3_tryl1")
 effect_type = &"status"
 power = 1
 status_id = &"frozen"
-params = {
-"duration": 1
-}
+duration_tu = 90
 
 [sub_resource type="Resource" id="Resource_x3sk0"]
 script = ExtResource("4_qybtb")

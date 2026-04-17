@@ -316,9 +316,9 @@ func _build_facility_tag_set(settlement: Dictionary, payload: Dictionary) -> Dic
 			continue
 		tags[normalized_tag] = true
 	if not facility.is_empty():
-		var facility_id := ProgressionDataUtils.to_string_name(facility.get("facility_id", ""))
-		if facility_id != &"":
-			tags[facility_id] = true
+		var facility_template_id := ProgressionDataUtils.to_string_name(_resolve_facility_template_id(facility))
+		if facility_template_id != &"":
+			tags[facility_template_id] = true
 	return tags
 
 
@@ -338,7 +338,7 @@ func _build_facility_tags(settlement: Dictionary, payload: Dictionary) -> Array[
 	push_tag.call(payload.get("service_type", ""))
 
 	if not facility.is_empty():
-		push_tag.call(facility.get("facility_id", ""))
+		push_tag.call(_resolve_facility_template_id(facility))
 		push_tag.call(facility.get("category", ""))
 		push_tag.call(facility.get("interaction_type", ""))
 		push_tag.call(facility.get("slot_tag", ""))
@@ -359,13 +359,22 @@ func _build_facility_tags(settlement: Dictionary, payload: Dictionary) -> Array[
 
 func _resolve_facility(settlement: Dictionary, payload: Dictionary) -> Dictionary:
 	var target_facility_id := String(payload.get("facility_id", ""))
+	var target_facility_template_id := String(payload.get("facility_template_id", "")).strip_edges()
 	for facility_variant in settlement.get("facilities", []):
 		if facility_variant is not Dictionary:
 			continue
 		var facility: Dictionary = facility_variant
-		if String(facility.get("facility_id", "")) == target_facility_id:
+		if not target_facility_id.is_empty() and String(facility.get("facility_id", "")) == target_facility_id:
+			return facility
+		if not target_facility_template_id.is_empty() and _resolve_facility_template_id(facility) == target_facility_template_id:
 			return facility
 	return {}
+
+
+func _resolve_facility_template_id(facility: Dictionary) -> String:
+	if facility.is_empty():
+		return ""
+	return String(facility.get("template_id", facility.get("facility_id", ""))).strip_edges()
 
 
 func _can_fulfill_recipe_inputs(recipe, warehouse_service) -> bool:

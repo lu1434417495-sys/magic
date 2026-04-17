@@ -18,9 +18,7 @@ script = ExtResource("3_kiodh")
 effect_type = &"status"
 power = 1
 status_id = &"pinned"
-params = {
-"duration": 1
-}
+duration_tu = 90
 
 [sub_resource type="Resource" id="Resource_awkmm"]
 script = ExtResource("4_giqog")

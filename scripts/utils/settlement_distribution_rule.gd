@@ -11,3 +11,7 @@ extends Resource
 @export var preferred_origin: Vector2i = Vector2i.ZERO
 ## 字段说明：在编辑器中暴露阵营唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var faction_id: String = "neutral"
+
+
+func get_settlement_template_id() -> String:
+	return settlement_id.strip_edges()

@@ -183,6 +183,8 @@ var _active_forge_context: Dictionary = {}
 var _active_stagecoach_context: Dictionary = {}
 ## 字段说明：缓存最近一次状态文本，供 headless 文本测试直接读取。
 var _current_status_message := ""
+## 字段说明：记录最近一次自动战斗推进建议的刷新模式，供场景层在 TU-only 更新时只刷新 HUD。
+var _last_advance_battle_refresh_mode := ""
 ## 字段说明：缓存最近一次战斗掉落结算摘要，供稳定快照与文本渲染复用。
 var _last_battle_loot_snapshot: Dictionary = {}
 var _active_command_log_scope: Dictionary = {}
@@ -253,6 +255,7 @@ func setup(game_session) -> void:
 	_active_shop_context.clear()
 	_active_forge_context.clear()
 	_active_stagecoach_context.clear()
+	_last_advance_battle_refresh_mode = ""
 	_last_battle_loot_snapshot.clear()
 	_active_character_info_context.clear()
 	_party_selected_member_id = &""
@@ -312,6 +315,7 @@ func dispose() -> void:
 	_active_shop_context.clear()
 	_active_forge_context.clear()
 	_active_stagecoach_context.clear()
+	_last_advance_battle_refresh_mode = ""
 	_last_battle_loot_snapshot.clear()
 	_battle_selection_state.reset_for_battle_end()
 	_held_world_move_keys.clear()
@@ -717,6 +721,10 @@ func get_active_battle_encounter_name() -> String:
 
 func get_battle_selected_coord() -> Vector2i:
 	return _battle_selected_coord
+
+
+func get_last_advance_battle_refresh_mode() -> String:
+	return _last_advance_battle_refresh_mode
 
 
 func get_selected_battle_skill_id() -> StringName:
@@ -1351,14 +1359,21 @@ func _format_battle_drop_entries(drop_entry_variants: Array) -> String:
 
 
 func advance(delta: float) -> bool:
+	_last_advance_battle_refresh_mode = ""
 	if _generation_config == null:
 		return false
 	if _is_battle_active():
 		if _is_battle_finished() or _active_modal_id == "promotion":
 			return false
+		var previous_tu := int(_battle_state.timeline.current_tu) if _battle_state != null and _battle_state.timeline != null else -1
 		var batch = _battle_runtime.advance(delta)
 		if _batch_has_updates(batch):
 			_apply_battle_batch(batch)
+			_last_advance_battle_refresh_mode = "full"
+			return true
+		var current_tu := int(_battle_state.timeline.current_tu) if _battle_state != null and _battle_state.timeline != null else -1
+		if current_tu != previous_tu:
+			_last_advance_battle_refresh_mode = "overlay"
 			return true
 		return false
 	if _is_modal_window_open():

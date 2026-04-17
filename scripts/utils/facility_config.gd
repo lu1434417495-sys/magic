@@ -21,6 +21,10 @@ extends Resource
 @export var interaction_type: String = ""
 
 
+func get_template_id() -> String:
+	return facility_id.strip_edges()
+
+
 func get_primary_service_name() -> String:
 	if bound_service_npcs.is_empty():
 		return interaction_type.capitalize()

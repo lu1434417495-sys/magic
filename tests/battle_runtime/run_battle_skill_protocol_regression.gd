@@ -28,6 +28,7 @@ func _run() -> void:
 	_test_facade_aura_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_selected_aura_skill_returns_formal_error_after_aura_drops()
 	_test_facade_cooldown_skill_reduces_after_battle_tick()
+	_test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates()
 	if _failures.is_empty():
 		print("Battle skill protocol regression: PASS")
 		quit(0)
@@ -508,6 +509,58 @@ func _test_facade_cooldown_skill_reduces_after_battle_tick() -> void:
 	_assert_eq(int(first_slot.get("cooldown", -1)), 2, "HUD skill slot 应展示递减后的 cooldown。")
 	_assert_eq(String(first_slot.get("footer_text", "")), "CD 2", "HUD skill slot footer 应同步显示新的 cooldown 文案。")
 	_assert_true(bool(first_slot.get("is_disabled", false)), "冷却未结束前 HUD skill slot 应保持禁用。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 1
+	state.timeline.action_threshold = 1000
+	var ally: BattleUnitState = _build_manual_unit(
+		&"overlay_refresh_ally",
+		"标题栏测试友军",
+		&"player",
+		Vector2i(0, 0),
+		[],
+		2,
+		0
+	)
+	ally.attribute_snapshot.set_value(&"speed", 1)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"overlay_refresh_enemy",
+		"标题栏测试敌军",
+		&"enemy",
+		Vector2i(2, 0),
+		[],
+		2,
+		0
+	)
+	enemy.attribute_snapshot.set_value(&"speed", 1)
+	_add_unit_to_state(facade, state, ally, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	_apply_battle_state(facade, state)
+
+	var changed := facade.advance(1.0)
+	var runtime_state := facade.get_battle_state()
+	var battle_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
+	var hud: Dictionary = battle_snapshot.get("hud", {})
+
+	_assert_true(changed, "仅 TU 推进时 facade.advance() 也应返回 true，以驱动标题栏实时刷新。")
+	_assert_eq(facade.get_last_advance_battle_refresh_mode(), "overlay", "仅 TU 推进时应建议场景层走 overlay HUD 刷新。")
+	_assert_eq(int(runtime_state.timeline.current_tu) if runtime_state != null and runtime_state.timeline != null else -1, 1, "仅 TU 推进时 battle state 应正式增长 current_tu。")
+	_assert_eq(String(hud.get("round_badge", "")), "TU 1\nREADY 0", "HUD round_badge 应同步反映最新的 TU。")
+	_assert_eq(String(runtime_state.phase) if runtime_state != null else "", "timeline_running", "仅 TU 推进且未达到阈值时，不应误切换到 unit_acting。")
 
 	_cleanup_test_session(game_session)
 

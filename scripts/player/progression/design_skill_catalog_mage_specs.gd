@@ -86,7 +86,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_flame_spear",
 		"display_name": "炎枪术",
-		"description": "火焰沿直线贯穿最多 `2` 名敌人；若路径上存在 `mud`，额外留下持续 `1` 回合的燃烧地格。",
+		"description": "火焰沿直线贯穿最多 `2` 名敌人；若路径上存在 `mud`，额外留下持续 `60 TU` 的燃烧地格。",
 		"tags": [&"mage", &"magic", &"fire"],
 		"costs": {
 			"range_value": 5,
@@ -365,7 +365,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_fire_wall",
 		"display_name": "火墙术",
-		"description": "生成持续 `2` 回合的火墙；穿越或在其上结束行动的敌人承受火焰伤害并获得 `灼烧`。",
+		"description": "生成持续 `120 TU` 的火墙；穿越或在其上结束行动的敌人承受火焰伤害并获得 `灼烧`。",
 		"tags": [&"mage", &"magic", &"fire"],
 		"costs": {
 			"range_value": 4,
@@ -524,7 +524,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_delayed_fireball",
 		"display_name": "延爆火球",
-		"description": "建议使用 `cast_variants` 实现即时引爆与延后一回合引爆两种形态；延后形态额外施加 `灼烧`。",
+		"description": "建议使用 `cast_variants` 实现即时引爆与延后 `60 TU` 引爆两种形态；延后形态额外施加 `灼烧`。",
 		"tags": [&"mage", &"magic", &"fire"],
 		"costs": {
 			"range_value": 5,
@@ -567,8 +567,8 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 				},
 				{
 					"variant_id": &"delayed_burst",
-					"display_name": "延后一回合",
-					"description": "延后一回合引爆并额外施加 `灼烧`。",
+					"display_name": "延后 60 TU",
+					"description": "延后 `60 TU` 引爆并额外施加 `灼烧`。",
 				},
 			],
 		},
@@ -653,7 +653,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			{
 				"kind": &"status",
 				"status_id": &"frozen",
-				"duration": 1,
+				"duration_tu": 90,
 				"power": 1,
 			},
 		],
@@ -703,7 +703,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_rime_burst",
 		"display_name": "冻雾爆",
-		"description": "落点扩散冰雾；区域内敌人移动力 `-1`，持续 `1` 回合。",
+		"description": "落点扩散冰雾；区域内敌人移动力 `-1`，持续 `60 TU`。",
 		"tags": [&"mage", &"magic", &"ice"],
 		"costs": {
 			"range_value": 4,
@@ -903,7 +903,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_permafrost_field",
 		"display_name": "永冻地面",
-		"description": "生成持续 `2` 回合的冰面领域；敌人穿过区域时移动成本 `+1`，回合结束再承受一次寒伤。",
+		"description": "生成持续 `120 TU` 的冰面领域；敌人穿过区域时移动成本 `+1`，并在其中结束行动时再承受一次寒伤。",
 		"tags": [&"mage", &"magic", &"ice"],
 		"costs": {
 			"range_value": 4,
@@ -1054,7 +1054,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_frozen_step",
 		"display_name": "凝冰移形",
-		"description": "短距位移最多 `2` 格，并在起点与终点之间留下持续 `1` 回合的冰面。",
+		"description": "短距位移最多 `2` 格，并在起点与终点之间留下持续 `60 TU` 的冰面。",
 		"tags": [&"mage", &"magic", &"ice"],
 		"costs": {
 			"range_value": 0,
@@ -1125,7 +1125,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_whiteout",
 		"display_name": "暴雪迷界",
-		"description": "范围内敌人命中 `-15%`，远程反击失效，持续 `1` 回合。",
+		"description": "范围内敌人命中 `-15%`，远程反击失效，持续 `60 TU`。",
 		"tags": [&"mage", &"magic", &"ice"],
 		"costs": {
 			"range_value": 5,
@@ -1241,7 +1241,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			{
 				"kind": &"status",
 				"status_id": &"shocked",
-				"duration": 1,
+				"duration_tu": 90,
 				"power": 1,
 			},
 			{
@@ -1384,7 +1384,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_ball_lightning",
 		"display_name": "球形闪电",
-		"description": "生成持续 `2` 回合的游走电球；每回合电击附近敌人并施加 `感电`。",
+		"description": "生成持续 `120 TU` 的游走电球；每 `60 TU` 电击附近敌人并施加 `感电`。",
 		"tags": [&"mage", &"magic", &"lightning"],
 		"costs": {
 			"range_value": 4,
@@ -1615,7 +1615,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_conductive_mark",
 		"display_name": "导电印记",
-		"description": "纯联动技能；目标在 `2` 回合内承受的第一个雷系技能必定附加 `shocked`。",
+		"description": "纯联动技能；目标在 `120 TU` 内承受的第一个雷系技能必定附加 `shocked`。",
 		"tags": [&"mage", &"magic", &"lightning"],
 		"costs": {
 			"range_value": 5,
@@ -1775,7 +1775,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_storm_nexus",
 		"display_name": "暴风核心",
-		"description": "生成持续 `2` 回合的雷暴核心；每回合自动对最近的 `2` 名敌人触发小型连锁闪击。",
+		"description": "生成持续 `120 TU` 的雷暴核心；每 `60 TU` 自动对最近的 `2` 名敌人触发小型连锁闪击。",
 		"tags": [&"mage", &"magic", &"lightning"],
 		"costs": {
 			"range_value": 5,
@@ -3023,7 +3023,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_blur",
 		"display_name": "幻身术",
-		"description": "获得直到下回合开始的 `闪避 +20%`，是法师基础自保技。",
+		"description": "获得持续 `60 TU` 的 `闪避 +20%`，是法师基础自保技。",
 		"tags": [&"mage", &"magic", &"illusion"],
 		"costs": {
 			"range_value": 0,
@@ -3451,7 +3451,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_confusion_wave",
 		"display_name": "乱心波",
-		"description": "扇形精神扰动；命中的敌人下个回合优先攻击最近目标或失去最佳技能选择。",
+		"description": "扇形精神扰动；命中的敌人在接下来的 `60 TU` 内优先攻击最近目标或失去最佳技能选择。",
 		"tags": [&"mage", &"magic", &"illusion"],
 		"costs": {
 			"range_value": 4,
@@ -3591,7 +3591,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_ember_wisp",
 		"display_name": "余烬灵",
-		"description": "召出火焰精灵；每回合优先攻击最近敌人并施加 `灼烧`。",
+		"description": "召出火焰精灵；每 `60 TU` 优先攻击最近敌人并施加 `灼烧`。",
 		"tags": [&"mage", &"magic", &"summon"],
 		"costs": {
 			"range_value": 4,
@@ -3938,7 +3938,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_elemental_fusion",
 		"display_name": "元素合灵",
-		"description": "吞并一个现存元素召唤物，为自身提供对应元素强化 `2` 回合。",
+		"description": "吞并一个现存元素召唤物，为自身提供对应元素强化 `120 TU`。",
 		"tags": [&"mage", &"magic", &"summon"],
 		"costs": {
 			"range_value": 0,
@@ -4251,7 +4251,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_time_dilate",
 		"display_name": "缓时术",
-		"description": "让目标时间流速迟缓；移动力 `-1`、命中 `-10%`，持续 `2` 回合。",
+		"description": "让目标时间流速迟缓；移动力 `-1`、命中 `-10%`，持续 `120 TU`。",
 		"tags": [&"mage", &"magic", &"support"],
 		"costs": {
 			"range_value": 5,
@@ -4352,7 +4352,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_mana_font",
 		"display_name": "法泉术",
-		"description": "生成持续 `2` 回合的法泉；友军在其中结束行动时回复少量 `mp`。",
+		"description": "生成持续 `120 TU` 的法泉；友军在其中结束行动时回复少量 `mp`。",
 		"tags": [&"mage", &"magic", &"support"],
 		"costs": {
 			"range_value": 4,
@@ -4530,7 +4530,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_force_wall",
 		"display_name": "力场墙",
-		"description": "生成持续 `2` 回合的不可穿越力场；专门用来切割阵型。",
+		"description": "生成持续 `120 TU` 的不可穿越力场；专门用来切割阵型。",
 		"tags": [&"mage", &"magic", &"support"],
 		"costs": {
 			"range_value": 4,
@@ -4743,7 +4743,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_hex_of_frailty",
 		"display_name": "衰弱诅咒",
-		"description": "降低目标攻击与防御，持续 `2` 回合；是小队集火的泛用前置。",
+		"description": "降低目标攻击与防御，持续 `120 TU`；是小队集火的泛用前置。",
 		"tags": [&"mage", &"magic", &"necromancy"],
 		"costs": {
 			"range_value": 5,
@@ -4934,7 +4934,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_wither_field",
 		"display_name": "枯朽领域",
-		"description": "持续 `2` 回合削弱区域内敌人的生命回复与防御。",
+		"description": "持续 `120 TU` 削弱区域内敌人的生命回复与防御。",
 		"tags": [&"mage", &"magic", &"necromancy"],
 		"costs": {
 			"range_value": 4,
@@ -5105,7 +5105,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 		"kind": &"active",
 		"skill_id": &"mage_soul_cage",
 		"display_name": "灵魂囚笼",
-		"description": "禁止目标在 `2` 回合内获得治疗或复活类收益；对精英和首领战很有价值。",
+		"description": "禁止目标在 `120 TU` 内获得治疗或复活类收益；对精英和首领战很有价值。",
 		"tags": [&"mage", &"magic", &"necromancy"],
 		"costs": {
 			"range_value": 5,

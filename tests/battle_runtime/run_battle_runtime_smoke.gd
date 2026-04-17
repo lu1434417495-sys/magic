@@ -60,8 +60,8 @@ func _run() -> void:
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
 	_test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch()
-	_test_status_duration_serialization_preserves_owner_turn_skip()
-	_test_status_duration_blocks_target_turn_until_turn_end()
+	_test_status_duration_serialization_preserves_tu_window()
+	_test_status_duration_blocks_target_turn_until_tu_expiry()
 	if _failures.is_empty():
 		print("Battle runtime smoke: PASS")
 		quit(0)
@@ -1385,7 +1385,7 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	_assert_eq(archer.last_turn_tu, 1, "零 TU 回合切换不应篡改当前的 timeline TU 锚点。")
 
 
-func _test_status_duration_serialization_preserves_owner_turn_skip() -> void:
+func _test_status_duration_serialization_preserves_tu_window() -> void:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
@@ -1419,25 +1419,22 @@ func _test_status_duration_serialization_preserves_owner_turn_skip() -> void:
 	_assert_true(batch.changed_unit_ids.has(archer.unit_id), "游击步应记录施法者状态变更。")
 	var pre_aim_entry = archer.get_status_effect(&"archer_pre_aim")
 	_assert_true(
-		pre_aim_entry != null and pre_aim_entry.skip_next_turn_end_decay,
-		"自施放状态在当前行动窗口内应标记为跳过本次 turn-end 递减。"
+		pre_aim_entry != null and int(pre_aim_entry.duration) == 60,
+		"自施放状态应写入正式 TU 持续时间。"
 	)
 
 	var payload := archer.to_dict()
 	var payload_status_effects: Dictionary = payload.get("status_effects", {})
 	var pre_aim_payload: Dictionary = payload_status_effects.get("archer_pre_aim", {})
-	_assert_true(
-		bool(pre_aim_payload.get("skip_next_turn_end_decay", false)),
-		"BattleUnitState.to_dict() 应保留状态持续时间的当前回合跳过标记。"
-	)
+	_assert_eq(int(pre_aim_payload.get("duration", -1)), 60, "BattleUnitState.to_dict() 应保留 TU 持续时间。")
 	var restored := BattleUnitState.from_dict(payload) as BattleUnitState
 	_assert_true(restored != null, "BattleUnitState.from_dict() 应能恢复带持续时间状态的单位。")
 	if restored == null:
 		return
 	var restored_pre_aim = restored.get_status_effect(&"archer_pre_aim")
 	_assert_true(
-		restored_pre_aim != null and restored_pre_aim.skip_next_turn_end_decay,
-		"BattleUnitState.from_dict() 应恢复状态持续时间的当前回合跳过标记。"
+		restored_pre_aim != null and int(restored_pre_aim.duration) == 60,
+		"BattleUnitState.from_dict() 应恢复 TU 持续时间。"
 	)
 	state.units[restored.unit_id] = restored
 	archer = restored
@@ -1447,11 +1444,7 @@ func _test_status_duration_serialization_preserves_owner_turn_skip() -> void:
 	wait_command.unit_id = archer.unit_id
 	runtime.issue_command(wait_command)
 	var carried_pre_aim = archer.get_status_effect(&"archer_pre_aim")
-	_assert_true(carried_pre_aim != null, "当前回合结束时，自施放状态不应被立即清除。")
-	_assert_true(
-		carried_pre_aim != null and not carried_pre_aim.skip_next_turn_end_decay,
-		"跳过当前回合后，状态应清掉 skip 标记并等待下一次正式递减。"
-	)
+	_assert_true(carried_pre_aim != null and int(carried_pre_aim.duration) == 60, "当前回合结束时，自施放状态不应因 turn end 被立即清除。")
 
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
@@ -1460,14 +1453,13 @@ func _test_status_duration_serialization_preserves_owner_turn_skip() -> void:
 	runtime.advance(0.0)
 	_assert_true(archer.has_status_effect(&"archer_pre_aim"), "自施放状态应在下一次行动窗口开始时仍然保留。")
 
-	var second_wait_command := BattleCommand.new()
-	second_wait_command.command_type = BattleCommand.TYPE_WAIT
-	second_wait_command.unit_id = archer.unit_id
-	runtime.issue_command(second_wait_command)
-	_assert_true(not archer.has_status_effect(&"archer_pre_aim"), "自施放状态应在下一次正式回合结束后被移除。")
+	_advance_timeline_tu(runtime, state, 59)
+	_assert_true(archer.has_status_effect(&"archer_pre_aim"), "TU 未走完前，自施放状态应继续保留。")
+	_advance_timeline_tu(runtime, state, 1)
+	_assert_true(not archer.has_status_effect(&"archer_pre_aim"), "TU 走完后，自施放状态应按时间轴移除。")
 
 
-func _test_status_duration_blocks_target_turn_until_turn_end() -> void:
+func _test_status_duration_blocks_target_turn_until_tu_expiry() -> void:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
@@ -1504,7 +1496,7 @@ func _test_status_duration_blocks_target_turn_until_turn_end() -> void:
 	var enemy_payload := enemy.to_dict()
 	var enemy_status_effects: Dictionary = enemy_payload.get("status_effects", {})
 	var pinned_payload: Dictionary = enemy_status_effects.get("pinned", {})
-	_assert_eq(int(pinned_payload.get("duration", -1)), 1, "被施加的 pinned 应带着正式 duration 进入序列化 payload。")
+	_assert_eq(int(pinned_payload.get("duration", -1)), 90, "被施加的 pinned 应带着正式 TU 持续时间进入序列化 payload。")
 	var restored_enemy := BattleUnitState.from_dict(enemy_payload) as BattleUnitState
 	_assert_true(restored_enemy != null and restored_enemy.has_status_effect(&"pinned"), "BattleUnitState.from_dict() 应恢复敌方 pinned 状态。")
 	if restored_enemy == null:
@@ -1533,7 +1525,11 @@ func _test_status_duration_blocks_target_turn_until_turn_end() -> void:
 	wait_command.command_type = BattleCommand.TYPE_WAIT
 	wait_command.unit_id = enemy.unit_id
 	runtime.issue_command(wait_command)
-	_assert_true(not enemy.has_status_effect(&"pinned"), "目标回合结束后，pinned 应按统一时序被移除。")
+	_assert_true(enemy.has_status_effect(&"pinned"), "目标回合结束后，pinned 不应再因为 turn end 被移除。")
+	_advance_timeline_tu(runtime, state, 89)
+	_assert_true(enemy.has_status_effect(&"pinned"), "TU 未走完前，pinned 应保持生效。")
+	_advance_timeline_tu(runtime, state, 1)
+	_assert_true(not enemy.has_status_effect(&"pinned"), "TU 走完后，pinned 应按时间轴移除。")
 
 
 func _count_explicit_props(state: BattleState) -> Dictionary:
@@ -1622,6 +1618,18 @@ func _build_skill_test_state(map_size: Vector2i) -> BattleState:
 			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 	return state
+
+
+func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, total_tu: int) -> void:
+	if runtime == null or state == null or total_tu <= 0:
+		return
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	state.timeline.ready_unit_ids.clear()
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 1
+	state.timeline.action_threshold = 1000000
+	runtime.advance(float(total_tu))
 
 
 func _get_large_charge_direction_cases() -> Array[Dictionary]:

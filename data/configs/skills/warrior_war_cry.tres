@@ -12,9 +12,7 @@ effect_type = &"status"
 power = 1
 effect_target_team_filter = &"ally"
 status_id = &"attack_up"
-params = {
-"duration": 1
-}
+duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_l5rb2"]
 script = ExtResource("4_w0qp1")
