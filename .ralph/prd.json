@@ -146,14 +146,22 @@
     {
       "id": "PVS_24B",
       "title": "把 enemy template、brain 与 roster seed 迁出 EnemyContentRegistry",
-      "status": "open",
+      "status": "done",
       "acceptanceCriteria": [
         "正式敌方 seed 由资源提供，不再硬编码在 `enemy_content_registry.gd`",
         "wild encounter 与 battle AI regression 在迁移后继续通过"
       ],
       "notes": [
         "Owner：CU-20 / CU-17 / CU-19。"
-      ]
+      ],
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-17T23:04:17+08:00",
+      "lastRunId": "20260417-230417-PVS_24B",
+      "startedAt": "2026-04-17T23:04:17+08:00",
+      "completedAt": "2026-04-17T23:13:41+08:00",
+      "lastFailure": "",
+      "lastChecksRun": "`godot --headless --script tests/battle_runtime/run_wild_encounter_regression.gd` PASS; `godot --headless --script tests/battle_runtime/run_battle_runtime_ai_regression.gd` PASS.",
+      "lastLearnings": "Official enemy static content now enters the runtime through `data/configs/enemies/enemy_content_seed.tres`; directory scanning remains only as an explicit override path for fixture-style validation."
     },
     {
       "id": "PVS_25A",

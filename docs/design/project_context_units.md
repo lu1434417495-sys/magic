@@ -938,6 +938,7 @@ HeadlessGameTestSession
 
 - 文件：
   - `scripts/enemies/enemy_content_registry.gd`
+  - `scripts/enemies/enemy_content_seed.gd`
   - `scripts/enemies/enemy_template_def.gd`
   - `scripts/enemies/wild_encounter_roster_def.gd`
   - `scripts/enemies/enemy_ai_brain_def.gd`
@@ -949,6 +950,7 @@ HeadlessGameTestSession
   - `scripts/enemies/actions/use_ground_skill_action.gd`
   - `scripts/enemies/actions/use_unit_skill_action.gd`
   - `scripts/enemies/actions/wait_action.gd`
+  - `data/configs/enemies/enemy_content_seed.tres`
   - `data/configs/enemies/brains/*.tres`
   - `data/configs/enemies/templates/*.tres`
   - `data/configs/enemies/rosters/*.tres`
@@ -958,7 +960,8 @@ HeadlessGameTestSession
   - `encounter_profile_id -> WildEncounterRosterDef`
   - 各状态下的 action 顺序、目标选择与距离策略。
 - 主要职责：
-  - 扫描 `data/configs/enemies/{brains,templates,rosters}` 并注册当前种子敌方模板、wild encounter roster、AI brain 与 roster drop schema。
+  - 读取 `data/configs/enemies/enemy_content_seed.tres`，把正式 enemy template / AI brain / wild encounter roster 的资源清单装配进 registry。
+  - 兼容测试夹具通过目录扫描临时覆写 seed 输入，但正式运行链不再把敌方 seed 硬编码在 registry 脚本内。
   - 在 registry 阶段校验 template -> brain、roster stage -> template 等静态引用。
   - 定义近战压迫型、远程控制型等默认行为树形态。
   - 为 `BattleRuntimeModule / BattleAiService` 提供静态敌方内容。

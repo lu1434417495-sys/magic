@@ -253,3 +253,7 @@ Added 135 mage SkillDef resources under data/configs/skills, taught DesignSkillC
 ## 2026-04-17T23:04:15+08:00 | PVS_24A | done
 title: 建立 enemy resource schema 与 registry scan
 Moved enemy templates/brains/rosters into scanned `data/configs/enemies/**/*` resources, converted enemy schema/action classes to Resource-backed definitions, replaced hardcoded `EnemyContentRegistry` builders with directory scan + validation, surfaced enemy validation through `GameSession`, added regression coverage for missing brain and invalid roster template references, and updated `docs/design/project_context_units.md`.
+
+## 2026-04-17T23:13:41+08:00 | PVS_24B | done
+title: 把 enemy template、brain 与 roster seed 迁出 EnemyContentRegistry
+Added a typed `EnemyContentSeed` manifest, switched `EnemyContentRegistry` to load the official enemy brains/templates/rosters from that resource, added fixture seed manifests, updated the wild-encounter regression, and refreshed CU-20 context docs.

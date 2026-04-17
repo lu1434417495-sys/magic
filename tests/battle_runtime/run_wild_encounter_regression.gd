@@ -17,12 +17,9 @@ const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SMALL_WORLD_CONFIG := "res://data/configs/world_map/small_world_map_config.tres"
-const ENEMY_TEMPLATE_CONFIG_DIR := "res://data/configs/enemies/templates"
-const ENEMY_BRAIN_CONFIG_DIR := "res://data/configs/enemies/brains"
-const ENEMY_ROSTER_CONFIG_DIR := "res://data/configs/enemies/rosters"
-const FIXTURE_MISSING_BRAIN_TEMPLATE_DIR := "res://tests/fixtures/enemy_content/missing_brain/templates"
-const FIXTURE_EMPTY_ROSTER_DIR := "res://tests/fixtures/enemy_content/missing_brain/rosters"
-const FIXTURE_INVALID_ROSTER_DIR := "res://tests/fixtures/enemy_content/invalid_roster/rosters"
+const ENEMY_CONTENT_SEED_PATH := "res://data/configs/enemies/enemy_content_seed.tres"
+const FIXTURE_MISSING_BRAIN_SEED_PATH := "res://tests/fixtures/enemy_content/missing_brain/enemy_content_seed.tres"
+const FIXTURE_INVALID_ROSTER_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres"
 
 var _failures: Array[String] = []
 
@@ -32,7 +29,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_enemy_content_registry_scans_enemy_resource_directories()
+	_test_enemy_content_registry_loads_formal_seed_resource()
 	_test_enemy_content_registry_reports_missing_brain_reference()
 	_test_enemy_content_registry_reports_missing_roster_template_reference()
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
@@ -60,22 +57,23 @@ func _run() -> void:
 	quit(1)
 
 
-func _test_enemy_content_registry_scans_enemy_resource_directories() -> void:
+func _test_enemy_content_registry_loads_formal_seed_resource() -> void:
 	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
+	registry.configure_seed_resource(ENEMY_CONTENT_SEED_PATH)
 	var validation_errors := registry.validate()
-	_assert_true(validation_errors.is_empty(), "EnemyContentRegistry 的正式资源目录扫描不应产出校验错误。")
+	_assert_true(validation_errors.is_empty(), "EnemyContentRegistry 的正式 seed 资源不应产出校验错误。")
 	_assert_eq(registry.get_enemy_ai_brains().size(), 5, "正式 enemy brain 资源目录应注册 5 个 brain。")
 	_assert_eq(registry.get_enemy_templates().size(), 8, "正式 enemy template 资源目录应注册 8 个模板。")
 	_assert_eq(registry.get_wild_encounter_rosters().size(), 2, "正式 roster 资源目录应注册 2 个编队。")
+	var wolf_pack = registry.get_enemy_templates().get(&"wolf_pack")
+	_assert_true(wolf_pack != null, "正式 enemy seed 应继续注册 wolf_pack。")
+	if wolf_pack != null:
+		_assert_eq(wolf_pack.resource_path, "res://data/configs/enemies/templates/wolf_pack.tres", "正式 enemy seed 应继续引用稳定 template 资源路径。")
 
 
 func _test_enemy_content_registry_reports_missing_brain_reference() -> void:
 	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
-	registry.configure_directories(
-		FIXTURE_MISSING_BRAIN_TEMPLATE_DIR,
-		ENEMY_BRAIN_CONFIG_DIR,
-		FIXTURE_EMPTY_ROSTER_DIR
-	)
+	registry.configure_seed_resource(FIXTURE_MISSING_BRAIN_SEED_PATH)
 	var validation_errors := registry.validate()
 	_assert_true(
 		_errors_contain_fragment(validation_errors, "references missing brain missing_brain"),
@@ -85,11 +83,7 @@ func _test_enemy_content_registry_reports_missing_brain_reference() -> void:
 
 func _test_enemy_content_registry_reports_missing_roster_template_reference() -> void:
 	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
-	registry.configure_directories(
-		ENEMY_TEMPLATE_CONFIG_DIR,
-		ENEMY_BRAIN_CONFIG_DIR,
-		FIXTURE_INVALID_ROSTER_DIR
-	)
+	registry.configure_seed_resource(FIXTURE_INVALID_ROSTER_SEED_PATH)
 	var validation_errors := registry.validate()
 	_assert_true(
 		_errors_contain_fragment(validation_errors, "references missing template missing_template"),
