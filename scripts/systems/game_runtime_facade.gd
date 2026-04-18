@@ -7,7 +7,7 @@ extends RefCounted
 
 const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_grid_system.gd")
 const WORLD_MAP_FOG_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_fog_system.gd")
-const WORLD_MAP_SPAWN_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_spawn_system.gd")
+const WORLD_MAP_DATA_CONTEXT_SCRIPT = preload("res://scripts/systems/world_map_data_context.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
 const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/character_management_module.gd")
@@ -74,30 +74,12 @@ var _settlement_entry_source_coord := Vector2i(-1, -1)
 var _settlement_entry_target_coord := Vector2i(-1, -1)
 ## 字段说明：记录玩家阵营唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _player_faction_id := "player"
-## 字段说明：缓存世界数据字典，集中保存可按键查询的运行时数据。
-var _world_data: Dictionary = {}
-## 字段说明：缓存当前激活地图数据字典，集中保存可按键查询的运行时数据。
-var _active_world_data: Dictionary = {}
-## 字段说明：记录当前激活地图唯一标识，供世界切换、快照和返回链复用。
-var _active_map_id := ""
-## 字段说明：记录当前激活地图名称，供状态文案、提示和调试观察使用。
-var _active_map_display_name := ""
-## 字段说明：记录当前激活地图的生成配置，会参与运行时状态流转、系统协作和存档恢复。
-var _active_generation_config = null
-## 字段说明：按键缓存当前地图中的世界事件查找表，便于在较多对象中快速定位目标并减少重复遍历。
-var _world_event_by_coord: Dictionary = {}
+## 字段说明：记录世界地图数据上下文 owner，集中持有 active map / lookup cache / submap config 等世界数据缓存。
+var _world_map_data_context = WORLD_MAP_DATA_CONTEXT_SCRIPT.new()
 ## 字段说明：缓存待确认的子地图进入提示字典，集中保存可按键查询的运行时数据。
 var _pending_submap_prompt: Dictionary = {}
 ## 字段说明：缓存待确认的战斗开始提示字典，集中保存可按键查询的运行时数据。
 var _pending_battle_start_prompt: Dictionary = {}
-## 字段说明：缓存子地图生成配置集合字典，供切换地图时按标识复用加载结果。
-var _submap_generation_configs: Dictionary = {}
-## 字段说明：按键缓存按坐标索引的聚落查找表，便于在较多对象中快速定位目标并减少重复遍历。
-var _settlement_by_coord: Dictionary = {}
-## 字段说明：按键缓存按坐标索引的世界NPC查找表，便于在较多对象中快速定位目标并减少重复遍历。
-var _world_npc_by_coord: Dictionary = {}
-## 字段说明：按键缓存按坐标索引的遭遇锚点查找表，便于在较多对象中快速定位目标并减少重复遍历。
-var _encounter_anchor_by_coord: Dictionary = {}
 ## 字段说明：记录队伍状态，会参与运行时状态流转、系统协作和存档恢复。
 var _party_state = null
 ## 字段说明：缓存战斗状态实例，会参与运行时状态流转、系统协作和存档恢复。
@@ -185,8 +167,6 @@ var _active_command_log_scope: Dictionary = {}
 var _active_character_info_context: Dictionary = {}
 ## 字段说明：记录当前选中的队伍成员，供 UI 与 headless 统一读取。
 var _party_selected_member_id: StringName = &""
-## 字段说明：按标识缓存据点字典，供无 UI 模式直接查询窗口数据与服务动作。
-var _settlements_by_id: Dictionary = {}
 ## 字段说明：缓存野外遭遇编队配置集合字典，供世界推进与战斗编队统一查表。
 var _wild_encounter_rosters: Dictionary = {}
 
@@ -200,7 +180,7 @@ func setup(game_session) -> void:
 	_generation_config = _game_session.get_generation_config()
 	if _generation_config == null:
 		return
-	_world_data = _game_session.get_world_data()
+	_world_map_data_context.bind_root_world_data(_game_session.get_world_data())
 	_wild_encounter_rosters = _game_session.get_wild_encounter_rosters().duplicate()
 	_encounter_roster_builder.setup(_wild_encounter_rosters)
 	_party_state = _game_session.get_party_state()
@@ -259,7 +239,7 @@ func setup(game_session) -> void:
 	if is_submap_active():
 		_update_status("已载入 %s。%s" % [get_active_map_display_name(), get_submap_return_hint_text()])
 		return
-	var start_settlement_name: String = _active_world_data.get("player_start_settlement_name", "")
+	var start_settlement_name: String = _world_map_data_context.active_world_data.get("player_start_settlement_name", "")
 	if start_settlement_name.is_empty():
 		_update_status("大地图已载入。方向键/WASD 可按住持续移动，点击可见据点或按 Enter 打开据点窗口，按 P 打开队伍管理，右键人物可查看信息。")
 	else:
@@ -286,19 +266,9 @@ func dispose() -> void:
 
 	_game_session = null
 	_generation_config = null
-	_world_data.clear()
-	_active_world_data.clear()
-	_active_map_id = ""
-	_active_map_display_name = ""
-	_active_generation_config = null
-	_world_event_by_coord.clear()
+	_world_map_data_context.reset()
 	_pending_submap_prompt.clear()
 	_pending_battle_start_prompt.clear()
-	_submap_generation_configs.clear()
-	_settlement_by_coord.clear()
-	_world_npc_by_coord.clear()
-	_encounter_anchor_by_coord.clear()
-	_settlements_by_id.clear()
 	_wild_encounter_rosters = {}
 	_party_state = null
 	_battle_state = null
@@ -342,18 +312,15 @@ func get_active_settlement_id() -> String:
 
 
 func get_active_map_id() -> String:
-	return _active_map_id
+	return _world_map_data_context.get_active_map_id()
 
 
 func get_active_map_display_name() -> String:
-	return _active_map_display_name
+	return _world_map_data_context.get_active_map_display_name()
 
 
 func get_submap_return_hint_text() -> String:
-	if not is_submap_active():
-		return ""
-	var submap_entry := _get_mounted_submap_entry(_active_map_id)
-	return String(submap_entry.get("return_hint_text", "点击任意地点返回原位置。"))
+	return _world_map_data_context.get_submap_return_hint_text()
 
 
 func get_pending_submap_prompt() -> Dictionary:
@@ -365,11 +332,11 @@ func get_pending_battle_start_prompt() -> Dictionary:
 
 
 func is_submap_active() -> bool:
-	return not _active_map_id.is_empty()
+	return _world_map_data_context.is_submap_active()
 
 
 func get_world_step() -> int:
-	return int(_active_world_data.get("world_step", 0))
+	return _world_map_data_context.get_world_step()
 
 
 func get_selected_settlement() -> Dictionary:
@@ -396,7 +363,7 @@ func get_nearby_encounter_entries(limit: int = 8) -> Array[Dictionary]:
 	var max_entries := maxi(limit, 0)
 	if max_entries <= 0:
 		return entries
-	for encounter_variant in _active_world_data.get("encounter_anchors", []):
+	for encounter_variant in _world_map_data_context.active_world_data.get("encounter_anchors", []):
 		var encounter = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter == null or encounter.is_cleared:
 			continue
@@ -429,7 +396,7 @@ func get_nearby_world_event_entries(limit: int = 8) -> Array[Dictionary]:
 	var max_entries := maxi(limit, 0)
 	if max_entries <= 0:
 		return entries
-	for world_event_variant in _active_world_data.get("world_events", []):
+	for world_event_variant in _world_map_data_context.active_world_data.get("world_events", []):
 		if world_event_variant is not Dictionary:
 			continue
 		var world_event: Dictionary = world_event_variant
@@ -473,11 +440,11 @@ func get_fog_system():
 
 
 func get_world_data() -> Dictionary:
-	return _active_world_data
+	return _world_map_data_context.get_active_world_data()
 
 
 func get_generation_config():
-	return _active_generation_config
+	return _world_map_data_context.get_active_generation_config()
 
 
 func get_player_coord() -> Vector2i:
@@ -561,16 +528,11 @@ func set_settlement_feedback_text(feedback_text: String) -> void:
 
 
 func get_settlement_record(settlement_id: String) -> Dictionary:
-	return _settlements_by_id.get(settlement_id, {}).duplicate(true)
+	return _world_map_data_context.get_settlement_record(settlement_id)
 
 
 func get_all_settlement_records() -> Array[Dictionary]:
-	var settlements: Array[Dictionary] = []
-	for settlement_variant in _active_world_data.get("settlements", []):
-		if settlement_variant is not Dictionary:
-			continue
-		settlements.append((settlement_variant as Dictionary).duplicate(true))
-	return settlements
+	return _world_map_data_context.get_all_settlement_records()
 
 
 func get_character_info_context() -> Dictionary:
@@ -1123,7 +1085,7 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 	var loot_commit_result := _commit_battle_loot_to_shared_warehouse(battle_resolution_result)
 	var party_persist_error: int = int(_game_session.set_party_state(_party_state))
 	_resolve_world_encounter_after_battle(winner_faction_id)
-	var world_persist_error: int = int(_game_session.set_world_data(_world_data))
+	var world_persist_error: int = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 	_game_session.set_battle_save_lock(false)
 	var flush_error: int = int(_game_session.flush_game_state())
 
@@ -1380,7 +1342,7 @@ func advance_world_time_by_steps(delta_steps: int) -> void:
 
 
 func refresh_world_visibility() -> void:
-	_refresh_world_event_discovery()
+	_world_map_data_context.refresh_world_event_discovery()
 	_refresh_fog()
 
 
@@ -1413,29 +1375,11 @@ func clear_settlement_entry_context(reset_selected: bool = true) -> void:
 
 
 func set_active_settlement_state(settlement_id: String, settlement_state: Dictionary) -> bool:
-	var settlements_variant = _active_world_data.get("settlements", [])
-	if settlements_variant is not Array:
-		return false
-	for index in range(settlements_variant.size()):
-		var settlement_variant = settlements_variant[index]
-		if settlement_variant is not Dictionary:
-			continue
-		var settlement_data: Dictionary = settlement_variant
-		if String(settlement_data.get("settlement_id", "")) != settlement_id:
-			continue
-		settlement_data["settlement_state"] = settlement_state.duplicate(true)
-		settlements_variant[index] = settlement_data
-		_active_world_data["settlements"] = settlements_variant
-		_rebuild_world_coord_lookups()
-		return true
-	return false
+	return _world_map_data_context.set_active_settlement_state(settlement_id, settlement_state)
 
 
 func get_settlement_state(settlement_id: String) -> Dictionary:
-	var settlement: Dictionary = _settlements_by_id.get(settlement_id, {})
-	if settlement is Dictionary:
-		return (settlement as Dictionary).get("settlement_state", {}).duplicate(true)
-	return {}
+	return _world_map_data_context.get_settlement_state(settlement_id)
 
 
 func command_world_move(direction: Vector2i, count: int = 1) -> Dictionary:
@@ -1980,7 +1924,7 @@ func command_confirm_battle_start() -> Dictionary:
 
 func command_return_from_submap() -> Dictionary:
 	return _execute_logged_command("submap.return", "submap", {
-		"active_map_id": _active_map_id,
+		"active_map_id": _world_map_data_context.active_map_id,
 	}, func() -> Dictionary:
 		if not is_submap_active():
 			return _command_error("当前不在子地图中。")
@@ -2151,8 +2095,8 @@ func _log_command_result(scope: Dictionary, result: Dictionary) -> void:
 func _build_runtime_log_state() -> Dictionary:
 	var context := {
 		"save_id": _game_session.get_active_save_id() if _game_session != null else "",
-		"map_id": _active_map_id,
-		"map_display_name": _active_map_display_name,
+		"map_id": _world_map_data_context.active_map_id,
+		"map_display_name": _world_map_data_context.active_map_display_name,
 		"player_coord": _player_coord,
 		"selected_coord": _selected_coord,
 		"active_modal_id": _active_modal_id,
@@ -2309,7 +2253,7 @@ func _move_player(direction: Vector2i) -> void:
 		_advance_world_time_by_steps(1)
 		_activate_settlement_entry_context(source_coord, target_coord)
 		if _try_open_settlement_at(target_coord, false):
-			var world_persist_error_on_entry: int = int(_game_session.set_world_data(_world_data))
+			var world_persist_error_on_entry: int = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 			if world_persist_error_on_entry != OK:
 				_update_status("已打开 %s 的据点窗口，但世界状态持久化失败。" % target_settlement.get("display_name", "据点"))
 			return
@@ -2321,13 +2265,13 @@ func _move_player(direction: Vector2i) -> void:
 	_player_coord = target_coord
 	_selected_coord = _player_coord
 	_advance_world_time_by_steps(1)
-	_refresh_world_event_discovery()
+	_world_map_data_context.refresh_world_event_discovery()
 	_refresh_fog()
 
 	var triggered_event := _get_triggerable_world_event_at(_player_coord)
 	if not triggered_event.is_empty():
 		var player_persist_error := int(_game_session.set_player_coord(_player_coord))
-		var world_persist_error := int(_game_session.set_world_data(_world_data))
+		var world_persist_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 		_open_world_event_prompt(triggered_event)
 		if player_persist_error != OK or world_persist_error != OK:
 			_update_status("%s 已显现，但当前位置或世界状态持久化失败。" % String(triggered_event.get("display_name", "事件入口")))
@@ -2337,7 +2281,7 @@ func _move_player(direction: Vector2i) -> void:
 	if encountered_anchor != null:
 		_game_session.set_battle_save_lock(true)
 		var player_persist_error: int = int(_game_session.set_player_coord(_player_coord))
-		var world_persist_error: int = int(_game_session.set_world_data(_world_data))
+		var world_persist_error: int = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 		_start_battle(encountered_anchor)
 		if not _is_battle_active():
 			_game_session.set_battle_save_lock(false)
@@ -2349,7 +2293,7 @@ func _move_player(direction: Vector2i) -> void:
 		return
 
 	var player_persist_error: int = int(_game_session.set_player_coord(_player_coord))
-	var world_persist_error: int = int(_game_session.set_world_data(_world_data))
+	var world_persist_error: int = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 	if player_persist_error == OK and world_persist_error == OK:
 		_update_status("玩家移动到 %s，视野与世界时间已刷新。" % _format_coord(_player_coord))
 	else:
@@ -2357,9 +2301,9 @@ func _move_player(direction: Vector2i) -> void:
 
 
 func _advance_world_time_by_steps(delta_steps: int) -> void:
-	var advance_result := _world_time_system.advance(_active_world_data, delta_steps)
+	var advance_result := _world_time_system.advance(_world_map_data_context.active_world_data, delta_steps)
 	_wild_encounter_growth_system.apply_step_advance(
-		_active_world_data,
+		_world_map_data_context.active_world_data,
 		int(advance_result.get("old_step", 0)),
 		int(advance_result.get("new_step", 0)),
 		_wild_encounter_rosters
@@ -2375,7 +2319,7 @@ func _resolve_world_encounter_after_battle(winner_faction_id: String) -> void:
 	if encounter_anchor.encounter_kind == ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT:
 		_wild_encounter_growth_system.apply_battle_victory(
 			encounter_anchor,
-			int(_active_world_data.get("world_step", 0)),
+			int(_world_map_data_context.active_world_data.get("world_step", 0)),
 			_wild_encounter_rosters
 		)
 		return
@@ -2407,13 +2351,13 @@ func _attempt_battle_move(direction: Vector2i) -> StringName:
 
 
 func _refresh_fog() -> void:
-	if _active_generation_config == null:
+	if _world_map_data_context.active_generation_config == null:
 		return
 	var leader_member_id := "player_main"
 	if _party_state != null and _party_state.leader_member_id != &"":
 		leader_member_id = String(_party_state.leader_member_id)
 	var sources: Array = [
-		VISION_SOURCE_DATA_SCRIPT.new(leader_member_id, _player_coord, _active_generation_config.player_vision_range, _player_faction_id),
+		VISION_SOURCE_DATA_SCRIPT.new(leader_member_id, _player_coord, _world_map_data_context.active_generation_config.player_vision_range, _player_faction_id),
 	]
 	_fog_system.rebuild_visibility_for_faction(_player_faction_id, sources)
 
@@ -2536,27 +2480,19 @@ func _try_open_character_info_at_battle_coord(coord: Vector2i) -> bool:
 
 
 func _get_settlement_at(coord: Vector2i) -> Dictionary:
-	return _settlement_by_coord.get(coord, {})
+	return _world_map_data_context.get_settlement_at(coord)
 
 
 func _get_world_npc_at(coord: Vector2i) -> Dictionary:
-	return _world_npc_by_coord.get(coord, {})
+	return _world_map_data_context.get_world_npc_at(coord)
 
 
 func _get_encounter_anchor_at(coord: Vector2i) -> ENCOUNTER_ANCHOR_DATA_SCRIPT:
-	return _encounter_anchor_by_coord.get(coord, null) as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	return _world_map_data_context.get_encounter_anchor_at(coord)
 
 
 func _get_encounter_anchor_by_id(entity_id: StringName) -> ENCOUNTER_ANCHOR_DATA_SCRIPT:
-	if entity_id == &"":
-		return null
-	for encounter_variant in _active_world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
-		if encounter_anchor == null:
-			continue
-		if encounter_anchor.entity_id == entity_id:
-			return encounter_anchor
-	return null
+	return _world_map_data_context.get_encounter_anchor_by_id(entity_id)
 
 
 func _refresh_battle_selection_state() -> void:
@@ -2571,20 +2507,7 @@ func _refresh_battle_selection_state() -> void:
 
 
 func _remove_active_battle_encounter_anchor() -> void:
-	if _active_battle_encounter_id == &"":
-		return
-
-	var remaining_anchors: Array = []
-	for encounter_anchor_data in _active_world_data.get("encounter_anchors", []):
-		var encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT = encounter_anchor_data as ENCOUNTER_ANCHOR_DATA_SCRIPT
-		if encounter_anchor == null:
-			continue
-		if encounter_anchor.entity_id == _active_battle_encounter_id:
-			continue
-		remaining_anchors.append(encounter_anchor)
-
-	_active_world_data["encounter_anchors"] = remaining_anchors
-	_rebuild_world_coord_lookups()
+	_world_map_data_context.remove_encounter_anchor_by_id(_active_battle_encounter_id)
 
 
 func _on_settlement_action_requested(settlement_id: String, action_id: String, payload: Dictionary) -> void:
@@ -2885,7 +2808,7 @@ func _persist_party_state() -> int:
 func _persist_world_data() -> int:
 	if _game_session == null:
 		return ERR_UNAVAILABLE
-	return int(_game_session.set_world_data(_world_data))
+	return int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 
 
 func _mark_settlement_visited(settlement_id: String) -> void:
@@ -3016,135 +2939,21 @@ func _format_coord(coord: Vector2i) -> String:
 	return "(%d, %d)" % [coord.x, coord.y]
 
 
-func _register_settlement_footprints() -> void:
-	for settlement in _active_world_data.get("settlements", []):
-		var entity_id: String = settlement.get("entity_id", "")
-		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
-		var size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
-		if entity_id.is_empty():
-			continue
-		if _grid_system.can_place_footprint(origin, size):
-			_grid_system.register_footprint(entity_id, origin, size)
-
-
-func _rebuild_world_coord_lookups() -> void:
-	_settlement_by_coord.clear()
-	_settlements_by_id.clear()
-	_world_npc_by_coord.clear()
-	_encounter_anchor_by_coord.clear()
-	_world_event_by_coord.clear()
-
-	for settlement in _active_world_data.get("settlements", []):
-		if settlement is not Dictionary:
-			continue
-		_settlements_by_id[String(settlement.get("settlement_id", ""))] = settlement
-		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
-		var size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
-		for y in range(size.y):
-			for x in range(size.x):
-				_settlement_by_coord[origin + Vector2i(x, y)] = settlement
-
-	for npc in _active_world_data.get("world_npcs", []):
-		if npc is not Dictionary:
-			continue
-		_world_npc_by_coord[npc.get("coord", Vector2i.ZERO)] = npc
-
-	for encounter_anchor_data in _active_world_data.get("encounter_anchors", []):
-		var encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT = encounter_anchor_data as ENCOUNTER_ANCHOR_DATA_SCRIPT
-		if encounter_anchor == null:
-			continue
-		_encounter_anchor_by_coord[encounter_anchor.world_coord] = encounter_anchor
-
-	for world_event_variant in _active_world_data.get("world_events", []):
-		if world_event_variant is not Dictionary:
-			continue
-		var world_event: Dictionary = world_event_variant
-		if not bool(world_event.get("is_discovered", false)):
-			continue
-		_world_event_by_coord[world_event.get("world_coord", Vector2i.ZERO)] = world_event
-
-
 func _sync_active_world_context() -> void:
-	_active_map_id = String(_world_data.get("active_submap_id", ""))
-	if not _active_map_id.is_empty() and _get_mounted_submap_entry(_active_map_id).is_empty():
-		_active_map_id = ""
-		_world_data["active_submap_id"] = ""
-	_active_world_data = _resolve_active_world_data()
-	_active_generation_config = _resolve_active_generation_config()
-	_active_map_display_name = _resolve_active_map_display_name()
-	if _active_generation_config != null:
-		_grid_system.setup(_active_generation_config.world_size_in_chunks, _active_generation_config.chunk_size)
-		_fog_system.setup(_active_generation_config.get_world_size_cells())
-	_refresh_world_event_discovery()
-	_rebuild_world_coord_lookups()
-	_register_settlement_footprints()
-	if not _grid_system.is_cell_inside_world(_player_coord):
-		_player_coord = _resolve_active_map_player_coord()
-	if not _grid_system.is_cell_inside_world(_selected_coord):
-		_selected_coord = _player_coord
-
-
-func _resolve_active_world_data() -> Dictionary:
-	if _active_map_id.is_empty():
-		return _world_data
-	var submap_entry := _get_mounted_submap_entry(_active_map_id)
-	var submap_world_data = submap_entry.get("world_data", {})
-	return submap_world_data if submap_world_data is Dictionary else _world_data
-
-
-func _resolve_active_generation_config():
-	if _active_map_id.is_empty():
-		return _generation_config
-	return _load_submap_generation_config(_active_map_id)
-
-
-func _resolve_active_map_display_name() -> String:
-	if _active_map_id.is_empty():
-		return "大地图"
-	var submap_entry := _get_mounted_submap_entry(_active_map_id)
-	var display_name := String(submap_entry.get("display_name", ""))
-	return display_name if not display_name.is_empty() else _active_map_id
-
-
-func _resolve_active_map_player_coord() -> Vector2i:
-	if _active_map_id.is_empty():
-		return _world_data.get("player_start_coord", _player_coord)
-	var submap_entry := _get_mounted_submap_entry(_active_map_id)
-	var stored_coord: Vector2i = submap_entry.get("player_coord", Vector2i(-1, -1))
-	if stored_coord != Vector2i(-1, -1):
-		return stored_coord
-	return _active_world_data.get("player_start_coord", Vector2i.ZERO)
-
-
-func _refresh_world_event_discovery() -> void:
-	var events_variant = _active_world_data.get("world_events", [])
-	if events_variant is not Array:
-		return
-	var changed := false
-	for index in range(events_variant.size()):
-		var event_variant = events_variant[index]
-		if event_variant is not Dictionary:
-			continue
-		var world_event: Dictionary = event_variant
-		if bool(world_event.get("is_discovered", false)):
-			continue
-		if not _is_world_event_discovery_condition_met(world_event):
-			continue
-		world_event["is_discovered"] = true
-		events_variant[index] = world_event
-		changed = true
-	if changed:
-		_active_world_data["world_events"] = events_variant
-		_rebuild_world_coord_lookups()
-
-
-func _is_world_event_discovery_condition_met(world_event: Dictionary) -> bool:
-	var condition_id := String(world_event.get("discovery_condition_id", "")).strip_edges()
-	return condition_id.is_empty() or condition_id == "always_true"
+	var sync_result := _world_map_data_context.sync_active_world_context(
+		_generation_config,
+		_grid_system,
+		_player_coord,
+		_selected_coord
+	)
+	_player_coord = sync_result.get("player_coord", _player_coord)
+	_selected_coord = sync_result.get("selected_coord", _selected_coord)
+	if _world_map_data_context.active_generation_config != null:
+		_fog_system.setup(_world_map_data_context.active_generation_config.get_world_size_cells())
 
 
 func _get_world_event_at(coord: Vector2i) -> Dictionary:
-	var world_event_variant = _world_event_by_coord.get(coord, {})
+	var world_event_variant = _world_map_data_context.get_world_event_at(coord)
 	return world_event_variant.duplicate(true) if world_event_variant is Dictionary else {}
 
 
@@ -3176,7 +2985,7 @@ func _open_world_event_prompt(world_event: Dictionary) -> void:
 		prompt_text = "确认后将进入 %s，返回时会回到当前坐标。" % target_name
 	_pending_submap_prompt = {
 		"event_id": String(world_event.get("event_id", "")),
-		"source_map_id": _active_map_id,
+		"source_map_id": _world_map_data_context.active_map_id,
 		"source_coord": _player_coord,
 		"target_submap_id": target_submap_id,
 		"target_display_name": target_name,
@@ -3210,23 +3019,23 @@ func _enter_submap(submap_id: String, source_map_id: String, source_coord: Vecto
 	var submap_entry := _get_mounted_submap_entry(submap_id)
 	if submap_entry.is_empty():
 		return _command_error("未找到目标子地图。")
-	var return_stack: Array = _world_data.get("submap_return_stack", [])
+	var return_stack: Array = _world_map_data_context.root_world_data.get("submap_return_stack", [])
 	return_stack.append({
 		"map_id": source_map_id,
 		"coord": source_coord,
 	})
-	_world_data["submap_return_stack"] = return_stack
-	_world_data["active_submap_id"] = submap_id
-	_active_map_id = submap_id
-	_active_world_data = submap_entry.get("world_data", {})
-	_player_coord = submap_entry.get("player_coord", _active_world_data.get("player_start_coord", Vector2i.ZERO))
+	_world_map_data_context.root_world_data["submap_return_stack"] = return_stack
+	_world_map_data_context.root_world_data["active_submap_id"] = submap_id
+	var target_world_data_variant = submap_entry.get("world_data", {})
+	var target_world_data: Dictionary = target_world_data_variant if target_world_data_variant is Dictionary else {}
+	_player_coord = submap_entry.get("player_coord", target_world_data.get("player_start_coord", Vector2i.ZERO))
 	_selected_coord = _player_coord
 	_active_settlement_id = ""
 	_active_settlement_feedback_text = ""
 	_active_character_info_context.clear()
 	_sync_active_world_context()
 	var player_persist_error := int(_game_session.set_player_coord(_player_coord))
-	var world_persist_error := int(_game_session.set_world_data(_world_data))
+	var world_persist_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 	var target_name := String(submap_entry.get("display_name", submap_id))
 	if player_persist_error != OK or world_persist_error != OK:
 		_update_status("已进入 %s，但世界状态持久化失败。" % target_name)
@@ -3238,17 +3047,17 @@ func _enter_submap(submap_id: String, source_map_id: String, source_coord: Vecto
 func _return_from_active_submap() -> Dictionary:
 	if not is_submap_active():
 		return _command_error("当前不在子地图中。")
-	var submap_entry := _get_mounted_submap_entry(_active_map_id)
+	var submap_entry := _get_mounted_submap_entry(_world_map_data_context.active_map_id)
 	if not submap_entry.is_empty():
 		submap_entry["player_coord"] = _player_coord
-		_set_mounted_submap_entry(_active_map_id, submap_entry)
-	var return_stack: Array = _world_data.get("submap_return_stack", [])
+		_set_mounted_submap_entry(_world_map_data_context.active_map_id, submap_entry)
+	var return_stack: Array = _world_map_data_context.root_world_data.get("submap_return_stack", [])
 	if return_stack.is_empty():
 		return _command_error("当前没有可返回的原坐标。")
 	var return_entry_variant = return_stack.pop_back()
 	var return_entry: Dictionary = return_entry_variant if return_entry_variant is Dictionary else {}
-	_world_data["submap_return_stack"] = return_stack
-	_world_data["active_submap_id"] = String(return_entry.get("map_id", ""))
+	_world_map_data_context.root_world_data["submap_return_stack"] = return_stack
+	_world_map_data_context.root_world_data["active_submap_id"] = String(return_entry.get("map_id", ""))
 	_player_coord = return_entry.get("coord", Vector2i.ZERO)
 	_selected_coord = _player_coord
 	_active_settlement_id = ""
@@ -3258,7 +3067,7 @@ func _return_from_active_submap() -> Dictionary:
 	_active_modal_id = ""
 	_sync_active_world_context()
 	var player_persist_error := int(_game_session.set_player_coord(_player_coord))
-	var world_persist_error := int(_game_session.set_world_data(_world_data))
+	var world_persist_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 	if player_persist_error != OK or world_persist_error != OK:
 		_update_status("已返回原位置，但世界状态持久化失败。")
 		return _command_error(_current_status_message)
@@ -3267,50 +3076,16 @@ func _return_from_active_submap() -> Dictionary:
 
 
 func _ensure_submap_generated(submap_id: String) -> bool:
-	var submap_entry := _get_mounted_submap_entry(submap_id)
-	if submap_entry.is_empty():
-		return false
-	var current_world_data = submap_entry.get("world_data", {})
-	if bool(submap_entry.get("is_generated", false)) and current_world_data is Dictionary and not current_world_data.is_empty():
-		return true
-	var submap_generation_config = _load_submap_generation_config(submap_id)
-	if submap_generation_config == null:
-		return false
-	var generation_grid = WORLD_MAP_GRID_SYSTEM_SCRIPT.new()
-	generation_grid.setup(submap_generation_config.world_size_in_chunks, submap_generation_config.chunk_size)
-	var spawn_system = WORLD_MAP_SPAWN_SYSTEM_SCRIPT.new()
-	var submap_world_data := spawn_system.build_world(submap_generation_config, generation_grid)
-	submap_entry["world_data"] = submap_world_data
-	submap_entry["player_coord"] = submap_world_data.get("player_start_coord", submap_generation_config.player_start_coord)
-	submap_entry["is_generated"] = true
-	_set_mounted_submap_entry(submap_id, submap_entry)
-	return true
+	return _world_map_data_context.ensure_submap_generated(submap_id)
 
 
 func _load_submap_generation_config(submap_id: String):
-	if _submap_generation_configs.has(submap_id):
-		return _submap_generation_configs.get(submap_id)
-	var submap_entry := _get_mounted_submap_entry(submap_id)
-	var generation_config_path := String(submap_entry.get("generation_config_path", ""))
-	if generation_config_path.is_empty():
-		return null
-	var generation_config = load(generation_config_path)
-	if generation_config != null:
-		_submap_generation_configs[submap_id] = generation_config
-	return generation_config
+	return _world_map_data_context.load_submap_generation_config(submap_id)
 
 
 func _get_mounted_submap_entry(submap_id: String) -> Dictionary:
-	var mounted_submaps_variant = _world_data.get("mounted_submaps", {})
-	if mounted_submaps_variant is not Dictionary:
-		return {}
-	var mounted_submaps: Dictionary = mounted_submaps_variant
-	var submap_entry_variant = mounted_submaps.get(submap_id, {})
-	return submap_entry_variant if submap_entry_variant is Dictionary else {}
+	return _world_map_data_context.get_mounted_submap_entry(submap_id)
 
 
 func _set_mounted_submap_entry(submap_id: String, submap_entry: Dictionary) -> void:
-	var mounted_submaps_variant = _world_data.get("mounted_submaps", {})
-	var mounted_submaps: Dictionary = mounted_submaps_variant if mounted_submaps_variant is Dictionary else {}
-	mounted_submaps[submap_id] = submap_entry.duplicate(true)
-	_world_data["mounted_submaps"] = mounted_submaps
+	_world_map_data_context.set_mounted_submap_entry(submap_id, submap_entry)

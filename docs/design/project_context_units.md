@@ -337,6 +337,7 @@ HeadlessGameTestSession
   - `scenes/main/world_map.tscn`
   - `scenes/ui/submap_entry_window.tscn`
   - `scripts/systems/game_runtime_facade.gd`
+  - `scripts/systems/world_map_data_context.gd`
   - `scripts/systems/battle_session_facade.gd`
   - `scripts/systems/game_runtime_battle_selection.gd`
   - `scripts/systems/game_runtime_battle_selection_state.gd`
@@ -353,8 +354,9 @@ HeadlessGameTestSession
   - 当前 headless snapshot 的结构化输出。
   - 当前场景节点与 runtime 的同步方式。
 - 主要职责：
-  - `GameRuntimeFacade` 持有真正的世界/战斗/奖励/仓库/窗口运行时状态。
-  - `GameRuntimeFacade` 现在还持有 root world / active submap 的切换状态、进入确认提示和返回栈，并负责把 `_world_data` 的根世界结构映射成当前激活地图视图。
+  - `GameRuntimeFacade` 持有真正的世界/战斗/奖励/仓库/窗口运行时编排状态。
+  - `WorldMapDataContext` 是正式的 world-data context owner：持有 root world / active map data、坐标索引查表、active map 标识 / 展示名，以及 mounted submap generation config cache，并负责把根世界结构映射成当前激活地图视图。
+  - `GameRuntimeFacade` 继续编排 mounted submap 进入确认、battle start 确认、active map 切换、返回栈和统一持久化，但不再直接持有整组 world-data cache 字段。
   - `BattleSessionFacade` 承载开战、battle tick / resolve、batch 同步、战斗输入桥接、战斗只读查询与战后回写，作为 `GameRuntimeFacade -> BattleRuntimeModule` 的 battle session 控制器；战斗开始/结束链路优先通过 `GameRuntimeFacade` 的显式 battle-support helper 协调，不再散写 runtime 私有字段。
   - `GameRuntimeBattleSelectionState` 持有战斗技能选择、目标队列与选中格等运行时状态。
   - `GameRuntimeBattleSelection` 承载战斗技能选择、目标队列与相关只读查询逻辑，并通过 `GameRuntimeBattleSelectionState` 读写状态；技能选择与目标队列的运行时读写优先通过 `GameRuntimeFacade` 的显式 selection helper / state accessor 协调，不再直接散写 runtime 私有字段。
@@ -1251,7 +1253,7 @@ HeadlessGameTestSession
 
 - 当前最关键的桥接单元是：
   - CU-02 `GameSession`
-  - CU-06 `GameRuntimeFacade + WorldMapRuntimeProxy + WorldMapSystem`
+  - CU-06 `GameRuntimeFacade + WorldMapDataContext + WorldMapRuntimeProxy + WorldMapSystem`
   - CU-12 `CharacterManagementModule`
   - CU-15 `BattleRuntimeModule`
 - 当前最适合独立处理的叶子单元是：
