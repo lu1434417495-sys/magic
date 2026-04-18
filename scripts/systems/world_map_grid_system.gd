@@ -151,6 +151,9 @@ func get_chunk_coord(coord: Vector2i) -> Vector2i:
 func _get_occupant_state(coord: Vector2i):
 	var occupant_variant: Variant = _occupied_cells.get(coord, null)
 	if occupant_variant is Object and occupant_variant.has_method("is_empty"):
+		if occupant_variant.is_empty():
+			_occupied_cells.erase(coord)
+			return null
 		return occupant_variant
 	if occupant_variant is Dictionary:
 		var occupant_state = WORLD_MAP_OCCUPANT_STATE_SCRIPT.create(

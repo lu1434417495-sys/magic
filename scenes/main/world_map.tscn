@@ -193,7 +193,25 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="BattleLoadingLabel" type="Label" parent="BattleLoadingOverlay/Center"]
+[node name="Layout" type="VBoxContainer" parent="BattleLoadingOverlay/Center"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="BattleLoadingLabel" type="Label" parent="BattleLoadingOverlay/Center/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "LOADING..."
+
+[node name="BattleLoadingProgressBar" type="ProgressBar" parent="BattleLoadingOverlay/Center/Layout"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 22)
+layout_mode = 2
+show_percentage = false
+max_value = 100.0
+value = 0.0
+
+[node name="BattleLoadingPercentLabel" type="Label" parent="BattleLoadingOverlay/Center/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0%"

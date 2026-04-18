@@ -146,7 +146,7 @@ func _on_save_load_requested(save_id: String) -> void:
 	if load_error != OK:
 		_set_transition_state(false)
 		if load_error == ERR_INVALID_DATA:
-			_show_error("该存档使用已废弃的旧仓库格式，当前版本拒绝加载。")
+			_show_error("该存档数据不完整或版本不匹配，当前版本无法加载。")
 		else:
 			_show_error("加载存档失败，请检查存档数据。")
 		push_error("Failed to load save slot %s. Error code: %s" % [save_id, load_error])

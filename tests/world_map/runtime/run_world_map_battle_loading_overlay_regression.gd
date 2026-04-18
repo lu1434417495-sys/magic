@@ -44,11 +44,15 @@ func _test_world_map_loading_overlay_tracks_battle_panel_state() -> void:
 	var overlay := world_map.get_node("BattleLoadingOverlay") as Control
 	var background := world_map.get_node("Background") as Control
 	var loading_label := world_map.get_node("%BattleLoadingLabel") as Label
+	var loading_progress_bar := world_map.get_node("%BattleLoadingProgressBar") as ProgressBar
+	var loading_percent_label := world_map.get_node("%BattleLoadingPercentLabel") as Label
 	var battle_map_panel = world_map.get_node("MapViewport/BattleMapPanel")
 
 	_assert_true(overlay != null, "world_map.tscn 应提供根层 battle loading overlay。")
 	_assert_true(overlay != null and not overlay.visible, "初始进入世界地图时 battle loading overlay 应保持隐藏。")
 	_assert_eq(overlay.get_global_rect(), background.get_global_rect(), "battle loading overlay 应与 Background 保持同尺寸。")
+	_assert_true(loading_progress_bar != null, "根层 overlay 应提供 battle loading progress bar。")
+	_assert_true(loading_percent_label != null, "根层 overlay 应提供 battle loading 百分比标签。")
 
 	if battle_map_panel != null:
 		battle_map_panel.emit_signal("battle_loading_state_changed", true, 48.0)
@@ -56,12 +60,16 @@ func _test_world_map_loading_overlay_tracks_battle_panel_state() -> void:
 
 	_assert_true(overlay != null and overlay.visible, "BattleMapPanel 进入 loading 状态时应显示根层黑屏 overlay。")
 	_assert_eq(loading_label.text, "LOADING...", "根层 overlay 只应显示 LOADING... 文本。")
+	_assert_eq(int(round(loading_progress_bar.value)), 48, "loading 时 progress bar 应同步 battle panel 的进度值。")
+	_assert_eq(loading_percent_label.text, "48%", "loading 时百分比标签应同步 battle panel 的进度值。")
 
 	if battle_map_panel != null:
 		battle_map_panel.emit_signal("battle_loading_state_changed", false, 100.0)
 		await process_frame
 
 	_assert_true(overlay != null and not overlay.visible, "BattleMapPanel 结束 loading 状态时应隐藏根层黑屏 overlay。")
+	_assert_eq(int(round(loading_progress_bar.value)), 100, "loading 结束后 progress bar 应保留最终完成进度。")
+	_assert_eq(loading_percent_label.text, "100%", "loading 结束后百分比标签应显示 100%。")
 
 	world_map.queue_free()
 	await process_frame

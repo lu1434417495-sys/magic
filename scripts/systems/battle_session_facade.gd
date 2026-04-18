@@ -400,6 +400,8 @@ func refresh_battle_runtime_state() -> void:
 
 
 func build_battle_seed(encounter_anchor) -> int:
+	if encounter_anchor == null:
+		return 0
 	var generation_config = _runtime.get_generation_config() if _runtime != null else null
 	var player_coord: Vector2i = _runtime.get_player_coord() if _runtime != null else Vector2i.ZERO
 	var base_seed := int(generation_config.seed) if generation_config != null else 0

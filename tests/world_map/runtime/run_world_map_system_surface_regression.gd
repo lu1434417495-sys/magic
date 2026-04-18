@@ -72,6 +72,9 @@ func _test_world_map_system_does_not_expose_runtime_passthrough_surface() -> voi
 		"inspect_world_cell",
 		"select_battle_cell",
 		"inspect_battle_cell",
+		"_on_settlement_shop_requested",
+		"_on_settlement_stagecoach_requested",
+		"_open_local_service_window",
 	]
 
 	for method_name in forbidden_methods:

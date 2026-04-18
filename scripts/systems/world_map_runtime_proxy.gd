@@ -77,6 +77,10 @@ func get_player_coord() -> Vector2i:
 	return _call_runtime_read(&"get_player_coord", Vector2i.ZERO)
 
 
+func is_player_visible_on_world_map() -> bool:
+	return bool(_call_runtime_read(&"is_player_visible_on_world_map", true))
+
+
 func get_selected_coord() -> Vector2i:
 	return _call_runtime_read(&"get_selected_coord", Vector2i.ZERO)
 
@@ -384,7 +388,17 @@ func _call_runtime_command(method_name: StringName, args: Array = []) -> Diction
 			"message": "运行时缺少接口 %s。" % method,
 		}
 	var result_variant = _runtime.callv(method, args)
-	var result: Dictionary = result_variant if result_variant is Dictionary else {}
+	var result: Dictionary = {}
+	if result_variant is Dictionary:
+		result = result_variant
+	else:
+		var type_name := type_string(typeof(result_variant))
+		push_warning("WorldMapRuntimeProxy.%s 返回了非 Dictionary 结果（%s），已改为错误结果。" % [method, type_name])
+		result = {
+			"ok": false,
+			"message": "运行时接口 %s 返回了非 Dictionary 结果。" % method,
+			"invalid_result_type": type_name,
+		}
 	if _render_callback.is_valid():
 		_render_callback.call(true, result)
 	return result

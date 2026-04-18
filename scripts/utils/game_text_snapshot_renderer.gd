@@ -151,6 +151,7 @@ static func _build_world_lines(world: Dictionary) -> Array[String]:
 		"is_submap=%s" % _format_bool(bool(world.get("is_submap", false))),
 		"world_step=%d" % int(world.get("world_step", 0)),
 		"player_coord=%s" % _format_coord(world.get("player_coord", {})),
+		"player_visible_on_map=%s" % _format_bool(bool(world.get("player_visible_on_map", true))),
 		"selected_coord=%s" % _format_coord(world.get("selected_coord", {})),
 		"selected_settlement_id=%s" % String(world.get("selected_settlement_id", "")),
 		"selected_npc_name=%s" % String(world.get("selected_npc_name", "")),

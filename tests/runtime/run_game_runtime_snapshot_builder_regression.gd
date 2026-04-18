@@ -87,6 +87,8 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	var text_snapshot := builder.build_text_snapshot()
 
 	var quests_snapshot: Dictionary = snapshot.get("party", {}).get("quests", {})
+	_assert_true(not bool(snapshot.get("world", {}).get("player_visible_on_map", true)), "快照应暴露世界地图人物显隐状态。")
+	_assert_true(text_snapshot.contains("player_visible_on_map=false"), "文本快照应渲染世界地图人物显隐状态。")
 	_assert_true(not quests_snapshot.is_empty(), "当 PartyState 暴露 quest schema 时，headless snapshot 应在 party 段包含 quests。")
 	_assert_eq(
 		quests_snapshot.get("active_quest_ids", []),
@@ -455,6 +457,9 @@ class FakeQuestRuntime:
 
 	func get_player_coord() -> Vector2i:
 		return Vector2i.ZERO
+
+	func is_player_visible_on_world_map() -> bool:
+		return false
 
 	func get_selected_coord() -> Vector2i:
 		return Vector2i.ZERO

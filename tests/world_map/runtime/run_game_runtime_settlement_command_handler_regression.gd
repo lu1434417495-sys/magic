@@ -89,6 +89,7 @@ class MockRuntime:
 	var battle_active := false
 	var world_step := 0
 	var refresh_world_visibility_calls := 0
+	var clear_settlement_entry_context_calls := 0
 
 	func build_command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
 		return {
@@ -127,6 +128,9 @@ class MockRuntime:
 
 	func set_selected_coord(coord: Vector2i) -> void:
 		_selected_coord = coord
+
+	func clear_settlement_entry_context(_reset_selected: bool = true) -> void:
+		clear_settlement_entry_context_calls += 1
 
 	func set_active_shop_context(context: Dictionary) -> void:
 		_active_shop_context = context.duplicate(true)

@@ -10,6 +10,12 @@ const WORLD_MAP_RUNTIME_PROXY_SCRIPT = preload("res://scripts/systems/world_map_
 const WORLD_MOVE_REPEAT_INTERVAL := 0.5
 const BATTLE_LOADING_LABEL_TEXT := "LOADING..."
 const BATTLE_LOADING_TEXT_COLOR := Color(1.0, 1.0, 1.0, 1.0)
+const BATTLE_LOADING_PERCENT_TEXT_COLOR := Color(0.86, 0.92, 1.0, 0.95)
+const BATTLE_LOADING_BAR_BG_COLOR := Color(0.1, 0.13, 0.19, 0.96)
+const BATTLE_LOADING_BAR_FILL_COLOR := Color(0.39, 0.72, 0.98, 1.0)
+const BATTLE_LOADING_BAR_BORDER_COLOR := Color(0.76, 0.87, 0.98, 0.78)
+const BATTLE_LOADING_PROGRESS_MIN := 0.0
+const BATTLE_LOADING_PROGRESS_MAX := 100.0
 
 @onready var world_map_view = $MapViewport/WorldMapView
 @onready var world_map_background := get_node_or_null("MapViewport/WorldMapBackground") as CanvasItem
@@ -30,6 +36,8 @@ const BATTLE_LOADING_TEXT_COLOR := Color(1.0, 1.0, 1.0, 1.0)
 @onready var submap_hint_label: Label = %SubmapHintLabel
 @onready var battle_loading_overlay: Control = %BattleLoadingOverlay
 @onready var battle_loading_label: Label = %BattleLoadingLabel
+@onready var battle_loading_progress_bar: ProgressBar = %BattleLoadingProgressBar
+@onready var battle_loading_percent_label: Label = %BattleLoadingPercentLabel
 
 var _game_session = null
 var _runtime = null
@@ -62,8 +70,6 @@ func _ready() -> void:
 	party_management_window.set_item_defs(_game_session.get_item_defs())
 
 	settlement_window.action_requested.connect(_on_settlement_action_requested)
-	settlement_window.shop_requested.connect(_on_settlement_shop_requested)
-	settlement_window.stagecoach_requested.connect(_on_settlement_stagecoach_requested)
 	settlement_window.closed.connect(_on_settlement_window_closed)
 	contract_board_window.action_requested.connect(_on_contract_board_action_requested)
 	contract_board_window.closed.connect(_on_contract_board_window_closed)
@@ -103,6 +109,7 @@ func _ready() -> void:
 		_runtime_proxy.get_world_data(),
 		_runtime_proxy.get_player_coord(),
 		_runtime_proxy.get_selected_coord(),
+		_runtime_proxy.is_player_visible_on_world_map(),
 		_runtime_proxy.get_player_faction_id()
 	)
 	_render_from_runtime(true)
@@ -176,7 +183,8 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 			world_map_view.refresh_world(_runtime_proxy.get_world_data())
 		world_map_view.set_runtime_state(
 			_runtime_proxy.get_player_coord(),
-			_runtime_proxy.get_selected_coord()
+			_runtime_proxy.get_selected_coord(),
+			_runtime_proxy.is_player_visible_on_world_map()
 		)
 		if submap_hint_panel != null:
 			submap_hint_panel.visible = _runtime_proxy.is_submap_active()
@@ -417,7 +425,14 @@ func _on_battle_loading_state_changed(is_loading: bool, progress_value: float) -
 func _set_battle_loading_overlay(is_visible: bool, progress_value: float) -> void:
 	if battle_loading_overlay == null or battle_loading_label == null:
 		return
+	var clamped_progress := clampf(progress_value, BATTLE_LOADING_PROGRESS_MIN, BATTLE_LOADING_PROGRESS_MAX)
 	battle_loading_label.text = BATTLE_LOADING_LABEL_TEXT
+	if battle_loading_progress_bar != null:
+		battle_loading_progress_bar.min_value = BATTLE_LOADING_PROGRESS_MIN
+		battle_loading_progress_bar.max_value = BATTLE_LOADING_PROGRESS_MAX
+		battle_loading_progress_bar.value = clamped_progress
+	if battle_loading_percent_label != null:
+		battle_loading_percent_label.text = _format_battle_loading_percent(clamped_progress)
 	battle_loading_overlay.visible = is_visible
 
 
@@ -425,6 +440,8 @@ func _apply_battle_loading_overlay_skin() -> void:
 	if battle_loading_label == null:
 		return
 	_style_loading_label(battle_loading_label, 24, BATTLE_LOADING_TEXT_COLOR)
+	_style_loading_label(battle_loading_percent_label, 16, BATTLE_LOADING_PERCENT_TEXT_COLOR)
+	_style_loading_progress_bar()
 
 
 func _style_loading_label(label: Label, font_size: int, font_color: Color) -> void:
@@ -432,6 +449,36 @@ func _style_loading_label(label: Label, font_size: int, font_color: Color) -> vo
 		return
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", font_color)
+
+
+func _style_loading_progress_bar() -> void:
+	if battle_loading_progress_bar == null:
+		return
+	var background_style := StyleBoxFlat.new()
+	background_style.bg_color = BATTLE_LOADING_BAR_BG_COLOR
+	background_style.border_width_left = 1
+	background_style.border_width_top = 1
+	background_style.border_width_right = 1
+	background_style.border_width_bottom = 1
+	background_style.border_color = BATTLE_LOADING_BAR_BORDER_COLOR
+	background_style.corner_radius_top_left = 7
+	background_style.corner_radius_top_right = 7
+	background_style.corner_radius_bottom_right = 7
+	background_style.corner_radius_bottom_left = 7
+
+	var fill_style := StyleBoxFlat.new()
+	fill_style.bg_color = BATTLE_LOADING_BAR_FILL_COLOR
+	fill_style.corner_radius_top_left = 7
+	fill_style.corner_radius_top_right = 7
+	fill_style.corner_radius_bottom_right = 7
+	fill_style.corner_radius_bottom_left = 7
+
+	battle_loading_progress_bar.add_theme_stylebox_override("background", background_style)
+	battle_loading_progress_bar.add_theme_stylebox_override("fill", fill_style)
+
+
+func _format_battle_loading_percent(progress_value: float) -> String:
+	return "%d%%" % int(round(progress_value))
 
 
 func _resolve_active_battle() -> void:
@@ -490,22 +537,6 @@ func _on_battle_skill_clear_requested() -> void:
 
 func _on_settlement_action_requested(_settlement_id: String, action_id: String, payload: Dictionary) -> void:
 	if _runtime == null:
-		return
-	_runtime_proxy.command_execute_settlement_action(action_id, payload)
-
-
-func _on_settlement_shop_requested(settlement_id: String, action_id: String, payload: Dictionary) -> void:
-	if _runtime == null:
-		return
-	if _runtime_proxy.get_active_modal_id() != "settlement":
-		return
-	_runtime_proxy.command_execute_settlement_action(action_id, payload)
-
-
-func _on_settlement_stagecoach_requested(settlement_id: String, action_id: String, payload: Dictionary) -> void:
-	if _runtime == null:
-		return
-	if _runtime_proxy.get_active_modal_id() != "settlement":
 		return
 	_runtime_proxy.command_execute_settlement_action(action_id, payload)
 
@@ -659,213 +690,3 @@ func _on_submap_entry_cancelled() -> void:
 	if _runtime_proxy.get_active_modal_id() == "battle_start_confirm":
 		return
 	_runtime_proxy.command_cancel_submap_entry()
-
-
-func _open_local_service_window(panel_kind: String, settlement_id: String, action_id: String, payload: Dictionary) -> void:
-	var window_data := _build_local_service_window_data(panel_kind, settlement_id, action_id, payload)
-	_hide_local_service_windows()
-	match panel_kind:
-		"shop":
-			if shop_window != null:
-				shop_window.show_shop(window_data)
-			if settlement_window != null:
-				settlement_window.set_feedback("已打开交易窗口。")
-		"stagecoach":
-			if stagecoach_window != null:
-				stagecoach_window.show_stagecoach(window_data)
-			if settlement_window != null:
-				settlement_window.set_feedback("已打开驿站窗口。")
-
-
-func _hide_local_service_windows() -> void:
-	if shop_window != null and shop_window.visible:
-		shop_window.hide_window()
-	if stagecoach_window != null and stagecoach_window.visible:
-		stagecoach_window.hide_window()
-
-
-func _build_settlement_window_data() -> Dictionary:
-	var window_data: Dictionary = _runtime_proxy.get_settlement_window_data().duplicate(true)
-	var party_state = _runtime_proxy.get_party_state()
-	if not window_data.has("party_state"):
-		window_data["party_state"] = party_state
-	if not window_data.has("member_options") or _get_dictionary_array(window_data.get("member_options", [])).is_empty():
-		window_data["member_options"] = _build_member_options_from_party_state(party_state)
-	var selected_member_id: StringName = _runtime_proxy.get_party_selected_member_id()
-	if String(window_data.get("default_member_id", "")).is_empty() and selected_member_id != &"":
-		window_data["default_member_id"] = String(selected_member_id)
-	if String(window_data.get("selected_member_id", "")).is_empty() and selected_member_id != &"":
-		window_data["selected_member_id"] = String(selected_member_id)
-	if String(window_data.get("state_summary_text", "")).is_empty():
-		window_data["state_summary_text"] = _runtime_proxy.get_settlement_feedback_text()
-	return window_data
-
-
-func _build_member_options_from_party_state(party_state) -> Array[Dictionary]:
-	var member_options: Array[Dictionary] = []
-	if party_state == null:
-		return member_options
-
-	var seen_ids: Dictionary = {}
-	for member_id_variant in party_state.active_member_ids:
-		_append_member_option_from_party_state(member_options, seen_ids, party_state, ProgressionDataUtils.to_string_name(member_id_variant), "上阵")
-	for member_id_variant in party_state.reserve_member_ids:
-		_append_member_option_from_party_state(member_options, seen_ids, party_state, ProgressionDataUtils.to_string_name(member_id_variant), "替补")
-	return member_options
-
-
-func _append_member_option_from_party_state(
-	member_options: Array[Dictionary],
-	seen_ids: Dictionary,
-	party_state,
-	member_id: StringName,
-	default_role: String
-) -> void:
-	if member_id == &"" or seen_ids.has(member_id):
-		return
-	var member_state = party_state.get_member_state(member_id)
-	if member_state == null:
-		return
-	seen_ids[member_id] = true
-	member_options.append({
-		"member_id": String(member_id),
-		"display_name": String(member_state.display_name),
-		"roster_role": default_role,
-		"is_leader": party_state.leader_member_id == member_id,
-		"current_hp": int(member_state.current_hp),
-		"current_mp": int(member_state.current_mp),
-	})
-
-
-func _build_local_service_window_data(panel_kind: String, settlement_id: String, action_id: String, payload: Dictionary) -> Dictionary:
-	var window_data := payload.duplicate(true)
-	var title := "交易窗口" if panel_kind == "shop" else "驿站窗口"
-	if String(window_data.get("title", "")).is_empty():
-		window_data["title"] = title
-	if String(window_data.get("meta", "")).is_empty():
-		window_data["meta"] = _build_local_service_meta_text(payload)
-	if String(window_data.get("summary_text", "")).is_empty():
-		window_data["summary_text"] = _build_local_service_summary_text(payload)
-	if String(window_data.get("details_text", "")).is_empty():
-		window_data["details_text"] = _build_local_service_details_text(payload, panel_kind)
-	if String(window_data.get("state_summary_text", "")).is_empty():
-		window_data["state_summary_text"] = _runtime_proxy.get_settlement_feedback_text()
-	if String(window_data.get("state_label", "")).is_empty():
-		window_data["state_label"] = _build_default_local_state_label(panel_kind, payload)
-	if String(window_data.get("cost_label", "")).is_empty():
-		window_data["cost_label"] = _build_default_local_cost_label(payload)
-	if String(window_data.get("service_name", "")).is_empty():
-		window_data["service_name"] = String(payload.get("service_type", title))
-	window_data["settlement_id"] = settlement_id
-	window_data["action_id"] = action_id
-	window_data["panel_kind"] = panel_kind
-	if String(window_data.get("submission_source", "")).is_empty():
-		window_data["submission_source"] = String(payload.get("submission_source", "settlement"))
-	var party_state = _runtime_proxy.get_party_state()
-	if not window_data.has("party_state"):
-		window_data["party_state"] = party_state
-	if not window_data.has("member_options") or _get_dictionary_array(window_data.get("member_options", [])).is_empty():
-		window_data["member_options"] = _build_member_options_from_party_state(party_state)
-	var default_member_id := _resolve_default_member_id_from_party_state(party_state)
-	if default_member_id != &"":
-		if String(window_data.get("default_member_id", "")).is_empty():
-			window_data["default_member_id"] = String(default_member_id)
-		if String(window_data.get("selected_member_id", "")).is_empty():
-			window_data["selected_member_id"] = String(default_member_id)
-	if not window_data.has("entries") or _get_dictionary_array(window_data.get("entries", [])).is_empty():
-		window_data["entries"] = [_build_local_entry_data(panel_kind, payload)]
-	return window_data
-
-
-func _build_local_entry_data(panel_kind: String, payload: Dictionary) -> Dictionary:
-	var display_name := String(payload.get("display_name", payload.get("facility_name", payload.get("service_type", "条目"))))
-	var summary_text := String(payload.get("summary_text", _build_local_service_summary_text(payload)))
-	var details_text := String(payload.get("details_text", _build_local_service_details_text(payload, panel_kind)))
-	return {
-		"entry_id": String(payload.get("action_id", panel_kind)),
-		"display_name": display_name,
-		"summary_text": summary_text,
-		"details_text": details_text,
-		"state_label": String(payload.get("state_label", _build_default_local_state_label(panel_kind, payload))),
-		"cost_label": String(payload.get("cost_label", _build_default_local_cost_label(payload))),
-		"is_enabled": bool(payload.get("is_enabled", true)),
-		"disabled_reason": String(payload.get("disabled_reason", "")),
-	}
-
-
-func _build_local_service_meta_text(payload: Dictionary) -> String:
-	var facility_name := String(payload.get("facility_name", "设施"))
-	var npc_name := String(payload.get("npc_name", "NPC"))
-	var service_type := String(payload.get("service_type", "服务"))
-	var state_summary_text := String(payload.get("state_summary_text", ""))
-	var base_text := "%s · %s · %s" % [facility_name, npc_name, service_type]
-	if state_summary_text.is_empty():
-		return base_text
-	return "%s\n%s" % [base_text, state_summary_text]
-
-
-func _build_local_service_summary_text(payload: Dictionary) -> String:
-	var facility_name := String(payload.get("facility_name", "设施"))
-	var npc_name := String(payload.get("npc_name", "NPC"))
-	var service_type := String(payload.get("service_type", "服务"))
-	return "%s · %s · %s" % [facility_name, npc_name, service_type]
-
-
-func _build_local_service_details_text(payload: Dictionary, panel_kind: String) -> String:
-	var lines := PackedStringArray([
-		"设施：%s" % String(payload.get("facility_name", "设施")),
-		"NPC：%s" % String(payload.get("npc_name", "NPC")),
-		"服务：%s" % String(payload.get("service_type", "服务")),
-		"交互：%s" % String(payload.get("interaction_type", panel_kind)),
-		"状态：%s" % _build_default_local_state_label(panel_kind, payload),
-		"费用：%s" % _build_default_local_cost_label(payload),
-	])
-	var disabled_reason := String(payload.get("disabled_reason", ""))
-	if not disabled_reason.is_empty():
-		lines.append("不可用原因：%s" % disabled_reason)
-	return "\n".join(lines)
-
-
-func _build_default_local_state_label(panel_kind: String, payload: Dictionary) -> String:
-	var explicit_state_label := String(payload.get("state_label", payload.get("state_text", "")))
-	if not explicit_state_label.is_empty():
-		return explicit_state_label
-	if not bool(payload.get("is_enabled", true)):
-		var disabled_reason := String(payload.get("disabled_reason", ""))
-		if not disabled_reason.is_empty():
-			return "状态：%s" % disabled_reason
-		return "状态：不可用"
-	return "状态：%s" % ("可交易" if panel_kind == "shop" else "可出发")
-
-
-func _build_default_local_cost_label(payload: Dictionary) -> String:
-	var cost_label := String(payload.get("cost_label", ""))
-	if not cost_label.is_empty():
-		return cost_label
-	return "费用：待定"
-
-
-func _resolve_default_member_id_from_party_state(party_state) -> StringName:
-	if party_state == null:
-		return &""
-	if party_state.leader_member_id != &"":
-		return party_state.leader_member_id
-	for member_id_variant in party_state.active_member_ids:
-		var member_id := ProgressionDataUtils.to_string_name(member_id_variant)
-		if member_id != &"":
-			return member_id
-	for member_id_variant in party_state.reserve_member_ids:
-		var member_id := ProgressionDataUtils.to_string_name(member_id_variant)
-		if member_id != &"":
-			return member_id
-	return &""
-
-
-func _get_dictionary_array(value: Variant) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	if value is not Array:
-		return result
-	for entry_variant in value:
-		if entry_variant is Dictionary:
-			result.append(entry_variant)
-	return result

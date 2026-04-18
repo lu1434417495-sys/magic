@@ -278,6 +278,7 @@ func command_stagecoach_travel(settlement_id: String) -> Dictionary:
 	if destination_record.is_empty():
 		return _command_error("未找到目标据点。")
 	var destination_coord: Vector2i = destination_record.get("origin", Vector2i.ZERO)
+	_clear_settlement_entry_context(false)
 	_set_player_coord(destination_coord)
 	_set_selected_coord(destination_coord)
 	_mark_settlement_visited(destination_id)
@@ -307,6 +308,7 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 			"persist_party_state": true,
 			"quest_progress_events": _extract_quest_progress_events(payload, action_id, settlement_id),
 		})
+		_clear_settlement_entry_context()
 		_set_active_settlement_id(settlement_id)
 		_set_active_modal_id("")
 		_open_party_warehouse_window("据点服务：%s·%s" % [
@@ -357,6 +359,7 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 func on_settlement_window_closed() -> void:
 	if not _has_runtime():
 		return
+	_clear_settlement_entry_context()
 	_set_active_settlement_id("")
 	_set_settlement_feedback_text("")
 	_clear_active_contract_board_context()
@@ -1564,6 +1567,11 @@ func _set_player_coord(coord: Vector2i) -> void:
 func _set_selected_coord(coord: Vector2i) -> void:
 	if _has_runtime():
 		_runtime.set_selected_coord(coord)
+
+
+func _clear_settlement_entry_context(reset_selected: bool = true) -> void:
+	if _has_runtime():
+		_runtime.clear_settlement_entry_context(reset_selected)
 
 
 func _get_active_modal_id() -> String:

@@ -15,6 +15,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_save_serializer_round_trip_preserves_party_quest_schema()
 	_test_world_map_template_bindings_round_trip()
+	_test_extract_save_meta_recovers_missing_slot_fields()
 
 	if _failures.is_empty():
 		print("Save serializer quest round trip regression: PASS")
@@ -170,6 +171,64 @@ func _test_world_map_template_bindings_round_trip() -> void:
 			restored_binding_snapshot,
 			binding_snapshot,
 			"SaveSerializer 往返后应保留据点模板绑定快照。"
+		)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_extract_save_meta_recovers_missing_slot_fields() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_true(create_error == OK, "Save meta 恢复回归需要可创建的测试世界。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var serializer = game_session._save_serializer
+	_assert_true(serializer != null, "Save meta 恢复回归需要已初始化的 SaveSerializer。")
+	if serializer == null:
+		_cleanup_test_session(game_session)
+		return
+
+	var payload: Dictionary = serializer.build_save_payload(
+		game_session.get_active_save_id(),
+		game_session.get_generation_config_path(),
+		game_session.get_active_save_meta(),
+		game_session.get_world_data(),
+		game_session.get_player_coord(),
+		game_session.get_player_faction_id(),
+		game_session.get_party_state(),
+		int(Time.get_unix_time_from_system())
+	)
+	payload["save_slot_meta"] = {
+		"world_preset_id": String(game_session.get_active_save_meta().get("world_preset_id", "")),
+	}
+
+	var recovered_meta: Dictionary = serializer.extract_save_meta_from_payload(payload, game_session.get_active_save_id())
+	_assert_true(not recovered_meta.is_empty(), "缺失 display_name/world_size/timestamps 的 save meta 应能从 payload 恢复。")
+	if not recovered_meta.is_empty():
+		_assert_eq(
+			String(recovered_meta.get("display_name", "")),
+			String(game_session.get_active_save_id()),
+			"缺失 display_name 时应回退到 save_id。"
+		)
+		_assert_eq(
+			String(recovered_meta.get("world_preset_name", "")),
+			String(game_session.get_active_save_meta().get("world_preset_name", "")),
+			"缺失 world_preset_name 时应回退到 registry 的预设名。"
+		)
+		_assert_eq(
+			recovered_meta.get("world_size_cells", Vector2i.ZERO),
+			game_session.get_active_save_meta().get("world_size_cells", Vector2i.ZERO),
+			"缺失 world_size_cells 时应通过 generation config 恢复。"
+		)
+		_assert_true(
+			int(recovered_meta.get("created_at_unix_time", 0)) > 0,
+			"缺失 created_at_unix_time 时应回退到 payload.meta.saved_at_unix_time。"
+		)
+		_assert_true(
+			int(recovered_meta.get("updated_at_unix_time", 0)) > 0,
+			"缺失 updated_at_unix_time 时应回退到 payload.meta.saved_at_unix_time。"
 		)
 
 	_cleanup_test_session(game_session)

@@ -1,6 +1,8 @@
 class_name ShopWindow
 extends Control
 
+const PARTY_MEMBER_OPTION_UTILS = preload("res://scripts/ui/party_member_option_utils.gd")
+
 signal action_requested(settlement_id: String, action_id: String, payload: Dictionary)
 signal closed
 
@@ -44,7 +46,7 @@ func show_shop(window_data: Dictionary) -> void:
 	_action_id = String(_window_data.get("action_id", ""))
 	_entries = _build_entries()
 	_member_options = _build_member_options()
-	_member_option_map = _build_member_option_map(_member_options)
+	_member_option_map = PARTY_MEMBER_OPTION_UTILS.build_member_option_map(_member_options)
 	_selected_entry_index = -1
 	_selected_member_id = _resolve_default_member_id() if _should_show_member_selector() else &""
 	visible = true
@@ -131,57 +133,7 @@ func _build_fallback_entry() -> Dictionary:
 func _build_member_options() -> Array[Dictionary]:
 	if not _should_show_member_selector():
 		return []
-	var explicit_options := _get_dictionary_array(_window_data.get("member_options", []))
-	if not explicit_options.is_empty():
-		var options: Array[Dictionary] = []
-		for option_variant in explicit_options:
-			options.append(option_variant.duplicate(true))
-		return options
-
-	var party_state = _get_party_state()
-	if party_state == null:
-		return []
-
-	var options_from_party: Array[Dictionary] = []
-	var seen_ids: Dictionary = {}
-	for member_id_variant in party_state.active_member_ids:
-		_append_member_option(options_from_party, seen_ids, party_state, ProgressionDataUtils.to_string_name(member_id_variant), "上阵")
-	for member_id_variant in party_state.reserve_member_ids:
-		_append_member_option(options_from_party, seen_ids, party_state, ProgressionDataUtils.to_string_name(member_id_variant), "替补")
-	return options_from_party
-
-
-func _append_member_option(
-	options: Array[Dictionary],
-	seen_ids: Dictionary,
-	party_state: PartyState,
-	member_id: StringName,
-	default_role: String
-) -> void:
-	if member_id == &"" or seen_ids.has(member_id):
-		return
-	var member_state: PartyMemberState = party_state.get_member_state(member_id)
-	if member_state == null:
-		return
-	seen_ids[member_id] = true
-	options.append({
-		"member_id": String(member_id),
-		"display_name": member_state.display_name,
-		"roster_role": default_role,
-		"is_leader": party_state.leader_member_id == member_id,
-		"current_hp": int(member_state.current_hp),
-		"current_mp": int(member_state.current_mp),
-	})
-
-
-func _build_member_option_map(options: Array[Dictionary]) -> Dictionary:
-	var member_map: Dictionary = {}
-	for option_variant in options:
-		var option: Dictionary = option_variant
-		var member_id := ProgressionDataUtils.to_string_name(option.get("member_id", ""))
-		if member_id != &"":
-			member_map[member_id] = option
-	return member_map
+	return PARTY_MEMBER_OPTION_UTILS.build_member_options(_window_data)
 
 
 func _build_member_selector() -> void:
@@ -194,7 +146,7 @@ func _build_member_selector() -> void:
 	for index in range(_member_options.size()):
 		var member_option := _member_options[index]
 		var member_id := ProgressionDataUtils.to_string_name(member_option.get("member_id", ""))
-		var label := _build_member_option_label(member_option)
+		var label := PARTY_MEMBER_OPTION_UTILS.build_member_option_label(member_option)
 		member_selector.add_item(label)
 		member_selector.set_item_metadata(index, member_id)
 
@@ -207,45 +159,12 @@ func _build_member_selector() -> void:
 	_select_member(selected_member_id)
 
 
-func _build_member_option_label(member_option: Dictionary) -> String:
-	var display_name := String(member_option.get("display_name", member_option.get("member_id", "成员")))
-	var roster_role := String(member_option.get("roster_role", ""))
-	var is_leader := bool(member_option.get("is_leader", false))
-	var current_hp := int(member_option.get("current_hp", 0))
-	var current_mp := int(member_option.get("current_mp", 0))
-	var prefix := "队长 · " if is_leader else ""
-	var role_suffix := " · %s" % roster_role if not roster_role.is_empty() else ""
-	return "%s%s%s  |  HP %d  MP %d" % [prefix, display_name, role_suffix, current_hp, current_mp]
-
-
 func _resolve_default_member_id() -> StringName:
-	var explicit_default := ProgressionDataUtils.to_string_name(_window_data.get("default_member_id", ""))
-	if explicit_default != &"" and _member_option_map.has(explicit_default):
-		return explicit_default
-
-	var selected_member_id := ProgressionDataUtils.to_string_name(_window_data.get("selected_member_id", ""))
-	if selected_member_id != &"" and _member_option_map.has(selected_member_id):
-		return selected_member_id
-
-	var party_state = _get_party_state()
-	if party_state != null:
-		if party_state.leader_member_id != &"" and _member_option_map.has(party_state.leader_member_id):
-			return party_state.leader_member_id
-		for member_id_variant in party_state.active_member_ids:
-			var member_id := ProgressionDataUtils.to_string_name(member_id_variant)
-			if member_id != &"" and _member_option_map.has(member_id):
-				return member_id
-		for member_id_variant in party_state.reserve_member_ids:
-			var member_id := ProgressionDataUtils.to_string_name(member_id_variant)
-			if member_id != &"" and _member_option_map.has(member_id):
-				return member_id
-
-	for member_option_variant in _member_options:
-		var member_option: Dictionary = member_option_variant
-		var member_id := ProgressionDataUtils.to_string_name(member_option.get("member_id", ""))
-		if member_id != &"":
-			return member_id
-	return &""
+	return PARTY_MEMBER_OPTION_UTILS.resolve_default_member_id(
+		_window_data,
+		_member_option_map,
+		_member_options
+	)
 
 
 func _select_member(member_id: StringName) -> void:
@@ -411,8 +330,10 @@ func _on_confirm_button_pressed() -> void:
 	if confirm_button.disabled:
 		return
 	var payload := _build_confirm_payload()
+	var settlement_id := _settlement_id
+	var action_id := _action_id
 	hide_window()
-	action_requested.emit(_settlement_id, _action_id, payload)
+	action_requested.emit(settlement_id, action_id, payload)
 
 
 func _on_cancel_button_pressed() -> void:
@@ -432,24 +353,9 @@ func _on_shade_gui_input(event: InputEvent) -> void:
 	var mouse_event := event as InputEventMouseButton
 	if not mouse_event.pressed:
 		return
-	if mouse_event.button_index != MOUSE_BUTTON_LEFT and mouse_event.button_index != MOUSE_BUTTON_RIGHT:
+	if mouse_event.button_index != MOUSE_BUTTON_LEFT:
 		return
 	_on_cancel_button_pressed()
-
-
-func _get_dictionary_array(value: Variant) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	if value is not Array:
-		return result
-	for entry_variant in value:
-		if entry_variant is Dictionary:
-			result.append(entry_variant)
-	return result
-
-
-func _get_party_state():
-	var party_state_variant: Variant = _window_data.get("party_state", null)
-	return party_state_variant if party_state_variant is PartyState else null
 
 
 func _get_panel_kind() -> String:

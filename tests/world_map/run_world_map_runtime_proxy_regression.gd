@@ -14,6 +14,7 @@ class MockRuntime:
 	var active_map_id := "ashen_ashlands"
 	var active_map_display_name := "灰烬地图"
 	var submap_return_hint_text := "点击任意地点返回原位置。"
+	var player_visible_on_world_map := false
 	var pending_submap_prompt := {
 		"title": "进入灰烬地图",
 		"target_display_name": "灰烬地图",
@@ -49,6 +50,9 @@ class MockRuntime:
 
 	func get_submap_return_hint_text() -> String:
 		return submap_return_hint_text
+
+	func is_player_visible_on_world_map() -> bool:
+		return player_visible_on_world_map
 
 	func get_pending_submap_prompt() -> Dictionary:
 		return pending_submap_prompt
@@ -98,6 +102,13 @@ class MockRuntime:
 			"result": result,
 		})
 		return result
+
+	func command_invalid_result():
+		calls.append({
+			"method": "command_invalid_result",
+			"args": [],
+		})
+		return "invalid-result"
 
 	func is_submap_active() -> bool:
 		return true
@@ -150,6 +161,7 @@ func _run() -> void:
 	_test_snapshot_methods_forward_to_runtime()
 	_test_world_command_delegates_and_renders()
 	_test_battle_command_preserves_overlay_refresh_mode()
+	_test_invalid_runtime_command_result_surfaces_error_and_renders()
 	_test_submap_command_delegates_and_renders()
 	_test_battle_start_confirm_command_delegates_and_renders()
 	_test_missing_runtime_returns_error_without_render()
@@ -181,6 +193,7 @@ func _test_getters_forward_to_runtime() -> void:
 	_assert_eq(proxy.get_active_map_id(), "ashen_ashlands", "get_active_map_id() 应直接读取 runtime。")
 	_assert_eq(proxy.get_active_map_display_name(), "灰烬地图", "get_active_map_display_name() 应直接读取 runtime。")
 	_assert_eq(proxy.get_submap_return_hint_text(), "点击任意地点返回原位置。", "get_submap_return_hint_text() 应直接读取 runtime。")
+	_assert_true(not proxy.is_player_visible_on_world_map(), "is_player_visible_on_world_map() 应直接读取 runtime。")
 	_assert_eq(proxy.get_pending_battle_start_prompt().get("confirm_text", ""), "开始战斗", "get_pending_battle_start_prompt() 应直接读取 runtime。")
 	_assert_eq(
 		_string_name_array_to_string_array(proxy.get_selected_battle_skill_target_unit_ids()),
@@ -251,6 +264,30 @@ func _test_battle_command_preserves_overlay_refresh_mode() -> void:
 		"battle 命令应保留 runtime 返回的 overlay 刷新模式。"
 	)
 	_assert_eq(render_spy.calls.size(), 1, "battle 命令执行后应触发一次 render。")
+
+
+func _test_invalid_runtime_command_result_surfaces_error_and_renders() -> void:
+	var runtime := MockRuntime.new()
+	var render_spy := RenderSpy.new()
+	var proxy := WorldMapRuntimeProxy.new()
+	proxy.setup(runtime, Callable(render_spy, "capture"))
+
+	var result: Dictionary = proxy._call_runtime_command(&"command_invalid_result")
+
+	_assert_true(_has_call(runtime.calls, "command_invalid_result"), "proxy 应调用 runtime 并处理非 Dictionary 返回。")
+	_assert_true(not bool(result.get("ok", true)), "非 Dictionary 返回应转成失败结果。")
+	_assert_eq(
+		String(result.get("invalid_result_type", "")),
+		"String",
+		"非 Dictionary 返回应暴露原始返回类型。"
+	)
+	_assert_eq(render_spy.calls.size(), 1, "非 Dictionary 返回也应触发一次 render。")
+	if render_spy.calls.size() == 1:
+		_assert_eq(
+			render_spy.calls[0].get("command_result", {}),
+			result,
+			"render 回调应收到转换后的错误结果。"
+		)
 
 
 func _test_submap_command_delegates_and_renders() -> void:

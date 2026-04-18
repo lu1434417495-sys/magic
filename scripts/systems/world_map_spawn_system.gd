@@ -653,8 +653,6 @@ func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -
 	if _resolved_wild_spawn_rules.is_empty():
 		return encounter_anchors
 
-	var north_rule: WildSpawnRule = _resolved_wild_spawn_rules[0]
-	var south_rule: WildSpawnRule = _resolved_wild_spawn_rules[min(1, _resolved_wild_spawn_rules.size() - 1)]
 	var world_chunks: Vector2i = _generation_config.world_size_in_chunks
 	var midpoint_chunk_y: int = int(world_chunks.y / 2)
 	var monster_index := 0
@@ -662,7 +660,9 @@ func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -
 	for chunk_y in range(world_chunks.y):
 		for chunk_x in range(world_chunks.x):
 			var chunk_coord := Vector2i(chunk_x, chunk_y)
-			var rule: WildSpawnRule = north_rule if chunk_y < midpoint_chunk_y else south_rule
+			var rule: WildSpawnRule = _resolve_procedural_wild_spawn_rule_for_chunk_y(chunk_y)
+			if rule == null:
+				continue
 			var chunk_seed: int = int(_generation_config.seed) + chunk_x * 92821 + chunk_y * 68917
 			if posmod(chunk_seed, 6) != 0:
 				continue
@@ -707,6 +707,11 @@ func _ensure_starting_wild_encounter(
 		return
 
 	var rule: WildSpawnRule = _resolved_wild_spawn_rules[0]
+	if _generation_config.procedural_generation_enabled:
+		var player_chunk_coord: Vector2i = _grid_system.get_chunk_coord(player_start_coord)
+		rule = _resolve_procedural_wild_spawn_rule_for_chunk_y(player_chunk_coord.y)
+	if rule == null:
+		return
 	var min_distance: int = max(
 		int(_generation_config.starting_wild_spawn_min_distance),
 		int(rule.min_distance_to_settlement)
@@ -965,6 +970,35 @@ func _load_default_main_world_settlement_name_pool(resource_path: String, warnin
 	return name_pool
 
 
+func _resolve_procedural_wild_spawn_rule_for_chunk_y(chunk_y: int) -> WildSpawnRule:
+	var north_rule: WildSpawnRule = _find_wild_spawn_rule_by_region_tag(&"north_wilds")
+	var south_rule: WildSpawnRule = _find_wild_spawn_rule_by_region_tag(&"south_wilds")
+	if north_rule == null and not _resolved_wild_spawn_rules.is_empty():
+		north_rule = _resolved_wild_spawn_rules[0] as WildSpawnRule
+	if south_rule == null:
+		if _resolved_wild_spawn_rules.size() > 1:
+			south_rule = _resolved_wild_spawn_rules[1] as WildSpawnRule
+		else:
+			south_rule = north_rule
+	if north_rule == null:
+		return south_rule
+	if south_rule == null:
+		return north_rule
+
+	var midpoint_chunk_y: int = int(_generation_config.world_size_in_chunks.y / 2)
+	return north_rule if chunk_y < midpoint_chunk_y else south_rule
+
+
+func _find_wild_spawn_rule_by_region_tag(region_tag: StringName) -> WildSpawnRule:
+	for rule_variant in _resolved_wild_spawn_rules:
+		var rule := rule_variant as WildSpawnRule
+		if rule == null:
+			continue
+		if StringName(rule.region_tag) == region_tag:
+			return rule
+	return null
+
+
 func _resolve_settlement_display_name(settlement_config, template_id: String, instance_index: int) -> String:
 	if template_id == "template_town" and not _remaining_default_main_world_town_display_names.is_empty():
 		return _remaining_default_main_world_town_display_names.pop_back()
@@ -974,6 +1008,11 @@ func _resolve_settlement_display_name(settlement_config, template_id: String, in
 		return _remaining_default_main_world_capital_display_names.pop_back()
 	if template_id == "template_metropolis" and not _remaining_default_main_world_metropolis_display_names.is_empty():
 		return _remaining_default_main_world_metropolis_display_names.pop_back()
+	if template_id == "template_world_stronghold":
+		var stronghold_display_name: String = settlement_config.display_name
+		if instance_index > 1:
+			stronghold_display_name = "%s %02d" % [stronghold_display_name, instance_index]
+		return stronghold_display_name
 	if template_id.begins_with("template_") and not _remaining_default_main_world_settlement_display_names.is_empty():
 		return _remaining_default_main_world_settlement_display_names.pop_back()
 

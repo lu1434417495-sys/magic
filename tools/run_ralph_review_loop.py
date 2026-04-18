@@ -983,12 +983,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-CommitPrefix", dest="commit_prefix", default="")
     # CodexModel: 覆盖默认 Codex 模型；例如 `python tools/run_ralph_review_loop.py -CodexModel gpt-5.4`
     parser.add_argument("-CodexModel", dest="codex_model", default="")
-    # CodexSandboxMode: 传给 `codex exec --sandbox` 的模式；例如 `python tools/run_ralph_review_loop.py -CodexSandboxMode read-only`
+    # CodexSandboxMode: 传给 `codex exec --sandbox` 的模式；默认使用 `danger-full-access`。
     parser.add_argument(
         "-CodexSandboxMode",
         dest="codex_sandbox_mode",
         choices=["read-only", "workspace-write", "danger-full-access"],
-        default="read-only",
+        default="danger-full-access",
     )
     # UseOutputSchema: 要求 review 输出匹配 JSON schema；例如 `python tools/run_ralph_review_loop.py -UseOutputSchema`
     parser.add_argument("-UseOutputSchema", dest="use_output_schema", action="store_true")
@@ -1056,6 +1056,7 @@ def main() -> int:
     print(f"Review loop watching repo: {repo_root}")
     print(f"Checkpoint file: {paths['Checkpoint']}")
     print(f"Reports directory: {paths['ReportsRoot']}")
+    print(f"Review sandbox mode: {args.codex_sandbox_mode}")
     if resolved_final_commit:
         print(f"Final commit boundary: {resolved_final_commit}")
     if args.commit_prefix.strip():

@@ -65,6 +65,7 @@ func _build_world_snapshot() -> Dictionary:
 		"is_submap": _runtime.is_submap_active(),
 		"world_step": _runtime.get_world_step(),
 		"player_coord": _coord_to_dict(_runtime.get_player_coord()),
+		"player_visible_on_map": bool(_runtime.is_player_visible_on_world_map()),
 		"selected_coord": _coord_to_dict(_runtime.get_selected_coord()),
 		"selected_settlement_id": String(selected_settlement.get("settlement_id", "")),
 		"selected_npc_name": String(selected_npc.get("display_name", "")),

@@ -8,11 +8,18 @@ const BattleEventBatch = preload("res://scripts/systems/battle_event_batch.gd")
 const BattleResolutionResult = preload("res://scripts/systems/battle_resolution_result.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
 const BattleSessionFacade = preload("res://scripts/systems/battle_session_facade.gd")
+const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const PendingCharacterReward = preload("res://scripts/systems/pending_character_reward.gd")
 const PendingCharacterRewardEntry = preload("res://scripts/systems/pending_character_reward_entry.gd")
+const PartyState = preload("res://scripts/player/progression/party_state.gd")
+const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
+const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
+const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
 var _failures: Array[String] = []
 
@@ -91,6 +98,8 @@ class _FakeRuntimeBridge extends RefCounted:
 
 
 class _FakeBattleGateway extends RefCounted:
+	var achievement_event_calls: Array[Dictionary] = []
+
 	func build_pending_skill_mastery_reward(
 		member_id: StringName,
 		source_type: StringName,
@@ -120,6 +129,22 @@ class _FakeBattleGateway extends RefCounted:
 				reward.entries.append(entry)
 		return reward
 
+	func record_achievement_event(
+		member_id: StringName,
+		event_type: StringName,
+		amount: int = 1,
+		subject_id: StringName = &"",
+		meta: Dictionary = {}
+	) -> Array[StringName]:
+		achievement_event_calls.append({
+			"member_id": String(member_id),
+			"event_type": String(event_type),
+			"amount": amount,
+			"subject_id": String(subject_id),
+			"meta": meta.duplicate(true),
+		})
+		return []
+
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -128,6 +153,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_battle_resolution_result_round_trip()
 	_test_battle_runtime_builds_resolution_result_on_battle_end()
+	_test_battle_runtime_battle_end_integration_uses_real_character_gateway()
 	_test_battle_session_facade_prefers_canonical_resolution_result()
 	_test_battle_session_facade_requires_canonical_resolution_result()
 	if _failures.is_empty():
@@ -205,8 +231,46 @@ func _test_battle_runtime_builds_resolution_result_on_battle_end() -> void:
 	_assert_eq(result.loot_entries.size(), 1, "战斗结算结果应包含 canonical 掉落条目。")
 	if result.loot_entries.size() > 0 and result.loot_entries[0] is Dictionary:
 		_assert_canonical_loot_entry(result.loot_entries[0], "BattleRuntimeModule._build_battle_resolution_result()")
+	_assert_true(
+		_has_achievement_event_call(gateway.achievement_event_calls, "hero", "battle_won"),
+		"battle end 结算应向 character gateway 记录 battle_won 成就事件。"
+	)
 	_assert_true(runtime.consume_battle_resolution_result() == result, "consume_battle_resolution_result() 应返回已构建的结果。")
 	_assert_true(runtime.consume_battle_resolution_result() == null, "consume_battle_resolution_result() 第二次调用后应清空缓存。")
+
+
+func _test_battle_runtime_battle_end_integration_uses_real_character_gateway() -> void:
+	var runtime := BattleRuntimeModule.new()
+	var character_gateway := _build_real_character_gateway_for_battle_end_test()
+	runtime.setup(character_gateway, _build_skill_defs_for_battle_end_test(), {}, {}, null)
+	runtime._state = _build_battle_state_for_end_test()
+	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime._active_loot_entries = [_build_raw_loot_entry()]
+
+	var batch := BattleEventBatch.new()
+	_assert_true(runtime._check_battle_end(batch), "真实 character gateway 下，_check_battle_end() 应继续正常生成结算。")
+
+	var result: BattleResolutionResult = runtime.get_battle_resolution_result()
+	_assert_true(result != null, "真实 character gateway 下应继续生成 BattleResolutionResult。")
+	_assert_eq(result.pending_character_rewards.size(), 1, "真实 character gateway 下 battle rating 奖励应仍写入结算结果。")
+
+	var hero_state: PartyMemberState = character_gateway.get_party_state().get_member_state(&"hero")
+	_assert_true(hero_state != null, "真实 character gateway 下应能读取 hero 成员状态。")
+	if hero_state == null:
+		return
+	var achievement_progress = hero_state.progression.get_achievement_progress_state(&"battle_won_first")
+	_assert_true(
+		achievement_progress != null and achievement_progress.is_unlocked,
+		"battle end 结算应通过真实 CharacterManagementModule 解锁 battle_won 成就。"
+	)
+	_assert_eq(
+		character_gateway.get_party_state().pending_character_rewards.size(),
+		1,
+		"battle_won 成就奖励应进入 PartyState.pending_character_rewards。"
+	)
+	if character_gateway.get_party_state().pending_character_rewards.size() > 0:
+		var reward: PendingCharacterReward = character_gateway.get_party_state().pending_character_rewards[0] as PendingCharacterReward
+		_assert_true(reward != null and reward.source_id == &"battle_won_first", "成就奖励应携带稳定的 achievement source_id。")
 
 
 func _test_battle_session_facade_prefers_canonical_resolution_result() -> void:
@@ -380,6 +444,75 @@ func _build_unit(unit_id: StringName, member_id: StringName, is_alive: bool) -> 
 	unit.control_mode = &"manual"
 	unit.is_alive = is_alive
 	return unit
+
+
+func _build_real_character_gateway_for_battle_end_test() -> CharacterManagementModule:
+	var party_state := PartyState.new()
+	var hero := PartyMemberState.new()
+	hero.member_id = &"hero"
+	hero.display_name = "Hero"
+	hero.current_hp = 24
+	hero.current_mp = 6
+	hero.progression.unit_id = hero.member_id
+	hero.progression.display_name = hero.display_name
+	var skill_progress := UnitSkillProgress.new()
+	skill_progress.skill_id = &"battle_skill"
+	skill_progress.is_learned = true
+	skill_progress.skill_level = 1
+	hero.progression.set_skill_progress(skill_progress)
+	party_state.set_member_state(hero)
+	party_state.active_member_ids = [&"hero"]
+	party_state.leader_member_id = &"hero"
+
+	var gateway := CharacterManagementModule.new()
+	gateway.setup(
+		party_state,
+		_build_skill_defs_for_battle_end_test(),
+		{},
+		_build_achievement_defs_for_battle_end_test()
+	)
+	return gateway
+
+
+func _build_skill_defs_for_battle_end_test() -> Dictionary:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"battle_skill"
+	skill_def.display_name = "战斗技能"
+	skill_def.max_level = 5
+	skill_def.mastery_curve = PackedInt32Array([0, 10, 20, 30, 40, 50])
+	return {
+		skill_def.skill_id: skill_def,
+	}
+
+
+func _build_achievement_defs_for_battle_end_test() -> Dictionary:
+	var reward_def := AchievementRewardDef.new()
+	reward_def.reward_type = AchievementRewardDef.TYPE_ATTRIBUTE_DELTA
+	reward_def.target_id = &"hp_max"
+	reward_def.target_label = "生命上限"
+	reward_def.amount = 1
+	reward_def.reason_text = "首胜奖励"
+
+	var achievement_def := AchievementDef.new()
+	achievement_def.achievement_id = &"battle_won_first"
+	achievement_def.display_name = "首战告捷"
+	achievement_def.description = "完成第一次战斗胜利。"
+	achievement_def.event_type = &"battle_won"
+	achievement_def.threshold = 1
+	achievement_def.rewards = [reward_def]
+	return {
+		achievement_def.achievement_id: achievement_def,
+	}
+
+
+func _has_achievement_event_call(calls: Array[Dictionary], member_id: String, event_type: String) -> bool:
+	for call in calls:
+		if String(call.get("member_id", "")) != member_id:
+			continue
+		if String(call.get("event_type", "")) != event_type:
+			continue
+		return true
+	return false
 
 
 func _assert_true(condition: bool, message: String) -> void:

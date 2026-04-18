@@ -132,7 +132,6 @@ func open_party_warehouse_window(entry_label: String) -> void:
 	if party_warehouse_service != null:
 		var item_defs: Dictionary = game_session.get_item_defs() if game_session != null else {}
 		party_warehouse_service.setup(_get_party_state(), item_defs)
-	_refresh_party_warehouse_window()
 
 
 func on_party_warehouse_discard_one_requested(item_id: StringName) -> void:
@@ -143,7 +142,6 @@ func on_party_warehouse_discard_one_requested(item_id: StringName) -> void:
 	var item_name := _get_item_display_name(item_id)
 	var result: Dictionary = party_warehouse_service.remove_item(item_id, 1)
 	if int(result.get("removed_quantity", 0)) <= 0:
-		_refresh_party_warehouse_window()
 		_update_status("%s 当前没有可丢弃的库存。" % item_name)
 		return
 
@@ -162,14 +160,12 @@ func on_party_warehouse_discard_all_requested(item_id: StringName) -> void:
 	var item_name := _get_item_display_name(item_id)
 	var total_quantity: int = party_warehouse_service.count_item(item_id)
 	if total_quantity <= 0:
-		_refresh_party_warehouse_window()
 		_update_status("%s 当前没有可丢弃的库存。" % item_name)
 		return
 
 	var result: Dictionary = party_warehouse_service.remove_item(item_id, total_quantity)
 	var removed_quantity := int(result.get("removed_quantity", 0))
 	if removed_quantity <= 0:
-		_refresh_party_warehouse_window()
 		_update_status("%s 当前没有可丢弃的库存。" % item_name)
 		return
 
@@ -203,7 +199,6 @@ func on_party_warehouse_use_requested(item_id: StringName, member_id: StringName
 			"consumed_quantity": 0,
 		}
 		missing_member_result["message"] = _build_warehouse_use_failure_message(missing_member_result)
-		_refresh_party_warehouse_window()
 		_update_status(String(missing_member_result.get("message", "")))
 		return missing_member_result
 
@@ -218,7 +213,6 @@ func on_party_warehouse_use_requested(item_id: StringName, member_id: StringName
 			"consumed_quantity": 0,
 		}
 		unavailable_result["message"] = _build_warehouse_use_failure_message(unavailable_result)
-		_refresh_party_warehouse_window()
 		_update_status(String(unavailable_result.get("message", "")))
 		return unavailable_result
 
@@ -226,7 +220,6 @@ func on_party_warehouse_use_requested(item_id: StringName, member_id: StringName
 	if not bool(use_result.get("success", false)):
 		var failure_message := _build_warehouse_use_failure_message(use_result)
 		use_result["message"] = failure_message
-		_refresh_party_warehouse_window()
 		_update_status(failure_message)
 		return use_result
 
@@ -255,16 +248,6 @@ func on_party_warehouse_window_closed() -> void:
 	_set_active_warehouse_entry_label("")
 	_update_status("已关闭共享仓库。")
 	_present_pending_reward_if_ready()
-
-
-func _refresh_party_warehouse_window() -> void:
-	if not _has_runtime():
-		return
-	var window = _runtime.party_warehouse_window
-	if window == null or not is_instance_valid(window) or not window.visible:
-		return
-	if window.has_method("set_window_data"):
-		window.set_window_data(get_warehouse_window_data())
 
 
 func _resolve_warehouse_target_member_id(preferred_member_id: StringName = &"") -> StringName:

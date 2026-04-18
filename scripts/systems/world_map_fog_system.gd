@@ -27,6 +27,8 @@ func rebuild_visibility_for_faction(faction_id: String, sources: Array) -> void:
 	faction_state.clear_visible()
 
 	for source in sources:
+		if source == null or String(source.faction_id) != faction_id:
+			continue
 		for offset_y in range(-source.range, source.range + 1):
 			for offset_x in range(-source.range, source.range + 1):
 				if abs(offset_x) + abs(offset_y) > source.range:

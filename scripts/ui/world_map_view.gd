@@ -27,6 +27,7 @@ signal cell_right_clicked(coord: Vector2i)
 
 const WORLD_MAP_FOG_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_fog_system.gd")
 const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.gd")
+const SELECTION_OUTLINE_COLOR := Color(0.98, 0.9, 0.42, 0.95)
 
 ## 字段说明：记录网格系统，作为界面刷新、输入处理和窗口联动的重要依据。
 var _grid_system
@@ -38,23 +39,27 @@ var _world_data: Dictionary = {}
 var _player_coord := Vector2i.ZERO
 ## 字段说明：记录选中坐标，用于定位对象、绘制内容或执行网格计算。
 var _selected_coord := Vector2i.ZERO
+## 字段说明：记录玩家当前是否应在世界地图上显示，供据点等模态上下文复用。
+var _player_visible_on_map := true
 ## 字段说明：记录玩家阵营唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _player_faction_id := "player"
 
 
-func configure(grid_system, fog_system, world_data: Dictionary, player_coord: Vector2i, selected_coord: Vector2i, player_faction_id: String) -> void:
+func configure(grid_system, fog_system, world_data: Dictionary, player_coord: Vector2i, selected_coord: Vector2i, player_visible_on_map: bool, player_faction_id: String) -> void:
 	_grid_system = grid_system
 	_fog_system = fog_system
 	_world_data = world_data
 	_player_coord = player_coord
 	_selected_coord = selected_coord
+	_player_visible_on_map = player_visible_on_map
 	_player_faction_id = player_faction_id
 	queue_redraw()
 
 
-func set_runtime_state(player_coord: Vector2i, selected_coord: Vector2i) -> void:
+func set_runtime_state(player_coord: Vector2i, selected_coord: Vector2i, player_visible_on_map: bool = true) -> void:
 	_player_coord = player_coord
 	_selected_coord = selected_coord
+	_player_visible_on_map = player_visible_on_map
 	queue_redraw()
 
 
@@ -140,6 +145,7 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 	var settlements: Array = _world_data.get("settlements", [])
 	var font := get_theme_default_font()
 	var font_size := 16
+	var can_draw_labels := font != null
 
 	for settlement in settlements:
 		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
@@ -162,7 +168,7 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 		draw_rect(rect, color)
 		draw_rect(rect, Color(0.05, 0.08, 0.14, 0.95), false, 2.0)
 
-		if font == null:
+		if not can_draw_labels:
 			continue
 
 		var label: String = settlement.get("display_name", "据点")
@@ -227,6 +233,8 @@ func _draw_world_event_marker(center: Vector2) -> void:
 
 
 func _draw_player(camera_origin: Vector2) -> void:
+	if not _player_visible_on_map:
+		return
 	if not _is_coord_visible_in_viewport(_player_coord, camera_origin):
 		return
 	var center := _get_cell_rect_for_origin(_player_coord, camera_origin).get_center()
@@ -250,15 +258,7 @@ func _draw_selection(camera_origin: Vector2) -> void:
 	if not _is_coord_visible_in_viewport(_selected_coord, camera_origin):
 		return
 	var rect := _get_cell_rect_for_origin(_selected_coord, camera_origin).grow(-2.0)
-	draw_rect(rect, Color(1.0, 1.0, 1.0, 0.0), false, 2.0)
-
-
-func _get_cell_rect(coord: Vector2i) -> Rect2:
-	return _get_cell_rect_for_origin(coord, _get_camera_origin_cells())
-
-
-func _get_player_draw_rect(coord: Vector2i) -> Rect2:
-	return _get_player_draw_rect_for_origin(coord, _get_camera_origin_cells())
+	draw_rect(rect, SELECTION_OUTLINE_COLOR, false, 3.0)
 
 
 func _get_cell_rect_for_origin(coord: Vector2i, camera_origin: Vector2) -> Rect2:
@@ -277,19 +277,6 @@ func _local_to_cell(position: Vector2) -> Vector2i:
 		int(floor(camera_origin.x + position.x / cell_size)),
 		int(floor(camera_origin.y + position.y / cell_size))
 	)
-
-
-func _get_viewport_world_rect() -> Rect2i:
-	var camera_origin := _get_camera_origin_cells()
-	var cell_span := _get_viewport_cell_span()
-	var start := Vector2i(int(floor(camera_origin.x)), int(floor(camera_origin.y)))
-	var end := Vector2i(int(ceil(camera_origin.x + cell_span.x)), int(ceil(camera_origin.y + cell_span.y)))
-	var world_size_cells: Vector2i = _grid_system.get_world_size_cells()
-	start.x = clampi(start.x, 0, world_size_cells.x)
-	start.y = clampi(start.y, 0, world_size_cells.y)
-	end.x = clampi(end.x, start.x, world_size_cells.x)
-	end.y = clampi(end.y, start.y, world_size_cells.y)
-	return Rect2i(start, end - start)
 
 
 func _get_camera_origin_cells() -> Vector2:

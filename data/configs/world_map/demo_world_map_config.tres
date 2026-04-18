@@ -16,6 +16,7 @@ procedural_town_count = 18
 procedural_city_count = 8
 procedural_capital_count = 3
 procedural_world_stronghold_count = 2
+procedural_metropolis_count = 1
 settlement_library = Array[Resource]([])
 facility_library = Array[Resource]([])
 settlement_distribution = Array[Resource]([])

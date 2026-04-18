@@ -162,19 +162,45 @@ func extract_save_meta_from_payload(payload: Dictionary, fallback_save_id: Strin
 		return {}
 
 	var raw_meta_variant = payload.get("save_slot_meta", {})
-	if typeof(raw_meta_variant) != TYPE_DICTIONARY:
-		return {}
-	var merged_meta: Dictionary = raw_meta_variant.duplicate(true)
+	var merged_meta: Dictionary = {}
+	if typeof(raw_meta_variant) == TYPE_DICTIONARY:
+		merged_meta = raw_meta_variant.duplicate(true)
 	var save_id := String(payload.get("save_id", merged_meta.get("save_id", fallback_save_id))).strip_edges()
 	if save_id.is_empty():
 		return {}
 
-	merged_meta["save_id"] = save_id
-	merged_meta["generation_config_path"] = String(payload.get(
+	var generation_config_path := String(payload.get(
 		"generation_config_path",
 		merged_meta.get("generation_config_path", "")
-	))
-	return normalize_save_meta(merged_meta)
+	)).strip_edges()
+	if generation_config_path.is_empty():
+		return {}
+
+	var recovered_meta: Dictionary = merged_meta.duplicate(true)
+	recovered_meta["save_id"] = save_id
+	recovered_meta["generation_config_path"] = generation_config_path
+	if String(recovered_meta.get("display_name", "")).strip_edges().is_empty():
+		recovered_meta["display_name"] = save_id
+	if String(recovered_meta.get("world_preset_name", "")).strip_edges().is_empty():
+		recovered_meta["world_preset_name"] = _get_fallback_world_preset_name(generation_config_path)
+
+	var payload_meta_variant = payload.get("meta", {})
+	if typeof(payload_meta_variant) == TYPE_DICTIONARY:
+		var payload_meta: Dictionary = payload_meta_variant
+		var saved_at_unix_time := int(payload_meta.get("saved_at_unix_time", 0))
+		if int(recovered_meta.get("created_at_unix_time", 0)) <= 0 and saved_at_unix_time > 0:
+			recovered_meta["created_at_unix_time"] = saved_at_unix_time
+		if int(recovered_meta.get("updated_at_unix_time", 0)) <= 0 and saved_at_unix_time > 0:
+			recovered_meta["updated_at_unix_time"] = saved_at_unix_time
+
+	var world_size_cells := read_vector2i(recovered_meta.get("world_size_cells", Vector2i.ZERO))
+	if world_size_cells == Vector2i.ZERO:
+		var generation_config = load(generation_config_path)
+		var recovered_world_size := _get_generation_world_size_cells(generation_config)
+		if recovered_world_size != Vector2i.ZERO:
+			recovered_meta["world_size_cells"] = recovered_world_size
+
+	return normalize_save_meta(recovered_meta)
 
 
 func normalize_save_meta(raw_meta: Dictionary) -> Dictionary:

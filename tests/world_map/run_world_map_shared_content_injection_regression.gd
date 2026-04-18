@@ -1,8 +1,11 @@
 extends SceneTree
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
+const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_grid_system.gd")
+const WORLD_MAP_SPAWN_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_spawn_system.gd")
 const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
+const WILD_SPAWN_RULE_SCRIPT = preload("res://scripts/utils/wild_spawn_rule.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SMALL_WORLD_CONFIG := "res://data/configs/world_map/small_world_map_config.tres"
@@ -31,6 +34,9 @@ func _run() -> void:
 	_test_shared_capital_name_pool_exposes_100_unique_names()
 	_test_shared_metropolis_name_pool_exposes_50_unique_names()
 	_test_world_generation_injects_shared_main_world_content()
+	_test_world_stronghold_instances_keep_stronghold_semantics()
+	_test_demo_world_generation_includes_metropolis_instances()
+	_test_procedural_wild_spawn_region_tags_ignore_rule_order()
 	_test_small_world_generation_assigns_unique_display_names()
 
 	if _failures.is_empty():
@@ -102,6 +108,124 @@ func _test_world_generation_injects_shared_main_world_content() -> void:
 	_cleanup(game_session)
 
 
+func _test_world_stronghold_instances_keep_stronghold_semantics() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG, &"shared_stronghold_names", "世界据点命名验证"))
+	_assert_eq(create_error, OK, "测试世界应能成功创建以验证世界据点命名。")
+	if create_error != OK:
+		_cleanup(game_session)
+		return
+
+	var found_world_stronghold := false
+	for settlement_variant in game_session.get_world_data().get("settlements", []):
+		if settlement_variant is not Dictionary:
+			continue
+		var settlement: Dictionary = settlement_variant
+		if int(settlement.get("tier", -1)) != SETTLEMENT_CONFIG_SCRIPT.SettlementTier.WORLD_STRONGHOLD:
+			continue
+		found_world_stronghold = true
+		var display_name := String(settlement.get("display_name", "")).strip_edges()
+		_assert_true(display_name.begins_with("世界据点"), "世界据点实例应保留 world stronghold 语义，而不是回退到通用村名池。")
+		_assert_true(not display_name.ends_with("村"), "世界据点实例不应使用以村结尾的通用名称。")
+
+	_assert_true(found_world_stronghold, "测试世界应至少生成一个世界据点实例。")
+	_cleanup(game_session)
+
+
+func _test_demo_world_generation_includes_metropolis_instances() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(DEMO_WORLD_CONFIG, &"shared_demo_metropolis", "巨型世界都会验证"))
+	_assert_eq(create_error, OK, "demo 世界应能成功创建以验证都会生成。")
+	if create_error != OK:
+		_cleanup(game_session)
+		return
+
+	var found_metropolis_instance := false
+	for settlement_variant in game_session.get_world_data().get("settlements", []):
+		if settlement_variant is not Dictionary:
+			continue
+		var settlement: Dictionary = settlement_variant
+		if int(settlement.get("tier", -1)) != SETTLEMENT_CONFIG_SCRIPT.SettlementTier.METROPOLIS:
+			continue
+		found_metropolis_instance = true
+		var display_name := String(settlement.get("display_name", "")).strip_edges()
+		_assert_true(display_name.ends_with("帝都"), "demo 世界里的 metropolis 实例应继续使用都会名称池。")
+
+	_assert_true(found_metropolis_instance, "demo 世界应至少生成一个 metropolis 实例。")
+	_cleanup(game_session)
+
+
+func _test_procedural_wild_spawn_region_tags_ignore_rule_order() -> void:
+	var base_config = load(TEST_WORLD_CONFIG)
+	_assert_true(base_config != null, "wild spawn region-tag 回归需要可加载的测试世界配置。")
+	if base_config == null:
+		return
+	var settlement_bundle = load(SHARED_SETTLEMENT_BUNDLE_PATH)
+	_assert_true(settlement_bundle != null, "wild spawn region-tag 回归需要可加载的共享据点 bundle。")
+	if settlement_bundle == null:
+		return
+
+	var config = base_config.duplicate(true)
+	_assert_true(config != null, "测试世界配置应支持 duplicate(true)。")
+	if config == null:
+		return
+	config.inject_default_main_world_content = false
+	config.settlement_library = settlement_bundle.settlement_library.duplicate(true)
+	config.facility_library = settlement_bundle.facility_library.duplicate(true)
+
+	var south_rule = WILD_SPAWN_RULE_SCRIPT.new()
+	south_rule.region_tag = "south_wilds"
+	south_rule.monster_name = "南境雾兽"
+	south_rule.monster_template_id = &"mist_beast"
+	south_rule.encounter_profile_id = &"mist_hollow"
+	south_rule.density_per_chunk = 1
+	south_rule.min_distance_to_settlement = 3
+	south_rule.vision_range = 1
+
+	var north_rule = WILD_SPAWN_RULE_SCRIPT.new()
+	north_rule.region_tag = "north_wilds"
+	north_rule.monster_name = "北境狼群"
+	north_rule.monster_template_id = &"wolf_pack"
+	north_rule.density_per_chunk = 1
+	north_rule.min_distance_to_settlement = 3
+	north_rule.vision_range = 1
+
+	config.wild_monster_distribution = [south_rule, north_rule]
+
+	var grid_system = WORLD_MAP_GRID_SYSTEM_SCRIPT.new()
+	grid_system.setup(config.world_size_in_chunks, config.chunk_size)
+	var spawn_system = WORLD_MAP_SPAWN_SYSTEM_SCRIPT.new()
+	var world_data: Dictionary = spawn_system.build_world(config, grid_system)
+
+	var midpoint_chunk_y: int = int(config.world_size_in_chunks.y / 2)
+	var found_north_in_north := false
+	var found_south_in_south := false
+	var misplaced_north := false
+	var misplaced_south := false
+	for encounter_variant in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+		if encounter_anchor == null:
+			continue
+		if encounter_anchor.encounter_kind != ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE:
+			continue
+		var chunk_coord := grid_system.get_chunk_coord(encounter_anchor.world_coord)
+		if encounter_anchor.region_tag == &"north_wilds":
+			if chunk_coord.y < midpoint_chunk_y:
+				found_north_in_north = true
+			else:
+				misplaced_north = true
+		elif encounter_anchor.region_tag == &"south_wilds":
+			if chunk_coord.y >= midpoint_chunk_y:
+				found_south_in_south = true
+			else:
+				misplaced_south = true
+
+	_assert_true(found_north_in_north, "north_wilds 应仍然出现在世界北半区。")
+	_assert_true(found_south_in_south, "south_wilds 应仍然出现在世界南半区。")
+	_assert_true(not misplaced_north, "north_wilds 不应因为数组顺序变化而跑到南半区。")
+	_assert_true(not misplaced_south, "south_wilds 不应因为数组顺序变化而跑到北半区。")
+
+
 func _test_small_world_generation_assigns_unique_display_names() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(SMALL_WORLD_CONFIG, &"shared_name_pool", "共享名称池验证"))
@@ -131,7 +255,10 @@ func _test_small_world_generation_assigns_unique_display_names() -> void:
 		var display_name := String(settlement.get("display_name", "")).strip_edges()
 		var tier := int(settlement.get("tier", -1))
 		_assert_true(not display_name.is_empty(), "small 世界里的据点实例展示名不应为空。")
-		_assert_true(not generic_placeholder_names.has(display_name), "small 世界里的据点实例展示名应来自名称池而不是模板占位名。")
+		if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.WORLD_STRONGHOLD:
+			_assert_true(display_name.begins_with("世界据点"), "small 世界里的世界据点实例应保留 stronghold 语义名。")
+		else:
+			_assert_true(not generic_placeholder_names.has(display_name), "small 世界里的据点实例展示名应来自名称池而不是模板占位名。")
 		_assert_true(not seen_names.has(display_name), "small 世界里的据点实例展示名不应重复。")
 		if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.TOWN:
 			found_town_instance = true

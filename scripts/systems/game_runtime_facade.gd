@@ -1,4 +1,4 @@
-## 文件说明：该脚本属于世界地图系统相关的系统脚本，集中维护世界地图视图、世界地图背景、战斗地图面板等顶层字段。
+## 文件说明：该脚本属于世界地图系统相关的系统脚本，集中维护世界/战斗/模态窗口的运行时状态与跨系统编排。
 ## 审查重点：重点核对字段默认值、状态流转顺序、跨系统引用关系以及运行时读写时机是否仍然可靠。
 ## 备注：后续如果增删字段，需要同步检查调用方、状态同步链路以及历史数据兼容处理。
 
@@ -36,19 +36,6 @@ const WORLD_MOVE_REPEAT_INTERVAL := 0.5
 const PARTY_WAREHOUSE_INTERACTION_ID := "party_warehouse"
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 
-var world_map_view = null
-var world_map_background = null
-var battle_map_panel = null
-var status_label = null
-var settlement_window = null
-var character_info_window = null
-var party_management_window = null
-var party_warehouse_window = null
-var shop_window = null
-var stagecoach_window = null
-var promotion_choice_window = null
-var character_reward_window = null
-
 ## 字段说明：记录生成配置，会参与运行时状态流转、系统协作和存档恢复。
 var _generation_config
 ## 字段说明：记录游戏会话，会参与运行时状态流转、系统协作和存档恢复。
@@ -79,6 +66,12 @@ var _battle_runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
 var _player_coord := Vector2i.ZERO
 ## 字段说明：记录选中坐标，用于定位对象、绘制内容或执行网格计算。
 var _selected_coord := Vector2i.ZERO
+## 字段说明：记录是否正处于“从世界进入据点”的临时上下文，用于控制世界地图上的玩家显隐与返回位置。
+var _settlement_entry_active := false
+## 字段说明：记录进入据点前的世界坐标，供关闭据点后恢复地图落点。
+var _settlement_entry_source_coord := Vector2i(-1, -1)
+## 字段说明：记录触发据点进入的目标格子，供访问据点时复用。
+var _settlement_entry_target_coord := Vector2i(-1, -1)
 ## 字段说明：记录玩家阵营唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _player_faction_id := "player"
 ## 字段说明：缓存世界数据字典，集中保存可按键查询的运行时数据。
@@ -251,6 +244,7 @@ func setup(game_session) -> void:
 	_active_modal_id = ""
 	_active_settlement_id = ""
 	_active_settlement_feedback_text = ""
+	_clear_settlement_entry_context()
 	_active_contract_board_context.clear()
 	_active_shop_context.clear()
 	_active_forge_context.clear()
@@ -320,19 +314,7 @@ func dispose() -> void:
 	_battle_selection_state.reset_for_battle_end()
 	_held_world_move_keys.clear()
 	_active_reward = null
-
-	world_map_view = null
-	world_map_background = null
-	battle_map_panel = null
-	status_label = null
-	settlement_window = null
-	character_info_window = null
-	party_management_window = null
-	party_warehouse_window = null
-	shop_window = null
-	stagecoach_window = null
-	promotion_choice_window = null
-	character_reward_window = null
+	_clear_settlement_entry_context()
 
 
 func get_status_text() -> String:
@@ -500,6 +482,10 @@ func get_generation_config():
 
 func get_player_coord() -> Vector2i:
 	return _player_coord
+
+
+func is_player_visible_on_world_map() -> bool:
+	return not _is_settlement_entry_hidden_on_world_map()
 
 
 func get_selected_coord() -> Vector2i:
@@ -1422,6 +1408,10 @@ func set_selected_coord(coord: Vector2i) -> void:
 	_selected_coord = coord
 
 
+func clear_settlement_entry_context(reset_selected: bool = true) -> void:
+	_clear_settlement_entry_context(reset_selected)
+
+
 func set_active_settlement_state(settlement_id: String, settlement_state: Dictionary) -> bool:
 	var settlements_variant = _active_world_data.get("settlements", [])
 	if settlements_variant is not Array:
@@ -2298,10 +2288,30 @@ func _get_current_promotion_prompt() -> Dictionary:
 	return _reward_flow_handler.get_current_promotion_prompt() if _reward_flow_handler != null else {}
 
 func _move_player(direction: Vector2i) -> void:
-	var previous_settlement := _get_settlement_at(_player_coord)
-	var target_coord := _player_coord + direction
+	var source_coord := _player_coord
+	var previous_settlement := _get_settlement_at(source_coord)
+	var target_coord := source_coord + direction
 	if not _grid_system.is_cell_walkable(target_coord):
 		_update_status("已到达大地图边界。")
+		return
+
+	var target_settlement := _get_settlement_at(target_coord)
+	var entered_new_settlement := (
+		not target_settlement.is_empty()
+		and String(target_settlement.get("settlement_id", "")) != String(previous_settlement.get("settlement_id", ""))
+	)
+	if entered_new_settlement:
+		_selected_coord = target_coord
+		_advance_world_time_by_steps(1)
+		_activate_settlement_entry_context(source_coord, target_coord)
+		if _try_open_settlement_at(target_coord, false):
+			var world_persist_error_on_entry: int = int(_game_session.set_world_data(_world_data))
+			if world_persist_error_on_entry != OK:
+				_update_status("已打开 %s 的据点窗口，但世界状态持久化失败。" % target_settlement.get("display_name", "据点"))
+			return
+		_clear_settlement_entry_context()
+		if _current_status_message.is_empty():
+			_update_status("进入据点失败。")
 		return
 
 	_player_coord = target_coord
@@ -2336,15 +2346,6 @@ func _move_player(direction: Vector2i) -> void:
 
 	var player_persist_error: int = int(_game_session.set_player_coord(_player_coord))
 	var world_persist_error: int = int(_game_session.set_world_data(_world_data))
-	var current_settlement := _get_settlement_at(_player_coord)
-	var entered_new_settlement := (
-		not current_settlement.is_empty()
-		and String(current_settlement.get("settlement_id", "")) != String(previous_settlement.get("settlement_id", ""))
-	)
-	if entered_new_settlement and _try_open_settlement_at(_player_coord, false):
-		if player_persist_error != OK or world_persist_error != OK:
-			_update_status("已打开 %s 的据点窗口，但玩家位置或世界时间持久化失败。" % current_settlement.get("display_name", "据点"))
-		return
 	if player_persist_error == OK and world_persist_error == OK:
 		_update_status("玩家移动到 %s，视野与世界时间已刷新。" % _format_coord(_player_coord))
 	else:
@@ -2480,7 +2481,7 @@ func _try_open_settlement_at(coord: Vector2i, announce_failure: bool = true) -> 
 		return false
 
 	_active_settlement_id = String(settlement.get("settlement_id", ""))
-	if coord == _player_coord:
+	if coord == _player_coord or (_settlement_entry_active and _settlement_entry_target_coord == coord):
 		_mark_settlement_visited(_active_settlement_id)
 	_active_settlement_feedback_text = "据点通过窗口交付，不切换到城内地图。"
 	_active_modal_id = "settlement"
@@ -2554,42 +2555,6 @@ func _get_encounter_anchor_by_id(entity_id: StringName) -> ENCOUNTER_ANCHOR_DATA
 	return null
 
 
-func _refresh_battle_panel() -> void:
-	if not _is_battle_active():
-		return
-	if not is_instance_valid(battle_map_panel):
-		return
-	battle_map_panel.refresh(
-		_battle_state,
-		_battle_selected_coord,
-		_selected_battle_skill_id,
-		get_selected_battle_skill_name(),
-		get_selected_battle_skill_variant_name(),
-		get_selected_battle_skill_target_coords(),
-		get_battle_overlay_target_coords(),
-		get_selected_battle_skill_required_coord_count(),
-		get_selected_battle_skill_target_unit_ids()
-	)
-
-
-func _refresh_battle_panel_overlay() -> void:
-	if not _is_battle_active():
-		return
-	if not is_instance_valid(battle_map_panel):
-		return
-	battle_map_panel.refresh_overlay(
-		_battle_state,
-		_battle_selected_coord,
-		_selected_battle_skill_id,
-		get_selected_battle_skill_name(),
-		get_selected_battle_skill_variant_name(),
-		get_selected_battle_skill_target_coords(),
-		get_battle_overlay_target_coords(),
-		get_selected_battle_skill_required_coord_count(),
-		get_selected_battle_skill_target_unit_ids()
-	)
-
-
 func _refresh_battle_selection_state() -> void:
 	if not _is_battle_active():
 		return
@@ -2599,35 +2564,6 @@ func _refresh_battle_selection_state() -> void:
 		return
 	if _battle_selected_coord == Vector2i(-1, -1) or not _battle_state.cells.has(_battle_selected_coord):
 		_battle_selected_coord = _get_default_battle_selected_coord()
-	_refresh_battle_panel_overlay()
-
-
-func _set_world_view_active() -> void:
-	if world_map_background != null:
-		world_map_background.visible = true
-	world_map_view.visible = true
-	battle_map_panel.hide_battle()
-	world_map_view.refresh_world(_active_world_data)
-	world_map_view.set_runtime_state(_player_coord, _selected_coord)
-
-
-func _set_battle_view_active() -> void:
-	if world_map_background != null:
-		world_map_background.visible = false
-	world_map_view.visible = false
-	if not is_instance_valid(battle_map_panel):
-		return
-	battle_map_panel.show_battle(
-		_battle_state,
-		_battle_selected_coord,
-		_selected_battle_skill_id,
-		get_selected_battle_skill_name(),
-		get_selected_battle_skill_variant_name(),
-		get_selected_battle_skill_target_coords(),
-		get_battle_overlay_target_coords(),
-		get_selected_battle_skill_required_coord_count(),
-		get_selected_battle_skill_target_unit_ids()
-	)
 
 
 func _remove_active_battle_encounter_anchor() -> void:
@@ -2910,8 +2846,6 @@ func _build_quest_claim_reward_summary_text(claim_result: Dictionary) -> String:
 
 func _update_status(message: String) -> void:
 	_current_status_message = message
-	if status_label != null:
-		status_label.text = message
 
 
 func _is_modal_window_open() -> bool:
@@ -2958,6 +2892,30 @@ func _mark_settlement_visited(settlement_id: String) -> void:
 		return
 	settlement_state["visited"] = true
 	set_active_settlement_state(settlement_id, settlement_state)
+
+
+func _activate_settlement_entry_context(source_coord: Vector2i, target_coord: Vector2i) -> void:
+	_settlement_entry_active = true
+	_settlement_entry_source_coord = source_coord
+	_settlement_entry_target_coord = target_coord
+
+
+func _clear_settlement_entry_context(reset_selected: bool = true) -> void:
+	_settlement_entry_active = false
+	_settlement_entry_source_coord = Vector2i(-1, -1)
+	_settlement_entry_target_coord = Vector2i(-1, -1)
+	if reset_selected:
+		_selected_coord = _player_coord
+
+
+func _is_settlement_entry_hidden_on_world_map() -> bool:
+	if not _settlement_entry_active:
+		return false
+	return _active_modal_id == "settlement" \
+		or _active_modal_id == "shop" \
+		or _active_modal_id == "contract_board" \
+		or _active_modal_id == "forge" \
+		or _active_modal_id == "stagecoach"
 
 
 func _get_item_display_name(item_id: StringName) -> String:

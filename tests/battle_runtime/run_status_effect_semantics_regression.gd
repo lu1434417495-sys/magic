@@ -6,6 +6,7 @@ const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleStatusSemanticTable = preload("res://scripts/systems/battle_status_semantic_table.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
 var _failures: Array[String] = []
@@ -19,6 +20,7 @@ func _run() -> void:
 	_test_staggered_refreshes_without_stacking_and_expires_on_tu_progress()
 	_test_burning_stacks_and_ticks_each_turn()
 	_test_slow_increases_move_cost_and_expires_on_tu_progress()
+	_test_status_duration_is_not_backfilled_from_semantic_defaults()
 	if _failures.is_empty():
 		print("Status effect semantics regression: PASS")
 		quit(0)
@@ -165,6 +167,17 @@ func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
 	)
 	_advance_timeline_tu(runtime, state, 3)
 	_assert_true(not target.has_status_effect(&"slow"), "slow 应在 TU 走完后移除。")
+
+
+func _test_status_duration_is_not_backfilled_from_semantic_defaults() -> void:
+	var effect_def := CombatEffectDef.new()
+	effect_def.effect_type = &"status"
+	effect_def.status_id = &"pinned"
+	effect_def.power = 1
+
+	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit")
+	_assert_true(merged != null, "状态效果应能在缺少 duration_tu 时正常合并。")
+	_assert_true(merged != null and not merged.has_duration(), "缺少来源时长时，状态不应再从语义表回填默认 TU。")
 
 
 func _apply_status(

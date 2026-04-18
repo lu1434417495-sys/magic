@@ -10,10 +10,6 @@ const TICK_NONE: StringName = &"none"
 const TICK_TURN_START_AP_PENALTY: StringName = &"turn_start_ap_penalty"
 const TICK_TURN_START_DAMAGE: StringName = &"turn_start_damage"
 
-const SHORT_DURATION_TU := 60
-const STANDARD_DURATION_TU := 90
-const LONG_DURATION_TU := 120
-
 const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
 const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
@@ -40,26 +36,24 @@ static func has_semantic(status_id: StringName) -> bool:
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
 		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_EVASION_UP, STATUS_GUARDING:
-			return _build_refresh_timeline_semantic(SHORT_DURATION_TU)
+			return _build_refresh_timeline_semantic()
 		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT:
-			return _build_refresh_timeline_semantic(STANDARD_DURATION_TU)
+			return _build_refresh_timeline_semantic()
 		STATUS_BURNING:
 			return {
 				"stack_mode": STACK_ADD,
 				"max_stacks": 3,
-				"default_duration_tu": LONG_DURATION_TU,
 				"tick_mode": TICK_TURN_START_DAMAGE,
 			}
 		STATUS_SLOW:
 			return {
 				"stack_mode": STACK_REFRESH,
 				"max_stacks": 1,
-				"default_duration_tu": SHORT_DURATION_TU,
 				"tick_mode": TICK_NONE,
 				"move_cost_delta": 1,
 			}
 		STATUS_STAGGERED:
-			return _build_refresh_timeline_semantic(SHORT_DURATION_TU, TICK_TURN_START_AP_PENALTY)
+			return _build_refresh_timeline_semantic(TICK_TURN_START_AP_PENALTY)
 		_:
 			return {}
 
@@ -80,7 +74,7 @@ static func merge_status(effect_def, source_unit_id: StringName, existing_entry:
 	if semantic.is_empty():
 		status_entry.power = int(effect_def.power)
 		status_entry.stacks = maxi(previous_stacks + 1, 1)
-		var legacy_duration := _resolve_duration_tu(effect_def, -1)
+		var legacy_duration := _resolve_duration_tu(effect_def)
 		if legacy_duration >= 0:
 			status_entry.duration = legacy_duration
 		return status_entry
@@ -95,7 +89,7 @@ static func merge_status(effect_def, source_unit_id: StringName, existing_entry:
 		_:
 			status_entry.stacks = 1
 
-	var semantic_duration := _resolve_duration_tu(effect_def, int(semantic.get("default_duration_tu", -1)))
+	var semantic_duration := _resolve_duration_tu(effect_def)
 	if semantic_duration >= 0:
 		var previous_duration := int(status_entry.duration) if status_entry.has_duration() else -1
 		status_entry.duration = maxi(semantic_duration, previous_duration)
@@ -141,25 +135,24 @@ static func advance_timeline_duration(status_entry: BattleStatusEffectState, ela
 	return {"expired": false, "changed": remaining_duration != previous_duration}
 
 
-static func _build_refresh_timeline_semantic(default_duration_tu: int, tick_mode: StringName = TICK_NONE) -> Dictionary:
+static func _build_refresh_timeline_semantic(tick_mode: StringName = TICK_NONE) -> Dictionary:
 	return {
 		"stack_mode": STACK_REFRESH,
 		"max_stacks": 1,
-		"default_duration_tu": maxi(default_duration_tu, 0),
 		"tick_mode": tick_mode,
 	}
 
 
-static func _resolve_duration_tu(effect_def, fallback_duration_tu: int) -> int:
+static func _resolve_duration_tu(effect_def) -> int:
 	if effect_def == null:
-		return fallback_duration_tu
+		return -1
 	if effect_def.params != null and effect_def.params.has("duration_tu"):
-		return maxi(int(effect_def.params.get("duration_tu", fallback_duration_tu)), 1)
+		return maxi(int(effect_def.params.get("duration_tu", 0)), 1)
 	if int(effect_def.duration_tu) > 0:
 		return maxi(int(effect_def.duration_tu), 1)
 	if effect_def.params != null and effect_def.params.has("duration"):
-		return maxi(int(effect_def.params.get("duration", fallback_duration_tu)), 1)
-	return fallback_duration_tu
+		return maxi(int(effect_def.params.get("duration", 0)), 1)
+	return -1
 
 
 static func _clone_effect_params(effect_def) -> Dictionary:
