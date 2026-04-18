@@ -181,6 +181,7 @@ func _exercise_battle_flow(runner) -> void:
 	var battle_snapshot: Dictionary = runner.get_session().build_snapshot().get("battle", {})
 	_assert_true(not (battle_snapshot.get("units", []) as Array).is_empty(), "战斗快照应包含单位列表。")
 	_assert_true(bool(battle_snapshot.get("start_confirm_visible", false)), "进入战斗后应先弹出开始战斗确认。")
+	_assert_battle_start_prompt_present_in_text_snapshot(runner.get_session().build_text_snapshot())
 	await _run_command(runner, "battle confirm")
 	_assert_battle_command_log_contains_post_state(runner.get_session().build_snapshot(), "battle.confirm_start")
 	await _advance_to_manual_battle_turn(runner)
@@ -233,6 +234,26 @@ func _assert_battle_skill_selection_blockers_in_text_runtime(runner) -> void:
 	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 2", "冷却未结束时 headless HUD skill slot footer 应显示剩余 CD。")
 	_assert_true(String(cooldown_slot.get("disabled_reason", "")).contains("冷却"), "冷却未结束时 headless HUD skill slot 应暴露冷却原因。")
 	_assert_true(cooldown_result.snapshot_text.contains("冷却"), "冷却未结束时文本快照应保留阻断文案。")
+
+
+func _assert_battle_start_prompt_present_in_text_snapshot(text_snapshot: String) -> void:
+	var battle_section_index := text_snapshot.find("[BATTLE]\n")
+	var selected_target_index := text_snapshot.find("selected_target_unit_count=", battle_section_index)
+	var confirm_visible_index := text_snapshot.find("start_confirm_visible=true", battle_section_index)
+	var prompt_title_index := text_snapshot.find("start_prompt_title=开始战斗", battle_section_index)
+	var prompt_description_index := text_snapshot.find("start_prompt_description=是否开始战斗？确认后 TU 将按每秒 5 点推进。", battle_section_index)
+	var prompt_confirm_index := text_snapshot.find("start_prompt_confirm_text=开始战斗", battle_section_index)
+	var hud_header_index := text_snapshot.find("hud_header=", battle_section_index)
+	_assert_true(battle_section_index >= 0, "文本快照应包含 BATTLE 分段。")
+	_assert_true(confirm_visible_index >= 0, "battle-start confirm 打开时文本快照应渲染 start_confirm_visible。")
+	_assert_true(prompt_title_index >= 0, "battle-start confirm 打开时文本快照应渲染提示标题。")
+	_assert_true(prompt_description_index >= 0, "battle-start confirm 打开时文本快照应渲染提示说明。")
+	_assert_true(prompt_confirm_index >= 0, "battle-start confirm 打开时文本快照应渲染确认按钮文案。")
+	_assert_true(selected_target_index >= 0 and selected_target_index < confirm_visible_index, "新增 battle start confirm 字段不应打乱前置目标字段顺序。")
+	_assert_true(confirm_visible_index < prompt_title_index, "start_confirm_visible 应先于 start_prompt_title 输出。")
+	_assert_true(prompt_title_index < prompt_description_index, "start_prompt_title 应先于 start_prompt_description 输出。")
+	_assert_true(prompt_description_index < prompt_confirm_index, "start_prompt_description 应先于 start_prompt_confirm_text 输出。")
+	_assert_true(hud_header_index < 0 or prompt_confirm_index < hud_header_index, "新增 battle start prompt 字段不应打乱 HUD 字段顺序。")
 
 
 func _prime_active_manual_skill_blocker(runner, current_stamina: int, cooldown: int) -> void:

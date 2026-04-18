@@ -436,6 +436,7 @@ static func _build_warehouse_lines(warehouse: Dictionary) -> Array[String]:
 static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 	if battle.is_empty():
 		return []
+	var start_prompt: Dictionary = battle.get("start_prompt", {})
 	var lines: Array[String] = [
 		"active=%s" % _format_bool(bool(battle.get("active", false))),
 		"encounter_id=%s" % String(battle.get("encounter_id", "")),
@@ -451,6 +452,10 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 		"selected_target_coords=%s" % _format_coord_array(battle.get("selected_target_coords", [])),
 		"selected_target_unit_ids=%s" % _format_array(battle.get("selected_target_unit_ids", [])),
 		"selected_target_unit_count=%d" % int(battle.get("selected_target_unit_count", 0)),
+		"start_confirm_visible=%s" % _format_bool(bool(battle.get("start_confirm_visible", false))),
+		"start_prompt_title=%s" % String(start_prompt.get("title", "")),
+		"start_prompt_description=%s" % String(start_prompt.get("description", "")),
+		"start_prompt_confirm_text=%s" % String(start_prompt.get("confirm_text", "")),
 	]
 	var hud: Dictionary = battle.get("hud", {})
 	if not hud.is_empty():
