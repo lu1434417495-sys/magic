@@ -1984,6 +1984,10 @@ func command_return_from_submap() -> Dictionary:
 	}, func() -> Dictionary:
 		if not is_submap_active():
 			return _command_error("当前不在子地图中。")
+		if _is_battle_active():
+			return _command_error("当前处于战斗中，不能从子地图返回。")
+		if _is_modal_window_open():
+			return _command_error("当前有窗口打开，不能从子地图返回。")
 		return _return_from_active_submap()
 	)
 

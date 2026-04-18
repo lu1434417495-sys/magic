@@ -131,8 +131,6 @@ def get_state_paths(repo_root: Path, state_directory_name: str, prd_path: str = 
         "RunsRoot": runs_root,
         "Prd": prd_file_path,
         "Checks": state_root / "checks.ps1",
-        "Progress": state_root / "progress.md",
-        "Guardrails": state_root / "guardrails.md",
         "OutputSchema": state_root / "output_schema.json",
     }
 
@@ -141,8 +139,6 @@ def assert_loop_files_exist(paths: dict[str, Path]) -> None:
     for required_path in (
         paths["Prd"],
         paths["Checks"],
-        paths["Progress"],
-        paths["Guardrails"],
         paths["OutputSchema"],
     ):
         if not required_path.exists():
@@ -314,27 +310,6 @@ def remove_done_stories_from_state(state: dict[str, Any]) -> dict[str, Any]:
         "RemainingCount": len(remaining_stories),
         "RemovedStoryIds": removed_story_ids,
     }
-
-
-def append_markdown_log(path: Path, body: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(f"\n{body}")
-
-
-def append_progress_entry(path: Path, story: dict[str, Any], status: str, note: str) -> None:
-    body = f"""## {get_run_timestamp()} | {story.get("id", "")} | {status}
-title: {story.get("title", "")}
-{note}
-"""
-    append_markdown_log(path, body)
-
-
-def append_guardrail_entry(path: Path, story: dict[str, Any], failure_text: str, run_id: str) -> None:
-    body = f"""- {get_run_timestamp()} | {story.get("id", "")} | run={run_id}
-  failure: {failure_text}
-"""
-    append_markdown_log(path, body)
 
 
 def render_prompt(story: dict[str, Any], paths: dict[str, Path]) -> str:
@@ -950,8 +925,6 @@ def main() -> int:
     ensure_command_exists("codex")
     powershell_command = get_preferred_powershell_command()
     assert_loop_files_exist(paths)
-    ensure_text_file(paths["Progress"], "# Ralph Progress")
-    ensure_text_file(paths["Guardrails"], "# Ralph Guardrails")
 
     if not args.allow_dirty_worktree:
         dirty_entries = get_dirty_worktree_entries(repo_root)
@@ -994,8 +967,6 @@ def main() -> int:
             failure_text = f"Codex exec failed: {codex_error_summary}"
             mark_story_failed(story, max_attempts_per_story, failure_text, "", "")
             write_json_file(state, paths["Prd"])
-            append_progress_entry(paths["Progress"], story, "agent_failed", failure_text)
-            append_guardrail_entry(paths["Guardrails"], story, failure_text, run_id)
             print(f"WARNING: {failure_text}", file=sys.stderr)
             if not args.continue_after_failure:
                 return 1
@@ -1014,8 +985,6 @@ def main() -> int:
                 failure_text = f"Codex returned blocked: {changed_summary}"
             mark_story_failed(story, max_attempts_per_story, failure_text, checks_summary, learnings_summary)
             write_json_file(state, paths["Prd"])
-            append_progress_entry(paths["Progress"], story, "blocked", failure_text)
-            append_guardrail_entry(paths["Guardrails"], story, failure_text, run_id)
             print(f"WARNING: {failure_text}", file=sys.stderr)
             if not args.continue_after_failure:
                 return 1
@@ -1027,8 +996,6 @@ def main() -> int:
                 failure_text = f"Checks failed. log: {check_run['LogPath']}"
                 mark_story_failed(story, max_attempts_per_story, failure_text, str(check_run["LogPath"]), learnings_summary)
                 write_json_file(state, paths["Prd"])
-                append_progress_entry(paths["Progress"], story, "checks_failed", failure_text)
-                append_guardrail_entry(paths["Guardrails"], story, failure_text, run_id)
                 print(f"WARNING: {failure_text}", file=sys.stderr)
                 if not args.continue_after_failure:
                     return 1
@@ -1039,7 +1006,6 @@ def main() -> int:
 
         mark_story_done(story, checks_summary, learnings_summary)
         write_json_file(state, paths["Prd"])
-        append_progress_entry(paths["Progress"], story, "done", changed_summary)
 
         if not args.no_commit:
             commit_message = f"{commit_prefix} {story.get('id', '')} {story.get('title', '')}".strip()

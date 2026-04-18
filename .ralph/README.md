@@ -10,10 +10,6 @@
   一个贴近本仓库的示例 story，可直接复制到 `prd.json` 后再改。
 - `checks.ps1`
   外层编排器的统一校验入口。默认跑本项目最常用的几条 Godot headless 回归。
-- `progress.md`
-  每轮完成 / 失败后的时间线记录。
-- `guardrails.md`
-  失败经验、常见坑和 durable rule 的落盘位置。
 - `output_schema.json`
   约束 `codex exec --output-schema` 最终输出形状，避免编排器靠脆弱字符串解析。
 - `runs/`
