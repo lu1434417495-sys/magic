@@ -22,6 +22,7 @@ signal cancelled
 @onready var cancel_button: Button = $CenterContainer/Panel/MarginContainer/Layout/ButtonRow/CancelButton
 
 var _dismiss_on_shade := true
+var _cancel_visible := true
 
 
 func _ready() -> void:
@@ -37,7 +38,9 @@ func show_prompt(prompt: Dictionary) -> void:
 	description_label.text = String(prompt.get("description", "确认后将进入新的区域。"))
 	confirm_button.text = String(prompt.get("confirm_text", "确认进入"))
 	cancel_button.text = String(prompt.get("cancel_text", "取消"))
-	cancel_button.visible = bool(prompt.get("cancel_visible", true))
+	_cancel_visible = bool(prompt.get("cancel_visible", true))
+	cancel_button.visible = _cancel_visible
+	cancel_button.disabled = not _cancel_visible
 	_dismiss_on_shade = bool(prompt.get("dismiss_on_shade", true))
 
 
@@ -48,7 +51,9 @@ func hide_window() -> void:
 	confirm_button.text = "确认进入"
 	cancel_button.text = "取消"
 	cancel_button.visible = true
+	cancel_button.disabled = false
 	_dismiss_on_shade = true
+	_cancel_visible = true
 
 
 func _on_confirm_button_pressed() -> void:
@@ -57,6 +62,8 @@ func _on_confirm_button_pressed() -> void:
 
 
 func _on_cancel_button_pressed() -> void:
+	if not _cancel_visible:
+		return
 	hide_window()
 	cancelled.emit()
 

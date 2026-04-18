@@ -688,5 +688,6 @@ func _on_submap_entry_cancelled() -> void:
 	if _runtime == null:
 		return
 	if _runtime_proxy.get_active_modal_id() == "battle_start_confirm":
+		_render_from_runtime(false)
 		return
 	_runtime_proxy.command_cancel_submap_entry()
