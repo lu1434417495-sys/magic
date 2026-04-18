@@ -255,7 +255,7 @@ func handle_battle_input(key_event: InputEventKey) -> bool:
 			attempt_battle_move(Vector2i.DOWN)
 		KEY_R:
 			battle_selection.reset_battle_movement()
-		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+		KEY_SPACE:
 			resolve_active_battle()
 		_:
 			return false

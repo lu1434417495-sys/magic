@@ -320,7 +320,7 @@ func _handle_world_input(key_event: InputEventKey) -> bool:
 		KEY_P:
 			_runtime_proxy.command_open_party()
 			return true
-		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+		_ when _is_world_settlement_confirm_key(key_event.keycode):
 			_runtime_proxy.command_open_settlement()
 			return true
 		_:
@@ -393,6 +393,14 @@ func _clear_world_move_hold() -> void:
 	_world_move_repeat_timer = 0.0
 
 
+func _is_world_settlement_confirm_key(keycode: int) -> bool:
+	return keycode == KEY_ENTER or keycode == KEY_KP_ENTER
+
+
+func _is_battle_wait_confirm_key(keycode: int) -> bool:
+	return keycode == KEY_SPACE
+
+
 func _handle_battle_input(key_event: InputEventKey) -> bool:
 	match key_event.keycode:
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
@@ -411,7 +419,7 @@ func _handle_battle_input(key_event: InputEventKey) -> bool:
 			_runtime_proxy.command_battle_move_direction(Vector2i.UP)
 		KEY_DOWN, KEY_S:
 			_runtime_proxy.command_battle_move_direction(Vector2i.DOWN)
-		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+		_ when _is_battle_wait_confirm_key(key_event.keycode):
 			_runtime_proxy.command_battle_wait_or_resolve()
 		_:
 			return false
