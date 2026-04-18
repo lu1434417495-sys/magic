@@ -169,18 +169,23 @@ def set_checkpoint_start_commit(checkpoint_path: Path, commit_sha: str) -> None:
     write_json_file(state, checkpoint_path)
 
 
-def resolve_commit_prefix(configured_prefix: str, prd_path: Path) -> str:
-    if configured_prefix.strip():
-        return configured_prefix
-    if not prd_path.exists():
-        return ""
+def resolve_commit_prefix(configured_prefix: str) -> str:
+    return configured_prefix.strip()
 
-    try:
-        prd = read_json_file(prd_path)
-    except Exception:
-        return ""
 
-    return str(prd.get("commitPrefix", "") or "")
+def resolve_effective_review_head(repo_root: Path, current_head: str, final_commit: str) -> tuple[str, bool]:
+    if not final_commit.strip():
+        return current_head, False
+    if current_head == final_commit:
+        return final_commit, True
+    if test_commit_is_ancestor_of(repo_root, final_commit, current_head):
+        return final_commit, True
+    if test_commit_is_ancestor_of(repo_root, current_head, final_commit):
+        return current_head, False
+    raise RuntimeError(
+        f"FinalCommit is not on the current branch history chain. "
+        f"current_head={current_head} final_commit={final_commit}"
+    )
 
 
 def get_commit_range_lines(repo_root: Path, range_value: str, single_commit: bool = False) -> list[str]:
@@ -972,7 +977,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-ReportsDirectoryName", dest="reports_directory_name", default="reviews")
     # StartCommit: 从指定 commit 开始建立 review 起点；例如 `python tools/run_ralph_review_loop.py -StartCommit abc1234`
     parser.add_argument("-StartCommit", dest="start_commit", default="")
-    # CommitPrefix: 只把带此前缀的提交视为 Ralph 主提交；例如 `python tools/run_ralph_review_loop.py -CommitPrefix "chore(ralph):"`
+    # FinalCommit: 指定最终 review 边界；到达该提交时，即使未达到批量阈值，也会补一次剩余范围 review。
+    parser.add_argument("-FinalCommit", dest="final_commit", default="")
+    # CommitPrefix: 只把带此前缀的提交视为 Ralph 主提交；不传时不做前缀过滤。
     parser.add_argument("-CommitPrefix", dest="commit_prefix", default="")
     # CodexModel: 覆盖默认 Codex 模型；例如 `python tools/run_ralph_review_loop.py -CodexModel gpt-5.4`
     parser.add_argument("-CodexModel", dest="codex_model", default="")
@@ -1028,6 +1035,7 @@ def main() -> int:
     head_at_start = get_git_head_commit(repo_root)
     initialize_checkpoint(paths["Checkpoint"], head_at_start, not args.bootstrap_review)
 
+    resolved_start_commit = ""
     if args.start_commit.strip():
         resolved_start_commit = resolve_commit_sha(repo_root, args.start_commit)
         if not test_commit_is_ancestor_of(repo_root, resolved_start_commit, head_at_start):
@@ -1035,9 +1043,25 @@ def main() -> int:
         set_checkpoint_start_commit(paths["Checkpoint"], resolved_start_commit)
         print(f"Start commit override set to: {resolved_start_commit}")
 
+    resolved_final_commit = ""
+    if args.final_commit.strip():
+        resolved_final_commit = resolve_commit_sha(repo_root, args.final_commit)
+        resolve_effective_review_head(repo_root, head_at_start, resolved_final_commit)
+        if resolved_start_commit and not test_commit_is_ancestor_of(repo_root, resolved_start_commit, resolved_final_commit):
+            raise RuntimeError(
+                f"FinalCommit must not be earlier than StartCommit. "
+                f"start_commit={resolved_start_commit} final_commit={resolved_final_commit}"
+            )
+
     print(f"Review loop watching repo: {repo_root}")
     print(f"Checkpoint file: {paths['Checkpoint']}")
     print(f"Reports directory: {paths['ReportsRoot']}")
+    if resolved_final_commit:
+        print(f"Final commit boundary: {resolved_final_commit}")
+    if args.commit_prefix.strip():
+        print(f'Commit prefix filter: "{args.commit_prefix.strip()}"')
+    else:
+        print("Commit prefix filter: disabled")
     if args.review_every_n_commits > 0:
         print(f"Commit batch trigger: every {args.review_every_n_commits} matching commits")
     if args.review_on_story_completion:
@@ -1049,7 +1073,8 @@ def main() -> int:
         last_reviewed_at = str(state.get("last_reviewed_at", "") or "")
         pending_start_commit = str(state.get("pending_start_commit", "") or "")
         current_head = get_git_head_commit(repo_root)
-        commit_prefix_to_use = resolve_commit_prefix(args.commit_prefix, paths["Prd"])
+        review_head, final_commit_reached = resolve_effective_review_head(repo_root, current_head, resolved_final_commit)
+        commit_prefix_to_use = resolve_commit_prefix(args.commit_prefix)
 
         target_commit_line = ""
         scope_label = ""
@@ -1058,6 +1083,20 @@ def main() -> int:
         target_commit_lines: list[str] = []
         completed_stories: list[dict[str, Any]] = []
 
+        if resolved_final_commit and last_reviewed_commit.strip():
+            if last_reviewed_commit == resolved_final_commit:
+                print(
+                    f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] "
+                    f"Final commit {resolved_final_commit[:7]} already reviewed. Exiting."
+                )
+                return 0
+            if test_commit_is_ancestor_of(repo_root, resolved_final_commit, last_reviewed_commit):
+                print(
+                    f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] "
+                    f"Checkpoint {last_reviewed_commit[:7]} is already beyond final commit {resolved_final_commit[:7]}. Exiting."
+                )
+                return 0
+
         if pending_start_commit.strip():
             pending_lines = get_commit_range_lines(repo_root, pending_start_commit, single_commit=True)
             if not pending_lines:
@@ -1065,20 +1104,26 @@ def main() -> int:
             target_commit_line = pending_lines[0]
             target_commit_lines = [target_commit_line]
         elif not last_reviewed_commit.strip():
-            head_lines = get_commit_range_lines(repo_root, current_head, single_commit=True)
+            head_lines = get_commit_range_lines(repo_root, review_head, single_commit=True)
             if not head_lines:
-                raise RuntimeError(f"Current HEAD commit could not be loaded: {current_head}")
+                raise RuntimeError(f"Review head commit could not be loaded: {review_head}")
             target_commit_line = head_lines[0]
             target_commit_lines = [target_commit_line]
-        elif last_reviewed_commit == current_head:
+        elif last_reviewed_commit == review_head:
+            if resolved_final_commit and final_commit_reached:
+                print(
+                    f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] "
+                    f"Reached final commit {resolved_final_commit[:7]} with no remaining commits. Exiting."
+                )
+                return 0
             print(f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] No new commits. Sleeping {args.poll_seconds} seconds.")
             time.sleep(args.poll_seconds)
             continue
         else:
-            range_value = f"{last_reviewed_commit}..{current_head}"
+            range_value = f"{last_reviewed_commit}..{review_head}"
             commit_lines = get_commit_range_lines(repo_root, range_value)
             matching_commit_lines = get_matching_commit_lines(commit_lines, commit_prefix_to_use)
-            if not matching_commit_lines:
+            if not matching_commit_lines and not (final_commit_reached and resolved_final_commit and commit_lines):
                 print(
                     f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] "
                     f"No new commits matching prefix '{commit_prefix_to_use}'. Sleeping {args.poll_seconds} seconds."
@@ -1091,6 +1136,9 @@ def main() -> int:
             if args.review_every_n_commits > 0 and len(matching_commit_lines) >= args.review_every_n_commits:
                 should_batch_review = True
                 trigger_reasons.append(f"matching commits: {len(matching_commit_lines)}")
+            if final_commit_reached and resolved_final_commit and commit_lines:
+                should_batch_review = True
+                trigger_reasons.append(f"reached final commit: {resolved_final_commit[:7]}")
             if args.review_on_story_completion:
                 completed_stories = get_completed_stories_since(paths["Prd"], last_reviewed_at)
                 if completed_stories:
@@ -1101,7 +1149,7 @@ def main() -> int:
                 single_commit = False
                 scope_label = range_value
                 target_commit_lines = list(commit_lines)
-                target_commit = {"Sha": current_head, "Subject": "range review"}
+                target_commit = {"Sha": review_head, "Subject": "range review"}
                 print(
                     f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] "
                     f"Triggering range review for {range_value} ({', '.join(trigger_reasons)})."
@@ -1137,7 +1185,7 @@ def main() -> int:
         report_extension = "json" if args.use_output_schema else "md"
         report_stem = target_commit["Sha"][:7]
         if not single_commit:
-            report_stem = f"{last_reviewed_commit[:7]}-to-{current_head[:7]}"
+            report_stem = f"{last_reviewed_commit[:7]}-to-{review_head[:7]}"
         report_path = paths["ReportsRoot"] / f"{timestamp}-{report_stem}.{report_extension}"
 
         if single_commit:
@@ -1158,9 +1206,15 @@ def main() -> int:
         if exit_code == 0:
             validation = test_review_report_completeness(report_path, args.use_output_schema)
             if bool(validation.get("IsValid", False)):
-                reviewed_commit = target_commit["Sha"] if single_commit else current_head
+                reviewed_commit = target_commit["Sha"] if single_commit else review_head
                 update_checkpoint_after_review(paths["Checkpoint"], reviewed_commit, report_path)
                 print(f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] Review saved to {report_path}")
+                if resolved_final_commit and reviewed_commit == resolved_final_commit:
+                    print(
+                        f"[{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}] "
+                        f"Reached final commit {resolved_final_commit[:7]} after successful review. Exiting."
+                    )
+                    return 0
             else:
                 validation_log_path = Path(f"{report_path}.validation.log")
                 write_utf8_text_file(validation_log_path, str(validation.get("Message", "")))

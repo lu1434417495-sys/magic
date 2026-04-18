@@ -230,6 +230,9 @@ HeadlessGameTestSession
 
 - 文件：
   - `scripts/utils/world_map_generation_config.gd`
+  - `scripts/utils/world_map_settlement_bundle.gd`
+  - `scripts/utils/world_map_settlement_name_pool.gd`
+  - `scripts/utils/world_map_wild_spawn_bundle.gd`
   - `scripts/utils/settlement_config.gd`
   - `scripts/utils/settlement_distribution_rule.gd`
   - `scripts/utils/facility_config.gd`
@@ -241,12 +244,21 @@ HeadlessGameTestSession
   - `data/configs/world_map/small_world_map_config.tres`
   - `data/configs/world_map/medium_world_map_config.tres`
   - `data/configs/world_map/demo_world_map_config.tres`
+  - `data/configs/world_map/shared/main_world_default_settlement_bundle.tres`
+  - `data/configs/world_map/shared/main_world_settlement_name_pool.tres`
+  - `data/configs/world_map/shared/main_world_town_name_pool.tres`
+  - `data/configs/world_map/shared/main_world_city_name_pool.tres`
+  - `data/configs/world_map/shared/main_world_capital_name_pool.tres`
+  - `data/configs/world_map/shared/main_world_metropolis_name_pool.tres`
+  - `data/configs/world_map/shared/main_world_default_wild_spawn_bundle.tres`
 - 真相源：
-  - 世界尺寸、chunk、玩家视野、程序化生成开关。
-  - 据点模板、设施模板、设施槽位、服务 NPC 模板、野外遭遇规则。
-  - `tres` 资源只负责模板语义；运行时实例 id 由世界生成阶段分配。
+  - `demo/test/small/medium` 这类通用主世界预设只持有世界尺寸、chunk、玩家视野、程序化生成开关与数量参数。
+  - 通用主世界的据点模板、设施模板、设施槽位、服务 NPC 模板由 `main_world_default_settlement_bundle.tres` 持有；默认据点实例展示名由 `main_world_settlement_name_pool.tres` 持有，`template_town` / `template_city` / `template_capital` / `template_metropolis` 分别额外优先使用 `main_world_town_name_pool.tres`、`main_world_city_name_pool.tres`、`main_world_capital_name_pool.tres`、`main_world_metropolis_name_pool.tres`；野外遭遇规则由 `main_world_default_wild_spawn_bundle.tres` 持有。
+  - 世界据点通过 `SettlementConfig.tier = WORLD_STRONGHOLD` 标记，不再单独拆资源。
+  - `ashen_intersection` 这类主题化世界仍可在各自 `tres` 内持有专属模板；运行时实例 id 由世界生成阶段分配。
 - 主要职责：
   - 定义 world spawn 输入资源。
+  - 区分“主世界参数模板”和“共享主世界内容模板”的持有边界。
   - 为登录预设与 `GameSession` 提供 generation config。
 - 邻接单元：
   - CU-01
@@ -276,6 +288,7 @@ HeadlessGameTestSession
   - 据点实例内部对象图与字段解释见 `docs/design/settlement.md` 第 3 节。
 - 主要职责：
   - 生成固定或程序化据点。
+  - 在 `inject_default_main_world_content = true` 时，把共享主世界据点/设施包、默认据点名称池、town / city / capital 专用名称池与共享野怪规则包分别注入到生成链里，再叠加当前 world config 的局部内容。
   - 按模板生成据点实例、设施实例、服务 NPC 实例与 `available_services` 绑定。
   - 注入兜底的共享仓库服务 `interaction_script_id = "party_warehouse"`。
   - 生成玩家开局位置、遭遇锚点、世界事件与挂载子地图定义。

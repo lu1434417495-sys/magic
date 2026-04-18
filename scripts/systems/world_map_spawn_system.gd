@@ -9,6 +9,13 @@ const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const WORLD_EVENT_CONFIG_SCRIPT = preload("res://scripts/utils/world_event_config.gd")
 const MOUNTED_SUBMAP_CONFIG_SCRIPT = preload("res://scripts/utils/mounted_submap_config.gd")
+const DEFAULT_MAIN_WORLD_SETTLEMENT_BUNDLE_PATH := "res://data/configs/world_map/shared/main_world_default_settlement_bundle.tres"
+const DEFAULT_MAIN_WORLD_WILD_SPAWN_BUNDLE_PATH := "res://data/configs/world_map/shared/main_world_default_wild_spawn_bundle.tres"
+const DEFAULT_MAIN_WORLD_SETTLEMENT_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres"
+const DEFAULT_MAIN_WORLD_TOWN_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_town_name_pool.tres"
+const DEFAULT_MAIN_WORLD_CITY_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_city_name_pool.tres"
+const DEFAULT_MAIN_WORLD_CAPITAL_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_capital_name_pool.tres"
+const DEFAULT_MAIN_WORLD_METROPOLIS_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres"
 
 const SERVICE_ACTION_ID_BY_INTERACTION := {
 	"party_warehouse": "service:warehouse",
@@ -53,6 +60,26 @@ var _grid_system
 var _facility_library_by_id: Dictionary = {}
 ## 字段说明：记录按标识索引的聚落资源库，作为查表、序列化和跨系统引用时使用的主键。
 var _settlement_library_by_id: Dictionary = {}
+## 字段说明：缓存当前世界最终生效的设施模板集合，便于统一承接共享内容注入与局部覆盖。
+var _resolved_facility_library: Array = []
+## 字段说明：缓存当前世界最终生效的聚落模板集合，便于统一承接共享内容注入与局部覆盖。
+var _resolved_settlement_library: Array = []
+## 字段说明：缓存当前世界最终生效的野外生成规则集合，便于统一承接共享内容注入与局部覆盖。
+var _resolved_wild_spawn_rules: Array = []
+## 字段说明：缓存本次建图解析出的默认主世界据点/设施共享包，避免同一次建图重复加载共享资源。
+var _default_main_world_settlement_bundle = null
+## 字段说明：缓存本次建图解析出的默认主世界野外生成规则包，避免同一次建图重复加载共享资源。
+var _default_main_world_wild_spawn_bundle = null
+## 字段说明：缓存本次建图可用的默认主世界据点展示名池，保证实例展示名随机且不重复。
+var _remaining_default_main_world_settlement_display_names: Array[String] = []
+## 字段说明：缓存 town 模板专用的默认主世界城镇名池，保证城镇实例展示名使用专门语义且不重复。
+var _remaining_default_main_world_town_display_names: Array[String] = []
+## 字段说明：缓存 city 模板专用的默认主世界城市名池，保证城市实例展示名使用专门语义且不重复。
+var _remaining_default_main_world_city_display_names: Array[String] = []
+## 字段说明：缓存 capital 模板专用的默认主世界主城名池，保证主城实例展示名使用专门语义且不重复。
+var _remaining_default_main_world_capital_display_names: Array[String] = []
+## 字段说明：缓存 metropolis 模板专用的默认主世界都会名池，保证都会实例展示名使用专门语义且不重复。
+var _remaining_default_main_world_metropolis_display_names: Array[String] = []
 
 
 func build_world(generation_config, grid_system) -> Dictionary:
@@ -85,14 +112,24 @@ func build_world(generation_config, grid_system) -> Dictionary:
 func _build_libraries() -> void:
 	_facility_library_by_id.clear()
 	_settlement_library_by_id.clear()
+	_default_main_world_settlement_bundle = _load_default_main_world_settlement_bundle()
+	_default_main_world_wild_spawn_bundle = _load_default_main_world_wild_spawn_bundle()
+	_remaining_default_main_world_settlement_display_names = _build_default_main_world_settlement_display_names()
+	_remaining_default_main_world_town_display_names = _build_default_main_world_town_display_names()
+	_remaining_default_main_world_city_display_names = _build_default_main_world_city_display_names()
+	_remaining_default_main_world_capital_display_names = _build_default_main_world_capital_display_names()
+	_remaining_default_main_world_metropolis_display_names = _build_default_main_world_metropolis_display_names()
+	_resolved_facility_library = _resolve_effective_facility_library()
+	_resolved_settlement_library = _resolve_effective_settlement_library()
+	_resolved_wild_spawn_rules = _resolve_effective_wild_spawn_rules()
 
-	for facility_config in _generation_config.facility_library:
+	for facility_config in _resolved_facility_library:
 		var facility_template_id := _get_facility_template_id(facility_config)
 		if facility_template_id.is_empty():
 			continue
 		_facility_library_by_id[facility_template_id] = facility_config
 
-	for settlement_config in _generation_config.settlement_library:
+	for settlement_config in _resolved_settlement_library:
 		var settlement_template_id := _get_settlement_template_id(settlement_config)
 		if settlement_template_id.is_empty():
 			continue
@@ -195,7 +232,7 @@ func _generate_procedural_settlements() -> Array[Dictionary]:
 func _build_settlement_templates_by_tier() -> Dictionary:
 	var templates_by_tier: Dictionary = {}
 
-	for settlement_config in _generation_config.settlement_library:
+	for settlement_config in _resolved_settlement_library:
 		var tier: int = settlement_config.tier
 		if not templates_by_tier.has(tier):
 			templates_by_tier[tier] = []
@@ -231,10 +268,7 @@ func _create_settlement_instance(
 	instance_counts[template_id] = instance_index
 
 	var settlement_id := _build_settlement_instance_id(template_id, instance_index)
-
-	var display_name: String = settlement_config.display_name
-	if instance_index > 1:
-		display_name = "%s %02d" % [display_name, instance_index]
+	var display_name := _resolve_settlement_display_name(settlement_config, template_id, instance_index)
 
 	var entity_id := "settlement_%s" % settlement_id
 	_grid_system.register_footprint(entity_id, origin, footprint_size)
@@ -588,7 +622,7 @@ func _generate_encounter_anchors(settlements: Array[Dictionary], player_start_co
 		encounter_anchors = _generate_procedural_encounter_anchors(settlement_cells)
 	else:
 		var monster_index := 0
-		for rule in _generation_config.wild_monster_distribution:
+		for rule in _resolved_wild_spawn_rules:
 			for chunk_coord in rule.chunk_coords:
 				for offset in range(max(rule.density_per_chunk, 0)):
 					var spawn_coord := _pick_monster_coord_for_chunk(chunk_coord, rule.min_distance_to_settlement, settlement_cells, offset)
@@ -616,11 +650,11 @@ func _generate_encounter_anchors(settlements: Array[Dictionary], player_start_co
 
 func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -> Array:
 	var encounter_anchors: Array = []
-	if _generation_config.wild_monster_distribution.is_empty():
+	if _resolved_wild_spawn_rules.is_empty():
 		return encounter_anchors
 
-	var north_rule: WildSpawnRule = _generation_config.wild_monster_distribution[0]
-	var south_rule: WildSpawnRule = _generation_config.wild_monster_distribution[min(1, _generation_config.wild_monster_distribution.size() - 1)]
+	var north_rule: WildSpawnRule = _resolved_wild_spawn_rules[0]
+	var south_rule: WildSpawnRule = _resolved_wild_spawn_rules[min(1, _resolved_wild_spawn_rules.size() - 1)]
 	var world_chunks: Vector2i = _generation_config.world_size_in_chunks
 	var midpoint_chunk_y: int = int(world_chunks.y / 2)
 	var monster_index := 0
@@ -669,10 +703,10 @@ func _ensure_starting_wild_encounter(
 		return
 	if not _grid_system.is_cell_inside_world(player_start_coord):
 		return
-	if _generation_config.wild_monster_distribution.is_empty():
+	if _resolved_wild_spawn_rules.is_empty():
 		return
 
-	var rule: WildSpawnRule = _generation_config.wild_monster_distribution[0]
+	var rule: WildSpawnRule = _resolved_wild_spawn_rules[0]
 	var min_distance: int = max(
 		int(_generation_config.starting_wild_spawn_min_distance),
 		int(rule.min_distance_to_settlement)
@@ -772,7 +806,7 @@ func _ensure_default_settlement_encounter(encounter_anchors: Array, settlement_c
 		if existing_anchor.encounter_kind == ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT:
 			return
 
-	for rule in _generation_config.wild_monster_distribution:
+	for rule in _resolved_wild_spawn_rules:
 		if rule == null or rule.monster_template_id != &"wolf_pack":
 			continue
 		for chunk_coord in _build_default_settlement_candidate_chunks(rule):
@@ -814,6 +848,139 @@ func _build_default_settlement_candidate_chunks(rule: WildSpawnRule) -> Array[Ve
 				continue
 			candidate_chunks.append(Vector2i(chunk_x, chunk_y))
 	return candidate_chunks
+
+
+func _resolve_effective_settlement_library() -> Array:
+	var resolved: Array = []
+	var default_bundle = _default_main_world_settlement_bundle
+	if default_bundle != null:
+		resolved.append_array(default_bundle.settlement_library)
+	for settlement_config in _generation_config.settlement_library:
+		resolved.append(settlement_config)
+	return resolved
+
+
+func _resolve_effective_facility_library() -> Array:
+	var resolved: Array = []
+	var default_bundle = _default_main_world_settlement_bundle
+	if default_bundle != null:
+		resolved.append_array(default_bundle.facility_library)
+	for facility_config in _generation_config.facility_library:
+		resolved.append(facility_config)
+	return resolved
+
+
+func _resolve_effective_wild_spawn_rules() -> Array:
+	var resolved: Array = []
+	var default_bundle = _default_main_world_wild_spawn_bundle
+	if default_bundle != null:
+		resolved.append_array(default_bundle.wild_monster_distribution)
+	for rule in _generation_config.wild_monster_distribution:
+		resolved.append(rule)
+	return resolved
+
+
+func _load_default_main_world_settlement_bundle():
+	if _generation_config == null or not bool(_generation_config.inject_default_main_world_content):
+		return null
+	var settlement_bundle = load(DEFAULT_MAIN_WORLD_SETTLEMENT_BUNDLE_PATH)
+	if settlement_bundle == null:
+		push_warning("Unable to load default main-world settlement bundle from %s." % DEFAULT_MAIN_WORLD_SETTLEMENT_BUNDLE_PATH)
+	return settlement_bundle
+
+
+func _load_default_main_world_wild_spawn_bundle():
+	if _generation_config == null or not bool(_generation_config.inject_default_main_world_content):
+		return null
+	var wild_spawn_bundle = load(DEFAULT_MAIN_WORLD_WILD_SPAWN_BUNDLE_PATH)
+	if wild_spawn_bundle == null:
+		push_warning("Unable to load default main-world wild spawn bundle from %s." % DEFAULT_MAIN_WORLD_WILD_SPAWN_BUNDLE_PATH)
+	return wild_spawn_bundle
+
+
+func _build_default_main_world_settlement_display_names() -> Array[String]:
+	return _build_shuffled_display_names_from_pool(
+		DEFAULT_MAIN_WORLD_SETTLEMENT_NAME_POOL_PATH,
+		104729,
+		"default main-world settlement"
+	)
+
+
+func _build_default_main_world_town_display_names() -> Array[String]:
+	return _build_shuffled_display_names_from_pool(
+		DEFAULT_MAIN_WORLD_TOWN_NAME_POOL_PATH,
+		130363,
+		"default main-world town"
+	)
+
+
+func _build_default_main_world_city_display_names() -> Array[String]:
+	return _build_shuffled_display_names_from_pool(
+		DEFAULT_MAIN_WORLD_CITY_NAME_POOL_PATH,
+		155921,
+		"default main-world city"
+	)
+
+
+func _build_default_main_world_capital_display_names() -> Array[String]:
+	return _build_shuffled_display_names_from_pool(
+		DEFAULT_MAIN_WORLD_CAPITAL_NAME_POOL_PATH,
+		181081,
+		"default main-world capital"
+	)
+
+
+func _build_default_main_world_metropolis_display_names() -> Array[String]:
+	return _build_shuffled_display_names_from_pool(
+		DEFAULT_MAIN_WORLD_METROPOLIS_NAME_POOL_PATH,
+		206369,
+		"default main-world metropolis"
+	)
+
+
+func _build_shuffled_display_names_from_pool(resource_path: String, seed_offset: int, warning_label: String) -> Array[String]:
+	var name_pool = _load_default_main_world_settlement_name_pool(resource_path, warning_label)
+	if name_pool == null:
+		return []
+	var unique_names: Array[String] = name_pool.build_unique_display_names()
+	if unique_names.is_empty():
+		return []
+
+	var name_rng := RandomNumberGenerator.new()
+	name_rng.seed = int(_generation_config.seed) + seed_offset
+	for index in range(unique_names.size() - 1, 0, -1):
+		var swap_index := name_rng.randi_range(0, index)
+		var temp_name := unique_names[index]
+		unique_names[index] = unique_names[swap_index]
+		unique_names[swap_index] = temp_name
+	return unique_names
+
+
+func _load_default_main_world_settlement_name_pool(resource_path: String, warning_label: String):
+	if _generation_config == null or not bool(_generation_config.inject_default_main_world_content):
+		return null
+	var name_pool = load(resource_path)
+	if name_pool == null:
+		push_warning("Unable to load %s name pool from %s." % [warning_label, resource_path])
+	return name_pool
+
+
+func _resolve_settlement_display_name(settlement_config, template_id: String, instance_index: int) -> String:
+	if template_id == "template_town" and not _remaining_default_main_world_town_display_names.is_empty():
+		return _remaining_default_main_world_town_display_names.pop_back()
+	if template_id == "template_city" and not _remaining_default_main_world_city_display_names.is_empty():
+		return _remaining_default_main_world_city_display_names.pop_back()
+	if template_id == "template_capital" and not _remaining_default_main_world_capital_display_names.is_empty():
+		return _remaining_default_main_world_capital_display_names.pop_back()
+	if template_id == "template_metropolis" and not _remaining_default_main_world_metropolis_display_names.is_empty():
+		return _remaining_default_main_world_metropolis_display_names.pop_back()
+	if template_id.begins_with("template_") and not _remaining_default_main_world_settlement_display_names.is_empty():
+		return _remaining_default_main_world_settlement_display_names.pop_back()
+
+	var display_name: String = settlement_config.display_name
+	if instance_index > 1:
+		display_name = "%s %02d" % [display_name, instance_index]
+	return display_name
 
 
 func _build_encounter_anchor(
