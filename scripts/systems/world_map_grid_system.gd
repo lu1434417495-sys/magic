@@ -41,18 +41,12 @@ func get_cell(coord: Vector2i):
 	if not is_cell_inside_world(coord):
 		return null
 
-	var cell = WORLD_MAP_CELL_DATA_SCRIPT.new(coord, get_chunk_coord(coord), get_terrain_visual_type(coord))
+	var cell = WORLD_MAP_CELL_DATA_SCRIPT.new(coord, get_chunk_coord(coord))
 	var occupant_state = _get_occupant_state(coord)
 	if occupant_state != null:
 		cell.occupant_id = occupant_state.occupant_id
 		cell.footprint_root_id = occupant_state.footprint_root_id
 	return cell
-
-
-func get_terrain_visual_type(coord: Vector2i) -> String:
-	if not is_cell_inside_world(coord):
-		return ""
-	return _get_default_terrain(coord)
 
 
 func is_cell_inside_world(coord: Vector2i) -> bool:
@@ -66,18 +60,6 @@ func is_cell_walkable(coord: Vector2i) -> bool:
 func get_occupant_root(coord: Vector2i) -> String:
 	var occupant_state = _get_occupant_state(coord)
 	return occupant_state.footprint_root_id if occupant_state != null else ""
-
-
-func get_cells_in_rect(origin: Vector2i, size: Vector2i) -> Array:
-	var cells: Array = []
-
-	for y in range(size.y):
-		for x in range(size.x):
-			var coord := origin + Vector2i(x, y)
-			if is_cell_inside_world(coord):
-				cells.append(get_cell(coord))
-
-	return cells
 
 
 func can_place_footprint(origin: Vector2i, size: Vector2i) -> bool:
@@ -183,16 +165,3 @@ func _get_footprint_state(entity_id: String):
 		_footprints[entity_id] = footprint_state
 		return footprint_state
 	return null
-
-
-func _get_default_terrain(coord: Vector2i) -> String:
-	var midpoint_x: int = max(int(_world_size_cells.x / 2), 1)
-	var midpoint_y: int = max(int(_world_size_cells.y / 2), 1)
-
-	if coord.x < midpoint_x and coord.y < midpoint_y:
-		return "plains"
-	if coord.x >= midpoint_x and coord.y < midpoint_y:
-		return "woods"
-	if coord.x < midpoint_x and coord.y >= midpoint_y:
-		return "steppe"
-	return "highland"
