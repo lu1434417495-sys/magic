@@ -102,28 +102,29 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 12
 
-[node name="DetailsTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+[node name="SectionsScroll" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
-text = "身份信息"
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
-[node name="DetailsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+[node name="SectionsContainer" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/SectionsScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-bbcode_enabled = false
-scroll_active = false
-fit_content = true
-text = "信息"
+theme_override_constants/separation = 12
 
-[node name="StatusTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+[node name="StatusBlock" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="StatusTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/StatusBlock"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
 theme_override_font_sizes/font_size = 20
 text = "当前状态"
 
-[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/StatusBlock"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3

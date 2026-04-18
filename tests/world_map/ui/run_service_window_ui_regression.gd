@@ -3,6 +3,7 @@ extends SceneTree
 const SETTLEMENT_WINDOW_SCENE = preload("res://scenes/ui/settlement_window.tscn")
 const SHOP_WINDOW_SCENE = preload("res://scenes/ui/shop_window.tscn")
 const STAGECOACH_WINDOW_SCENE = preload("res://scenes/ui/stagecoach_window.tscn")
+const CHARACTER_INFO_WINDOW_SCENE = preload("res://scenes/ui/character_info_window.tscn")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 
@@ -17,6 +18,8 @@ func _run() -> void:
 	await _test_settlement_window_routes_all_services_through_action_requested()
 	await _test_shop_window_preserves_confirm_contract_and_left_click_dismiss()
 	await _test_stagecoach_window_preserves_confirm_contract_and_respects_empty_entries()
+	await _test_character_info_window_falls_back_to_legacy_payload()
+	await _test_character_info_window_renders_explicit_sections()
 
 	if _failures.is_empty():
 		print("Service window UI regression: PASS")
@@ -200,6 +203,95 @@ func _test_stagecoach_window_preserves_confirm_contract_and_respects_empty_entri
 	await process_frame
 
 
+func _test_character_info_window_falls_back_to_legacy_payload() -> void:
+	var window = CHARACTER_INFO_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	window.show_character({
+		"display_name": "流浪斥候",
+		"type_label": "世界 NPC",
+		"faction_label": "中立",
+		"coord": Vector2i(4, 9),
+		"status_label": "可见提示单位",
+	})
+	await process_frame
+
+	_assert_eq(window.sections_container.get_child_count(), 1, "旧 payload 应回退为单个身份信息 section。")
+	_assert_eq(window.meta_label.text, "世界 NPC  |  阵营 中立  |  坐标 (4, 9)", "旧 payload 应继续渲染 legacy meta 文案。")
+	_assert_eq(window.status_label.text, "可见提示单位", "旧 payload 应继续渲染 status_label。")
+	_assert_true(window.status_block.visible, "status_label 非空时状态块应保持可见。")
+
+	var rendered_texts := _collect_label_texts(window.sections_container)
+	_assert_true(rendered_texts.has("身份信息"), "旧 payload fallback section 应包含默认标题。")
+	_assert_true(rendered_texts.has("姓名："), "旧 payload fallback section 应包含姓名标签。")
+	_assert_true(rendered_texts.has("流浪斥候"), "旧 payload fallback section 应包含姓名值。")
+	_assert_true(rendered_texts.has("世界 NPC"), "旧 payload fallback section 应包含类型值。")
+	_assert_true(rendered_texts.has("中立"), "旧 payload fallback section 应包含阵营值。")
+	_assert_true(rendered_texts.has("(4, 9)"), "旧 payload fallback section 应包含坐标值。")
+
+	window.queue_free()
+	await process_frame
+
+
+func _test_character_info_window_renders_explicit_sections() -> void:
+	var window = CHARACTER_INFO_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	window.show_character({
+		"display_name": "铁壁卫士",
+		"meta_label": "战斗单位  |  玩家前排",
+		"sections": [
+			{
+				"title": "基础概览",
+				"entries": [
+					{
+						"label": "职业",
+						"value": "守卫",
+					},
+					{
+						"label": "护甲",
+						"value": "12",
+					},
+				],
+			},
+			{
+				"title": "技能摘要",
+				"body": "持盾反击后为相邻友军提供掩护。",
+			},
+			{
+				"title": "装备摘要",
+				"entries": [
+					"塔盾",
+					{
+						"text": "短枪·列阵姿态",
+					},
+				],
+			},
+		],
+		"status_label": "准备格挡",
+	})
+	await process_frame
+
+	_assert_eq(window.sections_container.get_child_count(), 3, "section payload 应按段落逐个渲染。")
+	_assert_eq(window.meta_label.text, "战斗单位  |  玩家前排", "显式 meta_label 应覆盖 legacy meta 拼接。")
+	_assert_eq(window.status_label.text, "准备格挡", "section payload 仍应复用 status_label。")
+
+	var rendered_texts := _collect_label_texts(window.sections_container)
+	_assert_true(rendered_texts.has("基础概览"), "section payload 应渲染基础概览标题。")
+	_assert_true(rendered_texts.has("职业："), "section payload 应渲染 label/value 条目。")
+	_assert_true(rendered_texts.has("守卫"), "section payload 应渲染职业值。")
+	_assert_true(rendered_texts.has("技能摘要"), "section payload 应渲染 body section 标题。")
+	_assert_true(rendered_texts.has("持盾反击后为相邻友军提供掩护。"), "section payload 应渲染 body 文本。")
+	_assert_true(rendered_texts.has("装备摘要"), "section payload 应渲染多种 entry 形态。")
+	_assert_true(rendered_texts.has("塔盾"), "section payload 应渲染字符串 entry。")
+	_assert_true(rendered_texts.has("短枪·列阵姿态"), "section payload 应渲染 text entry。")
+
+	window.queue_free()
+	await process_frame
+
+
 func _make_party_state() -> PartyState:
 	var party_state := PartyState.new()
 	var member_state := PartyMemberState.new()
@@ -228,3 +320,12 @@ func _assert_true(condition: bool, message: String) -> void:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s Expected=%s Actual=%s" % [message, str(expected), str(actual)])
+
+
+func _collect_label_texts(node: Node) -> Array[String]:
+	var texts: Array[String] = []
+	if node is Label:
+		texts.append((node as Label).text)
+	for child in node.get_children():
+		texts.append_array(_collect_label_texts(child))
+	return texts
