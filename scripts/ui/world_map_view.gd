@@ -24,10 +24,39 @@ signal cell_right_clicked(coord: Vector2i)
 @export_range(0, 256, 1) var cell_background_trim := 96
 ## 字段说明：在编辑器中暴露已探索迷雾暗度配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export_range(0.0, 1.0, 0.05) var explored_fog_darkness := 0.45
+## 字段说明：在编辑器中暴露选中框颜色配置，便于在场景层直接调整当前地图焦点高亮。
+@export var selection_outline_color: Color = Color(0.98, 0.9, 0.42, 0.95)
+## 字段说明：在编辑器中暴露世界事件标记主体颜色配置，便于维持主线视觉或做轻量调色。
+@export var world_event_marker_fill_color: Color = Color(0.95, 0.78, 0.28, 0.96)
+## 字段说明：在编辑器中暴露世界事件标记描边颜色配置，便于控制图标边缘对比度。
+@export var world_event_marker_outline_color: Color = Color(0.25, 0.11, 0.02, 1.0)
+## 字段说明：在编辑器中暴露世界事件标记中心点颜色配置，便于控制事件标记层次。
+@export var world_event_marker_center_color: Color = Color(0.32, 0.06, 0.02, 1.0)
+## 字段说明：在编辑器中暴露遭遇锚点外环颜色配置，便于控制敌对遭遇的视觉提示强度。
+@export var encounter_marker_outer_color: Color = Color(0.87, 0.28, 0.23, 0.95)
+## 字段说明：在编辑器中暴露遭遇锚点内核颜色配置，便于维持遭遇图标的中心对比。
+@export var encounter_marker_inner_color: Color = Color(0.15, 0.02, 0.02, 0.95)
+## 字段说明：在编辑器中暴露世界 NPC 标记主体颜色配置，便于区分可交互角色。
+@export var npc_marker_body_color: Color = Color(0.42, 0.77, 0.87, 0.95)
+## 字段说明：在编辑器中暴露世界 NPC 标记高光颜色配置，便于保持头像层次感。
+@export var npc_marker_head_color: Color = Color(0.88, 0.94, 0.98, 1.0)
+## 字段说明：在编辑器中暴露村庄 tier 颜色配置，便于在场景层直接微调据点层级表现。
+@export var village_tier_color: Color = Color(0.57, 0.75, 0.43, 1.0)
+## 字段说明：在编辑器中暴露城镇 tier 颜色配置，便于在场景层直接微调据点层级表现。
+@export var town_tier_color: Color = Color(0.51, 0.7, 0.84, 1.0)
+## 字段说明：在编辑器中暴露城市 tier 颜色配置，便于在场景层直接微调据点层级表现。
+@export var city_tier_color: Color = Color(0.78, 0.63, 0.42, 1.0)
+## 字段说明：在编辑器中暴露主城 tier 颜色配置，便于在场景层直接微调据点层级表现。
+@export var capital_tier_color: Color = Color(0.74, 0.48, 0.76, 1.0)
+## 字段说明：在编辑器中暴露世界据点 tier 颜色配置，便于在场景层直接微调据点层级表现。
+@export var world_stronghold_tier_color: Color = Color(0.9, 0.43, 0.31, 1.0)
+## 字段说明：在编辑器中暴露都会 tier 颜色配置，便于在场景层直接微调据点层级表现。
+@export var metropolis_tier_color: Color = Color(0.95, 0.82, 0.45, 1.0)
+## 字段说明：在编辑器中暴露未知 tier 兜底颜色配置，避免未识别层级退回硬编码。
+@export var fallback_tier_color: Color = Color(0.5, 0.5, 0.5, 1.0)
 
 const WORLD_MAP_FOG_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_fog_system.gd")
 const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.gd")
-const SELECTION_OUTLINE_COLOR := Color(0.98, 0.9, 0.42, 0.95)
 
 ## 字段说明：记录网格系统，作为界面刷新、输入处理和窗口联动的重要依据。
 var _grid_system
@@ -203,8 +232,8 @@ func _draw_mobile_entities(camera_origin: Vector2, visible_rect: Rect2i) -> void
 			continue
 
 		var center := _get_cell_rect_for_origin(coord, camera_origin).get_center()
-		draw_circle(center, cell_size * 0.22, Color(0.87, 0.28, 0.23, 0.95))
-		draw_circle(center, cell_size * 0.12, Color(0.15, 0.02, 0.02, 0.95))
+		draw_circle(center, cell_size * 0.22, encounter_marker_outer_color)
+		draw_circle(center, cell_size * 0.12, encounter_marker_inner_color)
 
 	var npcs: Array = _world_data.get("world_npcs", [])
 	for npc in npcs:
@@ -215,8 +244,8 @@ func _draw_mobile_entities(camera_origin: Vector2, visible_rect: Rect2i) -> void
 			continue
 
 		var center := _get_cell_rect_for_origin(coord, camera_origin).get_center()
-		draw_circle(center, cell_size * 0.18, Color(0.42, 0.77, 0.87, 0.95))
-		draw_circle(center + Vector2(0, -4), cell_size * 0.06, Color(0.88, 0.94, 0.98, 1.0))
+		draw_circle(center, cell_size * 0.18, npc_marker_body_color)
+		draw_circle(center + Vector2(0, -4), cell_size * 0.06, npc_marker_head_color)
 
 
 func _draw_world_event_marker(center: Vector2) -> void:
@@ -227,9 +256,9 @@ func _draw_world_event_marker(center: Vector2) -> void:
 		center + Vector2(0, radius),
 		center + Vector2(-radius, 0),
 	])
-	draw_colored_polygon(diamond, Color(0.95, 0.78, 0.28, 0.96))
-	draw_polyline(diamond + PackedVector2Array([diamond[0]]), Color(0.25, 0.11, 0.02, 1.0), 2.0)
-	draw_circle(center, cell_size * 0.05, Color(0.32, 0.06, 0.02, 1.0))
+	draw_colored_polygon(diamond, world_event_marker_fill_color)
+	draw_polyline(diamond + PackedVector2Array([diamond[0]]), world_event_marker_outline_color, 2.0)
+	draw_circle(center, cell_size * 0.05, world_event_marker_center_color)
 
 
 func _draw_player(camera_origin: Vector2) -> void:
@@ -258,7 +287,7 @@ func _draw_selection(camera_origin: Vector2) -> void:
 	if not _is_coord_visible_in_viewport(_selected_coord, camera_origin):
 		return
 	var rect := _get_cell_rect_for_origin(_selected_coord, camera_origin).grow(-2.0)
-	draw_rect(rect, SELECTION_OUTLINE_COLOR, false, 3.0)
+	draw_rect(rect, selection_outline_color, false, 3.0)
 
 
 func _get_cell_rect_for_origin(coord: Vector2i, camera_origin: Vector2) -> Rect2:
@@ -327,16 +356,16 @@ func _is_coord_visible_in_viewport(coord: Vector2i, camera_origin: Vector2) -> b
 func _get_settlement_color(tier: int) -> Color:
 	match tier:
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.VILLAGE:
-			return Color(0.57, 0.75, 0.43, 1.0)
+			return village_tier_color
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.TOWN:
-			return Color(0.51, 0.7, 0.84, 1.0)
+			return town_tier_color
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.CITY:
-			return Color(0.78, 0.63, 0.42, 1.0)
+			return city_tier_color
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.CAPITAL:
-			return Color(0.74, 0.48, 0.76, 1.0)
+			return capital_tier_color
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.WORLD_STRONGHOLD:
-			return Color(0.9, 0.43, 0.31, 1.0)
+			return world_stronghold_tier_color
 		SETTLEMENT_CONFIG_SCRIPT.SettlementTier.METROPOLIS:
-			return Color(0.95, 0.82, 0.45, 1.0)
+			return metropolis_tier_color
 		_:
-			return Color(0.5, 0.5, 0.5, 1.0)
+			return fallback_tier_color
