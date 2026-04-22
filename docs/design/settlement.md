@@ -27,14 +27,15 @@
 
 据点等级的提升不是同一功能的数值放大，而是**解决问题层级的上升**：
 
-| 等级 | 名称 | 核心定位 | 解决的主要问题 | 玩家体感 |
-|------|------|---------|---------------|---------|
-| 1 | 村 | 野外缓冲点 | 保命、兜底、最低补给 | "弱，但能让我活下去" |
-| 2 | 镇 | 低阶整备闭环 | 修整、交易、低阶成长 | "终于能喘口气并系统整备" |
-| 3 | 城 | 中期分流中心 | 职业线、势力线、专精成长 | "我开始要做路线选择" |
-| 4 | 主城 | 区域中枢 | 政务、外交、研究、区域控制 | "我可以影响一片地区" |
-| 5 | 都会 | 高阶综合枢纽 | 高端运营、重训、顶级交易 | "凡俗层面做到极致优化" |
-| 6 | 世界据点 | 世界级锚点 | 世界移动、法则、神权、轮回、终局威胁 | "我触碰到了世界的支点" |
+
+| 等级 | 名称     | 核心定位     | 解决的主要问题                       | 玩家体感                 |
+| ---- | -------- | ------------ | ------------------------------------ | ------------------------ |
+| 1    | 村       | 野外缓冲点   | 保命、兜底、最低补给                 | "弱，但能让我活下去"     |
+| 2    | 镇       | 低阶整备闭环 | 修整、交易、低阶成长                 | "终于能喘口气并系统整备" |
+| 3    | 城       | 中期分流中心 | 职业线、势力线、专精成长             | "我开始要做路线选择"     |
+| 4    | 主城     | 区域中枢     | 政务、外交、研究、区域控制           | "我可以影响一片地区"     |
+| 5    | 都会     | 高阶综合枢纽 | 高端运营、重训、顶级交易             | "凡俗层面做到极致优化"   |
+| 6    | 世界据点 | 世界级锚点   | 世界移动、法则、神权、轮回、终局威胁 | "我触碰到了世界的支点"   |
 
 ### 2.2 设计红线
 
@@ -48,15 +49,16 @@
 
 当前仓库已有的据点基础设施：
 
-| 组件 | 文件 | 状态 |
-|------|------|------|
-| 据点配置资源 | `SettlementConfig` | 已有 tier enum（含 METROPOLIS），已有 facility_slots / guaranteed / optional |
-| 设施配置资源 | `FacilityConfig` | 已有 min_settlement_tier / allowed_slot_tags / bound_service_npcs |
-| 设施槽位 | `FacilitySlotConfig` | 已有 slot_id / local_coord / slot_tag / required |
-| NPC 配置 | `FacilityNpcConfig` | 已有 npc_id / service_type / interaction_script_id |
-| 据点窗口 | `SettlementWindow` + `.tscn` | 已有左右双栏布局：设施列表 + 服务按钮 |
-| 据点动作执行 | `GameRuntimeSettlementCommandHandler` | 已有 action dispatch / reward enqueue / persist |
-| 世界生成注入 | `WorldMapSpawnSystem` | 已有 fixed / procedural settlement + fallback warehouse |
+
+| 组件         | 文件                                  | 状态                                                                         |
+| ------------ | ------------------------------------- | ---------------------------------------------------------------------------- |
+| 据点配置资源 | `SettlementConfig`                    | 已有 tier enum（含 METROPOLIS），已有 facility_slots / guaranteed / optional |
+| 设施配置资源 | `FacilityConfig`                      | 已有 min_settlement_tier / allowed_slot_tags / bound_service_npcs            |
+| 设施槽位     | `FacilitySlotConfig`                  | 已有 slot_id / local_coord / slot_tag / required                             |
+| NPC 配置     | `FacilityNpcConfig`                   | 已有 npc_id / service_type / interaction_script_id                           |
+| 据点窗口     | `SettlementWindow` + `.tscn`          | 已有左右双栏布局：设施列表 + 服务按钮                                        |
+| 据点动作执行 | `GameRuntimeSettlementCommandHandler` | 已有 action dispatch / reward enqueue / persist                              |
+| 世界生成注入 | `WorldMapSpawnSystem`                 | 已有 fixed / procedural settlement + fallback warehouse                      |
 
 ---
 
@@ -338,22 +340,24 @@ ServiceContext (RefCounted)
 
 #### 常驻行为
 
-| 服务 | service_type | interaction_script_id | 效果 | 成本 | Phase |
-|------|-------------|----------------------|------|------|-------|
-| 歇脚 | 歇脚 | service_rest_basic | 全队恢复 30% HP，移除 fatigued 状态 | 免费 | 0 |
-| 乡野传闻 | 传闻 | service_village_rumor | 揭示当前据点周围 5 格内的 fog_explored | 免费 | 1 |
-| 临时补给 | 补给 | service_basic_supply | 打开补给商店（3~5 种基础消耗品） | 物品价格 | 1 |
-| 避难 | 避难 | service_seek_shelter | 队伍安全结算一次（战后/负重/重伤缓冲） | 免费 | 2 |
-| 最小仓储 | 仓储 | party_warehouse | 打开共享仓库（已有） | 免费 | 0 |
+
+| 服务     | service_type | interaction_script_id | 效果                                   | 成本     | Phase |
+| -------- | ------------ | --------------------- | -------------------------------------- | -------- | ----- |
+| 歇脚     | 歇脚         | service_rest_basic    | 全队恢复 30% HP，移除 fatigued 状态    | 免费     | 0     |
+| 乡野传闻 | 传闻         | service_village_rumor | 揭示当前据点周围 5 格内的 fog_explored | 免费     | 1     |
+| 临时补给 | 补给         | service_basic_supply  | 打开补给商店（3~5 种基础消耗品）       | 物品价格 | 1     |
+| 避难     | 避难         | service_seek_shelter  | 队伍安全结算一次（战后/负重/重伤缓冲） | 免费     | 2     |
+| 最小仓储 | 仓储         | party_warehouse       | 打开共享仓库（已有）                   | 免费     | 0     |
 
 #### 条件行为（Phase 2+）
 
-| 条件行为 | 触发条件 | 效果 |
-|---------|---------|------|
-| 村祭 | 声望 ≥ 20 且未在本轮使用 | 获得一次性 +10% 幸运 buff（下一场战斗） |
-| 民兵求助 | 声望 ≥ 10 | 消耗 50 金换下一场战斗临时 +1 友军 |
-| 难民安置 | 世界事件触发 | 消耗 100 金 + 5 食物，提升据点声望 +10 |
-| 怪物骚扰 | 随机触发 | 接受后触发一次低级遭遇，完成后声望 +5 |
+
+| 条件行为 | 触发条件                  | 效果                                    |
+| -------- | ------------------------- | --------------------------------------- |
+| 村祭     | 声望 ≥ 20 且未在本轮使用 | 获得一次性 +10% 幸运 buff（下一场战斗） |
+| 民兵求助 | 声望 ≥ 10                | 消耗 50 金换下一场战斗临时 +1 友军      |
+| 难民安置 | 世界事件触发              | 消耗 100 金 + 5 食物，提升据点声望 +10  |
+| 怪物骚扰 | 随机触发                  | 接受后触发一次低级遭遇，完成后声望 +5   |
 
 #### 配置资源模板
 
@@ -390,21 +394,23 @@ FacilityConfig (village_hearth):
 
 #### 常驻行为
 
-| 服务 | service_type | interaction_script_id | 效果 | 成本 | Phase |
-|------|-------------|----------------------|------|------|-------|
-| 旅店整备 | 整备 | service_rest_full | 全队恢复 100% HP/MP，清除所有非永久负面状态，推进 1 world_step | 50 金 | 0 |
-| 工坊修整 | 修整 | service_repair_gear | 修复全队装备耐久至满（装备耐久系统落地后） | 按装备等级计费 | 2 |
-| 镇集交易 | 交易 | service_local_trade | 打开交易商店（10~15 种基础装备 + 消耗品） | 物品价格 | 1 |
-| 委托板 | 委托 | service_contract_board | 展示 2~4 个低级委托任务 | 免费接取 | 3 |
-| 驿站换乘 | 驿站 | service_stagecoach | 消耗金币传送到已探索的其他据点 | 10 金/格距离 | 2 |
+
+| 服务     | service_type | interaction_script_id  | 效果                                                           | 成本           | Phase |
+| -------- | ------------ | ---------------------- | -------------------------------------------------------------- | -------------- | ----- |
+| 旅店整备 | 整备         | service_rest_full      | 全队恢复 100% HP/MP，清除所有非永久负面状态，推进 1 world_step | 50 金          | 0     |
+| 工坊修整 | 修整         | service_repair_gear    | 修复全队装备耐久至满（装备耐久系统落地后）                     | 按装备等级计费 | 2     |
+| 镇集交易 | 交易         | service_local_trade    | 打开交易商店（10~15 种基础装备 + 消耗品）                      | 物品价格       | 1     |
+| 委托板   | 委托         | service_contract_board | 展示 2~4 个低级委托任务                                        | 免费接取       | 3     |
+| 驿站换乘 | 驿站         | service_stagecoach     | 消耗金币传送到已探索的其他据点                                 | 10 金/格距离   | 2     |
 
 #### 条件行为（Phase 2+）
 
-| 条件行为 | 触发条件 | 效果 |
-|---------|---------|------|
+
+| 条件行为 | 触发条件             | 效果                              |
+| -------- | -------------------- | --------------------------------- |
 | 商队到访 | 随机每 10 world_step | 限时增加 3~5 种异域物品到交易商店 |
-| 悬赏公告 | 随机 | 指定目标遭遇 +50% 金币奖励 |
-| 季节集市 | 每 30 world_step | 特定品类物品 -20% 价格 |
+| 悬赏公告 | 随机                 | 指定目标遭遇 +50% 金币奖励        |
+| 季节集市 | 每 30 world_step     | 特定品类物品 -20% 价格            |
 
 #### 配置资源模板
 
@@ -487,23 +493,25 @@ FacilityConfig (coach_station):
 
 #### 常驻行为
 
-| 服务 | service_type | interaction_script_id | 效果 | 成本 | Phase |
-|------|-------------|----------------------|------|------|-------|
-| 行会登记 | 行会 | service_join_guild | 开启职业线 / 势力线，解锁高阶委托资格 | 200 金 | 3 |
-| 市场交易 | 交易 | service_city_market | 打开城市商店（20~30 种中高阶装备 + 稀有材料） | 物品价格 | 1 |
-| 鉴定附魔 | 鉴定 | service_identify_relic | 鉴定未知战利品 / 中阶附魔改造 | 100 金/件 | 3 |
-| 城防公署 | 通缉 | service_bounty_registry | 领取通缉任务 / 上报威胁 | 免费 | 3 |
-| 情报网 | 情报 | service_intel_network | 查看区域敌对活跃度 / 商路安全 / 首领线索 | 50 金 | 2 |
-| 招募站 | 招募 | service_recruit_specialist | 招募雇佣兵 / 工匠 / 侦察员加入编队 | 角色价格 | 3 |
+
+| 服务     | service_type | interaction_script_id      | 效果                                          | 成本      | Phase |
+| -------- | ------------ | -------------------------- | --------------------------------------------- | --------- | ----- |
+| 行会登记 | 行会         | service_join_guild         | 开启职业线 / 势力线，解锁高阶委托资格         | 200 金    | 3     |
+| 市场交易 | 交易         | service_city_market        | 打开城市商店（20~30 种中高阶装备 + 稀有材料） | 物品价格  | 1     |
+| 鉴定附魔 | 鉴定         | service_identify_relic     | 鉴定未知战利品 / 中阶附魔改造                 | 100 金/件 | 3     |
+| 城防公署 | 通缉         | service_bounty_registry    | 领取通缉任务 / 上报威胁                       | 免费      | 3     |
+| 情报网   | 情报         | service_intel_network      | 查看区域敌对活跃度 / 商路安全 / 首领线索      | 50 金     | 2     |
+| 招募站   | 招募         | service_recruit_specialist | 招募雇佣兵 / 工匠 / 侦察员加入编队            | 角色价格  | 3     |
 
 #### 条件行为（Phase 3+）
 
-| 条件行为 | 触发条件 | 效果 |
-|---------|---------|------|
-| 派系争端 | 声望分化 | 选择站队，影响城市派系关系和后续任务 |
-| 通缉令 | 声望 ≥ 30 | 出现连续追猎目标，提供更高额奖金 |
-| 城内赛事 | 每 50 world_step | 竞技比武，提供稀有奖品或声望 |
-| 学派争鸣 | 特定知识解锁后 | 触发知识/法术路线事件 |
+
+| 条件行为 | 触发条件         | 效果                                 |
+| -------- | ---------------- | ------------------------------------ |
+| 派系争端 | 声望分化         | 选择站队，影响城市派系关系和后续任务 |
+| 通缉令   | 声望 ≥ 30       | 出现连续追猎目标，提供更高额奖金     |
+| 城内赛事 | 每 50 world_step | 竞技比武，提供稀有奖品或声望         |
+| 学派争鸣 | 特定知识解锁后   | 触发知识/法术路线事件                |
 
 #### 配置资源模板
 
@@ -535,14 +543,15 @@ SettlementConfig:
 
 #### 常驻行为
 
-| 服务 | service_type | interaction_script_id | 效果 | 成本 | Phase |
-|------|-------------|----------------------|------|------|-------|
-| 议政厅 | 法令 | service_issue_regional_edict | 发布区域法令，改变周边运行规则 | 500 金 | 4 |
-| 档案馆 | 研究 | service_unlock_archive | 解锁世界历史 / 解析遗迹 / 弱点研究 | 200 金 | 3 |
-| 外交馆 | 外交 | service_diplomatic_clearance | 调整阵营关系 / 获取通行证 | 300 金 | 4 |
-| 军需总署 | 军需 | service_military_supply | 申请高阶军事补给 | 物品价格 | 3 |
-| 审判/赦免 | 审判 | service_amnesty_review | 消除违法状态 / 影响名望恶名 | 1000 金 | 4 |
-| 精英征召 | 征召 | service_elite_recruitment | 招募地区精英角色 | 角色价格 | 4 |
+
+| 服务      | service_type | interaction_script_id        | 效果                               | 成本     | Phase |
+| --------- | ------------ | ---------------------------- | ---------------------------------- | -------- | ----- |
+| 议政厅    | 法令         | service_issue_regional_edict | 发布区域法令，改变周边运行规则     | 500 金   | 4     |
+| 档案馆    | 研究         | service_unlock_archive       | 解锁世界历史 / 解析遗迹 / 弱点研究 | 200 金   | 3     |
+| 外交馆    | 外交         | service_diplomatic_clearance | 调整阵营关系 / 获取通行证          | 300 金   | 4     |
+| 军需总署  | 军需         | service_military_supply      | 申请高阶军事补给                   | 物品价格 | 3     |
+| 审判/赦免 | 审判         | service_amnesty_review       | 消除违法状态 / 影响名望恶名        | 1000 金  | 4     |
+| 精英征召  | 征召         | service_elite_recruitment    | 招募地区精英角色                   | 角色价格 | 4     |
 
 #### 配置资源模板
 
@@ -579,15 +588,16 @@ SettlementConfig:
 
 #### 常驻行为
 
-| 服务 | service_type | interaction_script_id | 效果 | 成本 | Phase |
-|------|-------------|----------------------|------|------|-------|
-| 大拍卖行 | 拍卖 | service_grand_auction | 高阶装备 / 稀有材料交易 / 限时拍卖 | 物品价格 | 3 |
-| 大师工坊 | 重铸 | service_master_reforge | 终盘锻造 / 词条重铸 / 高阶材料精炼 | 材料 + 金 | 4 |
-| 重训学院 | 重训 | service_respecialize_build | 洗点 / 替换高阶专精方案 | 2000 金 | 3 |
-| 名望剧院 | 名望 | service_manage_reputation | 将名望转化为资源或权限 / 压制恶名 | 金币 | 4 |
-| 跨城商会 | 商路 | service_open_trade_route | 开通商路 / 被动收益 | 1000 金 | 4 |
-| 高端委托 | 传奇委托 | service_legend_contracts | 传奇前置任务 / 顶级护送 / 刺杀 / 回收 | 免费接取 | 4 |
-| 人才中介 | 中介 | service_hire_expert | 雇佣大师级工匠 / 专家 | 角色价格 | 4 |
+
+| 服务     | service_type | interaction_script_id      | 效果                                  | 成本      | Phase |
+| -------- | ------------ | -------------------------- | ------------------------------------- | --------- | ----- |
+| 大拍卖行 | 拍卖         | service_grand_auction      | 高阶装备 / 稀有材料交易 / 限时拍卖    | 物品价格  | 3     |
+| 大师工坊 | 重铸         | service_master_reforge     | 终盘锻造 / 词条重铸 / 高阶材料精炼    | 材料 + 金 | 4     |
+| 重训学院 | 重训         | service_respecialize_build | 洗点 / 替换高阶专精方案               | 2000 金   | 3     |
+| 名望剧院 | 名望         | service_manage_reputation  | 将名望转化为资源或权限 / 压制恶名     | 金币      | 4     |
+| 跨城商会 | 商路         | service_open_trade_route   | 开通商路 / 被动收益                   | 1000 金   | 4     |
+| 高端委托 | 传奇委托     | service_legend_contracts   | 传奇前置任务 / 顶级护送 / 刺杀 / 回收 | 免费接取  | 4     |
+| 人才中介 | 中介         | service_hire_expert        | 雇佣大师级工匠 / 专家                 | 角色价格  | 4     |
 
 #### 配置资源模板
 
@@ -636,31 +646,33 @@ SettlementConfig:
 
 ### 6.3 核心 12 模板总表
 
-| 模板名 | settlement_id | 类别 | 核心方向 | 主设施 | Phase |
-|--------|--------------|------|---------|--------|-------|
-| 辉冠圣城 | sun_crown_sanctuary | 神殿总部 | 净化/神罚/昼域 | sun_throne | 4 |
-| 银夜圣宫 | moon_palace_noctis | 神殿总部 | 占卜/夜路/隐秘 | moon_orrery | 4 |
-| 赤旌战廷 | war_banner_citadel | 神殿总部 | 动员/远征/编成 | war_muster | 4 |
-| 春泽神苑 | verdant_sanctum | 神殿总部 | 生态恢复/治疗 | life_grove | 4 |
-| 万炉神都 | world_forge_metropolis | 神殿总部 | 神器修复/传奇重铸 | world_forge | 4 |
-| 织命高塔 | fate_loom_spire | 神殿总部 | 重掷/预言/命运绑定 | fate_loom | 4 |
-| 万卷环都 | knowledge_ring_city | 神话奇观 | 研究/鉴定/真相 | grand_archive | 3 |
-| 世界树·圣根庭 | world_tree_rootcourt | 神话奇观 | 传送/修复/开路 | world_tree_root | 3 |
-| 界门环城 | gate_ring_hub | 神话奇观 | 传送网络/捷径 | gate_nexus | 3 |
-| 众神议厅 | pantheon_conclave | 神话奇观 | 法则切换/神谕 | pantheon_hall | 4 |
-| 轮回之井 | rebirth_well_nexus | 神话奇观 | 复生/记忆/回滚 | rebirth_well | 4 |
-| 深渊锁链堡 | abyss_chain_fortress | 神话奇观 | 封印/试炼/威胁控制 | abyss_seal | 4 |
+
+| 模板名         | settlement_id          | 类别     | 核心方向           | 主设施          | Phase |
+| -------------- | ---------------------- | -------- | ------------------ | --------------- | ----- |
+| 辉冠圣城       | sun_crown_sanctuary    | 神殿总部 | 净化/神罚/昼域     | sun_throne      | 4     |
+| 银夜圣宫       | moon_palace_noctis     | 神殿总部 | 占卜/夜路/隐秘     | moon_orrery     | 4     |
+| 赤旌战廷       | war_banner_citadel     | 神殿总部 | 动员/远征/编成     | war_muster      | 4     |
+| 春泽神苑       | verdant_sanctum        | 神殿总部 | 生态恢复/治疗      | life_grove      | 4     |
+| 万炉神都       | world_forge_metropolis | 神殿总部 | 神器修复/传奇重铸  | world_forge     | 4     |
+| 织命高塔       | fate_loom_spire        | 神殿总部 | 重掷/预言/命运绑定 | fate_loom       | 4     |
+| 万卷环都       | knowledge_ring_city    | 神话奇观 | 研究/鉴定/真相     | grand_archive   | 3     |
+| 世界树·圣根庭 | world_tree_rootcourt   | 神话奇观 | 传送/修复/开路     | world_tree_root | 3     |
+| 界门环城       | gate_ring_hub          | 神话奇观 | 传送网络/捷径      | gate_nexus      | 3     |
+| 众神议厅       | pantheon_conclave      | 神话奇观 | 法则切换/神谕      | pantheon_hall   | 4     |
+| 轮回之井       | rebirth_well_nexus     | 神话奇观 | 复生/记忆/回滚     | rebirth_well    | 4     |
+| 深渊锁链堡     | abyss_chain_fortress   | 神话奇观 | 封印/试炼/威胁控制 | abyss_seal      | 4     |
 
 ### 6.4 可扩展神系变体（追加 6 模板）
 
-| 模板名 | settlement_id | 神域 | 可复用底稿 |
-|--------|--------------|------|----------|
-| 深潮圣庭 | tide_throne_sanctum | 海神 | 界门环城 + 春泽神苑 |
-| 幽冥神阙 | underworld_shrine | 死神 | 轮回之井 + 万卷环都 |
-| 天秤圣廷 | balance_judgement_court | 审判 | 众神议厅 + 辉冠圣城 |
-| 万门神驿 | ten_thousand_gates_station | 道路 | 界门环城 + 世界树 |
-| 雷穹王座 | storm_sky_throne | 风暴 | 赤旌战廷 + 众神议厅 |
-| 无光圣所 | shadow_vault_sanctum | 阴影 | 银夜圣宫 + 万卷环都 |
+
+| 模板名   | settlement_id              | 神域 | 可复用底稿          |
+| -------- | -------------------------- | ---- | ------------------- |
+| 深潮圣庭 | tide_throne_sanctum        | 海神 | 界门环城 + 春泽神苑 |
+| 幽冥神阙 | underworld_shrine          | 死神 | 轮回之井 + 万卷环都 |
+| 天秤圣廷 | balance_judgement_court    | 审判 | 众神议厅 + 辉冠圣城 |
+| 万门神驿 | ten_thousand_gates_station | 道路 | 界门环城 + 世界树   |
+| 雷穹王座 | storm_sky_throne           | 风暴 | 赤旌战廷 + 众神议厅 |
+| 无光圣所 | shadow_vault_sanctum       | 阴影 | 银夜圣宫 + 万卷环都 |
 
 ---
 
@@ -846,15 +858,17 @@ LeftColumn 增加节点：
 
 **涉及文件**：
 
-| 任务 | 文件 | 改动 |
-|------|------|------|
-| 1. 注册基础设施模板 | `data/configs/world_map/*.tres` 对应的 generation config | 添加 village_hearth / road_inn 的 FacilityConfig 资源 |
-| 2. 实现 service_rest_basic | `scripts/systems/game_runtime_settlement_command_handler.gd` | 在 `on_settlement_action_requested()` 增加 "service_rest_basic" 分支 |
-| 3. 实现 service_rest_full | 同上 | 增加 "service_rest_full" 分支，含扣金/回血/推进逻辑 |
-| 4. 据点窗口反馈增强 | `scripts/ui/settlement_window.gd` | `set_feedback()` 支持多行效果摘要 |
-| 5. 回归测试 | `tests/text_runtime/scenarios/` | 新增 settlement_rest_smoke.txt |
+
+| 任务                       | 文件                                                         | 改动                                                                |
+| -------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| 1. 注册基础设施模板        | `data/configs/world_map/*.tres` 对应的 generation config     | 添加 village_hearth / road_inn 的 FacilityConfig 资源               |
+| 2. 实现 service_rest_basic | `scripts/systems/game_runtime_settlement_command_handler.gd` | 在`on_settlement_action_requested()` 增加 "service_rest_basic" 分支 |
+| 3. 实现 service_rest_full  | 同上                                                         | 增加 "service_rest_full" 分支，含扣金/回血/推进逻辑                 |
+| 4. 据点窗口反馈增强        | `scripts/ui/settlement_window.gd`                            | `set_feedback()` 支持多行效果摘要                                   |
+| 5. 回归测试                | `tests/text_runtime/scenarios/`                              | 新增 settlement_rest_smoke.txt                                      |
 
 **验收标准**：
+
 - 进入村据点，点击"歇脚"，全队 HP 恢复 30%，窗口反馈显示恢复量
 - 进入镇据点，点击"整备"，全队 HP/MP 满，扣 50 金，world_step +1
 - 金币不足时"整备"显示错误消息但不崩溃
@@ -869,18 +883,20 @@ LeftColumn 增加节点：
 
 **涉及文件**：
 
-| 任务 | 文件 | 改动 |
-|------|------|------|
-| 1. 定义 ItemDef 商品价格字段 | `scripts/player/warehouse/item_def.gd` | 增加 `base_price: int` / `sellable: bool` |
-| 2. 实现 ShopWindow UI | `scenes/ui/shop_window.tscn` + `scripts/ui/shop_window.gd` | 新增商店窗口场景 |
-| 3. 实现 SettlementShopService | `scripts/systems/settlement_shop_service.gd` | 新增商店逻辑：初始化库存 / 买 / 卖 / 刷新 |
-| 4. 路由 service_basic_supply / service_local_trade | `game_runtime_settlement_command_handler.gd` | 增加商店交互分支 |
-| 5. 实现 service_village_rumor | 同上 | 调用 WorldMapFogSystem 揭示周围 fog |
-| 6. 商品种子内容 | `data/configs/items/` | 新增 3~5 个基础消耗品 ItemDef |
-| 7. 据点窗口成本提示 | `scripts/ui/settlement_window.gd` | 按钮文案追加 [成本] |
-| 8. 场景接线 | `scenes/main/world_map.tscn` + `scripts/systems/world_map_system.gd` | ShopWindow 挂入场景，信号接线 |
+
+| 任务                                               | 文件                                                                 | 改动                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------- |
+| 1. 定义 ItemDef 商品价格字段                       | `scripts/player/warehouse/item_def.gd`                               | 增加`base_price: int` / `sellable: bool`  |
+| 2. 实现 ShopWindow UI                              | `scenes/ui/shop_window.tscn` + `scripts/ui/shop_window.gd`           | 新增商店窗口场景                          |
+| 3. 实现 SettlementShopService                      | `scripts/systems/settlement_shop_service.gd`                         | 新增商店逻辑：初始化库存 / 买 / 卖 / 刷新 |
+| 4. 路由 service_basic_supply / service_local_trade | `game_runtime_settlement_command_handler.gd`                         | 增加商店交互分支                          |
+| 5. 实现 service_village_rumor                      | 同上                                                                 | 调用 WorldMapFogSystem 揭示周围 fog       |
+| 6. 商品种子内容                                    | `data/configs/items/`                                                | 新增 3~5 个基础消耗品 ItemDef             |
+| 7. 据点窗口成本提示                                | `scripts/ui/settlement_window.gd`                                    | 按钮文案追加 [成本]                       |
+| 8. 场景接线                                        | `scenes/main/world_map.tscn` + `scripts/systems/world_map_system.gd` | ShopWindow 挂入场景，信号接线             |
 
 **验收标准**：
+
 - 村据点可以打开补给商店，显示 3~5 种消耗品
 - 购买后金币扣减、物品进入共享仓库
 - 出售物品获得金币
@@ -896,17 +912,19 @@ LeftColumn 增加节点：
 
 **涉及文件**：
 
-| 任务 | 文件 | 改动 |
-|------|------|------|
-| 1. settlement_runtime_state 数据模型 | `scripts/systems/world_map_spawn_system.gd` | 生成时初始化 settlement_state |
-| 2. settlement_state 序列化 | `scripts/systems/save_serializer.gd` | 序列化 / 反序列化 settlement_state |
-| 3. 驿站传送 service_stagecoach | `game_runtime_settlement_command_handler.gd` | 选择目标据点 → 瞬移 → 扣金 |
-| 4. StagecoachWindow UI | 新增 `scenes/ui/stagecoach_window.tscn` | 显示已探索据点列表 + 费用 + 确认 |
-| 5. 条件行为框架 | `scripts/systems/settlement_condition_system.gd` | 检查触发条件 / 激活 / 冷却管理 |
-| 6. 据点声望存储 | `settlement_runtime_state` | visited / reputation 字段 |
-| 7. 窗口据点状态面板 | `scripts/ui/settlement_window.gd` | LeftColumn 底部显示据点状态 |
+
+| 任务                                 | 文件                                             | 改动                               |
+| ------------------------------------ | ------------------------------------------------ | ---------------------------------- |
+| 1. settlement_runtime_state 数据模型 | `scripts/systems/world_map_spawn_system.gd`      | 生成时初始化 settlement_state      |
+| 2. settlement_state 序列化           | `scripts/systems/save_serializer.gd`             | 序列化 / 反序列化 settlement_state |
+| 3. 驿站传送 service_stagecoach       | `game_runtime_settlement_command_handler.gd`     | 选择目标据点 → 瞬移 → 扣金       |
+| 4. StagecoachWindow UI               | 新增`scenes/ui/stagecoach_window.tscn`           | 显示已探索据点列表 + 费用 + 确认   |
+| 5. 条件行为框架                      | `scripts/systems/settlement_condition_system.gd` | 检查触发条件 / 激活 / 冷却管理     |
+| 6. 据点声望存储                      | `settlement_runtime_state`                       | visited / reputation 字段          |
+| 7. 窗口据点状态面板                  | `scripts/ui/settlement_window.gd`                | LeftColumn 底部显示据点状态        |
 
 **验收标准**：
+
 - 驿站可选已探索的据点，按格距收费并瞬移
 - 据点声望可通过服务增减
 - 条件行为根据条件出现在服务列表中
@@ -918,12 +936,13 @@ LeftColumn 增加节点：
 
 **目标**：3~4 级据点的核心特色服务上线。
 
-| 关键任务 | 说明 |
-|---------|------|
-| 行会系统骨架 | 职业线 / 势力线注册，关联 profession 系统 |
-| 鉴定系统 | 未鉴定物品状态 + 鉴定后揭示真实属性 |
-| 招募系统 | NPC 角色池 → 加入编队 → reserve roster |
-| 情报系统 | 区域敌对活跃度 / 商路安全度的运行时计算 |
+
+| 关键任务     | 说明                                                      |
+| ------------ | --------------------------------------------------------- |
+| 行会系统骨架 | 职业线 / 势力线注册，关联 profession 系统                 |
+| 鉴定系统     | 未鉴定物品状态 + 鉴定后揭示真实属性                       |
+| 招募系统     | NPC 角色池 → 加入编队 → reserve roster                  |
+| 情报系统     | 区域敌对活跃度 / 商路安全度的运行时计算                   |
 | 世界据点首批 | 界门环城 / 万卷环都 / 世界树 的基本传送 + 研究 + 连通服务 |
 
 ---
@@ -932,13 +951,14 @@ LeftColumn 增加节点：
 
 **目标**：主城、都会、世界据点的高阶功能。
 
-| 关键任务 | 说明 |
-|---------|------|
-| 区域法令系统 | 影响周边据点/遭遇的运行规则 |
-| 重训 / 洗点 | 重置 profession / skill 分配 |
-| 拍卖 / 限时交易 | 高阶物品轮换池 |
-| 世界据点 12 模板 | 全部 6 级据点核心服务上线 |
-| 条件行为完整池 | 所有层级的条件行为内容填充 |
+
+| 关键任务         | 说明                         |
+| ---------------- | ---------------------------- |
+| 区域法令系统     | 影响周边据点/遭遇的运行规则  |
+| 重训 / 洗点      | 重置 profession / skill 分配 |
+| 拍卖 / 限时交易  | 高阶物品轮换池               |
+| 世界据点 12 模板 | 全部 6 级据点核心服务上线    |
+| 条件行为完整池   | 所有层级的条件行为内容填充   |
 
 ---
 
@@ -946,16 +966,17 @@ LeftColumn 增加节点：
 
 ### 11.1 修改边界总结
 
-| 现有系统 | Phase 0 改动 | Phase 1 改动 | Phase 2+ 改动 |
-|---------|-------------|-------------|---------------|
-| `GameRuntimeSettlementCommandHandler` | 增加 rest 分支 | 增加 shop/rumor 分支 | 增加 stagecoach/condition 分支 |
-| `SettlementWindow` | feedback 增强 | 按钮成本提示 | 据点状态面板 |
-| `WorldMapSpawnSystem` | 注册新 FacilityConfig | 注册商品数据 | 初始化 settlement_state |
-| `SaveSerializer` | 无改动 | 无改动 | 序列化 settlement_state |
-| `PartyState` | 无改动（用现有 gold / hp） | 无改动 | 无改动 |
-| `ItemDef` | 无改动 | 增加 base_price | 无改动 |
-| `WorldMapFogSystem` | 无改动 | 提供 reveal API | 无改动 |
-| `WorldMapSystem` | 无改动 | ShopWindow 接线 | StagecoachWindow 接线 |
+
+| 现有系统                              | Phase 0 改动               | Phase 1 改动         | Phase 2+ 改动                  |
+| ------------------------------------- | -------------------------- | -------------------- | ------------------------------ |
+| `GameRuntimeSettlementCommandHandler` | 增加 rest 分支             | 增加 shop/rumor 分支 | 增加 stagecoach/condition 分支 |
+| `SettlementWindow`                    | feedback 增强              | 按钮成本提示         | 据点状态面板                   |
+| `WorldMapSpawnSystem`                 | 注册新 FacilityConfig      | 注册商品数据         | 初始化 settlement_state        |
+| `SaveSerializer`                      | 无改动                     | 无改动               | 序列化 settlement_state        |
+| `PartyState`                          | 无改动（用现有 gold / hp） | 无改动               | 无改动                         |
+| `ItemDef`                             | 无改动                     | 增加 base_price      | 无改动                         |
+| `WorldMapFogSystem`                   | 无改动                     | 提供 reveal API      | 无改动                         |
+| `WorldMapSystem`                      | 无改动                     | ShopWindow 接线      | StagecoachWindow 接线          |
 
 ### 11.2 不应触碰的系统
 
@@ -965,16 +986,17 @@ LeftColumn 增加节点：
 
 ### 11.3 经典游戏参考
 
-| 设计要素 | 参考来源 | 取用方式 |
-|---------|---------|---------|
-| 据点分层、服务解锁节奏 | 《火焰纹章：风花雪月》修道院 | 据点等级决定可用服务类型 |
-| 驿站快速移动 | 《暗黑破坏神 2》传送门 / 《博德之门 3》路标 | 已探索据点间消耗金币传送 |
-| 商店库存刷新 | 《暗黑地牢》城镇商店 | 按 world_step 间隔刷新 + 随机池 |
-| 休息恢复与时间推进 | 《博德之门 3》长休 / 《暗黑地牢》酒馆 | 完整休整消耗资源并推进时间 |
-| 传闻 / 情报 | 《巫师 3》公告板 | 揭示地图信息 / 标记任务 |
-| 声望系统 | 《辐射：新维加斯》阵营声望 | 据点级声望影响条件行为和价格 |
-| 条件行为（事件触发） | 《十字军之王 3》事件系统 | 按条件检查激活 / 冷却 / 一次性 |
-| 6 级世界据点 | 《万智牌》多元宇宙锚点 / DnD 神殿 | 稀有 + 唯一 + 世界法则级能力 |
+
+| 设计要素               | 参考来源                                    | 取用方式                        |
+| ---------------------- | ------------------------------------------- | ------------------------------- |
+| 据点分层、服务解锁节奏 | 《火焰纹章：风花雪月》修道院                | 据点等级决定可用服务类型        |
+| 驿站快速移动           | 《暗黑破坏神 2》传送门 / 《博德之门 3》路标 | 已探索据点间消耗金币传送        |
+| 商店库存刷新           | 《暗黑地牢》城镇商店                        | 按 world_step 间隔刷新 + 随机池 |
+| 休息恢复与时间推进     | 《博德之门 3》长休 / 《暗黑地牢》酒馆       | 完整休整消耗资源并推进时间      |
+| 传闻 / 情报            | 《巫师 3》公告板                            | 揭示地图信息 / 标记任务         |
+| 声望系统               | 《辐射：新维加斯》阵营声望                  | 据点级声望影响条件行为和价格    |
+| 条件行为（事件触发）   | 《十字军之王 3》事件系统                    | 按条件检查激活 / 冷却 / 一次性  |
+| 6 级世界据点           | 《万智牌》多元宇宙锚点 / DnD 神殿           | 稀有 + 唯一 + 世界法则级能力    |
 
 ---
 
