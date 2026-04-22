@@ -14,10 +14,17 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_RALPH_SKILLS = [
+DEFAULT_IMPLEMENTATION_SKILLS = [
     "godot-master",
     "algorithm-design",
 ]
+
+DEFAULT_REVIEW_SKILLS = [
+    "code-review",
+]
+
+DEFAULT_IMPLEMENTATION_SANDBOX_MODE = "workspace-write"
+DEFAULT_REVIEW_SANDBOX_MODE = "danger-full-access"
 
 
 def resolve_absolute_path(path: str, allow_missing: bool = False, base_dir: Path | None = None) -> Path:
@@ -49,6 +56,43 @@ def get_resolved_command_path(name: str) -> str:
     if not resolved:
         raise RuntimeError(f"Unable to resolve command path: {name}")
     return resolved
+
+
+def build_command_prefix(resolved_command_path: str) -> list[str]:
+    if resolved_command_path.lower().endswith(".ps1"):
+        return [
+            get_preferred_powershell_command(),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            resolved_command_path,
+        ]
+    return [resolved_command_path]
+
+
+def build_script_command(script_path: Path) -> list[str]:
+    suffix = script_path.suffix.lower()
+    if suffix == ".ps1":
+        return [
+            get_preferred_powershell_command(),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script_path),
+        ]
+    if suffix == ".py":
+        return [sys.executable, str(script_path)]
+    return [str(script_path)]
+
+
+def resolve_checks_path(state_root: Path) -> Path:
+    for candidate_name in ("checks.py", "checks.ps1"):
+        candidate = state_root / candidate_name
+        if candidate.exists():
+            return candidate
+    return state_root / "checks.py"
 
 
 def read_json_file(path: Path) -> dict[str, Any]:
@@ -125,13 +169,17 @@ def get_state_paths(repo_root: Path, state_directory_name: str, prd_path: str = 
 
     runs_root = state_root / "runs"
     runs_root.mkdir(parents=True, exist_ok=True)
+    reviews_root = state_root / "reviews"
+    reviews_root.mkdir(parents=True, exist_ok=True)
 
     return {
         "StateRoot": state_root,
         "RunsRoot": runs_root,
+        "ReviewsRoot": reviews_root,
         "Prd": prd_file_path,
-        "Checks": state_root / "checks.ps1",
+        "Checks": resolve_checks_path(state_root),
         "OutputSchema": state_root / "output_schema.json",
+        "ReviewOutputSchema": state_root / "review_output.schema.json",
     }
 
 
@@ -168,9 +216,16 @@ def ensure_loop_branch(repo_root: Path, state: dict[str, Any]) -> None:
     if current_branch == branch_name:
         return
 
-    result = run_git(["checkout", "-B", branch_name], repo_root)
+    branch_exists = run_git(["rev-parse", "--verify", f"refs/heads/{branch_name}"], repo_root).returncode == 0
+    if branch_exists:
+        result = run_git(["switch", branch_name], repo_root)
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to switch to existing branch: {branch_name}")
+        return
+
+    result = run_git(["switch", "-c", branch_name], repo_root)
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to create or switch branch: {branch_name}")
+        raise RuntimeError(f"Failed to create branch: {branch_name}")
 
 
 def get_max_attempts_per_story(state: dict[str, Any]) -> int:
@@ -312,8 +367,8 @@ def remove_done_stories_from_state(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def render_prompt(story: dict[str, Any], paths: dict[str, Path]) -> str:
-    skill_list = ", ".join(f"${skill}" for skill in DEFAULT_RALPH_SKILLS)
+def render_implementation_prompt(story: dict[str, Any], paths: dict[str, Path]) -> str:
+    skill_list = ", ".join(f"${skill}" for skill in DEFAULT_IMPLEMENTATION_SKILLS)
     story_context = format_story_context(story)
     return f"""Ralph loop run. Work on exactly one story.
 
@@ -326,10 +381,51 @@ Story context:
 
 Return JSON matching the schema:
 - result: done | blocked
-- changed: short summary
-- checks_run: short summary
-- learnings: short summary
+- changed: short implementation summary
+- learnings: short takeaway summary
 """
+
+
+def render_review_prompt(story: dict[str, Any], paths: dict[str, Path], run_id: str) -> str:
+    skill_list = ", ".join(f"${skill}" for skill in DEFAULT_REVIEW_SKILLS)
+    story_context = format_story_context(story)
+    review_schema_path = paths["ReviewOutputSchema"]
+    review_report_base = paths["ReviewsRoot"] / f"{run_id}.review"
+
+    if review_schema_path.exists():
+        report_instructions = (
+            f"Write the complete review report to {review_report_base}.json.\n"
+            f"The report must be exactly one JSON object matching {review_schema_path}."
+        )
+    else:
+        report_instructions = (
+            f"Write the complete review report to {review_report_base}.md in Markdown.\n"
+            "Put findings first, ordered by severity, with concrete file paths and failure modes."
+        )
+
+    return f"""Ralph loop run. Review exactly one story.
+
+Do not edit {paths["Prd"]}; the outer loop owns story state. Default to read-only code inspection unless the story explicitly asks for a fix.
+Focus on findings first: bugs, regressions, missing tests, unsafe assumptions, schema drift, and state inconsistencies.
+Use default skills: {skill_list}.
+read docs/design/project_context_units.md before deep review.
+
+Story context:
+{story_context}
+
+{report_instructions}
+
+Return JSON matching the schema:
+- result: done | blocked
+- changed: report path plus a short findings summary
+- learnings: short residual-risk or follow-up summary
+"""
+
+
+def render_prompt(story: dict[str, Any], paths: dict[str, Path], task_type: str, run_id: str) -> str:
+    if task_type == "review":
+        return render_review_prompt(story, paths, run_id)
+    return render_implementation_prompt(story, paths)
 
 
 def _extract_string(value: Any) -> str:
@@ -677,13 +773,14 @@ def invoke_codex_iteration(
             path.unlink()
 
     codex_command_path = get_resolved_command_path("codex")
+    command_prefix = build_command_prefix(codex_command_path)
     with (
         prompt_path.open("r", encoding="utf-8") as prompt_file,
         events_path.open("w", encoding="utf-8") as events_file,
         stderr_path.open("w", encoding="utf-8") as stderr_file,
     ):
         process = subprocess.Popen(
-            [codex_command_path, *args],
+            [*command_prefix, *args],
             cwd=repo_root,
             stdin=prompt_file,
             stdout=subprocess.PIPE,
@@ -805,22 +902,62 @@ def get_codex_failure_summary(events_path: Path, stderr_path: Path) -> str:
     return f"No structured Codex error details found. events: {events_path}"
 
 
+def validate_structured_review_report(report_path: Path) -> str:
+    if not report_path.exists():
+        return f"Review report file was not created: {report_path}"
+    content = report_path.read_text(encoding="utf-8")
+    if not content.strip():
+        return f"Review report file is empty: {report_path}"
+    try:
+        report = json.loads(content)
+    except json.JSONDecodeError as exc:
+        return f"Review report is not valid JSON. {exc}"
+    if not isinstance(report, dict):
+        return "Review report root is not a JSON object."
+    for required_key in ("passed", "findings", "summary"):
+        if required_key not in report:
+            return f"Review report is missing required key: {required_key}"
+    findings_value = report.get("findings")
+    if not isinstance(findings_value, list):
+        return "Review report findings must be an array."
+    computed_totals = {"critical": 0, "warning": 0, "suggestion": 0}
+    for finding in findings_value:
+        if not isinstance(finding, dict):
+            return "Review report contains a finding that is not an object."
+        for required_field in ("category", "severity", "file", "issue", "fix"):
+            if required_field not in finding or not str(finding[required_field]).strip():
+                return f"Review report finding missing required field: {required_field}"
+        severity = str(finding["severity"])
+        if severity not in {"Critical", "Warning", "Suggestion"}:
+            return f"Review report contains invalid severity value: {severity}"
+        computed_totals[severity.lower()] += 1
+    if bool(report["passed"]) and findings_value:
+        return "Review report cannot set `passed=true` while findings are present."
+    summary = report.get("summary")
+    if not isinstance(summary, dict):
+        return "Review report summary is missing or not an object."
+    totals = summary.get("totals")
+    if not isinstance(totals, dict):
+        return "Review report summary.totals is missing or not an object."
+    for key, expected in computed_totals.items():
+        if key not in totals:
+            return f"Review report summary.totals is missing key: {key}"
+        if int(totals[key]) != expected:
+            return f"Review report summary.totals.{key} does not match findings array."
+    return ""
+
+
 def invoke_checks(
     paths: dict[str, Path],
     repo_root: Path,
     story: dict[str, Any],
     run_id: str,
-    powershell_command: str,
 ) -> dict[str, Any]:
     check_log_path = paths["RunsRoot"] / f"{run_id}.checks.log"
     with check_log_path.open("w", encoding="utf-8") as check_log:
         process = subprocess.run(
             [
-                powershell_command,
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(paths["Checks"]),
+                *build_script_command(paths["Checks"]),
                 "-RepoRoot",
                 str(repo_root),
                 "-StoryId",
@@ -868,6 +1005,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-PrdPath", dest="prd_path", default="")
     # StoryId: 只跑某一个 story；例如 `python tools/run_ralph_loop.py -StoryId PVS_01A`
     parser.add_argument("-StoryId", dest="story_id", default="")
+    # TaskType: 指定是实现 story 还是代码检视 story；例如 `python tools/run_ralph_loop.py -TaskType review`
+    parser.add_argument(
+        "-TaskType",
+        dest="task_type",
+        choices=["implementation", "review"],
+        default="implementation",
+    )
     # CodexModel: 覆盖默认 Codex 模型；例如 `python tools/run_ralph_loop.py -CodexModel gpt-5.4`
     parser.add_argument("-CodexModel", dest="codex_model", default="")
     # CodexSandboxMode: 传给 `codex exec --sandbox` 的模式；例如 `python tools/run_ralph_loop.py -CodexSandboxMode danger-full-access`
@@ -875,13 +1019,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "-CodexSandboxMode",
         dest="codex_sandbox_mode",
         choices=["read-only", "workspace-write", "danger-full-access"],
-        default="workspace-write",
+        default=DEFAULT_IMPLEMENTATION_SANDBOX_MODE,
     )
     # AllowDirtyWorktree: 允许在脏工作树上启动 loop；例如 `python tools/run_ralph_loop.py -AllowDirtyWorktree`
     parser.add_argument("-AllowDirtyWorktree", dest="allow_dirty_worktree", action="store_true")
     # NoCommit: story 完成后不自动 git commit；例如 `python tools/run_ralph_loop.py -NoCommit`
     parser.add_argument("-NoCommit", dest="no_commit", action="store_true")
-    # SkipChecks: 跳过外层 `.ralph/checks.ps1`；例如 `python tools/run_ralph_loop.py -SkipChecks`
+    # SkipChecks: 跳过外层 `.ralph/checks.py`；例如 `python tools/run_ralph_loop.py -SkipChecks`
     parser.add_argument("-SkipChecks", dest="skip_checks", action="store_true")
     # PersistCodexSessions: 不附加 `--ephemeral`，保留 Codex 会话；例如 `python tools/run_ralph_loop.py -PersistCodexSessions`
     parser.add_argument("-PersistCodexSessions", dest="persist_codex_sessions", action="store_true")
@@ -895,9 +1039,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_argument_parser()
     args = parser.parse_args()
+    sandbox_mode_overridden = "-CodexSandboxMode" in sys.argv[1:]
 
     if args.max_iterations < 1 or args.max_iterations > 1000:
         raise RuntimeError("MaxIterations must be between 1 and 1000.")
+
+    effective_codex_sandbox_mode = args.codex_sandbox_mode
+    if args.task_type == "review" and not sandbox_mode_overridden:
+        effective_codex_sandbox_mode = DEFAULT_REVIEW_SANDBOX_MODE
 
     ensure_command_exists("git")
     repo_root = get_repo_root(args.working_directory)
@@ -923,7 +1072,6 @@ def main() -> int:
         return 0
 
     ensure_command_exists("codex")
-    powershell_command = get_preferred_powershell_command()
     assert_loop_files_exist(paths)
 
     if not args.allow_dirty_worktree:
@@ -949,16 +1097,19 @@ def main() -> int:
         update_story_for_attempt(story, run_id)
         write_json_file(state, paths["Prd"])
 
-        print(f"[{iteration}/{args.max_iterations}] story={story.get('id', '')} title={story.get('title', '')}")
+        print(
+            f"[{iteration}/{args.max_iterations}] task={args.task_type} "
+            f"story={story.get('id', '')} title={story.get('title', '')}"
+        )
 
-        prompt_text = render_prompt(story, paths)
+        prompt_text = render_prompt(story, paths, args.task_type, run_id)
         codex_run = invoke_codex_iteration(
             prompt_text=prompt_text,
             repo_root=repo_root,
             paths=paths,
             run_id=run_id,
             model=args.codex_model,
-            sandbox_mode=args.codex_sandbox_mode,
+            sandbox_mode=effective_codex_sandbox_mode,
             persist_sessions=args.persist_codex_sessions,
         )
 
@@ -974,7 +1125,7 @@ def main() -> int:
 
         codex_result = read_codex_result(codex_run["FinalPath"])
         changed_summary = str(codex_result.get("changed", "") or "")
-        checks_summary = str(codex_result.get("checks_run", "") or "")
+        checks_summary = ""
         learnings_summary = str(codex_result.get("learnings", "") or "")
         result_state = str(codex_result.get("result", "") or "")
 
@@ -990,8 +1141,20 @@ def main() -> int:
                 return 1
             continue
 
+        if args.task_type == "review" and paths["ReviewOutputSchema"].exists():
+            review_report_path = paths["ReviewsRoot"] / f"{run_id}.review.json"
+            schema_error = validate_structured_review_report(review_report_path)
+            if schema_error:
+                failure_text = f"Review report schema validation failed: {schema_error}"
+                mark_story_failed(story, max_attempts_per_story, failure_text, "", learnings_summary)
+                write_json_file(state, paths["Prd"])
+                print(f"WARNING: {failure_text}", file=sys.stderr)
+                if not args.continue_after_failure:
+                    return 1
+                continue
+
         if not args.skip_checks:
-            check_run = invoke_checks(paths, repo_root, story, run_id, powershell_command)
+            check_run = invoke_checks(paths, repo_root, story, run_id)
             if int(check_run["ExitCode"]) != 0:
                 failure_text = f"Checks failed. log: {check_run['LogPath']}"
                 mark_story_failed(story, max_attempts_per_story, failure_text, str(check_run["LogPath"]), learnings_summary)

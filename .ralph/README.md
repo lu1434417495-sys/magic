@@ -8,10 +8,12 @@
   Ralph loop 当前要消费的 backlog。默认提供空骨架，真正运行前先填写。
 - `prd.example.json`
   一个贴近本仓库的示例 story，可直接复制到 `prd.json` 后再改。
-- `checks.ps1`
+- `checks.py`
   外层编排器的统一校验入口。默认跑本项目最常用的几条 Godot headless 回归。
 - `output_schema.json`
-  约束 `codex exec --output-schema` 最终输出形状，避免编排器靠脆弱字符串解析。
+  `implementation` 模式的 `codex exec --output-schema` 最终输出约束。
+- `review_loop_output_schema.json`
+  `review` 模式的最小控制输出约束；正式审查内容仍写入 `reviews/` 下的 review 报告文件。
 - `runs/`
   每轮生成的 prompt、Codex JSONL 事件流、最终消息和 checks 日志。已在 `.gitignore` 中忽略。
 
@@ -70,8 +72,10 @@ python tools/run_ralph_loop.py -MaxIterations 5
 常用参数：
 
 - `-StoryId <ID>`：只跑某一个 story
+- `-TaskType <implementation|review>`：切换实现 story prompt 或代码检视 prompt；默认 `implementation`
+- `-CodexSandboxMode <read-only|workspace-write|danger-full-access>`：显式覆写 Codex sandbox；默认 `implementation = workspace-write`，`review = danger-full-access`
 - `-NoCommit`：通过校验后不自动提交
-- `-SkipChecks`：跳过 `.ralph/checks.ps1`
+- `-SkipChecks`：跳过 `.ralph/checks.py`
 - `-CodexModel <MODEL>`：显式指定模型；默认不传，走本机 Codex 默认模型
 - `-PersistCodexSessions`：不传 `--ephemeral`
 - `-AllowDirtyWorktree`：允许在起步时工作树非干净
@@ -81,16 +85,23 @@ python tools/run_ralph_loop.py -MaxIterations 5
 
 ## 默认固定 Skills
 
-当前 loop 会在每轮 prompt 中固定显式带上：
+`implementation` 模式会在每轮 prompt 中固定显式带上：
 
 - `$godot-master`
 - `$algorithm-design`
 
-这属于“把 skill 固定写进全局模板”的做法。要修改默认 skill 列表，直接编辑 [run_ralph_loop.py](</E:/game/magic/tools/run_ralph_loop.py>) 顶部的 `DEFAULT_RALPH_SKILLS`。
+`review` 模式会固定显式带上：
+
+- `$code-review`
+
+同时会使用单独的 review prompt，明确这是“检视任务而不是实现任务”；若状态目录下存在 `review_output.schema.json`，prompt 还会要求把完整 review 报告写到 `reviews/` 目录。
+
+这属于“把 skill 固定写进全局模板”的做法。要修改默认 skill 列表，直接编辑 [run_ralph_loop.py](</E:/game/magic/tools/run_ralph_loop.py>) 顶部的 `DEFAULT_IMPLEMENTATION_SKILLS` / `DEFAULT_REVIEW_SKILLS`。
 
 ## 默认安全策略
 
 - 起步要求工作树干净，避免把 loop 改动和手工改动混在一起。
+- `run_ralph_loop.py` 默认实现任务走 `workspace-write`，代码检视任务走 `danger-full-access`；传 `-CodexSandboxMode` 时以显式参数为准。
 - 默认每轮通过后自动提交；失败时不做 destructive reset。
 - 默认失败即停，让你先检查 dirty worktree，再决定是否继续。
 

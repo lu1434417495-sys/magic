@@ -1,0 +1,7 @@
+interface:
+  display_name: "Brainstorming Manual"
+  short_description: "Manual-only design workflow. Never auto-trigger for implementation tasks."
+  default_prompt: "Use $brainstorming-manual only for brainstorming, comparing approaches, or drafting a spec. Do not implement unless explicitly asked."
+
+policy:
+  allow_implicit_invocation: false

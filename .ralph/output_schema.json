@@ -4,7 +4,6 @@
   "required": [
     "result",
     "changed",
-    "checks_run",
     "learnings"
   ],
   "properties": {
@@ -16,9 +15,6 @@
       ]
     },
     "changed": {
-      "type": "string"
-    },
-    "checks_run": {
       "type": "string"
     },
     "learnings": {
