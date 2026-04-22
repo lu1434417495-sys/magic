@@ -494,7 +494,7 @@ func _test_game_runtime_facade_settlement_victory_downgrades_encounter() -> void
 		return
 
 	encounter_anchor.growth_stage = 3
-	facade._world_data["world_step"] = 4
+	facade.get_world_data()["world_step"] = 4
 	var beast_hide_before_victory := warehouse_service.count_item(&"beast_hide")
 	game_session.set_battle_save_lock(true)
 	facade._start_battle(encounter_anchor)
@@ -543,6 +543,8 @@ func _test_game_runtime_facade_battle_overflow_feedback_surfaces_in_message_and_
 	encounter_anchor.growth_stage = 3
 	game_session.set_battle_save_lock(true)
 	facade._start_battle(encounter_anchor)
+	var confirm_result: Dictionary = facade.command_confirm_battle_start()
+	_assert_true(bool(confirm_result.get("ok", false)), "battle overflow 反馈回归中，开始战斗确认命令应成功返回。")
 	_mark_active_battle_as_player_victory(facade)
 	var resolve_result: Dictionary = facade.command_battle_wait_or_resolve()
 	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())

@@ -7,6 +7,30 @@
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_i5ogj"]
 
 [sub_resource type="Resource" id="Resource_m4wdv"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 1
+effect_target_team_filter = &"ally"
+status_id = &"spellward"
+duration_tu = 60
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_uibw6"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 1
+effect_target_team_filter = &"ally"
+status_id = &"death_ward"
+duration_tu = 60
+params = {
+"damage_tag": "negative_energy",
+"mitigation_tier": "immune"
+}
+
+[sub_resource type="Resource" id="Resource_p4f8j"]
 script = ExtResource("4_o6dpd")
 skill_id = &"mage_spellward"
 target_mode = &"ground"
@@ -15,15 +39,16 @@ area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
+effect_defs = Array[ExtResource("3_mu3ut")]([SubResource("Resource_m4wdv"), SubResource("Resource_uibw6")])
 
 [resource]
 script = ExtResource("5_i5ogj")
 skill_id = &"mage_spellward"
 display_name = "法术结界"
 icon_id = &"mage_spellward"
-description = "在地面建立小型结界；范围内友军承受的法术伤害降低。"
+description = "为范围内友军施加持续 `60 TU` 的结界：法术 / 能量伤害减半，`负能量` 伤害无效。"
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])
-combat_profile = SubResource("Resource_m4wdv")
+combat_profile = SubResource("Resource_p4f8j")

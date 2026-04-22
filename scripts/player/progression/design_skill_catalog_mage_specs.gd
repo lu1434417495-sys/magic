@@ -14,7 +14,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -94,7 +94,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -134,7 +134,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -173,7 +173,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -213,7 +213,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -253,7 +253,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -293,7 +293,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -333,7 +333,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": -5,
 		},
 		"targeting": {
@@ -373,7 +373,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -413,7 +413,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": -10,
 		},
 		"targeting": {
@@ -452,7 +452,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -492,7 +492,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -532,7 +532,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -585,7 +585,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 1,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -625,7 +625,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -711,7 +711,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -751,7 +751,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -791,7 +791,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -831,7 +831,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": -5,
 		},
 		"targeting": {
@@ -871,7 +871,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -911,7 +911,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -951,7 +951,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -991,7 +991,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1022,7 +1022,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1062,7 +1062,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1093,7 +1093,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1133,7 +1133,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1173,7 +1173,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 1,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": -10,
 		},
 		"targeting": {
@@ -1213,7 +1213,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1312,7 +1312,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1352,7 +1352,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1392,7 +1392,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1432,7 +1432,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -1472,7 +1472,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1512,7 +1512,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1552,7 +1552,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1583,7 +1583,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1623,7 +1623,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -1663,7 +1663,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": -5,
 		},
 		"targeting": {
@@ -1703,7 +1703,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1743,7 +1743,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 1,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": -10,
 		},
 		"targeting": {
@@ -1783,7 +1783,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 1,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1823,7 +1823,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1914,7 +1914,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1953,7 +1953,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -1992,7 +1992,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2023,7 +2023,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2062,7 +2062,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2101,7 +2101,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2140,7 +2140,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -2179,7 +2179,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2218,7 +2218,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2267,7 +2267,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2306,7 +2306,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2345,7 +2345,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2384,7 +2384,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2462,7 +2462,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 15,
 		},
 		"targeting": {
@@ -2501,7 +2501,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2540,7 +2540,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -2579,7 +2579,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2618,7 +2618,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -2657,7 +2657,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2688,7 +2688,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2727,7 +2727,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2766,7 +2766,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2797,7 +2797,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2836,7 +2836,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -2875,7 +2875,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2914,7 +2914,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -2953,7 +2953,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -2992,7 +2992,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 1,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": -10,
 		},
 		"targeting": {
@@ -3031,7 +3031,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3062,7 +3062,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3093,7 +3093,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -3132,7 +3132,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3171,7 +3171,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3210,7 +3210,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3241,7 +3241,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -3280,7 +3280,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3311,7 +3311,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3342,7 +3342,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3381,7 +3381,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -3420,7 +3420,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3459,7 +3459,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3498,7 +3498,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3537,7 +3537,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 1,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": -5,
 		},
 		"targeting": {
@@ -3568,7 +3568,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3599,7 +3599,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3639,7 +3639,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3679,7 +3679,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3719,7 +3719,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3758,7 +3758,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3797,7 +3797,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3836,7 +3836,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3867,7 +3867,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3906,7 +3906,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3946,7 +3946,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -3977,7 +3977,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4016,7 +4016,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4055,7 +4055,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4135,7 +4135,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4166,7 +4166,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4197,7 +4197,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4228,7 +4228,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4259,7 +4259,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -4298,7 +4298,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4329,7 +4329,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4360,7 +4360,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4391,7 +4391,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4430,7 +4430,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4461,7 +4461,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4500,7 +4500,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4538,7 +4538,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4569,7 +4569,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 4,
+			"cooldown_tu": 20,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4671,7 +4671,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4711,7 +4711,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -4751,7 +4751,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 1,
+			"cooldown_tu": 5,
 			"hit_rate": 5,
 		},
 		"targeting": {
@@ -4791,7 +4791,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 1,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 10,
 		},
 		"targeting": {
@@ -4822,7 +4822,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4862,7 +4862,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4902,7 +4902,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4942,7 +4942,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -4982,7 +4982,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -5033,7 +5033,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -5073,7 +5073,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 2,
+			"cooldown_tu": 10,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -5113,7 +5113,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 2,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {
@@ -5193,7 +5193,7 @@ const MAGE_SKILL_SPECS: Array[Dictionary] = [
 			"mp_cost": 3,
 			"stamina_cost": 0,
 			"aura_cost": 0,
-			"cooldown_tu": 3,
+			"cooldown_tu": 15,
 			"hit_rate": 0,
 		},
 		"targeting": {

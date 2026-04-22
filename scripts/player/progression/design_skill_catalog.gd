@@ -12,6 +12,7 @@ const CombatCastVariantDef = preload("res://scripts/player/progression/combat_ca
 const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const DESIGN_SKILL_CATALOG_MAGE_SPECS_SCRIPT = preload("res://scripts/player/progression/design_skill_catalog_mage_specs.gd")
+const TU_GRANULARITY := 5
 const LEGACY_GROUND_VARIANT_PATTERNS := {
 	&"single": &"single",
 	&"line2": &"line2",
@@ -72,7 +73,7 @@ func _build_combat_profile_from_catalog_spec(spec: Dictionary) -> CombatSkillDef
 	combat_profile.mp_cost = int(costs.get("mp_cost", 0))
 	combat_profile.stamina_cost = int(costs.get("stamina_cost", 0))
 	combat_profile.aura_cost = int(costs.get("aura_cost", 0))
-	combat_profile.cooldown_tu = int(costs.get("cooldown_tu", 0))
+	combat_profile.cooldown_tu = _normalize_tu_value(int(costs.get("cooldown_tu", 0)), "catalog cooldown_tu")
 	combat_profile.hit_rate = int(costs.get("hit_rate", 0))
 	combat_profile.target_selection_mode = ProgressionDataUtils.to_string_name(targeting.get("target_selection_mode", "single_unit"))
 	combat_profile.min_target_count = int(targeting.get("min_target_count", 1))
@@ -162,9 +163,9 @@ func _build_effect_defs_from_catalog_spec(effect_specs: Array) -> Array[CombatEf
 		if effect_spec.has("trigger_event"):
 			effect_def.trigger_event = ProgressionDataUtils.to_string_name(effect_spec.get("trigger_event", ""))
 		if effect_spec.has("duration_tu"):
-			effect_def.duration_tu = int(effect_spec.get("duration_tu", 0))
+			effect_def.duration_tu = _normalize_tu_value(int(effect_spec.get("duration_tu", 0)), "catalog duration_tu")
 		if effect_spec.has("tick_interval_tu"):
-			effect_def.tick_interval_tu = int(effect_spec.get("tick_interval_tu", 0))
+			effect_def.tick_interval_tu = _normalize_tu_value(int(effect_spec.get("tick_interval_tu", 0)), "catalog tick_interval_tu")
 		if effect_spec.has("stack_behavior"):
 			effect_def.stack_behavior = ProgressionDataUtils.to_string_name(effect_spec.get("stack_behavior", "refresh"))
 		if effect_spec.has("stack_limit"):
@@ -287,7 +288,7 @@ func _build_active_skill(
 	combat_profile.mp_cost = maxi(mp_cost, 0)
 	combat_profile.stamina_cost = maxi(stamina_cost, 0)
 	combat_profile.aura_cost = maxi(aura_cost, 0)
-	combat_profile.cooldown_tu = maxi(cooldown_tu, 0)
+	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "active skill cooldown_tu")
 	combat_profile.hit_rate = hit_rate
 	combat_profile.target_selection_mode = target_selection_mode
 	combat_profile.min_target_count = maxi(min_target_count, 1)
@@ -387,7 +388,7 @@ func _build_status_effect(
 	effect_def.status_id = status_id
 	effect_def.power = maxi(power, 1)
 	if duration > 0:
-		effect_def.duration_tu = duration
+		effect_def.duration_tu = _normalize_tu_value(duration, "status effect duration_tu")
 	if target_team_filter != &"":
 		effect_def.effect_target_team_filter = target_team_filter
 	return effect_def
@@ -488,7 +489,7 @@ func _build_ground_variant_skill(
 	combat_profile.mp_cost = maxi(mp_cost, 0)
 	combat_profile.stamina_cost = maxi(stamina_cost, 0)
 	combat_profile.aura_cost = maxi(aura_cost, 0)
-	combat_profile.cooldown_tu = maxi(cooldown_tu, 0)
+	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "ground variant cooldown_tu")
 	combat_profile.hit_rate = hit_rate
 	combat_profile.cast_variants.clear()
 	for cast_variant_variant in cast_variants:
@@ -496,6 +497,16 @@ func _build_ground_variant_skill(
 		if cast_variant != null:
 			combat_profile.cast_variants.append(cast_variant)
 	return _build_skill(skill_id, display_name, description, &"active", 3, [28, 46, 72], tags, learn_source, [], [], [], combat_profile)
+
+
+func _normalize_tu_value(value: int, field_label: String) -> int:
+	var normalized := maxi(value, 0)
+	if normalized == 0:
+		return 0
+	if normalized % TU_GRANULARITY != 0:
+		push_error("%s must use %d TU steps, got %d." % [field_label, TU_GRANULARITY, normalized])
+		return 0
+	return normalized
 
 
 

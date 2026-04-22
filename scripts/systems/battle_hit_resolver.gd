@@ -12,6 +12,7 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
 const DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT := 3
+const REPEAT_ATTACK_PREVIEW_STAGE_GUARD := 32
 const ATTACK_CHECK_TARGET := 21
 const NATURAL_MISS_ROLL := 1
 const NATURAL_HIT_ROLL := 20
@@ -60,12 +61,15 @@ func build_repeat_attack_preview(
 	target_unit: BattleUnitState,
 	skill_def: SkillDef,
 	repeat_attack_effect: CombatEffectDef,
-	preview_stage_count: int = DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT
+	preview_stage_count: int = -1
 ) -> Dictionary:
 	if active_unit == null or target_unit == null or skill_def == null or repeat_attack_effect == null:
 		return {}
 
-	var normalized_stage_count := maxi(preview_stage_count, 1)
+	var resolved_stage_count := preview_stage_count
+	if resolved_stage_count <= 0:
+		resolved_stage_count = _resolve_repeat_attack_preview_stage_count(active_unit, skill_def, repeat_attack_effect)
+	var normalized_stage_count := mini(maxi(resolved_stage_count, 1), REPEAT_ATTACK_PREVIEW_STAGE_GUARD)
 	var stage_checks: Array[Dictionary] = []
 	var stage_hit_rates: Array[int] = []
 	var stage_required_rolls: Array[int] = []
@@ -216,6 +220,60 @@ func _roll_battle_d20(battle_state: BattleState) -> int:
 	rng.seed = int(roll_seed_source.hash())
 	battle_state.attack_roll_nonce = nonce + 1
 	return rng.randi_range(NATURAL_MISS_ROLL, NATURAL_HIT_ROLL)
+
+
+func _resolve_repeat_attack_preview_stage_count(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	repeat_attack_effect: CombatEffectDef
+) -> int:
+	if active_unit == null or skill_def == null or skill_def.combat_profile == null or repeat_attack_effect == null:
+		return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT
+
+	var params: Dictionary = repeat_attack_effect.params if repeat_attack_effect.params is Dictionary else {}
+	var cost_resource := StringName(params.get("cost_resource", "aura"))
+	var base_cost := _get_repeat_attack_preview_base_cost(skill_def, cost_resource)
+	if base_cost <= 0:
+		return REPEAT_ATTACK_PREVIEW_STAGE_GUARD
+
+	var follow_up_cost_multiplier := maxf(float(params.get("follow_up_cost_multiplier", 1.0)), 1.0)
+	var remaining_resource := _get_unit_resource_value(active_unit, cost_resource)
+	if remaining_resource < base_cost:
+		return 1
+
+	remaining_resource -= base_cost
+	var stages := 1
+	while stages < REPEAT_ATTACK_PREVIEW_STAGE_GUARD:
+		var next_stage_cost := maxi(int(round(float(base_cost) * pow(follow_up_cost_multiplier, stages))), 0)
+		if next_stage_cost > 0 and remaining_resource < next_stage_cost:
+			break
+		remaining_resource -= next_stage_cost
+		stages += 1
+	return stages
+
+
+func _get_repeat_attack_preview_base_cost(skill_def: SkillDef, cost_resource: StringName) -> int:
+	match cost_resource:
+		&"mp":
+			return int(skill_def.combat_profile.mp_cost)
+		&"stamina":
+			return int(skill_def.combat_profile.stamina_cost)
+		&"ap":
+			return int(skill_def.combat_profile.ap_cost)
+		_:
+			return int(skill_def.combat_profile.aura_cost)
+
+
+func _get_unit_resource_value(active_unit: BattleUnitState, cost_resource: StringName) -> int:
+	match cost_resource:
+		&"mp":
+			return int(active_unit.current_mp)
+		&"stamina":
+			return int(active_unit.current_stamina)
+		&"ap":
+			return int(active_unit.current_ap)
+		_:
+			return int(active_unit.current_aura)
 
 
 func _format_repeat_attack_preview_summary(stage_checks: Array[Dictionary]) -> String:

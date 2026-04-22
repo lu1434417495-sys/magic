@@ -24,7 +24,7 @@ duration_tu = 60
 script = ExtResource("4_id5ew")
 skill_id = &"warrior_combo_strike"
 stamina_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 effect_defs = Array[ExtResource("3_wa3jm")]([SubResource("Resource_nnti8"), SubResource("Resource_pc1q2")])
 
 [resource]

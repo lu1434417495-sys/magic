@@ -7,22 +7,35 @@
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_vb56d"]
 
 [sub_resource type="Resource" id="Resource_0xvka"]
+script = ExtResource("3_pcowg")
+effect_type = &"status"
+power = 1
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 60
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_4f2wv"]
 script = ExtResource("4_ml20d")
 skill_id = &"mage_magic_shield"
 target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"
 mp_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_pcowg")]([SubResource("Resource_0xvka")])
 
 [resource]
 script = ExtResource("5_vb56d")
 skill_id = &"mage_magic_shield"
 display_name = "魔力护盾"
 icon_id = &"mage_magic_shield"
-description = "为自身施加基础 `法盾`，是法师站场的最小保障。"
+description = "为自身施加持续 `60 TU` 的护罩，使承受的法术 / 能量伤害减半。"
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])
-combat_profile = SubResource("Resource_0xvka")
+combat_profile = SubResource("Resource_4f2wv")

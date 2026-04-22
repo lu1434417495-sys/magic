@@ -18,7 +18,7 @@ script = ExtResource("4_r37ed")
 skill_id = &"archer_backstep_shot"
 range_value = 4
 stamina_cost = 1
-cooldown_tu = 2
+cooldown_tu = 10
 hit_rate = 5
 effect_defs = Array[ExtResource("3_fjo0d")]([SubResource("Resource_wc65s")])
 

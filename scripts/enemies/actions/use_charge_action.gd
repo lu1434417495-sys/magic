@@ -6,13 +6,24 @@ extends "res://scripts/enemies/enemy_ai_action.gd"
 
 
 func decide(context):
+	var action_trace := _begin_action_trace(context, {
+		"action_kind": "charge",
+		"target_selector": String(target_selector),
+	})
 	var skill_def = _get_skill_def(context, skill_id)
 	if skill_def == null or skill_def.combat_profile == null or skill_def.combat_profile.target_mode != &"ground":
+		_trace_add_block_reason(action_trace, "invalid_charge_skill")
+		_finalize_action_trace(context, action_trace)
 		return null
-	if not _get_skill_cast_block_reason(context, skill_def).is_empty():
+	var block_reason := _get_skill_cast_block_reason(context, skill_def)
+	if not block_reason.is_empty():
+		_trace_add_block_reason(action_trace, block_reason)
+		_finalize_action_trace(context, action_trace)
 		return null
 	var targets = _sort_target_units(context, &"enemy", target_selector)
 	if targets.is_empty():
+		_trace_add_block_reason(action_trace, "no_valid_targets")
+		_finalize_action_trace(context, action_trace)
 		return null
 	var focus_target = targets[0] as BattleUnitState
 	var best_decision = null
@@ -23,6 +34,7 @@ func decide(context):
 			continue
 		for y in range(context.state.map_size.y):
 			for x in range(context.state.map_size.x):
+				_trace_count_increment(action_trace, "evaluation_count", 1)
 				var target_coord = Vector2i(x, y)
 				var charge_info = _resolve_charge_target_info(context.unit_state, target_coord)
 				if not bool(charge_info.get("valid", false)):
@@ -30,9 +42,10 @@ func decide(context):
 				var command = _build_ground_skill_command(context, skill_id, cast_variant.variant_id, [target_coord])
 				var preview = context.preview_command(command)
 				if preview == null or not bool(preview.allowed):
+					_trace_count_increment(action_trace, "preview_reject_count", 1)
 					continue
-				var predicted_anchor: Vector2i = charge_info.get("predicted_anchor", context.unit_state.coord)
-				var predicted_distance = _distance_from_anchor_to_unit(context, context.unit_state, predicted_anchor, focus_target)
+				var resolved_anchor: Vector2i = preview.resolved_anchor_coord if preview.resolved_anchor_coord != Vector2i(-1, -1) else context.unit_state.coord
+				var resolved_distance = _distance_from_anchor_to_unit(context, context.unit_state, resolved_anchor, focus_target)
 				var score_input = _build_skill_score_input(
 					context,
 					skill_def,
@@ -41,11 +54,21 @@ func decide(context):
 					cast_variant.effect_defs,
 					{
 						"position_target_unit": focus_target,
-						"position_anchor_coord": predicted_anchor,
+						"position_anchor_coord": resolved_anchor,
 						"desired_min_distance": 1,
 						"desired_max_distance": 1,
+						"action_label": _format_skill_variant_label(skill_def, cast_variant),
 					}
 				)
+				_trace_offer_candidate(action_trace, _build_candidate_summary(
+					"%s->%s" % [_format_skill_variant_label(skill_def, cast_variant), focus_target.display_name],
+					command,
+					score_input,
+					{
+						"resolved_anchor_coord": resolved_anchor,
+						"resolved_distance": resolved_distance,
+					}
+				))
 				if score_input != null:
 					if not _is_better_skill_score_input(score_input, best_score_input):
 						continue
@@ -60,7 +83,8 @@ func decide(context):
 						]
 					)
 					continue
-				var fallback_score = 1000 - predicted_distance * 100 + int(charge_info.get("distance", 0))
+				var moved_distance = context.grid_service.get_distance(context.unit_state.coord, resolved_anchor) if context.grid_service != null else 0
+				var fallback_score = 1000 - resolved_distance * 100 + moved_distance
 				if fallback_score <= best_fallback_score:
 					continue
 				best_fallback_score = fallback_score
@@ -68,6 +92,7 @@ func decide(context):
 					command,
 					"%s 准备用冲锋逼近 %s。" % [context.unit_state.display_name, focus_target.display_name]
 				)
+	_finalize_action_trace(context, action_trace, best_decision)
 	return best_decision
 
 

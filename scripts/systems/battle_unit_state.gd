@@ -48,6 +48,20 @@ var current_stamina := 0
 var current_aura := 0
 ## 字段说明：记录当前行动点，会参与运行时状态流转、系统协作和存档恢复。
 var current_ap := 0
+## 字段说明：记录当前剩余护盾值，供伤害在进入生命前优先吸收。
+var current_shield_hp := 0
+## 字段说明：记录当前护盾池的原始最大值，供刷新、日志与调试使用。
+var shield_max_hp := 0
+## 字段说明：记录当前护盾剩余持续时间，单位沿用 battle timeline 的 TU。
+var shield_duration := -1
+## 字段说明：记录当前护盾家族键，用于同类护盾刷新与互斥判断。
+var shield_family: StringName = &""
+## 字段说明：记录当前护盾来源单位，供日志和后续扩展使用。
+var shield_source_unit_id: StringName = &""
+## 字段说明：记录当前护盾来源技能，供日志和后续扩展使用。
+var shield_source_skill_id: StringName = &""
+## 字段说明：为护盾扩展表现或附加参数预留字典，M1 不承载核心数值。
+var shield_params: Dictionary = {}
 ## 字段说明：记录当前回合免费移动额度，用于承接击杀刷新等临时机动收益。
 var current_free_move_points := 0
 ## 字段说明：保存行动进度，便于顺序遍历、批量展示、批量运算和整体重建。
@@ -97,8 +111,32 @@ func has_status_effect(status_id: StringName) -> bool:
 	return get_status_effect(status_id) != null
 
 
+func has_shield() -> bool:
+	return current_shield_hp > 0 and shield_max_hp > 0 and shield_duration > 0
+
+
 func get_aura_max() -> int:
 	return attribute_snapshot.get_value(&"aura_max") if attribute_snapshot != null else 0
+
+
+func clear_shield() -> void:
+	current_shield_hp = 0
+	shield_max_hp = 0
+	shield_duration = -1
+	shield_family = &""
+	shield_source_unit_id = &""
+	shield_source_skill_id = &""
+	shield_params = {}
+
+
+func normalize_shield_state() -> void:
+	if current_shield_hp <= 0 or shield_max_hp <= 0 or shield_duration <= 0:
+		clear_shield()
+		return
+	shield_max_hp = maxi(shield_max_hp, 1)
+	current_shield_hp = clampi(current_shield_hp, 0, shield_max_hp)
+	if current_shield_hp <= 0:
+		clear_shield()
 
 
 func get_status_effect(status_id: StringName):
@@ -135,6 +173,7 @@ static func get_footprint_size_for_body_size(size_value: int) -> Vector2i:
 
 func to_dict() -> Dictionary:
 	refresh_footprint()
+	normalize_shield_state()
 	var status_payloads: Dictionary = {}
 	for status_id_str in ProgressionDataUtils.sorted_string_keys(status_effects):
 		var status_id := StringName(status_id_str)
@@ -163,6 +202,13 @@ func to_dict() -> Dictionary:
 		"current_aura": current_aura,
 		"aura_max": get_aura_max(),
 		"current_ap": current_ap,
+		"current_shield_hp": current_shield_hp,
+		"shield_max_hp": shield_max_hp,
+		"shield_duration": shield_duration,
+		"shield_family": String(shield_family),
+		"shield_source_unit_id": String(shield_source_unit_id),
+		"shield_source_skill_id": String(shield_source_skill_id),
+		"shield_params": shield_params.duplicate(true),
 		"current_free_move_points": current_free_move_points,
 		"action_progress": action_progress,
 		"known_active_skill_ids": _string_name_array_to_strings(known_active_skill_ids),
@@ -196,6 +242,13 @@ static func from_dict(data: Dictionary):
 	if data.has("aura_max") and unit_state.attribute_snapshot != null:
 		unit_state.attribute_snapshot.set_value(&"aura_max", maxi(int(data.get("aura_max", 0)), 0))
 	unit_state.current_ap = int(data.get("current_ap", 0))
+	unit_state.current_shield_hp = int(data.get("current_shield_hp", 0))
+	unit_state.shield_max_hp = int(data.get("shield_max_hp", 0))
+	unit_state.shield_duration = int(data.get("shield_duration", -1))
+	unit_state.shield_family = StringName(String(data.get("shield_family", "")))
+	unit_state.shield_source_unit_id = StringName(String(data.get("shield_source_unit_id", "")))
+	unit_state.shield_source_skill_id = StringName(String(data.get("shield_source_skill_id", "")))
+	unit_state.shield_params = data.get("shield_params", {}).duplicate(true) if data.get("shield_params", {}) is Dictionary else {}
 	unit_state.current_free_move_points = int(data.get("current_free_move_points", 0))
 	unit_state.action_progress = int(data.get("action_progress", 0))
 	unit_state.known_active_skill_ids = _strings_to_string_name_array(data.get("known_active_skill_ids", []))
@@ -205,6 +258,7 @@ static func from_dict(data: Dictionary):
 	unit_state.last_turn_tu = int(data.get("last_turn_tu", -1))
 	unit_state.status_effects = _status_effects_from_dict(data.get("status_effects", {}))
 	unit_state.combo_state = data.get("combo_state", {}).duplicate(true)
+	unit_state.normalize_shield_state()
 	unit_state.refresh_footprint()
 	return unit_state
 

@@ -22,7 +22,7 @@ area_pattern = &"line"
 area_value = 4
 ap_cost = 3
 stamina_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 aura_cost = 1
 effect_defs = Array[ExtResource("3_7jk33")]([SubResource("Resource_dbrfq")])
 

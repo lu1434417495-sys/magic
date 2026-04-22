@@ -7,39 +7,81 @@ extends "res://scripts/enemies/enemy_ai_action.gd"
 
 
 func decide(context):
+	var action_trace := _begin_action_trace(context, {
+		"action_kind": "move_to_range",
+		"target_selector": String(target_selector),
+		"desired_min_distance": desired_min_distance,
+		"desired_max_distance": desired_max_distance,
+	})
 	var targets = _sort_target_units(context, &"enemy", target_selector)
 	if targets.is_empty():
+		_trace_add_block_reason(action_trace, "no_valid_targets")
+		_finalize_action_trace(context, action_trace)
 		return null
 	var focus_target = targets[0] as BattleUnitState
-	var current_distance = _distance_between_units(context, context.unit_state, focus_target)
-	var current_score = _distance_band_score(current_distance)
+	var current_score_input = _build_action_score_input(
+		context,
+		&"move",
+		String(action_id),
+		null,
+		null,
+		{
+			"position_target_unit": focus_target,
+			"position_anchor_coord": context.unit_state.coord,
+			"desired_min_distance": desired_min_distance,
+			"desired_max_distance": desired_max_distance,
+			"position_objective_kind": &"distance_band",
+			"move_cost": 0,
+		}
+	)
 	var best_decision = null
-	var best_score = current_score
+	var best_score_input = current_score_input
 	for neighbor in context.grid_service.get_neighbors_4(context.state, context.unit_state.coord):
 		if not context.grid_service.can_traverse(context.state, context.unit_state.coord, neighbor, context.unit_state):
 			continue
+		_trace_count_increment(action_trace, "evaluation_count", 1)
 		var command = _build_move_command(context, neighbor)
 		var preview = context.preview_command(command)
 		if preview == null or not bool(preview.allowed):
+			_trace_count_increment(action_trace, "preview_reject_count", 1)
 			continue
-		var predicted_distance = _distance_from_anchor_to_unit(context, context.unit_state, neighbor, focus_target)
-		var total_score = _distance_band_score(predicted_distance)
-		if total_score <= best_score:
-			continue
-		best_score = total_score
-		best_decision = _create_decision(
+		var score_input = _build_action_score_input(
+			context,
+			&"move",
+			String(action_id),
 			command,
-			"%s 准备调整到距离 %s %d 格。" % [context.unit_state.display_name, focus_target.display_name, predicted_distance]
+			preview,
+			{
+				"position_target_unit": focus_target,
+				"position_anchor_coord": neighbor,
+				"desired_min_distance": desired_min_distance,
+				"desired_max_distance": desired_max_distance,
+				"position_objective_kind": &"distance_band",
+			}
 		)
+		_trace_offer_candidate(action_trace, _build_candidate_summary(
+			"move_to_%d_%d" % [neighbor.x, neighbor.y],
+			command,
+			score_input,
+			{
+				"predicted_distance": score_input.distance_to_primary_coord if score_input != null else -1,
+			}
+		))
+		if not _is_better_skill_score_input(score_input, best_score_input):
+			continue
+		best_score_input = score_input
+		best_decision = _create_scored_decision(
+			command,
+			score_input,
+			"%s 准备调整到距离 %s %d 格（评分 %d）。" % [
+				context.unit_state.display_name,
+				focus_target.display_name,
+				int(score_input.distance_to_primary_coord),
+				int(score_input.total_score),
+			]
+		)
+	_finalize_action_trace(context, action_trace, best_decision)
 	return best_decision
-
-
-func _distance_band_score(distance_value: int) -> int:
-	if distance_value >= desired_min_distance and distance_value <= desired_max_distance:
-		return 1000 - distance_value
-	if distance_value < desired_min_distance:
-		return 500 - (desired_min_distance - distance_value) * 100
-	return 500 - (distance_value - desired_max_distance) * 100
 
 
 func validate_schema() -> Array[String]:

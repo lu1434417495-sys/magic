@@ -15,7 +15,7 @@ area_pattern = &"line"
 area_value = 1
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 
 [resource]
 script = ExtResource("5_p8fxu")

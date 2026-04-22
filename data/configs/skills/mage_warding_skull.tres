@@ -20,7 +20,7 @@ target_mode = &"ground"
 range_value = 4
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 effect_defs = Array[ExtResource("3_k4hop")]([SubResource("Resource_20yh3")])
 
 [resource]

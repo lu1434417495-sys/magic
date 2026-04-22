@@ -29,7 +29,7 @@ area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
 stamina_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 hit_rate = -10
 effect_defs = Array[ExtResource("3_tx6ou")]([SubResource("Resource_03erd"), SubResource("Resource_3p7rt")])
 

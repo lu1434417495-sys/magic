@@ -20,6 +20,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_true_dragon_slash_hits_multiple_units_in_line()
 	_test_shield_bash_reduces_target_ap_on_next_turn()
+	_test_guard_applies_only_guarding_status()
 	_test_guard_reduces_incoming_damage()
 	_test_war_cry_increases_ally_damage()
 	_test_jump_slash_repositions_before_landing_burst()
@@ -136,6 +137,35 @@ func _test_guard_reduces_incoming_damage() -> void:
 	_assert_true(guarded_damage < baseline_damage, "格挡后的承伤应低于未格挡。 baseline=%d guarded=%d" % [baseline_damage, guarded_damage])
 
 
+func _test_guard_applies_only_guarding_status() -> void:
+	var runtime := _build_runtime()
+	var state := _build_skill_test_state(Vector2i(4, 3))
+	var warrior := _build_unit(&"guard_status_user", Vector2i(1, 1), 2)
+	warrior.current_stamina = 3
+	warrior.known_active_skill_ids = [&"warrior_guard"]
+	warrior.known_skill_level_map = {&"warrior_guard": 1}
+	var enemy := _build_unit(&"guard_status_enemy", Vector2i(2, 1), 2)
+	enemy.faction_id = &"enemy"
+
+	_add_unit(runtime, state, warrior)
+	_add_unit(runtime, state, enemy)
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
+
+	var guard_command := BattleCommand.new()
+	guard_command.command_type = BattleCommand.TYPE_SKILL
+	guard_command.unit_id = warrior.unit_id
+	guard_command.skill_id = &"warrior_guard"
+	guard_command.target_unit_id = warrior.unit_id
+	guard_command.target_coord = warrior.coord
+	runtime.issue_command(guard_command)
+
+	_assert_true(warrior.has_status_effect(&"guarding"), "warrior_guard 应正式施加 guarding。")
+	_assert_true(not warrior.has_status_effect(&"damage_reduction_up"), "warrior_guard 不应再顺带施加 damage_reduction_up。")
+
+
 func _test_war_cry_increases_ally_damage() -> void:
 	var baseline_damage := _measure_buffed_ally_strike_damage(false)
 	var buffed_damage := _measure_buffed_ally_strike_damage(true)
@@ -204,6 +234,8 @@ func _test_jump_slash_repositions_before_landing_burst() -> void:
 	blocked_state.enemy_unit_ids = []
 	blocked_state.active_unit_id = blocked_warrior.unit_id
 	blocked_runtime._state = blocked_state
+	var blocked_ap_before := blocked_warrior.current_ap
+	var blocked_stamina_before := blocked_warrior.current_stamina
 
 	var blocked_command := BattleCommand.new()
 	blocked_command.command_type = BattleCommand.TYPE_SKILL
@@ -213,6 +245,15 @@ func _test_jump_slash_repositions_before_landing_burst() -> void:
 
 	var blocked_preview := blocked_runtime.preview_command(blocked_command)
 	_assert_true(blocked_preview != null and not blocked_preview.allowed, "跳斩落点被占据时应禁止施放。")
+	var blocked_batch := blocked_runtime.issue_command(blocked_command)
+	_assert_eq(blocked_warrior.coord, Vector2i(1, 1), "preview 拒绝的跳斩不应强行改变施法者坐标。")
+	_assert_eq(blocked_warrior.current_ap, blocked_ap_before, "preview 拒绝的跳斩不应继续扣除行动点。")
+	_assert_eq(blocked_warrior.current_stamina, blocked_stamina_before, "preview 拒绝的跳斩不应继续扣除体力。")
+	_assert_true(not blocked_batch.changed_unit_ids.has(blocked_warrior.unit_id), "preview 拒绝的跳斩不应把施法者记为已执行变更。")
+	_assert_true(
+		blocked_batch.log_lines.any(func(line): return String(line).contains("跳跃落点")),
+		"preview 拒绝的跳斩应把阻断原因带回 issue_command。 log=%s" % [str(blocked_batch.log_lines)]
+	)
 
 
 func _test_execution_cleave_deals_more_damage_to_low_hp_targets() -> void:
@@ -454,9 +495,9 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tick_interval_seconds = 1.0
-	state.timeline.tu_per_tick = 1
+	state.timeline.tu_per_tick = 5
 	state.timeline.action_threshold = 1000000
-	runtime.advance(float(total_tu))
+	runtime.advance(float(total_tu) / 5.0)
 
 
 func _build_cell(coord: Vector2i) -> BattleCellState:

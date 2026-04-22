@@ -18,7 +18,7 @@ script = ExtResource("4_hqefb")
 skill_id = &"warrior_taunt"
 range_value = 3
 stamina_cost = 1
-cooldown_tu = 2
+cooldown_tu = 10
 effect_defs = Array[ExtResource("3_i3bpm")]([SubResource("Resource_jwxlo")])
 
 [resource]

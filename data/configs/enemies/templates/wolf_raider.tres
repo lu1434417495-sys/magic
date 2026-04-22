@@ -12,7 +12,7 @@ skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 attribute_overrides = {
 "hp_max": 26,
 "mp_max": 0,
-"stamina_max": 0,
+"stamina_max": 3,
 "action_points": 2,
 "physical_attack": 8,
 "physical_defense": 3,

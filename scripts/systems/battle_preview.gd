@@ -13,5 +13,9 @@ var log_lines: Array[String] = []
 var target_unit_ids: Array[StringName] = []
 ## 字段说明：保存目标坐标列表，供范围判定、占位刷新、批量渲染或目标选择复用。
 var target_coords: Array[Vector2i] = []
+## 字段说明：保存正式 preview 解析出的施法者实际停点；仅对会移动施法者的技能生效，供 AI 评分与测试复用同一运行时口径。
+var resolved_anchor_coord: Vector2i = Vector2i(-1, -1)
+## 字段说明：保存移动类指令的正式行动点消耗，供 AI 评分、simulation report 与 headless 回归复用。
+var move_cost := 0
 ## 字段说明：保存当前技能的命中预览摘要，便于 HUD、snapshot 与测试复用同一套解析结果。
 var hit_preview: Dictionary = {}

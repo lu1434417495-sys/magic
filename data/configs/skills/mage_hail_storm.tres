@@ -23,7 +23,7 @@ area_pattern = &"radius"
 area_value = 2
 ap_cost = 3
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 hit_rate = -5
 effect_defs = Array[ExtResource("3_1o33i")]([SubResource("Resource_aqnip")])
 

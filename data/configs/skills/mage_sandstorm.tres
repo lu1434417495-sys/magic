@@ -22,7 +22,7 @@ area_pattern = &"radius"
 area_value = 2
 ap_cost = 3
 mp_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 effect_defs = Array[ExtResource("3_3034b")]([SubResource("Resource_bq4fp")])
 
 [resource]

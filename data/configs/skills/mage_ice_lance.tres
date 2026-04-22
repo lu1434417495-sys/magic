@@ -26,7 +26,7 @@ script = ExtResource("4_qybtb")
 skill_id = &"mage_ice_lance"
 range_value = 5
 mp_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 effect_defs = Array[ExtResource("3_tryl1")]([SubResource("Resource_0ail2"), SubResource("Resource_miglw")])
 
 [resource]

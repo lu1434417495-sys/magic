@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_scenario_def.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_unit_spec.gd" id="2_unit"]
+
+[sub_resource type="Resource" id="Resource_player_vanguard"]
+script = ExtResource("2_unit")
+unit_id = &"player_vanguard_ai"
+display_name = "先锋斗士"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(0, 1)
+current_hp = 48
+current_stamina = 3
+current_ap = 2
+attribute_overrides = {
+"hp_max": 48,
+"stamina_max": 3,
+"action_points": 2,
+"physical_attack": 11,
+"physical_defense": 5,
+"magic_attack": 0,
+"magic_defense": 3,
+"speed": 11
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[sub_resource type="Resource" id="Resource_enemy_harrier"]
+script = ExtResource("2_unit")
+unit_id = &"enemy_harrier_ai"
+display_name = "猎压弓手"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"ranged_suppressor"
+ai_state_id = &"pressure"
+coord = Vector2i(5, 1)
+current_hp = 42
+current_mp = 20
+current_stamina = 20
+current_ap = 2
+attribute_overrides = {
+"hp_max": 42,
+"mp_max": 20,
+"stamina_max": 20,
+"action_points": 2,
+"physical_attack": 11,
+"physical_defense": 3,
+"magic_attack": 6,
+"magic_defense": 3,
+"speed": 10
+}
+skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
+skill_level_map = {
+"archer_suppressive_fire": 1,
+"archer_pinning_shot": 1
+}
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"ai_vs_ai_duel_example"
+display_name = "AI vs AI Duel Example"
+description = "用于验证 player/hostile 双方都由 AI 驱动时的整场战斗模拟。"
+map_size = Vector2i(6, 3)
+ally_units = Array[Resource]([SubResource("Resource_player_vanguard")])
+enemy_units = Array[Resource]([SubResource("Resource_enemy_harrier")])
+tick_interval_seconds = 1.0
+tu_per_tick = 5
+action_threshold = 120
+max_iterations = 120
+seeds = PackedInt32Array(301, 302)

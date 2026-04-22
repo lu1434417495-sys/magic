@@ -19,7 +19,7 @@ skill_id = &"mage_phantasmal_blade"
 range_value = 5
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 1
+cooldown_tu = 5
 hit_rate = 10
 effect_defs = Array[ExtResource("3_bu1eq")]([SubResource("Resource_03476")])
 

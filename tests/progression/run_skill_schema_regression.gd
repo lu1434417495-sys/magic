@@ -16,7 +16,6 @@ const OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS: Array[StringName] = [
 	&"warrior_jump_slash",
 	&"warrior_backstep",
 	&"warrior_guard",
-	&"warrior_shield_wall",
 	&"warrior_battle_recovery",
 	&"warrior_shield_bash",
 	&"warrior_taunt",
@@ -26,6 +25,9 @@ const OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS: Array[StringName] = [
 	&"warrior_aura_slash",
 	&"warrior_whirlwind_slash",
 	&"saint_blade_combo",
+]
+const OFFICIAL_PRIEST_RESOURCE_SKILL_IDS: Array[StringName] = [
+	&"priest_aid",
 ]
 const OFFICIAL_ARCHER_RESOURCE_SKILL_IDS: Array[StringName] = [
 	&"archer_aimed_shot",
@@ -94,6 +96,7 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 
 	_assert_true(registry.validate().is_empty(), "SkillContentRegistry 的正式技能资源当前不应报告校验错误。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
+	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
 	_assert_resource_backed_skill_ids(skill_defs, _build_mage_catalog_skill_ids(), &"mage", "法师")
 	_assert_true(skill_defs.has(&"warrior_heavy_strike"), "SkillContentRegistry 应扫描到已迁移的重击资源。")
@@ -122,6 +125,7 @@ func _test_progression_registry_keeps_skill_resource_and_compat_bridge() -> void
 
 	_assert_true(registry.validate().is_empty(), "ProgressionContentRegistry 接入 skill resource 后仍应通过静态校验。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
+	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
 	_assert_resource_backed_skill_ids(skill_defs, _build_mage_catalog_skill_ids(), &"mage", "法师")
 	_assert_true(heavy_strike != null, "ProgressionContentRegistry 应暴露已迁移的重击资源。")

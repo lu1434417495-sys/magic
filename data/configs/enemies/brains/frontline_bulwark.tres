@@ -19,6 +19,9 @@ script = ExtResource("4_unit")
 action_id = &"vanguard_taunt_open"
 skill_ids = Array[StringName]([&"warrior_taunt"])
 target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_engage_move"]
 script = ExtResource("5_move")
@@ -41,12 +44,18 @@ script = ExtResource("4_unit")
 action_id = &"vanguard_shield_bash"
 skill_ids = Array[StringName]([&"warrior_shield_bash"])
 target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_pressure_taunt"]
 script = ExtResource("4_unit")
 action_id = &"vanguard_taunt_pressure"
 skill_ids = Array[StringName]([&"warrior_taunt"])
 target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_pressure_move"]
 script = ExtResource("5_move")
@@ -63,8 +72,12 @@ actions = Array[Resource]([SubResource("Action_pressure_bash"), SubResource("Act
 [sub_resource type="Resource" id="Action_support_guard"]
 script = ExtResource("4_unit")
 action_id = &"vanguard_guard_self"
+score_bucket_id = &"frontline_guard"
 skill_ids = Array[StringName]([&"warrior_guard"])
 target_selector = &"self"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"enemy_frontline"
 
 [sub_resource type="Resource" id="State_support"]
 script = ExtResource("2_state")
@@ -74,8 +87,12 @@ actions = Array[Resource]([SubResource("Action_support_guard"), SubResource("Act
 [sub_resource type="Resource" id="Action_retreat_guard"]
 script = ExtResource("4_unit")
 action_id = &"vanguard_guard_retreat"
+score_bucket_id = &"frontline_guard"
 skill_ids = Array[StringName]([&"warrior_guard"])
 target_selector = &"self"
+desired_min_distance = 2
+desired_max_distance = 2
+distance_reference = &"enemy_frontline"
 
 [sub_resource type="Resource" id="Action_retreat_move"]
 script = ExtResource("7_retreat")

@@ -21,7 +21,7 @@ range_value = 4
 area_pattern = &"line"
 area_value = 1
 stamina_cost = 1
-cooldown_tu = 2
+cooldown_tu = 10
 effect_defs = Array[ExtResource("3_gvhgx")]([SubResource("Resource_wfubx")])
 
 [resource]

@@ -18,7 +18,6 @@ script = ExtResource("3_3q1il")
 effect_type = &"repeat_attack_until_fail"
 params = {
 "base_hit_rate": 0,
-"consume_cost_on_attempt": true,
 "cost_resource": "aura",
 "damage_multiplier_stage": "pre_resistance",
 "follow_up_cost_multiplier": 2,
@@ -34,7 +33,7 @@ params = {
 script = ExtResource("4_d6vy7")
 skill_id = &"saint_blade_combo"
 ap_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 aura_cost = 1
 effect_defs = Array[ExtResource("3_3q1il")]([SubResource("Resource_8n2oj"), SubResource("Resource_ndvel")])
 

@@ -19,7 +19,7 @@ target_team_filter = &"ally"
 range_value = 3
 ap_cost = 2
 mp_cost = 3
-cooldown_tu = 4
+cooldown_tu = 20
 effect_defs = Array[ExtResource("3_ayp6q")]([SubResource("Resource_j76ly")])
 
 [resource]

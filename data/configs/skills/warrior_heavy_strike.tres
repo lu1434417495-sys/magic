@@ -25,7 +25,7 @@ script = ExtResource("2_combat")
 skill_id = &"warrior_heavy_strike"
 ap_cost = 2
 stamina_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_luwcv"), SubResource("Resource_eju8k")])
 
 [resource]

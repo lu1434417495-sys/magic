@@ -18,7 +18,7 @@ script = ExtResource("4_i75ye")
 skill_id = &"warrior_aura_slash"
 range_value = 3
 ap_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 aura_cost = 1
 effect_defs = Array[ExtResource("3_26q4l")]([SubResource("Resource_gq0mt")])
 

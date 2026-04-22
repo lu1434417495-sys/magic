@@ -23,7 +23,7 @@ area_pattern = &"line"
 area_value = 1
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 1
+cooldown_tu = 5
 effect_defs = Array[ExtResource("3_0r67f")]([SubResource("Resource_u6q67")])
 
 [resource]

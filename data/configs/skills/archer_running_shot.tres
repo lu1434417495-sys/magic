@@ -18,7 +18,7 @@ script = ExtResource("4_5qwi3")
 skill_id = &"archer_running_shot"
 range_value = 4
 stamina_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 hit_rate = -5
 effect_defs = Array[ExtResource("3_iu5td")]([SubResource("Resource_phqav")])
 

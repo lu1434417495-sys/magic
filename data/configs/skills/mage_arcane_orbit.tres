@@ -21,7 +21,7 @@ range_value = 0
 area_pattern = &"self"
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 target_selection_mode = &"self"
 effect_defs = Array[ExtResource("3_6ifg5")]([SubResource("Resource_dd4u8")])
 

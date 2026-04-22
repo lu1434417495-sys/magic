@@ -101,8 +101,8 @@ func _test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_set
 		"圣剑连斩应在 Aura 不足时停止追击。"
 	)
 	_assert_true(
-		bool(repeat_effect.params.get("consume_cost_on_attempt", false)),
-		"圣剑连斩应在每次尝试时消费资源。"
+		not repeat_effect.params.has("consume_cost_on_attempt"),
+		"圣剑连斩的追击扣费语义已固定为每次尝试扣费，不应再暴露 consume_cost_on_attempt 配置。"
 	)
 	_assert_true(
 		bool(repeat_effect.params.get("stop_on_target_down", false)),
@@ -208,7 +208,7 @@ func _test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful
 	_assert_eq(warrior.current_aura, 0, "圣剑连斩在前两段命中后应扣除 1 + 2 点 Aura。")
 	_assert_true(enemy.current_hp <= hp_before - 36, "圣剑连斩应至少完成两段伤害。 before=%d after=%d" % [hp_before, enemy.current_hp])
 	_assert_true(warrior.cooldowns.has(&"saint_blade_combo"), "圣剑连斩整次技能应只写入一次冷却。")
-	_assert_eq(int(warrior.cooldowns.get(&"saint_blade_combo", 0)), 3, "圣剑连斩冷却值应保持基础配置。")
+	_assert_eq(int(warrior.cooldowns.get(&"saint_blade_combo", 0)), 15, "圣剑连斩冷却值应保持基础配置。")
 	_assert_true(
 		batch != null and batch.log_lines.any(func(line): return String(line).contains("斗气不足")),
 		"圣剑连斩 Aura 不足时应记录终止原因。 log=%s" % [str(batch.log_lines)]
@@ -261,11 +261,11 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 	var command := _build_unit_skill_command(warrior.unit_id, &"saint_blade_combo", enemy)
 	var preview := runtime.preview_command(command)
 	var stage_preview_texts := preview.hit_preview.get("stage_preview_texts", []) as Array
-	_assert_eq(stage_preview_texts.size(), 3, "圣剑连斩预览应暴露三段 shared resolver 文案。")
+	_assert_eq(stage_preview_texts.size(), 2, "圣剑连斩预览应按当前 Aura 暴露可支付的 shared resolver 文案。")
 	_assert_eq(
 		preview.hit_preview.get("stage_required_rolls", []),
-		[2, 3, 5],
-		"命中预览应把 100 命中/0 闪避夹具换算为 d20 required roll。"
+		[2, 3],
+		"命中预览应按当前 Aura 上限把 100 命中/0 闪避夹具换算为 d20 required roll。"
 	)
 	var batch := runtime.issue_command(command)
 	_assert_eq(warrior.current_aura, 0, "圣剑连斩第二段即使未命中也应扣除尝试所需 Aura。")

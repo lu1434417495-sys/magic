@@ -19,7 +19,7 @@ skill_id = &"warrior_backstep"
 target_team_filter = &"ally"
 range_value = 0
 stamina_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 target_selection_mode = &"self"
 effect_defs = Array[ExtResource("3_msu4p")]([SubResource("Resource_1nwpg")])
 

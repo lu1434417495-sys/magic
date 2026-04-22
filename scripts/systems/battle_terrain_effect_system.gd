@@ -15,6 +15,7 @@ const TERRAIN_EFFECT_DAMAGE: StringName = &"damage"
 const STACK_BEHAVIOR_REFRESH: StringName = &"refresh"
 const STACK_BEHAVIOR_STACK: StringName = &"stack"
 const STACK_BEHAVIOR_IGNORE_EXISTING: StringName = &"ignore_existing"
+const TU_GRANULARITY := 5
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -64,12 +65,18 @@ func upsert_timed_terrain_effect(
 			STACK_BEHAVIOR_IGNORE_EXISTING:
 				return false
 			STACK_BEHAVIOR_REFRESH:
-				cell.timed_terrain_effects[existing_index] = _build_timed_terrain_effect(source_unit, skill_def, effect_def, field_instance_id)
+				var refreshed_effect := _build_timed_terrain_effect(source_unit, skill_def, effect_def, field_instance_id)
+				if refreshed_effect == null:
+					return false
+				cell.timed_terrain_effects[existing_index] = refreshed_effect
 				return true
 			_:
 				pass
 
-	cell.timed_terrain_effects.append(_build_timed_terrain_effect(source_unit, skill_def, effect_def, field_instance_id))
+	var new_effect := _build_timed_terrain_effect(source_unit, skill_def, effect_def, field_instance_id)
+	if new_effect == null:
+		return false
+	cell.timed_terrain_effects.append(new_effect)
 	return true
 
 
@@ -162,13 +169,45 @@ func apply_timed_terrain_effect_tick(
 	_runtime.append_changed_unit_coords(batch, target_unit)
 	var damage := int(result.get("damage", 0))
 	var healing := int(result.get("healing", 0))
+	var damage_summary: Dictionary = _runtime.summarize_damage_result(result)
 	var kill_count := 0
-	if damage > 0:
-		_runtime.append_batch_log(batch, "%s 受到 %s 的 %d 点伤害。" % [
-			target_unit.display_name,
-			_get_timed_terrain_effect_display_name(effect_state),
-			damage,
-		])
+	if bool(damage_summary.get("has_damage_event", false)):
+		if damage > 0:
+			var damage_line := "%s 受到 %s 的 %d 点伤害" % [
+				target_unit.display_name,
+				_get_timed_terrain_effect_display_name(effect_state),
+				damage,
+			]
+			if bool(damage_summary.get("any_double", false)):
+				damage_line += "（触发易伤）"
+			elif bool(damage_summary.get("any_half", false)):
+				damage_line += "（减半后结算）"
+			_runtime.append_batch_log(batch, "%s。" % damage_line)
+			if int(damage_summary.get("shield_absorbed", 0)) > 0:
+				_runtime.append_batch_log(batch, "%s 的护盾吸收了 %d 点伤害。" % [
+					target_unit.display_name,
+					int(damage_summary.get("shield_absorbed", 0)),
+				])
+		else:
+			if bool(damage_summary.get("any_immune", false)):
+				_runtime.append_batch_log(batch, "%s 命中，但 %s 免疫该伤害。" % [
+					_get_timed_terrain_effect_display_name(effect_state),
+					target_unit.display_name,
+				])
+			elif int(damage_summary.get("shield_absorbed", 0)) > 0:
+				_runtime.append_batch_log(batch, "%s 命中，但被 %s 的护盾吸收了 %d 点伤害。" % [
+					_get_timed_terrain_effect_display_name(effect_state),
+					target_unit.display_name,
+					int(damage_summary.get("shield_absorbed", 0)),
+				])
+			else:
+				_runtime.append_batch_log(batch, "%s 命中，但 %s 的伤害被%s完全吸收。" % [
+					_get_timed_terrain_effect_display_name(effect_state),
+					target_unit.display_name,
+					String(damage_summary.get("absorb_reason_text", "防护")),
+				])
+		if bool(damage_summary.get("shield_broken", false)):
+			_runtime.append_batch_log(batch, "%s 的护盾被击碎。" % target_unit.display_name)
 	if healing > 0:
 		_runtime.append_batch_log(batch, "%s 受到 %s 影响，恢复 %d 点生命。" % [
 			target_unit.display_name,
@@ -194,6 +233,11 @@ func _build_timed_terrain_effect(
 	effect_def,
 	field_instance_id: StringName
 ) -> BattleTerrainEffectState:
+	var tick_interval_tu := _normalize_positive_tu_value(int(effect_def.tick_interval_tu), "terrain effect tick_interval_tu")
+	var duration_tu := _normalize_positive_tu_value(int(effect_def.duration_tu), "terrain effect duration_tu")
+	if tick_interval_tu <= 0 or duration_tu <= 0:
+		return null
+
 	var effect_state := BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.new()
 	effect_state.field_instance_id = field_instance_id
 	effect_state.effect_id = effect_def.terrain_effect_id
@@ -205,9 +249,9 @@ func _build_timed_terrain_effect(
 	effect_state.scaling_attribute_id = effect_def.scaling_attribute_id
 	effect_state.defense_attribute_id = effect_def.defense_attribute_id
 	effect_state.resistance_attribute_id = effect_def.resistance_attribute_id
-	effect_state.tick_interval_tu = maxi(int(effect_def.tick_interval_tu), 1)
-	effect_state.remaining_tu = maxi(int(effect_def.duration_tu), effect_state.tick_interval_tu)
-	effect_state.next_tick_at_tu = _runtime.get_state().timeline.current_tu + effect_state.tick_interval_tu if _runtime != null and _runtime.get_state() != null and _runtime.get_state().timeline != null else effect_state.tick_interval_tu
+	effect_state.tick_interval_tu = tick_interval_tu
+	effect_state.remaining_tu = maxi(duration_tu, tick_interval_tu)
+	effect_state.next_tick_at_tu = _runtime.get_state().timeline.current_tu + tick_interval_tu if _runtime != null and _runtime.get_state() != null and _runtime.get_state().timeline != null else tick_interval_tu
 	effect_state.stack_behavior = _normalize_stack_behavior(effect_def.stack_behavior)
 	effect_state.params = effect_def.params.duplicate(true)
 	if effect_def.status_id != &"":
@@ -249,6 +293,16 @@ func _normalize_stack_behavior(stack_behavior: StringName) -> StringName:
 			return stack_behavior
 		_:
 			return STACK_BEHAVIOR_REFRESH
+
+
+func _normalize_positive_tu_value(value: int, field_label: String) -> int:
+	if value <= 0:
+		push_error("%s must be positive and use %d TU steps, got %d; skipping effect." % [field_label, TU_GRANULARITY, value])
+		return -1
+	if value % TU_GRANULARITY != 0:
+		push_error("%s must use %d TU steps, got %d; skipping effect." % [field_label, TU_GRANULARITY, value])
+		return -1
+	return value
 
 
 func _build_terrain_effect_instance_id(effect_id: StringName) -> StringName:

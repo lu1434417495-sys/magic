@@ -3,20 +3,21 @@ extends RefCounted
 
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
+const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle_unit_factory_runtime.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 var _runtime_ref: WeakRef = null
-var _runtime = null:
+var _runtime: BattleUnitFactoryRuntime = null:
 	get:
-		return _runtime_ref.get_ref() if _runtime_ref != null else null
+		return _runtime_ref.get_ref() as BattleUnitFactoryRuntime if _runtime_ref != null else null
 	set(value):
 		_runtime_ref = weakref(value) if value != null else null
 
 
-func setup(runtime) -> void:
+func setup(runtime: BattleUnitFactoryRuntime) -> void:
 	_runtime = runtime
 
 
@@ -82,7 +83,24 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 	unit_state.refresh_footprint()
 
 
+func refresh_known_skills(unit_state: BattleUnitState) -> void:
+	if unit_state == null or unit_state.source_member_id == &"" or _runtime == null:
+		return
+	var character_gateway: Object = _runtime.get_character_gateway()
+	if character_gateway == null:
+		return
+	var member_state = character_gateway.get_member_state(unit_state.source_member_id)
+	if member_state == null:
+		return
+	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
+	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+
+
 func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
+	if context.has("enemy_units"):
+		var explicit_enemy_units: Variant = context.get("enemy_units", [])
+		if explicit_enemy_units is Array and not explicit_enemy_units.is_empty():
+			return _normalize_unit_payloads(explicit_enemy_units)
 	var enemy_count := maxi(int(context.get("enemy_unit_count", 1)), 1)
 	var monster_name := String(context.get("monster_display_name", encounter_anchor.display_name if encounter_anchor != null else "敌人"))
 	var units: Array = []
@@ -119,23 +137,24 @@ func build_fallback_terrain(context: Dictionary) -> Dictionary:
 	var map_size: Vector2i = context.get("map_size", Vector2i(5, 5))
 	var min_surface_height := 4
 	if _runtime != null:
-		min_surface_height = int(_runtime.MIN_BATTLE_SURFACE_HEIGHT)
+		min_surface_height = maxi(_runtime.get_min_battle_surface_height(), 1)
 
-	var cells: Dictionary = {}
-	for y in range(map_size.y):
-		for x in range(map_size.x):
-			var cell_state: BattleCellState = BattleCellState.new()
-			cell_state.coord = Vector2i(x, y)
-			cell_state.base_terrain = &"land"
-			cell_state.base_height = min_surface_height
-			cell_state.height_offset = 0
-			cell_state.terrain_effect_ids.clear()
-			cell_state.timed_terrain_effects.clear()
-			if _runtime != null and _runtime.get_grid_service() != null:
-				_runtime.get_grid_service().recalculate_cell(cell_state)
-			else:
-				cell_state.recalculate_runtime_values()
-			cells[cell_state.coord] = cell_state
+	var cells: Dictionary = _normalize_manual_cells(context.get("cells", {}))
+	if cells.is_empty():
+		for y in range(map_size.y):
+			for x in range(map_size.x):
+				var cell_state: BattleCellState = BattleCellState.new()
+				cell_state.coord = Vector2i(x, y)
+				cell_state.base_terrain = &"land"
+				cell_state.base_height = min_surface_height
+				cell_state.height_offset = 0
+				cell_state.terrain_effect_ids.clear()
+				cell_state.timed_terrain_effects.clear()
+				if _runtime != null and _runtime.get_grid_service() != null:
+					_runtime.get_grid_service().recalculate_cell(cell_state)
+				else:
+					cell_state.recalculate_runtime_values()
+				cells[cell_state.coord] = cell_state
 
 	return {
 		"map_size": map_size,
@@ -144,6 +163,30 @@ func build_fallback_terrain(context: Dictionary) -> Dictionary:
 		"ally_spawns": context.get("ally_spawns", [Vector2i(1, 1), Vector2i(1, 3)]),
 		"enemy_spawns": context.get("enemy_spawns", [Vector2i(3, 1), Vector2i(3, 3)]),
 	}
+
+
+func _normalize_manual_cells(raw_cells: Variant) -> Dictionary:
+	var cells: Dictionary = {}
+	if raw_cells is not Dictionary:
+		return cells
+	for coord_variant in raw_cells.keys():
+		var coord: Vector2i = coord_variant if coord_variant is Vector2i else Vector2i.ZERO
+		var cell_variant = raw_cells.get(coord_variant)
+		var cell_state := cell_variant as BattleCellState
+		if cell_state == null and cell_variant is Dictionary:
+			cell_state = BattleCellState.from_dict(cell_variant)
+		if cell_state == null and cell_variant != null and cell_variant.has_method("to_dict"):
+			cell_state = BattleCellState.from_dict(cell_variant.to_dict())
+		if cell_state == null:
+			continue
+		if coord != Vector2i.ZERO or (cell_variant is Dictionary and not cell_variant.has("coord")):
+			cell_state.coord = coord
+		if _runtime != null and _runtime.get_grid_service() != null:
+			_runtime.get_grid_service().recalculate_cell(cell_state)
+		else:
+			cell_state.recalculate_runtime_values()
+		cells[cell_state.coord] = cell_state
+	return cells
 
 
 func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, context: Dictionary):

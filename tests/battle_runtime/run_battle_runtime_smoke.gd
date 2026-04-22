@@ -178,8 +178,7 @@ func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:
 	state.phase = &"timeline_running"
 	state.map_size = Vector2i(2, 1)
 	state.timeline = BattleTimelineState.new()
-	state.timeline.units_per_second = 10
-	state.timeline.current_tu = 5
+	state.timeline.current_tu = 0
 
 	var lead_cell := _build_cell(Vector2i(1, 0))
 	var trailing_cell := _build_cell(Vector2i(0, 0))
@@ -197,7 +196,7 @@ func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:
 	}
 
 	runtime._state = state
-	var batch = runtime.advance(0.1)
+	var batch = runtime.advance(1.0)
 	_assert_true(batch != null, "advance() 应返回有效 batch。")
 	_assert_true(
 		trailing_cell.timed_terrain_effects.size() == 1,
@@ -715,6 +714,11 @@ func _test_charge_preview_allows_impassable_first_step_and_resolves_as_stop() ->
 
 	var preview := runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "首步被不可通行地形阻挡时，冲锋预览仍应允许尝试。")
+	_assert_eq(
+		preview.resolved_anchor_coord if preview != null else Vector2i(-1, -1),
+		Vector2i.ZERO,
+		"首步被地形阻挡时，charge preview 应暴露原地停下的 resolved_anchor_coord。"
+	)
 
 	var batch := runtime.issue_command(command)
 	_assert_eq(charger.coord, Vector2i.ZERO, "首步被地形阻挡时，冲锋应原地停下。")
@@ -757,6 +761,11 @@ func _test_charge_preview_allows_larger_first_step_blocker_and_resolves_as_stop(
 
 	var preview := runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "首步被更大体型单位阻挡时，冲锋预览仍应允许尝试。")
+	_assert_eq(
+		preview.resolved_anchor_coord if preview != null else Vector2i(-1, -1),
+		Vector2i.ZERO,
+		"首步被更大体型单位阻挡时，charge preview 应暴露原地停下的 resolved_anchor_coord。"
+	)
 
 	var batch := runtime.issue_command(command)
 	_assert_eq(charger.coord, Vector2i.ZERO, "首步被更大体型单位阻挡时，冲锋应原地停下。")
@@ -799,6 +808,11 @@ func _test_charge_stops_at_larger_midpath_blocker_without_rollback() -> void:
 
 	var preview := runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "中途才遇到更大体型单位时，冲锋预览应允许尝试。")
+	_assert_eq(
+		preview.resolved_anchor_coord if preview != null else Vector2i(-1, -1),
+		Vector2i(1, 0),
+		"中途受阻时，charge preview 应暴露已完成位移后的 resolved_anchor_coord。"
+	)
 
 	var batch := runtime.issue_command(command)
 	_assert_eq(charger.coord, Vector2i(1, 0), "中途被更大体型单位拦住时，应保留已完成的前进一步而不是回退。")
@@ -1335,7 +1349,7 @@ func _test_skill_costs_and_cooldowns_apply_in_runtime() -> void:
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(archer.unit_id), "施放满弦狙击后应记录施法者变更。")
 	_assert_eq(archer.current_stamina, 10, "满弦狙击应按文档配置扣除 2 点体力。")
-	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 3, "满弦狙击应按文档配置写入 3 TU 冷却。")
+	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 15, "满弦狙击应按文档配置写入 15 TU 冷却。")
 
 	var second_batch := runtime.issue_command(command)
 	_assert_true(
@@ -1352,10 +1366,10 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	state.phase = &"timeline_running"
 	state.timeline.tick_interval_seconds = 1.0
-	state.timeline.tu_per_tick = 1
+	state.timeline.tu_per_tick = 5
 	state.timeline.action_threshold = 10
 	var archer := _build_unit(&"aa_cooldown_turn_user", Vector2i(0, 0), 1)
-	archer.cooldowns = {&"archer_long_draw": 3}
+	archer.cooldowns = {&"archer_long_draw": 15}
 	archer.last_turn_tu = 0
 	var enemy := _build_enemy_unit(&"zz_cooldown_turn_enemy", Vector2i(1, 0))
 
@@ -1370,19 +1384,19 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	runtime._state = state
 
 	var tu_batch := runtime.advance(1.0)
-	_assert_eq(state.timeline.current_tu, 1, "战斗时间轴推进后 current_tu 应增长 1。")
+	_assert_eq(state.timeline.current_tu, 5, "战斗时间轴推进后 current_tu 应增长 5。")
 	_assert_true(tu_batch.changed_unit_ids.has(archer.unit_id), "TU 推进触发新回合时应记录 cooldown 单位变更。")
-	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 2, "经过 1 TU 后，技能冷却应正式递减 1。")
-	_assert_eq(archer.last_turn_tu, 1, "进入新行动窗口后应记录最新的 turn TU 锚点。")
+	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 10, "经过 5 TU 后，技能冷却应正式递减 5。")
+	_assert_eq(archer.last_turn_tu, 5, "进入新行动窗口后应记录最新的 turn TU 锚点。")
 
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(archer.unit_id)
 	var turn_batch := runtime.advance(0.0)
-	_assert_true(turn_batch.changed_unit_ids.has(archer.unit_id), "零 TU 的队列回合切换也应记录 cooldown 单位变更。")
-	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 1, "零 TU 回合切换应继续按统一规则递减 cooldown。")
-	_assert_eq(archer.last_turn_tu, 1, "零 TU 回合切换不应篡改当前的 timeline TU 锚点。")
+	_assert_true(turn_batch.changed_unit_ids.has(archer.unit_id), "零 TU 的队列回合切换仍应记录行动单位变更。")
+	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 10, "零 TU 回合切换不应继续递减 cooldown。")
+	_assert_eq(archer.last_turn_tu, 5, "零 TU 回合切换不应篡改当前的 timeline TU 锚点。")
 
 
 func _test_status_duration_serialization_preserves_tu_window() -> void:
@@ -1453,9 +1467,9 @@ func _test_status_duration_serialization_preserves_tu_window() -> void:
 	runtime.advance(0.0)
 	_assert_true(archer.has_status_effect(&"archer_pre_aim"), "自施放状态应在下一次行动窗口开始时仍然保留。")
 
-	_advance_timeline_tu(runtime, state, 59)
+	_advance_timeline_tu(runtime, state, 55)
 	_assert_true(archer.has_status_effect(&"archer_pre_aim"), "TU 未走完前，自施放状态应继续保留。")
-	_advance_timeline_tu(runtime, state, 1)
+	_advance_timeline_tu(runtime, state, 5)
 	_assert_true(not archer.has_status_effect(&"archer_pre_aim"), "TU 走完后，自施放状态应按时间轴移除。")
 
 
@@ -1526,9 +1540,9 @@ func _test_status_duration_blocks_target_turn_until_tu_expiry() -> void:
 	wait_command.unit_id = enemy.unit_id
 	runtime.issue_command(wait_command)
 	_assert_true(enemy.has_status_effect(&"pinned"), "目标回合结束后，pinned 不应再因为 turn end 被移除。")
-	_advance_timeline_tu(runtime, state, 89)
+	_advance_timeline_tu(runtime, state, 85)
 	_assert_true(enemy.has_status_effect(&"pinned"), "TU 未走完前，pinned 应保持生效。")
-	_advance_timeline_tu(runtime, state, 1)
+	_advance_timeline_tu(runtime, state, 5)
 	_assert_true(not enemy.has_status_effect(&"pinned"), "TU 走完后，pinned 应按时间轴移除。")
 
 
@@ -1627,9 +1641,9 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tick_interval_seconds = 1.0
-	state.timeline.tu_per_tick = 1
+	state.timeline.tu_per_tick = 5
 	state.timeline.action_threshold = 1000000
-	runtime.advance(float(total_tu))
+	runtime.advance(float(total_tu) / 5.0)
 
 
 func _get_large_charge_direction_cases() -> Array[Dictionary]:

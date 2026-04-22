@@ -14,6 +14,9 @@ action_id = &"mist_aoe"
 score_bucket_id = &"mist_offense"
 skill_ids = Array[StringName]([&"mage_fireball"])
 minimum_hit_count = 2
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"target_coord"
 
 [sub_resource type="Resource" id="Action_pressure_single"]
 script = ExtResource("4_unit")
@@ -21,6 +24,9 @@ action_id = &"mist_ranged_single"
 score_bucket_id = &"mist_offense"
 skill_ids = Array[StringName]([&"mage_ice_lance"])
 target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_pressure_move"]
 script = ExtResource("5_move")
@@ -49,6 +55,9 @@ action_id = &"mist_support"
 score_bucket_id = &"mist_support"
 skill_ids = Array[StringName]([&"mage_temporal_rewind"])
 target_selector = &"lowest_hp_ally"
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"enemy_frontline"
 
 [sub_resource type="Resource" id="Action_support_aoe"]
 script = ExtResource("3_ground")
@@ -56,6 +65,9 @@ action_id = &"mist_aoe_support"
 score_bucket_id = &"mist_offense"
 skill_ids = Array[StringName]([&"mage_fireball"])
 minimum_hit_count = 1
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"target_coord"
 
 [sub_resource type="Resource" id="Action_support_single"]
 script = ExtResource("4_unit")
@@ -63,6 +75,9 @@ action_id = &"mist_ranged_single_support"
 score_bucket_id = &"mist_offense"
 skill_ids = Array[StringName]([&"mage_ice_lance"])
 target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="State_support"]
 script = ExtResource("2_state")
@@ -80,6 +95,9 @@ action_id = &"mist_support_retreat"
 score_bucket_id = &"mist_support"
 skill_ids = Array[StringName]([&"mage_temporal_rewind"])
 target_selector = &"lowest_hp_ally"
+desired_min_distance = 4
+desired_max_distance = 4
+distance_reference = &"enemy_frontline"
 
 [sub_resource type="Resource" id="State_retreat"]
 script = ExtResource("2_state")

@@ -13,7 +13,7 @@ target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"
 mp_cost = 1
-cooldown_tu = 3
+cooldown_tu = 15
 target_selection_mode = &"self"
 
 [resource]

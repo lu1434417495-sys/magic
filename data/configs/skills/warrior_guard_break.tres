@@ -25,7 +25,7 @@ script = ExtResource("4_jh8g6")
 skill_id = &"warrior_guard_break"
 ap_cost = 2
 stamina_cost = 1
-cooldown_tu = 2
+cooldown_tu = 10
 effect_defs = Array[ExtResource("3_f4lqa")]([SubResource("Resource_2h1ng"), SubResource("Resource_n7f4l")])
 
 [resource]

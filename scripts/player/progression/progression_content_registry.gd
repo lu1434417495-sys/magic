@@ -31,6 +31,7 @@ const VALID_CORE_SKILL_TRANSITION_MODES := {
 	&"inherit": true,
 	&"replace_sources_with_result": true,
 }
+const TU_GRANULARITY := 5
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
@@ -529,7 +530,7 @@ func _build_status_effect(
 	if target_team_filter != &"":
 		effect_def.effect_target_team_filter = target_team_filter
 	if duration > 0:
-		effect_def.duration_tu = duration
+		effect_def.duration_tu = _normalize_tu_value(duration, "status effect duration_tu")
 	return effect_def
 
 
@@ -555,7 +556,7 @@ func _build_unit_combat_profile(
 	combat_profile.ap_cost = ap_cost
 	combat_profile.mp_cost = maxi(mp_cost, 0)
 	combat_profile.stamina_cost = maxi(stamina_cost, 0)
-	combat_profile.cooldown_tu = maxi(cooldown_tu, 0)
+	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "unit combat_profile cooldown_tu")
 	combat_profile.effect_defs = effect_defs.duplicate()
 	return combat_profile
 
@@ -584,7 +585,7 @@ func _build_ground_aoe_combat_profile(
 	combat_profile.ap_cost = ap_cost
 	combat_profile.mp_cost = maxi(mp_cost, 0)
 	combat_profile.stamina_cost = maxi(stamina_cost, 0)
-	combat_profile.cooldown_tu = maxi(cooldown_tu, 0)
+	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "ground aoe combat_profile cooldown_tu")
 	combat_profile.effect_defs = effect_defs.duplicate()
 	return combat_profile
 
@@ -632,7 +633,7 @@ func _build_ground_variant_combat_profile(
 	combat_profile.ap_cost = ap_cost
 	combat_profile.mp_cost = maxi(mp_cost, 0)
 	combat_profile.stamina_cost = maxi(stamina_cost, 0)
-	combat_profile.cooldown_tu = maxi(cooldown_tu, 0)
+	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "ground variant combat_profile cooldown_tu")
 	combat_profile.cast_variants = cast_variants.duplicate()
 	return combat_profile
 
@@ -720,8 +721,8 @@ func _build_timed_terrain_effect(
 	effect_def.terrain_effect_id = terrain_effect_id
 	effect_def.tick_effect_type = tick_effect_type
 	effect_def.power = power
-	effect_def.duration_tu = maxi(duration_tu, 0)
-	effect_def.tick_interval_tu = maxi(tick_interval_tu, 1)
+	effect_def.duration_tu = _normalize_tu_value(duration_tu, "terrain effect duration_tu")
+	effect_def.tick_interval_tu = _normalize_tu_value(tick_interval_tu, "terrain effect tick_interval_tu")
 	effect_def.stack_behavior = &"refresh"
 	if target_team_filter != &"":
 		effect_def.effect_target_team_filter = target_team_filter
@@ -732,8 +733,18 @@ func _build_timed_terrain_effect(
 			effect_def.resistance_attribute_id = resistance_attribute_id
 	if status_id != &"":
 		effect_def.status_id = status_id
-		effect_def.duration_tu = maxi(tick_interval_tu, 1)
+		effect_def.duration_tu = _normalize_tu_value(tick_interval_tu, "terrain status duration_tu")
 	return effect_def
+
+
+func _normalize_tu_value(value: int, field_label: String) -> int:
+	var normalized := maxi(value, 0)
+	if normalized == 0:
+		return 0
+	if normalized % TU_GRANULARITY != 0:
+		push_error("%s must use %d TU steps, got %d." % [field_label, TU_GRANULARITY, normalized])
+		return 0
+	return normalized
 
 
 func _register_skill(skill_def: SkillDef) -> void:

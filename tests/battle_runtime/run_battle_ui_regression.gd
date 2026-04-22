@@ -132,16 +132,16 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	_assert_true(preview != null and not preview.hit_preview.is_empty(), "repeat_attack 预览应暴露共享的命中摘要。")
 	_assert_true(hit_preview_text.begins_with("预计命中率 "), "repeat_attack 预览摘要应使用统一的 resolver 文案前缀。")
 	_assert_true(hit_preview_text.contains("需 3+"), "repeat_attack 预览摘要应暴露首段 required roll。")
-	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 3, "repeat_attack 预览应默认展示 3 段命中率。")
+	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 2, "repeat_attack 预览应按当前 Aura 只展示可支付的最大段数。")
 	_assert_eq(
 		preview.hit_preview.get("stage_required_rolls", []),
-		[3, 5, 7],
-		"repeat_attack 预览应按 d20 公式稳定暴露每段 required roll。"
+		[3, 5],
+		"repeat_attack 预览应按当前 Aura 上限和 d20 公式稳定暴露每段 required roll。"
 	)
 	_assert_eq(
 		preview.hit_preview.get("stage_preview_texts", []),
-		["90%（需 3+）", "80%（需 5+）", "70%（需 7+）"],
-		"repeat_attack 预览应按统一 resolver 文案输出阶段摘要。"
+		["90%（需 3+）", "80%（需 5+）"],
+		"repeat_attack 预览应按当前 Aura 上限输出统一 resolver 阶段摘要。"
 	)
 
 	var adapter := BattleHudAdapter.new()
@@ -205,12 +205,12 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 
 	active_unit.current_stamina = 4
 	active_unit.attribute_snapshot.set_value(&"stamina_max", 4)
-	active_unit.cooldowns[skill_def.skill_id] = 2
+	active_unit.cooldowns[skill_def.skill_id] = 10
 	var cooldown_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
 	var cooldown_slots: Array = cooldown_snapshot.get("skill_slots", [])
 	var cooldown_slot: Dictionary = cooldown_slots[0] if not cooldown_slots.is_empty() and cooldown_slots[0] is Dictionary else {}
 	_assert_true(bool(cooldown_slot.get("is_disabled", false)), "冷却未结束时 HUD skill slot 应保持禁用。")
-	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 2", "冷却未结束时 HUD skill slot footer 应显示剩余 CD。")
+	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 10", "冷却未结束时 HUD skill slot footer 应显示剩余 CD。")
 	_assert_true(String(cooldown_slot.get("disabled_reason", "")).contains("冷却"), "冷却未结束时 HUD skill slot 应暴露冷却禁用原因。")
 
 	game_session.queue_free()

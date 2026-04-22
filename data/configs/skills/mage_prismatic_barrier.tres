@@ -7,21 +7,34 @@
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_63rsa"]
 
 [sub_resource type="Resource" id="Resource_vwsas"]
+script = ExtResource("3_7pj8o")
+effect_type = &"status"
+power = 1
+effect_target_team_filter = &"ally"
+status_id = &"prismatic_barrier"
+duration_tu = 60
+params = {
+"damage_tags": Array[String](["fire", "freeze", "lightning", "negative_energy"]),
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_l3ha5"]
 script = ExtResource("4_a7rdk")
 skill_id = &"mage_prismatic_barrier"
 target_team_filter = &"ally"
 range_value = 3
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
+effect_defs = Array[ExtResource("3_7pj8o")]([SubResource("Resource_vwsas")])
 
 [resource]
 script = ExtResource("5_63rsa")
 skill_id = &"mage_prismatic_barrier"
 display_name = "棱彩屏障"
 icon_id = &"mage_prismatic_barrier"
-description = "给友军附加多属性抗性，适合保前排或防敌方法师爆发。"
+description = "给友军附加持续 `60 TU` 的棱彩抗性，使 `火焰 / 冰霜 / 闪电 / 负能量` 伤害减半。"
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])
-combat_profile = SubResource("Resource_vwsas")
+combat_profile = SubResource("Resource_l3ha5")

@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="BattleSimProfileDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_profile_def.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/systems/battle_ai_score_profile.gd" id="2_score"]
+
+[sub_resource type="Resource" id="Resource_score"]
+script = ExtResource("2_score")
+movement_cost_weight = 8
+position_base_score = 70
+action_base_scores = {
+"skill": 0,
+"move": 28,
+"retreat": 50,
+"wait": -65
+}
+bucket_priorities = {
+"mist_support": 120,
+"mist_control": 110,
+"mist_offense": 100,
+"frontline_guard": 130,
+"harrier_pressure": 105
+}
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"ranged_suppressor_cautious"
+display_name = "Ranged Suppressor Cautious"
+description = "提高撤退与站位价值，并直接修改 ranged_suppressor 的 retreat/pressure 行为参数。"
+ai_score_profile = SubResource("Resource_score")
+override_patches = Array[Dictionary]([{
+"target_type": "brain",
+"target_id": "ranged_suppressor",
+"path": "retreat_hp_ratio",
+"value": 0.6
+}, {
+"target_type": "action",
+"brain_id": "ranged_suppressor",
+"state_id": "pressure",
+"action_id": "harrier_keep_range",
+"path": "desired_min_distance",
+"value": 5
+}, {
+"target_type": "action",
+"brain_id": "ranged_suppressor",
+"state_id": "pressure",
+"action_id": "harrier_keep_range",
+"path": "desired_max_distance",
+"value": 6
+}, {
+"target_type": "action",
+"brain_id": "ranged_suppressor",
+"state_id": "retreat",
+"action_id": "harrier_retreat",
+"path": "minimum_safe_distance",
+"value": 6
+}])

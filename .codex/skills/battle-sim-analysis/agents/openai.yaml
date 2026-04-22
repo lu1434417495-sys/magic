@@ -1,0 +1,4 @@
+interface:
+  display_name: "Battle Sim Analysis"
+  short_description: "Slice simulation outputs into low-token packets and classify balance issues"
+  default_prompt: "Use $battle-sim-analysis to review this battle simulation report, build a compact packet, and determine whether the issue is skill numbers, AI action parameters, or AI scoring."

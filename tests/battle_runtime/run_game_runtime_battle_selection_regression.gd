@@ -26,6 +26,11 @@ func _run() -> void:
 	_test_selection_sidecar_hides_targets_for_cooldown_blocked_skill()
 	_test_selection_sidecar_hides_targets_for_aura_blocked_skill()
 	_test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready()
+	_test_preview_command_rejects_when_battle_modal_blocks_interaction()
+	_test_selection_read_faces_hide_targets_when_battle_modal_blocks_interaction()
+	_test_battle_commands_and_proxy_reject_when_battle_modal_blocks_interaction()
+	_test_promotion_modal_pauses_battle_timeline()
+	_test_character_info_blocks_commands_without_pausing_battle_timeline()
 
 	if _failures.is_empty():
 		print("Game runtime battle selection regression: PASS")
@@ -264,7 +269,7 @@ func _test_selection_sidecar_hides_targets_for_cooldown_blocked_skill() -> void:
 	)
 	caster.current_stamina = 12
 	caster.attribute_snapshot.set_value(&"stamina_max", 12)
-	caster.cooldowns[&"archer_long_draw"] = 2
+	caster.cooldowns[&"archer_long_draw"] = 10
 	var enemy_a: BattleUnitState = _build_manual_unit(&"cooldown_enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
 	_add_unit_to_state(facade, state, caster, false)
 	_add_unit_to_state(facade, state, enemy_a, true)
@@ -492,6 +497,252 @@ func _test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready() -> v
 		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()).has([enemy_c.coord.x, enemy_c.coord.y]),
 		"进入确认态后，剩余合法目标仍应继续保留。"
 	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_preview_command_rejects_when_battle_modal_blocks_interaction() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var mover: BattleUnitState = _build_manual_unit(
+		&"preview_blocked_user",
+		"预览阻断者",
+		&"player",
+		Vector2i(0, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, mover, false)
+	state.phase = &"unit_acting"
+	state.active_unit_id = mover.unit_id
+	state.modal_state = &"promotion_choice"
+	_apply_battle_state(facade, state)
+
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_MOVE
+	command.unit_id = mover.unit_id
+	command.target_coord = Vector2i(1, 0)
+	var preview = facade.preview_battle_command(command)
+	_assert_true(preview != null, "battle modal 阻断回归前置：preview_command 应返回 BattlePreview。")
+	if preview == null:
+		_cleanup_test_session(game_session)
+		return
+	_assert_true(not preview.allowed, "battle modal 打开时 preview_command 不应继续允许移动预览。")
+	_assert_true(
+		not preview.log_lines.is_empty() and String(preview.log_lines[-1]).contains("无法操作"),
+		"battle modal 打开时 preview_command 应给出明确阻断文案。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_selection_read_faces_hide_targets_when_battle_modal_blocks_interaction() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"read_face_blocked_user",
+		"读面阻断者",
+		&"player",
+		Vector2i(0, 0),
+		[&"archer_long_draw"],
+		2,
+		0
+	)
+	var enemy: BattleUnitState = _build_manual_unit(&"read_face_enemy", "敌人", &"enemy", Vector2i(2, 0), [], 2, 0)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	state.modal_state = &"promotion_choice"
+	_apply_battle_state(facade, state)
+
+	facade.set_battle_selection_skill_id(&"archer_long_draw")
+	facade.set_battle_selection_target_unit_ids_state([enemy.unit_id])
+	facade.set_runtime_active_modal_id("promotion")
+
+	_assert_eq(String(facade.get_selected_battle_skill_id()), "archer_long_draw", "battle modal 阻断回归前置：内部 selected_skill_id 应保留，避免靠清状态掩盖问题。")
+	_assert_eq(
+		_extract_string_array(facade.get_selected_battle_skill_target_unit_ids()),
+		[],
+		"battle modal 打开时，目标单位读面应被隐藏。"
+	)
+	_assert_eq(
+		_extract_coord_pairs(facade.get_selected_battle_skill_target_coords()),
+		[],
+		"battle modal 打开时，已选目标坐标读面应被隐藏。"
+	)
+	_assert_eq(
+		_extract_coord_pairs(facade.get_selected_battle_skill_valid_target_coords()),
+		[],
+		"battle modal 打开时，不应继续暴露技能合法目标高亮。"
+	)
+	_assert_eq(
+		_extract_coord_pairs(facade.get_battle_overlay_target_coords()),
+		[],
+		"battle modal 打开时，battle overlay 不应继续暴露可走/可打提示。"
+	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_battle_commands_and_proxy_reject_when_battle_modal_blocks_interaction() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"command_blocked_user",
+		"命令阻断者",
+		&"player",
+		Vector2i(0, 0),
+		[&"archer_long_draw"],
+		2,
+		0
+	)
+	var enemy: BattleUnitState = _build_manual_unit(&"command_blocked_enemy", "敌人", &"enemy", Vector2i(2, 0), [], 2, 0)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	state.modal_state = &"promotion_choice"
+	_apply_battle_state(facade, state)
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(not bool(select_result.get("ok", false)), "battle modal 打开时 command_battle_select_skill 应返回明确失败。")
+	_assert_true(String(select_result.get("message", "")).contains("无法操作"), "battle modal 打开时技能选择失败信息应说明无法操作。")
+	_assert_eq(String(facade.get_selected_battle_skill_id()), "", "battle modal 打开时 command_battle_select_skill 不应污染 selection 状态。")
+
+	var move_result: Dictionary = facade.command_battle_move_to(Vector2i(1, 0))
+	_assert_true(not bool(move_result.get("ok", false)), "battle modal 打开时 command_battle_move_to 应返回明确失败。")
+	_assert_true(String(move_result.get("message", "")).contains("无法操作"), "battle modal 打开时移动失败信息应说明无法操作。")
+	_assert_eq(caster.coord, Vector2i(0, 0), "battle modal 打开时 command_battle_move_to 不应移动单位。")
+
+	var proxy_result: Dictionary = facade.select_battle_cell(Vector2i(1, 0))
+	_assert_true(not bool(proxy_result.get("ok", false)), "battle modal 打开时 select_battle_cell 应沿 proxy 路径返回失败。")
+	_assert_true(String(proxy_result.get("message", "")).contains("无法操作"), "battle modal 打开时 select_battle_cell 的失败信息应说明无法操作。")
+	_assert_eq(caster.coord, Vector2i(0, 0), "battle modal 打开时 select_battle_cell 不应绕过 session 守卫移动单位。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_promotion_modal_pauses_battle_timeline() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"promotion_timeline_user",
+		"晋升选择者",
+		&"player",
+		Vector2i(0, 0),
+		[&"archer_long_draw"],
+		2,
+		0
+	)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"promotion_timeline_enemy",
+		"晋升陪练",
+		&"enemy",
+		Vector2i(3, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"timeline_running"
+	state.modal_state = &"promotion_choice"
+	_apply_battle_state(facade, state)
+	facade.set_runtime_active_modal_id("promotion")
+
+	var changed := facade.advance(1.0)
+	_assert_true(not changed, "promotion_choice 打开时 facade.advance() 不应继续推进 battle timeline。")
+	var battle_state := facade.get_battle_state()
+	_assert_eq(
+		int(battle_state.timeline.current_tu) if battle_state != null and battle_state.timeline != null else -1,
+		0,
+		"promotion_choice 打开时，battle timeline 1 秒后仍应保持原 TU。"
+	)
+	_assert_eq(facade.get_last_advance_battle_refresh_mode(), "", "promotion_choice 打开时不应产生 battle refresh 建议。")
+	_assert_eq(String(battle_state.modal_state) if battle_state != null else "", "promotion_choice", "promotion_choice 打开时 battle modal_state 不应被 advance() 改写。")
+	_assert_eq(facade.get_active_modal_id(), "promotion", "promotion_choice 打开时 runtime modal 不应被 advance() 改写。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_character_info_blocks_commands_without_pausing_battle_timeline() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"character_info_timeline_user",
+		"信息查看者",
+		&"player",
+		Vector2i(0, 0),
+		[&"archer_long_draw"],
+		2,
+		0
+	)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"character_info_timeline_enemy",
+		"信息陪练",
+		&"enemy",
+		Vector2i(3, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"timeline_running"
+	_apply_battle_state(facade, state)
+
+	var opened := facade.try_open_character_info_at_battle_coord(caster.coord)
+	_assert_true(opened, "battle character_info 回归前置：应能成功打开战斗人物信息窗。")
+	_assert_eq(facade.get_active_modal_id(), "character_info", "打开战斗人物信息窗后应进入 character_info modal。")
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(not bool(select_result.get("ok", false)), "character_info 打开时 battle command 仍应被阻断。")
+	_assert_true(
+		String(select_result.get("message", "")).contains("查看角色信息"),
+		"character_info 打开时 battle command 的失败文案应明确指向角色信息窗。"
+	)
+
+	var changed := facade.advance(1.0)
+	_assert_true(changed, "character_info 打开时 facade.advance() 仍应正式推进 battle TU。")
+	var battle_state := facade.get_battle_state()
+	_assert_eq(
+		int(battle_state.timeline.current_tu) if battle_state != null and battle_state.timeline != null else -1,
+		5,
+		"character_info 打开时，battle timeline 1 秒仍应推进 5 TU。"
+	)
+	_assert_eq(facade.get_active_modal_id(), "character_info", "battle TU 推进不应自动关闭 character_info modal。")
 
 	_cleanup_test_session(game_session)
 

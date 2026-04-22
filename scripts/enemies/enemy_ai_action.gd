@@ -41,6 +41,7 @@ func _create_decision(command, reason_text: String = "") -> BattleAiDecision:
 func _create_scored_decision(command, score_input, reason_text: String = "") -> BattleAiDecision:
 	var decision = _create_decision(command, reason_text)
 	decision.skill_score_input = score_input
+	decision.score_input = score_input
 	return decision
 
 
@@ -102,7 +103,31 @@ func _build_skill_score_input(
 ):
 	if context == null:
 		return null
-	return context.build_skill_score_input(skill_def, command, preview, effect_defs, metadata)
+	var scoring_metadata := metadata.duplicate(true)
+	scoring_metadata["score_bucket_id"] = score_bucket_id
+	scoring_metadata["action_kind"] = ProgressionDataUtils.to_string_name(scoring_metadata.get("action_kind", "skill"))
+	scoring_metadata["action_label"] = String(scoring_metadata.get("action_label", skill_def.display_name if skill_def != null else String(action_id)))
+	return context.build_skill_score_input(skill_def, command, preview, effect_defs, scoring_metadata)
+
+
+func _build_action_score_input(
+	context,
+	action_kind: StringName,
+	action_label: String,
+	command,
+	preview,
+	metadata: Dictionary = {}
+):
+	if context == null:
+		return null
+	return context.build_action_score_input(
+		action_kind,
+		action_label,
+		score_bucket_id,
+		command,
+		preview,
+		metadata
+	)
 
 
 func _is_better_skill_score_input(candidate, best_candidate) -> bool:
@@ -110,6 +135,8 @@ func _is_better_skill_score_input(candidate, best_candidate) -> bool:
 		return false
 	if best_candidate == null:
 		return true
+	if int(candidate.score_bucket_priority) != int(best_candidate.score_bucket_priority):
+		return int(candidate.score_bucket_priority) > int(best_candidate.score_bucket_priority)
 	if int(candidate.total_score) != int(best_candidate.total_score):
 		return int(candidate.total_score) > int(best_candidate.total_score)
 	if int(candidate.hit_payoff_score) != int(best_candidate.hit_payoff_score):
@@ -203,6 +230,9 @@ func _sort_target_units(context, target_filter: StringName, selector: StringName
 	elif selector == &"self":
 		effective_filter = &"self"
 	var units = _collect_units_by_filter(context, effective_filter)
+	var forced_target = _resolve_forced_target_unit(context, effective_filter)
+	if forced_target != null:
+		return [forced_target]
 	if selector == &"self":
 		return units
 	units.sort_custom(func(left: BattleUnitState, right: BattleUnitState) -> bool:
@@ -219,6 +249,12 @@ func _sort_target_units(context, target_filter: StringName, selector: StringName
 		return left_distance < right_distance
 	)
 	return units
+
+
+func _resolve_forced_target_unit(context, target_filter: StringName):
+	if context == null or not context.has_method("resolve_forced_target_unit"):
+		return null
+	return context.resolve_forced_target_unit(target_filter)
 
 
 func _get_hp_ratio(unit_state: BattleUnitState) -> float:
@@ -345,3 +381,101 @@ func _coord_set_key(coords: Array[Vector2i]) -> String:
 	for coord in _sort_coords(coords):
 		parts.append("%d:%d" % [coord.x, coord.y])
 	return "|".join(parts)
+
+
+func _begin_action_trace(context, metadata: Dictionary = {}) -> Dictionary:
+	var trace_id: StringName = context.next_action_trace_id(action_id) if context != null and context.has_method("next_action_trace_id") else action_id
+	var action_trace := {
+		"trace_id": trace_id,
+		"action_id": String(action_id),
+		"score_bucket_id": String(score_bucket_id),
+		"metadata": metadata.duplicate(true),
+		"evaluation_count": 0,
+		"blocked_count": 0,
+		"preview_reject_count": 0,
+		"candidate_count": 0,
+		"block_reasons": {},
+		"top_candidates": [],
+		"chosen": false,
+	}
+	return action_trace
+
+
+func _trace_count_increment(action_trace: Dictionary, key: String, amount: int = 1) -> void:
+	if action_trace.is_empty() or key.is_empty():
+		return
+	action_trace[key] = int(action_trace.get(key, 0)) + amount
+
+
+func _trace_add_block_reason(action_trace: Dictionary, reason_key: String) -> void:
+	if action_trace.is_empty() or reason_key.is_empty():
+		return
+	_trace_count_increment(action_trace, "blocked_count", 1)
+	var block_reasons: Dictionary = action_trace.get("block_reasons", {})
+	block_reasons[reason_key] = int(block_reasons.get(reason_key, 0)) + 1
+	action_trace["block_reasons"] = block_reasons
+
+
+func _trace_offer_candidate(action_trace: Dictionary, candidate_summary: Dictionary, keep_count: int = 5) -> void:
+	if action_trace.is_empty() or candidate_summary.is_empty():
+		return
+	_trace_count_increment(action_trace, "candidate_count", 1)
+	var top_candidates = action_trace.get("top_candidates", [])
+	if top_candidates is not Array:
+		top_candidates = []
+	top_candidates.append(candidate_summary.duplicate(true))
+	top_candidates.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
+		return int(left.get("total_score", -999999)) > int(right.get("total_score", -999999))
+	)
+	while top_candidates.size() > keep_count:
+		top_candidates.pop_back()
+	action_trace["top_candidates"] = top_candidates
+
+
+func _finalize_action_trace(context, action_trace: Dictionary, best_decision: BattleAiDecision = null) -> StringName:
+	if action_trace.is_empty():
+		return &""
+	if best_decision != null:
+		action_trace["best_reason_text"] = best_decision.reason_text
+		action_trace["best_command"] = _build_command_summary(best_decision.command)
+		var score_input = best_decision.score_input if best_decision.score_input != null else best_decision.skill_score_input
+		action_trace["best_score_input"] = score_input.to_dict() if score_input != null else {}
+		best_decision.action_trace_id = ProgressionDataUtils.to_string_name(action_trace.get("trace_id", ""))
+	if context != null and context.has_method("record_action_trace"):
+		context.record_action_trace(action_trace)
+	return ProgressionDataUtils.to_string_name(action_trace.get("trace_id", ""))
+
+
+func _build_candidate_summary(label: String, command, score_input = null, extra: Dictionary = {}) -> Dictionary:
+	var summary := {
+		"label": label,
+		"command": _build_command_summary(command),
+		"total_score": int(score_input.total_score) if score_input != null else int(extra.get("total_score", 0)),
+		"score_input": score_input.to_dict() if score_input != null else {},
+	}
+	for key in extra.keys():
+		summary[key] = extra.get(key)
+	return summary
+
+
+func _format_skill_variant_label(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> String:
+	if skill_def == null:
+		return ""
+	if cast_variant == null or cast_variant.display_name.is_empty():
+		return skill_def.display_name
+	return "%s·%s" % [skill_def.display_name, cast_variant.display_name]
+
+
+func _build_command_summary(command) -> Dictionary:
+	if command == null:
+		return {}
+	return {
+		"command_type": String(command.command_type),
+		"unit_id": String(command.unit_id),
+		"skill_id": String(command.skill_id),
+		"skill_variant_id": String(command.skill_variant_id),
+		"target_unit_id": String(command.target_unit_id),
+		"target_unit_ids": command.target_unit_ids.duplicate(),
+		"target_coord": command.target_coord,
+		"target_coords": command.target_coords.duplicate(),
+	}

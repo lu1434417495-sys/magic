@@ -19,7 +19,7 @@ skill_id = &"mage_spellbreaker"
 range_value = 5
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 hit_rate = 10
 effect_defs = Array[ExtResource("3_cubid")]([SubResource("Resource_q3ihs")])
 

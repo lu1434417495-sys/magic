@@ -22,7 +22,7 @@ area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
 mp_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 effect_defs = Array[ExtResource("3_wc31t")]([SubResource("Resource_bdqds")])
 
 [resource]

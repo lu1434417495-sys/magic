@@ -22,7 +22,7 @@ area_pattern = &"line"
 area_value = 1
 ap_cost = 2
 stamina_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 effect_defs = Array[ExtResource("3_hivns")]([SubResource("Resource_7w4ol")])
 
 [resource]

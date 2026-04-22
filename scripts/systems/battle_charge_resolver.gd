@@ -1,7 +1,10 @@
 class_name BattleChargeResolver
 extends RefCounted
 
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
 const BATTLE_TERRAIN_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_terrain_effect_state.gd")
+const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle_event_batch.gd")
@@ -129,12 +132,13 @@ func handle_charge_skill_command(
 
 func validate_charge_command(
 	active_unit: BattleUnitState,
+	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef,
 	normalized_coords: Array[Vector2i],
 	base_result: Dictionary
 ) -> Dictionary:
 	var result: Dictionary = base_result.duplicate(true) if base_result != null else {}
-	if not _has_runtime() or active_unit == null or cast_variant == null or normalized_coords.is_empty():
+	if not _has_runtime() or active_unit == null or skill_def == null or cast_variant == null or normalized_coords.is_empty():
 		return result
 
 	var target_coord: Vector2i = normalized_coords[0]
@@ -160,6 +164,10 @@ func validate_charge_command(
 	result.preview_coords = _build_charge_preview_coords(active_unit, charge_direction, charge_distance)
 	result.direction = charge_direction
 	result.distance = charge_distance
+	result.resolved_anchor_coord = _resolve_preview_charge_anchor(active_unit, skill_def, cast_variant, {
+		"direction": charge_direction,
+		"distance": charge_distance,
+	})
 	return result
 
 
@@ -179,6 +187,72 @@ func build_charge_step_aoe_preview_coords(
 	for coord_variant in coord_set.keys():
 		coords.append(coord_variant)
 	return _runtime.sort_coords(coords)
+
+
+func _resolve_preview_charge_anchor(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	validation_data: Dictionary
+) -> Vector2i:
+	if not _has_runtime() or _runtime.get_state() == null or active_unit == null or skill_def == null or cast_variant == null:
+		return active_unit.coord if active_unit != null else Vector2i(-1, -1)
+	var preview_state = _duplicate_state_for_preview(_runtime.get_state())
+	var preview_unit = preview_state.units.get(active_unit.unit_id) as BattleUnitState if preview_state != null else null
+	if preview_state == null or preview_unit == null:
+		return active_unit.coord
+	var original_state = _runtime._state
+	var original_character_gateway = _runtime._character_gateway
+	var original_battle_rating_stats: Dictionary = _runtime._battle_rating_stats.duplicate(true)
+	_runtime._state = preview_state
+	_runtime._character_gateway = null
+	_runtime._battle_rating_stats = original_battle_rating_stats.duplicate(true)
+	var preview_batch = BattleEventBatch.new()
+	var resolved_anchor = preview_unit.coord
+	var handled = handle_charge_skill_command(preview_unit, skill_def, cast_variant, validation_data, preview_batch)
+	if handled:
+		resolved_anchor = preview_unit.coord
+	_runtime._battle_rating_stats = original_battle_rating_stats
+	_runtime._character_gateway = original_character_gateway
+	_runtime._state = original_state
+	return resolved_anchor
+
+
+func _duplicate_state_for_preview(state: BattleState) -> BattleState:
+	if state == null:
+		return null
+	var cloned_state = BATTLE_STATE_SCRIPT.new()
+	cloned_state.battle_id = state.battle_id
+	cloned_state.seed = state.seed
+	cloned_state.attack_roll_nonce = state.attack_roll_nonce
+	cloned_state.effect_roll_nonce = state.effect_roll_nonce
+	cloned_state.phase = state.phase
+	cloned_state.map_size = state.map_size
+	cloned_state.world_coord = state.world_coord
+	cloned_state.encounter_anchor_id = state.encounter_anchor_id
+	cloned_state.terrain_profile_id = state.terrain_profile_id
+	for coord_variant in state.cells.keys():
+		var cell_state = state.cells.get(coord_variant) as BattleCellState
+		if cell_state == null:
+			continue
+		cloned_state.cells[coord_variant] = cell_state.duplicate_cell()
+	cloned_state.cell_columns = BattleCellState.build_columns_from_surface_cells(cloned_state.cells)
+	for unit_id_variant in state.units.keys():
+		var unit_state = state.units.get(unit_id_variant) as BattleUnitState
+		if unit_state == null:
+			continue
+		cloned_state.units[unit_id_variant] = BattleUnitState.from_dict(unit_state.to_dict())
+	cloned_state.ally_unit_ids = state.ally_unit_ids.duplicate()
+	cloned_state.enemy_unit_ids = state.enemy_unit_ids.duplicate()
+	cloned_state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.from_dict(state.timeline.to_dict()) if state.timeline != null else BATTLE_TIMELINE_STATE_SCRIPT.new()
+	cloned_state.active_unit_id = state.active_unit_id
+	cloned_state.winner_faction_id = state.winner_faction_id
+	cloned_state.log_entries = state.log_entries.duplicate()
+	cloned_state.promotion_queue = state.promotion_queue.duplicate(true)
+	cloned_state.modal_state = state.modal_state
+	cloned_state.runtime_edge_faces = {}
+	cloned_state.runtime_edges_dirty = true
+	return cloned_state
 
 
 func get_charge_path_step_aoe_effect_def(cast_variant: CombatCastVariantDef) -> CombatEffectDef:
@@ -247,13 +321,15 @@ func _apply_charge_path_step_aoe_effects(
 		var healing = int(result.get("healing", 0))
 		total_damage += damage
 		total_healing += healing
-		if damage > 0:
-			batch.log_lines.append("%s 的 %s 沿途旋斩命中 %s，造成 %d 伤害。" % [
+		_runtime.append_damage_result_log_lines(
+			batch,
+			"%s 的 %s 沿途旋斩" % [
 				active_unit.display_name,
 				skill_def.display_name,
-				target_unit.display_name,
-				damage,
-			])
+			],
+			target_unit.display_name,
+			result
+		)
 		if healing > 0:
 			batch.log_lines.append("%s 的 %s 沿途旋斩为 %s 恢复 %d 点生命。" % [
 				active_unit.display_name,
@@ -268,7 +344,7 @@ func _apply_charge_path_step_aoe_effects(
 			_runtime.get_battle_rating_system().record_enemy_defeated_achievement(active_unit, target_unit)
 
 	if total_damage > 0 or total_healing > 0 or total_kill_count > 0:
-		_runtime.get_battle_rating_system().record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
+		_runtime.record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
 	return {
 		"triggered": true,
 		"hit_count": hit_count,
@@ -462,13 +538,29 @@ func _resolve_charge_blocker(
 			batch.log_lines.append("%s 将 %s 顶向侧面。" % [active_unit.display_name, blocker.display_name])
 			var fall_layers: int = int(side_push.get("fall_layers", 0))
 			if fall_layers > 0:
-				var fall_damage: int = int(_runtime.get_damage_resolver().resolve_fall_damage(blocker, fall_layers))
-				if fall_damage > 0:
-					batch.log_lines.append("%s 因侧推跌落 %d 层，受到 %d 点坠落伤害。" % [
-						blocker.display_name,
-						fall_layers,
-						fall_damage,
-					])
+				var fall_result: Dictionary = _runtime.get_damage_resolver().resolve_fall_damage(blocker, fall_layers)
+				var fall_damage := int(fall_result.get("damage", 0))
+				var shield_absorbed := int(fall_result.get("shield_absorbed", 0))
+				if fall_damage > 0 or shield_absorbed > 0:
+					if fall_damage > 0:
+						batch.log_lines.append("%s 因侧推跌落 %d 层，受到 %d 点坠落伤害。" % [
+							blocker.display_name,
+							fall_layers,
+							fall_damage,
+						])
+						if shield_absorbed > 0:
+							batch.log_lines.append("%s 的护盾吸收了 %d 点坠落伤害。" % [
+								blocker.display_name,
+								shield_absorbed,
+							])
+					else:
+						batch.log_lines.append("%s 因侧推跌落 %d 层，但被护盾吸收了 %d 点坠落伤害。" % [
+							blocker.display_name,
+							fall_layers,
+							shield_absorbed,
+						])
+					if bool(fall_result.get("shield_broken", false)):
+						batch.log_lines.append("%s 的护盾被击碎。" % blocker.display_name)
 					_runtime.append_changed_unit_id(batch, blocker.unit_id)
 					if not blocker.is_alive:
 						_runtime.clear_defeated_unit(blocker, batch)
@@ -485,13 +577,29 @@ func _resolve_charge_blocker(
 			batch.log_lines.append("%s 将 %s 向前顶开。" % [active_unit.display_name, blocker.display_name])
 			return "continue"
 
-	var collision_damage: int = int(_runtime.get_damage_resolver().resolve_collision_damage(blocker, active_unit.body_size, blocker.body_size))
+	var collision_result: Dictionary = _runtime.get_damage_resolver().resolve_collision_damage(blocker, active_unit.body_size, blocker.body_size)
+	var collision_damage := int(collision_result.get("damage", 0))
+	var shield_absorbed := int(collision_result.get("shield_absorbed", 0))
 	_runtime.append_changed_unit_id(batch, blocker.unit_id)
-	batch.log_lines.append("%s 撞上 %s，造成 %d 点碰撞伤害。" % [
-		active_unit.display_name,
-		blocker.display_name,
-		collision_damage,
-	])
+	if collision_damage > 0:
+		batch.log_lines.append("%s 撞上 %s，造成 %d 点碰撞伤害。" % [
+			active_unit.display_name,
+			blocker.display_name,
+			collision_damage,
+		])
+		if shield_absorbed > 0:
+			batch.log_lines.append("%s 的护盾吸收了 %d 点碰撞伤害。" % [
+				blocker.display_name,
+				shield_absorbed,
+			])
+	elif shield_absorbed > 0:
+		batch.log_lines.append("%s 撞上 %s，但被护盾吸收了 %d 点碰撞伤害。" % [
+			active_unit.display_name,
+			blocker.display_name,
+			shield_absorbed,
+		])
+	if bool(collision_result.get("shield_broken", false)):
+		batch.log_lines.append("%s 的护盾被击碎。" % blocker.display_name)
 	if not blocker.is_alive:
 		_runtime.clear_defeated_unit(blocker, batch)
 		batch.log_lines.append("%s 被击倒。" % blocker.display_name)
@@ -647,4 +755,3 @@ func _get_charge_max_distance(active_unit: BattleUnitState, cast_variant: Combat
 
 func _has_runtime() -> bool:
 	return _runtime != null
-

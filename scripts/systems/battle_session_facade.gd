@@ -39,6 +39,8 @@ func get_selected_battle_skill_variant_name() -> String:
 
 
 func get_selected_battle_skill_target_coords() -> Array[Vector2i]:
+	if _is_battle_interaction_blocked():
+		return []
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return []
@@ -46,6 +48,8 @@ func get_selected_battle_skill_target_coords() -> Array[Vector2i]:
 
 
 func get_selected_battle_skill_target_unit_ids() -> Array[StringName]:
+	if _is_battle_interaction_blocked():
+		return []
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return []
@@ -53,6 +57,8 @@ func get_selected_battle_skill_target_unit_ids() -> Array[StringName]:
 
 
 func get_selected_battle_skill_valid_target_coords() -> Array[Vector2i]:
+	if _is_battle_interaction_blocked():
+		return []
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return []
@@ -70,6 +76,8 @@ func get_battle_movement_reachable_coords() -> Array[Vector2i]:
 	var battle_runtime = _get_battle_runtime()
 	if not _is_battle_ready() or not _is_battle_active() or battle_runtime == null:
 		return []
+	if _is_battle_interaction_blocked():
+		return []
 	var active_unit: BattleUnitState = get_manual_active_unit()
 	if active_unit == null:
 		return []
@@ -78,6 +86,8 @@ func get_battle_movement_reachable_coords() -> Array[Vector2i]:
 
 func get_battle_overlay_target_coords() -> Array[Vector2i]:
 	if not _is_battle_ready():
+		return []
+	if _is_battle_interaction_blocked():
 		return []
 	if _runtime.get_selected_battle_skill_id() != &"":
 		return get_selected_battle_skill_valid_target_coords()
@@ -142,6 +152,9 @@ func command_battle_select_skill(slot_index: int) -> Dictionary:
 		return _runtime_unavailable_error()
 	if not _is_battle_active():
 		return _command_error("当前没有进行中的战斗。")
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return _runtime_unavailable_error()
@@ -156,6 +169,9 @@ func command_battle_cycle_variant(step: int) -> Dictionary:
 		return _runtime_unavailable_error()
 	if not _is_battle_active():
 		return _command_error("当前没有进行中的战斗。")
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return _runtime_unavailable_error()
@@ -168,6 +184,9 @@ func command_battle_clear_skill() -> Dictionary:
 		return _runtime_unavailable_error()
 	if not _is_battle_active():
 		return _command_error("当前没有进行中的战斗。")
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return _runtime_unavailable_error()
@@ -180,6 +199,9 @@ func command_battle_move_to(target_coord: Vector2i) -> Dictionary:
 		return _runtime_unavailable_error()
 	if not _is_battle_active():
 		return _command_error("当前没有进行中的战斗。")
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return _runtime_unavailable_error()
@@ -196,6 +218,9 @@ func command_battle_move_direction(direction: Vector2i) -> Dictionary:
 		return _command_error("当前没有进行中的战斗。")
 	if direction == Vector2i.ZERO:
 		return _command_error("战斗移动方向不能为空。")
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	var battle_refresh_mode := attempt_battle_move(direction)
 	if battle_refresh_mode == &"error":
 		return _command_error(_get_runtime_status_text("当前技能无法施放。"))
@@ -207,6 +232,9 @@ func command_battle_wait_or_resolve() -> Dictionary:
 		return _runtime_unavailable_error()
 	if not _is_battle_active():
 		return _command_error("当前没有进行中的战斗。")
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	resolve_active_battle()
 	return _command_ok()
 
@@ -216,6 +244,9 @@ func command_battle_inspect(coord: Vector2i) -> Dictionary:
 		return _runtime_unavailable_error()
 	if not _is_battle_active():
 		return _command_error("当前没有进行中的战斗。")
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	if _try_open_character_info_at_battle_coord(coord):
 		return _command_ok()
 	return _command_error("该战斗格没有可查看单位。")
@@ -224,6 +255,9 @@ func command_battle_inspect(coord: Vector2i) -> Dictionary:
 func reset_battle_focus() -> Dictionary:
 	if not _is_battle_ready():
 		return _runtime_unavailable_error()
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		return _command_error(block_reason)
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
 		return _runtime_unavailable_error()
@@ -232,6 +266,10 @@ func reset_battle_focus() -> Dictionary:
 
 func handle_battle_input(key_event: InputEventKey) -> bool:
 	if not _is_battle_ready():
+		return false
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		_update_status(block_reason)
 		return false
 	var battle_selection = _get_battle_selection()
 	if battle_selection == null:
@@ -315,6 +353,10 @@ func _consume_battle_resolution_result(battle_runtime):
 func attempt_battle_move(direction: Vector2i) -> StringName:
 	if not _is_battle_ready() or not _is_battle_active():
 		return &"full"
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		_update_status(block_reason)
+		return &"overlay"
 	var active_unit = get_manual_active_unit()
 	if active_unit == null:
 		_update_status("当前没有可手动操作的单位。")
@@ -328,7 +370,9 @@ func attempt_battle_move(direction: Vector2i) -> StringName:
 func on_battle_cell_clicked(coord: Vector2i) -> void:
 	if not _is_battle_ready() or not _is_battle_active():
 		return
-	if _is_modal_window_open():
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		_update_status(block_reason)
 		return
 	var battle_selection = _get_battle_selection()
 	if battle_selection != null:
@@ -338,7 +382,9 @@ func on_battle_cell_clicked(coord: Vector2i) -> void:
 func on_battle_cell_right_clicked(coord: Vector2i) -> void:
 	if not _is_battle_ready() or not _is_battle_active():
 		return
-	if _is_modal_window_open():
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		_update_status(block_reason)
 		return
 	if _try_open_character_info_at_battle_coord(coord):
 		return
@@ -346,7 +392,11 @@ func on_battle_cell_right_clicked(coord: Vector2i) -> void:
 
 
 func on_battle_skill_slot_selected(index: int) -> void:
-	if not _is_battle_ready() or _is_modal_window_open():
+	if not _is_battle_ready():
+		return
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		_update_status(block_reason)
 		return
 	var battle_selection = _get_battle_selection()
 	if battle_selection != null:
@@ -354,7 +404,11 @@ func on_battle_skill_slot_selected(index: int) -> void:
 
 
 func on_battle_skill_variant_cycle_requested(step: int) -> void:
-	if not _is_battle_ready() or _is_modal_window_open():
+	if not _is_battle_ready():
+		return
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		_update_status(block_reason)
 		return
 	var battle_selection = _get_battle_selection()
 	if battle_selection != null:
@@ -362,7 +416,11 @@ func on_battle_skill_variant_cycle_requested(step: int) -> void:
 
 
 func on_battle_skill_clear_requested() -> void:
-	if not _is_battle_ready() or _is_modal_window_open():
+	if not _is_battle_ready():
+		return
+	var block_reason := _get_battle_interaction_block_reason()
+	if not block_reason.is_empty():
+		_update_status(block_reason)
 		return
 	var battle_selection = _get_battle_selection()
 	if battle_selection != null:
@@ -460,12 +518,12 @@ func build_wait_command():
 func issue_battle_command(command) -> StringName:
 	if command == null:
 		return &"overlay"
-	if command.command_type == BATTLE_COMMAND_SCRIPT.TYPE_SKILL:
-		_clear_battle_selection_targets()
 	var battle_runtime = _get_battle_runtime()
 	if battle_runtime == null:
 		return &"overlay"
 	var batch = battle_runtime.issue_command(command)
+	if command.command_type == BATTLE_COMMAND_SCRIPT.TYPE_SKILL and _did_skill_command_execute(command, batch):
+		_clear_battle_selection_targets()
 	apply_battle_batch(batch)
 	return &"full"
 
@@ -670,12 +728,60 @@ func _is_battle_active() -> bool:
 	return _runtime != null and _runtime.is_battle_active()
 
 
+func _get_battle_interaction_block_reason() -> String:
+	if not _is_battle_ready() or not _is_battle_active():
+		return ""
+	var battle_state := _get_battle_state()
+	if battle_state != null and StringName(battle_state.modal_state) != &"":
+		return _get_battle_modal_block_reason(StringName(battle_state.modal_state))
+	var active_modal_id := _get_active_modal_id()
+	if _is_modal_window_open() and _is_battle_overlay_modal_id(active_modal_id):
+		return _get_runtime_modal_block_reason(active_modal_id)
+	return ""
+
+
+func _is_battle_interaction_blocked() -> bool:
+	return not _get_battle_interaction_block_reason().is_empty()
+
+
+func _get_battle_modal_block_reason(modal_state: StringName) -> String:
+	match modal_state:
+		&"start_confirm":
+			return "战斗尚未开始，确认后才能操作。"
+		&"promotion_choice":
+			return "当前处于晋升选择中，无法操作。"
+		_:
+			return "当前有待处理的战斗流程，暂时无法操作。"
+
+
+func _get_runtime_modal_block_reason(modal_id: String) -> String:
+	match modal_id:
+		"character_info":
+			return "当前正在查看角色信息，无法操作战斗。"
+		_:
+			return ""
+
+
+func _is_battle_overlay_modal_id(modal_id: String) -> bool:
+	return modal_id == "character_info"
+
+
+func _get_active_modal_id() -> String:
+	return String(_runtime.get_active_modal_id()) if _runtime != null else ""
+
+
 func _is_modal_window_open() -> bool:
 	return _runtime != null and _runtime.is_modal_window_open()
 
 
 func _batch_has_updates(batch) -> bool:
 	return _runtime != null and _runtime.batch_has_updates(batch)
+
+
+func _did_skill_command_execute(command, batch) -> bool:
+	if command == null or batch == null:
+		return false
+	return batch.changed_unit_ids.has(command.unit_id)
 
 
 func _update_status(message: String) -> void:

@@ -22,7 +22,7 @@ area_pattern = &"cone"
 area_value = 1
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 effect_defs = Array[ExtResource("3_n8nq7")]([SubResource("Resource_i71df")])
 
 [resource]

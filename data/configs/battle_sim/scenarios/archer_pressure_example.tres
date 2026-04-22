@@ -1,0 +1,83 @@
+[gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_scenario_def.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_unit_spec.gd" id="2_unit"]
+
+[sub_resource type="Resource" id="Resource_player_a"]
+script = ExtResource("2_unit")
+unit_id = &"player_a"
+display_name = "玩家A"
+faction_id = &"player"
+control_mode = &"manual"
+coord = Vector2i(4, 2)
+current_hp = 80
+current_ap = 2
+attribute_overrides = {
+"hp_max": 80,
+"action_points": 2,
+"physical_defense": 6,
+"magic_defense": 6,
+"speed": 10
+}
+
+[sub_resource type="Resource" id="Resource_player_b"]
+script = ExtResource("2_unit")
+unit_id = &"player_b"
+display_name = "玩家B"
+faction_id = &"player"
+control_mode = &"manual"
+coord = Vector2i(5, 2)
+current_hp = 80
+current_ap = 2
+attribute_overrides = {
+"hp_max": 80,
+"action_points": 2,
+"physical_defense": 6,
+"magic_defense": 6,
+"speed": 10
+}
+
+[sub_resource type="Resource" id="Resource_enemy_archer"]
+script = ExtResource("2_unit")
+unit_id = &"mist_harrier_sim"
+display_name = "雾沼猎压者"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"ranged_suppressor"
+ai_state_id = &"pressure"
+coord = Vector2i(1, 2)
+current_hp = 60
+current_mp = 20
+current_stamina = 20
+current_ap = 2
+attribute_overrides = {
+"hp_max": 60,
+"mp_max": 20,
+"stamina_max": 20,
+"action_points": 2,
+"physical_attack": 12,
+"magic_attack": 8,
+"physical_defense": 4,
+"magic_defense": 4,
+"speed": 10
+}
+skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
+skill_level_map = {
+"archer_suppressive_fire": 1,
+"archer_pinning_shot": 1
+}
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"archer_pressure_example"
+display_name = "Archer Pressure Example"
+description = "用于验证压制射击、钉射、走位与 AI 评分回退行为的基础战斗模拟场景。"
+map_size = Vector2i(7, 5)
+ally_units = Array[Resource]([SubResource("Resource_player_a"), SubResource("Resource_player_b")])
+enemy_units = Array[Resource]([SubResource("Resource_enemy_archer")])
+tick_interval_seconds = 1.0
+tu_per_tick = 5
+action_threshold = 120
+max_iterations = 40
+manual_policy = &"wait"
+seeds = PackedInt32Array(101, 102, 103, 104)

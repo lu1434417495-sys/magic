@@ -6,17 +6,19 @@ class_name BattleTimelineState
 extends RefCounted
 
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
+const TU_GRANULARITY := 5
+const DEFAULT_TICK_INTERVAL_SECONDS := 1.0
 
 ## 字段说明：记录当前TU，会参与运行时状态流转、系统协作和存档恢复。
 var current_tu := 0
 ## 字段说明：记录时间轴每秒推进的单位数，用于把真实时间换算为战斗 TU 进度。
-var units_per_second := 100
+var units_per_second := TU_GRANULARITY
 ## 字段说明：记录行动阈值，达到该值时通常会触发后续逻辑或状态切换。
 var action_threshold := 1000
 ## 字段说明：记录离散时间轴的秒级节拍；大于 0 时，TU 只会在满一个节拍后按整块推进。
-var tick_interval_seconds := 0.0
+var tick_interval_seconds := DEFAULT_TICK_INTERVAL_SECONDS
 ## 字段说明：记录每个离散节拍应推进的 TU 数量。
-var tu_per_tick := 0
+var tu_per_tick := TU_GRANULARITY
 ## 字段说明：用于标记冻结当前是否成立或生效，供脚本后续分支判断使用，会参与运行时状态流转、系统协作和存档恢复。
 var frozen := false
 ## 字段说明：保存就绪单位标识列表，便于批量遍历、交叉查找和界面展示。
@@ -27,10 +29,10 @@ var delta_remainder := 0.0
 
 func clear() -> void:
 	current_tu = 0
-	units_per_second = 100
+	units_per_second = TU_GRANULARITY
 	action_threshold = 1000
-	tick_interval_seconds = 0.0
-	tu_per_tick = 0
+	tick_interval_seconds = DEFAULT_TICK_INTERVAL_SECONDS
+	tu_per_tick = TU_GRANULARITY
 	frozen = false
 	ready_unit_ids.clear()
 	delta_remainder = 0.0
@@ -52,10 +54,10 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Dictionary):
 	var state = BATTLE_TIMELINE_STATE_SCRIPT.new()
 	state.current_tu = int(data.get("current_tu", 0))
-	state.units_per_second = int(data.get("units_per_second", 100))
+	state.units_per_second = int(data.get("units_per_second", TU_GRANULARITY))
 	state.action_threshold = int(data.get("action_threshold", 1000))
-	state.tick_interval_seconds = float(data.get("tick_interval_seconds", 0.0))
-	state.tu_per_tick = int(data.get("tu_per_tick", 0))
+	state.tick_interval_seconds = float(data.get("tick_interval_seconds", DEFAULT_TICK_INTERVAL_SECONDS))
+	state.tu_per_tick = int(data.get("tu_per_tick", TU_GRANULARITY))
 	state.frozen = bool(data.get("frozen", false))
 	state.ready_unit_ids = _strings_to_string_name_array(data.get("ready_unit_ids", []))
 	state.delta_remainder = float(data.get("delta_remainder", 0.0))

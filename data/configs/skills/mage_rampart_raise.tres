@@ -33,7 +33,7 @@ area_pattern = &"line"
 area_value = 1
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 cast_variants = Array[ExtResource("2_mudpc")]([SubResource("Resource_v3suk"), SubResource("Resource_favh6"), SubResource("Resource_orjcm")])
 
 [resource]

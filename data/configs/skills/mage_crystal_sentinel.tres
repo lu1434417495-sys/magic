@@ -20,7 +20,7 @@ target_mode = &"ground"
 range_value = 3
 ap_cost = 3
 mp_cost = 3
-cooldown_tu = 4
+cooldown_tu = 20
 effect_defs = Array[ExtResource("3_mtx8r")]([SubResource("Resource_cgono")])
 
 [resource]

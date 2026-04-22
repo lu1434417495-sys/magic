@@ -30,7 +30,7 @@ target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"
 stamina_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 target_selection_mode = &"self"
 effect_defs = Array[ExtResource("3_yp2aw")]([SubResource("Resource_qpp7b"), SubResource("Resource_kdu31")])
 

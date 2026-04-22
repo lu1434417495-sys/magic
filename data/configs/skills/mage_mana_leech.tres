@@ -20,7 +20,7 @@ target_mode = &"ground"
 range_value = 4
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 effect_defs = Array[ExtResource("3_vrt12")]([SubResource("Resource_wssex")])
 
 [resource]

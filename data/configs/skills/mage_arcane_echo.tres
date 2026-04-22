@@ -14,7 +14,7 @@ range_value = 0
 area_pattern = &"self"
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 target_selection_mode = &"self"
 
 [resource]

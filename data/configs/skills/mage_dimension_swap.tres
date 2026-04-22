@@ -12,7 +12,7 @@ skill_id = &"mage_dimension_swap"
 range_value = 4
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 
 [resource]
 script = ExtResource("5_4j0wa")

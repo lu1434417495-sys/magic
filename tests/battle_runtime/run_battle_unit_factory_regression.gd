@@ -8,6 +8,7 @@ const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_servic
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
 const BattleUnitFactory = preload("res://scripts/systems/battle_unit_factory.gd")
+const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle_unit_factory_runtime.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
@@ -40,10 +41,20 @@ class FakeCharacterGateway:
 
 
 class FakeRuntime:
-	extends RefCounted
+	extends BattleUnitFactoryRuntime
 
 	var _character_gateway: Object = null
 	var _skill_defs: Dictionary = {}
+	var _min_battle_surface_height := 4
+
+	func get_character_gateway() -> Object:
+		return _character_gateway
+
+	func get_skill_defs() -> Dictionary:
+		return _skill_defs
+
+	func get_min_battle_surface_height() -> int:
+		return _min_battle_surface_height
 
 
 func _initialize() -> void:
@@ -53,6 +64,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
+	_test_battle_unit_factory_fallback_terrain_uses_runtime_bridge_contract()
 	if _failures.is_empty():
 		print("Battle unit factory regression: PASS")
 		quit(0)
@@ -130,6 +142,28 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_eq(unit.current_ap, 9, "刷新桥接应按属性快照回写 action points。")
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "刷新桥接应从成长进度重建可用主动技能。")
 	_assert_eq(int(unit.known_skill_level_map.get(&"warrior_heavy_strike", 0)), 2, "刷新桥接应从成长进度重建技能等级。")
+
+	unit.current_hp = 3
+	unit.known_active_skill_ids = []
+	unit.known_skill_level_map.clear()
+	factory.refresh_known_skills(unit)
+	_assert_eq(unit.current_hp, 3, "仅刷新 known skills 时不应触碰运行时 HP。")
+	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "known skills 刷新也应走同一 runtime bridge。")
+
+
+func _test_battle_unit_factory_fallback_terrain_uses_runtime_bridge_contract() -> void:
+	var runtime := FakeRuntime.new()
+	runtime._min_battle_surface_height = 9
+	var factory := BattleUnitFactory.new()
+	factory.setup(runtime)
+
+	var terrain_data := factory.build_terrain_data(null, 7, {
+		"map_size": Vector2i(1, 1),
+	})
+	var cell = terrain_data.get("cells", {}).get(Vector2i.ZERO)
+	_assert_true(cell != null, "fallback terrain 应创建默认地格。")
+	if cell != null:
+		_assert_eq(cell.base_height, 9, "fallback terrain 应读取 runtime bridge 的最小地表高度。")
 
 
 func _make_party_state(member_ids: Array[StringName]) -> PartyState:

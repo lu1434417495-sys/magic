@@ -45,7 +45,7 @@ area_pattern = &"radius"
 area_value = 2
 ap_cost = 3
 mp_cost = 3
-cooldown_tu = 4
+cooldown_tu = 20
 cast_variants = Array[ExtResource("2_mp6e3")]([SubResource("Resource_yihuu"), SubResource("Resource_khn4w")])
 
 [resource]

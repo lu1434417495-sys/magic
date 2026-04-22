@@ -18,7 +18,7 @@ script = ExtResource("4_863ed")
 skill_id = &"mage_ether_pull"
 range_value = 5
 mp_cost = 1
-cooldown_tu = 1
+cooldown_tu = 5
 hit_rate = 10
 effect_defs = Array[ExtResource("3_dgj6s")]([SubResource("Resource_0qk2p")])
 

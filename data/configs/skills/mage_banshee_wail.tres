@@ -23,7 +23,7 @@ area_pattern = &"cone"
 area_value = 1
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 effect_defs = Array[ExtResource("3_psl42")]([SubResource("Resource_ydf86")])
 
 [resource]

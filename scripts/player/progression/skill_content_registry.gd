@@ -7,6 +7,7 @@ extends RefCounted
 
 const SKILL_CONFIG_DIRECTORY := "res://data/configs/skills"
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
+const TU_GRANULARITY := 5
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
@@ -159,8 +160,8 @@ func _append_combat_profile_validation_errors(
 		errors.append("Skill %s combat_profile area_value must be >= 0." % String(skill_id))
 	if combat_profile.ap_cost < 0 or combat_profile.mp_cost < 0 or combat_profile.stamina_cost < 0 or combat_profile.aura_cost < 0:
 		errors.append("Skill %s combat_profile costs must be >= 0." % String(skill_id))
-	if combat_profile.cooldown_tu < 0:
-		errors.append("Skill %s combat_profile cooldown_tu must be >= 0." % String(skill_id))
+	if not _is_valid_tu_value(int(combat_profile.cooldown_tu)):
+		errors.append("Skill %s combat_profile cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), TU_GRANULARITY])
 	if combat_profile.min_target_count <= 0:
 		errors.append("Skill %s combat_profile min_target_count must be >= 1." % String(skill_id))
 	if combat_profile.max_target_count < combat_profile.min_target_count:
@@ -236,6 +237,32 @@ func _append_effect_validation_errors(
 	if effect_def.effect_type == &"":
 		errors.append("Skill %s has an effect without effect_type in %s." % [String(skill_id), context_label])
 		return
+	if not _is_valid_tu_value(int(effect_def.duration_tu)):
+		errors.append(
+			"Skill %s effect %s duration_tu must be 0 or a multiple of %d." % [
+				String(skill_id),
+				context_label,
+				TU_GRANULARITY,
+			]
+		)
+	if not _is_valid_tu_value(int(effect_def.tick_interval_tu)):
+		errors.append(
+			"Skill %s effect %s tick_interval_tu must be 0 or a multiple of %d." % [
+				String(skill_id),
+				context_label,
+				TU_GRANULARITY,
+			]
+		)
+	if effect_def.params != null and effect_def.params.has("duration_tu"):
+		var params_duration_tu := int(effect_def.params.get("duration_tu", 0))
+		if not _is_valid_tu_value(params_duration_tu):
+			errors.append(
+				"Skill %s effect %s params.duration_tu must be 0 or a multiple of %d." % [
+					String(skill_id),
+					context_label,
+					TU_GRANULARITY,
+				]
+			)
 
 	match effect_def.effect_type:
 		&"status":
@@ -244,6 +271,32 @@ func _append_effect_validation_errors(
 					"Skill %s status effect in %s is missing status_id." % [
 						String(skill_id),
 						context_label,
+					]
+				)
+		&"shield":
+			var has_dice_keys := effect_def.params != null \
+				and (effect_def.params.has("dice_count") or effect_def.params.has("dice_sides"))
+			var has_valid_dice_config := _has_valid_shield_dice_config(effect_def)
+			if effect_def.power <= 0 and not has_valid_dice_config:
+				errors.append(
+					"Skill %s shield effect in %s must have power >= 1 or a valid dice_count/dice_sides config." % [
+						String(skill_id),
+						context_label,
+					]
+				)
+			if has_dice_keys and not has_valid_dice_config:
+				errors.append(
+					"Skill %s shield effect in %s must set dice_count and dice_sides >= 1 together." % [
+						String(skill_id),
+						context_label,
+					]
+				)
+			if effect_def.duration_tu <= 0 and int(effect_def.params.get("duration_tu", 0)) <= 0:
+				errors.append(
+					"Skill %s shield effect in %s must have positive duration_tu in %d TU steps." % [
+						String(skill_id),
+						context_label,
+						TU_GRANULARITY,
 					]
 				)
 		&"terrain_effect":
@@ -256,9 +309,10 @@ func _append_effect_validation_errors(
 				)
 			if effect_def.duration_tu > 0 and effect_def.tick_interval_tu <= 0:
 				errors.append(
-					"Skill %s terrain_effect in %s must have tick_interval_tu >= 1." % [
+					"Skill %s terrain_effect in %s must have positive tick_interval_tu in %d TU steps." % [
 						String(skill_id),
 						context_label,
+						TU_GRANULARITY,
 					]
 				)
 		&"terrain_replace":
@@ -296,5 +350,20 @@ func _append_effect_validation_errors(
 					"Skill %s charge effect in %s is missing params.skill_id." % [
 						String(skill_id),
 						context_label,
-					]
+						]
 				)
+
+
+func _is_valid_tu_value(value: int) -> bool:
+	if value < 0:
+		return false
+	if value == 0:
+		return true
+	return value % TU_GRANULARITY == 0
+
+
+func _has_valid_shield_dice_config(effect_def: CombatEffectDef) -> bool:
+	return effect_def != null \
+		and effect_def.params != null \
+		and int(effect_def.params.get("dice_count", 0)) > 0 \
+		and int(effect_def.params.get("dice_sides", 0)) > 0

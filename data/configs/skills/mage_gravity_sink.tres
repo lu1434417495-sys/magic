@@ -22,7 +22,7 @@ area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 effect_defs = Array[ExtResource("3_vulai")]([SubResource("Resource_u2r85")])
 
 [resource]

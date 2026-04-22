@@ -46,7 +46,7 @@ target_mode = &"ground"
 range_value = 6
 ap_cost = 2
 stamina_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 aura_cost = 1
 cast_variants = Array[ExtResource("2_657aj")]([SubResource("Resource_xn254")])
 

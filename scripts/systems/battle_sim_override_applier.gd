@@ -1,0 +1,129 @@
+class_name BattleSimOverrideApplier
+extends RefCounted
+
+const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle_ai_score_profile.gd")
+
+
+func apply_profile(skill_defs: Dictionary, enemy_ai_brains: Dictionary, profile) -> Dictionary:
+	var cloned_skill_defs := _duplicate_resource_dict(skill_defs)
+	var cloned_enemy_ai_brains := _duplicate_resource_dict(enemy_ai_brains)
+	var ai_score_profile = profile.ai_score_profile.duplicate(true) if profile != null and profile.ai_score_profile != null else BATTLE_AI_SCORE_PROFILE_SCRIPT.new()
+	if profile != null:
+		for patch_entry in profile.override_patches:
+			if patch_entry is not Dictionary:
+				continue
+			_apply_patch_entry(cloned_skill_defs, cloned_enemy_ai_brains, ai_score_profile, patch_entry)
+	return {
+		"skill_defs": cloned_skill_defs,
+		"enemy_ai_brains": cloned_enemy_ai_brains,
+		"ai_score_profile": ai_score_profile,
+	}
+
+
+func _duplicate_resource_dict(source: Dictionary) -> Dictionary:
+	var duplicated: Dictionary = {}
+	for key in source.keys():
+		var value = source.get(key)
+		duplicated[key] = value.duplicate(true) if value != null and value is Resource else value
+	return duplicated
+
+
+func _apply_patch_entry(
+	skill_defs: Dictionary,
+	enemy_ai_brains: Dictionary,
+	ai_score_profile,
+	patch_entry: Dictionary
+) -> void:
+	var target_type := String(patch_entry.get("target_type", ""))
+	var path := String(patch_entry.get("path", ""))
+	var value = patch_entry.get("value", null)
+	if path.is_empty():
+		return
+	match target_type:
+		"skill":
+			var skill_id := ProgressionDataUtils.to_string_name(patch_entry.get("target_id", ""))
+			if skill_defs.has(skill_id):
+				_set_value_by_path(skill_defs.get(skill_id), path, value)
+		"brain":
+			var brain_id := ProgressionDataUtils.to_string_name(patch_entry.get("target_id", ""))
+			if enemy_ai_brains.has(brain_id):
+				_set_value_by_path(enemy_ai_brains.get(brain_id), path, value)
+		"action":
+			var action_resource = _resolve_action_resource(enemy_ai_brains, patch_entry)
+			if action_resource != null:
+				_set_value_by_path(action_resource, path, value)
+		"ai_score_profile":
+			_set_value_by_path(ai_score_profile, path, value)
+		_:
+			return
+
+
+func _resolve_action_resource(enemy_ai_brains: Dictionary, patch_entry: Dictionary):
+	var brain_id := ProgressionDataUtils.to_string_name(patch_entry.get("brain_id", patch_entry.get("target_id", "")))
+	if brain_id == &"" or not enemy_ai_brains.has(brain_id):
+		return null
+	var brain = enemy_ai_brains.get(brain_id)
+	var state_id := ProgressionDataUtils.to_string_name(patch_entry.get("state_id", ""))
+	var action_id := ProgressionDataUtils.to_string_name(patch_entry.get("action_id", ""))
+	for state_def in brain.get_states():
+		if state_def == null:
+			continue
+		if state_id != &"" and state_def.state_id != state_id:
+			continue
+		for action_resource in state_def.get_actions():
+			if action_resource == null:
+				continue
+			if action_id == &"" or action_resource.action_id == action_id:
+				return action_resource
+	return null
+
+
+func _set_value_by_path(target, path: String, value) -> void:
+	var segments := path.split(".", false)
+	if segments.is_empty():
+		return
+	_set_value_recursive(target, segments, 0, value)
+
+
+func _set_value_recursive(target, segments: PackedStringArray, index: int, value) -> void:
+	if target == null or index >= segments.size():
+		return
+	var segment := segments[index]
+	var is_last := index == segments.size() - 1
+	if target is Array:
+		var array_index := int(segment)
+		if array_index < 0 or array_index >= target.size():
+			return
+		if is_last:
+			target[array_index] = _coerce_value(target[array_index], value)
+			return
+		_set_value_recursive(target[array_index], segments, index + 1, value)
+		return
+	if target is Dictionary:
+		if is_last:
+			target[segment] = _coerce_value(target.get(segment, null), value)
+			return
+		_set_value_recursive(target.get(segment, null), segments, index + 1, value)
+		return
+	if is_last:
+		var current_value = target.get(segment)
+		target.set(segment, _coerce_value(current_value, value))
+		return
+	_set_value_recursive(target.get(segment), segments, index + 1, value)
+
+
+func _coerce_value(current_value, value):
+	if current_value is StringName:
+		return ProgressionDataUtils.to_string_name(value)
+	if current_value is Vector2i:
+		if value is Vector2i:
+			return value
+		if value is Dictionary:
+			return Vector2i(int(value.get("x", 0)), int(value.get("y", 0)))
+	if current_value is int:
+		return int(value)
+	if current_value is float:
+		return float(value)
+	if current_value is bool:
+		return bool(value)
+	return value

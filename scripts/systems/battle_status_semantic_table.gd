@@ -9,21 +9,27 @@ const STACK_ADD: StringName = &"add"
 const TICK_NONE: StringName = &"none"
 const TICK_TURN_START_AP_PENALTY: StringName = &"turn_start_ap_penalty"
 const TICK_TURN_START_DAMAGE: StringName = &"turn_start_damage"
+const TU_GRANULARITY := 5
 
 const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
 const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
 const STATUS_ATTACK_UP: StringName = &"attack_up"
 const STATUS_BURNING: StringName = &"burning"
+const STATUS_DEATH_WARD: StringName = &"death_ward"
 const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
 const STATUS_EVASION_UP: StringName = &"evasion_up"
 const STATUS_FROZEN: StringName = &"frozen"
 const STATUS_GUARDING: StringName = &"guarding"
+const STATUS_HEX_OF_FRAILTY: StringName = &"hex_of_frailty"
+const STATUS_MAGIC_SHIELD: StringName = &"magic_shield"
 const STATUS_MARKED: StringName = &"marked"
 const STATUS_PINNED: StringName = &"pinned"
+const STATUS_PRISMATIC_BARRIER: StringName = &"prismatic_barrier"
 const STATUS_ROOTED: StringName = &"rooted"
 const STATUS_SHOCKED: StringName = &"shocked"
 const STATUS_SLOW: StringName = &"slow"
+const STATUS_SPELLWARD: StringName = &"spellward"
 const STATUS_STAGGERED: StringName = &"staggered"
 const STATUS_TAUNTED: StringName = &"taunted"
 const STATUS_TENDON_CUT: StringName = &"tendon_cut"
@@ -35,7 +41,7 @@ static func has_semantic(status_id: StringName) -> bool:
 
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_EVASION_UP, STATUS_GUARDING:
+		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_EVASION_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD:
 			return _build_refresh_timeline_semantic()
 		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT:
 			return _build_refresh_timeline_semantic()
@@ -147,11 +153,11 @@ static func _resolve_duration_tu(effect_def) -> int:
 	if effect_def == null:
 		return -1
 	if effect_def.params != null and effect_def.params.has("duration_tu"):
-		return maxi(int(effect_def.params.get("duration_tu", 0)), 1)
+		return _normalize_positive_tu_value(int(effect_def.params.get("duration_tu", 0)), "status params.duration_tu")
 	if int(effect_def.duration_tu) > 0:
-		return maxi(int(effect_def.duration_tu), 1)
+		return _normalize_positive_tu_value(int(effect_def.duration_tu), "status duration_tu")
 	if effect_def.params != null and effect_def.params.has("duration"):
-		return maxi(int(effect_def.params.get("duration", 0)), 1)
+		return _normalize_positive_tu_value(int(effect_def.params.get("duration", 0)), "legacy status duration")
 	return -1
 
 
@@ -165,3 +171,13 @@ static func _get_effect_intensity(status_entry: BattleStatusEffectState) -> int:
 	if status_entry == null:
 		return 0
 	return maxi(maxi(int(status_entry.power), int(status_entry.stacks)), 1)
+
+
+static func _normalize_positive_tu_value(value: int, field_label: String) -> int:
+	if value <= 0:
+		return -1
+	if value % TU_GRANULARITY != 0:
+		var clamped_value := ((value + TU_GRANULARITY - 1) / TU_GRANULARITY) * TU_GRANULARITY
+		push_error("%s must use %d TU steps, got %d; clamping up to %d." % [field_label, TU_GRANULARITY, value, clamped_value])
+		return clamped_value
+	return value

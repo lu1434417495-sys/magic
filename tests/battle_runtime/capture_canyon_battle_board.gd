@@ -17,6 +17,8 @@ const TEST_MAP_SIZE := Vector2i(19, 11)
 const TEST_WORLD_COORD := Vector2i(7, 11)
 const TEST_SEED := 424242
 const OUTPUT_PATH := "res://battle_board_canyon_capture.png"
+const HEADLESS_SIGNATURE_OUTPUT_PATH := "res://battle_board_canyon_capture.signature.txt"
+const MAX_READY_FRAMES := 24
 
 ## 字段说明：记录网格服务，用于构造测试场景、记录结果并支撑回归断言。
 var _grid_service := BattleGridService.new()
@@ -43,8 +45,29 @@ func _run() -> void:
 	var selected_coord: Vector2i = layout.get("player_coord", Vector2i.ZERO)
 	board.set_viewport_size(Vector2(VIEWPORT_SIZE))
 	board.configure(state, selected_coord, [])
-	await process_frame
-	await process_frame
+	var ready := await _wait_for_board_render_ready(board)
+	if not ready:
+		push_error("Battle board capture did not reach render-ready state before screenshot.")
+		quit(1)
+		return
+	if not _validate_unit_placement(state, &"ally_capture", layout.get("player_coord", Vector2i.ZERO), "ally_capture"):
+		push_error("Battle board capture could not verify ally placement before screenshot.")
+		quit(1)
+		return
+	if not _validate_unit_placement(state, &"enemy_capture", layout.get("enemy_coord", Vector2i.ZERO), "enemy_capture"):
+		push_error("Battle board capture could not verify enemy placement before screenshot.")
+		quit(1)
+		return
+
+	if DisplayServer.get_name() == "headless":
+		var signature_error := _save_headless_board_signature(board)
+		if signature_error != OK:
+			push_error("Failed to save battle board headless signature.")
+			quit(1)
+			return
+		print("Saved battle board headless signature to %s" % ProjectSettings.globalize_path(HEADLESS_SIGNATURE_OUTPUT_PATH))
+		quit(0)
+		return
 
 	var image: Image = root.get_texture().get_image()
 	var output_path: String = ProjectSettings.globalize_path(OUTPUT_PATH)
@@ -120,3 +143,83 @@ func _clone_cells(cells: Dictionary) -> Dictionary:
 			continue
 		cloned[coord] = BattleCellState.from_dict(cell.to_dict())
 	return cloned
+
+
+func _wait_for_board_render_ready(board: BattleBoard2D) -> bool:
+	if board == null:
+		return false
+	if board.is_render_content_ready():
+		return true
+	for _frame in range(MAX_READY_FRAMES):
+		await process_frame
+		if board.is_render_content_ready():
+			return true
+	return false
+
+
+func _validate_unit_placement(state: BattleState, unit_id: StringName, expected_coord: Vector2i, label: String) -> bool:
+	if state == null:
+		return false
+	var unit := state.units.get(unit_id) as BattleUnitState
+	if unit == null or unit.coord != expected_coord:
+		push_error("%s should be anchored at %s before capture." % [label, str(expected_coord)])
+		return false
+	var occupant := _grid_service.get_unit_at_coord(state, expected_coord)
+	if occupant == null or occupant.unit_id != unit_id:
+		push_error("%s should occupy %s before capture." % [label, str(expected_coord)])
+		return false
+	return true
+
+
+func _save_headless_board_signature(board: BattleBoard2D) -> int:
+	if board == null:
+		return ERR_INVALID_PARAMETER
+	var file := FileAccess.open(ProjectSettings.globalize_path(HEADLESS_SIGNATURE_OUTPUT_PATH), FileAccess.WRITE)
+	if file == null:
+		return FileAccess.get_open_error()
+	file.store_string("\n".join(_capture_board_signature(board)))
+	file.close()
+	return OK
+
+
+func _capture_board_signature(board: BattleBoard2D) -> Array[String]:
+	var lines: Array[String] = []
+	var layer_names: Array[String] = []
+	layer_names.append_array(_build_layer_names("TopH", 0, BattleBoard2D.MAX_RENDER_HEIGHT))
+	layer_names.append_array(_build_layer_names("EdgeDropEastH", 1, BattleBoard2D.MAX_RENDER_HEIGHT))
+	layer_names.append_array(_build_layer_names("EdgeDropSouthH", 1, BattleBoard2D.MAX_RENDER_HEIGHT))
+	layer_names.append_array(_build_layer_names("WallEastH", 0, BattleBoard2D.MAX_RENDER_HEIGHT))
+	layer_names.append_array(_build_layer_names("WallSouthH", 0, BattleBoard2D.MAX_RENDER_HEIGHT))
+	layer_names.append_array(_build_layer_names("OverlayH", 0, BattleBoard2D.MAX_RENDER_HEIGHT))
+	layer_names.append_array(_build_layer_names("MarkerH", 0, BattleBoard2D.MAX_RENDER_HEIGHT))
+	for layer_name in layer_names:
+		var layer := board.get_node(layer_name) as TileMapLayer
+		if layer == null:
+			continue
+		var used_cells := layer.get_used_cells()
+		used_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+			if a.y == b.y:
+				return a.x < b.x
+			return a.y < b.y
+		)
+		for coord in used_cells:
+			lines.append("%s|%d,%d|%d" % [layer_name, coord.x, coord.y, layer.get_cell_source_id(coord)])
+	var prop_layer := board.get_node("PropLayer")
+	for child in prop_layer.get_children():
+		lines.append("prop|%s|%s|%d|%s" % [
+			String(child.get_meta("prop_id", "")),
+			str(child.get_meta("board_coord", Vector2i.ZERO)),
+			int(child.z_index),
+			str(child.position),
+		])
+	var unit_layer := board.get_node("UnitLayer")
+	for child in unit_layer.get_children():
+		lines.append("unit|%s|%d|%s" % [child.name, int(child.z_index), str(child.position)])
+	return lines
+
+
+func _build_layer_names(prefix: String, start_height: int, max_height: int) -> Array[String]:
+	var names: Array[String] = []
+	for height in range(start_height, max_height + 1):
+		names.append("%s%d" % [prefix, height])
+	return names

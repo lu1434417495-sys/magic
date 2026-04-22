@@ -21,7 +21,7 @@ range_value = 5
 area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
-cooldown_tu = 3
+cooldown_tu = 15
 aura_cost = 1
 effect_defs = Array[ExtResource("3_domnr")]([SubResource("Resource_bauqb")])
 

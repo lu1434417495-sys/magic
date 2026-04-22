@@ -18,7 +18,7 @@ script = ExtResource("4_6vxtp")
 skill_id = &"archer_harrier_mark"
 range_value = 5
 stamina_cost = 1
-cooldown_tu = 2
+cooldown_tu = 10
 hit_rate = 10
 effect_defs = Array[ExtResource("3_rxwdo")]([SubResource("Resource_koam8")])
 

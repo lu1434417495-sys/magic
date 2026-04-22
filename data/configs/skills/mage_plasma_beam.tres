@@ -23,7 +23,7 @@ area_pattern = &"line"
 area_value = 1
 ap_cost = 3
 mp_cost = 3
-cooldown_tu = 3
+cooldown_tu = 15
 hit_rate = -5
 effect_defs = Array[ExtResource("3_j85dn")]([SubResource("Resource_wtd42")])
 

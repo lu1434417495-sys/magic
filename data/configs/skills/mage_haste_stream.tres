@@ -13,7 +13,7 @@ target_team_filter = &"ally"
 range_value = 3
 ap_cost = 2
 mp_cost = 2
-cooldown_tu = 2
+cooldown_tu = 10
 
 [resource]
 script = ExtResource("5_jkxm5")

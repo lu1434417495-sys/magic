@@ -23,7 +23,7 @@ area_pattern = &"radius"
 area_value = 2
 ap_cost = 3
 mp_cost = 3
-cooldown_tu = 4
+cooldown_tu = 20
 aura_cost = 1
 effect_defs = Array[ExtResource("3_63dcl")]([SubResource("Resource_1c508")])
 

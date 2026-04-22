@@ -54,9 +54,8 @@ func apply_repeat_attack_skill_result(
 					stage_index + 1,
 				])
 				break
-			if _should_consume_repeat_attack_cost_on_attempt(repeat_attack_effect):
-				_consume_repeat_attack_stage_cost(active_unit, repeat_attack_effect, stage_aura_cost)
-				_runtime.append_changed_unit_id(batch, active_unit.unit_id)
+			_consume_repeat_attack_stage_cost(active_unit, repeat_attack_effect, stage_aura_cost)
+			_runtime.append_changed_unit_id(batch, active_unit.unit_id)
 
 		var hit_result := _resolve_repeat_attack_stage_hit_result(active_unit, target_unit, skill_def, repeat_attack_effect, stage_index)
 		var stage_hit_rate: int = int(hit_result.get("hit_rate_percent", 0))
@@ -87,17 +86,19 @@ func apply_repeat_attack_skill_result(
 		var healing := int(result.get("healing", 0))
 		total_damage += damage
 		total_healing += healing
-		if damage > 0:
-			batch.log_lines.append("%s 的 %s 第 %d 段命中 %s，倍率 x%s，造成 %d 伤害，AU 消耗 %d，%s。" % [
+		_runtime.append_damage_result_log_lines(
+			batch,
+			"%s 的 %s 第 %d 段，倍率 x%s，AU 消耗 %d，%s" % [
 				active_unit.display_name,
 				skill_def.display_name,
 				stage_index + 1,
-				target_unit.display_name,
 				_format_runtime_multiplier(stage_damage_multiplier),
-				damage,
 				stage_aura_cost,
 				stage_resolution_text,
-			])
+			],
+			target_unit.display_name,
+			result
+		)
 		if healing > 0:
 			batch.log_lines.append("%s 的 %s 第 %d 段为 %s 恢复 %d 点生命。" % [
 				active_unit.display_name,
@@ -126,7 +127,7 @@ func apply_repeat_attack_skill_result(
 		])
 
 	if total_damage > 0 or total_healing > 0 or total_kill_count > 0:
-		_runtime.get_battle_rating_system().record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
+		_runtime.record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
 	return executed
 
 
@@ -226,12 +227,6 @@ func _consume_repeat_attack_stage_cost(
 			active_unit.current_ap = maxi(active_unit.current_ap - stage_cost, 0)
 		_:
 			active_unit.current_aura = maxi(active_unit.current_aura - stage_cost, 0)
-
-
-func _should_consume_repeat_attack_cost_on_attempt(repeat_attack_effect: CombatEffectDef) -> bool:
-	return bool(repeat_attack_effect.params.get("consume_cost_on_attempt", true))
-
-
 func _should_stop_repeat_attack_on_miss(repeat_attack_effect: CombatEffectDef) -> bool:
 	return bool(repeat_attack_effect.params.get("stop_on_miss", true))
 

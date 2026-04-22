@@ -22,7 +22,7 @@ area_pattern = &"radius"
 area_value = 1
 ap_cost = 3
 mp_cost = 3
-cooldown_tu = 4
+cooldown_tu = 20
 effect_defs = Array[ExtResource("3_jpa3g")]([SubResource("Resource_vef3v")])
 
 [resource]
