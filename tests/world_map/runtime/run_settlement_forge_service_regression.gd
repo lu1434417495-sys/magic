@@ -97,6 +97,9 @@ class MockRuntime:
 	func set_runtime_active_modal_id(modal_id: String) -> void:
 		_active_modal_id = modal_id
 
+	func get_active_modal_id() -> String:
+		return _active_modal_id
+
 	func set_active_forge_context(context: Dictionary) -> void:
 		_active_forge_context = context.duplicate(true)
 

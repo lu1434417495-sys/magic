@@ -47,6 +47,18 @@ const UNIMPLEMENTED_INTERACTION_IDS := {
 	"service_hire_expert": true,
 }
 
+const AUTHORITATIVE_SETTLEMENT_ACTION_PAYLOAD_KEYS := {
+	"action_id": true,
+	"facility_id": true,
+	"facility_template_id": true,
+	"facility_name": true,
+	"npc_id": true,
+	"npc_template_id": true,
+	"npc_name": true,
+	"service_type": true,
+	"interaction_script_id": true,
+}
+
 var _runtime_ref: WeakRef = null
 var _runtime = null:
 	get:
@@ -188,10 +200,20 @@ func command_execute_settlement_action(action_id: String, payload: Dictionary = 
 	var settlement_id := resolve_command_settlement_id()
 	if settlement_id.is_empty():
 		return _command_error("当前没有可执行动作的据点。")
-	var merged_payload := build_settlement_action_payload(settlement_id, action_id, payload)
-	merged_payload["action_id"] = action_id
-	on_settlement_action_requested(settlement_id, action_id, merged_payload)
-	return _command_ok()
+	var validation := _validate_settlement_action_request(settlement_id, action_id, payload)
+	if not bool(validation.get("ok", false)):
+		return _command_error(String(validation.get("message", "当前据点未开放该服务。")))
+	var service_entry_variant = validation.get("service_entry", {})
+	if service_entry_variant is not Dictionary:
+		return _command_error("当前据点未开放该服务。")
+	var merged_payload := _build_settlement_action_payload_from_service_entry(
+		action_id,
+		service_entry_variant as Dictionary,
+		payload
+	)
+	if merged_payload.is_empty():
+		return _command_error(_build_unknown_settlement_action_message(settlement_id, action_id))
+	return _dispatch_settlement_action(settlement_id, action_id, merged_payload)
 
 
 func command_shop_buy(item_id: StringName, quantity: int) -> Dictionary:
@@ -300,8 +322,12 @@ func command_stagecoach_travel(settlement_id: String) -> Dictionary:
 
 
 func on_settlement_action_requested(settlement_id: String, action_id: String, payload: Dictionary) -> void:
+	_dispatch_settlement_action(settlement_id, action_id, payload)
+
+
+func _dispatch_settlement_action(settlement_id: String, action_id: String, payload: Dictionary) -> Dictionary:
 	if not _has_runtime():
-		return
+		return _command_error("运行时尚未初始化。")
 	var interaction_script_id := String(payload.get("interaction_script_id", ""))
 	if interaction_script_id == _runtime.PARTY_WAREHOUSE_INTERACTION_ID:
 		_finalize_successful_action(action_id, payload, {
@@ -315,45 +341,49 @@ func on_settlement_action_requested(settlement_id: String, action_id: String, pa
 			String(payload.get("facility_name", "设施")),
 			String(payload.get("npc_name", "值守人员")),
 		])
-		_update_status("已从据点服务打开共享仓库。")
-		return
+		var warehouse_message := "已从据点服务打开共享仓库。"
+		_update_status(warehouse_message)
+		return _command_ok(warehouse_message)
 	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
 		if _is_contract_board_modal_submission(payload):
-			_submit_contract_board_quest_action(settlement_id, action_id, payload)
-			return
+			return _submit_contract_board_quest_action(settlement_id, action_id, payload)
 		_open_contract_board_modal(settlement_id, payload)
-		return
+		return _command_ok("已打开 %s 的任务板。" % String(payload.get("facility_name", "据点任务板")))
 	if SHOP_INTERACTION_IDS.has(interaction_script_id):
 		_open_shop_modal(settlement_id, payload)
-		return
+		return _command_ok("已打开 %s 的商店。" % String(payload.get("facility_name", "据点商店")))
 	if _is_forge_interaction(interaction_script_id) and not _is_forge_modal_submission(payload):
 		_open_forge_modal(settlement_id, payload)
-		return
+		return _command_ok("已打开 %s 的锻造界面。" % String(payload.get("facility_name", "锻造设施")))
 	if STAGECOACH_INTERACTION_IDS.has(interaction_script_id):
 		_open_stagecoach_modal(settlement_id, payload)
-		return
+		return _command_ok("已打开 %s 的驿站路线。" % String(payload.get("facility_name", "驿站")))
 	var result := execute_settlement_action(settlement_id, action_id, payload)
 	var message := String(result.get("message", "交互已完成。"))
 	_set_settlement_feedback_text(message)
+	var action_succeeded := bool(result.get("success", false))
 	if _is_forge_interaction(interaction_script_id):
 		_refresh_active_forge_context(message)
-		if bool(result.get("success", false)):
+		if action_succeeded:
 			var forge_persist_result := _finalize_successful_action(action_id, payload, result)
 			if bool(forge_persist_result.get("ok", false)):
 				_update_status(message)
-			else:
-				_update_status("%s 但队伍或据点状态持久化失败。" % message)
-			return
+				return _command_ok(message)
+			var forge_persist_message := "%s 但队伍或据点状态持久化失败。" % message
+			_update_status(forge_persist_message)
+			return _command_error(forge_persist_message)
 		_update_status(message)
-		return
-	if bool(result.get("success", false)):
+		return _command_error(message)
+	if action_succeeded:
 		var persist_result := _finalize_successful_action(action_id, payload, result)
 		if bool(persist_result.get("ok", false)):
 			_update_status(message)
-		else:
-			_update_status("%s 但队伍或据点状态持久化失败。" % message)
-		return
+			return _command_ok(message)
+		var persist_message := "%s 但队伍或据点状态持久化失败。" % message
+		_update_status(persist_message)
+		return _command_error(persist_message)
 	_update_status(message)
+	return _command_error(message)
 
 
 func on_settlement_window_closed() -> void:
@@ -408,32 +438,110 @@ func resolve_command_settlement_id() -> String:
 
 
 func build_settlement_action_payload(settlement_id: String, action_id: String, overrides: Dictionary) -> Dictionary:
-	var payload: Dictionary = {}
-	for service_variant in get_settlement_window_data(settlement_id).get("available_services", []):
-		if service_variant is not Dictionary:
-			continue
-		var service_data: Dictionary = service_variant
-		if String(service_data.get("action_id", "")) != action_id:
-			continue
-		payload = {
-			"action_id": action_id,
-			"facility_id": service_data.get("facility_id", ""),
-			"facility_template_id": service_data.get("facility_template_id", ""),
-			"facility_name": service_data.get("facility_name", ""),
-			"npc_id": service_data.get("npc_id", ""),
-			"npc_template_id": service_data.get("npc_template_id", ""),
-			"npc_name": service_data.get("npc_name", ""),
-			"service_type": service_data.get("service_type", ""),
-			"interaction_script_id": service_data.get("interaction_script_id", ""),
-		}
-		break
+	var service_entry := _resolve_settlement_service_entry(settlement_id, action_id)
+	if service_entry.is_empty():
+		return {}
+	return _build_settlement_action_payload_from_service_entry(action_id, service_entry, overrides)
+
+
+func _build_settlement_action_payload_from_service_entry(action_id: String, service_data: Dictionary, overrides: Dictionary) -> Dictionary:
+	if service_data.is_empty():
+		return {}
+	var payload: Dictionary = {
+		"action_id": action_id,
+		"facility_id": service_data.get("facility_id", ""),
+		"facility_template_id": service_data.get("facility_template_id", ""),
+		"facility_name": service_data.get("facility_name", ""),
+		"npc_id": service_data.get("npc_id", ""),
+		"npc_template_id": service_data.get("npc_template_id", ""),
+		"npc_name": service_data.get("npc_name", ""),
+		"service_type": service_data.get("service_type", ""),
+		"interaction_script_id": service_data.get("interaction_script_id", ""),
+	}
 	for key in overrides.keys():
+		if AUTHORITATIVE_SETTLEMENT_ACTION_PAYLOAD_KEYS.has(String(key)):
+			continue
 		payload[key] = overrides[key]
 	if String(payload.get("member_id", "")).is_empty():
 		var member_id := resolve_default_settlement_member_id()
 		if member_id != &"":
 			payload["member_id"] = String(member_id)
 	return payload
+
+
+func _validate_settlement_action_request(settlement_id: String, action_id: String, payload: Dictionary) -> Dictionary:
+	var modal_validation := _validate_settlement_action_modal_context(action_id, payload)
+	if not bool(modal_validation.get("ok", false)):
+		return modal_validation
+	var service_entry := _resolve_settlement_service_entry(settlement_id, action_id)
+	if service_entry.is_empty():
+		return {
+			"ok": false,
+			"message": _build_unknown_settlement_action_message(settlement_id, action_id),
+		}
+	if _settlement_action_requires_enabled_service(payload) and not bool(service_entry.get("is_enabled", true)):
+		return {
+			"ok": false,
+			"message": _build_disabled_settlement_action_message(service_entry),
+		}
+	return {
+		"ok": true,
+		"service_entry": service_entry,
+	}
+
+
+func _validate_settlement_action_modal_context(action_id: String, payload: Dictionary) -> Dictionary:
+	if _is_contract_board_modal_submission(payload):
+		if _get_active_modal_id() != "contract_board":
+			return {"ok": false, "message": "当前没有打开对应的任务板。"}
+		var contract_board_context := _get_active_contract_board_context()
+		if String(contract_board_context.get("action_id", "")).strip_edges() != action_id:
+			return {"ok": false, "message": "当前任务板与请求的服务入口不一致。"}
+	if _is_forge_modal_submission(payload):
+		if _get_active_modal_id() != "forge":
+			return {"ok": false, "message": "当前没有打开对应的锻造界面。"}
+		var forge_context := _get_active_forge_context()
+		if String(forge_context.get("action_id", "")).strip_edges() != action_id:
+			return {"ok": false, "message": "当前锻造界面与请求的服务入口不一致。"}
+	return {"ok": true}
+
+
+func _settlement_action_requires_enabled_service(payload: Dictionary) -> bool:
+	return not _is_contract_board_modal_submission(payload) and not _is_forge_modal_submission(payload)
+
+
+func _resolve_settlement_service_entry(settlement_id: String, action_id: String) -> Dictionary:
+	var service_variants = get_settlement_window_data(settlement_id).get("available_services", [])
+	if service_variants is not Array:
+		return {}
+	for service_variant in service_variants:
+		if service_variant is not Dictionary:
+			continue
+		var service_data: Dictionary = service_variant
+		if String(service_data.get("action_id", "")).strip_edges() != action_id:
+			continue
+		return service_data.duplicate(true)
+	return {}
+
+
+func _build_unknown_settlement_action_message(settlement_id: String, action_id: String) -> String:
+	var settlement := _get_settlement_record(settlement_id)
+	var settlement_label := String(settlement.get("display_name", settlement_id)).strip_edges()
+	if settlement_label.is_empty():
+		settlement_label = "当前据点"
+	return "%s 未开放该服务：%s。" % [settlement_label, action_id]
+
+
+func _build_disabled_settlement_action_message(service_entry: Dictionary) -> String:
+	var service_label := String(service_entry.get("service_type", "")).strip_edges()
+	if service_label.is_empty():
+		service_label = String(service_entry.get("facility_name", "")).strip_edges()
+	if service_label.is_empty():
+		service_label = String(service_entry.get("action_id", "该服务")).strip_edges()
+	var disabled_reason := String(service_entry.get("disabled_reason", "")).strip_edges()
+	if disabled_reason.is_empty():
+		return "%s 当前不可用。" % service_label
+	return "%s 当前不可用：%s。" % [service_label, disabled_reason]
 
 
 func resolve_default_settlement_member_id() -> StringName:
@@ -704,14 +812,28 @@ func _build_member_options() -> Array[Dictionary]:
 		if member_id == &"" or seen_member_ids.has(member_id) or party_state.get_member_state(member_id) == null:
 			continue
 		seen_member_ids[member_id] = true
-		options.append({"member_id": String(member_id), "display_name": _get_member_display_name(member_id), "roster_role": "active"})
+		options.append(_build_member_option(party_state, member_id, "上阵"))
 	for member_id_variant in party_state.reserve_member_ids:
 		var member_id := ProgressionDataUtils.to_string_name(member_id_variant)
 		if member_id == &"" or seen_member_ids.has(member_id) or party_state.get_member_state(member_id) == null:
 			continue
 		seen_member_ids[member_id] = true
-		options.append({"member_id": String(member_id), "display_name": _get_member_display_name(member_id), "roster_role": "reserve"})
+		options.append(_build_member_option(party_state, member_id, "替补"))
 	return options
+
+
+func _build_member_option(party_state, member_id: StringName, roster_role: String) -> Dictionary:
+	var member_state = party_state.get_member_state(member_id)
+	if member_state == null:
+		return {}
+	return {
+		"member_id": String(member_id),
+		"display_name": _get_member_display_name(member_id),
+		"roster_role": roster_role,
+		"is_leader": party_state.leader_member_id == member_id,
+		"current_hp": int(member_state.current_hp),
+		"current_mp": int(member_state.current_mp),
+	}
 
 
 func _open_contract_board_modal(settlement_id: String, payload: Dictionary) -> void:
@@ -1396,23 +1518,23 @@ func _is_contract_board_modal_submission(payload: Dictionary) -> bool:
 	return submission_source == "contract_board"
 
 
-func _submit_contract_board_quest_action(settlement_id: String, _action_id: String, payload: Dictionary) -> void:
+func _submit_contract_board_quest_action(settlement_id: String, _action_id: String, payload: Dictionary) -> Dictionary:
 	if not _has_runtime():
-		return
+		return _command_error("运行时尚未初始化。")
 	var quest_id := ProgressionDataUtils.to_string_name(payload.get("quest_id", payload.get("entry_id", "")))
 	if quest_id == &"":
 		var missing_id_message := "当前契约条目缺少 quest_id，无法接取。"
 		_set_settlement_feedback_text(missing_id_message)
 		_refresh_active_contract_board_context(missing_id_message)
 		_update_status(missing_id_message)
-		return
+		return _command_error(missing_id_message)
 	var quest_data := _resolve_contract_board_submission_quest_data(quest_id)
 	if quest_data.is_empty():
 		var missing_quest_message := "当前任务板未找到契约 %s。" % String(quest_id)
 		_set_settlement_feedback_text(missing_quest_message)
 		_refresh_active_contract_board_context(missing_quest_message)
 		_update_status(missing_quest_message)
-		return
+		return _command_error(missing_quest_message)
 	var provider_interaction_id := String(payload.get("provider_interaction_id", payload.get("interaction_script_id", ""))).strip_edges()
 	var quest_provider_interaction_id := String(quest_data.get("provider_interaction_id", "")).strip_edges()
 	if not provider_interaction_id.is_empty() and quest_provider_interaction_id != provider_interaction_id:
@@ -1420,7 +1542,7 @@ func _submit_contract_board_quest_action(settlement_id: String, _action_id: Stri
 		_set_settlement_feedback_text(provider_mismatch_message)
 		_refresh_active_contract_board_context(provider_mismatch_message)
 		_update_status(provider_mismatch_message)
-		return
+		return _command_error(provider_mismatch_message)
 	var state_id := _resolve_contract_board_quest_state_id(quest_id, quest_data)
 	var command_result: Dictionary = {}
 	if state_id == "claimable":
@@ -1440,6 +1562,9 @@ func _submit_contract_board_quest_action(settlement_id: String, _action_id: Stri
 	_set_active_modal_id("contract_board")
 	_set_settlement_feedback_text(message)
 	_refresh_active_contract_board_context(message)
+	if bool(command_result.get("ok", false)):
+		return _command_ok(message)
+	return _command_error(message)
 
 
 func _resolve_contract_board_submission_quest_data(quest_id: StringName) -> Dictionary:

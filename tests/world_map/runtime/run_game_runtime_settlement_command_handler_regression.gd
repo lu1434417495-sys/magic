@@ -6,6 +6,7 @@ const GameSessionScript = preload("res://scripts/systems/game_session.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const PendingCharacterReward = preload("res://scripts/systems/pending_character_reward.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
 
@@ -340,6 +341,11 @@ class MockRuntime:
 
 	func enqueue_pending_character_rewards(reward_variants: Array) -> void:
 		pending_rewards.append_array(reward_variants.duplicate(true))
+		for reward_variant in reward_variants:
+			var reward = PendingCharacterReward.from_variant(reward_variant)
+			if reward == null:
+				continue
+			_party_state.enqueue_pending_character_reward(reward)
 
 	func apply_quest_progress_events_to_party(event_variants: Array, _source_domain: String = "settlement") -> Dictionary:
 		applied_quest_event_batches.append(event_variants.duplicate(true))
@@ -421,6 +427,7 @@ func _run() -> void:
 	_test_facade_delegates_settlement_surface_to_handler()
 	_test_settlement_handler_routes_research_service()
 	_test_settlement_handler_routes_actions_and_modal_state()
+	_test_settlement_handler_rejects_invalid_or_spoofed_actions()
 	await _test_world_generation_exposes_research_service()
 
 	if _failures.is_empty():
@@ -535,15 +542,15 @@ func _test_settlement_handler_routes_research_service() -> void:
 	_assert_true(not bool(refreshed_research_service.get("is_enabled", true)), "扣费后金币不足时 research 服务应及时禁用。")
 	_assert_eq(String(refreshed_research_service.get("disabled_reason", "")), "金币不足", "research 服务禁用原因应明确显示金币不足。")
 
-	runtime._party_state.get_member_state(&"hero").progression.learn_knowledge(&"field_manual")
 	runtime._party_state.gold = 250
 	var reenabled_window_data := handler.get_settlement_window_data("graystone_town_01")
 	var reenabled_research_service := _find_service_entry(reenabled_window_data.get("available_services", []), "service:research")
-	_assert_true(bool(reenabled_research_service.get("is_enabled", false)), "已有下一条研究内容时，补足金币后 research 服务应重新可用。")
+	_assert_true(bool(reenabled_research_service.get("is_enabled", false)), "首条 research 奖励尚未确认时，也应切到下一条可研究内容，而不是重复给野外手册。")
 
 	var second_research_result := handler.command_execute_settlement_action("service:research")
 	_assert_true(bool(second_research_result.get("ok", false)), "第二次 research 服务应继续走正式 settlement action dispatch。")
 	_assert_eq(runtime.pending_rewards.size(), 2, "第二次 research 服务应继续把奖励排入队列。")
+	_assert_eq(runtime._party_state.pending_character_rewards.size(), 2, "research 正式链路应把待领奖励同步写回 party_state。")
 	var second_research_reward: Dictionary = runtime.pending_rewards[1].duplicate(true) if runtime.pending_rewards.size() > 1 and runtime.pending_rewards[1] is Dictionary else {}
 	_assert_eq(String(second_research_reward.get("source_type", "")), "npc_teach", "技能型 research 奖励也应沿用正式 source_type 命名。")
 	_assert_eq(String(second_research_reward.get("source_id", "")), "research_guard_break", "技能型 research 奖励应写入具体来源 ID。")
@@ -552,15 +559,11 @@ func _test_settlement_handler_routes_research_service() -> void:
 	_assert_eq(String(second_reward_entry.get("entry_type", "")), "skill_unlock", "第二条 research 奖励应构造成技能奖励。")
 	_assert_eq(String(second_reward_entry.get("target_id", "")), "warrior_guard_break", "第二条 research 奖励应指向裂甲斩技能。")
 
-	var guard_break_progress := UnitSkillProgress.new()
-	guard_break_progress.skill_id = &"warrior_guard_break"
-	guard_break_progress.is_learned = true
-	runtime._party_state.get_member_state(&"hero").progression.set_skill_progress(guard_break_progress)
 	runtime._party_state.gold = 250
 	var exhausted_window_data := handler.get_settlement_window_data("graystone_town_01")
 	var exhausted_research_service := _find_service_entry(exhausted_window_data.get("available_services", []), "service:research")
-	_assert_true(not bool(exhausted_research_service.get("is_enabled", true)), "没有剩余研究内容时 research 服务应禁用。")
-	_assert_eq(String(exhausted_research_service.get("disabled_reason", "")), "暂无可研究内容", "研究内容耗尽时应给出明确禁用原因。")
+	_assert_true(not bool(exhausted_research_service.get("is_enabled", true)), "同成员两条 research 奖励都已挂入 pending 队列后，服务应禁用。")
+	_assert_eq(String(exhausted_research_service.get("disabled_reason", "")), "暂无可研究内容", "research 已被 pending 队列占满时应给出明确禁用原因。")
 
 
 func _test_settlement_handler_routes_actions_and_modal_state() -> void:
@@ -766,6 +769,13 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(String(contract_board_window_data.get("action_id", "")), "service:contract_board", "任务板 modal 应保留原始 action_id。")
 	_assert_eq(String(contract_board_window_data.get("provider_interaction_id", "")), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。")
 	_assert_eq(contract_board_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop"], "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。")
+	var mismatched_contract_submission := handler.command_execute_settlement_action("service:bounty_registry", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_manual_drill",
+	})
+	_assert_true(not bool(mismatched_contract_submission.get("ok", true)), "任务板提交不应允许切到其他 action_id。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 0, "action_id 与当前任务板不一致时不应触发 quest accept。")
+	_assert_eq(runtime._current_status_message, "当前任务板与请求的服务入口不一致。", "任务板 action_id 不匹配时应返回明确反馈。")
 	var accept_contract_result := handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_manual_drill",
@@ -989,6 +999,71 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(runtime._active_modal_id, "", "关闭据点窗口应清空 modal。")
 	_assert_true(runtime.present_reward_calls > 0, "关闭据点窗口后应尝试恢复待确认奖励。")
 	_assert_eq(runtime._current_status_message, "已关闭据点窗口，返回世界地图。", "关闭据点窗口后应刷新状态文案。")
+
+
+func _test_settlement_handler_rejects_invalid_or_spoofed_actions() -> void:
+	var runtime := MockRuntime.new()
+	runtime._party_state = _make_party_state()
+	runtime._selected_settlement = {
+		"settlement_id": "spring_village_01",
+	}
+	runtime._settlements_by_id = {
+		"spring_village_01": {
+			"settlement_id": "spring_village_01",
+			"display_name": "春泉村",
+			"origin": Vector2i.ZERO,
+			"available_services": [
+				{
+					"action_id": "service:basic_supply",
+					"facility_name": "补给铺",
+					"npc_name": "行商",
+					"service_type": "补给",
+					"interaction_script_id": "service_basic_supply",
+				},
+				{
+					"action_id": "service:stagecoach",
+					"facility_name": "驿站",
+					"npc_name": "驿夫",
+					"service_type": "驿站",
+					"interaction_script_id": "service_stagecoach",
+				},
+			],
+		},
+	}
+	runtime._settlement_states = {
+		"spring_village_01": {
+			"visited": true,
+			"reputation": 0,
+			"active_conditions": [],
+			"cooldowns": {},
+			"shop_inventory_seed": 0,
+			"shop_last_refresh_step": 0,
+			"shop_states": {},
+		},
+	}
+
+	var handler := GameRuntimeSettlementCommandHandler.new()
+	handler.setup(runtime)
+
+	var missing_action_result := handler.command_execute_settlement_action("service:missing")
+	_assert_true(not bool(missing_action_result.get("ok", true)), "未开放的 action_id 应被直接拒绝。")
+	_assert_true(String(missing_action_result.get("message", "")).find("未开放该服务") >= 0, "未开放 action_id 的错误信息应明确指出未开放。")
+	_assert_eq(runtime._active_modal_id, "settlement", "未开放 action_id 失败后不应切换 modal。")
+
+	var disabled_stagecoach_result := handler.command_execute_settlement_action("service:stagecoach")
+	_assert_true(not bool(disabled_stagecoach_result.get("ok", true)), "禁用的据点服务不应继续执行。")
+	_assert_eq(String(disabled_stagecoach_result.get("message", "")), "驿站 当前不可用：暂无已访问路线。", "禁用服务应返回明确 disabled_reason。")
+	_assert_eq(runtime._active_modal_id, "settlement", "禁用服务失败后不应切换 modal。")
+
+	var spoofed_shop_result := handler.command_execute_settlement_action("service:basic_supply", {
+		"interaction_script_id": "service_research",
+		"facility_name": "伪造图书馆",
+		"npc_name": "伪造导师",
+		"service_type": "研究",
+	})
+	_assert_true(bool(spoofed_shop_result.get("ok", false)), "合法 action_id 仍应按真实服务入口执行。")
+	_assert_eq(runtime._active_modal_id, "shop", "伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。")
+	_assert_true(not handler.get_shop_window_data().is_empty(), "按真实商店入口执行后应能读取 shop window data。")
 
 
 func _test_world_generation_exposes_research_service() -> void:

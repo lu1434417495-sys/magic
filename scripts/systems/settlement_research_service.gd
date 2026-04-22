@@ -35,7 +35,7 @@ func is_supported_interaction(interaction_script_id: String) -> bool:
 func build_service_metadata(party_state) -> Dictionary:
 	var can_afford_research: bool = party_state != null and party_state.can_afford(RESEARCH_GOLD_COST)
 	var member_state = _resolve_target_member_state(party_state, {})
-	var has_available_research := member_state != null and not _select_research_candidate(member_state).is_empty()
+	var has_available_research := member_state != null and not _select_research_candidate(party_state, member_state).is_empty()
 	var is_enabled := can_afford_research and has_available_research
 	var disabled_reason := ""
 	if not can_afford_research:
@@ -61,7 +61,7 @@ func execute(
 	if member_state == null or member_state.progression == null:
 		return _build_result(false, "当前没有可承接研究的成员。", quest_progress_events)
 
-	var research_candidate := _select_research_candidate(member_state)
+	var research_candidate := _select_research_candidate(party_state, member_state)
 	if research_candidate.is_empty():
 		return _build_result(false, "%s 当前暂无可研究的新内容。" % _resolve_member_name(member_state), quest_progress_events)
 
@@ -151,9 +151,10 @@ func _resolve_default_member_id(party_state) -> StringName:
 	return &""
 
 
-func _select_research_candidate(member_state) -> Dictionary:
+func _select_research_candidate(party_state, member_state) -> Dictionary:
 	if member_state == null or member_state.progression == null:
 		return {}
+	var reserved_targets := _collect_pending_reward_targets(party_state, member_state.member_id)
 	for candidate_variant in RESEARCH_REWARD_CATALOG:
 		if candidate_variant is not Dictionary:
 			continue
@@ -161,6 +162,8 @@ func _select_research_candidate(member_state) -> Dictionary:
 		var entry_type := ProgressionDataUtils.to_string_name(candidate.get("entry_type", ""))
 		var target_id := ProgressionDataUtils.to_string_name(candidate.get("target_id", ""))
 		if target_id == &"":
+			continue
+		if reserved_targets.has(_build_reward_target_key(entry_type, target_id)):
 			continue
 		match entry_type:
 			&"knowledge_unlock":
@@ -173,6 +176,27 @@ func _select_research_candidate(member_state) -> Dictionary:
 			_:
 				continue
 	return {}
+
+
+func _collect_pending_reward_targets(party_state, member_id: StringName) -> Dictionary:
+	var targets := {}
+	if party_state == null or member_id == &"":
+		return targets
+	var pending_rewards_variant: Variant = party_state.pending_character_rewards
+	if pending_rewards_variant is not Array:
+		return targets
+	for reward_variant in pending_rewards_variant:
+		if reward_variant == null or reward_variant.member_id != member_id:
+			continue
+		for entry_variant in reward_variant.entries:
+			if entry_variant == null or entry_variant.is_empty():
+				continue
+			targets[_build_reward_target_key(entry_variant.entry_type, entry_variant.target_id)] = true
+	return targets
+
+
+func _build_reward_target_key(entry_type: StringName, target_id: StringName) -> StringName:
+	return StringName("%s|%s" % [String(entry_type), String(target_id)])
 
 
 func _build_pending_research_reward(

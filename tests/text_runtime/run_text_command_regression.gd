@@ -23,15 +23,25 @@ func _run() -> void:
 	await runner.initialize()
 
 	await _run_command(runner, "game new test")
-	runner.get_session().get_runtime_facade().get_party_state().set_gold(380)
+	runner.get_session().get_runtime_facade().get_party_state().set_gold(600)
+	_inject_extended_test_settlement_services(runner)
 	await _run_command(runner, "world open")
+	var invalid_settlement_action_result = await _run_command_expect_fail(runner, "settlement action service:missing")
+	_assert_true(invalid_settlement_action_result.message.contains("未开放该服务"), "未开放的 settlement action 应返回明确错误。")
+	await _run_command(runner, "settlement action service:basic_supply interaction_script_id=service_research facility_name=伪造图书馆 npc_name=伪造导师 service_type=研究")
+	_assert_eq(String(runner.get_session().build_snapshot().get("modal", {}).get("id", "")), "shop", "伪造 interaction_script_id 时文本命令仍应按真实服务入口落到商店 modal。")
+	await _run_command(runner, "close")
 	await _run_command(runner, "settlement action service:research interaction_script_id=service_research facility_name=大图书馆 npc_name=大图书官 service_type=研究")
 	_assert_research_reward_queued_while_settlement_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _run_command(runner, "settlement action service:research interaction_script_id=service_research facility_name=大图书馆 npc_name=大图书官 service_type=研究")
+	_assert_second_research_reward_queued_while_settlement_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
 	await _run_command(runner, "close")
 	_assert_research_reward_presented_after_modal_close(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
+	await _assert_eventually_present_research_reward(runner, "裂甲斩", "entry=skill_unlock | warrior_guard_break")
 	await _drain_visible_rewards(runner)
 
 	await _run_command(runner, "game new test")
+	_inject_extended_test_settlement_services(runner)
 	_inject_submit_item_contract(runner.get_session().get_game_session())
 	_assert_log_snapshot_available(runner)
 	_assert_new_game_random_book_skill_grant(runner)
@@ -57,10 +67,6 @@ func _run() -> void:
 	if not duplicate_contract_result.skipped:
 		print(duplicate_contract_result.render())
 	_assert_contract_board_duplicate_feedback(runner.get_session().build_snapshot())
-	await _run_command(runner, "close")
-	_assert_contract_board_closed_to_settlement(runner.get_session().build_snapshot())
-	await _run_command(runner, "settlement action service:bounty_registry interaction_script_id=service_bounty_registry facility_name=悬赏署 npc_name=悬赏文书 service_type=悬赏")
-	_assert_bounty_registry_modal_open(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot())
 	await _run_command(runner, "close")
 	_assert_contract_board_closed_to_settlement(runner.get_session().build_snapshot())
 	await _run_command(runner, "settlement action service:basic_supply")
@@ -224,14 +230,14 @@ func _assert_battle_skill_selection_blockers_in_text_runtime(runner) -> void:
 	_assert_eq(String(stamina_slot.get("disabled_reason", "")), "体力不足", "耐力不足时 headless HUD skill slot 应暴露体力不足原因。")
 	_assert_true(stamina_result.snapshot_text.contains("体力不足"), "耐力不足时文本快照应保留阻断文案。")
 
-	_prime_active_manual_skill_blocker(runner, 12, 2)
+	_prime_active_manual_skill_blocker(runner, 12, 10)
 	var cooldown_result = await _run_command_expect_fail(runner, "battle skill 1")
 	_assert_true(cooldown_result.message.contains("冷却"), "文本 battle skill 选择在冷却未结束时应返回明确错误。")
 	_assert_eq(String(cooldown_result.snapshot.get("battle", {}).get("selected_skill_id", "")), "", "冷却未结束时不应写入 selected_skill_id。")
 	var cooldown_hud: Dictionary = cooldown_result.snapshot.get("battle", {}).get("hud", {})
 	var cooldown_slots: Array = cooldown_hud.get("skill_slots", [])
 	var cooldown_slot: Dictionary = cooldown_slots[0] if not cooldown_slots.is_empty() and cooldown_slots[0] is Dictionary else {}
-	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 2", "冷却未结束时 headless HUD skill slot footer 应显示剩余 CD。")
+	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 10", "冷却未结束时 headless HUD skill slot footer 应显示剩余 CD。")
 	_assert_true(String(cooldown_slot.get("disabled_reason", "")).contains("冷却"), "冷却未结束时 headless HUD skill slot 应暴露冷却原因。")
 	_assert_true(cooldown_result.snapshot_text.contains("冷却"), "冷却未结束时文本快照应保留阻断文案。")
 
@@ -366,6 +372,40 @@ func _assert_research_reward_presented_after_modal_close(snapshot: Dictionary, t
 	_assert_true(String(reward_data.get("summary_text", "")).find("野外手册") >= 0, "research 奖励弹窗应保留成果摘要。")
 	_assert_true(text_snapshot.contains("[REWARD]\nvisible=true"), "文本快照应标记 research 奖励已经弹出。")
 	_assert_true(text_snapshot.contains("entry=knowledge_unlock | field_manual"), "文本快照应继续渲染 research 奖励条目。")
+
+
+func _assert_second_research_reward_queued_while_settlement_open(snapshot: Dictionary, text_snapshot: String) -> void:
+	var settlement_snapshot: Dictionary = snapshot.get("settlement", {})
+	var party_snapshot: Dictionary = snapshot.get("party", {})
+	var reward_snapshot: Dictionary = snapshot.get("reward", {})
+	_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "settlement", "第二次 research 完成后仍应保留 settlement modal。")
+	_assert_true(bool(settlement_snapshot.get("visible", false)), "第二次 research 完成后据点窗口应继续保持打开。")
+	_assert_true(int(party_snapshot.get("pending_reward_count", 0)) >= 2, "连续两次 research 后待处理队列里至少应累积两条待确认奖励。")
+	_assert_true(not bool(reward_snapshot.get("visible", false)), "settlement modal 打开时第二条 research 奖励也不应抢先弹窗。")
+	_assert_true(String(settlement_snapshot.get("feedback_text", "")).find("裂甲斩") >= 0, "第二次 research 应直接切到下一条成果，而不是重复野外手册。")
+	_assert_true(text_snapshot.contains("[REWARD]\nvisible=false"), "第二次 research 时文本快照仍应标记 reward 未显示。")
+
+
+func _assert_eventually_present_research_reward(
+	runner,
+	summary_fragment: String,
+	text_entry_fragment: String,
+	max_confirms: int = 6
+) -> void:
+	for _index in range(max_confirms):
+		var snapshot: Dictionary = runner.get_session().build_snapshot()
+		var reward_snapshot: Dictionary = snapshot.get("reward", {})
+		var reward_data: Dictionary = reward_snapshot.get("reward", {})
+		var summary_text := String(reward_data.get("summary_text", ""))
+		var text_snapshot: String = runner.get_session().build_text_snapshot()
+		if bool(reward_snapshot.get("visible", false)) and summary_text.find(summary_fragment) >= 0:
+			_assert_eq(String(snapshot.get("modal", {}).get("id", "")), "reward", "目标 research 奖励显示时 modal 应为 reward。")
+			_assert_true(text_snapshot.contains(text_entry_fragment), "目标 research 奖励文本快照应渲染对应条目。")
+			return
+		if not bool(reward_snapshot.get("visible", false)):
+			break
+		await _run_command(runner, "reward confirm")
+	_assert_true(false, "未能在保护次数内等到目标 research 奖励：%s。" % summary_fragment)
 
 
 func _assert_generic_forge_modal_open(snapshot: Dictionary, text_snapshot: String) -> void:
@@ -706,6 +746,90 @@ func _inject_submit_item_contract(game_session) -> void:
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 18},
 	]
 	game_session.get_quest_defs()[submit_item_quest.quest_id] = submit_item_quest
+
+
+func _inject_extended_test_settlement_services(runner) -> void:
+	if runner == null:
+		return
+	var session = runner.get_session()
+	if session == null:
+		return
+	var runtime = session.get_runtime_facade()
+	if runtime == null:
+		return
+	var selected_settlement: Dictionary = runtime.get_selected_settlement()
+	var settlement_id := String(selected_settlement.get("settlement_id", ""))
+	if settlement_id.is_empty():
+		return
+	var world_data: Dictionary = runtime.get_world_data()
+	var settlement_variants = world_data.get("settlements", [])
+	if settlement_variants is not Array:
+		return
+	var extra_services: Array[Dictionary] = [
+		{
+			"action_id": "service:contract_board",
+			"facility_id": "notice_board",
+			"facility_template_id": "notice_board",
+			"facility_name": "公告板",
+			"npc_id": "npc_notice_keeper",
+			"npc_template_id": "npc_notice_keeper",
+			"npc_name": "告示书记员",
+			"service_type": "任务",
+			"interaction_script_id": "service_contract_board",
+		},
+		{
+			"action_id": "service:bounty_registry",
+			"facility_id": "bounty_registry",
+			"facility_template_id": "bounty_registry",
+			"facility_name": "悬赏署",
+			"npc_id": "npc_bounty_clerk",
+			"npc_template_id": "npc_bounty_clerk",
+			"npc_name": "悬赏文书",
+			"service_type": "悬赏",
+			"interaction_script_id": "service_bounty_registry",
+		},
+		{
+			"action_id": "service:research",
+			"facility_id": "grand_library",
+			"facility_template_id": "grand_library",
+			"facility_name": "大图书馆",
+			"npc_id": "npc_librarian",
+			"npc_template_id": "npc_librarian",
+			"npc_name": "大图书官",
+			"service_type": "研究",
+			"interaction_script_id": "service_research",
+		},
+	]
+	for index in range(settlement_variants.size()):
+		var settlement_variant = settlement_variants[index]
+		if settlement_variant is not Dictionary:
+			continue
+		var settlement_data: Dictionary = settlement_variant
+		if String(settlement_data.get("settlement_id", "")) != settlement_id:
+			continue
+		var available_services_variant = settlement_data.get("available_services", [])
+		var available_services: Array = []
+		if available_services_variant is Array:
+			available_services = (available_services_variant as Array).duplicate(true)
+		for extra_service in extra_services:
+			_upsert_test_settlement_service(available_services, extra_service)
+		settlement_data["available_services"] = available_services
+		settlement_variants[index] = settlement_data
+		break
+	world_data["settlements"] = settlement_variants
+
+
+func _upsert_test_settlement_service(service_variants: Array, service_data: Dictionary) -> void:
+	var action_id := String(service_data.get("action_id", ""))
+	for index in range(service_variants.size()):
+		var existing_variant = service_variants[index]
+		if existing_variant is not Dictionary:
+			continue
+		if String((existing_variant as Dictionary).get("action_id", "")) != action_id:
+			continue
+		service_variants[index] = service_data.duplicate(true)
+		return
+	service_variants.append(service_data.duplicate(true))
 
 
 func _assert_equipment_requirement_error_message(runner) -> void:
