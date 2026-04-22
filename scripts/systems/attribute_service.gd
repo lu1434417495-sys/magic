@@ -142,6 +142,10 @@ func get_snapshot() -> AttributeSnapshot:
 
 
 func apply_permanent_attribute_change(attribute_id: StringName, delta: int) -> bool:
+	if not UnitBaseAttributes.BASE_ATTRIBUTE_IDS.has(attribute_id):
+		push_warning("AttributeService: refuse permanent change for non-base attribute %s." % String(attribute_id))
+		return false
+
 	var unit_base_attributes := _get_unit_base_attributes()
 	if unit_base_attributes == null:
 		return false
