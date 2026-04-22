@@ -35,6 +35,7 @@ func build_headless_snapshot() -> Dictionary:
 		"logs": _build_log_snapshot(),
 		"world": _build_world_snapshot(),
 		"submap": _build_submap_snapshot(),
+		"game_over": _build_game_over_snapshot(),
 		"party": _build_party_snapshot(),
 		"settlement": _build_settlement_snapshot(),
 		"contract_board": _build_contract_board_snapshot(),
@@ -90,6 +91,13 @@ func _build_submap_snapshot() -> Dictionary:
 		"confirm_visible": _runtime.get_active_modal_id() == "submap_confirm",
 		"prompt": prompt.duplicate(true),
 	}
+
+
+func _build_game_over_snapshot() -> Dictionary:
+	var context: Dictionary = _runtime.get_game_over_context()
+	if context.is_empty():
+		return {}
+	return context.duplicate(true)
 
 
 func _build_party_snapshot() -> Dictionary:
@@ -375,6 +383,10 @@ func _build_battle_snapshot() -> Dictionary:
 			"stamina_max": int(unit_state.attribute_snapshot.get_value(&"stamina_max")) if unit_state.attribute_snapshot != null else 0,
 			"current_aura": int(unit_state.current_aura),
 			"aura_max": int(unit_state.get_aura_max()),
+			"current_shield_hp": int(unit_state.current_shield_hp),
+			"shield_max_hp": int(unit_state.shield_max_hp),
+			"shield_duration": int(unit_state.shield_duration),
+			"shield_family": String(unit_state.shield_family),
 			"current_ap": int(unit_state.current_ap),
 		})
 	return {

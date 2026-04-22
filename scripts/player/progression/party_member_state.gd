@@ -27,6 +27,8 @@ var control_mode: StringName = &"manual"
 var current_hp := 1
 ## 字段说明：记录当前法力值，会参与成长规则判定、序列化和界面展示。
 var current_mp := 0
+## 字段说明：记录该成员是否已经永久死亡；死亡后不再参与队伍编成与战斗。
+var is_dead := false
 ## 字段说明：记录体型尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
 var body_size := 1
 
@@ -42,6 +44,7 @@ func to_dict() -> Dictionary:
 		"control_mode": String(control_mode),
 		"current_hp": current_hp,
 		"current_mp": current_mp,
+		"is_dead": is_dead,
 		"body_size": body_size,
 	}
 
@@ -63,6 +66,7 @@ static func from_dict(data: Dictionary):
 	member_state.control_mode = ProgressionDataUtils.to_string_name(data.get("control_mode", "manual"))
 	member_state.current_hp = int(data.get("current_hp", 1))
 	member_state.current_mp = int(data.get("current_mp", 0))
+	member_state.is_dead = bool(data.get("is_dead", false))
 	member_state.body_size = maxi(int(data.get("body_size", 1)), 1)
 
 	if member_state.progression == null or member_state.equipment_state == null:

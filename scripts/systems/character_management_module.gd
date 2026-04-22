@@ -618,18 +618,41 @@ func commit_battle_resources(member_id: StringName, current_hp: int, current_mp:
 	var snapshot: AttributeSnapshot = get_member_attribute_snapshot(member_id)
 	member_state.current_hp = clampi(current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
 	member_state.current_mp = clampi(current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
+	member_state.is_dead = false
 
 
-func commit_battle_ko(member_id: StringName) -> void:
+func commit_battle_death(member_id: StringName) -> void:
 	var member_state: PartyMemberState = get_member_state(member_id)
 	if member_state == null:
 		return
-	member_state.current_hp = 1
+	_salvage_member_equipment(member_state)
+	member_state.current_hp = 0
 	member_state.current_mp = 0
+	member_state.is_dead = true
+	if _party_state != null:
+		_party_state.remove_member_from_rosters(member_id)
+
+
+func commit_battle_ko(member_id: StringName) -> void:
+	commit_battle_death(member_id)
 
 
 func flush_after_battle() -> int:
 	return OK
+
+
+func _salvage_member_equipment(member_state: PartyMemberState) -> void:
+	if member_state == null:
+		return
+	var equipment_state = member_state.equipment_state
+	if equipment_state == null \
+		or not (equipment_state is Object and equipment_state.has_method("get_entry_slot_ids") and equipment_state.has_method("pop_equipped_instance")):
+		return
+	var entry_slot_ids: Array[StringName] = ProgressionDataUtils.to_string_name_array(equipment_state.get_entry_slot_ids())
+	for entry_slot_id in entry_slot_ids:
+		var equipped_instance = equipment_state.pop_equipped_instance(entry_slot_id)
+		if equipped_instance != null:
+			_party_warehouse_service.deposit_equipment_instance(equipped_instance)
 
 
 func _collect_known_active_skill_ids(progression_state) -> Array[StringName]:

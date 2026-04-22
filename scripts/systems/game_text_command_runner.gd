@@ -172,7 +172,12 @@ func _execute_world_command(tokens: Array[String]) -> Dictionary:
 					"message": "用法: world move <up|down|left|right> [count]",
 				}
 			var direction := _parse_direction(tokens[2])
-			var count := int(_parse_scalar(tokens[3])) if tokens.size() >= 4 else 1
+			var count := 1
+			if tokens.size() >= 4:
+				var count_result := _parse_int_argument(tokens[3], "移动次数")
+				if not bool(count_result.get("ok", false)):
+					return count_result
+				count = int(count_result.get("value", 1))
 			return runtime.command_world_move(direction, count)
 		"select":
 			if tokens.size() < 4:
@@ -180,10 +185,16 @@ func _execute_world_command(tokens: Array[String]) -> Dictionary:
 					"ok": false,
 					"message": "用法: world select <x> <y>",
 				}
-			return runtime.command_world_select(_parse_coord(tokens[2], tokens[3]))
+			var coord_result := _parse_coord_argument(tokens[2], tokens[3], "世界坐标")
+			if not bool(coord_result.get("ok", false)):
+				return coord_result
+			return runtime.command_world_select(coord_result.get("value", Vector2i.ZERO))
 		"open":
 			if tokens.size() >= 4:
-				return runtime.command_open_settlement(_parse_coord(tokens[2], tokens[3]))
+				var coord_result := _parse_coord_argument(tokens[2], tokens[3], "聚落坐标")
+				if not bool(coord_result.get("ok", false)):
+					return coord_result
+				return runtime.command_open_settlement(coord_result.get("value", Vector2i.ZERO))
 			return runtime.command_open_settlement()
 		"inspect":
 			if tokens.size() < 4:
@@ -191,14 +202,20 @@ func _execute_world_command(tokens: Array[String]) -> Dictionary:
 					"ok": false,
 					"message": "用法: world inspect <x> <y>",
 				}
-			return runtime.command_world_inspect(_parse_coord(tokens[2], tokens[3]))
+			var coord_result := _parse_coord_argument(tokens[2], tokens[3], "世界坐标")
+			if not bool(coord_result.get("ok", false)):
+				return coord_result
+			return runtime.command_world_inspect(coord_result.get("value", Vector2i.ZERO))
 		"click":
 			if tokens.size() < 4:
 				return {
 					"ok": false,
 					"message": "用法: world click <x> <y>",
 				}
-			return runtime.select_world_cell(_parse_coord(tokens[2], tokens[3]))
+			var coord_result := _parse_coord_argument(tokens[2], tokens[3], "世界坐标")
+			if not bool(coord_result.get("ok", false)):
+				return coord_result
+			return runtime.select_world_cell(coord_result.get("value", Vector2i.ZERO))
 		_:
 			return {
 				"ok": false,
@@ -325,10 +342,13 @@ func _execute_quest_command(tokens: Array[String]) -> Dictionary:
 					"ok": false,
 					"message": "用法: quest progress <quest_id> <objective_id> <amount> [key=value ...]",
 				}
+			var amount_result := _parse_int_argument(tokens[4], "任务进度增量")
+			if not bool(amount_result.get("ok", false)):
+				return amount_result
 			return runtime.command_progress_quest(
 				StringName(tokens[2]),
 				StringName(tokens[3]),
-				int(_parse_scalar(tokens[4])),
+				int(amount_result.get("value", 0)),
 				_parse_named_args(tokens, 5)
 			)
 		"complete":
@@ -372,7 +392,12 @@ func _execute_shop_command(tokens: Array[String]) -> Dictionary:
 			"ok": false,
 			"message": "用法: shop buy|sell <item_id> [quantity]",
 		}
-	var quantity := int(_parse_scalar(tokens[3])) if tokens.size() >= 4 else 1
+	var quantity := 1
+	if tokens.size() >= 4:
+		var quantity_result := _parse_int_argument(tokens[3], "商品数量")
+		if not bool(quantity_result.get("ok", false)):
+			return quantity_result
+		quantity = int(quantity_result.get("value", 1))
 	match tokens[1]:
 		"buy":
 			return runtime.command_shop_buy(StringName(tokens[2]), quantity)
@@ -419,7 +444,10 @@ func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
 					"ok": false,
 					"message": "用法: warehouse add <item_id> <quantity>",
 				}
-			return runtime.command_warehouse_add_item(StringName(tokens[2]), int(_parse_scalar(tokens[3])))
+			var quantity_result := _parse_int_argument(tokens[3], "仓库数量")
+			if not bool(quantity_result.get("ok", false)):
+				return quantity_result
+			return runtime.command_warehouse_add_item(StringName(tokens[2]), int(quantity_result.get("value", 0)))
 		"use":
 			var member_id := StringName(tokens[3]) if tokens.size() >= 4 else &""
 			return runtime.command_warehouse_use_item(StringName(tokens[2]), member_id)
@@ -429,7 +457,10 @@ func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
 					"ok": false,
 					"message": "用法: warehouse capacity <value>",
 				}
-			return await _session.set_party_storage_capacity(int(_parse_scalar(tokens[2])))
+			var capacity_result := _parse_int_argument(tokens[2], "仓库容量")
+			if not bool(capacity_result.get("ok", false)):
+				return capacity_result
+			return await _session.set_party_storage_capacity(int(capacity_result.get("value", 0)))
 		"discard-one":
 			return runtime.command_warehouse_discard_one(StringName(tokens[2]))
 		"discard-all":
@@ -469,14 +500,20 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 					"ok": false,
 					"message": "用法: battle tick <seconds>",
 				}
-			return runtime.command_battle_tick(float(_parse_scalar(tokens[2])))
+			var seconds_result := _parse_float_argument(tokens[2], "战斗推进秒数")
+			if not bool(seconds_result.get("ok", false)):
+				return seconds_result
+			return runtime.command_battle_tick(float(seconds_result.get("value", 0.0)))
 		"skill":
 			if tokens.size() < 3:
 				return {
 					"ok": false,
 					"message": "用法: battle skill <slot>",
 				}
-			return runtime.command_battle_select_skill(int(_parse_scalar(tokens[2])) - 1)
+			var slot_result := _parse_int_argument(tokens[2], "技能栏位")
+			if not bool(slot_result.get("ok", false)):
+				return slot_result
+			return runtime.command_battle_select_skill(int(slot_result.get("value", 0)) - 1)
 		"variant":
 			if tokens.size() < 3:
 				return {
@@ -488,7 +525,10 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 			if tokens.size() == 3:
 				return runtime.command_battle_move_direction(_parse_direction(tokens[2]))
 			if tokens.size() >= 4:
-				return runtime.command_battle_move_to(_parse_coord(tokens[2], tokens[3]))
+				var coord_result := _parse_coord_argument(tokens[2], tokens[3], "战斗坐标")
+				if not bool(coord_result.get("ok", false)):
+					return coord_result
+				return runtime.command_battle_move_to(coord_result.get("value", Vector2i.ZERO))
 			return {
 				"ok": false,
 				"message": "用法: battle move <up|down|left|right> | battle move <x> <y>",
@@ -501,7 +541,10 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 					"ok": false,
 					"message": "用法: battle inspect <x> <y>",
 				}
-			return runtime.command_battle_inspect(_parse_coord(tokens[2], tokens[3]))
+			var coord_result := _parse_coord_argument(tokens[2], tokens[3], "战斗坐标")
+			if not bool(coord_result.get("ok", false)):
+				return coord_result
+			return runtime.command_battle_inspect(coord_result.get("value", Vector2i.ZERO))
 		"finish":
 			if tokens.size() < 3:
 				return {
@@ -628,7 +671,10 @@ func _execute_expect(tokens: Array[String], snapshot: Dictionary) -> Dictionary:
 			if tokens.size() < 5 or tokens[3] != "==":
 				return _expect_error("expect warehouse <item_id> == <quantity>", "", "")
 			var item_id := String(tokens[2])
-			var expected_quantity := int(_parse_scalar(_join_tokens(tokens, 4)))
+			var expected_quantity_result := _parse_int_argument(_join_tokens(tokens, 4), "期望仓库数量")
+			if not bool(expected_quantity_result.get("ok", false)):
+				return _expect_error(String(expected_quantity_result.get("message", "")), "", _join_tokens(tokens, 4))
+			var expected_quantity := int(expected_quantity_result.get("value", 0))
 			var actual_quantity := _get_warehouse_item_total(snapshot, item_id)
 			if actual_quantity == expected_quantity:
 				return _expect_ok(
@@ -703,6 +749,45 @@ func _parse_direction(token: String) -> Vector2i:
 
 func _parse_coord(x_token: String, y_token: String) -> Vector2i:
 	return Vector2i(int(_parse_scalar(x_token)), int(_parse_scalar(y_token)))
+
+
+func _parse_int_argument(token: String, label: String) -> Dictionary:
+	var value = _parse_scalar(token)
+	if value is int:
+		return {
+			"ok": true,
+			"value": value,
+		}
+	return {
+		"ok": false,
+		"message": "%s 必须是整数，收到 %s。" % [label, token],
+	}
+
+
+func _parse_float_argument(token: String, label: String) -> Dictionary:
+	var value = _parse_scalar(token)
+	if value is int or value is float:
+		return {
+			"ok": true,
+			"value": float(value),
+		}
+	return {
+		"ok": false,
+		"message": "%s 必须是数值，收到 %s。" % [label, token],
+	}
+
+
+func _parse_coord_argument(x_token: String, y_token: String, label: String) -> Dictionary:
+	var x_result := _parse_int_argument(x_token, "%s X" % label)
+	if not bool(x_result.get("ok", false)):
+		return x_result
+	var y_result := _parse_int_argument(y_token, "%s Y" % label)
+	if not bool(y_result.get("ok", false)):
+		return y_result
+	return {
+		"ok": true,
+		"value": Vector2i(int(x_result.get("value", 0)), int(y_result.get("value", 0))),
+	}
 
 
 func _parse_named_args(tokens: Array[String], start_index: int) -> Dictionary:

@@ -93,6 +93,8 @@ func decode_v5_payload(
 	var world_data_raw = world_state.get("world_data", {})
 	if typeof(world_data_raw) != TYPE_DICTIONARY:
 		return {"error": ERR_INVALID_DATA}
+	if (world_data_raw as Dictionary).is_empty():
+		return {"error": ERR_INVALID_DATA}
 	var world_data := normalize_world_data(world_data_raw)
 	if world_data.is_empty():
 		return {"error": ERR_INVALID_DATA}
@@ -138,6 +140,7 @@ func decode_v5_payload(
 
 func build_save_meta(
 	save_id: String,
+	display_name: String,
 	generation_config_path: String,
 	preset_id: StringName,
 	preset_name: String,
@@ -147,7 +150,7 @@ func build_save_meta(
 ) -> Dictionary:
 	return normalize_save_meta({
 		"save_id": save_id,
-		"display_name": save_id,
+		"display_name": display_name if not display_name.is_empty() else save_id,
 		"world_preset_id": String(preset_id),
 		"world_preset_name": preset_name,
 		"generation_config_path": generation_config_path,
@@ -284,16 +287,21 @@ func normalize_party_state(party_state):
 	var normalized = _deserialize_party_state(_serialize_party_state(party_state))
 	if normalized == null:
 		return _new_party_state()
-	var ordered_member_ids: Array[StringName] = []
+	var living_member_ids: Array[StringName] = []
 	for key in ProgressionDataUtils.sorted_string_keys(normalized.member_states):
-		ordered_member_ids.append(StringName(key))
+		var member_id := StringName(key)
+		var member_state = normalized.get_member_state(member_id)
+		if member_state == null or bool(member_state.is_dead):
+			continue
+		living_member_ids.append(member_id)
 
 	var seen_ids: Dictionary = {}
 	var active_member_ids: Array[StringName] = []
 	for member_id in normalized.active_member_ids:
 		if member_id == &"" or seen_ids.has(member_id):
 			continue
-		if normalized.get_member_state(member_id) == null:
+		var member_state = normalized.get_member_state(member_id)
+		if member_state == null or bool(member_state.is_dead):
 			continue
 		if active_member_ids.size() >= _max_active_member_count:
 			continue
@@ -304,12 +312,13 @@ func normalize_party_state(party_state):
 	for member_id in normalized.reserve_member_ids:
 		if member_id == &"" or seen_ids.has(member_id):
 			continue
-		if normalized.get_member_state(member_id) == null:
+		var member_state = normalized.get_member_state(member_id)
+		if member_state == null or bool(member_state.is_dead):
 			continue
 		seen_ids[member_id] = true
 		reserve_member_ids.append(member_id)
 
-	for member_id in ordered_member_ids:
+	for member_id in living_member_ids:
 		if seen_ids.has(member_id):
 			continue
 		if active_member_ids.size() < _max_active_member_count:
@@ -318,9 +327,19 @@ func normalize_party_state(party_state):
 			reserve_member_ids.append(member_id)
 		seen_ids[member_id] = true
 
-	if active_member_ids.is_empty() and not ordered_member_ids.is_empty():
-		active_member_ids.append(ordered_member_ids[0])
-
+	var main_character_member_id: StringName = normalized.main_character_member_id
+	if main_character_member_id != &"" and normalized.get_member_state(main_character_member_id) != null:
+		var main_character_dead: bool = normalized.is_member_dead(main_character_member_id)
+		if not main_character_dead:
+			reserve_member_ids.erase(main_character_member_id)
+			if not active_member_ids.has(main_character_member_id):
+				if active_member_ids.size() >= _max_active_member_count and not active_member_ids.is_empty():
+					var demoted_member_id: StringName = active_member_ids.pop_back()
+					if demoted_member_id != &"" and demoted_member_id != main_character_member_id and not reserve_member_ids.has(demoted_member_id):
+						reserve_member_ids.append(demoted_member_id)
+				active_member_ids.append(main_character_member_id)
+	if active_member_ids.is_empty() and not living_member_ids.is_empty():
+		active_member_ids.append(living_member_ids[0])
 	if normalized.leader_member_id == &"" or not active_member_ids.has(normalized.leader_member_id):
 		normalized.leader_member_id = active_member_ids[0] if not active_member_ids.is_empty() else &""
 

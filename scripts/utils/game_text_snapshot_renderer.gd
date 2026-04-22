@@ -12,6 +12,7 @@ static func render_full_snapshot(snapshot: Dictionary) -> String:
 	_append_section(sections, "LOG", _build_log_lines(snapshot.get("logs", {})))
 	_append_section(sections, "WORLD", _build_world_lines(snapshot.get("world", {})))
 	_append_section(sections, "SUBMAP", _build_submap_lines(snapshot.get("submap", {})))
+	_append_section(sections, "GAME_OVER", _build_game_over_lines(snapshot.get("game_over", {})))
 	_append_section(sections, "PARTY", _build_party_lines(snapshot.get("party", {})))
 	_append_section(sections, "QUEST", _build_quest_lines(snapshot.get("party", {}).get("quests", {})))
 	_append_section(sections, "SETTLEMENT", _build_settlement_lines(snapshot.get("settlement", {})))
@@ -121,11 +122,11 @@ static func _build_validation_lines(validation_snapshot: Dictionary) -> Array[St
 static func _build_log_lines(log_snapshot: Dictionary) -> Array[String]:
 	if log_snapshot.is_empty():
 		return []
-	var lines: Array[String] = [
-		"file_path=%s" % String(log_snapshot.get("file_path", "")),
-		"virtual_path=%s" % String(log_snapshot.get("virtual_path", "")),
-		"entry_count=%d" % int(log_snapshot.get("entry_count", 0)),
-	]
+	var lines: Array[String] = []
+	var file_name := _extract_log_file_name(log_snapshot)
+	if not file_name.is_empty():
+		lines.append("file_name=%s" % file_name)
+	lines.append("entry_count=%d" % int(log_snapshot.get("entry_count", 0)))
 	var entries_variant = log_snapshot.get("entries", [])
 	if entries_variant is Array:
 		for entry_variant in entries_variant:
@@ -140,6 +141,18 @@ static func _build_log_lines(log_snapshot: Dictionary) -> Array[String]:
 				String(entry.get("message", "")),
 			])
 	return lines
+
+
+static func _extract_log_file_name(log_snapshot: Dictionary) -> String:
+	var virtual_path := String(log_snapshot.get("virtual_path", ""))
+	if not virtual_path.is_empty():
+		var virtual_file_name := virtual_path.get_file()
+		if not virtual_file_name.is_empty():
+			return virtual_file_name
+	var file_path := String(log_snapshot.get("file_path", ""))
+	if file_path.is_empty():
+		return ""
+	return file_path.get_file()
 
 
 static func _build_world_lines(world: Dictionary) -> Array[String]:
@@ -199,6 +212,19 @@ static func _build_submap_lines(submap: Dictionary) -> Array[String]:
 		"confirm_visible=%s" % _format_bool(bool(submap.get("confirm_visible", false))),
 		"prompt_title=%s" % String(prompt.get("title", "")),
 		"prompt_target=%s" % String(prompt.get("target_display_name", "")),
+	]
+
+
+static func _build_game_over_lines(game_over: Dictionary) -> Array[String]:
+	if game_over.is_empty():
+		return []
+	return [
+		"title=%s" % String(game_over.get("title", "")),
+		"description=%s" % String(game_over.get("description", "")),
+		"confirm_text=%s" % String(game_over.get("confirm_text", "")),
+		"main_character_member_id=%s" % String(game_over.get("main_character_member_id", "")),
+		"main_character_name=%s" % String(game_over.get("main_character_name", "")),
+		"main_character_dead=%s" % _format_bool(bool(game_over.get("main_character_dead", false))),
 	]
 
 
@@ -469,7 +495,7 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 			if unit_variant is not Dictionary:
 				continue
 			var unit: Dictionary = unit_variant
-			lines.append("unit=%s | %s | %s | hp=%d mp=%d st=%d/%d au=%d/%d ap=%d | alive=%s | coord=%s" % [
+			lines.append("unit=%s | %s | %s | hp=%d mp=%d st=%d/%d au=%d/%d shield=%d/%d dur=%d ap=%d | alive=%s | coord=%s" % [
 				String(unit.get("unit_id", "")),
 				String(unit.get("display_name", "")),
 				String(unit.get("faction_id", "")),
@@ -479,6 +505,9 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 				int(unit.get("stamina_max", 0)),
 				int(unit.get("current_aura", 0)),
 				int(unit.get("aura_max", 0)),
+				int(unit.get("current_shield_hp", 0)),
+				int(unit.get("shield_max_hp", 0)),
+				int(unit.get("shield_duration", -1)),
 				int(unit.get("current_ap", 0)),
 				_format_bool(bool(unit.get("is_alive", false))),
 				_format_coord(unit.get("coord", {})),

@@ -414,6 +414,11 @@ func _test_party_handler_updates_runtime_state_and_persists() -> void:
 	_assert_true(bool(select_result.get("ok", false)), "选中队员应成功。")
 	_assert_eq(runtime._party_selected_member_id, &"mage", "选中队员后应同步选中标记。")
 
+	var ghost_select_result: Dictionary = handler.command_select_party_member(&"ghost")
+	_assert_true(not bool(ghost_select_result.get("ok", true)), "不在 active/reserve roster 的成员不应允许被选中。")
+	_assert_true(String(ghost_select_result.get("message", "")).find("不在队伍编成中") >= 0, "越权选中非 roster 成员时应返回明确错误。")
+	_assert_eq(runtime._party_selected_member_id, &"mage", "越权选中失败后不应改写当前选中成员。")
+
 	var leader_result: Dictionary = handler.command_set_party_leader(&"hero")
 	_assert_true(bool(leader_result.get("ok", false)), "设置队长应成功。")
 	_assert_eq(runtime._party_state.leader_member_id, &"hero", "设置队长后应更新队长成员。")
@@ -428,6 +433,17 @@ func _test_party_handler_updates_runtime_state_and_persists() -> void:
 	_assert_true(runtime._party_equipment_service.setup_calls.size() > 0, "持久化时应刷新装备服务。")
 	_assert_true(runtime._refresh_fog_calls > 0, "持久化后应刷新迷雾。")
 
+	var move_main_to_reserve_result: Dictionary = handler.command_move_member_to_reserve(&"hero")
+	_assert_true(not bool(move_main_to_reserve_result.get("ok", true)), "主角不应允许被移到替补。")
+	_assert_true(runtime._party_state.active_member_ids.has(&"hero"), "主角被拒绝下阵后仍应保留在 active roster。")
+	_assert_true(not runtime._party_state.reserve_member_ids.has(&"hero"), "主角被拒绝下阵后不应进入 reserve roster。")
+	_assert_true(String(move_main_to_reserve_result.get("message", "")).find("主角必须保持上阵") >= 0, "下阵主角时应返回明确错误。")
+
+	var invalid_roster_result: Dictionary = handler.apply_party_roster([&"mage"], [&"hero"])
+	_assert_true(not bool(invalid_roster_result.get("ok", true)), "非法编成不应通过 apply_party_roster()。")
+	_assert_true(runtime._party_state.active_member_ids.has(&"hero"), "非法编成被拒绝后，运行时 active roster 不应丢失主角。")
+	_assert_true(not runtime._party_state.reserve_member_ids.has(&"hero"), "非法编成被拒绝后，运行时 reserve roster 不应出现主角。")
+
 	var equip_result: Dictionary = handler.command_party_equip_item(&"hero", &"bronze_sword", &"weapon")
 	_assert_true(bool(equip_result.get("ok", false)), "装备物品应成功。")
 	_assert_eq(runtime._party_selected_member_id, &"hero", "装备后应更新当前选中成员。")
@@ -436,6 +452,10 @@ func _test_party_handler_updates_runtime_state_and_persists() -> void:
 	handler.on_party_management_warehouse_requested()
 	_assert_eq(runtime._active_modal_id, "", "打开共享仓库时应关闭队伍窗口。")
 	_assert_true(runtime._warehouse_handler.calls.size() > 0, "打开共享仓库应委托给仓库入口。")
+	var warehouse_call: Dictionary = runtime._warehouse_handler.calls[0]
+	var warehouse_args: Array = warehouse_call.get("args", []) as Array
+	_assert_eq(String(warehouse_call.get("method", "")), "open_party_warehouse_window", "打开共享仓库时应走正式仓库窗口入口。")
+	_assert_eq(String(warehouse_args[0]), "队伍管理", "打开共享仓库时应保留队伍管理入口标签。")
 
 	handler.on_party_management_window_closed()
 	_assert_eq(runtime._active_modal_id, "", "关闭队伍窗口应清空 modal。")
@@ -445,6 +465,7 @@ func _test_party_handler_updates_runtime_state_and_persists() -> void:
 func _make_party_state() -> PartyState:
 	var party_state := PartyState.new()
 	party_state.leader_member_id = &"hero"
+	party_state.main_character_member_id = &"hero"
 	party_state.active_member_ids = [&"hero"]
 	party_state.reserve_member_ids = [&"mage"]
 
@@ -454,9 +475,13 @@ func _make_party_state() -> PartyState:
 	var mage := PartyMemberState.new()
 	mage.member_id = &"mage"
 	mage.display_name = "Mage"
+	var ghost := PartyMemberState.new()
+	ghost.member_id = &"ghost"
+	ghost.display_name = "Ghost"
 	party_state.member_states = {
 		&"hero": hero,
 		&"mage": mage,
+		&"ghost": ghost,
 	}
 	return party_state
 

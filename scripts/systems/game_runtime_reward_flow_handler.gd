@@ -236,7 +236,7 @@ func present_pending_reward_if_ready() -> bool:
 			_set_active_modal_id("reward")
 			return true
 		return false
-	if active_modal_id == "settlement" or active_modal_id == "contract_board" or active_modal_id == "shop" or active_modal_id == "forge" or active_modal_id == "stagecoach" or active_modal_id == "character_info" or active_modal_id == "party" or active_modal_id == "warehouse" or active_modal_id == "submap_confirm" or active_modal_id == "battle_start_confirm":
+	if active_modal_id == "settlement" or active_modal_id == "contract_board" or active_modal_id == "shop" or active_modal_id == "forge" or active_modal_id == "stagecoach" or active_modal_id == "character_info" or active_modal_id == "party" or active_modal_id == "warehouse" or active_modal_id == "submap_confirm" or active_modal_id == "battle_start_confirm" or active_modal_id == "game_over":
 		return false
 	var party_state = _get_party_state()
 	if party_state == null or party_state.pending_character_rewards.is_empty():

@@ -47,8 +47,10 @@ func _run() -> void:
 	_test_research_pending_character_reward_preserves_queue_naming_and_triggers_growth_events()
 	_test_submit_item_objective_materializer_tracks_progress_and_failures()
 	_test_party_state_quest_round_trip_persists()
+	_test_party_state_quest_buckets_stay_mutually_exclusive()
 	_test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 	await _test_party_management_window_renders_achievement_summary()
+	await _test_party_management_window_keeps_main_character_active()
 
 	if _failures.is_empty():
 		print("Progression achievement tests: PASS")
@@ -871,6 +873,37 @@ func _test_party_state_quest_round_trip_persists() -> void:
 	_assert_true(restored_quest.has_completed_all_objectives(quest_def), "恢复后的 QuestState 应能继续驱动 objective 完成判断。")
 
 
+func _test_party_state_quest_buckets_stay_mutually_exclusive() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var active_quest := QuestState.new()
+	active_quest.quest_id = &"contract_overlap"
+	active_quest.mark_accepted(2)
+	party_state.set_active_quest_state(active_quest)
+	_assert_true(party_state.has_active_quest(&"contract_overlap"), "active quest 写入后应进入 active bucket。")
+
+	var claimable_quest := QuestState.new()
+	claimable_quest.quest_id = &"contract_overlap"
+	claimable_quest.mark_accepted(2)
+	claimable_quest.mark_completed(5)
+	party_state.set_claimable_quest_state(claimable_quest)
+	_assert_true(not party_state.has_active_quest(&"contract_overlap"), "切到 claimable bucket 时应自动离开 active bucket。")
+	_assert_true(party_state.has_claimable_quest(&"contract_overlap"), "切到 claimable bucket 时应保留 claimable quest。")
+	_assert_true(not party_state.has_completed_quest(&"contract_overlap"), "切到 claimable bucket 时不应同时残留 completed id。")
+
+	party_state.add_completed_quest_id(&"contract_overlap")
+	_assert_true(not party_state.has_claimable_quest(&"contract_overlap"), "切到 completed bucket 时应自动离开 claimable bucket。")
+	_assert_true(party_state.has_completed_quest(&"contract_overlap"), "切到 completed bucket 时应写入 completed id。")
+	_assert_true(not party_state.has_active_quest(&"contract_overlap"), "切到 completed bucket 时不应残留 active quest。")
+
+	var reopened_quest := QuestState.new()
+	reopened_quest.quest_id = &"contract_overlap"
+	reopened_quest.mark_accepted(9)
+	party_state.set_active_quest_state(reopened_quest)
+	_assert_true(party_state.has_active_quest(&"contract_overlap"), "重新接取 quest 时应回到 active bucket。")
+	_assert_true(not party_state.has_claimable_quest(&"contract_overlap"), "重新接取 quest 时不应残留 claimable bucket。")
+	_assert_true(not party_state.has_completed_quest(&"contract_overlap"), "重新接取 quest 时应从 completed bucket 移除。")
+
+
 func _test_battle_achievement_only_queues_reward_without_mutating_runtime_unit() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var achievement_defs := {
@@ -952,6 +985,33 @@ func _test_party_management_window_renders_achievement_summary() -> void:
 	await process_frame
 
 
+func _test_party_management_window_keeps_main_character_active() -> void:
+	var party_state := _make_party_state([&"hero", &"mage", &"healer"])
+	party_state.main_character_member_id = &"hero"
+	party_state.active_member_ids = [&"hero", &"mage"]
+	party_state.reserve_member_ids = [&"healer"]
+
+	var window = PartyManagementWindowScene.instantiate()
+	root.add_child(window)
+	await process_frame
+	window.show_party(party_state)
+	await process_frame
+
+	_assert_true(window.select_member(&"hero"), "队伍管理窗口应能选中主角。")
+	_assert_true(window.move_to_reserve_button.disabled, "主角必须保持上阵时，窗口应禁用下阵按钮。")
+	window._on_move_to_reserve_button_pressed()
+	_assert_true(window._active_member_ids.has(&"hero"), "点击禁用按钮后，窗口内部 active roster 不应丢失主角。")
+	_assert_true(not window._reserve_member_ids.has(&"hero"), "点击禁用按钮后，窗口内部 reserve roster 不应出现主角。")
+	_assert_text_contains(String(window.status_label.text), "主角必须保持上阵", "尝试下阵主角时应显示明确提示。")
+	_assert_text_contains(String(window.details_label.text), "主角：是", "主角详情应显式标记主角身份。")
+
+	_assert_true(window.select_member(&"mage"), "队伍管理窗口应能选中普通上阵成员。")
+	_assert_true(not window.move_to_reserve_button.disabled, "非主角的上阵成员在人数允许时仍可下阵。")
+
+	window.queue_free()
+	await process_frame
+
+
 func _build_archer_design_skill_ids() -> Array[StringName]:
 	return [
 		&"archer_aimed_shot",
@@ -1018,6 +1078,8 @@ func _make_party_state(member_ids: Array[StringName]) -> PartyState:
 		party_state.active_member_ids.append(member_id)
 		if party_state.leader_member_id == &"":
 			party_state.leader_member_id = member_id
+		if party_state.main_character_member_id == &"":
+			party_state.main_character_member_id = member_id
 	return party_state
 
 

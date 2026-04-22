@@ -43,6 +43,8 @@ func command_select_party_member(member_id: StringName) -> Dictionary:
 		return _command_error("当前不存在队伍数据。")
 	if party_state.get_member_state(member_id) == null:
 		return _command_error("未找到队伍成员 %s。" % String(member_id))
+	if not party_state.active_member_ids.has(member_id) and not party_state.reserve_member_ids.has(member_id):
+		return _command_error("%s 当前不在队伍编成中。" % _get_member_display_name(member_id))
 	if _get_active_modal_id() == "":
 		_set_active_modal_id("party")
 	_set_party_selected_member_id(member_id)
@@ -90,6 +92,8 @@ func command_move_member_to_reserve(member_id: StringName) -> Dictionary:
 		return _command_error("当前不存在队伍数据。")
 	if not party_state.active_member_ids.has(member_id):
 		return _command_error("%s 当前不在上阵列表中。" % _get_member_display_name(member_id))
+	if member_id == _get_main_character_member_id(party_state):
+		return _command_error("主角必须保持上阵，不能移至替补。")
 	if party_state.active_member_ids.size() <= 1:
 		return _command_error("队伍至少需要保留一名上阵成员。")
 	var active_member_ids: Array[StringName] = ProgressionDataUtils.to_string_name_array(party_state.active_member_ids)
@@ -171,8 +175,12 @@ func command_party_unequip_item(member_id: StringName, slot_id: StringName) -> D
 func apply_party_roster(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> Dictionary:
 	if not _has_runtime():
 		return _runtime_unavailable_error()
-	if _get_party_state() == null:
+	var party_state = _get_party_state()
+	if party_state == null:
 		return _command_error("当前不存在队伍数据。")
+	var roster_error := _validate_main_character_roster(active_member_ids, reserve_member_ids, party_state)
+	if not roster_error.is_empty():
+		return _command_error(roster_error)
 	on_party_roster_change_requested(active_member_ids, reserve_member_ids)
 	return _command_ok()
 
@@ -200,6 +208,10 @@ func on_party_leader_change_requested(member_id: StringName) -> void:
 func on_party_roster_change_requested(active_member_ids: Array[StringName], reserve_member_ids: Array[StringName]) -> void:
 	var party_state = _get_party_state()
 	if not _has_runtime() or party_state == null:
+		return
+	var roster_error := _validate_main_character_roster(active_member_ids, reserve_member_ids, party_state)
+	if not roster_error.is_empty():
+		_update_status(roster_error)
 		return
 	party_state.active_member_ids = active_member_ids.duplicate()
 	party_state.reserve_member_ids = reserve_member_ids.duplicate()
@@ -245,6 +257,30 @@ func _get_item_display_name(item_id: StringName) -> String:
 	if not _has_runtime():
 		return String(item_id)
 	return _runtime.get_item_display_name(item_id)
+
+
+func _get_main_character_member_id(party_state) -> StringName:
+	if party_state == null or not party_state.has_method("get_resolved_main_character_member_id"):
+		return &""
+	var member_id: StringName = party_state.get_resolved_main_character_member_id()
+	if member_id == &"":
+		return &""
+	if party_state.has_method("is_member_dead") and bool(party_state.is_member_dead(member_id)):
+		return &""
+	return member_id
+
+
+func _validate_main_character_roster(
+	active_member_ids: Array[StringName],
+	reserve_member_ids: Array[StringName],
+	party_state
+) -> String:
+	var member_id := _get_main_character_member_id(party_state)
+	if member_id == &"":
+		return ""
+	if reserve_member_ids.has(member_id) or not active_member_ids.has(member_id):
+		return "主角必须保持上阵，不能移至替补。"
+	return ""
 
 
 func _get_member_display_name(member_id: StringName) -> String:

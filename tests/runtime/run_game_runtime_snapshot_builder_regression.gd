@@ -16,11 +16,13 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_snapshot_builder_matches_facade_outputs()
+	_test_text_snapshot_redacts_host_log_paths()
 	_test_snapshot_builder_exposes_party_quest_snapshot()
 	_test_snapshot_builder_cross_references_quest_items_in_text_snapshot()
 	_test_snapshot_builder_exposes_contract_board_modal_snapshot()
 	_test_snapshot_builder_exposes_forge_modal_snapshot()
 	_test_snapshot_builder_exposes_generic_forge_modal_snapshot()
+	_test_snapshot_builder_exposes_game_over_snapshot()
 	_test_snapshot_builder_exposes_battle_loot_snapshot()
 	_test_snapshot_builder_omits_loot_section_when_empty()
 
@@ -57,6 +59,35 @@ func _test_snapshot_builder_matches_facade_outputs() -> void:
 	_assert_true(not String(builder_snapshot.get("logs", {}).get("file_path", "")).is_empty(), "运行时快照应暴露日志文件路径。")
 	_assert_true(not (builder_snapshot.get("logs", {}).get("entries", []) as Array).is_empty(), "运行时快照应包含最近日志条目。")
 	_assert_true(builder_text.contains("[LOG]"), "运行时文本快照应包含日志分段。")
+
+	builder.dispose()
+	facade.dispose()
+	_cleanup_test_session(game_session)
+
+
+func _test_text_snapshot_redacts_host_log_paths() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(facade)
+
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	var text_snapshot := builder.build_text_snapshot()
+	var logs_snapshot: Dictionary = snapshot.get("logs", {})
+	var file_path := String(logs_snapshot.get("file_path", ""))
+	var virtual_path := String(logs_snapshot.get("virtual_path", ""))
+	var expected_file_name := virtual_path.get_file() if not virtual_path.is_empty() else file_path.get_file()
+
+	_assert_true(not expected_file_name.is_empty(), "日志文本面回归前置：应能解析稳定日志文件名。")
+	_assert_true(text_snapshot.contains("file_name=%s" % expected_file_name), "文本快照应只渲染稳定日志文件名。")
+	_assert_true(not text_snapshot.contains("file_path="), "文本快照不应继续渲染绝对 file_path 标签。")
+	_assert_true(not text_snapshot.contains("virtual_path="), "文本快照不应继续渲染 virtual_path 标签。")
+	_assert_true(not file_path.is_empty() and not text_snapshot.contains(file_path), "文本快照不应泄漏宿主绝对日志路径。")
+	_assert_true(not virtual_path.is_empty() and not text_snapshot.contains(virtual_path), "文本快照不应泄漏 session 级虚拟日志路径。")
 
 	builder.dispose()
 	facade.dispose()
@@ -306,6 +337,34 @@ func _test_snapshot_builder_exposes_generic_forge_modal_snapshot() -> void:
 	builder.dispose()
 
 
+func _test_snapshot_builder_exposes_game_over_snapshot() -> void:
+	var runtime := FakeQuestRuntime.new()
+	runtime.active_modal_id = "game_over"
+	runtime.game_over_context = {
+		"title": "Game Over",
+		"description": "主角已阵亡，本次旅程结束。",
+		"confirm_text": "返回标题",
+		"main_character_member_id": "player_sword_01",
+		"main_character_name": "剑士",
+		"main_character_dead": true,
+	}
+
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	var text_snapshot := builder.build_text_snapshot()
+	var game_over_snapshot: Dictionary = snapshot.get("game_over", {})
+
+	_assert_eq(String(game_over_snapshot.get("title", "")), "Game Over", "game_over 快照应暴露标题。")
+	_assert_eq(String(game_over_snapshot.get("main_character_member_id", "")), "player_sword_01", "game_over 快照应暴露主角成员 ID。")
+	_assert_true(bool(game_over_snapshot.get("main_character_dead", false)), "game_over 快照应标记主角死亡。")
+	_assert_true(text_snapshot.contains("[GAME_OVER]"), "文本快照应渲染 GAME_OVER 分段。")
+	_assert_true(text_snapshot.contains("main_character_member_id=player_sword_01"), "文本快照应渲染主角成员 ID。")
+	_assert_true(text_snapshot.contains("main_character_dead=true"), "文本快照应渲染主角死亡标记。")
+
+	builder.dispose()
+
+
 func _test_snapshot_builder_exposes_battle_loot_snapshot() -> void:
 	var runtime := FakeQuestRuntime.new()
 	runtime.last_battle_loot_snapshot = {
@@ -421,6 +480,7 @@ class FakeQuestRuntime:
 	var active_shop_context: Dictionary = {}
 	var warehouse_window_data: Dictionary = {}
 	var last_battle_loot_snapshot: Dictionary = {}
+	var game_over_context: Dictionary = {}
 
 	func is_battle_active() -> bool:
 		return false
@@ -469,6 +529,9 @@ class FakeQuestRuntime:
 
 	func get_submap_return_hint_text() -> String:
 		return ""
+
+	func get_game_over_context() -> Dictionary:
+		return game_over_context.duplicate(true)
 
 	func get_party_state():
 		return party_state

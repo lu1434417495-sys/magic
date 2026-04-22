@@ -169,6 +169,7 @@ func create_new_save(
 	var resolved_preset_name := preset_name if not preset_name.is_empty() else WORLD_PRESET_REGISTRY_SCRIPT.get_fallback_preset_name(generation_config_path)
 	_active_save_meta = _build_save_meta(
 		save_id,
+		save_id,
 		generation_config_path,
 		preset_id,
 		resolved_preset_name,
@@ -176,6 +177,7 @@ func create_new_save(
 		timestamp,
 		timestamp
 	)
+	_rotate_log_session()
 	var persist_error := _persist_game_state()
 	if persist_error == OK:
 		_log_session_info("session.save.create.ok", "已创建新存档。", {
@@ -194,8 +196,21 @@ func load_bundled_save(
 	world_preset_id: StringName = &"",
 	world_preset_name: String = ""
 ) -> int:
-	if template_path.is_empty() or save_id.is_empty():
+	var normalized_save_id := save_id.strip_edges()
+	if template_path.is_empty() or normalized_save_id.is_empty():
 		return ERR_INVALID_PARAMETER
+	if not _get_save_meta_by_id(normalized_save_id).is_empty() or FileAccess.file_exists(_build_save_file_path(normalized_save_id)):
+		log_event(
+			"warn",
+			"session",
+			"session.save.bundle.slot_already_exists",
+			"Bundled save import refused to overwrite existing slot %s." % normalized_save_id,
+			{
+				"template_path": template_path,
+				"save_id": normalized_save_id,
+			}
+		)
+		return ERR_ALREADY_EXISTS
 
 	var read_result := _read_save_payload(template_path)
 	var read_error := int(read_result.get("error", ERR_CANT_OPEN))
@@ -213,7 +228,7 @@ func load_bundled_save(
 			"Bundled save template %s is missing generation_config_path." % template_path,
 			{
 				"template_path": template_path,
-				"save_id": save_id,
+				"save_id": normalized_save_id,
 			}
 		)
 		return ERR_INVALID_DATA
@@ -225,7 +240,8 @@ func load_bundled_save(
 	var timestamp := int(Time.get_unix_time_from_system())
 	var resolved_preset_name := world_preset_name if not world_preset_name.is_empty() else WORLD_PRESET_REGISTRY_SCRIPT.get_fallback_preset_name(generation_config_path)
 	var save_meta := _build_save_meta(
-		save_id,
+		normalized_save_id,
+		display_name,
 		generation_config_path,
 		world_preset_id,
 		resolved_preset_name,
@@ -233,19 +249,19 @@ func load_bundled_save(
 		timestamp,
 		timestamp
 	)
-	save_meta["display_name"] = display_name if not display_name.is_empty() else save_id
-	payload["save_id"] = save_id
+	payload["save_id"] = normalized_save_id
 	payload["save_slot_meta"] = save_meta.duplicate(true)
 
 	var load_error := _load_v5_payload(payload, generation_config_path, generation_config, save_meta)
 	if load_error != OK:
 		return load_error
 
+	_rotate_log_session()
 	var persist_error := _persist_game_state()
 	if persist_error == OK:
 		_log_session_info("session.save.bundle.ok", "已加载并落盘内置测试存档。", {
 			"template_path": template_path,
-			"save_id": save_id,
+			"save_id": normalized_save_id,
 			"generation_config_path": generation_config_path,
 		})
 	return persist_error
@@ -294,6 +310,7 @@ func load_save(save_id: String) -> int:
 
 	var load_error := _load_v5_payload(payload, generation_config_path, generation_config, save_meta)
 	if load_error == OK:
+		_rotate_log_session()
 		_log_session_info("session.save.load.ok", "已加载存档。", {
 			"save_id": save_id,
 			"save_path": save_path,
@@ -332,6 +349,10 @@ func get_log_snapshot(limit: int = 50) -> Dictionary:
 
 func get_active_log_file_path() -> String:
 	return _log_service.get_log_path() if _log_service != null else ""
+
+
+func allocate_unique_save_id(prefix: String = "save") -> String:
+	return _generate_unique_save_id(int(Time.get_unix_time_from_system()), prefix)
 
 
 func get_content_validation_snapshot() -> Dictionary:
@@ -401,6 +422,10 @@ func is_battle_save_locked() -> bool:
 
 func has_pending_save() -> bool:
 	return _battle_save_dirty
+
+
+func discard_pending_save() -> void:
+	_battle_save_dirty = false
 
 
 func get_party_member_state(member_id: StringName):
@@ -498,6 +523,17 @@ func reset_runtime_cache() -> void:
 	_reset_runtime_state()
 
 
+func unload_active_world() -> void:
+	if not _has_active_world:
+		return
+	var unloaded_save_id := _active_save_id
+	_reset_runtime_state()
+	_rotate_log_session()
+	_log_session_info("session.runtime.unload.ok", "已卸载当前运行中世界。", {
+		"save_id": unloaded_save_id,
+	})
+
+
 func _try_load_game_state(generation_config_path: String) -> bool:
 	if generation_config_path.is_empty():
 		return false
@@ -540,8 +576,10 @@ func _persist_game_state() -> int:
 		return ensure_dir_error
 
 	var now := int(Time.get_unix_time_from_system())
+	var display_name := String(_active_save_meta.get("display_name", _active_save_id))
 	_active_save_meta = _build_save_meta(
 		_active_save_id,
+		display_name,
 		_generation_config_path,
 		StringName(String(_active_save_meta.get("world_preset_id", ""))),
 		String(_active_save_meta.get("world_preset_name", "")),
@@ -618,6 +656,7 @@ func _build_meta_payload(saved_at_unix_time: int) -> Dictionary:
 
 func _build_save_meta(
 	save_id: String,
+	display_name: String,
 	generation_config_path: String,
 	preset_id: StringName,
 	preset_name: String,
@@ -627,6 +666,7 @@ func _build_save_meta(
 ) -> Dictionary:
 	return _save_serializer.build_save_meta(
 		save_id,
+		display_name,
 		generation_config_path,
 		preset_id,
 		preset_name,
@@ -636,11 +676,15 @@ func _build_save_meta(
 	)
 
 
-func _generate_unique_save_id(timestamp: int) -> String:
+func _generate_unique_save_id(timestamp: int, prefix: String = "save") -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var datetime := Time.get_datetime_dict_from_unix_time(timestamp)
-	var prefix := "save_%04d%02d%02d_%02d%02d%02d" % [
+	var normalized_prefix := prefix.strip_edges().replace(" ", "_")
+	if normalized_prefix.is_empty():
+		normalized_prefix = "save"
+	var id_prefix := "%s_%04d%02d%02d_%02d%02d%02d" % [
+		normalized_prefix,
 		int(datetime.get("year", 1970)),
 		int(datetime.get("month", 1)),
 		int(datetime.get("day", 1)),
@@ -650,7 +694,7 @@ func _generate_unique_save_id(timestamp: int) -> String:
 	]
 
 	for _attempt in range(128):
-		var save_id := "%s_%06d" % [prefix, rng.randi_range(0, 999999)]
+		var save_id := "%s_%06d" % [id_prefix, rng.randi_range(0, 999999)]
 		if _get_save_meta_by_id(save_id).is_empty() and not FileAccess.file_exists(_build_save_file_path(save_id)):
 			return save_id
 	return ""
@@ -944,6 +988,7 @@ func _create_default_party_state():
 
 	party_state.set_member_state(sword_member)
 	party_state.leader_member_id = &"player_sword_01"
+	party_state.main_character_member_id = &"player_sword_01"
 	party_state.active_member_ids = ProgressionDataUtils.to_string_name_array([
 		"player_sword_01",
 	])
@@ -1107,7 +1152,7 @@ func _build_random_start_skill_tier_score(skill_def: SkillDef) -> int:
 	score += int(combat_profile.mp_cost)
 	score += int(combat_profile.stamina_cost)
 	score += int(combat_profile.aura_cost) * 2
-	score += maxi(int(combat_profile.cooldown_tu) - 1, 0)
+	score += maxi(int(combat_profile.cooldown_tu) / 5 - 1, 0)
 	if combat_profile.target_mode == &"ground":
 		score += 1
 	if combat_profile.area_pattern != &"" and combat_profile.area_pattern != &"single":
@@ -1131,6 +1176,11 @@ func _normalize_world_data(world_data: Dictionary) -> Dictionary:
 
 func _serialize_world_data(world_data: Dictionary) -> Dictionary:
 	return _save_serializer.serialize_world_data(world_data)
+
+
+func _rotate_log_session() -> void:
+	if _log_service != null:
+		_log_service.start_new_session()
 
 
 func _reset_runtime_state() -> void:

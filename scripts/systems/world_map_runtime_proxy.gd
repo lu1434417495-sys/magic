@@ -25,6 +25,10 @@ func get_active_modal_id() -> String:
 	return String(_call_runtime_read(&"get_active_modal_id", ""))
 
 
+func get_game_over_context() -> Dictionary:
+	return _call_runtime_read(&"get_game_over_context", {})
+
+
 func get_active_settlement_id() -> String:
 	return String(_call_runtime_read(&"get_active_settlement_id", ""))
 

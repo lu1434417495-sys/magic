@@ -12,6 +12,9 @@ const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_set
 
 const TEST_PRESET_ID := &"test"
 const DEFAULT_START_PRESET_ID := &"small"
+const FIXED_TEST_SAVE_TEMPLATE_PATH := "res://data/saves/fixed_test_world_save.dat"
+const FIXED_TEST_SAVE_ID_PREFIX := "fixed_test_world"
+const FIXED_TEST_SAVE_DISPLAY_NAME := "固定测试存档"
 
 ## 字段说明：在编辑器中配置开始场景路径，运行时会据此加载场景、资源、配置文件或存档模板。
 @export_file("*.tscn") var start_scene_path: String
@@ -83,7 +86,7 @@ func _on_start_button_pressed() -> void:
 
 
 func _on_test_button_pressed() -> void:
-	_start_preset(TEST_PRESET_ID)
+	_start_bundled_test_save()
 
 
 func _on_load_button_pressed() -> void:
@@ -91,8 +94,12 @@ func _on_load_button_pressed() -> void:
 		return
 	if not _validate_start_scene_path():
 		return
+	var game_session = _get_game_session()
+	if game_session == null:
+		_show_error("未找到 GameSession。")
+		return
 
-	var save_slots := GameSession.list_save_slots()
+	var save_slots: Array[Dictionary] = game_session.list_save_slots()
 	save_list_window.show_window(save_slots)
 	if save_slots.is_empty():
 		status_label.text = "当前没有可加载的存档。可以先点击“进入游戏”或“测试地图”创建新存档。"
@@ -142,7 +149,12 @@ func _on_save_load_requested(save_id: String) -> void:
 	_set_transition_state(true)
 	status_label.text = "正在加载存档并进入游戏..."
 
-	var load_error := GameSession.load_save(save_id)
+	var game_session = _get_game_session()
+	if game_session == null:
+		_set_transition_state(false)
+		_show_error("未找到 GameSession。")
+		return
+	var load_error: int = int(game_session.load_save(save_id))
 	if load_error != OK:
 		_set_transition_state(false)
 		if load_error == ERR_INVALID_DATA:
@@ -194,7 +206,12 @@ func _start_preset(preset_id: StringName) -> void:
 	var preset_name := String(preset_data.get("display_name", "世界"))
 	status_label.text = "正在创建 %s 存档并进入游戏..." % preset_name
 
-	var session_error := GameSession.create_new_save(generation_config_path, preset_id, preset_name)
+	var game_session = _get_game_session()
+	if game_session == null:
+		_set_transition_state(false)
+		_show_error("未找到 GameSession。")
+		return
+	var session_error: int = int(game_session.create_new_save(generation_config_path, preset_id, preset_name))
 	if session_error != OK:
 		_set_transition_state(false)
 		_show_error("世界创建失败，请检查持久化目录或配置。")
@@ -202,6 +219,44 @@ func _start_preset(preset_id: StringName) -> void:
 		return
 
 	_change_to_start_scene()
+
+
+func _start_bundled_test_save() -> void:
+	if _is_transitioning:
+		return
+	if not _validate_start_scene_path():
+		return
+
+	_set_transition_state(true)
+	status_label.text = "正在加载固定测试存档并进入游戏..."
+
+	var session_error := _import_bundled_test_save()
+	if session_error != OK:
+		_set_transition_state(false)
+		_show_error("固定测试存档加载失败，请检查内置存档资源。")
+		push_error("Failed to import bundled test save. Error code: %s" % session_error)
+		return
+
+	_change_to_start_scene()
+
+
+func _import_bundled_test_save() -> int:
+	var preset_data := WORLD_PRESET_REGISTRY_SCRIPT.get_preset(TEST_PRESET_ID)
+	if preset_data.is_empty():
+		return ERR_CANT_OPEN
+	var game_session = _get_game_session()
+	if game_session == null:
+		return ERR_UNCONFIGURED
+	var save_id: String = String(game_session.allocate_unique_save_id(FIXED_TEST_SAVE_ID_PREFIX))
+	if save_id.is_empty():
+		return ERR_CANT_CREATE
+	return game_session.load_bundled_save(
+		FIXED_TEST_SAVE_TEMPLATE_PATH,
+		save_id,
+		FIXED_TEST_SAVE_DISPLAY_NAME,
+		TEST_PRESET_ID,
+		String(preset_data.get("display_name", "测试"))
+	)
 
 
 func _change_to_start_scene() -> void:
@@ -234,8 +289,15 @@ func _is_modal_open() -> bool:
 
 
 func _show_idle_status() -> void:
-	status_label.text = "点击“进入游戏”创建正式世界，点击“加载存档”继续已有进度，或点击“测试地图”快速生成独立的 200x200 测试世界。"
+	status_label.text = "点击“进入游戏”创建正式世界，点击“加载存档”继续已有进度，或点击“测试地图”加载固定测试存档。"
 
 
 func _show_error(message: String) -> void:
 	status_label.text = message
+
+
+func _get_game_session():
+	var tree := get_tree()
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("GameSession")

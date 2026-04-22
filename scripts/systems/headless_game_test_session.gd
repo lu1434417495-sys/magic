@@ -286,10 +286,14 @@ func _ensure_game_session() -> void:
 
 func _unload_world_scene() -> void:
 	if not has_world_loaded():
+		if _game_session != null and is_instance_valid(_game_session):
+			_game_session.set_battle_save_lock(false)
 		_runtime = null
 		return
 	if _runtime != null:
 		_runtime.dispose()
+	if _game_session != null and is_instance_valid(_game_session):
+		_game_session.set_battle_save_lock(false)
 	_runtime = null
 	await settle_frames()
 

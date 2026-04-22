@@ -56,23 +56,35 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
+	var member_id := ProgressionDataUtils.to_string_name(data.get("member_id", ""))
+	if member_id == &"":
+		return null
+
+	var entries_variant: Variant = data.get("entries", [])
+	if entries_variant is not Array:
+		return null
+
+	var parsed_entries: Array[PendingCharacterRewardEntry] = []
+	for entry_data in entries_variant:
+		if entry_data is not Dictionary:
+			continue
+		var parsed_entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_dict(entry_data)
+		if parsed_entry == null:
+			continue
+		parsed_entries.append(parsed_entry)
+
+	if parsed_entries.is_empty():
+		return null
+
 	var reward = PENDING_CHARACTER_REWARD_SCRIPT.new()
 	reward.reward_id = ProgressionDataUtils.to_string_name(data.get("reward_id", ""))
-	reward.member_id = ProgressionDataUtils.to_string_name(data.get("member_id", ""))
+	reward.member_id = member_id
 	reward.member_name = String(data.get("member_name", ""))
 	reward.source_type = ProgressionDataUtils.to_string_name(data.get("source_type", ""))
 	reward.source_id = ProgressionDataUtils.to_string_name(data.get("source_id", ""))
 	reward.source_label = String(data.get("source_label", ""))
 	reward.summary_text = String(data.get("summary_text", ""))
-
-	var entries_variant: Variant = data.get("entries", [])
-	if entries_variant is Array:
-		for entry_data in entries_variant:
-			if entry_data is not Dictionary:
-				continue
-			reward.entries.append(PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_dict(entry_data))
-
-	_assign_fallback_reward_id(reward)
+	reward.entries = parsed_entries
 	return reward
 
 
@@ -84,15 +96,3 @@ static func from_variant(reward_variant):
 	if reward_variant is Dictionary:
 		return from_dict(reward_variant)
 	return null
-
-
-static func _assign_fallback_reward_id(reward) -> void:
-	if reward == null or reward.reward_id != &"":
-		return
-	reward.reward_id = ProgressionDataUtils.to_string_name(
-		"%s_%s_%d" % [
-			String(reward.member_id),
-			String(reward.source_id if reward.source_id != &"" else reward.source_type),
-			Time.get_ticks_usec(),
-		]
-	)

@@ -20,6 +20,8 @@ var version := 3
 var gold: int = 0
 ## 字段说明：记录队长成员唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var leader_member_id: StringName = &""
+## 字段说明：记录主角成员唯一标识，作为 GameOver 与主角专属规则的正式真相源；在合法编队中主角必须保持为上阵成员。
+var main_character_member_id: StringName = &""
 ## 字段说明：保存激活成员标识列表，便于批量遍历、交叉查找和界面展示。
 var active_member_ids: Array = []
 ## 字段说明：保存预备成员标识列表，便于批量遍历、交叉查找和界面展示。
@@ -40,6 +42,32 @@ var warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
 
 func get_member_state(member_id: StringName):
 	return member_states.get(member_id)
+
+
+func has_member_state(member_id: StringName) -> bool:
+	return get_member_state(member_id) != null
+
+
+func is_member_dead(member_id: StringName) -> bool:
+	var member_state = get_member_state(member_id)
+	return member_state != null and bool(member_state.is_dead)
+
+
+func get_resolved_main_character_member_id() -> StringName:
+	if main_character_member_id != &"" and has_member_state(main_character_member_id):
+		return main_character_member_id
+	return &""
+
+
+func remove_member_from_rosters(member_id: StringName) -> void:
+	if member_id == &"":
+		return
+	active_member_ids = ProgressionDataUtils.to_string_name_array(active_member_ids)
+	reserve_member_ids = ProgressionDataUtils.to_string_name_array(reserve_member_ids)
+	active_member_ids.erase(member_id)
+	reserve_member_ids.erase(member_id)
+	if leader_member_id == member_id:
+		leader_member_id = active_member_ids[0] if not active_member_ids.is_empty() else &""
 
 
 func get_active_quests() -> Array[QuestState]:
@@ -151,6 +179,8 @@ func set_active_quest_state(quest_state) -> void:
 	var typed_quest_state: QuestState = quest_state
 	if typed_quest_state.quest_id == &"":
 		return
+	remove_claimable_quest(typed_quest_state.quest_id)
+	completed_quest_ids.erase(typed_quest_state.quest_id)
 	for index in range(active_quests.size()):
 		var existing_quest_state := active_quests[index]
 		if existing_quest_state == null or existing_quest_state.quest_id != typed_quest_state.quest_id:
@@ -166,6 +196,8 @@ func set_claimable_quest_state(quest_state) -> void:
 	var typed_quest_state: QuestState = quest_state
 	if typed_quest_state.quest_id == &"":
 		return
+	remove_active_quest(typed_quest_state.quest_id)
+	completed_quest_ids.erase(typed_quest_state.quest_id)
 	for index in range(claimable_quests.size()):
 		var existing_quest_state := claimable_quests[index]
 		if existing_quest_state == null or existing_quest_state.quest_id != typed_quest_state.quest_id:
@@ -220,6 +252,8 @@ func has_completed_quest(quest_id: StringName) -> bool:
 func add_completed_quest_id(quest_id: StringName) -> void:
 	if quest_id == &"" or completed_quest_ids.has(quest_id):
 		return
+	remove_active_quest(quest_id)
+	remove_claimable_quest(quest_id)
 	completed_quest_ids.append(quest_id)
 
 
@@ -268,6 +302,7 @@ func to_dict() -> Dictionary:
 		"version": version,
 		"gold": get_gold(),
 		"leader_member_id": String(leader_member_id),
+		"main_character_member_id": String(main_character_member_id),
 		"active_member_ids": ProgressionDataUtils.string_name_array_to_string_array(
 			ProgressionDataUtils.to_string_name_array(active_member_ids)
 		),
@@ -289,6 +324,8 @@ static func from_dict(data: Dictionary):
 	if data.is_empty():
 		return null
 	if int(data.get("version", 0)) != 3:
+		return null
+	if not data.has("main_character_member_id"):
 		return null
 	var warehouse_state_data: Variant = data.get("warehouse_state", null)
 	if warehouse_state_data is not Dictionary:
@@ -313,6 +350,7 @@ static func from_dict(data: Dictionary):
 	party_state.version = int(data.get("version", 3))
 	party_state.gold = maxi(int(data.get("gold", 0)), 0)
 	party_state.leader_member_id = ProgressionDataUtils.to_string_name(data.get("leader_member_id", ""))
+	party_state.main_character_member_id = ProgressionDataUtils.to_string_name(data.get("main_character_member_id", ""))
 	party_state.active_member_ids = ProgressionDataUtils.to_string_name_array(data.get("active_member_ids", []))
 	party_state.reserve_member_ids = ProgressionDataUtils.to_string_name_array(data.get("reserve_member_ids", []))
 	party_state.warehouse_state = WAREHOUSE_STATE_SCRIPT.from_dict(warehouse_state_data)
@@ -358,6 +396,16 @@ static func from_dict(data: Dictionary):
 	party_state.completed_quest_ids = _normalize_unique_string_name_array(
 		ProgressionDataUtils.to_string_name_array(completed_quest_ids_variant)
 	)
+	var active_quest_ids := party_state.get_active_quest_ids()
+	var claimable_quest_ids := party_state.get_claimable_quest_ids()
+	for quest_id in active_quest_ids:
+		if claimable_quest_ids.has(quest_id) or party_state.completed_quest_ids.has(quest_id):
+			return null
+	for quest_id in claimable_quest_ids:
+		if party_state.completed_quest_ids.has(quest_id):
+			return null
+	if party_state.main_character_member_id == &"" or not party_state.has_member_state(party_state.main_character_member_id):
+		return null
 
 	return party_state
 

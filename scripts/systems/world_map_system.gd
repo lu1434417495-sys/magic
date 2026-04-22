@@ -8,6 +8,7 @@ extends Control
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const WORLD_MAP_RUNTIME_PROXY_SCRIPT = preload("res://scripts/systems/world_map_runtime_proxy.gd")
 const WORLD_MOVE_REPEAT_INTERVAL := 0.5
+const STARTUP_SCENE_SETTING := "application/run/main_scene"
 const BATTLE_LOADING_LABEL_TEXT := "LOADING..."
 const BATTLE_LOADING_TEXT_COLOR := Color(1.0, 1.0, 1.0, 1.0)
 const BATTLE_LOADING_PERCENT_TEXT_COLOR := Color(0.86, 0.92, 1.0, 0.95)
@@ -32,6 +33,7 @@ const BATTLE_LOADING_PROGRESS_MAX := 100.0
 @onready var promotion_choice_window = $PromotionChoiceWindow
 @onready var character_reward_window = $MasteryRewardWindow
 @onready var submap_entry_window = $SubmapEntryWindow
+@onready var game_over_window = $GameOverWindow
 @onready var submap_hint_panel: Control = %SubmapHintPanel
 @onready var submap_hint_label: Label = %SubmapHintLabel
 @onready var battle_loading_overlay: Control = %BattleLoadingOverlay
@@ -93,6 +95,7 @@ func _ready() -> void:
 	character_reward_window.confirmed.connect(_on_character_reward_confirmed)
 	submap_entry_window.confirmed.connect(_on_submap_entry_confirmed)
 	submap_entry_window.cancelled.connect(_on_submap_entry_cancelled)
+	game_over_window.return_requested.connect(_on_game_over_return_requested)
 	world_map_view.cell_clicked.connect(_on_world_map_cell_clicked)
 	world_map_view.cell_right_clicked.connect(_on_world_map_cell_right_clicked)
 	battle_map_panel.battle_cell_clicked.connect(_on_battle_cell_clicked)
@@ -257,6 +260,11 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 		submap_entry_window.show_prompt(_runtime_proxy.get_pending_battle_start_prompt())
 	else:
 		submap_entry_window.hide_window()
+
+	if modal_id == "game_over":
+		game_over_window.show_window(_runtime_proxy.get_game_over_context())
+	else:
+		game_over_window.hide_window()
 
 
 func _process(delta: float) -> void:
@@ -699,3 +707,25 @@ func _on_submap_entry_cancelled() -> void:
 		_render_from_runtime(false)
 		return
 	_runtime_proxy.command_cancel_submap_entry()
+
+
+func _on_game_over_return_requested() -> void:
+	_clear_world_move_hold()
+	var scene_tree := get_tree()
+	if scene_tree == null:
+		push_error("WorldMapSystem 无法获取 SceneTree，不能返回标题。")
+		return
+	var startup_scene_path := _get_configured_startup_scene_path()
+	if startup_scene_path.is_empty():
+		push_error("WorldMapSystem 未配置 application/run/main_scene，不能返回标题。")
+		return
+	var change_error := scene_tree.change_scene_to_file(startup_scene_path)
+	if change_error != OK:
+		push_error("WorldMapSystem 返回标题失败，错误码 %d。" % change_error)
+		return
+	if _game_session != null:
+		_game_session.unload_active_world()
+
+
+func _get_configured_startup_scene_path() -> String:
+	return String(ProjectSettings.get_setting(STARTUP_SCENE_SETTING, "")).strip_edges()

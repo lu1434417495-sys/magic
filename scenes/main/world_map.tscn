@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 ; Scene purpose: World map root scene that hosts exploration, battle overlays, and related windows.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
@@ -18,6 +18,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/submap_entry_window.tscn" id="13_submap"]
 [ext_resource type="PackedScene" path="res://scenes/ui/shop_window.tscn" id="14_shop"]
 [ext_resource type="PackedScene" path="res://scenes/ui/stagecoach_window.tscn" id="15_stagecoach"]
+[ext_resource type="PackedScene" path="res://scenes/ui/game_over_window.tscn" id="16_game_over"]
 
 ; Local sub-resources defined inline for this scene only.
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
@@ -161,6 +162,9 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="SubmapEntryWindow" parent="." instance=ExtResource("13_submap")]
+unique_name_in_owner = true
+
+[node name="GameOverWindow" parent="." instance=ExtResource("16_game_over")]
 unique_name_in_owner = true
 
 [node name="BattleLoadingOverlay" type="Control" parent="."]

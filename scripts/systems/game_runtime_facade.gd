@@ -165,6 +165,8 @@ var _last_battle_loot_snapshot: Dictionary = {}
 var _active_command_log_scope: Dictionary = {}
 ## 字段说明：缓存当前人物信息窗的结构化上下文，供 headless 文本测试稳定读取。
 var _active_character_info_context: Dictionary = {}
+## 字段说明：缓存当前 GameOver 结构化上下文，供场景层统一渲染。
+var _active_game_over_context: Dictionary = {}
 ## 字段说明：记录当前选中的队伍成员，供 UI 与 headless 统一读取。
 var _party_selected_member_id: StringName = &""
 ## 字段说明：缓存野外遭遇编队配置集合字典，供世界推进与战斗编队统一查表。
@@ -232,10 +234,15 @@ func setup(game_session) -> void:
 	_last_advance_battle_refresh_mode = ""
 	_last_battle_loot_snapshot.clear()
 	_active_character_info_context.clear()
+	_active_game_over_context.clear()
 	_party_selected_member_id = &""
 	_active_warehouse_entry_label = ""
 	_pending_submap_prompt.clear()
 	_pending_battle_start_prompt.clear()
+	if _is_main_character_dead():
+		_activate_game_over(_build_main_character_game_over_context())
+		_update_status(String(_active_game_over_context.get("description", "主角已阵亡，本次旅程结束。")))
+		return
 	if is_submap_active():
 		_update_status("已载入 %s。%s" % [get_active_map_display_name(), get_submap_return_hint_text()])
 		return
@@ -275,6 +282,7 @@ func dispose() -> void:
 	_pending_promotion_prompt.clear()
 	_pending_world_promotion_prompt.clear()
 	_active_character_info_context.clear()
+	_active_game_over_context.clear()
 	_active_contract_board_context.clear()
 	_active_shop_context.clear()
 	_active_forge_context.clear()
@@ -305,6 +313,10 @@ func get_active_log_file_path() -> String:
 
 func get_active_modal_id() -> String:
 	return _active_modal_id
+
+
+func get_game_over_context() -> Dictionary:
+	return _active_game_over_context.duplicate(true)
 
 
 func get_active_settlement_id() -> String:
@@ -1072,41 +1084,71 @@ func present_battle_start_confirmation() -> void:
 func finalize_battle_resolution(battle_resolution_result) -> void:
 	if battle_resolution_result == null:
 		return
+	var battle_name: String = _active_battle_encounter_name if not _active_battle_encounter_name.is_empty() else "遭遇"
 	var winner_faction_id := String(battle_resolution_result.winner_faction_id)
 	var resolved_pending_rewards: Array = battle_resolution_result.get_pending_character_rewards_copy()
 	var resolved_quest_progress_events: Array = battle_resolution_result.quest_progress_events.duplicate(true)
 	var battle_summary := _build_battle_log_state()
 	_battle_runtime.end_battle({"commit_progression": true})
-	_character_management.enqueue_pending_character_rewards(resolved_pending_rewards)
-	var merged_quest_progress_events: Array = resolved_quest_progress_events
-	merged_quest_progress_events.append_array(_build_default_battle_quest_progress_events(winner_faction_id))
-	var quest_summary := _character_management.apply_quest_progress_events(merged_quest_progress_events, get_world_step())
 	_party_state = _character_management.get_party_state()
-	var loot_commit_result := _commit_battle_loot_to_shared_warehouse(battle_resolution_result)
-	var party_persist_error: int = int(_game_session.set_party_state(_party_state))
-	_resolve_world_encounter_after_battle(winner_faction_id)
-	var world_persist_error: int = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
+	var main_character_dead := _is_main_character_dead()
+	var quest_summary: Dictionary = {}
+	var loot_commit_result: Dictionary = {}
+	var party_persist_error: int = OK
+	var world_persist_error: int = OK
+	var flush_error: int = OK
+	var save_skipped := false
+	if not main_character_dead:
+		_character_management.enqueue_pending_character_rewards(resolved_pending_rewards)
+		var merged_quest_progress_events: Array = resolved_quest_progress_events
+		merged_quest_progress_events.append_array(_build_default_battle_quest_progress_events(winner_faction_id))
+		quest_summary = _character_management.apply_quest_progress_events(merged_quest_progress_events, get_world_step())
+		_party_state = _character_management.get_party_state()
+		loot_commit_result = _commit_battle_loot_to_shared_warehouse(battle_resolution_result)
+		party_persist_error = int(_game_session.set_party_state(_party_state))
+		_resolve_world_encounter_after_battle(winner_faction_id)
+		world_persist_error = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
+	else:
+		save_skipped = true
 	_game_session.set_battle_save_lock(false)
-	var flush_error: int = int(_game_session.flush_game_state())
+	if save_skipped:
+		_game_session.discard_pending_save()
+	else:
+		flush_error = int(_game_session.flush_game_state())
 
-	_active_modal_id = ""
-	_pending_battle_start_prompt.clear()
-	_pending_promotion_prompt.clear()
-	_battle_selection.clear_battle_skill_selection()
-	_battle_state = null
-	_battle_selected_coord = Vector2i(-1, -1)
-	var battle_name: String = _active_battle_encounter_name if not _active_battle_encounter_name.is_empty() else "遭遇"
-	_last_battle_loot_snapshot = _build_last_battle_loot_snapshot(
-		battle_name,
-		winner_faction_id,
-		battle_resolution_result,
-		loot_commit_result
-	)
-	_active_battle_encounter_id = &""
-	_active_battle_encounter_name = ""
-	_selected_coord = _player_coord
+	_clear_resolved_battle_runtime_context()
+	if main_character_dead:
+		_last_battle_loot_snapshot.clear()
+		_activate_game_over(_build_main_character_game_over_context())
+	else:
+		_last_battle_loot_snapshot = _build_last_battle_loot_snapshot(
+			battle_name,
+			winner_faction_id,
+			battle_resolution_result,
+			loot_commit_result
+		)
 
 	_refresh_fog()
+	if main_character_dead:
+		_update_status(String(_active_game_over_context.get("description", "主角已阵亡，本次旅程结束。")))
+		_log_runtime_event(
+			"info",
+			"battle",
+			"battle.game_over",
+			_current_status_message,
+			{
+				"battle": battle_summary,
+				"winner_faction_id": winner_faction_id,
+				"main_character_member_id": String(_party_state.get_resolved_main_character_member_id()) if _party_state != null and _party_state.has_method("get_resolved_main_character_member_id") else "",
+				"pending_reward_count": resolved_pending_rewards.size(),
+				"quest_progress_summary": _quest_progress_summary_to_string_dict(quest_summary),
+				"save_skipped": save_skipped,
+				"party_persist_error": party_persist_error,
+				"world_persist_error": world_persist_error,
+				"flush_error": flush_error,
+			}
+		)
+		return
 
 	if party_persist_error == OK and world_persist_error == OK and flush_error == OK:
 		_update_status(_build_battle_resolution_status_message(
@@ -1311,7 +1353,7 @@ func advance(delta: float) -> bool:
 	if _generation_config == null:
 		return false
 	if _is_battle_active():
-		if _is_battle_finished() or _active_modal_id == "promotion":
+		if _is_battle_finished() or _is_battle_timeline_modal_active():
 			return false
 		var previous_tu := int(_battle_state.timeline.current_tu) if _battle_state != null and _battle_state.timeline != null else -1
 		var batch = _battle_runtime.advance(delta)
@@ -2443,11 +2485,11 @@ func _try_open_character_info_at_world_coord(coord: Vector2i) -> bool:
 		return false
 
 	var display_name: String = npc.get("display_name", "NPC")
+	var faction_label := _format_faction_label(String(npc.get("faction_id", "neutral")))
 	_active_character_info_context = {
 		"display_name": display_name,
-		"type_label": "世界 NPC",
-		"faction_label": _format_faction_label(String(npc.get("faction_id", "neutral"))),
-		"coord": coord,
+		"meta_label": _build_character_info_meta_label("世界 NPC", faction_label, coord),
+		"sections": _build_world_character_info_sections(npc, coord, faction_label),
 		"status_label": "可见提示单位",
 		"source": "world",
 	}
@@ -2464,12 +2506,13 @@ func _try_open_character_info_at_battle_coord(coord: Vector2i) -> bool:
 	var unit_id := String(unit.unit_id)
 	var display_name := unit.display_name if not unit.display_name.is_empty() else unit_id
 	var faction_id := String(unit.faction_id)
+	var type_label := _get_battle_unit_type_label(unit_id)
+	var faction_label := _format_faction_label(faction_id)
 	var status_label := "当前行动单位" if unit.unit_id == _battle_state.active_unit_id else "战斗单位"
 	_active_character_info_context = {
 		"display_name": display_name,
-		"type_label": _get_battle_unit_type_label(unit_id),
-		"faction_label": _format_faction_label(faction_id),
-		"coord": unit.coord,
+		"meta_label": _build_character_info_meta_label(type_label, faction_label, unit.coord),
+		"sections": _build_battle_character_info_sections(unit, type_label, faction_label),
 		"status_label": status_label,
 		"source": "battle",
 		"unit_id": unit_id,
@@ -2477,6 +2520,141 @@ func _try_open_character_info_at_battle_coord(coord: Vector2i) -> bool:
 	_active_modal_id = "character_info"
 	_update_status("已打开 %s 的人物信息窗。" % display_name)
 	return true
+
+
+func _build_character_info_meta_label(type_label: String, faction_label: String, coord: Vector2i) -> String:
+	return "%s  |  阵营 %s  |  坐标 %s" % [type_label, faction_label, _format_coord(coord)]
+
+
+func _build_world_character_info_sections(npc: Dictionary, coord: Vector2i, faction_label: String) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = [
+		{
+			"label": "类型",
+			"value": "世界 NPC",
+		},
+		{
+			"label": "阵营",
+			"value": faction_label,
+		},
+		{
+			"label": "坐标",
+			"value": _format_coord(coord),
+		},
+	]
+	var service_type := String(npc.get("service_type", "")).strip_edges()
+	if not service_type.is_empty():
+		entries.append({
+			"label": "服务",
+			"value": service_type,
+		})
+	var facility_name := String(npc.get("facility_name", "")).strip_edges()
+	if not facility_name.is_empty():
+		entries.append({
+			"label": "所属设施",
+			"value": facility_name,
+		})
+	return [{
+		"title": "基础概览",
+		"entries": entries,
+	}]
+
+
+func _build_battle_character_info_sections(unit: BattleUnitState, type_label: String, faction_label: String) -> Array[Dictionary]:
+	var sections: Array[Dictionary] = [{
+		"title": "基础概览",
+		"entries": _build_battle_character_info_base_entries(unit, type_label, faction_label),
+	}]
+	var status_entries := _build_battle_character_status_entries(unit)
+	if not status_entries.is_empty():
+		sections.append({
+			"title": "状态效果",
+			"entries": status_entries,
+		})
+	var skill_entries := _build_battle_character_skill_entries(unit)
+	if not skill_entries.is_empty():
+		sections.append({
+			"title": "技能摘要",
+			"entries": skill_entries,
+		})
+	return sections
+
+
+func _build_battle_character_info_base_entries(unit: BattleUnitState, type_label: String, faction_label: String) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = [
+		{
+			"label": "类型",
+			"value": type_label,
+		},
+		{
+			"label": "阵营",
+			"value": faction_label,
+		},
+		{
+			"label": "坐标",
+			"value": _format_coord(unit.coord),
+		},
+		{
+			"label": "HP",
+			"value": "%d / %d" % [int(unit.current_hp), maxi(_get_battle_unit_attribute_value(unit, &"hp_max"), 1)],
+		},
+		{
+			"label": "MP",
+			"value": "%d / %d" % [int(unit.current_mp), maxi(_get_battle_unit_attribute_value(unit, &"mp_max"), 0)],
+		},
+		{
+			"label": "AP",
+			"value": "%d" % int(unit.current_ap),
+		},
+	]
+	var stamina_max := _get_battle_unit_attribute_value(unit, &"stamina_max")
+	if stamina_max > 0 or int(unit.current_stamina) > 0:
+		entries.append({
+			"label": "ST",
+			"value": "%d / %d" % [int(unit.current_stamina), maxi(stamina_max, 0)],
+		})
+	var aura_max := _get_battle_unit_attribute_value(unit, &"aura_max")
+	if aura_max > 0 or int(unit.current_aura) > 0:
+		entries.append({
+			"label": "Aura",
+			"value": "%d / %d" % [int(unit.current_aura), maxi(aura_max, 0)],
+		})
+	return entries
+
+
+func _build_battle_character_status_entries(unit: BattleUnitState) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for status_key in ProgressionDataUtils.sorted_string_keys(unit.status_effects):
+		var status_id := StringName(status_key)
+		var effect_state = unit.get_status_effect(status_id)
+		if effect_state == null:
+			continue
+		var line := String(status_id)
+		if int(effect_state.stacks) > 1:
+			line += " x%d" % int(effect_state.stacks)
+		if effect_state.has_duration():
+			line += " · %d TU" % int(effect_state.duration)
+		entries.append({"text": line})
+	return entries
+
+
+func _build_battle_character_skill_entries(unit: BattleUnitState) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for skill_id in unit.known_active_skill_ids:
+		var resolved_skill_id := ProgressionDataUtils.to_string_name(skill_id)
+		if resolved_skill_id == &"":
+			continue
+		entries.append({
+			"text": _get_skill_display_name(resolved_skill_id),
+		})
+		if entries.size() >= 6:
+			break
+	return entries
+
+
+func _get_battle_unit_attribute_value(unit: BattleUnitState, attribute_id: StringName) -> int:
+	if unit == null or unit.attribute_snapshot == null:
+		return 0
+	return int(unit.attribute_snapshot.get_value(attribute_id))
 
 
 func _get_settlement_at(coord: Vector2i) -> Dictionary:
@@ -2779,6 +2957,12 @@ func _is_modal_window_open() -> bool:
 	return _active_modal_id != ""
 
 
+func _is_battle_timeline_modal_active() -> bool:
+	if not _is_battle_active() or _battle_state == null:
+		return false
+	return StringName(_battle_state.modal_state) != &""
+
+
 func _enqueue_pending_character_rewards(reward_variants: Array) -> void:
 	if _reward_flow_handler != null:
 		_reward_flow_handler.enqueue_pending_character_rewards(reward_variants)
@@ -2809,6 +2993,46 @@ func _persist_world_data() -> int:
 	if _game_session == null:
 		return ERR_UNAVAILABLE
 	return int(_game_session.set_world_data(_world_map_data_context.root_world_data))
+
+
+func _clear_resolved_battle_runtime_context() -> void:
+	_active_modal_id = ""
+	_pending_battle_start_prompt.clear()
+	_pending_promotion_prompt.clear()
+	_battle_selection.clear_battle_skill_selection()
+	_battle_state = null
+	_battle_selected_coord = Vector2i(-1, -1)
+	_active_battle_encounter_id = &""
+	_active_battle_encounter_name = ""
+	_selected_coord = _player_coord
+
+
+func _activate_game_over(context: Dictionary) -> void:
+	_active_game_over_context = context.duplicate(true)
+	_active_modal_id = "game_over"
+
+
+func _is_main_character_dead() -> bool:
+	if _party_state == null or not _party_state.has_method("get_resolved_main_character_member_id"):
+		return false
+	var member_id: StringName = _party_state.get_resolved_main_character_member_id()
+	if member_id == &"" or not _party_state.has_method("is_member_dead"):
+		return false
+	return bool(_party_state.is_member_dead(member_id))
+
+
+func _build_main_character_game_over_context() -> Dictionary:
+	var member_id: StringName = _party_state.get_resolved_main_character_member_id() if _party_state != null and _party_state.has_method("get_resolved_main_character_member_id") else &""
+	var member_name := _get_member_display_name(member_id)
+	var description := "%s 已在战斗中阵亡，本次旅程结束。" % member_name if not member_name.is_empty() else "主角已在战斗中阵亡，本次旅程结束。"
+	return {
+		"title": "Game Over",
+		"description": description,
+		"confirm_text": "返回标题",
+		"main_character_member_id": String(member_id),
+		"main_character_name": member_name,
+		"main_character_dead": true,
+	}
 
 
 func _mark_settlement_visited(settlement_id: String) -> void:

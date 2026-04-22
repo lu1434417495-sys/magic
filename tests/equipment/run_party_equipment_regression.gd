@@ -545,6 +545,7 @@ func _build_party_with_member(member_id: StringName, display_name: String, stora
 	party_state.active_member_ids = [member_id]
 	party_state.reserve_member_ids = []
 	party_state.leader_member_id = member_id
+	party_state.main_character_member_id = member_id
 	return party_state
 
 

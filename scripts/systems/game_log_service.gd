@@ -64,6 +64,14 @@ func build_snapshot(limit: int = DEFAULT_TAIL_LIMIT) -> Dictionary:
 	}
 
 
+func start_new_session() -> void:
+	clear_entries()
+	_next_seq = 1
+	_write_enabled = true
+	_session_log_virtual_path = _build_session_log_virtual_path()
+	_initialize_log_file()
+
+
 func clear_entries() -> void:
 	_entries.clear()
 

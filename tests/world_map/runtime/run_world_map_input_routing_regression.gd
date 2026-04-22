@@ -20,6 +20,8 @@ func _run() -> void:
 	await _test_world_confirm_key_split()
 	await _reset_session()
 	await _test_battle_wait_key_split_and_modal_block()
+	await _reset_session()
+	await _test_game_over_window_ui_accept_and_scene_return()
 	await _cleanup()
 
 	if _failures.is_empty():
@@ -171,6 +173,61 @@ func _test_battle_wait_key_split_and_modal_block() -> void:
 
 	world_map.queue_free()
 	await process_frame
+
+
+func _test_game_over_window_ui_accept_and_scene_return() -> void:
+	var create_error := int(_game_session.start_new_game(TEST_CONFIG_PATH))
+	_assert_eq(create_error, OK, "game over adapter 回归前置：应能创建测试世界。")
+	if create_error != OK:
+		return
+
+	var world_map = await _instantiate_world_map()
+	if world_map == null:
+		return
+
+	var runtime = world_map._runtime
+	_assert_true(runtime != null, "game over adapter 回归前置：world_map 场景应初始化 runtime。")
+	if runtime == null:
+		world_map.queue_free()
+		await process_frame
+		return
+
+	runtime._activate_game_over({
+		"title": "Game Over",
+		"description": "主角已阵亡，本次旅程结束。",
+		"confirm_text": "返回标题",
+		"main_character_member_id": "player_sword_01",
+		"main_character_name": "剑士",
+		"main_character_dead": true,
+	})
+	world_map._render_from_runtime(false)
+	await process_frame
+
+	_assert_true(world_map.game_over_window.visible, "game over modal 激活后场景层应显示 GameOverWindow。")
+	_assert_true(
+		world_map.game_over_window.get_viewport().gui_get_focus_owner() == world_map.game_over_window.return_button,
+		"GameOverWindow 打开后应把焦点交给 ReturnButton。"
+	)
+
+	var accept_event := InputEventAction.new()
+	accept_event.action = "ui_accept"
+	accept_event.pressed = true
+	world_map.game_over_window._unhandled_input(accept_event)
+	await process_frame
+	await process_frame
+
+	var configured_main_scene := String(ProjectSettings.get_setting("application/run/main_scene", ""))
+	_assert_true(not _game_session.has_active_world(), "GameOverWindow 返回标题后应卸载当前 active world。")
+	_assert_true(current_scene != null, "GameOverWindow 返回标题后 SceneTree 应切到配置的启动场景。")
+	_assert_eq(
+		String(current_scene.scene_file_path) if current_scene != null else "",
+		configured_main_scene,
+		"GameOverWindow.return_requested -> WorldMapSystem 应切到 project.godot 配置的启动场景。"
+	)
+
+	if current_scene != null:
+		current_scene.queue_free()
+		await process_frame
 
 
 func _instantiate_world_map():

@@ -35,11 +35,17 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
+	var entry_type := ProgressionDataUtils.to_string_name(data.get("entry_type", ""))
+	var target_id := ProgressionDataUtils.to_string_name(data.get("target_id", ""))
+	var amount := int(data.get("amount", 0))
+	if entry_type == &"" or target_id == &"" or amount == 0:
+		return null
+
 	var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
-	entry.entry_type = ProgressionDataUtils.to_string_name(data.get("entry_type", ""))
-	entry.target_id = ProgressionDataUtils.to_string_name(data.get("target_id", ""))
+	entry.entry_type = entry_type
+	entry.target_id = target_id
 	entry.target_label = String(data.get("target_label", ""))
-	entry.amount = int(data.get("amount", 0))
+	entry.amount = amount
 	entry.reason_text = String(data.get("reason_text", ""))
 	return entry
 

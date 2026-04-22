@@ -53,6 +53,8 @@ var _item_defs: Dictionary = {}
 var _member_states: Dictionary = {}
 ## 字段说明：记录队长成员唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _leader_member_id: StringName = &""
+## 字段说明：记录主角成员唯一标识，用于维持“主角必须保持上阵”的正式编队约束。
+var _main_character_member_id: StringName = &""
 ## 字段说明：保存激活成员标识列表，便于批量遍历、交叉查找和界面展示。
 var _active_member_ids: Array[StringName] = []
 ## 字段说明：保存预备成员标识列表，便于批量遍历、交叉查找和界面展示。
@@ -77,7 +79,7 @@ func show_party(party_state: PartyState) -> void:
 	set_party_state(party_state)
 	visible = true
 	title_label.text = "队伍管理"
-	meta_label.text = "队长必须属于上阵成员，上阵人数上限 %d。此处同时显示角色成就摘要，并可进入共享仓库。" % MAX_ACTIVE_MEMBER_COUNT
+	meta_label.text = "主角与队长都必须属于上阵成员，上阵人数上限 %d。此处同时显示角色成就摘要，并可进入共享仓库。" % MAX_ACTIVE_MEMBER_COUNT
 	refresh_view()
 
 
@@ -135,6 +137,7 @@ func hide_window() -> void:
 	_party_state = null
 	_member_states.clear()
 	_leader_member_id = &""
+	_main_character_member_id = &""
 	_active_member_ids.clear()
 	_reserve_member_ids.clear()
 	_selected_member_id = &""
@@ -157,9 +160,11 @@ func _capture_party_state(party_state: PartyState) -> void:
 
 	if party_state == null:
 		_leader_member_id = &""
+		_main_character_member_id = &""
 		return
 
 	_leader_member_id = party_state.leader_member_id
+	_main_character_member_id = party_state.get_resolved_main_character_member_id() if party_state.has_method("get_resolved_main_character_member_id") else &""
 	_active_member_ids = ProgressionDataUtils.to_string_name_array(party_state.active_member_ids)
 	_reserve_member_ids = ProgressionDataUtils.to_string_name_array(party_state.reserve_member_ids)
 	_member_states = party_state.member_states.duplicate()
@@ -214,7 +219,12 @@ func _refresh_controls() -> void:
 	var has_selection: bool = _selected_member_id != &""
 	var can_set_leader: bool = has_selection and _active_member_ids.has(_selected_member_id)
 	var can_move_to_active: bool = has_selection and _reserve_member_ids.has(_selected_member_id) and _active_member_ids.size() < MAX_ACTIVE_MEMBER_COUNT
-	var can_move_to_reserve: bool = has_selection and _active_member_ids.has(_selected_member_id) and _active_member_ids.size() > 1
+	var can_move_to_reserve: bool = (
+		has_selection
+		and _active_member_ids.has(_selected_member_id)
+		and _active_member_ids.size() > 1
+		and _selected_member_id != _main_character_member_id
+	)
 
 	set_leader_button.disabled = not can_set_leader
 	move_to_active_button.disabled = not can_move_to_active
@@ -272,6 +282,7 @@ func _refresh_details() -> void:
 		"姓名：%s" % member_state.display_name,
 		"成员 ID：%s" % String(member_state.member_id),
 		"编成：%s" % ("上阵" if _active_member_ids.has(member_state.member_id) else "替补"),
+		"主角：%s" % ("是" if member_state.member_id == _main_character_member_id else "否"),
 		"队长：%s" % ("是" if member_state.member_id == _leader_member_id else "否"),
 		"控制：%s" % String(member_state.control_mode),
 		"角色等级：%d" % int(progression.character_level if progression != null else 0),
@@ -461,6 +472,9 @@ func _on_move_to_reserve_button_pressed() -> void:
 	if _selected_member_id == &"":
 		return
 	if not _active_member_ids.has(_selected_member_id):
+		return
+	if _selected_member_id == _main_character_member_id:
+		status_label.text = "主角必须保持上阵，不能移至替补。"
 		return
 	if _active_member_ids.size() <= 1:
 		return
