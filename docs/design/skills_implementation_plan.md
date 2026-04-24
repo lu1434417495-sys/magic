@@ -128,7 +128,7 @@ flowchart TD
 | `control_mode` | `manual` / `ai`，AI 分流只看这个字段 |
 | `ai_brain_id` / `ai_state_id` | AI 控脑与当前状态 |
 | `current_hp / mp / stamina / aura / ap` | 五种资源，`aura` 默认 0 |
-| `attribute_snapshot` | 派生属性快照，读写 `hit_rate` / `evasion` / `physical_attack` / `magic_attack` / `speed` 等 |
+| `attribute_snapshot` | 派生属性快照，读写 `hit_rate` / `evasion` / `physical_attack` / `magic_attack` 等 |
 | `cooldowns: Dictionary` | `{ skill_id: remaining_tu }` |
 | `status_effects: Dictionary` | `{ status_id: BattleStatusEffectState }` |
 | `movement_tags: Array` | 地格移动标签 |

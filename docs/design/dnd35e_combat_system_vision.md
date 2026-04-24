@@ -2,7 +2,7 @@
 
 > 更新日期：`2026-04-15`
 > 定位：全量系统蓝图，不受当前代码可行性和改动量约束
-> 前置文档：`dnd_weapon_system_initial_plan.md`、`skills_implementation_plan.md`、`player_growth_system_plan.md`
+> 前置文档：`../discussions/dnd_weapon_system_initial_plan.md`、`skills_implementation_plan.md`、`player_growth_system_plan.md`
 
 ## 设计意图
 
@@ -141,7 +141,6 @@ max_dex_bonus: int        # 穿甲时敏捷上限
 armor_check_penalty: int  # 护甲惩罚（影响技能检定）
 arcane_spell_failure: int # 奥术失败率（百分比）
 armor_category: light / medium / heavy
-speed_penalty: bool       # 重甲是否降速
 ```
 
 #### 护甲 AC 参考表
@@ -698,7 +697,7 @@ CMD = 10 + BAB + Str_mod + Dex_mod + size_mod  # 战斗机动防御
 
 | 状态 | 效果 | 来源 |
 |------|------|------|
-| **加速 Haste** | +1 攻击，+1 AC，+1 Ref，+30ft 速度，额外一次攻击 | 法术 |
+| **加速 Haste** | +1 攻击，+1 AC，+1 Ref，额外一次攻击 | 法术 |
 | **减速 Slow** | 上述反转 | 法术 |
 | **祝福 Bless** | +1 士气加值于攻击和恐惧豁免 | 法术 |
 | **牛之力量 Bull's Strength** | +4 Str（增强加值） | 法术 |
@@ -711,7 +710,7 @@ CMD = 10 + BAB + Str_mod + Dex_mod + size_mod  # 战斗机动防御
 ### 10.2 状态与本项目的衔接
 
 - 建立 `StatusDef` 注册表，每个状态声明：ID、显示名、效果列表、持续类型、豁免类型
-- 效果类型枚举：`attack_mod / ac_mod / save_mod / speed_mod / attribute_mod / disable / forced_behavior / dot / hot`
+- 效果类型枚举：`attack_mod / ac_mod / save_mod / attribute_mod / disable / forced_behavior / dot / hot`
 - 状态持续类型：`rounds / until_removed / until_rest / until_save`
 - `BattleUnitState.status_effects` 已有基础结构，扩展为正式 `StatusEffectEntry`
 
@@ -863,8 +862,8 @@ initiative = d20 + dex_mod + feat_bonus + misc
 ### 13.3 与本项目 Timeline 的衔接
 
 - 当前 `BattleTimelineState` 已实现行动顺序系统
-- 先攻掷骰替代当前的 `speed` 排序
-- 先攻值 = `d20 + dex_mod + speed_bonus`（用 speed 作为额外先攻修正）
+- 先攻掷骰可替代当前按单位 `action_threshold` 入队的节奏
+- 先攻值 = `d20 + dex_mod + feat_bonus`
 - 突袭轮：首轮行动前被突袭单位处于措手不及状态
 
 ---
@@ -1071,8 +1070,6 @@ action_points:      6 + agility_bonus
 # 先攻
 initiative:         dex_mod + feat_bonus + misc
 
-# 速度
-base_speed:         30ft（人类）减甲惩罚
 ```
 
 ---
@@ -1100,7 +1097,6 @@ energy_resistances: Dictionary   # {"fire": 10, "cold": 5}
 energy_immunities: Array[String]
 natural_attacks: Array[Dictionary]  # 天然武器列表
 special_abilities: Array[StringName]
-speed: int
 crit_immunity: bool
 sneak_attack_immunity: bool
 challenge_rating: float          # CR
@@ -1198,7 +1194,7 @@ CR = party_level - 2 时为"简单"遭遇
 | `skills_implementation_plan.md` | §4.2 命中属性从 THAC0/负AC 改为 BAB/升序AC |
 | `skills_implementation_plan.md` | §4.3 命中公式改为 d20+attack_bonus >= AC |
 | `player_growth_system_plan.md` | 锁定核心技能的命中强化改为 BAB bonus 而非 THAC0 修正 |
-| `dnd_weapon_system_initial_plan.md` | 2E bridge 删除，改为纯 3.5e |
+| `../discussions/dnd_weapon_system_initial_plan.md` | 2E bridge 删除，改为纯 3.5e |
 | `equipment_system_plan.md` | 补充 ArmorProfile/ShieldProfile/WeaponProfile 子资源定义 |
 
 ---

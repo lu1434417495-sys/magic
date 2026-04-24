@@ -61,7 +61,7 @@
 
 | 项目 | 状态 |
 | --- | --- |
-| 战斗结算掉落入仓 | ✅ 已落地（`WildEncounterRosterDef.drop_entries` + `EncounterRosterBuilder`） |
+| 战斗结算掉落入仓 | ✅ 已落地（`EnemyTemplateDef.drop_entries` + `BattleRuntimeModule` per-kill 聚合） |
 | 仓库满时显式提示 | ⚠️ 暂无可见空间上限，`WarehouseState` 只有 per-stack `max_stack`。本轮可延迟，等到真正出现容量约束时再补 |
 | 锻造材料消耗/产出 | ✅ 已落地（`SettlementForgeService` + 4 份 `RecipeDef`） |
 | 任务完成条件 | ✅ `submit_item` / `defeat_enemy` 已接入 `QuestProgressService`；`settlement_action` 条件尚未实现 |
@@ -190,7 +190,7 @@
 - 装备槽位固定 `main_hand` / `off_hand` / `head` / `body` / `accessory`，`PartyEquipmentService` 已落地。
 - 装备属性进入角色快照（`PartyEquipmentSnapshotService`）。
 - 货币单一 `gold`，已持久化到 `PartyState`。
-- 战斗结算支持掉落入仓（`EncounterRosterBuilder` + `WildEncounterRosterDef.drop_entries`）。
+- 战斗结算支持掉落入仓（`EnemyTemplateDef.drop_entries` + `BattleRuntimeModule` per-kill 聚合）。
 - 补给支持购买（`SettlementShopService`）。
 - 锻造消耗材料并产出成品（`SettlementForgeService` + 4 份 recipe 资源）。
 - 任务完成条件：`submit_item` / `defeat_enemy` 已接入。
@@ -281,4 +281,4 @@
 - 本路线图的唯一优先级仍是「尽快形成一个可持续游玩的单机版本」。
 - 聚落仍采用窗口交付，不进入城内可行走地图。
 - 战斗命中模型已切到 BAB + 降序 AC + d20（见 `docs/design/skills_implementation_plan.md`），经济闭环的数值校准基于此口径。
-- 信仰系统（`faith_system_plan.md`）、装备耐久（`equipment_durability_plan.md`）、D&D 武器系统（`dnd_weapon_system_initial_plan.md`）均为计划内但本轮不开工的系统。
+- 信仰系统（`faith_system_plan.md`）、装备耐久（`../discussions/equipment_durability_plan.md`，已并入 `equipment_system_plan.md`）、D&D 武器系统（`../discussions/dnd_weapon_system_initial_plan.md`，已被 `dnd35e_combat_system_vision.md` 取代）均为计划内但本轮不开工的系统。

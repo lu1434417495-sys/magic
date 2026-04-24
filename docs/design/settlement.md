@@ -918,7 +918,7 @@ LeftColumn 增加节点：
 | 1. settlement_runtime_state 数据模型 | `scripts/systems/world_map_spawn_system.gd`      | 生成时初始化 settlement_state      |
 | 2. settlement_state 序列化           | `scripts/systems/save_serializer.gd`             | 序列化 / 反序列化 settlement_state |
 | 3. 驿站传送 service_stagecoach       | `game_runtime_settlement_command_handler.gd`     | 选择目标据点 → 瞬移 → 扣金       |
-| 4. StagecoachWindow UI               | 新增`scenes/ui/stagecoach_window.tscn`           | 显示已探索据点列表 + 费用 + 确认   |
+| 4. StagecoachWindow UI               | 复用`scenes/ui/shop_window.tscn`                 | 显示已探索据点列表 + 费用 + 确认   |
 | 5. 条件行为框架                      | `scripts/systems/settlement_condition_system.gd` | 检查触发条件 / 激活 / 冷却管理     |
 | 6. 据点声望存储                      | `settlement_runtime_state`                       | visited / reputation 字段          |
 | 7. 窗口据点状态面板                  | `scripts/ui/settlement_window.gd`                | LeftColumn 底部显示据点状态        |
@@ -976,7 +976,7 @@ LeftColumn 增加节点：
 | `PartyState`                          | 无改动（用现有 gold / hp） | 无改动               | 无改动                         |
 | `ItemDef`                             | 无改动                     | 增加 base_price      | 无改动                         |
 | `WorldMapFogSystem`                   | 无改动                     | 提供 reveal API      | 无改动                         |
-| `WorldMapSystem`                      | 无改动                     | ShopWindow 接线      | StagecoachWindow 接线          |
+| `WorldMapSystem`                      | 无改动                     | ShopWindow 接线      | 复用 ShopWindow shell 的驿站接线 |
 
 ### 11.2 不应触碰的系统
 

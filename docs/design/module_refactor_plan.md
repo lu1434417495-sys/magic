@@ -1,6 +1,6 @@
 # 模块重构当前待办
 
-> 更新日期：2026-04-18
+> 更新日期：2026-04-22
 > 范围：当前仓库 `scripts/` 运行时主链、相关 headless/regression，以及 `docs/design/project_context_units.md` 已声明的所有权边界
 > 说明：本文只保留当前仍有效的 todo。已完成、已失效或已被当前实现取代的旧项已移除。
 
@@ -101,28 +101,6 @@
 
 则仍应继续把命中判定、命中预览和日志口径收敛到 `battle_hit_resolver.gd`，避免把公式重新散回 `battle_runtime_module.gd`、`battle_damage_resolver.gd` 或未来 HUD / AI 侧车。
 
-### S2 `DesignSkillCatalog` 仍处于“代码承载数据”的过渡态
-
-当前正式技能真相源已经迁到：
-
-- `data/configs/skills/*.tres`
-
-但兼容层仍保留：
-
-- `design_skill_catalog.gd`
-- `design_skill_catalog_mage_specs.gd`
-
-当前问题仍然是：
-
-- 大量字典字面量仍在代码文件中
-- review / diff 负担仍偏高
-- mage 兼容内容尚未完全资产化
-
-中期目标仍应是：
-
-1. 继续把剩余 catalog 兼容内容迁到声明式资源或数据文件。
-2. catalog/registry 只保留加载、校验、缓存和兼容桥接逻辑。
-
 ### S3 `GameRuntimeFacade` 仍需控制继续膨胀
 
 当前 facade 已完成第一轮拆分，但仍是大型协调器。后续规则新增时应坚持以下边界：
@@ -147,8 +125,7 @@
 ### Phase B — 再处理结构债务
 
 1. 评估是否继续收敛 `BattleHitResolver` 为更完整的命中真相源。
-2. 继续推进 `DesignSkillCatalog` 资源化/资产化。
-3. 在新增规则时持续约束 `GameRuntimeFacade` 不再回涨。
+2. 在新增规则时持续约束 `GameRuntimeFacade` 不再回涨。
 
 ---
 

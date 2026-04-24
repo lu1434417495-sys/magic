@@ -80,17 +80,10 @@
   2. `MIN_DAMAGE_FLOOR` 改为配置项（0 或 1），避免硬编码。
 - **优先级**：中 — 是平衡设计问题，但现在减伤词条的价值被系统性压平。
 
-### ISSUE-BATTLE-06：`_apply_timeline_step` 最小 +1 抹平速度差
+### ISSUE-BATTLE-06：已修复：`_apply_timeline_step` 不再用属性公式推进行动进度
 
-- **现象**：离散 tick 模式下 `delta_seconds` 很小或 `speed=1` 时，`round(delta*speed*12)` 为 0，被 floor 到 1。结果：高速和低速角色在小步长推进速度相同，速度属性在 fine-grained 模式下失效。
-- **证据**：`battle_runtime_module.gd:257`
-  ```
-  unit_state.action_progress += maxi(int(round(delta_seconds * float(speed) * 12.0)), 1)
-  ```
-- **建议修法**：
-  1. 累积小数残差（把 `action_progress` 改成 float，或记 `fractional_progress` 并在达到 1 时 carry 到 int）；
-  2. 仅在整步推进（`delta_seconds >= threshold`）时使用 `maxi(..., 1)` 的保底。
-- **优先级**：中 — 小步长动画回放或高帧率会放大问题。
+- **当前口径**：离散 tick 模式下，`BattleUnitState.action_progress` 只按本次 tick 的 `tu_delta` 累加；每个单位必须用自己的 `BattleUnitState.action_threshold` 判断是否进入行动队列。
+- **回归覆盖**：`tests/battle_runtime/run_battle_runtime_smoke.gd::_test_timeline_tick_uses_per_unit_action_threshold`
 
 ### ISSUE-BATTLE-07：单格移动不走 semantic 成本校准
 

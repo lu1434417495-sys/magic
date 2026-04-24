@@ -207,7 +207,7 @@
 - 也就是说：
   - 成就与任务更适合做“额外奖励”
   - 升级评价才是角色六维长期分化的主引擎
-- `hp_max / mp_max / action_points / attack / defense / speed / resistance` 等非基础属性不持久化缓存，统一由 `AttributeService` 动态结算。
+- `hp_max / mp_max / action_points / attack / defense / resistance` 等非基础属性不持久化缓存，统一由 `AttributeService` 动态结算。
 - 这样可以避免职业、技能、装备迭代时出现多处脏缓存。
 
 ### 六、装备属于外部构筑，不属于永久成长历史

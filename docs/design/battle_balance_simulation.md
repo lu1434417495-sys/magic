@@ -138,6 +138,13 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `focus_traces.jsonl`
 - `analysis_brief.md`
 
+其中：
+
+- `summary_for_llm.json`
+  - 现在会把每个 profile 的技能成功次数、技能尝试次数、技能失败次数一起写出，优先读这里，不要再去翻 full report。
+- `analysis_brief.md`
+  - 现在会直接展开 profile 级别的 top skill successes / attempts / failures，以及 comparison 里的对应 delta，适合先做人工速读。
+
 默认输出目录：
 
 ```text
@@ -207,9 +214,13 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `description`
   - 文本说明。
 - `map_size`
-  - 地图大小。
+  - 这是 battle sim 场景资源自己的地图大小字段，不是 runtime battle start 的 legacy `map_size` 输入。手工平地布局会直接使用它；当开启正式地形生成时，`build_start_context()` 会把它转换成正式输入字段 `battle_map_size`。
 - `terrain_profile_id`
   - 地形 profile 标识。
+- `use_formal_terrain_generation`
+  - 是否跳过模拟场景内置的平地 `cells` / 出生点拼装，改为复用正式 `BattleTerrainGenerator`。
+- `world_coord`
+  - 传给正式地形生成器的世界坐标；会参与 battle seed 计算。
 - `ally_units`
   - 友军单位列表，元素是 `BattleSimUnitSpec`。
 - `enemy_units`
@@ -220,8 +231,8 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
   - runtime 推进时每轮传入的 delta。
 - `tu_per_tick`
   - 时间轴每 tick 增长值。
-- `action_threshold`
-  - 行动阈值。
+- 单位行动阈值
+  - 写在每个 `BattleSimUnitSpec.action_threshold` / `BattleUnitState.action_threshold` 上；scenario 不再提供全局行动阈值。
 - `max_iterations`
   - 单场最大循环次数。
 - `manual_policy`
@@ -231,16 +242,26 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 
 `build_start_context()` 会把 scenario 转成 runtime 真正使用的开战上下文，字段包括：
 
-- `battle_party`
-- `enemy_units`
-- `ally_spawns`
-- `enemy_spawns`
-- `map_size`
-- `cells`
-- `tick_interval_seconds`
-- `tu_per_tick`
-- `action_threshold`
-- `battle_terrain_profile`
+- 手工布局模式：
+  - `battle_party`
+  - `enemy_units`
+  - `ally_spawns`
+  - `enemy_spawns`
+  - `map_size`
+  - `cells`
+  - `tick_interval_seconds`
+  - `tu_per_tick`
+  - `battle_terrain_profile`
+- 正式地形生成模式：
+  - `battle_party`
+  - `enemy_units`
+  - `battle_map_size`
+  - `world_coord`
+  - `tick_interval_seconds`
+  - `tu_per_tick`
+  - `battle_terrain_profile`
+
+当 `use_formal_terrain_generation = true` 时，模拟不会再因为 `map_size` / `cells` / `ally_spawns` / `enemy_spawns` 命中 `BattleUnitFactory` 的手工地形回退路径，而是直接走正式 `BattleTerrainGenerator`。这适合做“模拟地图必须与正式战斗同尺寸、同峡谷生成逻辑”的 AI 对战。
 
 ### 单位定义
 

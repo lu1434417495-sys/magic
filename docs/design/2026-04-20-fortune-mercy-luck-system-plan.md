@@ -262,7 +262,7 @@ func resolve_attack(attacker, defender) -> AttackResult:
     # 4. 当 crit_gate_die == d20 时，高位区间命中才升级为大成功
     if crit_die == 20:
         var crit_threshold := calc_crit_threshold(hidden_luck, faith_luck)
-        if hit_roll >= crit_threshold and attack_total(hit_roll, attacker, defender) >= target_ac(defender):
+        if hit_roll >= crit_threshold:
             return AttackResult.CRITICAL_HIT
 
     # 5. 中间区间才做普通命中比较
@@ -964,3 +964,153 @@ v2 推荐采用以下总原则：
 - Misfortune：更黑、更稳、更可控
 
 这是一种**刻意的不对称平衡**，不是数值未调齐。
+
+---
+
+## 十四、六大属性的 Breakpoint 设计
+
+> 本节与前 13 节是同源设计：前文解决命运轴，本节解决属性轴。
+> 背景：v2 要求"每 1 点属性都非常值钱，并跨越关键 breakpoint"。
+> 因为 `low luck + 高属性 + Misfortune` 这条路线的一大块预算来自 reroll 堆上的高属性，所以属性必须真的值钱——但不能与 luck 轴发生回环，不能偷偷把 luck 补回去。
+
+### 14.1 Summary
+
+- 属性轴与命运轴**刻意解耦**：属性走"确定性轴"，luck 走"随机性轴"。
+- 每个属性输出 **2~3 条派生曲线**，其中至少一条是阶梯式 breakpoint，而不是纯线性加成。
+- 属性**不补 luck 本体**：不加 crit 区间、不加 drop 档位、不加 fortune / doom 命中概率；可以压缩 fumble、压 AC 差、扩 calamity 资源池、加速固定成长。
+- 推荐基础上限 `10`，装备与神恩合计可再 `+5`，典型工作区间为 `0 ~ 15`，避免属性区间稀释到玩家感受不到 breakpoint。
+- MVP 先落 **STR / AGI / CON / WIL** 四主属性的 breakpoint，**PER / INT** 保留线性效果，待内容量填充后再补阶梯。
+
+### 14.2 设计原则
+
+#### 14.2.1 每点属性都要值钱
+
+- 属性点不能只输出 `+x% 伤害` 一类稀薄效应。
+- 每个属性至少对应一条 **breakpoint 曲线**：到 `N` 值时解锁一个可感知能力，而不是只多一点数字。
+- Breakpoint 必须在角色面板可见（"再 +2 STR 即解锁 X"），否则 reroll 的收益感会被稀释。
+
+#### 14.2.2 属性走确定性轴，luck 走随机性轴
+
+- 属性**可以**：压缩 fumble 低位、压缩 AC 差、扩大行动经济、加大 Misfortune 资源池、推动锻造/制作。
+- 属性**不可以**：加 `crit_threshold`、加 `drop_luck`、提升 `fortune_marked` 或 `doom_marked` 授予概率、提升 `critical_success_under_disadvantage` 命中率。
+- 原则：**属性让你更可控，luck 让你更神**。两条轴不能互为替代。
+
+#### 14.2.3 与 v2 预算表对齐
+
+本文第十三节指出：
+
+- Fortuna 路线：低出生属性 + 高 luck + 高随机上限
+- Misfortune 路线：高出生属性 + 低 luck + 高确定性下限
+
+属性设计必须让"高属性"真的在 Misfortune 路线上兑现为**战术确定性**（封印、资源、固定成长），而不是再走一遍 Fortuna 的神迹轴。
+
+#### 14.2.4 属性上限与稀释
+
+- 基础上限：`10`
+- 装备/神恩/剧情上限：`+5`
+- 典型工作区间：`0 ~ 15`
+- 设计 breakpoint 时优先落在 `6 / 10 / 14` 三档，使得：
+  - `6` 是中期能到达的门槛
+  - `10` 是基础上限 + 适度堆法
+  - `14` 是"刻意朝这个属性堆"的玩家才能跨过的终局 breakpoint
+
+#### 14.2.5 MVP 切片
+
+MVP 只必须落 **STR / AGI / CON / WIL** 的 breakpoint；**PER / INT** 可以先只保留线性效果，待世界内容填满（隐藏路径、锻造 tier、法术池）再补 breakpoint。这样可以降低首版验证成本。
+
+### 14.3 六大属性分工
+
+#### 14.3.1 对照表
+
+| 属性 | 定位 | 线性效果（每点） | 阶梯 breakpoint | 与命运系统交点 |
+|---|---|---|---|---|
+| **力量 STR** | 破防 / 重击 | 物理伤害 `+x%`、负重上限 `+y` | `6`：破 guard 一档；`10`：反击伤害倍率提升；`14`：重型武器精通 | 与 `black_star_brand` 的"第一次攻击忽视部分 guard"叠乘 |
+| **敏捷 AGI** | 控场 / 机动 | AC `+1/2 点`、先攻权重 | `6`：每回合多 1 格位移；`10`：穿越困难地形；`14`：被包夹劣势判定所需敌人 `2 → 3` | 直接决定 `is_attack_disadvantage` 的包夹触发阈值 |
+| **体质 CON** | 韧性 / 资源 | HP 成长、状态抗性 `+x%` | `6`：低血阈值 `30% → 25%`；`10`：每战 `calamity` 上限 `+1`；`14`：强攻击型 debuff 持续 `-1` 回合 | 控制 Misfortune 资源池与劣势触发条件 |
+| **感知 PER** | 命中 / 情报 | 命中 `+1`、视野 `+1` | （MVP 为线性） | 对接 `亡途灯笼` 与 low luck 剧情线索；**不碰 crit** |
+| **智力 INT** | 经济 / 法术 | 法术伤害 `+x%`、AP 成本下调 | （MVP 为线性） | 放大 Misfortune 的**固定制作**经济（不碰掉落） |
+| **意志 WIL** | 抗厄 / 信仰 | debuff 抗性、faith rank 进度加成 | `6`：fumble 低位 `-1`；`10`：大失败不再附带二级 break；`14`：Misfortune rank 升级所需 guidance 少一项 | **唯一可压缩 fumble 区间的属性**；作为 low luck 的"确定性救济阀" |
+
+#### 14.3.2 关键说明
+
+- **WIL 的 fumble 压缩不是在"补 luck"**，因为它只能削掉 `fumble_low_end` 的一点低位区间（例如 `effective_luck = -5` 时从 `1-2` 压回 `1`），并且不会影响 crit、drop、fortune/doom 授予——它只提升**存活面**的确定性。
+- **AGI 改变包夹阈值**不等于"降低劣势概率"，因为玩家主动走位就能规避包夹；它是把"被动承受的苦境"转换为"战术技巧"。
+- **CON 扩 calamity 上限**与 Misfortune rank 给的 `+1` 平行叠加，但不会让未入 Misfortune 的角色拥有 Misfortune 独占技能——只是**未来入教时的资源底盘更厚**。
+- **PER 不能触发掉落档位提升**，否则会与 `drop_luck` 轴打架。PER 主要落在"情报 / 隐藏路径 / 陷阱可见"这类非战斗可见收益。
+- **INT 不能影响掉落**，INT 的经济轴是**固定锻造 / 合成 / 蓝图解锁**，这是 Misfortune 的固定成长口径。
+
+### 14.4 breakpoint 与 v2 命运系统的耦合边界
+
+#### 14.4.1 允许的耦合
+
+| 属性 breakpoint | 命运系统侧影响 | 合法理由 |
+|---|---|---|
+| `WIL >= 6` 压缩 fumble 低位 `-1` | 降低 `fumble_low_end` 实际命中区间 | 属于"确定性救济"，不动 crit |
+| `AGI >= 14` 把包夹劣势阈值抬到 3 人 | 改变 `is_attack_disadvantage` 判据 | 属于"战术可规避"，不动劣势规则本身 |
+| `CON >= 10` `calamity` 上限 `+1` | 扩 Misfortune 资源池 | 只扩池子，不改生成规则 |
+| `CON >= 14` 强 debuff 持续 `-1` 回合 | 降低劣势来源之一的持续时间 | 不改 debuff 获得率 |
+| `WIL >= 14` Misfortune guidance 少一项 | 推进固定成长 | 不提升 `doom_marked` 获取率 |
+
+#### 14.4.2 禁止的耦合
+
+| 禁止方向 | 理由 |
+|---|---|
+| 属性加 `crit_threshold` | 与 `combat_luck_score` 抢轴 |
+| 属性加 `drop_luck` | 与 `effective_luck` 抢轴并绕过软封顶 |
+| 属性加 `fortune_marked` 授予概率 | 破坏 v2 "不保底" |
+| 属性加 `doom_marked` 命中率 | 破坏 v2 "黑兆事件不叠百分比" |
+| 属性降低 `crit_gate_die` | 命运怜悯独占改门骰 |
+
+### 14.5 角色面板与 UI 要求
+
+#### 14.5.1 属性悬浮提示
+
+- 显示当前属性值 + 下一个 breakpoint 所需值 + 下一个 breakpoint 的具体收益。
+- 例：`WIL 5 → 再 +1 触发：首战大失败不再附带二级 break`。
+
+#### 14.5.2 战前概览
+
+- 当前 `AGI` 对应的被动包夹阈值（2 人 / 3 人）。
+- 当前 `WIL` 对应的 fumble 低位实际区间。
+- 与本文第七节的"劣势/门骰/fumble/高位威胁/怜悯"提示**合并显示**，不要再单独弹一个属性 tooltip。
+
+#### 14.5.3 CharacterInfoWindow
+
+- 六主属性各自显示下一个 breakpoint（若已全部达成，则显示 `已达上限`）。
+- 命运段落（`hidden_luck_at_birth / faith_luck_bonus / effective_luck / fortune_marked / doom_marked / doom_authority`）与属性段落**分节展示**，避免把命运值也按 breakpoint 画。
+
+### 14.6 默认工作假设（属性轴）
+
+- 六属性的**基础数值初始化**由 `CharacterCreationService` 与模板负责，本节不规定初始点数分配曲线。
+- 属性每点的**线性系数**（`+x% 伤害`、`+y 命中`）由伤害解算器与战斗公式模块决定，本节只固定 breakpoint 位置。
+- 属性**不可变**：没有"洗点"。后期提升只能靠等级成长、装备、神恩与剧情奖励。
+- 属性上限调整（如未来放宽到 `20`）必须与 breakpoint 位置同时调整，否则会稀释"每点值钱"的设计前提。
+
+### 14.7 与既有系统的边界（属性轴）
+
+| 系统 | 本节的约束 |
+|---|---|
+| `UnitBaseAttributes` | 六属性已有字段；`custom_stats` 继续承载 luck / fortune / doom / faith 派生值 |
+| `battle_damage_resolver.gd` | 属性的线性效果接在这里；breakpoint 效果由状态/buff 层下发 |
+| `battle_state.is_attack_disadvantage` | 读取 AGI breakpoint 决定包夹触发阈值 |
+| `fate_attack_formula.gd` | 读取 WIL breakpoint 决定实际 `fumble_low_end` 收缩量；不改 `calc_fumble_low_end` 本身的 luck 公式 |
+| `misfortune_service.gd` | 读取 CON breakpoint 决定 `calamity` 上限基础值 |
+| `CharacterInfoWindow` | 属性段落与命运段落分节展示 |
+| `EquipmentDropService` | 完全不读属性，只读 `drop_luck` |
+| `FaithService` | 读取 WIL breakpoint 决定 Misfortune guidance 门槛 |
+
+### 14.8 待决策项（属性轴）
+
+1. 各属性**每点的线性系数**（例如 STR 每点 `+x% 物理伤害` 的 `x` 值）尚未定。
+2. PER / INT 的 breakpoint 设计在 MVP 后补，具体放在哪个阶段由"隐藏路径 / 锻造 tier / 法术池"内容实装顺序决定。
+3. 属性是否参与 Faith rank 升级（目前仅 WIL 有，是否再开 INT 的神学路线）。
+4. 是否允许个别剧情奖励直接 +1 base attribute（对应 `hidden_luck_at_birth` 的"剧情改写"口径，但不进入保护白名单）。
+
+### 14.9 验证建议（属性轴）
+
+- **Breakpoint 单测**：每个属性的每个 breakpoint 对应一条纯函数判定（`get_agility_crowded_threshold(agility) -> int`），单测覆盖临界点。
+- **与命运系统交叉回归**：
+  - `WIL >= 6` 且 `effective_luck = -5` → 实际 fumble 为 `1`，不是 `1-2`
+  - `AGI >= 14` 且 3 敌相邻 → 劣势成立；2 敌相邻 → 不成立
+  - `CON >= 10` 且 Misfortune rank 2 → 基础 calamity 上限 `3 + 1(rank) + 1(CON) = 5`
+- **UI 渲染回归**：属性面板的下一 breakpoint 提示在达到上限后正确切换为 `已达上限`。
