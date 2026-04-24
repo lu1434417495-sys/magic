@@ -1,5 +1,5 @@
 [gd_scene load_steps=2 format=3]
-; Scene purpose: Submap confirmation modal scene for entering mounted submaps from the world map.
+; Scene purpose: Reusable confirmation modal scene for submap entry, battle start, and game-over return flows.
 
 [ext_resource type="Script" path="res://scripts/ui/submap_entry_window.gd" id="1_window"]
 

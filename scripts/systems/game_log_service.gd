@@ -27,9 +27,11 @@ func append_entry(
 	message: String,
 	context: Dictionary = {}
 ) -> Dictionary:
+	var timestamp_ms := int(Time.get_unix_time_from_system() * 1000.0)
 	var entry := {
 		"seq": _next_seq,
-		"time_unix_ms": int(Time.get_unix_time_from_system() * 1000.0),
+		"time_unix_ms": timestamp_ms,
+		"time_text": _format_unix_time_ms(timestamp_ms),
 		"level": level if not level.is_empty() else "info",
 		"domain": domain if not domain.is_empty() else "runtime",
 		"event_id": event_id,
@@ -130,6 +132,22 @@ func _append_to_file(entry: Dictionary) -> void:
 func _disable_file_write(message: String) -> void:
 	_write_enabled = false
 	push_warning(message)
+
+
+func _format_unix_time_ms(unix_time_ms: int) -> String:
+	if unix_time_ms <= 0:
+		return ""
+	var unix_time_seconds := int(unix_time_ms / 1000)
+	var datetime := Time.get_datetime_dict_from_unix_time(unix_time_seconds)
+	return "%04d-%02d-%02d %02d:%02d:%02d.%03d" % [
+		int(datetime.get("year", 1970)),
+		int(datetime.get("month", 1)),
+		int(datetime.get("day", 1)),
+		int(datetime.get("hour", 0)),
+		int(datetime.get("minute", 0)),
+		int(datetime.get("second", 0)),
+		posmod(unix_time_ms, 1000),
+	]
 
 
 func _normalize_variant(value):

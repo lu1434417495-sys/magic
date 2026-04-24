@@ -353,6 +353,12 @@ func _build_battle_snapshot() -> Dictionary:
 		return {
 			"active": false,
 		}
+	var battle_runtime = _runtime.get_battle_runtime() if _runtime != null and _runtime.has_method("get_battle_runtime") else null
+	var calamity_snapshot := {}
+	if battle_runtime != null and battle_runtime.has_method("get_calamity_by_member_id"):
+		calamity_snapshot = ProgressionDataUtils.string_name_int_map_to_string_dict(
+			battle_runtime.get_calamity_by_member_id()
+		)
 	var adapter = BATTLE_HUD_ADAPTER_SCRIPT.new()
 	var hud_snapshot := adapter.build_snapshot(
 		battle_state,
@@ -362,7 +368,8 @@ func _build_battle_snapshot() -> Dictionary:
 		_runtime.get_selected_battle_skill_variant_name(),
 		_runtime.get_selected_battle_skill_target_coords(),
 		_runtime.get_selected_battle_skill_required_coord_count(),
-		_runtime.get_selected_battle_skill_target_unit_ids()
+		_runtime.get_selected_battle_skill_target_unit_ids(),
+		_runtime.get_selected_battle_skill_variant_id()
 	)
 	var units: Array[Dictionary] = []
 	for unit_id_str in ProgressionDataUtils.sorted_string_keys(battle_state.units):
@@ -388,6 +395,7 @@ func _build_battle_snapshot() -> Dictionary:
 			"shield_duration": int(unit_state.shield_duration),
 			"shield_family": String(unit_state.shield_family),
 			"current_ap": int(unit_state.current_ap),
+			"current_move_points": int(unit_state.current_move_points),
 		})
 	return {
 		"active": true,
@@ -407,7 +415,10 @@ func _build_battle_snapshot() -> Dictionary:
 		"start_confirm_visible": _runtime.get_active_modal_id() == "battle_start_confirm",
 		"start_prompt": _runtime.get_pending_battle_start_prompt(),
 		"terrain_counts": _runtime.get_battle_terrain_counts(),
+		"calamity_by_member_id": calamity_snapshot,
 		"hud": hud_snapshot,
+		"report_entry_count": battle_state.report_entries.size(),
+		"report_entries": battle_state.report_entries.duplicate(true),
 		"units": units,
 	}
 

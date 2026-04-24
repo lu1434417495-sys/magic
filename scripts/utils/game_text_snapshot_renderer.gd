@@ -247,7 +247,7 @@ static func _build_party_lines(party: Dictionary) -> Array[String]:
 			var member: Dictionary = member_variant
 			var achievement_summary: Dictionary = member.get("achievement_summary", {})
 			var attributes: Dictionary = member.get("attributes", {})
-			lines.append("member=%s | %s | hp=%d mp=%d | leader=%s | unlocked=%d in_progress=%d recent=%s | patk=%d pdef=%d speed=%d | equip=%s" % [
+			lines.append("member=%s | %s | hp=%d mp=%d | leader=%s | unlocked=%d in_progress=%d recent=%s | ac=%d | equip=%s" % [
 				String(member.get("member_id", "")),
 				String(member.get("roster_role", "")),
 				int(member.get("current_hp", 0)),
@@ -256,9 +256,7 @@ static func _build_party_lines(party: Dictionary) -> Array[String]:
 				int(achievement_summary.get("unlocked_count", 0)),
 				int(achievement_summary.get("in_progress_count", 0)),
 				String(achievement_summary.get("recent_unlocked_name", "")),
-				int(attributes.get("physical_attack", 0)),
-				int(attributes.get("physical_defense", 0)),
-				int(attributes.get("speed", 0)),
+				int(attributes.get("armor_class", 0)),
 				_format_equipment(member.get("equipment", [])),
 			])
 	return lines
@@ -483,19 +481,35 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 		"start_prompt_description=%s" % String(start_prompt.get("description", "")),
 		"start_prompt_confirm_text=%s" % String(start_prompt.get("confirm_text", "")),
 	]
+	var calamity_snapshot: Dictionary = battle.get("calamity_by_member_id", {})
+	if not calamity_snapshot.is_empty():
+		lines.append("calamity=%s" % _format_key_value_pairs(calamity_snapshot))
 	var hud: Dictionary = battle.get("hud", {})
 	if not hud.is_empty():
 		lines.append("hud_header=%s" % String(hud.get("header_subtitle", "")))
 		lines.append("hud_round=%s" % String(hud.get("round_badge", "")))
 		lines.append("hud_command=%s" % String(hud.get("command_text", "")))
 		lines.append("hud_log=%s" % String(hud.get("log_text", "")))
+	lines.append("report_entry_count=%d" % int(battle.get("report_entry_count", 0)))
+	var report_entries_variant = battle.get("report_entries", [])
+	if report_entries_variant is Array:
+		for report_entry_variant in report_entries_variant:
+			if report_entry_variant is not Dictionary:
+				continue
+			var report_entry: Dictionary = report_entry_variant
+			lines.append("report=%s | reason=%s | tags=%s | text=%s" % [
+				String(report_entry.get("entry_type", "")),
+				String(report_entry.get("reason_id", "")),
+				_format_array(report_entry.get("event_tags", [])),
+				String(report_entry.get("text", "")),
+			])
 	var units_variant = battle.get("units", [])
 	if units_variant is Array:
 		for unit_variant in units_variant:
 			if unit_variant is not Dictionary:
 				continue
 			var unit: Dictionary = unit_variant
-			lines.append("unit=%s | %s | %s | hp=%d mp=%d st=%d/%d au=%d/%d shield=%d/%d dur=%d ap=%d | alive=%s | coord=%s" % [
+			lines.append("unit=%s | %s | %s | hp=%d mp=%d st=%d/%d au=%d/%d shield=%d/%d dur=%d ap=%d move=%d | alive=%s | coord=%s" % [
 				String(unit.get("unit_id", "")),
 				String(unit.get("display_name", "")),
 				String(unit.get("faction_id", "")),
@@ -509,6 +523,7 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 				int(unit.get("shield_max_hp", 0)),
 				int(unit.get("shield_duration", -1)),
 				int(unit.get("current_ap", 0)),
+				int(unit.get("current_move_points", 0)),
 				_format_bool(bool(unit.get("is_alive", false))),
 				_format_coord(unit.get("coord", {})),
 			])

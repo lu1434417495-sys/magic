@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=16 format=3]
 ; Scene purpose: World map root scene that hosts exploration, battle overlays, and related windows.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
@@ -17,8 +17,7 @@
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/npc/protagonist.png" id="12_2mc6t"]
 [ext_resource type="PackedScene" path="res://scenes/ui/submap_entry_window.tscn" id="13_submap"]
 [ext_resource type="PackedScene" path="res://scenes/ui/shop_window.tscn" id="14_shop"]
-[ext_resource type="PackedScene" path="res://scenes/ui/stagecoach_window.tscn" id="15_stagecoach"]
-[ext_resource type="PackedScene" path="res://scenes/ui/game_over_window.tscn" id="16_game_over"]
+[ext_resource type="PackedScene" path="res://scenes/ui/runtime_log_dock.tscn" id="15_runtime_log"]
 
 ; Local sub-resources defined inline for this scene only.
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
@@ -60,7 +59,23 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_right = -368.0
 grow_horizontal = 2
+grow_vertical = 2
+
+[node name="RuntimeLogDock" parent="." instance=ExtResource("15_runtime_log")]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 9
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -356.0
+offset_top = 92.0
+offset_right = -12.0
+offset_bottom = -184.0
+grow_horizontal = 0
 grow_vertical = 2
 
 [node name="WorldMapBackground" type="TextureRect" parent="MapViewport"]
@@ -134,16 +149,16 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 [node name="SettlementWindow" parent="." instance=ExtResource("3_9o3k0")]
 unique_name_in_owner = true
 
-[node name="ShopWindow" parent="." instance=ExtResource("14_shop")]
+[node name="ShopServiceModal" parent="." instance=ExtResource("14_shop")]
 unique_name_in_owner = true
 
-[node name="ContractBoardWindow" parent="." instance=ExtResource("14_shop")]
+[node name="ContractBoardServiceModal" parent="." instance=ExtResource("14_shop")]
 unique_name_in_owner = true
 
-[node name="ForgeWindow" parent="." instance=ExtResource("14_shop")]
+[node name="ForgeServiceModal" parent="." instance=ExtResource("14_shop")]
 unique_name_in_owner = true
 
-[node name="StagecoachWindow" parent="." instance=ExtResource("15_stagecoach")]
+[node name="StagecoachServiceModal" parent="." instance=ExtResource("14_shop")]
 unique_name_in_owner = true
 
 [node name="CharacterInfoWindow" parent="." instance=ExtResource("6_l1m8n")]
@@ -162,9 +177,6 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="SubmapEntryWindow" parent="." instance=ExtResource("13_submap")]
-unique_name_in_owner = true
-
-[node name="GameOverWindow" parent="." instance=ExtResource("16_game_over")]
 unique_name_in_owner = true
 
 [node name="BattleLoadingOverlay" type="Control" parent="."]

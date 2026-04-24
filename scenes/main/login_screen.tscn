@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://dragon_login_scene"]
+[gd_scene load_steps=7 format=3 uid="uid://dragon_login_scene"]
 
 [ext_resource type="Script" path="res://scripts/ui/login_screen.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/main/login/backgroud.png" id="2_bg"]
 [ext_resource type="PackedScene" path="res://scenes/ui/world_preset_picker_window.tscn" id="3_world_preset"]
 [ext_resource type="PackedScene" path="res://scenes/ui/save_list_window.tscn" id="4_save_list"]
 [ext_resource type="PackedScene" path="res://scenes/ui/display_settings_window.tscn" id="5_display_settings"]
+[ext_resource type="PackedScene" path="res://scenes/ui/character_creation_window.tscn" id="6_character_creation"]
 
 [sub_resource type="Theme" id="Theme_dark_fantasy"]
 
@@ -137,4 +138,7 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="DisplaySettingsWindow" parent="." instance=ExtResource("5_display_settings")]
+unique_name_in_owner = true
+
+[node name="CharacterCreationWindow" parent="." instance=ExtResource("6_character_creation")]
 unique_name_in_owner = true

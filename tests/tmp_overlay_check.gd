@@ -42,7 +42,6 @@ func _run() -> void:
 	player.known_skill_level_map = {&"saint_blade_combo":1}
 	player.attribute_snapshot.set_value(&"action_points", 2)
 	player.attribute_snapshot.set_value(&"aura_max", 8)
-	player.attribute_snapshot.set_value(&"speed", 10)
 	player.set_anchor_coord(Vector2i(0,0))
 	var enemy = BattleUnitState.new()
 	enemy.unit_id = &"enemy"
@@ -50,7 +49,6 @@ func _run() -> void:
 	enemy.faction_id = &"hostile"
 	enemy.current_ap = 1
 	enemy.attribute_snapshot.set_value(&"action_points", 1)
-	enemy.attribute_snapshot.set_value(&"speed", 10)
 	enemy.set_anchor_coord(Vector2i(1,0))
 	facade._battle_state.units[player.unit_id] = player
 	facade._battle_state.units[enemy.unit_id] = enemy

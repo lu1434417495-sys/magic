@@ -29,6 +29,15 @@ const MARKER_LAYER_Z_BASE := 1000
 const PROP_LAYER_Z := 1100
 const UNIT_LAYER_Z := 1200
 const TARGET_HIGHLIGHT_LAYER_Z := 1300
+const UNIT_GLYPH_LABEL_SIZE := Vector2(28.0, 28.0)
+const UNIT_HEALTH_BAR_SIZE := Vector2(56.0, 14.0)
+const UNIT_HEALTH_BAR_Y_OFFSET := -50.0
+const UNIT_HEALTH_BAR_BG_COLOR := Color(0.14, 0.09, 0.06, 0.92)
+const UNIT_HEALTH_BAR_BORDER_COLOR := Color(0.95, 0.91, 0.8, 0.9)
+const UNIT_HEALTH_BAR_HIGH_COLOR := Color(0.3, 0.86, 0.42, 0.96)
+const UNIT_HEALTH_BAR_MID_COLOR := Color(0.9, 0.76, 0.24, 0.96)
+const UNIT_HEALTH_BAR_LOW_COLOR := Color(0.9, 0.28, 0.22, 0.96)
+const HP_MAX_ATTRIBUTE_ID := &"hp_max"
 const PROFILE_DEFAULT := &"default"
 const PROFILE_CANYON := &"canyon"
 const SHARED_TILE_DIR := "res://assets/main/battle/terrain/canyon"
@@ -483,16 +492,82 @@ func _create_unit_token(unit_state: BattleUnitState) -> Node2D:
 		token.add_child(active_outline)
 
 	var label := Label.new()
+	label.name = "UnitGlyphLabel"
 	label.text = _build_unit_short_name(unit_state)
-	label.position = Vector2(-10.0, -34.0)
-	label.add_theme_font_size_override("font_size", 14)
+	label.position = Vector2(-UNIT_GLYPH_LABEL_SIZE.x * 0.5, -UNIT_GLYPH_LABEL_SIZE.y * 0.5)
+	label.size = UNIT_GLYPH_LABEL_SIZE
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_size_override("font_size", 15)
 	label.add_theme_color_override("font_color", Color(0.98, 0.96, 0.9, 0.98))
 	label.add_theme_color_override("font_shadow_color", Color(0.16, 0.1, 0.06, 0.92))
 	label.add_theme_constant_override("shadow_offset_x", 1)
 	label.add_theme_constant_override("shadow_offset_y", 1)
 	token.add_child(label)
 
+	var health_bar := _create_unit_health_bar(unit_state)
+	if health_bar != null:
+		token.add_child(health_bar)
+
 	return token
+
+
+func _create_unit_health_bar(unit_state: BattleUnitState) -> Control:
+	if unit_state == null:
+		return null
+
+	var hp_max := _get_unit_hp_max(unit_state)
+	var clamped_hp := clampi(int(unit_state.current_hp), 0, hp_max)
+	var hp_ratio := clampf(float(clamped_hp) / float(hp_max), 0.0, 1.0)
+	var max_fill_width := maxf(UNIT_HEALTH_BAR_SIZE.x - 2.0, 0.0)
+	var fill_width := max_fill_width * hp_ratio
+	if clamped_hp > 0 and fill_width > 0.0 and fill_width < 1.0:
+		fill_width = 1.0
+
+	var health_bar := Panel.new()
+	health_bar.name = "HealthBarRoot"
+	health_bar.position = Vector2(-UNIT_HEALTH_BAR_SIZE.x * 0.5, UNIT_HEALTH_BAR_Y_OFFSET)
+	health_bar.size = UNIT_HEALTH_BAR_SIZE
+	health_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	health_bar.clip_contents = true
+
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = UNIT_HEALTH_BAR_BG_COLOR
+	panel_style.border_color = UNIT_HEALTH_BAR_BORDER_COLOR
+	panel_style.border_width_left = 1
+	panel_style.border_width_top = 1
+	panel_style.border_width_right = 1
+	panel_style.border_width_bottom = 1
+	panel_style.corner_radius_top_left = 2
+	panel_style.corner_radius_top_right = 2
+	panel_style.corner_radius_bottom_right = 2
+	panel_style.corner_radius_bottom_left = 2
+	health_bar.add_theme_stylebox_override("panel", panel_style)
+
+	var fill := ColorRect.new()
+	fill.name = "HealthBarFill"
+	fill.position = Vector2.ONE
+	fill.size = Vector2(fill_width, maxf(UNIT_HEALTH_BAR_SIZE.y - 2.0, 0.0))
+	fill.color = _get_unit_health_bar_fill_color(hp_ratio)
+	health_bar.add_child(fill)
+
+	var value_label := Label.new()
+	value_label.name = "HealthBarTextLabel"
+	value_label.text = "%d/%d" % [clamped_hp, hp_max]
+	value_label.position = Vector2.ZERO
+	value_label.size = UNIT_HEALTH_BAR_SIZE
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	value_label.add_theme_font_size_override("font_size", 9)
+	value_label.add_theme_color_override("font_color", Color(0.98, 0.97, 0.94, 1.0))
+	value_label.add_theme_color_override("font_shadow_color", Color(0.08, 0.05, 0.04, 0.94))
+	value_label.add_theme_constant_override("shadow_offset_x", 1)
+	value_label.add_theme_constant_override("shadow_offset_y", 1)
+	health_bar.add_child(value_label)
+
+	return health_bar
 
 
 func _get_unit_anchor_position(unit_state: BattleUnitState) -> Vector2:
@@ -1201,6 +1276,30 @@ func _build_unit_short_name(unit_state: BattleUnitState) -> String:
 	if not unit_state.display_name.is_empty():
 		return unit_state.display_name.substr(0, 1)
 	return String(unit_state.unit_id).substr(0, 1)
+
+
+func _get_unit_hp_max(unit_state: BattleUnitState) -> int:
+	if unit_state == null:
+		return 1
+	var snapshot_hp_max := 0
+	if unit_state.attribute_snapshot != null:
+		snapshot_hp_max = int(unit_state.attribute_snapshot.get_value(HP_MAX_ATTRIBUTE_ID))
+	return maxi(maxi(snapshot_hp_max, int(unit_state.current_hp)), 1)
+
+
+func _get_unit_health_bar_fill_color(hp_ratio: float) -> Color:
+	var clamped_ratio := clampf(hp_ratio, 0.0, 1.0)
+	if clamped_ratio <= 0.35:
+		return UNIT_HEALTH_BAR_LOW_COLOR.lerp(
+			UNIT_HEALTH_BAR_MID_COLOR,
+			inverse_lerp(0.0, 0.35, clamped_ratio)
+		)
+	if clamped_ratio <= 0.7:
+		return UNIT_HEALTH_BAR_MID_COLOR
+	return UNIT_HEALTH_BAR_MID_COLOR.lerp(
+		UNIT_HEALTH_BAR_HIGH_COLOR,
+		inverse_lerp(0.7, 1.0, clamped_ratio)
+	)
 
 
 func _get_unit_color(unit_state: BattleUnitState) -> Color:

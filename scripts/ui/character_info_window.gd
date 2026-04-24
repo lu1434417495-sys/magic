@@ -5,6 +5,9 @@
 class_name CharacterInfoWindow
 extends Control
 
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const FATE_SECTION_TITLE := "命运"
+
 ## 信号说明：当窗口或面板关闭时发出的信号，供外层恢复输入焦点、刷新数据或清理临时状态。
 signal closed
 
@@ -114,33 +117,36 @@ func _normalize_sections(
 	coord_text: String
 ) -> Array[Dictionary]:
 	var sections := _normalize_explicit_sections(window_data.get("sections", []))
-	if not sections.is_empty():
-		return sections
-	return [{
-		"title": "身份信息",
-		"entries": [
-			{
-				"kind": "pair",
-				"label": "姓名",
-				"value": display_name,
-			},
-			{
-				"kind": "pair",
-				"label": "类型",
-				"value": type_label,
-			},
-			{
-				"kind": "pair",
-				"label": "阵营",
-				"value": faction_label,
-			},
-			{
-				"kind": "pair",
-				"label": "坐标",
-				"value": coord_text,
-			},
-		],
-	}]
+	if sections.is_empty():
+		sections = [{
+			"title": "身份信息",
+			"entries": [
+				{
+					"kind": "pair",
+					"label": "姓名",
+					"value": display_name,
+				},
+				{
+					"kind": "pair",
+					"label": "类型",
+					"value": type_label,
+				},
+				{
+					"kind": "pair",
+					"label": "阵营",
+					"value": faction_label,
+				},
+				{
+					"kind": "pair",
+					"label": "坐标",
+					"value": coord_text,
+				},
+			],
+		}]
+	var fate_section := _build_fate_section(window_data.get("fate", null), sections)
+	if not fate_section.is_empty():
+		sections.append(fate_section)
+	return sections
 
 
 func _normalize_explicit_sections(section_variants: Variant) -> Array[Dictionary]:
@@ -215,6 +221,104 @@ func _normalize_entry(entry_variant: Variant) -> Dictionary:
 		"kind": "text",
 		"text": text,
 	}
+
+
+func _build_fate_section(fate_variant: Variant, existing_sections: Array[Dictionary]) -> Dictionary:
+	if fate_variant is not Dictionary:
+		return {}
+	if _has_section_title(existing_sections, FATE_SECTION_TITLE):
+		return {}
+
+	var fate_data := fate_variant as Dictionary
+	var hidden_luck_at_birth := int(fate_data.get("hidden_luck_at_birth", 0))
+	var faith_luck_bonus := int(fate_data.get("faith_luck_bonus", 0))
+	var effective_luck := int(fate_data.get("effective_luck", 0))
+	if not fate_data.has("effective_luck"):
+		effective_luck = clampi(
+			hidden_luck_at_birth + faith_luck_bonus,
+			UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
+			UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX
+		)
+	var fortune_marked := int(fate_data.get("fortune_marked", 0))
+	var doom_marked := int(fate_data.get("doom_marked", 0))
+	var doom_authority := int(fate_data.get("doom_authority", 0))
+	var has_misfortune := bool(fate_data.get("has_misfortune", doom_authority > 0))
+
+	var entries: Array[Dictionary] = [
+		{
+			"kind": "pair",
+			"label": "生来暗运",
+			"value": _format_signed_number(hidden_luck_at_birth),
+		},
+		{
+			"kind": "pair",
+			"label": "信仰赐运",
+			"value": _format_signed_number(faith_luck_bonus),
+		},
+		{
+			"kind": "pair",
+			"label": "有效运势",
+			"value": _format_signed_number(effective_luck),
+		},
+		{
+			"kind": "pair",
+			"label": "Fortuna 标记",
+			"value": _format_fate_mark_value(fortune_marked, "已获福印", "未获福印"),
+		},
+		{
+			"kind": "pair",
+			"label": "Misfortune 黑兆",
+			"value": _format_fate_mark_value(doom_marked, "已见黑兆", "未见黑兆"),
+		},
+	]
+	if has_misfortune:
+		entries.append({
+			"kind": "pair",
+			"label": "厄权",
+			"value": "%d 级" % doom_authority,
+		})
+
+	for hint_text in _build_fate_hint_texts(hidden_luck_at_birth, effective_luck):
+		entries.append({
+			"kind": "text",
+			"text": hint_text,
+		})
+
+	return {
+		"title": FATE_SECTION_TITLE,
+		"entries": entries,
+	}
+
+
+func _has_section_title(sections: Array[Dictionary], title_text: String) -> bool:
+	for section in sections:
+		if String(section.get("title", "")).strip_edges() == title_text:
+			return true
+	return false
+
+
+func _format_signed_number(value: int) -> String:
+	if value > 0:
+		return "+%d" % value
+	return "%d" % value
+
+
+func _format_fate_mark_value(value: int, marked_text: String, unmarked_text: String) -> String:
+	return "%d（%s）" % [value, marked_text if value > 0 else unmarked_text]
+
+
+func _build_fate_hint_texts(hidden_luck_at_birth: int, effective_luck: int) -> Array[String]:
+	var hints: Array[String] = []
+	if hidden_luck_at_birth >= UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX:
+		hints.append("生来暗运已处于极端正运档，界面会按原值保留该刻印。")
+	elif hidden_luck_at_birth <= UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN:
+		hints.append("生来暗运已压到最深坏运档，这类角色更容易撞进命运事件的极端分支。")
+
+	if effective_luck >= UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX:
+		hints.append("有效运势已到 +7 上限：高位大成功威胁区会吃满，但随机掉落仍只按 +5 结算。")
+	elif effective_luck <= UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN:
+		hints.append("有效运势已压到 -6 下限：大失败区间会扩到 1-3；若处于劣势，命运的怜悯仍只回拉一档暴击门。")
+	return hints
 
 
 func _rebuild_sections(sections: Array[Dictionary]) -> void:

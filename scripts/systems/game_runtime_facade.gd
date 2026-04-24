@@ -19,12 +19,17 @@ const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_re
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const PARTY_ITEM_USE_SERVICE_SCRIPT = preload("res://scripts/systems/party_item_use_service.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
+const EQUIPMENT_DROP_SERVICE_SCRIPT = preload("res://scripts/systems/equipment_drop_service.gd")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/pending_character_reward.gd")
 const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world_time_system.gd")
 const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/wild_encounter_growth_system.gd")
 const BATTLE_SESSION_FACADE_SCRIPT = preload("res://scripts/systems/battle_session_facade.gd")
 const GAME_RUNTIME_BATTLE_SELECTION_SCRIPT = preload("res://scripts/systems/game_runtime_battle_selection.gd")
 const GAME_RUNTIME_BATTLE_SELECTION_STATE_SCRIPT = preload("res://scripts/systems/game_runtime_battle_selection_state.gd")
+const FORTUNA_GUIDANCE_SERVICE_SCRIPT = preload("res://scripts/systems/fortuna_guidance_service.gd")
+const MISFORTUNE_GUIDANCE_SERVICE_SCRIPT = preload("res://scripts/systems/misfortune_guidance_service.gd")
+const LOW_LUCK_EVENT_SERVICE_SCRIPT = preload("res://scripts/systems/low_luck_event_service.gd")
 const GAME_RUNTIME_SETTLEMENT_COMMAND_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime_settlement_command_handler.gd")
 const GAME_RUNTIME_WAREHOUSE_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime_warehouse_handler.gd")
 const GAME_RUNTIME_PARTY_COMMAND_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime_party_command_handler.gd")
@@ -32,8 +37,22 @@ const GAME_RUNTIME_REWARD_FLOW_HANDLER_SCRIPT = preload("res://scripts/systems/g
 const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime_snapshot_builder.gd")
 const SETTLEMENT_SHOP_SERVICE_SCRIPT = preload("res://scripts/systems/settlement_shop_service.gd")
 const VISION_SOURCE_DATA_SCRIPT = preload("res://scripts/utils/vision_source_data.gd")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const FORTUNE_MARKED_STAT_ID: StringName = &"fortune_marked"
+const DOOM_MARKED_STAT_ID: StringName = &"doom_marked"
+const DOOM_AUTHORITY_STAT_ID: StringName = &"doom_authority"
 const WORLD_MOVE_REPEAT_INTERVAL := 0.5
 const PARTY_WAREHOUSE_INTERACTION_ID := "party_warehouse"
+const BATTLE_LOOT_DROP_TYPE_ITEM: StringName = &"item"
+const BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
+const BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
+const BATTLE_LOOT_SOURCE_KIND_CALAMITY_CONVERSION: StringName = &"calamity_conversion"
+const BATTLE_LOOT_SOURCE_ID_ORDINARY_BATTLE: StringName = &"ordinary_battle"
+const BATTLE_LOOT_SOURCE_ID_ELITE_BOSS_BATTLE: StringName = &"elite_boss_battle"
+const BATTLE_LOOT_CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
+const ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP := 4
+const CALAMITY_SHARD_CHAPTER_FLAG_PREFIX := "calamity_shard_chapter_slot_"
+const BATTLE_LOADING_MODAL_ID := "battle_loading"
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 
 ## 字段说明：记录生成配置，会参与运行时状态流转、系统协作和存档恢复。
@@ -50,6 +69,8 @@ var _battle_grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
 var _character_management = CHARACTER_MANAGEMENT_MODULE_SCRIPT.new()
 ## 字段说明：记录队伍仓库服务，会参与运行时状态流转、系统协作和存档恢复。
 var _party_warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+## 字段说明：记录装备随机掉落服务，会参与战后随机装备奖励结算。
+var _equipment_drop_service = EQUIPMENT_DROP_SERVICE_SCRIPT.new()
 ## 字段说明：记录队伍物品使用服务，会参与运行时状态流转、系统协作和存档恢复。
 var _party_item_use_service = PARTY_ITEM_USE_SERVICE_SCRIPT.new()
 ## 字段说明：记录队伍装备服务，会参与运行时状态流转、系统协作和存档恢复。
@@ -80,6 +101,8 @@ var _world_map_data_context = WORLD_MAP_DATA_CONTEXT_SCRIPT.new()
 var _pending_submap_prompt: Dictionary = {}
 ## 字段说明：缓存待确认的战斗开始提示字典，集中保存可按键查询的运行时数据。
 var _pending_battle_start_prompt: Dictionary = {}
+## 字段说明：缓存待完成的战斗生成请求，供 runtime 在 world 模式下持续重试 terrain 生成。
+var _pending_battle_generation_request: Dictionary = {}
 ## 字段说明：记录队伍状态，会参与运行时状态流转、系统协作和存档恢复。
 var _party_state = null
 ## 字段说明：缓存战斗状态实例，会参与运行时状态流转、系统协作和存档恢复。
@@ -88,6 +111,9 @@ var _snapshot_builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
 var _battle_session_facade = BATTLE_SESSION_FACADE_SCRIPT.new()
 var _battle_selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
 var _battle_selection_state = GAME_RUNTIME_BATTLE_SELECTION_STATE_SCRIPT.new()
+var _fortuna_guidance_service = FORTUNA_GUIDANCE_SERVICE_SCRIPT.new()
+var _misfortune_guidance_service = MISFORTUNE_GUIDANCE_SERVICE_SCRIPT.new()
+var _low_luck_event_service = LOW_LUCK_EVENT_SERVICE_SCRIPT.new()
 var _settlement_command_handler = GAME_RUNTIME_SETTLEMENT_COMMAND_HANDLER_SCRIPT.new()
 var _warehouse_handler = GAME_RUNTIME_WAREHOUSE_HANDLER_SCRIPT.new()
 var _party_command_handler = GAME_RUNTIME_PARTY_COMMAND_HANDLER_SCRIPT.new()
@@ -163,6 +189,7 @@ var _last_advance_battle_refresh_mode := ""
 ## 字段说明：缓存最近一次战斗掉落结算摘要，供稳定快照与文本渲染复用。
 var _last_battle_loot_snapshot: Dictionary = {}
 var _active_command_log_scope: Dictionary = {}
+var _pending_command_battle_batches: Array[Dictionary] = []
 ## 字段说明：缓存当前人物信息窗的结构化上下文，供 headless 文本测试稳定读取。
 var _active_character_info_context: Dictionary = {}
 ## 字段说明：缓存当前 GameOver 结构化上下文，供场景层统一渲染。
@@ -184,7 +211,7 @@ func setup(game_session) -> void:
 		return
 	_world_map_data_context.bind_root_world_data(_game_session.get_world_data())
 	_wild_encounter_rosters = _game_session.get_wild_encounter_rosters().duplicate()
-	_encounter_roster_builder.setup(_wild_encounter_rosters)
+	_encounter_roster_builder.setup(_wild_encounter_rosters, _game_session.get_enemy_templates())
 	_party_state = _game_session.get_party_state()
 	_player_coord = _game_session.get_player_coord()
 	_player_faction_id = _game_session.get_player_faction_id()
@@ -205,13 +232,18 @@ func setup(game_session) -> void:
 		_character_management
 	)
 	_party_equipment_service.setup(_party_state, _game_session.get_item_defs(), _party_warehouse_service)
+	# Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
+	_fortuna_guidance_service.setup(_character_management, _battle_runtime.get_fate_event_bus())
 	_battle_runtime.setup(
 		_character_management,
 		_game_session.get_skill_defs(),
 		_game_session.get_enemy_templates(),
 		_game_session.get_enemy_ai_brains(),
-		_encounter_roster_builder
+		_encounter_roster_builder,
+		_equipment_drop_service
 	)
+	_misfortune_guidance_service.setup(_character_management, _battle_runtime)
+	_low_luck_event_service.setup(_character_management, _battle_runtime.get_fate_event_bus())
 	_snapshot_builder.setup(self)
 	_battle_session_facade.setup(self)
 	_battle_selection_state.reset_for_battle_end()
@@ -239,6 +271,7 @@ func setup(game_session) -> void:
 	_active_warehouse_entry_label = ""
 	_pending_submap_prompt.clear()
 	_pending_battle_start_prompt.clear()
+	_pending_battle_generation_request.clear()
 	if _is_main_character_dead():
 		_activate_game_over(_build_main_character_game_over_context())
 		_update_status(String(_active_game_over_context.get("description", "主角已阵亡，本次旅程结束。")))
@@ -254,6 +287,12 @@ func setup(game_session) -> void:
 
 
 func dispose() -> void:
+	if _fortuna_guidance_service != null:
+		_fortuna_guidance_service.dispose()
+	if _misfortune_guidance_service != null:
+		_misfortune_guidance_service.dispose()
+	if _low_luck_event_service != null:
+		_low_luck_event_service.dispose()
 	if _battle_runtime != null:
 		_battle_runtime.dispose()
 	if _snapshot_builder != null:
@@ -276,6 +315,7 @@ func dispose() -> void:
 	_world_map_data_context.reset()
 	_pending_submap_prompt.clear()
 	_pending_battle_start_prompt.clear()
+	_pending_battle_generation_request.clear()
 	_wild_encounter_rosters = {}
 	_party_state = null
 	_battle_state = null
@@ -747,6 +787,10 @@ func preview_battle_command(command):
 	return _battle_runtime.preview_command(command) if _battle_runtime != null else null
 
 
+func get_battle_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> String:
+	return _battle_runtime.get_skill_cast_block_reason(active_unit, skill_def) if _battle_runtime != null else ""
+
+
 func issue_battle_command(command) -> StringName:
 	return _issue_battle_command(command)
 
@@ -1032,13 +1076,42 @@ func record_member_achievement_event(
 func prepare_battle_start(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> void:
 	if encounter_anchor == null:
 		return
+	if _misfortune_guidance_service != null:
+		_misfortune_guidance_service.clear_exalted_ready_flags()
 	_active_battle_encounter_id = encounter_anchor.entity_id
 	_active_battle_encounter_name = encounter_anchor.display_name
 	_last_battle_loot_snapshot.clear()
 	_pending_battle_start_prompt.clear()
+	_pending_battle_generation_request.clear()
 	_pending_promotion_prompt.clear()
 	_battle_selection.clear_battle_skill_selection()
 	_character_management.set_party_state(_party_state)
+
+
+func begin_battle_start(
+	encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT,
+	seed: int,
+	context: Dictionary
+) -> StringName:
+	if encounter_anchor == null or _battle_runtime == null:
+		return &"failed"
+	_pending_battle_generation_request = {
+		"encounter_anchor": encounter_anchor,
+		"seed": seed,
+		"context": context.duplicate(true),
+	}
+	_pending_battle_start_prompt.clear()
+	_active_modal_id = BATTLE_LOADING_MODAL_ID
+	var encounter_name := _resolve_battle_encounter_display_name(encounter_anchor)
+	_update_status("遭遇 %s，战斗地图生成中。" % encounter_name)
+	_log_runtime_event("info", "battle", "battle.start_loading", "遭遇 %s，战斗地图生成中。" % encounter_name, {
+		"encounter_id": String(encounter_anchor.entity_id),
+		"encounter_name": encounter_name,
+		"runtime": _build_runtime_log_state(),
+	})
+	if _try_complete_pending_battle_start():
+		return &"started"
+	return &"pending"
 
 
 func handle_battle_start_failure() -> void:
@@ -1047,6 +1120,7 @@ func handle_battle_start_failure() -> void:
 	_active_battle_encounter_id = &""
 	_active_battle_encounter_name = ""
 	_pending_battle_start_prompt.clear()
+	_pending_battle_generation_request.clear()
 	_active_modal_id = ""
 	_battle_state = null
 	_battle_selected_coord = Vector2i(-1, -1)
@@ -1081,14 +1155,52 @@ func present_battle_start_confirmation() -> void:
 	})
 
 
+func _try_complete_pending_battle_start() -> bool:
+	if _pending_battle_generation_request.is_empty() or _battle_runtime == null:
+		return false
+	var encounter_anchor := _pending_battle_generation_request.get("encounter_anchor", null) as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	if encounter_anchor == null:
+		return false
+	var seed := int(_pending_battle_generation_request.get("seed", 0))
+	var battle_context: Variant = _pending_battle_generation_request.get("context", {})
+	var context: Dictionary = battle_context.duplicate(true) if battle_context is Dictionary else {}
+	var runtime_state = _battle_runtime.start_battle(encounter_anchor, seed, context)
+	if runtime_state == null or runtime_state.is_empty():
+		return false
+	_pending_battle_generation_request.clear()
+	if _battle_session_facade != null:
+		_battle_session_facade.refresh_battle_runtime_state()
+	else:
+		_battle_state = runtime_state
+	present_battle_start_confirmation()
+	return true
+
+
+func _resolve_battle_encounter_display_name(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> String:
+	if encounter_anchor == null:
+		return "遭遇"
+	var encounter_name := String(encounter_anchor.display_name)
+	return encounter_name if not encounter_name.is_empty() else "遭遇"
+
+
 func finalize_battle_resolution(battle_resolution_result) -> void:
 	if battle_resolution_result == null:
 		return
 	var battle_name: String = _active_battle_encounter_name if not _active_battle_encounter_name.is_empty() else "遭遇"
 	var winner_faction_id := String(battle_resolution_result.winner_faction_id)
+	var battle_summary := _build_battle_log_state()
+	var guidance_unlocks: Array[StringName] = []
+	var misfortune_guidance_unlocks: Array[StringName] = []
+	var low_luck_event_result: Dictionary = {}
+	if _low_luck_event_service != null:
+		low_luck_event_result = _low_luck_event_service.handle_battle_resolution(_battle_state, battle_resolution_result)
+		_merge_low_luck_battle_result_into_resolution(battle_resolution_result, low_luck_event_result)
 	var resolved_pending_rewards: Array = battle_resolution_result.get_pending_character_rewards_copy()
 	var resolved_quest_progress_events: Array = battle_resolution_result.quest_progress_events.duplicate(true)
-	var battle_summary := _build_battle_log_state()
+	if _fortuna_guidance_service != null:
+		guidance_unlocks = _fortuna_guidance_service.handle_battle_resolution(_battle_state, battle_resolution_result)
+	if _misfortune_guidance_service != null:
+		misfortune_guidance_unlocks = _misfortune_guidance_service.handle_battle_resolution(_battle_state, battle_resolution_result)
 	_battle_runtime.end_battle({"commit_progression": true})
 	_party_state = _character_management.get_party_state()
 	var main_character_dead := _is_main_character_dead()
@@ -1141,6 +1253,11 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 				"winner_faction_id": winner_faction_id,
 				"main_character_member_id": String(_party_state.get_resolved_main_character_member_id()) if _party_state != null and _party_state.has_method("get_resolved_main_character_member_id") else "",
 				"pending_reward_count": resolved_pending_rewards.size(),
+				"fortuna_guidance_unlocks": ProgressionDataUtils.string_name_array_to_string_array(guidance_unlocks),
+				"misfortune_guidance_unlocks": ProgressionDataUtils.string_name_array_to_string_array(misfortune_guidance_unlocks),
+				"low_luck_event_ids": ProgressionDataUtils.string_name_array_to_string_array(
+					ProgressionDataUtils.to_string_name_array(low_luck_event_result.get("triggered_event_ids", []))
+				),
 				"quest_progress_summary": _quest_progress_summary_to_string_dict(quest_summary),
 				"save_skipped": save_skipped,
 				"party_persist_error": party_persist_error,
@@ -1173,6 +1290,11 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 			"battle": battle_summary,
 			"winner_faction_id": winner_faction_id,
 			"pending_reward_count": resolved_pending_rewards.size(),
+			"fortuna_guidance_unlocks": ProgressionDataUtils.string_name_array_to_string_array(guidance_unlocks),
+			"misfortune_guidance_unlocks": ProgressionDataUtils.string_name_array_to_string_array(misfortune_guidance_unlocks),
+			"low_luck_event_ids": ProgressionDataUtils.string_name_array_to_string_array(
+				ProgressionDataUtils.to_string_name_array(low_luck_event_result.get("triggered_event_ids", []))
+			),
 			"loot_entry_count": battle_resolution_result.loot_entries.size(),
 			"overflow_entry_count": battle_resolution_result.overflow_entries.size(),
 			"loot_commit_ok": bool(loot_commit_result.get("ok", false)),
@@ -1187,6 +1309,39 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 		}
 	)
 	_present_pending_reward_if_ready()
+
+
+func handle_fortuna_chapter_completed(payload: Dictionary) -> Array[StringName]:
+	if _fortuna_guidance_service == null:
+		return []
+	var unlocked_ids := _fortuna_guidance_service.handle_chapter_completed(payload)
+	if _character_management != null:
+		_party_state = _character_management.get_party_state()
+	if _party_state != null:
+		_clear_regular_battle_calamity_shard_flags()
+	if _game_session != null and _party_state != null and _game_session.has_active_world():
+		_game_session.set_party_state(_party_state)
+		_game_session.flush_game_state()
+	return unlocked_ids
+
+
+func handle_misfortune_forge_result(member_id: StringName, result: Dictionary) -> Array[StringName]:
+	if _misfortune_guidance_service == null or member_id == &"" or result.is_empty():
+		return []
+	var item_defs: Dictionary = _game_session.get_item_defs() if _game_session != null else {}
+	var unlocked_ids := _misfortune_guidance_service.handle_forge_result(member_id, result, item_defs)
+	if _character_management != null:
+		_party_state = _character_management.get_party_state()
+	return unlocked_ids
+
+
+func resolve_low_luck_settlement_event_rewards(context: Dictionary) -> Dictionary:
+	if _low_luck_event_service == null:
+		return {}
+	var event_result := _low_luck_event_service.handle_settlement_action(context)
+	if _character_management != null:
+		_party_state = _character_management.get_party_state()
+	return event_result
 
 
 func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictionary:
@@ -1221,32 +1376,73 @@ func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictio
 
 	_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
 	var warehouse_state_before = _party_state.warehouse_state.duplicate_state() if _party_state.warehouse_state != null else null
+	var fate_run_flags_before: Dictionary = _party_state.get_fate_run_flags() if _party_state != null and _party_state.has_method("get_fate_run_flags") else {}
 	var overflow_entries: Array[Dictionary] = []
 	var committed_item_count := 0
+	battle_resolution_result.set_loot_entries(_resolve_effective_battle_loot_entries_for_commit(battle_resolution_result))
 	for loot_entry_variant in battle_resolution_result.loot_entries:
 		if loot_entry_variant is not Dictionary:
 			continue
 		var loot_entry_data := loot_entry_variant as Dictionary
-		var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
-		var quantity := maxi(int(loot_entry_data.get("quantity", 0)), 0)
-		if item_id == &"" or quantity <= 0:
+		var drop_type := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_type", BATTLE_LOOT_DROP_TYPE_ITEM))
+		if drop_type == BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE:
+			var instance_commit_result := _commit_equipment_instance_loot_entry(loot_entry_data)
+			if not bool(instance_commit_result.get("ok", false)):
+				_party_state.warehouse_state = warehouse_state_before
+				_party_state.set_fate_run_flags(fate_run_flags_before)
+				_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
+				return {
+					"ok": false,
+					"error_code": String(instance_commit_result.get("error_code", "battle_loot_equipment_instance_failed")),
+					"blocked_item_id": String(instance_commit_result.get("blocked_item_id", "")),
+					"committed_item_count": 0,
+					"overflow_entries": [],
+					"overflow_entry_count": 0,
+				}
+			committed_item_count += int(instance_commit_result.get("committed_item_count", 0))
+			for overflow_entry_variant in instance_commit_result.get("overflow_entries", []):
+				if overflow_entry_variant is Dictionary:
+					overflow_entries.append((overflow_entry_variant as Dictionary).duplicate(true))
 			continue
-		var add_result: Dictionary = _party_warehouse_service.add_item(item_id, quantity)
-		if not bool(add_result.get("item_found", false)):
+		if drop_type == BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
+			var equipment_commit_result := _commit_random_equipment_loot_entry(loot_entry_data)
+			if not bool(equipment_commit_result.get("ok", false)):
+				_party_state.warehouse_state = warehouse_state_before
+				_party_state.set_fate_run_flags(fate_run_flags_before)
+				_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
+				return {
+					"ok": false,
+					"error_code": String(equipment_commit_result.get("error_code", "battle_loot_random_equipment_failed")),
+					"blocked_item_id": String(equipment_commit_result.get("blocked_item_id", "")),
+					"committed_item_count": 0,
+					"overflow_entries": [],
+					"overflow_entry_count": 0,
+				}
+			committed_item_count += int(equipment_commit_result.get("committed_item_count", 0))
+			for overflow_entry_variant in equipment_commit_result.get("overflow_entries", []):
+				if overflow_entry_variant is Dictionary:
+					overflow_entries.append((overflow_entry_variant as Dictionary).duplicate(true))
+			continue
+
+		var item_commit_result := _commit_fixed_item_loot_entry(loot_entry_data)
+		if not bool(item_commit_result.get("ok", false)):
 			_party_state.warehouse_state = warehouse_state_before
+			_party_state.set_fate_run_flags(fate_run_flags_before)
 			_party_warehouse_service.setup(_party_state, _game_session.get_item_defs())
 			return {
 				"ok": false,
-				"error_code": "battle_loot_item_missing_def",
-				"blocked_item_id": String(item_id),
+				"error_code": String(item_commit_result.get("error_code", "battle_loot_item_missing_def")),
+				"blocked_item_id": String(item_commit_result.get("blocked_item_id", "")),
 				"committed_item_count": 0,
 				"overflow_entries": [],
 				"overflow_entry_count": 0,
 			}
-		committed_item_count += int(add_result.get("added_quantity", 0))
-		var remaining_quantity := int(add_result.get("remaining_quantity", 0))
-		if remaining_quantity > 0:
-			overflow_entries.append(_build_battle_overflow_entry(loot_entry_data, remaining_quantity))
+		committed_item_count += int(item_commit_result.get("committed_item_count", 0))
+		if _is_ordinary_battle_calamity_conversion_entry(loot_entry_data):
+			_mark_regular_battle_calamity_shards_committed(int(item_commit_result.get("committed_item_count", 0)))
+		for overflow_entry_variant in item_commit_result.get("overflow_entries", []):
+			if overflow_entry_variant is Dictionary:
+				overflow_entries.append((overflow_entry_variant as Dictionary).duplicate(true))
 	battle_resolution_result.set_overflow_entries(overflow_entries)
 	var overflow_item_id := ""
 	if not battle_resolution_result.overflow_entries.is_empty() and battle_resolution_result.overflow_entries[0] is Dictionary:
@@ -1261,10 +1457,309 @@ func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictio
 	}
 
 
+func _merge_low_luck_battle_result_into_resolution(battle_resolution_result, low_luck_event_result: Dictionary) -> void:
+	if battle_resolution_result == null or low_luck_event_result.is_empty():
+		return
+	var extra_loot_variant: Variant = low_luck_event_result.get("loot_entries", [])
+	if extra_loot_variant is Array and not (extra_loot_variant as Array).is_empty():
+		var merged_loot_entries: Array = battle_resolution_result.loot_entries.duplicate(true)
+		merged_loot_entries.append_array((extra_loot_variant as Array).duplicate(true))
+		battle_resolution_result.set_loot_entries(merged_loot_entries)
+	var extra_reward_variant: Variant = low_luck_event_result.get("pending_character_rewards", [])
+	if extra_reward_variant is Array and not (extra_reward_variant as Array).is_empty():
+		var merged_rewards: Array = battle_resolution_result.get_pending_character_rewards_copy()
+		merged_rewards.append_array((extra_reward_variant as Array).duplicate(true))
+		battle_resolution_result.set_pending_character_rewards(merged_rewards)
+
+
+func _commit_fixed_item_loot_entry(loot_entry_data: Dictionary) -> Dictionary:
+	var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
+	var quantity := maxi(int(loot_entry_data.get("quantity", 0)), 0)
+	if item_id == &"" or quantity <= 0:
+		return {
+			"ok": true,
+			"error_code": "",
+			"blocked_item_id": "",
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	var add_result: Dictionary = _party_warehouse_service.add_item(item_id, quantity)
+	if not bool(add_result.get("item_found", false)):
+		return {
+			"ok": false,
+			"error_code": "battle_loot_item_missing_def",
+			"blocked_item_id": String(item_id),
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	var overflow_entries: Array[Dictionary] = []
+	var remaining_quantity := int(add_result.get("remaining_quantity", 0))
+	if remaining_quantity > 0:
+		overflow_entries.append(_build_battle_overflow_entry(loot_entry_data, remaining_quantity))
+	return {
+		"ok": true,
+		"error_code": "",
+		"blocked_item_id": "",
+		"committed_item_count": int(add_result.get("added_quantity", 0)),
+		"overflow_entries": overflow_entries,
+	}
+
+
+func _commit_random_equipment_loot_entry(loot_entry_data: Dictionary) -> Dictionary:
+	var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
+	var quantity := maxi(int(loot_entry_data.get("quantity", 0)), 0)
+	var drop_luck := clampi(
+		int(loot_entry_data.get("drop_luck", 0)),
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
+		UNIT_BASE_ATTRIBUTES_SCRIPT.DROP_LUCK_MAX
+	)
+	if item_id == &"" or quantity <= 0:
+		return {
+			"ok": true,
+			"error_code": "",
+			"blocked_item_id": "",
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	var item_def = _game_session.get_item_defs().get(item_id)
+	if item_def == null:
+		return {
+			"ok": false,
+			"error_code": "battle_loot_item_missing_def",
+			"blocked_item_id": String(item_id),
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	if not item_def.is_equipment():
+		return {
+			"ok": false,
+			"error_code": "battle_loot_random_equipment_invalid_item",
+			"blocked_item_id": String(item_id),
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	var rolled_instances: Array = _equipment_drop_service.roll_item_instances(item_id, quantity, drop_luck)
+	var committed_item_count := 0
+	var overflow_quantity := 0
+	for rolled_instance_variant in rolled_instances:
+		if rolled_instance_variant == null:
+			continue
+		var rolled_item_id := ProgressionDataUtils.to_string_name(rolled_instance_variant.item_id)
+		var rolled_item_def = _game_session.get_item_defs().get(rolled_item_id)
+		if rolled_item_def == null:
+			return {
+				"ok": false,
+				"error_code": "battle_loot_item_missing_def",
+				"blocked_item_id": String(rolled_item_id),
+				"committed_item_count": 0,
+				"overflow_entries": [],
+			}
+		if not rolled_item_def.is_equipment():
+			return {
+				"ok": false,
+				"error_code": "battle_loot_random_equipment_invalid_item",
+				"blocked_item_id": String(rolled_item_id),
+				"committed_item_count": 0,
+				"overflow_entries": [],
+			}
+		if _party_warehouse_service.get_free_slots() <= 0:
+			overflow_quantity += 1
+			continue
+		_party_warehouse_service.deposit_equipment_instance(rolled_instance_variant)
+		committed_item_count += 1
+	var overflow_entries: Array[Dictionary] = []
+	if overflow_quantity > 0:
+		overflow_entries.append(_build_battle_overflow_entry(loot_entry_data, overflow_quantity))
+	return {
+		"ok": true,
+		"error_code": "",
+		"blocked_item_id": "",
+		"committed_item_count": committed_item_count,
+		"overflow_entries": overflow_entries,
+	}
+
+
+func _commit_equipment_instance_loot_entry(loot_entry_data: Dictionary) -> Dictionary:
+	var equipment_instance_variant: Variant = loot_entry_data.get("equipment_instance", loot_entry_data.get("equipment_instance_data", {}))
+	if equipment_instance_variant is not Dictionary:
+		return {
+			"ok": false,
+			"error_code": "battle_loot_equipment_instance_missing_payload",
+			"blocked_item_id": String(loot_entry_data.get("item_id", "")),
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	var equipment_instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(equipment_instance_variant)
+	if equipment_instance == null:
+		return {
+			"ok": false,
+			"error_code": "battle_loot_equipment_instance_invalid_payload",
+			"blocked_item_id": String(loot_entry_data.get("item_id", "")),
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	var item_id := ProgressionDataUtils.to_string_name(equipment_instance.item_id)
+	if item_id == &"":
+		item_id = ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
+		equipment_instance.item_id = item_id
+	if equipment_instance.instance_id == &"":
+		equipment_instance.instance_id = EQUIPMENT_INSTANCE_STATE_SCRIPT.generate_id()
+	if item_id == &"":
+		return {
+			"ok": false,
+			"error_code": "battle_loot_equipment_instance_invalid_payload",
+			"blocked_item_id": "",
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	var item_def = _game_session.get_item_defs().get(item_id)
+	if item_def == null:
+		return {
+			"ok": false,
+			"error_code": "battle_loot_item_missing_def",
+			"blocked_item_id": String(item_id),
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	if not item_def.is_equipment():
+		return {
+			"ok": false,
+			"error_code": "battle_loot_random_equipment_invalid_item",
+			"blocked_item_id": String(item_id),
+			"committed_item_count": 0,
+			"overflow_entries": [],
+		}
+	if _party_warehouse_service.get_free_slots() <= 0:
+		return {
+			"ok": true,
+			"error_code": "",
+			"blocked_item_id": "",
+			"committed_item_count": 0,
+			"overflow_entries": [_build_battle_overflow_entry(loot_entry_data, 1)],
+		}
+	_party_warehouse_service.deposit_equipment_instance(equipment_instance)
+	return {
+		"ok": true,
+		"error_code": "",
+		"blocked_item_id": "",
+		"committed_item_count": 1,
+		"overflow_entries": [],
+	}
+
+
 func _build_battle_overflow_entry(loot_entry_data: Dictionary, overflow_quantity: int) -> Dictionary:
 	var overflow_entry := loot_entry_data.duplicate(true)
 	overflow_entry["quantity"] = maxi(overflow_quantity, 0)
 	return overflow_entry
+
+
+func _resolve_effective_battle_loot_entries_for_commit(battle_resolution_result) -> Array[Dictionary]:
+	var adjusted_entries: Array[Dictionary] = []
+	if battle_resolution_result == null:
+		return adjusted_entries
+	var remaining_regular_cap := _get_remaining_regular_battle_calamity_shard_cap()
+	var merge_index_by_key: Dictionary = {}
+	for loot_entry_variant in battle_resolution_result.loot_entries:
+		if loot_entry_variant is not Dictionary:
+			continue
+		var loot_entry := (loot_entry_variant as Dictionary).duplicate(true)
+		if _is_ordinary_battle_calamity_conversion_entry(loot_entry):
+			var allowed_quantity := mini(maxi(int(loot_entry.get("quantity", 0)), 0), remaining_regular_cap)
+			remaining_regular_cap = maxi(remaining_regular_cap - allowed_quantity, 0)
+			if allowed_quantity <= 0:
+				continue
+			loot_entry["quantity"] = allowed_quantity
+		var merge_key := _build_battle_loot_merge_key(loot_entry)
+		if not merge_key.is_empty() and merge_index_by_key.has(merge_key):
+			var entry_index := int(merge_index_by_key.get(merge_key, -1))
+			if entry_index >= 0 and entry_index < adjusted_entries.size():
+				var merged_entry := adjusted_entries[entry_index].duplicate(true)
+				merged_entry["quantity"] = int(merged_entry.get("quantity", 0)) + int(loot_entry.get("quantity", 0))
+				adjusted_entries[entry_index] = merged_entry
+				continue
+		if not merge_key.is_empty():
+			merge_index_by_key[merge_key] = adjusted_entries.size()
+		adjusted_entries.append(loot_entry)
+	return adjusted_entries
+
+
+func _build_battle_loot_merge_key(loot_entry_data: Dictionary) -> String:
+	if loot_entry_data == null or loot_entry_data.is_empty():
+		return ""
+	var drop_type := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_type", ""))
+	var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
+	if item_id == &"":
+		return ""
+	if drop_type == BATTLE_LOOT_DROP_TYPE_ITEM:
+		return "%s|%s" % [String(drop_type), String(item_id)]
+	if drop_type == BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
+		return "%s|%s|%d" % [
+			String(drop_type),
+			String(item_id),
+			clampi(
+				int(loot_entry_data.get("drop_luck", 0)),
+				UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
+				UNIT_BASE_ATTRIBUTES_SCRIPT.DROP_LUCK_MAX
+			),
+		]
+	return ""
+
+
+func _is_ordinary_battle_calamity_conversion_entry(loot_entry_data: Dictionary) -> bool:
+	if loot_entry_data == null or loot_entry_data.is_empty():
+		return false
+	var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
+	var drop_source_kind := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_source_kind", ""))
+	var drop_source_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_source_id", ""))
+	return item_id == BATTLE_LOOT_CALAMITY_SHARD_ITEM_ID \
+		and drop_source_kind == BATTLE_LOOT_SOURCE_KIND_CALAMITY_CONVERSION \
+		and drop_source_id == BATTLE_LOOT_SOURCE_ID_ORDINARY_BATTLE
+
+
+func _get_remaining_regular_battle_calamity_shard_cap() -> int:
+	return maxi(
+		ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP - _get_regular_battle_calamity_shard_count_this_chapter(),
+		0
+	)
+
+
+func _get_regular_battle_calamity_shard_count_this_chapter() -> int:
+	if _party_state == null:
+		return 0
+	var shard_count := 0
+	for slot_index in range(ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
+		var flag_id := _build_regular_battle_calamity_shard_flag_id(slot_index)
+		if _party_state.has_method("get_fate_run_flag") and _party_state.get_fate_run_flag(flag_id, false):
+			shard_count += 1
+	return shard_count
+
+
+func _mark_regular_battle_calamity_shards_committed(quantity: int) -> void:
+	if _party_state == null or quantity <= 0:
+		return
+	var remaining_to_mark := mini(quantity, _get_remaining_regular_battle_calamity_shard_cap())
+	if remaining_to_mark <= 0:
+		return
+	for slot_index in range(ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
+		var flag_id := _build_regular_battle_calamity_shard_flag_id(slot_index)
+		if _party_state.has_method("get_fate_run_flag") and _party_state.get_fate_run_flag(flag_id, false):
+			continue
+		if _party_state.has_method("set_fate_run_flag"):
+			_party_state.set_fate_run_flag(flag_id, true)
+		remaining_to_mark -= 1
+		if remaining_to_mark <= 0:
+			return
+
+
+func _clear_regular_battle_calamity_shard_flags() -> void:
+	if _party_state == null or not _party_state.has_method("clear_fate_run_flag"):
+		return
+	for slot_index in range(ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
+		_party_state.clear_fate_run_flag(_build_regular_battle_calamity_shard_flag_id(slot_index))
+
+
+func _build_regular_battle_calamity_shard_flag_id(slot_index: int) -> StringName:
+	return ProgressionDataUtils.to_string_name("%s%d" % [CALAMITY_SHARD_CHAPTER_FLAG_PREFIX, maxi(slot_index, 0)])
 
 
 func _build_battle_resolution_status_message(
@@ -1351,6 +1846,11 @@ func _format_battle_drop_entries(drop_entry_variants: Array) -> String:
 func advance(delta: float) -> bool:
 	_last_advance_battle_refresh_mode = ""
 	if _generation_config == null:
+		return false
+	if _try_complete_pending_battle_start():
+		_last_advance_battle_refresh_mode = "full"
+		return true
+	if _has_pending_battle_generation_request():
 		return false
 	if _is_battle_active():
 		if _is_battle_finished() or _is_battle_timeline_modal_active():
@@ -2085,12 +2585,15 @@ func _command_error(message: String) -> Dictionary:
 func _execute_logged_command(event_id: String, domain: String, context: Dictionary, action: Callable) -> Dictionary:
 	var previous_scope := _active_command_log_scope.duplicate(true)
 	var command_args: Dictionary = _normalize_log_variant(context)
+	var before_state := _build_runtime_log_state()
+	if domain == "battle":
+		_pending_command_battle_batches.clear()
 	_active_command_log_scope = {
 		"event_id": event_id,
 		"domain": domain,
 		"context": {
 			"command_args": command_args,
-			"before": _build_runtime_log_state(),
+			"before": before_state,
 		},
 		"logged": false,
 	}
@@ -2099,6 +2602,8 @@ func _execute_logged_command(event_id: String, domain: String, context: Dictiona
 	if not bool(_active_command_log_scope.get("logged", false)):
 		_log_command_result(_active_command_log_scope, result)
 	_active_command_log_scope = previous_scope
+	if domain == "battle":
+		_pending_command_battle_batches.clear()
 	return result
 
 
@@ -2117,13 +2622,18 @@ func _log_command_result(scope: Dictionary, result: Dictionary) -> void:
 	var ok := bool(resolved_result.get("ok", false))
 	var message := String(resolved_result.get("message", _current_status_message))
 	var log_context: Dictionary = (scope.get("context", {}) as Dictionary).duplicate(true)
-	log_context["after"] = _build_runtime_log_state()
+	var after_state := _build_runtime_log_state()
+	log_context["runtime"] = after_state
 	log_context["ok"] = ok
 	if not message.is_empty():
 		log_context["result_message"] = message
 	var battle_refresh_mode := String(resolved_result.get("battle_refresh_mode", ""))
 	if not battle_refresh_mode.is_empty():
 		log_context["battle_refresh_mode"] = battle_refresh_mode
+	if String(scope.get("domain", "")) == "battle" and not _pending_command_battle_batches.is_empty():
+		log_context["battle_batches"] = _pending_command_battle_batches.duplicate(true)
+		log_context["battle_batch"] = (_pending_command_battle_batches[-1] as Dictionary).duplicate(true)
+		log_context["battle_changed_units"] = _collect_command_battle_changed_units(_pending_command_battle_batches)
 	_log_runtime_event(
 		"info" if ok else "warn",
 		String(scope.get("domain", "runtime")),
@@ -2158,17 +2668,8 @@ func _log_runtime_event(level: String, domain: String, event_id: String, message
 func _log_battle_batch_entries(batch) -> void:
 	if batch == null or batch.log_lines.is_empty():
 		return
-	var base_context := {
-		"runtime": _build_runtime_log_state(),
-		"phase_changed": bool(batch.phase_changed),
-		"battle_ended": bool(batch.battle_ended),
-		"modal_requested": bool(batch.modal_requested),
-		"changed_unit_count": batch.changed_unit_ids.size(),
-		"changed_coord_count": batch.changed_coords.size(),
-		"changed_coords": _normalize_log_variant(batch.changed_coords),
-		"changed_unit_ids": _normalize_log_variant(batch.changed_unit_ids),
-		"changed_units": _build_battle_unit_log_entries(batch.changed_unit_ids),
-	}
+	var base_context := _build_battle_batch_log_context(batch)
+	base_context["runtime"] = _build_runtime_log_state()
 	for log_line in batch.log_lines:
 		_log_runtime_event("info", "battle", "battle.log", String(log_line), base_context)
 
@@ -2176,6 +2677,16 @@ func _log_battle_batch_entries(batch) -> void:
 func _build_battle_log_state() -> Dictionary:
 	if not _is_battle_active() or _battle_state == null:
 		return {}
+	var ally_alive_count := 0
+	var hostile_alive_count := 0
+	for unit_variant in _battle_state.units.values():
+		var unit_state := unit_variant as BattleUnitState
+		if unit_state == null or not unit_state.is_alive:
+			continue
+		if String(unit_state.faction_id) == _player_faction_id:
+			ally_alive_count += 1
+		else:
+			hostile_alive_count += 1
 	return {
 		"encounter_id": String(_active_battle_encounter_id),
 		"encounter_name": _active_battle_encounter_name,
@@ -2191,11 +2702,56 @@ func _build_battle_log_state() -> Dictionary:
 		"selected_coord": _battle_selected_coord,
 		"selected_skill_id": String(_selected_battle_skill_id),
 		"selected_skill_variant_id": String(_selected_battle_skill_variant_id),
-		"selected_target_coords": _queued_battle_skill_target_coords,
-		"selected_target_unit_ids": _queued_battle_skill_target_unit_ids,
+		"selected_target_coord_count": _queued_battle_skill_target_coords.size(),
+		"selected_target_unit_count": _queued_battle_skill_target_unit_ids.size(),
 		"terrain_counts": _count_battle_terrain_types(),
+		"ally_alive_count": ally_alive_count,
+		"hostile_alive_count": hostile_alive_count,
 		"units": _build_battle_unit_log_entries(),
 	}
+
+
+func _build_battle_batch_log_context(batch) -> Dictionary:
+	if batch == null:
+		return {}
+	return {
+		"phase_changed": bool(batch.phase_changed),
+		"battle_ended": bool(batch.battle_ended),
+		"modal_requested": bool(batch.modal_requested),
+		"changed_unit_count": batch.changed_unit_ids.size(),
+		"changed_coord_count": batch.changed_coords.size(),
+		"changed_coords": _normalize_log_variant(batch.changed_coords),
+		"changed_unit_ids": _normalize_log_variant(batch.changed_unit_ids),
+		"changed_units": _build_battle_unit_log_entries(batch.changed_unit_ids),
+		"report_entry_count": batch.report_entries.size(),
+		"report_entries": _normalize_log_variant(batch.report_entries),
+	}
+
+
+func _collect_command_battle_changed_units(batch_contexts: Array[Dictionary]) -> Array[Dictionary]:
+	var merged_by_unit_id: Dictionary = {}
+	var ordered_unit_ids: Array[String] = []
+	for batch_context in batch_contexts:
+		if batch_context == null:
+			continue
+		var changed_units_variant = batch_context.get("changed_units", [])
+		if changed_units_variant is not Array:
+			continue
+		for changed_unit_variant in changed_units_variant:
+			if changed_unit_variant is not Dictionary:
+				continue
+			var changed_unit: Dictionary = changed_unit_variant
+			var unit_id := String(changed_unit.get("unit_id", "")).strip_edges()
+			if unit_id.is_empty():
+				continue
+			if not merged_by_unit_id.has(unit_id):
+				ordered_unit_ids.append(unit_id)
+			merged_by_unit_id[unit_id] = changed_unit.duplicate(true)
+	var result: Array[Dictionary] = []
+	for unit_id in ordered_unit_ids:
+		if merged_by_unit_id.has(unit_id):
+			result.append((merged_by_unit_id[unit_id] as Dictionary).duplicate(true))
+	return result
 
 
 func _build_battle_unit_log_entries(unit_ids: Array = []) -> Array[Dictionary]:
@@ -2230,6 +2786,7 @@ func _build_battle_unit_log_entries(unit_ids: Array = []) -> Array[Dictionary]:
 			"current_stamina": int(unit_state.current_stamina),
 			"current_aura": int(unit_state.current_aura),
 			"current_ap": int(unit_state.current_ap),
+			"current_move_points": int(unit_state.current_move_points),
 		})
 	return result
 
@@ -2325,7 +2882,7 @@ func _move_player(direction: Vector2i) -> void:
 		var player_persist_error: int = int(_game_session.set_player_coord(_player_coord))
 		var world_persist_error: int = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 		_start_battle(encountered_anchor)
-		if not _is_battle_active():
+		if not _is_battle_active() and not _has_pending_battle_generation_request():
 			_game_session.set_battle_save_lock(false)
 			var flush_error: int = int(_game_session.flush_game_state())
 			if player_persist_error != OK or world_persist_error != OK or flush_error != OK:
@@ -2517,6 +3074,9 @@ func _try_open_character_info_at_battle_coord(coord: Vector2i) -> bool:
 		"source": "battle",
 		"unit_id": unit_id,
 	}
+	var fate_payload := _build_battle_character_info_fate_payload(unit)
+	if not fate_payload.is_empty():
+		_active_character_info_context["fate"] = fate_payload
 	_active_modal_id = "character_info"
 	_update_status("已打开 %s 的人物信息窗。" % display_name)
 	return true
@@ -2575,8 +3135,44 @@ func _build_battle_character_info_sections(unit: BattleUnitState, type_label: St
 		sections.append({
 			"title": "技能摘要",
 			"entries": skill_entries,
-		})
+	})
 	return sections
+
+
+func _build_battle_character_info_fate_payload(unit: BattleUnitState) -> Dictionary:
+	if unit == null or unit.attribute_snapshot == null:
+		return {}
+
+	var hidden_luck_at_birth := _get_battle_unit_attribute_value(unit, UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH)
+	var faith_luck_bonus := _get_battle_unit_attribute_value(unit, UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS)
+	var effective_luck := clampi(
+		hidden_luck_at_birth + faith_luck_bonus,
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX
+	)
+	var fortune_marked := _get_battle_unit_attribute_value(unit, FORTUNE_MARKED_STAT_ID)
+	var doom_marked := _get_battle_unit_attribute_value(unit, DOOM_MARKED_STAT_ID)
+	var doom_authority := _get_battle_unit_attribute_value(unit, DOOM_AUTHORITY_STAT_ID)
+	var has_source_member := false
+	if _party_state != null and unit.source_member_id != &"" and _party_state.has_method("get_member_state"):
+		has_source_member = _party_state.get_member_state(unit.source_member_id) != null
+	if not has_source_member \
+		and hidden_luck_at_birth == 0 \
+		and faith_luck_bonus == 0 \
+		and fortune_marked == 0 \
+		and doom_marked == 0 \
+		and doom_authority == 0:
+		return {}
+
+	return {
+		"hidden_luck_at_birth": hidden_luck_at_birth,
+		"faith_luck_bonus": faith_luck_bonus,
+		"effective_luck": effective_luck,
+		"fortune_marked": fortune_marked,
+		"doom_marked": doom_marked,
+		"doom_authority": doom_authority,
+		"has_misfortune": doom_authority > 0,
+	}
 
 
 func _build_battle_character_info_base_entries(unit: BattleUnitState, type_label: String, faction_label: String) -> Array[Dictionary]:
@@ -2604,6 +3200,10 @@ func _build_battle_character_info_base_entries(unit: BattleUnitState, type_label
 		{
 			"label": "AP",
 			"value": "%d" % int(unit.current_ap),
+		},
+		{
+			"label": "行动",
+			"value": "%d" % int(unit.current_move_points),
 		},
 	]
 	var stamina_max := _get_battle_unit_attribute_value(unit, &"stamina_max")
@@ -2757,6 +3357,12 @@ func _batch_has_updates(batch) -> bool:
 func _apply_battle_batch(batch) -> void:
 	_battle_session_facade.apply_battle_batch(batch)
 	_log_battle_batch_entries(batch)
+
+
+func record_command_battle_batch(batch) -> void:
+	if batch == null:
+		return
+	_pending_command_battle_batches.append(_build_battle_batch_log_context(batch))
 
 
 func refresh_battle_runtime_state() -> void:
@@ -2998,6 +3604,7 @@ func _persist_world_data() -> int:
 func _clear_resolved_battle_runtime_context() -> void:
 	_active_modal_id = ""
 	_pending_battle_start_prompt.clear()
+	_pending_battle_generation_request.clear()
 	_pending_promotion_prompt.clear()
 	_battle_selection.clear_battle_skill_selection()
 	_battle_state = null
@@ -3153,6 +3760,10 @@ func _get_fog_state_name(fog_state: int) -> String:
 
 func _is_battle_active() -> bool:
 	return _battle_state != null and not _battle_state.is_empty()
+
+
+func _has_pending_battle_generation_request() -> bool:
+	return not _pending_battle_generation_request.is_empty()
 
 
 func _is_adjacent_4(from_coord: Vector2i, to_coord: Vector2i) -> bool:

@@ -433,7 +433,7 @@ func _assert_generic_forge_command_applied(snapshot: Dictionary, text_snapshot: 
 	if not log_entry.is_empty():
 		_assert_true(String(log_entry.get("message", "")).find("铁制大剑") >= 0, "通用 forge 日志文案应包含产物名称。")
 		var log_context: Dictionary = log_entry.get("context", {})
-		var after_state: Dictionary = log_context.get("after", {})
+		var after_state: Dictionary = log_context.get("runtime", {})
 		_assert_eq(String(after_state.get("active_modal_id", "")), "forge", "通用 forge 日志后态应保留 forge modal。")
 	_assert_true(text_snapshot.contains("[FORGE]"), "通用 forge 文本快照应包含 forge 分段。")
 
@@ -574,9 +574,9 @@ func _assert_equipment_command_applied(before_snapshot: Dictionary, after_snapsh
 	_assert_true(not equipped_entry.is_empty(), "命令行装备后，队员快照中应出现主手装备条目。")
 	_assert_eq(String(equipped_entry.get("item_id", "")), "bronze_sword", "主手槽应装备青铜短剑。")
 	_assert_eq(
-		int(after_attributes.get("physical_attack", 0)) - int(before_attributes.get("physical_attack", 0)),
-		4,
-		"命令行装备后，物攻快照应同步提升。"
+		int(after_attributes.get("attack_bonus", 0)) - int(before_attributes.get("attack_bonus", 0)),
+		2,
+		"命令行装备后，攻击检定加值快照应同步提升。"
 	)
 
 
@@ -591,9 +591,9 @@ func _assert_equipment_command_reverted(before_snapshot: Dictionary, after_snaps
 		"命令行卸装后，主手槽应被清空。"
 	)
 	_assert_eq(
-		int(after_attributes.get("physical_attack", 0)),
-		int(before_attributes.get("physical_attack", 0)),
-		"命令行卸装后，物攻快照应回到基线。"
+		int(after_attributes.get("attack_bonus", 0)),
+		int(before_attributes.get("attack_bonus", 0)),
+		"命令行卸装后，攻击检定加值快照应回到基线。"
 	)
 	_assert_eq(_count_warehouse_item(after_snapshot, "bronze_sword"), 1, "命令行卸装后，仓库快照中应能看到回仓的装备。")
 	_assert_eq(_count_session_warehouse_item("bronze_sword"), 1, "卸装后物品应回到共享仓库。")
@@ -693,7 +693,7 @@ func _assert_battle_command_log_contains_post_state(snapshot: Dictionary, event_
 		return
 	var context: Dictionary = entry.get("context", {})
 	var before_state: Dictionary = context.get("before", {})
-	var after_state: Dictionary = context.get("after", {})
+	var after_state: Dictionary = context.get("runtime", {})
 	var after_battle: Dictionary = after_state.get("battle", {})
 	_assert_true(bool(before_state.get("battle_active", false)), "战斗命令日志应保留命令执行前的战斗态。")
 	_assert_true(bool(after_state.get("battle_active", false)), "战斗命令日志应保留命令执行后的战斗态。")

@@ -6,6 +6,7 @@ const SETTLEMENT_FORGE_SERVICE_SCRIPT = preload("res://scripts/systems/settlemen
 const SETTLEMENT_RESEARCH_SERVICE_SCRIPT = preload("res://scripts/systems/settlement_research_service.gd")
 const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement_service_result.gd")
 const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
+const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/low_luck_relic_rules.gd")
 
 const REST_FULL_COST := 50
 const INTEL_NETWORK_COST := 50
@@ -184,6 +185,7 @@ func get_stagecoach_window_data() -> Dictionary:
 	context["summary_text"] = "持有金币：%d" % int(context.get("gold", 0))
 	context["state_summary_text"] = String(context.get("feedback_text", ""))
 	context["action_id"] = "stagecoach:travel"
+	context["panel_kind"] = "stagecoach"
 	context["party_state"] = _get_party_state()
 	context["member_options"] = _build_member_options()
 	context["default_member_id"] = String(resolve_default_settlement_member_id())
@@ -635,6 +637,22 @@ func extract_pending_character_rewards(action_id: String, payload: Dictionary, f
 			if reward_data.get("entries", []) is not Array:
 				reward_data["entries"] = []
 			rewards.append(reward_data)
+	if _runtime != null and _runtime.has_method("resolve_low_luck_settlement_event_rewards"):
+		var low_luck_result_variant = _runtime.resolve_low_luck_settlement_event_rewards({
+			"action_id": action_id,
+			"facility_id": String(payload.get("facility_id", "")),
+			"facility_name": facility_name,
+			"interaction_script_id": String(payload.get("interaction_script_id", "")),
+			"npc_name": npc_name,
+			"payload": payload.duplicate(true),
+			"service_type": service_type,
+		})
+		if low_luck_result_variant is Dictionary:
+			var low_luck_rewards_variant: Variant = (low_luck_result_variant as Dictionary).get("pending_character_rewards", [])
+			if low_luck_rewards_variant is Array:
+				for reward_variant in low_luck_rewards_variant:
+					if reward_variant is Dictionary:
+						rewards.append((reward_variant as Dictionary).duplicate(true))
 	return rewards
 
 
@@ -1258,9 +1276,15 @@ func _restore_party_resources(restore_ratio: float, restore_full: bool) -> Dicti
 		var mp_max := int(attribute_snapshot.get_value(&"mp_max")) if attribute_snapshot != null else maxi(member_state.current_mp, 0)
 		var old_hp := int(member_state.current_hp)
 		var old_mp := int(member_state.current_mp)
-		member_state.current_hp = maxi(hp_max, 1) if restore_full else mini(old_hp + int(ceil(float(hp_max) * restore_ratio)), hp_max)
-		if restore_full:
-			member_state.current_mp = maxi(mp_max, 0)
+		var recovery_multiplier := 1.0
+		if attribute_snapshot != null and int(attribute_snapshot.get_value(LOW_LUCK_RELIC_RULES_SCRIPT.ATTR_BLOOD_DEBT_SHAWL)) > 0:
+			recovery_multiplier = LOW_LUCK_RELIC_RULES_SCRIPT.BLOOD_DEBT_RECOVERY_MULTIPLIER
+		var hp_restore_amount := hp_max - old_hp if restore_full else int(ceil(float(hp_max) * restore_ratio))
+		hp_restore_amount = int(ceil(float(maxi(hp_restore_amount, 0)) * recovery_multiplier))
+		member_state.current_hp = mini(old_hp + hp_restore_amount, hp_max)
+		var mp_restore_amount := mp_max - old_mp if restore_full else 0
+		mp_restore_amount = int(ceil(float(maxi(mp_restore_amount, 0)) * recovery_multiplier))
+		member_state.current_mp = mini(old_mp + mp_restore_amount, mp_max)
 		effects[String(member_id)] = {"hp_restored": maxi(int(member_state.current_hp) - old_hp, 0), "mp_restored": maxi(int(member_state.current_mp) - old_mp, 0)}
 	return effects
 
@@ -1291,9 +1315,22 @@ func _finalize_successful_action(action_id: String, payload: Dictionary, result:
 	_apply_quest_progress_events(_result_quest_progress_events(result))
 	var member_id := ProgressionDataUtils.to_string_name(payload.get("member_id", ""))
 	if member_id != &"":
+		_notify_misfortune_guidance_of_forge_result(member_id, result)
 		_record_member_achievement_event(member_id, &"settlement_action_completed", 1, ProgressionDataUtils.to_string_name(action_id))
 	_sync_party_state_from_character_management()
 	return _persist_changes(bool(result.get("persist_party_state", true)), bool(result.get("persist_world_data", false)), bool(result.get("persist_player_coord", false)))
+
+
+func _notify_misfortune_guidance_of_forge_result(member_id: StringName, result: Dictionary) -> void:
+	if member_id == &"" or _runtime == null or result.is_empty():
+		return
+	var inventory_delta_variant: Variant = result.get("inventory_delta", {})
+	if inventory_delta_variant is not Dictionary:
+		return
+	if ProgressionDataUtils.to_string_name((inventory_delta_variant as Dictionary).get("recipe_id", "")) == &"":
+		return
+	if _runtime.has_method("handle_misfortune_forge_result"):
+		_runtime.handle_misfortune_forge_result(member_id, result)
 
 
 func _build_settlement_service_result(

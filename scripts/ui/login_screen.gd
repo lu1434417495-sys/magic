@@ -9,6 +9,10 @@ const WORLD_PRESET_PICKER_WINDOW_SCRIPT = preload("res://scripts/ui/world_preset
 const SAVE_LIST_WINDOW_SCRIPT = preload("res://scripts/ui/save_list_window.gd")
 const DISPLAY_SETTINGS_WINDOW_SCRIPT = preload("res://scripts/ui/display_settings_window.gd")
 const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_settings_service.gd")
+const CHARACTER_CREATION_WINDOW_SCRIPT = preload("res://scripts/ui/character_creation_window.gd")
+
+const PENDING_START_TYPE_PRESET: StringName = &"preset"
+const PENDING_START_TYPE_TEST: StringName = &"test"
 
 const TEST_PRESET_ID := &"test"
 const DEFAULT_START_PRESET_ID := &"small"
@@ -35,6 +39,8 @@ const FIXED_TEST_SAVE_DISPLAY_NAME := "固定测试存档"
 @onready var save_list_window: SAVE_LIST_WINDOW_SCRIPT = $SaveListWindow
 ## 字段说明：缓存显示设置窗口节点，负责承载分辨率和窗口模式的交互流程。
 @onready var display_settings_window: DISPLAY_SETTINGS_WINDOW_SCRIPT = $DisplaySettingsWindow
+## 字段说明：缓存建卡窗口节点，负责承载主角姓名输入、属性掷骰与 reroll 流程。
+@onready var character_creation_window: CHARACTER_CREATION_WINDOW_SCRIPT = $CharacterCreationWindow
 
 ## 字段说明：用于标记当前是否处于切换流程状态，避免在不合适的时机重复触发流程，作为界面刷新、输入处理和窗口联动的重要依据。
 var _is_transitioning := false
@@ -42,6 +48,10 @@ var _is_transitioning := false
 var _display_settings_service: DisplaySettingsService = null
 ## 字段说明：缓存当前生效的显示设置字典，供窗口回填和重新应用时复用。
 var _display_settings: Dictionary = {}
+## 字段说明：缓存当前等待建卡完成的入口类型（预设 / 测试），用于分发后续开档调用。
+var _pending_start_type: StringName = &""
+## 字段说明：缓存选择地图流程中等待建卡的预设 id，供建卡确认后传入 create_new_save。
+var _pending_preset_id: StringName = &""
 
 
 func _ready() -> void:
@@ -59,6 +69,8 @@ func _ready() -> void:
 	display_settings_window.settings_apply_requested.connect(_on_display_settings_apply_requested)
 	display_settings_window.cancelled.connect(_on_display_settings_cancelled)
 	display_settings_window.configure_options(_display_settings_service.list_resolution_options())
+	character_creation_window.character_confirmed.connect(_on_character_creation_confirmed)
+	character_creation_window.cancelled.connect(_on_character_creation_cancelled)
 	start_button.grab_focus()
 	_show_idle_status()
 
@@ -86,7 +98,11 @@ func _on_start_button_pressed() -> void:
 
 
 func _on_test_button_pressed() -> void:
-	_start_bundled_test_save()
+	if _is_transitioning:
+		return
+	if not _validate_start_scene_path():
+		return
+	_open_character_creation_for(PENDING_START_TYPE_TEST, &"")
 
 
 func _on_load_button_pressed() -> void:
@@ -135,10 +151,38 @@ func _open_start_game_picker() -> void:
 
 
 func _on_world_preset_confirmed(preset_id: StringName) -> void:
-	_start_preset(preset_id)
+	_open_character_creation_for(PENDING_START_TYPE_PRESET, preset_id)
 
 
 func _on_world_preset_picker_cancelled() -> void:
+	_show_idle_status()
+
+
+func _open_character_creation_for(start_type: StringName, preset_id: StringName) -> void:
+	_pending_start_type = start_type
+	_pending_preset_id = preset_id
+	character_creation_window.show_window()
+	status_label.text = "请输入主角姓名并掷出六项属性。"
+
+
+func _on_character_creation_confirmed(payload: Dictionary) -> void:
+	var start_type := _pending_start_type
+	var preset_id := _pending_preset_id
+	_pending_start_type = &""
+	_pending_preset_id = &""
+
+	match start_type:
+		PENDING_START_TYPE_PRESET:
+			_start_preset(preset_id, payload)
+		PENDING_START_TYPE_TEST:
+			_start_bundled_test_save(payload)
+		_:
+			_show_idle_status()
+
+
+func _on_character_creation_cancelled() -> void:
+	_pending_start_type = &""
+	_pending_preset_id = &""
 	_show_idle_status()
 
 
@@ -186,7 +230,7 @@ func _on_display_settings_cancelled() -> void:
 	_show_idle_status()
 
 
-func _start_preset(preset_id: StringName) -> void:
+func _start_preset(preset_id: StringName, character_creation_payload: Dictionary = {}) -> void:
 	if _is_transitioning:
 		return
 	if not _validate_start_scene_path():
@@ -211,7 +255,12 @@ func _start_preset(preset_id: StringName) -> void:
 		_set_transition_state(false)
 		_show_error("未找到 GameSession。")
 		return
-	var session_error: int = int(game_session.create_new_save(generation_config_path, preset_id, preset_name))
+	var session_error: int = int(game_session.create_new_save(
+		generation_config_path,
+		preset_id,
+		preset_name,
+		character_creation_payload
+	))
 	if session_error != OK:
 		_set_transition_state(false)
 		_show_error("世界创建失败，请检查持久化目录或配置。")
@@ -221,7 +270,7 @@ func _start_preset(preset_id: StringName) -> void:
 	_change_to_start_scene()
 
 
-func _start_bundled_test_save() -> void:
+func _start_bundled_test_save(character_creation_payload: Dictionary = {}) -> void:
 	if _is_transitioning:
 		return
 	if not _validate_start_scene_path():
@@ -230,7 +279,7 @@ func _start_bundled_test_save() -> void:
 	_set_transition_state(true)
 	status_label.text = "正在加载固定测试存档并进入游戏..."
 
-	var session_error := _import_bundled_test_save()
+	var session_error := _import_bundled_test_save(character_creation_payload)
 	if session_error != OK:
 		_set_transition_state(false)
 		_show_error("固定测试存档加载失败，请检查内置存档资源。")
@@ -240,7 +289,7 @@ func _start_bundled_test_save() -> void:
 	_change_to_start_scene()
 
 
-func _import_bundled_test_save() -> int:
+func _import_bundled_test_save(character_creation_payload: Dictionary = {}) -> int:
 	var preset_data := WORLD_PRESET_REGISTRY_SCRIPT.get_preset(TEST_PRESET_ID)
 	if preset_data.is_empty():
 		return ERR_CANT_OPEN
@@ -255,7 +304,8 @@ func _import_bundled_test_save() -> int:
 		save_id,
 		FIXED_TEST_SAVE_DISPLAY_NAME,
 		TEST_PRESET_ID,
-		String(preset_data.get("display_name", "测试"))
+		String(preset_data.get("display_name", "测试")),
+		character_creation_payload
 	)
 
 
@@ -285,7 +335,7 @@ func _validate_start_scene_path() -> bool:
 
 
 func _is_modal_open() -> bool:
-	return world_preset_picker_window.visible or save_list_window.visible or display_settings_window.visible
+	return world_preset_picker_window.visible or save_list_window.visible or display_settings_window.visible or character_creation_window.visible
 
 
 func _show_idle_status() -> void:

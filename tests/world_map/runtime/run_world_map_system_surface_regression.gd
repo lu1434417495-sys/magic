@@ -91,6 +91,7 @@ func _test_world_map_runtime_proxy_keeps_expected_contract() -> void:
 
 	var expected_methods: Array[String] = [
 		"get_status_text",
+		"get_log_snapshot",
 		"get_active_modal_id",
 		"get_active_settlement_id",
 		"get_active_map_id",

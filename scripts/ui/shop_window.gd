@@ -9,12 +9,18 @@ signal closed
 @onready var shade: ColorRect = $Shade
 @onready var title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/TitleLabel
 @onready var meta_label: Label = $CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/MetaLabel
+@onready var entry_title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/EntryColumn/EntryTitle
 @onready var summary_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/SummaryLabel
+@onready var summary_title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/SummaryTitle
 @onready var entry_list: ItemList = $CenterContainer/Panel/MarginContainer/Content/Body/EntryColumn/EntryList
 @onready var details_label: RichTextLabel = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/DetailsLabel
 @onready var state_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/StateLabel
+@onready var state_title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/StateTitle
 @onready var cost_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/CostLabel
+@onready var cost_title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/CostTitle
+@onready var details_title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/DetailsTitle
 @onready var member_selector: OptionButton = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/MemberSelector
+@onready var member_title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/MemberTitle
 @onready var member_state_label: Label = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/MemberStateLabel
 @onready var confirm_button: Button = $CenterContainer/Panel/MarginContainer/Content/Footer/ConfirmButton
 @onready var cancel_button: Button = $CenterContainer/Panel/MarginContainer/Content/Footer/CancelButton
@@ -53,6 +59,13 @@ func show_shop(window_data: Dictionary) -> void:
 	refresh_view()
 
 
+func show_stagecoach(window_data: Dictionary) -> void:
+	var normalized_window_data := window_data.duplicate(true)
+	if String(normalized_window_data.get("panel_kind", "")).is_empty():
+		normalized_window_data["panel_kind"] = "stagecoach"
+	show_shop(normalized_window_data)
+
+
 func hide_window() -> void:
 	visible = false
 	_window_data.clear()
@@ -80,11 +93,13 @@ func hide_window() -> void:
 
 
 func refresh_view() -> void:
-	title_label.text = String(_window_data.get("title", "交易窗口"))
-	meta_label.text = _build_meta_text()
-	summary_label.text = String(_window_data.get("summary_text", "选择一项交易后确认执行。"))
-	confirm_button.text = String(_window_data.get("confirm_label", "确认"))
-	cancel_button.text = String(_window_data.get("cancel_label", "返回"))
+	var panel_profile := _get_panel_profile()
+	title_label.text = String(_window_data.get("title", panel_profile.get("window_title", "交易窗口")))
+	meta_label.text = _build_meta_text(panel_profile)
+	summary_label.text = String(_window_data.get("summary_text", panel_profile.get("summary_text", "选择一项交易后确认执行。")))
+	confirm_button.text = String(_window_data.get("confirm_label", panel_profile.get("confirm_label", "确认")))
+	cancel_button.text = String(_window_data.get("cancel_label", panel_profile.get("cancel_label", "返回")))
+	_apply_section_titles(panel_profile)
 	_rebuild_entry_list()
 	_build_member_selector()
 	_select_entry(_selected_entry_index if _selected_entry_index >= 0 else 0)
@@ -93,7 +108,7 @@ func refresh_view() -> void:
 	_refresh_controls()
 
 
-func _build_meta_text() -> String:
+func _build_meta_text(panel_profile: Dictionary = {}) -> String:
 	var state_summary_text := String(_window_data.get("state_summary_text", ""))
 	var meta_text := String(_window_data.get("meta", ""))
 	if not state_summary_text.is_empty():
@@ -102,7 +117,7 @@ func _build_meta_text() -> String:
 		return "%s\n%s" % [meta_text, state_summary_text]
 	if not meta_text.is_empty():
 		return meta_text
-	return "交易窗口将使用当前选定成员。" if _should_show_member_selector() else "选择一项后确认执行。"
+	return String(panel_profile.get("meta_fallback_text", "交易窗口将使用当前选定成员。")) if _should_show_member_selector() else String(panel_profile.get("summary_text", "选择一项后确认执行。"))
 
 
 func _build_entries() -> Array[Dictionary]:
@@ -118,12 +133,13 @@ func _build_entries() -> Array[Dictionary]:
 
 
 func _build_fallback_entry() -> Dictionary:
+	var panel_profile := _get_panel_profile()
 	return {
 		"entry_id": "default",
-		"display_name": String(_window_data.get("service_name", _window_data.get("title", "交易"))),
-		"summary_text": String(_window_data.get("summary_text", "默认交易条目。")),
+		"display_name": String(_window_data.get("service_name", _window_data.get("title", panel_profile.get("fallback_entry_name", "交易")))),
+		"summary_text": String(_window_data.get("summary_text", panel_profile.get("fallback_summary_text", "默认交易条目。"))),
 		"details_text": String(_window_data.get("details_text", _window_data.get("summary_text", ""))),
-		"state_label": String(_window_data.get("state_label", _window_data.get("state_text", "状态：可用"))),
+		"state_label": String(_window_data.get("state_label", _window_data.get("state_text", panel_profile.get("fallback_state_label", "状态：可用")))),
 		"cost_label": String(_window_data.get("cost_label", "费用：待定")),
 		"is_enabled": bool(_window_data.get("is_enabled", true)),
 		"disabled_reason": String(_window_data.get("disabled_reason", "")),
@@ -245,9 +261,10 @@ func _select_entry(index: int) -> void:
 
 func _refresh_details() -> void:
 	if _entries.is_empty():
-		state_label.text = "状态：暂无条目"
-		cost_label.text = "费用：暂无条目"
-		details_label.text = "当前没有可用条目。"
+		var panel_profile := _get_panel_profile()
+		state_label.text = String(panel_profile.get("empty_state_label", "状态：暂无条目"))
+		cost_label.text = String(panel_profile.get("empty_cost_label", "费用：暂无条目"))
+		details_label.text = String(panel_profile.get("empty_details_text", "当前没有可用条目。"))
 		confirm_button.disabled = true
 		return
 
@@ -365,3 +382,56 @@ func _get_panel_kind() -> String:
 
 func _should_show_member_selector() -> bool:
 	return bool(_window_data.get("show_member_selector", true))
+
+
+func _apply_section_titles(panel_profile: Dictionary) -> void:
+	entry_title_label.text = String(_window_data.get("entry_title", panel_profile.get("entry_title", "可选条目")))
+	summary_title_label.text = String(_window_data.get("summary_title", panel_profile.get("summary_title", "交易概况")))
+	state_title_label.text = String(_window_data.get("state_title", panel_profile.get("state_title", "交易状态")))
+	cost_title_label.text = String(_window_data.get("cost_title", panel_profile.get("cost_title", "交易费用")))
+	details_title_label.text = String(_window_data.get("details_title", panel_profile.get("details_title", "交易说明")))
+	member_title_label.text = String(_window_data.get("member_title", panel_profile.get("member_title", "交易成员")))
+
+
+func _get_panel_profile() -> Dictionary:
+	match _get_panel_kind():
+		"stagecoach":
+			return {
+				"window_title": "驿站窗口",
+				"summary_text": "选择一项行程后确认出发。",
+				"confirm_label": "确认出发",
+				"cancel_label": "返回",
+				"meta_fallback_text": "驿站窗口将使用当前选定成员。",
+				"entry_title": "可选路线",
+				"summary_title": "行程概况",
+				"state_title": "行程状态",
+				"cost_title": "行程费用",
+				"details_title": "行程说明",
+				"member_title": "出发成员",
+				"fallback_entry_name": "行程",
+				"fallback_summary_text": "默认行程条目。",
+				"fallback_state_label": "状态：可出发",
+				"empty_state_label": "状态：暂无路线",
+				"empty_cost_label": "费用：暂无路线",
+				"empty_details_text": "当前没有可用路线。",
+			}
+		_:
+			return {
+				"window_title": "交易窗口",
+				"summary_text": "选择一项交易后确认执行。",
+				"confirm_label": "确认",
+				"cancel_label": "返回",
+				"meta_fallback_text": "交易窗口将使用当前选定成员。",
+				"entry_title": "可选条目",
+				"summary_title": "交易概况",
+				"state_title": "交易状态",
+				"cost_title": "交易费用",
+				"details_title": "交易说明",
+				"member_title": "交易成员",
+				"fallback_entry_name": "交易",
+				"fallback_summary_text": "默认交易条目。",
+				"fallback_state_label": "状态：可用",
+				"empty_state_label": "状态：暂无条目",
+				"empty_cost_label": "费用：暂无条目",
+				"empty_details_text": "当前没有可用条目。",
+			}

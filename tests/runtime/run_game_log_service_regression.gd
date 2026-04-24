@@ -55,6 +55,7 @@ func _test_game_log_service_keeps_ring_buffer_and_appends_file() -> void:
 			var last_entry: Dictionary = last_entry_variant
 			_assert_eq(String(last_entry.get("event_id", "")), "battle.test.fourth", "日志文件应按顺序追加最新事件。")
 			_assert_eq(String(last_entry.get("level", "")), "error", "日志文件应保留日志级别。")
+			_assert_true(not String(last_entry.get("time_text", "")).is_empty(), "日志文件应额外保留可读时间文本。")
 
 	_cleanup_log_file(absolute_path)
 

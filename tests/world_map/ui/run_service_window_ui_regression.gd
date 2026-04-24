@@ -4,8 +4,12 @@ const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd"
 const GameSessionScript = preload("res://scripts/systems/game_session.gd")
 const SETTLEMENT_WINDOW_SCENE = preload("res://scenes/ui/settlement_window.tscn")
 const SHOP_WINDOW_SCENE = preload("res://scenes/ui/shop_window.tscn")
-const STAGECOACH_WINDOW_SCENE = preload("res://scenes/ui/stagecoach_window.tscn")
+const STAGECOACH_WINDOW_SCENE = preload("res://scenes/ui/shop_window.tscn")
 const CHARACTER_INFO_WINDOW_SCENE = preload("res://scenes/ui/character_info_window.tscn")
+const MASTERY_REWARD_WINDOW_SCENE = preload("res://scenes/ui/mastery_reward_window.tscn")
+const SUBMAP_ENTRY_WINDOW_SCENE = preload("res://scenes/ui/submap_entry_window.tscn")
+const PendingCharacterReward = preload("res://scripts/systems/pending_character_reward.gd")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/pending_character_reward_entry.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 
@@ -26,6 +30,8 @@ func _run() -> void:
 	await _test_character_info_window_falls_back_to_legacy_payload()
 	await _test_character_info_window_renders_explicit_sections()
 	await _test_runtime_character_info_context_uses_explicit_sections()
+	await _test_battle_end_reward_window_uses_large_modal_metrics()
+	await _test_game_over_confirmation_uses_shared_large_modal_metrics()
 
 	if _failures.is_empty():
 		print("Service window UI regression: PASS")
@@ -172,6 +178,9 @@ func _test_stagecoach_window_preserves_confirm_contract_and_respects_empty_entri
 	window.show_stagecoach(base_window_data)
 	await process_frame
 
+	_assert_eq(window.entry_title_label.text, "可选路线", "驿站应通过共享 ShopWindow shell 渲染路线列表标题。")
+	_assert_eq(window.summary_title_label.text, "行程概况", "驿站应通过共享 ShopWindow shell 渲染行程概况标题。")
+	_assert_eq(window.confirm_button.text, "确认出发", "驿站应通过共享 ShopWindow shell 渲染确认出发按钮文案。")
 	window._on_shade_gui_input(_make_mouse_button_event(MOUSE_BUTTON_RIGHT))
 	_assert_true(window.visible, "StagecoachWindow 右键点击遮罩不应关闭窗口。")
 
@@ -290,6 +299,7 @@ func _test_runtime_service_windows_render_real_member_summaries() -> void:
 		_assert_true(bool(open_modal_result.get("ok", false)), "正式 runtime 应能从据点窗口打开 stagecoach modal。")
 		var stagecoach_window_data := stagecoach_facade.get_stagecoach_window_data()
 		_assert_member_option_payload(stagecoach_window_data, "stagecoach window data")
+		_assert_eq(String(stagecoach_window_data.get("panel_kind", "")), "stagecoach", "正式 stagecoach window data 应显式标记 panel_kind=stagecoach。")
 		var stagecoach_entries_variant = stagecoach_window_data.get("entries", [])
 		_assert_true(stagecoach_entries_variant is Array and not (stagecoach_entries_variant as Array).is_empty(), "正式 stagecoach window data 应包含至少一个已访问目的地。")
 		stagecoach_window.show_stagecoach(stagecoach_window_data)
@@ -427,6 +437,74 @@ func _test_runtime_character_info_context_uses_explicit_sections() -> void:
 	await _cleanup_runtime_bundle(runtime_bundle)
 
 
+func _test_battle_end_reward_window_uses_large_modal_metrics() -> void:
+	var window = MASTERY_REWARD_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	var panel := window.get_node("CenterContainer/Panel") as PanelContainer
+	var title_label := window.get_node("%TitleLabel") as Label
+	var meta_label := window.get_node("%MetaLabel") as Label
+	var details_label := window.get_node("%DetailsLabel") as RichTextLabel
+	var confirm_button := window.get_node("%ConfirmButton") as Button
+
+	window.show_reward(_build_reward_stub(), 2)
+	await process_frame
+
+	_assert_true(panel != null and panel.custom_minimum_size.x >= 900.0 and panel.custom_minimum_size.y >= 600.0, "战后奖励确认窗应使用更大的 modal 面板尺寸。")
+	_assert_true(int(title_label.get("theme_override_font_sizes/font_size")) >= 38, "战后奖励确认窗标题字号应明显放大。")
+	_assert_true(int(meta_label.get("theme_override_font_sizes/font_size")) >= 20, "战后奖励确认窗副标题字号应明显放大。")
+	_assert_true(details_label != null and details_label.custom_minimum_size.y >= 360.0, "战后奖励确认窗正文区域高度应明显增加。")
+	_assert_true(int(details_label.get("theme_override_font_sizes/normal_font_size")) >= 20, "战后奖励确认窗正文字号应明显放大。")
+	_assert_true(confirm_button != null and confirm_button.custom_minimum_size.x >= 200.0 and confirm_button.custom_minimum_size.y >= 60.0, "战后奖励确认窗确认按钮应更大。")
+	_assert_true(int(confirm_button.get("theme_override_font_sizes/font_size")) >= 22, "战后奖励确认窗确认按钮字号应明显放大。")
+
+	window.queue_free()
+	await process_frame
+
+
+func _test_game_over_confirmation_uses_shared_large_modal_metrics() -> void:
+	var window = SUBMAP_ENTRY_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	var panel := window.get_node("CenterContainer/Panel") as PanelContainer
+	var title_label := window.get_node("CenterContainer/Panel/MarginContainer/Layout/TitleLabel") as Label
+	var description_label := window.get_node("CenterContainer/Panel/MarginContainer/Layout/DescriptionLabel") as Label
+	var return_button := window.get_node("CenterContainer/Panel/MarginContainer/Layout/ButtonRow/ConfirmButton") as Button
+	var cancel_button := window.get_node("CenterContainer/Panel/MarginContainer/Layout/ButtonRow/CancelButton") as Button
+
+	window.show_prompt({
+		"title": "战斗失败",
+		"description": "主角已阵亡，本次旅程结束。",
+		"confirm_text": "返回标题",
+		"cancel_visible": false,
+		"dismiss_on_shade": false,
+		"accept_input_enabled": true,
+		"panel_min_size": Vector2(760, 320),
+		"title_font_size": 40,
+		"description_font_size": 24,
+		"confirm_button_min_size": Vector2(240, 64),
+		"confirm_button_font_size": 24,
+		"margin_left": 40,
+		"margin_top": 34,
+		"margin_right": 40,
+		"margin_bottom": 34,
+		"layout_separation": 26,
+	})
+	await process_frame
+
+	_assert_true(panel != null and panel.custom_minimum_size.x >= 700.0 and panel.custom_minimum_size.y >= 300.0, "game over 应复用更大的共享确认面板尺寸。")
+	_assert_true(int(title_label.get("theme_override_font_sizes/font_size")) >= 38, "game over 共享确认窗标题字号应明显放大。")
+	_assert_true(int(description_label.get("theme_override_font_sizes/font_size")) >= 22, "game over 共享确认窗描述字号应明显放大。")
+	_assert_true(return_button != null and return_button.custom_minimum_size.x >= 220.0 and return_button.custom_minimum_size.y >= 60.0, "game over 共享确认窗确认按钮应更大。")
+	_assert_true(int(return_button.get("theme_override_font_sizes/font_size")) >= 22, "game over 共享确认窗确认按钮字号应明显放大。")
+	_assert_true(cancel_button != null and not cancel_button.visible and cancel_button.disabled, "game over 共享确认窗应隐藏取消按钮。")
+
+	window.queue_free()
+	await process_frame
+
+
 func _make_party_state() -> PartyState:
 	var party_state := PartyState.new()
 	var member_state := PartyMemberState.new()
@@ -438,6 +516,24 @@ func _make_party_state() -> PartyState:
 	party_state.active_member_ids.append(&"hero")
 	party_state.leader_member_id = &"hero"
 	return party_state
+
+
+func _build_reward_stub():
+	var reward := PendingCharacterReward.new()
+	reward.member_id = &"hero"
+	reward.member_name = "Hero"
+	reward.source_type = &"battle_skill"
+	reward.source_id = &"battle_skill"
+	reward.source_label = "战斗评分"
+	reward.summary_text = "本次战斗中表现出色，获得成长奖励。"
+	var entry := PendingCharacterRewardEntry.new()
+	entry.entry_type = &"skill_mastery"
+	entry.target_id = &"sword_mastery"
+	entry.target_label = "剑术"
+	entry.amount = 3
+	entry.reason_text = "连战后稳步成长"
+	reward.entries = [entry]
+	return reward
 
 
 func _make_mouse_button_event(button_index: MouseButton) -> InputEventMouseButton:

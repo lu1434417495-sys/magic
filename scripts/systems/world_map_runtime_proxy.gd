@@ -53,6 +53,10 @@ func get_pending_battle_start_prompt() -> Dictionary:
 	return _call_runtime_read(&"get_pending_battle_start_prompt", {})
 
 
+func get_log_snapshot(limit: int = 80) -> Dictionary:
+	return _call_runtime_read(&"get_log_snapshot", {}, [limit])
+
+
 func build_headless_snapshot() -> Dictionary:
 	return _call_runtime_read(&"build_headless_snapshot", {})
 
@@ -115,6 +119,10 @@ func get_selected_battle_skill_name() -> String:
 
 func get_selected_battle_skill_variant_name() -> String:
 	return String(_call_runtime_read(&"get_selected_battle_skill_variant_name", ""))
+
+
+func get_selected_battle_skill_variant_id() -> StringName:
+	return _call_runtime_read(&"get_selected_battle_skill_variant_id", &"")
 
 
 func get_selected_battle_skill_target_coords() -> Array[Vector2i]:

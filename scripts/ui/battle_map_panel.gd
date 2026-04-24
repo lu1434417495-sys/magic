@@ -35,6 +35,18 @@ const HUD_TEXT_PRIMARY := Color(0.98, 0.93, 0.82, 1.0)
 const HUD_TEXT_SECONDARY := Color(0.92, 0.82, 0.66, 0.94)
 const HUD_TEXT_MUTED := Color(0.78, 0.66, 0.54, 0.86)
 const HUD_DARK := Color(0.08, 0.03, 0.02, 0.9)
+const HUD_FATE_CALM_BG := Color(0.12, 0.28, 0.25, 0.94)
+const HUD_FATE_CALM_EDGE := Color(0.36, 0.76, 0.7, 0.98)
+const HUD_FATE_GATE_BG := Color(0.17, 0.19, 0.28, 0.94)
+const HUD_FATE_GATE_EDGE := Color(0.61, 0.69, 0.92, 0.98)
+const HUD_FATE_WARNING_BG := Color(0.35, 0.18, 0.08, 0.96)
+const HUD_FATE_WARNING_EDGE := Color(0.96, 0.7, 0.3, 1.0)
+const HUD_FATE_DANGER_BG := Color(0.4, 0.1, 0.11, 0.96)
+const HUD_FATE_DANGER_EDGE := Color(0.94, 0.36, 0.34, 1.0)
+const HUD_FATE_HIGH_THREAT_BG := Color(0.4, 0.29, 0.06, 0.96)
+const HUD_FATE_HIGH_THREAT_EDGE := Color(0.98, 0.88, 0.42, 1.0)
+const HUD_FATE_MERCY_BG := Color(0.11, 0.26, 0.36, 0.96)
+const HUD_FATE_MERCY_EDGE := Color(0.44, 0.84, 0.98, 1.0)
 const LOADING_PROGRESS_PREPARE := 12.0
 const LOADING_PROGRESS_DRAW_REQUESTED := 48.0
 const LOADING_PROGRESS_FRAME_QUEUED := 82.0
@@ -105,9 +117,9 @@ var _pending_show_battle_payload: Dictionary = {}
 @onready var mp_bar: ProgressBar = %MpBar
 ## 字段说明：缓存法力值数值标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var mp_value_label: Label = %MpValueLabel
-## 字段说明：缓存行动点条，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：复用 legacy ApBar 节点显示移动用行动点，避免额外改动场景节点命名。
 @onready var ap_bar: ProgressBar = %ApBar
-## 字段说明：缓存行动点数值标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：复用 legacy ApValueLabel 节点显示移动用行动点文案。
 @onready var ap_value_label: Label = %ApValueLabel
 ## 字段说明：缓存单位详情标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var unit_detail_label: Label = %UnitDetailLabel
@@ -117,6 +129,8 @@ var _pending_show_battle_payload: Dictionary = {}
 @onready var skill_title_label: Label = %SkillTitleLabel
 ## 字段说明：缓存技能副标题标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var skill_subtitle_label: Label = %SkillSubtitleLabel
+## 字段说明：缓存命运概览徽标行节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+@onready var fate_badge_row: HFlowContainer = %FateBadgeRow
 ## 字段说明：缓存技能网格节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var skill_grid: GridContainer = %SkillGrid
 ## 字段说明：缓存瓦片标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
@@ -184,7 +198,8 @@ func show_battle(
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
-	selected_skill_target_unit_ids: Array[StringName] = []
+	selected_skill_target_unit_ids: Array[StringName] = [],
+	selected_skill_variant_id: StringName = &""
 ) -> void:
 	var battle_id := _resolve_battle_id(battle_state)
 	_store_pending_show_battle_payload(
@@ -196,7 +211,8 @@ func show_battle(
 		selected_skill_target_coords,
 		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
-		selected_skill_target_unit_ids
+		selected_skill_target_unit_ids,
+		selected_skill_variant_id
 	)
 	var reveal_ticket := _begin_battle_reveal_if_needed(battle_id)
 	visible = true
@@ -214,7 +230,8 @@ func show_battle(
 		selected_skill_target_coords,
 		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
-		selected_skill_target_unit_ids
+		selected_skill_target_unit_ids,
+		selected_skill_variant_id
 	)
 
 
@@ -227,7 +244,8 @@ func _store_pending_show_battle_payload(
 	selected_skill_target_coords: Array[Vector2i],
 	selected_skill_valid_target_coords: Array[Vector2i],
 	selected_skill_required_coord_count: int,
-	selected_skill_target_unit_ids: Array[StringName]
+	selected_skill_target_unit_ids: Array[StringName],
+	selected_skill_variant_id: StringName
 ) -> void:
 	_pending_show_battle_payload = {
 		"battle_state": battle_state,
@@ -239,6 +257,7 @@ func _store_pending_show_battle_payload(
 		"selected_skill_valid_target_coords": selected_skill_valid_target_coords.duplicate(),
 		"selected_skill_required_coord_count": selected_skill_required_coord_count,
 		"selected_skill_target_unit_ids": selected_skill_target_unit_ids.duplicate(),
+		"selected_skill_variant_id": selected_skill_variant_id,
 	}
 
 
@@ -251,7 +270,8 @@ func refresh_overlay(
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
-	selected_skill_target_unit_ids: Array[StringName] = []
+	selected_skill_target_unit_ids: Array[StringName] = [],
+	selected_skill_variant_id: StringName = &""
 ) -> void:
 	_refresh_internal(
 		battle_state,
@@ -263,6 +283,7 @@ func refresh_overlay(
 		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
 		selected_skill_target_unit_ids,
+		selected_skill_variant_id,
 		false
 	)
 
@@ -276,7 +297,8 @@ func refresh(
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
-	selected_skill_target_unit_ids: Array[StringName] = []
+	selected_skill_target_unit_ids: Array[StringName] = [],
+	selected_skill_variant_id: StringName = &""
 ) -> void:
 	_refresh_internal(
 		battle_state,
@@ -288,6 +310,7 @@ func refresh(
 		selected_skill_valid_target_coords,
 		selected_skill_required_coord_count,
 		selected_skill_target_unit_ids,
+		selected_skill_variant_id,
 		true
 	)
 
@@ -302,6 +325,7 @@ func _refresh_internal(
 	selected_skill_valid_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
 	selected_skill_target_unit_ids: Array[StringName] = [],
+	selected_skill_variant_id: StringName = &"",
 	redraw_board: bool = true
 ) -> void:
 	if battle_state == null:
@@ -316,7 +340,8 @@ func _refresh_internal(
 		selected_skill_variant_name,
 		selected_skill_target_coords,
 		selected_skill_required_coord_count,
-		selected_skill_target_unit_ids
+		selected_skill_target_unit_ids,
+		selected_skill_variant_id
 	)
 	_apply_snapshot(snapshot)
 	_update_button_states(selected_skill_id)
@@ -353,6 +378,7 @@ func _refresh_internal(
 func hide_battle() -> void:
 	_cancel_battle_reveal()
 	_pending_show_battle_payload.clear()
+	_set_placeholder_state()
 	visible = false
 	if _battle_board != null:
 		_battle_board.clear_board()
@@ -444,7 +470,8 @@ func _apply_pending_show_battle_payload() -> void:
 		_pending_show_battle_payload.get("selected_skill_target_coords", []),
 		_pending_show_battle_payload.get("selected_skill_valid_target_coords", []),
 		int(_pending_show_battle_payload.get("selected_skill_required_coord_count", 0)),
-		_pending_show_battle_payload.get("selected_skill_target_unit_ids", [])
+		_pending_show_battle_payload.get("selected_skill_target_unit_ids", []),
+		_pending_show_battle_payload.get("selected_skill_variant_id", &"")
 	)
 
 
@@ -617,9 +644,12 @@ func _set_placeholder_state() -> void:
 	portrait_key_label.text = "portrait://pending"
 	_set_progress_bar_values(hp_bar, hp_value_label, 0, 1, "HP")
 	_set_progress_bar_values(mp_bar, mp_value_label, 0, 1, "MP")
-	_set_progress_bar_values(ap_bar, ap_value_label, 0, 1, "AP")
+	_set_progress_bar_values(ap_bar, ap_value_label, 0, 2, "行动")
 	skill_title_label.text = "技能矩阵"
 	skill_subtitle_label.text = "等待战斗数据"
+	skill_subtitle_label.tooltip_text = ""
+	command_summary_label.tooltip_text = ""
+	_rebuild_fate_badges([])
 	tile_label.text = "地格 (--, --)  ·  无  ·  高度 0  ·  占位 无"
 	hint_label.text = "左键地格移动或攻击，右键单位查看信息。滚轮缩放，中键拖拽平移。"
 	log_label.text = "战报：暂无记录"
@@ -637,6 +667,10 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	_rebuild_skill_grid(snapshot.get("skill_slots", []))
 	skill_title_label.text = String(snapshot.get("skill_title", "技能矩阵"))
 	skill_subtitle_label.text = String(snapshot.get("skill_subtitle", ""))
+	var preview_tooltip_text := String(snapshot.get("selected_skill_preview_tooltip_text", ""))
+	skill_subtitle_label.tooltip_text = preview_tooltip_text
+	command_summary_label.tooltip_text = preview_tooltip_text
+	_rebuild_fate_badges(snapshot.get("selected_skill_fate_badges", []))
 	tile_label.text = String(snapshot.get("tile_text", ""))
 	hint_label.text = String(snapshot.get("hint_text", ""))
 	log_label.text = String(snapshot.get("log_text", ""))
@@ -675,9 +709,9 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 	_set_progress_bar_values(
 		ap_bar,
 		ap_value_label,
-		int(focus_unit.get("ap_current", 0)),
-		int(focus_unit.get("ap_max", 1)),
-		"AP",
+		int(focus_unit.get("move_current", focus_unit.get("ap_current", 0))),
+		int(focus_unit.get("move_max", focus_unit.get("ap_max", 2))),
+		"行动",
 		Color(0.98, 0.8, 0.34, 1.0)
 	)
 
@@ -706,6 +740,41 @@ func _rebuild_skill_grid(slots: Array) -> void:
 		if slot_variant is not Dictionary:
 			continue
 		skill_grid.add_child(_create_skill_slot(slot_variant))
+
+
+func _rebuild_fate_badges(badges: Array) -> void:
+	_clear_container(fate_badge_row)
+	fate_badge_row.visible = not badges.is_empty()
+	if badges.is_empty():
+		return
+	for badge_variant in badges:
+		if badge_variant is not Dictionary:
+			continue
+		fate_badge_row.add_child(_create_fate_badge(badge_variant))
+
+
+func _create_fate_badge(badge: Dictionary) -> Control:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	panel.add_theme_stylebox_override(
+		"panel",
+		_build_fate_badge_style(StringName(badge.get("tone", &"gate")))
+	)
+	panel.tooltip_text = String(badge.get("tooltip_text", ""))
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 4)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 4)
+	panel.add_child(margin)
+
+	var label := Label.new()
+	label.text = String(badge.get("text", ""))
+	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_color_override("font_color", Color(0.99, 0.96, 0.9, 1.0))
+	margin.add_child(label)
+	return panel
 
 
 func _create_skill_slot(slot: Dictionary) -> Control:
@@ -871,6 +940,22 @@ func _build_skill_slot_style(slot: Dictionary) -> StyleBoxFlat:
 	if bool(slot.get("is_selected", false)):
 		return _build_panel_style(accent_color.darkened(0.34), HUD_PANEL_EDGE.lightened(0.06), 10, 2)
 	return _build_panel_style(dark_color, edge_color, 10, 2)
+
+
+func _build_fate_badge_style(tone: StringName) -> StyleBoxFlat:
+	match tone:
+		&"calm":
+			return _build_button_style(HUD_FATE_CALM_BG, HUD_FATE_CALM_EDGE, 999, 1)
+		&"warning":
+			return _build_button_style(HUD_FATE_WARNING_BG, HUD_FATE_WARNING_EDGE, 999, 1)
+		&"danger":
+			return _build_button_style(HUD_FATE_DANGER_BG, HUD_FATE_DANGER_EDGE, 999, 1)
+		&"high_threat":
+			return _build_button_style(HUD_FATE_HIGH_THREAT_BG, HUD_FATE_HIGH_THREAT_EDGE, 999, 1)
+		&"mercy":
+			return _build_button_style(HUD_FATE_MERCY_BG, HUD_FATE_MERCY_EDGE, 999, 1)
+		_:
+			return _build_button_style(HUD_FATE_GATE_BG, HUD_FATE_GATE_EDGE, 999, 1)
 
 
 func _apply_progress_bar_skin(progress_bar: ProgressBar, fill_color: Color) -> void:

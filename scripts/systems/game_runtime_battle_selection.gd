@@ -4,6 +4,13 @@ extends RefCounted
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT = preload("res://scripts/systems/battle_target_collection_service.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
+const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
+const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
+const DOOM_SENTENCE_SKILL_ID: StringName = &"doom_sentence"
+const DOOM_SHIFT_SKILL_ID: StringName = &"doom_shift"
+const BLACK_CROWN_SEAL_SKILL_ID: StringName = &"black_crown_seal"
+const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
+const BOSS_TARGET_STAT_ID: StringName = &"boss_target"
 
 var _runtime_ref: WeakRef = null
 var _target_collection_service = BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT.new()
@@ -277,6 +284,7 @@ func _build_skill_command(active_unit, target_unit):
 		skill_command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
 		skill_command.unit_id = active_unit.unit_id
 		skill_command.skill_id = skill_id
+		skill_command.skill_variant_id = _get_default_unit_skill_variant_id(active_unit, skill_def)
 		skill_command.target_unit_id = target_unit.unit_id
 		skill_command.target_coord = target_unit.coord
 		return skill_command
@@ -302,9 +310,20 @@ func _build_selected_skill_command(active_unit, target_unit):
 	skill_command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
 	skill_command.unit_id = active_unit.unit_id
 	skill_command.skill_id = _get_selected_skill_id()
+	skill_command.skill_variant_id = _get_selected_skill_variant_id()
 	skill_command.target_unit_id = target_unit.unit_id
 	skill_command.target_coord = target_unit.coord
 	return skill_command
+
+
+func _get_default_unit_skill_variant_id(active_unit, skill_def) -> StringName:
+	if skill_def == null or skill_def.combat_profile == null or skill_def.combat_profile.cast_variants.is_empty():
+		return &""
+	var unlocked_variants := _get_unlocked_cast_variants(active_unit, skill_def)
+	for cast_variant in unlocked_variants:
+		if cast_variant != null and cast_variant.target_mode == &"unit":
+			return cast_variant.variant_id
+	return &""
 
 
 func _is_selected_ground_skill_ready(active_unit) -> bool:
@@ -576,6 +595,8 @@ func _are_ground_target_coords_individually_valid(
 					break
 			if not normalized_allowed:
 				return false
+		if _is_crown_break_skill(skill_def) and not _is_crown_break_target_eligible(active_unit, _get_runtime_unit_at_coord(coord)):
+			return false
 	return true
 
 
@@ -704,12 +725,69 @@ func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUni
 		return false
 	if not _skill_target_filter_matches_unit(active_unit, target_unit, skill_def.combat_profile.target_team_filter):
 		return false
+	if _is_crown_break_skill(skill_def) and not _is_crown_break_target_eligible(active_unit, target_unit):
+		return false
+	if _is_doom_sentence_skill(skill_def) and not _is_doom_sentence_target_eligible(active_unit, target_unit):
+		return false
+	if _is_black_crown_seal_skill(skill_def) and not _is_black_crown_seal_target_eligible(active_unit, target_unit):
+		return false
+	if _is_doom_shift_skill(skill_def) and target_unit.unit_id == active_unit.unit_id:
+		return false
 	active_unit.refresh_footprint()
 	target_unit.refresh_footprint()
 	var battle_grid_service = _get_battle_grid_service()
 	if battle_grid_service == null:
 		return false
 	return battle_grid_service.get_distance_between_units(active_unit, target_unit) <= _get_effective_skill_range(active_unit, skill_def)
+
+
+func _is_crown_break_skill(skill_def) -> bool:
+	return skill_def != null and ProgressionDataUtils.to_string_name(skill_def.skill_id) == CROWN_BREAK_SKILL_ID
+
+
+func _is_doom_sentence_skill(skill_def) -> bool:
+	return skill_def != null and ProgressionDataUtils.to_string_name(skill_def.skill_id) == DOOM_SENTENCE_SKILL_ID
+
+
+func _is_doom_shift_skill(skill_def) -> bool:
+	return skill_def != null and ProgressionDataUtils.to_string_name(skill_def.skill_id) == DOOM_SHIFT_SKILL_ID
+
+
+func _is_black_crown_seal_skill(skill_def) -> bool:
+	return skill_def != null and ProgressionDataUtils.to_string_name(skill_def.skill_id) == BLACK_CROWN_SEAL_SKILL_ID
+
+
+func _is_crown_break_target_eligible(active_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
+	return target_unit != null \
+		and _skill_target_filter_matches_unit(active_unit, target_unit, &"enemy") \
+		and target_unit.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE)
+
+
+func _is_doom_sentence_target_eligible(active_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
+	return target_unit != null \
+		and _skill_target_filter_matches_unit(active_unit, target_unit, &"enemy") \
+		and _is_elite_or_boss_target(target_unit)
+
+
+func _is_black_crown_seal_target_eligible(active_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
+	return target_unit != null \
+		and _skill_target_filter_matches_unit(active_unit, target_unit, &"enemy") \
+		and _is_boss_target(target_unit)
+
+
+func _is_elite_or_boss_target(target_unit: BattleUnitState) -> bool:
+	return target_unit != null \
+		and target_unit.attribute_snapshot != null \
+		and int(target_unit.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 0
+
+
+func _is_boss_target(target_unit: BattleUnitState) -> bool:
+	return target_unit != null \
+		and target_unit.attribute_snapshot != null \
+		and (
+			int(target_unit.attribute_snapshot.get_value(BOSS_TARGET_STAT_ID)) > 0
+			or int(target_unit.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 1
+		)
 
 
 func _skill_target_filter_matches_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, target_team_filter: StringName) -> bool:
@@ -740,6 +818,8 @@ func _get_effective_skill_range(active_unit: BattleUnitState, skill_def) -> int:
 
 
 func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> String:
+	if _runtime != null and _runtime.has_method("get_battle_skill_cast_block_reason"):
+		return String(_runtime.get_battle_skill_cast_block_reason(active_unit, skill_def))
 	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return "技能或目标无效。"
 	var combat_profile = skill_def.combat_profile
@@ -747,7 +827,7 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> St
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
 	if active_unit.current_ap < int(combat_profile.ap_cost):
-		return "行动点不足，无法施放该技能。"
+		return "AP不足，无法施放该技能。"
 	if active_unit.current_mp < int(combat_profile.mp_cost):
 		return "法力不足，无法施放该技能。"
 	if active_unit.current_stamina < int(combat_profile.stamina_cost):

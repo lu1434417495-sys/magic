@@ -9,8 +9,12 @@ const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
+const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle_skill_resolution_rules.gd")
+const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/fate_attack_formula.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const QUEUE_ENTRY_LIMIT := 7
 const SKILL_GRID_SIZE := 20
@@ -20,6 +24,7 @@ const TARGET_SELECTION_MULTI_UNIT := &"multi_unit"
 var _queue_ready_lookup: Dictionary = {}
 var _grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
 var _hit_resolver = BATTLE_HIT_RESOLVER_SCRIPT.new()
+var _skill_resolution_rules = BATTLE_SKILL_RESOLUTION_RULES_SCRIPT.new()
 
 
 func build_snapshot(
@@ -30,7 +35,8 @@ func build_snapshot(
 	selected_skill_variant_name: String = "",
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
-	selected_skill_target_unit_ids: Array[StringName] = []
+	selected_skill_target_unit_ids: Array[StringName] = [],
+	selected_skill_variant_id: StringName = &""
 ) -> Dictionary:
 	if battle_state == null:
 		return {}
@@ -52,8 +58,19 @@ func build_snapshot(
 		selected_coord,
 		selected_skill_id,
 		selected_skill_target_coords,
-		selected_skill_target_unit_ids
+		selected_skill_target_unit_ids,
+		selected_skill_variant_id
 	)
+	var fate_preview := _build_selected_skill_fate_preview(
+		battle_state,
+		active_unit,
+		selected_coord,
+		selected_skill_id,
+		selected_skill_target_coords,
+		selected_skill_target_unit_ids,
+		selected_skill_variant_id
+	)
+	var preview_tooltip_text := _build_selected_skill_preview_tooltip(hit_preview, fate_preview)
 
 	return {
 		"header_title": "战斗地图",
@@ -93,6 +110,9 @@ func build_snapshot(
 		),
 		"selected_skill_hit_preview_text": String(hit_preview.get("summary_text", "")),
 		"selected_skill_hit_stage_rates": (hit_preview.get("stage_hit_rates", []) as Array).duplicate(true),
+		"selected_skill_fate_preview_text": String(fate_preview.get("summary_text", "")),
+		"selected_skill_fate_badges": (fate_preview.get("badges", []) as Array).duplicate(true),
+		"selected_skill_preview_tooltip_text": preview_tooltip_text,
 		"selected_skill_target_selection_mode": String(selection_info.get("selection_mode", &"single_unit")),
 		"selected_skill_target_min_count": int(selection_info.get("min_target_count", 1)),
 		"selected_skill_target_max_count": int(selection_info.get("max_target_count", 1)),
@@ -173,7 +193,7 @@ func _build_queue_entries(battle_state: BattleState) -> Array[Dictionary]:
 			"edge_color": portrait_data.get("edge_color", Color(0.93, 0.77, 0.5, 1.0)),
 			"hp_ratio": _get_ratio(unit_state.current_hp, _get_snapshot_value(unit_state, &"hp_max", 1)),
 			"hp_text": "HP %d/%d" % [unit_state.current_hp, _get_snapshot_value(unit_state, &"hp_max", 1)],
-			"ap_text": "AP %d" % unit_state.current_ap,
+			"ap_text": "AP %d / 行动 %d" % [unit_state.current_ap, int(unit_state.current_move_points)],
 			"is_active": unit_id == battle_state.active_unit_id,
 			"is_ready": _queue_ready_lookup.has(unit_id),
 			"is_enemy": battle_state.enemy_unit_ids.has(unit_id),
@@ -206,12 +226,15 @@ func _build_focus_unit_snapshot(unit_state: BattleUnitState, battle_state: Battl
 			"mp_max": 1,
 			"ap_current": 0,
 			"ap_max": 1,
+			"move_current": 0,
+			"move_max": BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN,
 		}
 
 	var portrait_data := _build_portrait_data(unit_state, battle_state)
 	var hp_max := _get_snapshot_value(unit_state, &"hp_max", maxi(unit_state.current_hp, 1))
 	var mp_max := _get_snapshot_value(unit_state, &"mp_max", maxi(unit_state.current_mp, 0))
 	var ap_max := _get_snapshot_value(unit_state, &"action_points", maxi(unit_state.current_ap, 1))
+	var move_max := BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	return {
 		"name": _format_unit_name(unit_state, "单位"),
 		"role_text": _build_focus_role_text(unit_state, battle_state),
@@ -228,6 +251,8 @@ func _build_focus_unit_snapshot(unit_state: BattleUnitState, battle_state: Battl
 		"mp_max": maxi(mp_max, 1),
 		"ap_current": unit_state.current_ap,
 		"ap_max": maxi(ap_max, 1),
+		"move_current": int(unit_state.current_move_points),
+		"move_max": move_max,
 	}
 
 
@@ -237,11 +262,13 @@ func _build_resource_info(unit_state: BattleUnitState) -> Dictionary:
 	var stamina_current := int(unit_state.current_stamina) if unit_state != null else 0
 	var aura_current := int(unit_state.current_aura) if unit_state != null else 0
 	var ap_current := int(unit_state.current_ap) if unit_state != null else 0
+	var move_current := int(unit_state.current_move_points) if unit_state != null else 0
 	var hp_max := _get_snapshot_value(unit_state, &"hp_max", maxi(hp_current, 1))
 	var mp_max := _get_snapshot_value(unit_state, &"mp_max", maxi(mp_current, 0))
 	var stamina_max := _get_snapshot_value(unit_state, &"stamina_max", maxi(stamina_current, 0))
 	var aura_max := _get_snapshot_value(unit_state, &"aura_max", maxi(aura_current, 0))
 	var ap_max := _get_snapshot_value(unit_state, &"action_points", maxi(ap_current, 1))
+	var move_max := BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	return {
 		"hp": {
 			"current": hp_current,
@@ -273,6 +300,12 @@ func _build_resource_info(unit_state: BattleUnitState) -> Dictionary:
 			"ratio": _get_ratio(ap_current, ap_max),
 			"label": "AP",
 		},
+		"move": {
+			"current": move_current,
+			"max": move_max,
+			"ratio": _get_ratio(move_current, move_max),
+			"label": "MOVE",
+		},
 	}
 
 
@@ -288,10 +321,12 @@ func _build_focus_role_text(unit_state: BattleUnitState, battle_state: BattleSta
 func _build_focus_detail_text(unit_state: BattleUnitState) -> String:
 	var status_count := unit_state.status_effects.size()
 	var cooldown_count := unit_state.cooldowns.size()
-	return "技能 %d  ·  状态 %d  ·  冷却 %d" % [
+	return "技能 %d  ·  状态 %d  ·  冷却 %d  ·  AP %d  ·  行动 %d" % [
 		unit_state.known_active_skill_ids.size(),
 		status_count,
 		cooldown_count,
+		int(unit_state.current_ap),
+		int(unit_state.current_move_points),
 	]
 
 
@@ -411,7 +446,7 @@ func _build_skill_slot_state(active_unit: BattleUnitState, skill_def, skill_id: 
 				"footer_text": "AP不足",
 				"is_disabled": true,
 				"cooldown": cooldown,
-				"disabled_reason": "行动点不足",
+				"disabled_reason": "AP不足",
 			}
 		if active_unit.current_mp < mp_cost:
 			return {
@@ -526,9 +561,10 @@ func _build_command_text(
 	if active_unit == null:
 		return "等待行动单位"
 	if selected_skill_name.is_empty():
-		return "%s  ·  AP %d  ·  %s" % [
+		return "%s  ·  AP %d  ·  行动 %d  ·  %s" % [
 			_format_unit_name(active_unit, "单位"),
 			active_unit.current_ap,
+			int(active_unit.current_move_points),
 			_format_control_mode(active_unit.control_mode),
 		]
 	if bool(selection_info.get("is_multi_unit", false)):
@@ -660,15 +696,13 @@ func _build_selected_skill_hit_preview(
 	selected_coord: Vector2i,
 	selected_skill_id: StringName,
 	selected_skill_target_coords: Array[Vector2i],
-	selected_skill_target_unit_ids: Array[StringName]
+	selected_skill_target_unit_ids: Array[StringName],
+	selected_skill_variant_id: StringName
 ) -> Dictionary:
 	if battle_state == null or active_unit == null or selected_skill_id == &"":
 		return {}
 	var skill_def = _get_skill_defs().get(selected_skill_id)
 	if skill_def == null or skill_def.combat_profile == null:
-		return {}
-	var repeat_attack_effect = _get_repeat_attack_effect(skill_def)
-	if repeat_attack_effect == null:
 		return {}
 	var target_unit := _resolve_selected_skill_preview_target_unit(
 		battle_state,
@@ -680,7 +714,174 @@ func _build_selected_skill_hit_preview(
 	)
 	if target_unit == null:
 		return {}
-	return _hit_resolver.build_repeat_attack_preview(active_unit, target_unit, skill_def, repeat_attack_effect)
+	var resolution_policy := _skill_resolution_rules.build_skill_resolution_policy(
+		skill_def,
+		active_unit,
+		selected_skill_variant_id,
+		selected_skill_target_unit_ids,
+		target_unit
+	)
+	if not bool(resolution_policy.get("routes_to_unit_targeting", false)):
+		return {}
+	var effect_defs_variant = resolution_policy.get("effect_defs", [])
+	var effect_defs: Array[CombatEffectDef] = []
+	if effect_defs_variant is Array:
+		for effect_def_variant in effect_defs_variant:
+			var effect_def := effect_def_variant as CombatEffectDef
+			if effect_def != null:
+				effect_defs.append(effect_def)
+	var repeat_attack_effect := _skill_resolution_rules.find_repeat_attack_effect(effect_defs)
+	if repeat_attack_effect == null:
+		if not bool(resolution_policy.get("uses_fate_attack", false)):
+			return {}
+		return _hit_resolver.build_skill_attack_preview(
+			battle_state,
+			active_unit,
+			target_unit,
+			skill_def,
+			bool(resolution_policy.get("force_hit_no_crit", false))
+		)
+	return _hit_resolver.build_repeat_attack_preview(
+		battle_state,
+		active_unit,
+		target_unit,
+		skill_def,
+		repeat_attack_effect
+	)
+
+
+func _build_selected_skill_fate_preview(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	selected_coord: Vector2i,
+	selected_skill_id: StringName,
+	selected_skill_target_coords: Array[Vector2i],
+	selected_skill_target_unit_ids: Array[StringName],
+	selected_skill_variant_id: StringName
+) -> Dictionary:
+	if battle_state == null or active_unit == null or selected_skill_id == &"":
+		return {}
+	var skill_def = _get_skill_defs().get(selected_skill_id)
+	if skill_def == null or skill_def.combat_profile == null:
+		return {}
+	var target_unit := _resolve_selected_skill_preview_target_unit(
+		battle_state,
+		active_unit,
+		selected_coord,
+		selected_skill_target_coords,
+		selected_skill_target_unit_ids,
+		skill_def
+	)
+	if target_unit == null:
+		return {}
+	var resolution_policy := _skill_resolution_rules.build_skill_resolution_policy(
+		skill_def,
+		active_unit,
+		selected_skill_variant_id,
+		selected_skill_target_unit_ids,
+		target_unit
+	)
+	if not bool(resolution_policy.get("uses_fate_attack", false)):
+		return {}
+	var preview_mode := StringName(resolution_policy.get("fate_preview_mode", &""))
+	if preview_mode == BATTLE_SKILL_RESOLUTION_RULES_SCRIPT.FATE_PREVIEW_MODE_FORCE_HIT_NO_CRIT:
+		return _build_force_hit_no_crit_fate_preview()
+	return _build_standard_fate_preview(battle_state, active_unit, target_unit)
+
+
+func _build_standard_fate_preview(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	target_unit: BattleUnitState
+) -> Dictionary:
+	if battle_state == null or active_unit == null or target_unit == null:
+		return {}
+
+	var effective_luck := _get_effective_luck(active_unit)
+	var is_disadvantage := battle_state.is_attack_disadvantage(active_unit, target_unit)
+	var crit_gate_die := FATE_ATTACK_FORMULA_SCRIPT.calc_crit_gate_die_size(effective_luck, is_disadvantage)
+	var fumble_low_end := FATE_ATTACK_FORMULA_SCRIPT.calc_fumble_low_end(effective_luck)
+	var crit_threshold := FATE_ATTACK_FORMULA_SCRIPT.calc_crit_threshold(
+		_get_hidden_luck_at_birth(active_unit),
+		_get_faith_luck_bonus(active_unit)
+	)
+	var mercy_active := effective_luck <= -5 and is_disadvantage
+	var badges: Array[Dictionary] = [
+		{
+			"text": "劣势" if is_disadvantage else "未陷劣势",
+			"tone": &"warning" if is_disadvantage else &"calm",
+			"tooltip_text": "当前命中与命运骰按%s口径结算。" % ("劣势取低" if is_disadvantage else "正常单骰"),
+		},
+		{
+			"text": "暴击门 d%d" % crit_gate_die,
+			"tone": &"gate",
+			"tooltip_text": "命运暴击门尺寸：d%d。" % crit_gate_die,
+		},
+		{
+			"text": "大失败 1" if fumble_low_end <= 1 else "大失败 1-%d" % fumble_low_end,
+			"tone": &"danger",
+			"tooltip_text": "当前大失败区间：1-%d。" % fumble_low_end,
+		},
+	]
+	var detail_lines: PackedStringArray = [
+		"命运判定概览",
+		"状态：%s" % ("劣势中" if is_disadvantage else "未陷劣势"),
+		"暴击门：d%d" % crit_gate_die,
+		"大失败：1-%d" % fumble_low_end,
+	]
+	if crit_gate_die == 20:
+		var high_threat_text := "高位大成功 %d-20" % crit_threshold
+		badges.append({
+			"text": high_threat_text,
+			"tone": &"high_threat",
+			"tooltip_text": "当前高位大成功区间：%d-20。" % crit_threshold,
+		})
+		detail_lines.append("高位大成功：%d-20" % crit_threshold)
+	if mercy_active:
+		badges.append({
+			"text": "命运的怜悯",
+			"tone": &"mercy",
+			"tooltip_text": "effective_luck<=-5 且处于劣势时，暴击门只额外放大一档。",
+		})
+		detail_lines.append("命运的怜悯：已生效")
+
+	return {
+		"summary_text": _build_fate_preview_summary_text(badges),
+		"tooltip_text": "\n".join(detail_lines),
+		"badges": badges,
+		"is_disadvantage": is_disadvantage,
+		"effective_luck": effective_luck,
+		"crit_gate_die": crit_gate_die,
+		"fumble_low_end": fumble_low_end,
+		"crit_threshold": crit_threshold,
+		"mercy_active": mercy_active,
+	}
+
+
+func _build_force_hit_no_crit_fate_preview() -> Dictionary:
+	var badges: Array[Dictionary] = [
+		{
+			"text": "必定命中",
+			"tone": &"calm",
+			"tooltip_text": "这次攻击不会再进行命中骰判定，直接视为命中。",
+		},
+		{
+			"text": "禁暴击",
+			"tone": &"warning",
+			"tooltip_text": "这次攻击不会触发暴击。",
+		},
+		{
+			"text": "摆幅压低",
+			"tone": &"gate",
+			"tooltip_text": "这次攻击的命运摆幅已被压低，不再展示标准 crit/fumble 区间。",
+		},
+	]
+	return {
+		"summary_text": _build_fate_preview_summary_text(badges),
+		"tooltip_text": "命运判定概览\n状态：强制命中\n暴击：已封锁\n说明：这次攻击不再走标准命中/暴击/大失败骰。",
+		"badges": badges,
+		"force_hit_no_crit": true,
+	}
 
 
 func _resolve_selected_skill_preview_target_unit(
@@ -719,13 +920,42 @@ func _can_preview_skill_target_unit(active_unit: BattleUnitState, target_unit: B
 	return _grid_service.get_distance_between_units(active_unit, target_unit) <= _get_effective_skill_range(active_unit, skill_def)
 
 
-func _get_repeat_attack_effect(skill_def):
-	if skill_def == null or skill_def.combat_profile == null:
-		return null
-	for effect_def in skill_def.combat_profile.effect_defs:
-		if effect_def != null and effect_def.effect_type == &"repeat_attack_until_fail":
-			return effect_def
-	return null
+func _build_fate_preview_summary_text(badges: Array[Dictionary]) -> String:
+	var parts: PackedStringArray = []
+	for badge in badges:
+		parts.append(String(badge.get("text", "")))
+	return "  ·  ".join(parts)
+
+
+func _build_selected_skill_preview_tooltip(hit_preview: Dictionary, fate_preview: Dictionary) -> String:
+	var sections: PackedStringArray = []
+	var hit_preview_text := String(hit_preview.get("summary_text", ""))
+	if not hit_preview_text.is_empty():
+		sections.append(hit_preview_text)
+	var fate_tooltip_text := String(fate_preview.get("tooltip_text", ""))
+	if not fate_tooltip_text.is_empty():
+		sections.append(fate_tooltip_text)
+	return "\n\n".join(sections)
+
+
+func _get_hidden_luck_at_birth(unit_state: BattleUnitState) -> int:
+	if unit_state == null or unit_state.attribute_snapshot == null:
+		return 0
+	return int(unit_state.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH))
+
+
+func _get_faith_luck_bonus(unit_state: BattleUnitState) -> int:
+	if unit_state == null or unit_state.attribute_snapshot == null:
+		return 0
+	return int(unit_state.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS))
+
+
+func _get_effective_luck(unit_state: BattleUnitState) -> int:
+	return clampi(
+		_get_hidden_luck_at_birth(unit_state) + _get_faith_luck_bonus(unit_state),
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX
+	)
 
 
 func _build_skill_target_selection_info(
@@ -774,7 +1004,7 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> St
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
 	if active_unit.current_ap < int(combat_profile.ap_cost):
-		return "行动点不足，无法施放该技能。"
+		return "AP不足，无法施放该技能。"
 	if active_unit.current_mp < int(combat_profile.mp_cost):
 		return "法力不足，无法施放该技能。"
 	if active_unit.current_stamina < int(combat_profile.stamina_cost):

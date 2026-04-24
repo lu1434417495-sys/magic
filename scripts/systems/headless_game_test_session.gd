@@ -16,6 +16,7 @@ const HEADLESS_SETTLEMENT_LOOT_DISPLAY_NAME := "荒狼巢穴"
 var _game_session = null
 var _runtime = null
 var _owns_game_session := false
+var _active_headless_encounter_anchor = null
 
 
 func initialize() -> void:
@@ -166,10 +167,12 @@ func start_battle_by_kind(encounter_kind: StringName) -> Dictionary:
 			"ok": false,
 			"message": "未找到 encounter_kind=%s 的遭遇。" % String(encounter_kind),
 		}
+	_active_headless_encounter_anchor = encounter_anchor
 	_game_session.set_battle_save_lock(true)
 	_runtime.start_battle(encounter_anchor)
 	await settle_frames(1)
 	if not _runtime.is_battle_active():
+		_active_headless_encounter_anchor = null
 		_game_session.set_battle_save_lock(false)
 		return {
 			"ok": false,
@@ -203,6 +206,7 @@ func finish_active_battle(winner_faction_id: StringName) -> Dictionary:
 			"ok": false,
 			"message": "当前战斗状态不可用。",
 		}
+	_prime_headless_battle_loot_if_needed(winner_faction_id)
 	battle_state.phase = &"battle_ended"
 	battle_state.winner_faction_id = winner_faction_id
 	battle_state.active_unit_id = &""
@@ -210,6 +214,7 @@ func finish_active_battle(winner_faction_id: StringName) -> Dictionary:
 	battle_state.timeline.frozen = true
 	_runtime.refresh_battle_runtime_state()
 	var result: Dictionary = _runtime.command_battle_wait_or_resolve()
+	_active_headless_encounter_anchor = null
 	await settle_frames(1)
 	return result
 
@@ -265,6 +270,7 @@ func dispose(clear_persisted_game: bool = false) -> void:
 			await settle_frames(2)
 	_game_session = null
 	_owns_game_session = false
+	_active_headless_encounter_anchor = null
 
 
 func _ensure_game_session() -> void:
@@ -289,12 +295,14 @@ func _unload_world_scene() -> void:
 		if _game_session != null and is_instance_valid(_game_session):
 			_game_session.set_battle_save_lock(false)
 		_runtime = null
+		_active_headless_encounter_anchor = null
 		return
 	if _runtime != null:
 		_runtime.dispose()
 	if _game_session != null and is_instance_valid(_game_session):
 		_game_session.set_battle_save_lock(false)
 	_runtime = null
+	_active_headless_encounter_anchor = null
 	await settle_frames()
 
 
@@ -332,7 +340,7 @@ func _encounter_has_formal_loot(encounter_anchor: EncounterAnchorData) -> bool:
 	if encounter_anchor == null or _game_session == null:
 		return false
 	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
-	builder.setup(_game_session.get_wild_encounter_rosters())
+	builder.setup(_game_session.get_wild_encounter_rosters(), _game_session.get_enemy_templates())
 	return not builder.build_loot_entries(encounter_anchor, {}).is_empty()
 
 
@@ -351,3 +359,22 @@ func _build_headless_encounter_anchor(encounter_kind: StringName) -> EncounterAn
 	if not _encounter_has_formal_loot(encounter_anchor):
 		return null
 	return encounter_anchor
+
+
+func _prime_headless_battle_loot_if_needed(winner_faction_id: StringName) -> void:
+	if winner_faction_id != &"player" or _runtime == null or _game_session == null:
+		return
+	if _active_headless_encounter_anchor == null:
+		return
+	var battle_runtime = _runtime.get_battle_runtime()
+	if battle_runtime == null:
+		return
+	var existing_loot_entries: Array = battle_runtime._active_loot_entries if battle_runtime._active_loot_entries is Array else []
+	if not existing_loot_entries.is_empty():
+		return
+	var roster_builder := ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	roster_builder.setup(_game_session.get_wild_encounter_rosters(), _game_session.get_enemy_templates())
+	var preview_loot_entries := roster_builder.build_loot_entries(_active_headless_encounter_anchor, {})
+	if preview_loot_entries.is_empty():
+		return
+	battle_runtime._active_loot_entries = preview_loot_entries.duplicate(true)

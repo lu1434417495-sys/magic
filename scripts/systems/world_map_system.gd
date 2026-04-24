@@ -7,6 +7,7 @@ extends Control
 
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const WORLD_MAP_RUNTIME_PROXY_SCRIPT = preload("res://scripts/systems/world_map_runtime_proxy.gd")
+const RuntimeLogDock = preload("res://scripts/ui/runtime_log_dock.gd")
 const WORLD_MOVE_REPEAT_INTERVAL := 0.5
 const STARTUP_SCENE_SETTING := "application/run/main_scene"
 const BATTLE_LOADING_LABEL_TEXT := "LOADING..."
@@ -17,23 +18,24 @@ const BATTLE_LOADING_BAR_FILL_COLOR := Color(0.39, 0.72, 0.98, 1.0)
 const BATTLE_LOADING_BAR_BORDER_COLOR := Color(0.76, 0.87, 0.98, 0.78)
 const BATTLE_LOADING_PROGRESS_MIN := 0.0
 const BATTLE_LOADING_PROGRESS_MAX := 100.0
+const BATTLE_LOADING_MODAL_ID := "battle_loading"
 
 @onready var world_map_view = $MapViewport/WorldMapView
 @onready var world_map_background := get_node_or_null("MapViewport/WorldMapBackground") as CanvasItem
 @onready var battle_map_panel: BattleMapPanel = $MapViewport/BattleMapPanel
+@onready var runtime_log_dock: RuntimeLogDock = %RuntimeLogDock
 @onready var status_label := get_node_or_null("StatusPanel/StatusMargin/StatusLabel") as Label
 @onready var settlement_window = $SettlementWindow
-@onready var contract_board_window = $ContractBoardWindow
-@onready var shop_window = $ShopWindow
-@onready var forge_window = $ForgeWindow
-@onready var stagecoach_window = $StagecoachWindow
+@onready var contract_board_service_modal = $ContractBoardServiceModal
+@onready var shop_service_modal = $ShopServiceModal
+@onready var forge_service_modal = $ForgeServiceModal
+@onready var stagecoach_service_modal = $StagecoachServiceModal
 @onready var character_info_window = $CharacterInfoWindow
 @onready var party_management_window = $PartyManagementWindow
 @onready var party_warehouse_window = $PartyWarehouseWindow
 @onready var promotion_choice_window = $PromotionChoiceWindow
 @onready var character_reward_window = $MasteryRewardWindow
 @onready var submap_entry_window = $SubmapEntryWindow
-@onready var game_over_window = $GameOverWindow
 @onready var submap_hint_panel: Control = %SubmapHintPanel
 @onready var submap_hint_label: Label = %SubmapHintLabel
 @onready var battle_loading_overlay: Control = %BattleLoadingOverlay
@@ -66,6 +68,8 @@ func _ready() -> void:
 
 	battle_map_panel.battle_loading_state_changed.connect(_on_battle_loading_state_changed)
 	battle_map_panel.hide_battle()
+	if runtime_log_dock != null:
+		runtime_log_dock.clear_logs()
 	_apply_battle_loading_overlay_skin()
 	_set_battle_loading_overlay(false, 0.0)
 	party_management_window.set_achievement_defs(_game_session.get_achievement_defs())
@@ -73,14 +77,14 @@ func _ready() -> void:
 
 	settlement_window.action_requested.connect(_on_settlement_action_requested)
 	settlement_window.closed.connect(_on_settlement_window_closed)
-	contract_board_window.action_requested.connect(_on_contract_board_action_requested)
-	contract_board_window.closed.connect(_on_contract_board_window_closed)
-	shop_window.action_requested.connect(_on_shop_action_requested)
-	shop_window.closed.connect(_on_shop_window_closed)
-	forge_window.action_requested.connect(_on_forge_action_requested)
-	forge_window.closed.connect(_on_forge_window_closed)
-	stagecoach_window.action_requested.connect(_on_stagecoach_action_requested)
-	stagecoach_window.closed.connect(_on_stagecoach_window_closed)
+	contract_board_service_modal.action_requested.connect(_on_contract_board_service_modal_action_requested)
+	contract_board_service_modal.closed.connect(_on_contract_board_service_modal_closed)
+	shop_service_modal.action_requested.connect(_on_shop_service_modal_action_requested)
+	shop_service_modal.closed.connect(_on_shop_service_modal_closed)
+	forge_service_modal.action_requested.connect(_on_forge_service_modal_action_requested)
+	forge_service_modal.closed.connect(_on_forge_service_modal_closed)
+	stagecoach_service_modal.action_requested.connect(_on_stagecoach_service_modal_action_requested)
+	stagecoach_service_modal.closed.connect(_on_stagecoach_service_modal_closed)
 	character_info_window.closed.connect(_on_character_info_window_closed)
 	party_management_window.leader_change_requested.connect(_on_party_leader_change_requested)
 	party_management_window.roster_change_requested.connect(_on_party_roster_change_requested)
@@ -95,7 +99,6 @@ func _ready() -> void:
 	character_reward_window.confirmed.connect(_on_character_reward_confirmed)
 	submap_entry_window.confirmed.connect(_on_submap_entry_confirmed)
 	submap_entry_window.cancelled.connect(_on_submap_entry_cancelled)
-	game_over_window.return_requested.connect(_on_game_over_return_requested)
 	world_map_view.cell_clicked.connect(_on_world_map_cell_clicked)
 	world_map_view.cell_right_clicked.connect(_on_world_map_cell_right_clicked)
 	battle_map_panel.battle_cell_clicked.connect(_on_battle_cell_clicked)
@@ -131,6 +134,7 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 		return
 	if status_label != null:
 		status_label.text = _runtime_proxy.get_status_text()
+	var modal_id: String = _runtime_proxy.get_active_modal_id()
 
 	if _runtime_proxy.is_battle_active():
 		if world_map_background != null:
@@ -144,6 +148,7 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 		var selected_skill_id = _runtime_proxy.get_selected_battle_skill_id()
 		var selected_skill_name = _runtime_proxy.get_selected_battle_skill_name()
 		var selected_skill_variant_name = _runtime_proxy.get_selected_battle_skill_variant_name()
+		var selected_skill_variant_id = _runtime_proxy.get_selected_battle_skill_variant_id()
 		var selected_target_coords = _runtime_proxy.get_selected_battle_skill_target_coords()
 		var selected_target_unit_ids = _runtime_proxy.get_selected_battle_skill_target_unit_ids()
 		var valid_target_coords = _runtime_proxy.get_battle_overlay_target_coords()
@@ -158,7 +163,8 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 				selected_target_coords,
 				valid_target_coords,
 				required_coord_count,
-				selected_target_unit_ids
+				selected_target_unit_ids,
+				selected_skill_variant_id
 			)
 		else:
 			battle_map_panel.show_battle(
@@ -170,18 +176,21 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 				selected_target_coords,
 				valid_target_coords,
 				required_coord_count,
-				selected_target_unit_ids
+				selected_target_unit_ids,
+				selected_skill_variant_id
 			)
 		_set_battle_loading_overlay(
 			battle_map_panel.is_loading_battle(),
 			battle_map_panel.get_loading_progress()
 		)
+		if runtime_log_dock != null:
+			runtime_log_dock.show_battle_logs(battle_state)
 	else:
 		if world_map_background != null:
 			world_map_background.visible = true
 		world_map_view.visible = true
 		battle_map_panel.hide_battle()
-		_set_battle_loading_overlay(false, 0.0)
+		_set_battle_loading_overlay(modal_id == BATTLE_LOADING_MODAL_ID, 0.0)
 		if refresh_world:
 			world_map_view.refresh_world(_runtime_proxy.get_world_data())
 		world_map_view.set_runtime_state(
@@ -193,8 +202,13 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 			submap_hint_panel.visible = _runtime_proxy.is_submap_active()
 		if submap_hint_label != null:
 			submap_hint_label.text = _runtime_proxy.get_submap_return_hint_text()
+		if runtime_log_dock != null:
+			runtime_log_dock.show_world_logs(
+				_runtime_proxy.get_log_snapshot(120),
+				_runtime_proxy.get_active_map_display_name(),
+				_runtime_proxy.get_status_text()
+			)
 
-	var modal_id: String = _runtime_proxy.get_active_modal_id()
 	if modal_id == "settlement":
 		settlement_window.show_settlement(_runtime_proxy.get_settlement_window_data())
 		var settlement_feedback := _runtime_proxy.get_settlement_feedback_text()
@@ -204,24 +218,24 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 		settlement_window.hide_window()
 
 	if modal_id == "shop":
-		shop_window.show_shop(_runtime_proxy.get_shop_window_data())
+		shop_service_modal.show_shop(_runtime_proxy.get_shop_window_data())
 	else:
-		shop_window.hide_window()
+		shop_service_modal.hide_window()
 
 	if modal_id == "contract_board":
-		contract_board_window.show_shop(_runtime_proxy.get_contract_board_window_data())
+		contract_board_service_modal.show_shop(_runtime_proxy.get_contract_board_window_data())
 	else:
-		contract_board_window.hide_window()
+		contract_board_service_modal.hide_window()
 
 	if modal_id == "forge":
-		forge_window.show_shop(_runtime_proxy.get_forge_window_data())
+		forge_service_modal.show_shop(_runtime_proxy.get_forge_window_data())
 	else:
-		forge_window.hide_window()
+		forge_service_modal.hide_window()
 
 	if modal_id == "stagecoach":
-		stagecoach_window.show_stagecoach(_runtime_proxy.get_stagecoach_window_data())
+		stagecoach_service_modal.show_stagecoach(_runtime_proxy.get_stagecoach_window_data())
 	else:
-		stagecoach_window.hide_window()
+		stagecoach_service_modal.hide_window()
 
 	if modal_id == "character_info":
 		character_info_window.show_character(_runtime_proxy.get_character_info_context())
@@ -254,17 +268,10 @@ func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary
 	else:
 		character_reward_window.hide_window()
 
-	if modal_id == "submap_confirm":
-		submap_entry_window.show_prompt(_runtime_proxy.get_pending_submap_prompt())
-	elif modal_id == "battle_start_confirm":
-		submap_entry_window.show_prompt(_runtime_proxy.get_pending_battle_start_prompt())
+	if modal_id == "submap_confirm" or modal_id == "battle_start_confirm" or modal_id == "game_over":
+		submap_entry_window.show_prompt(_build_confirmation_prompt(modal_id))
 	else:
 		submap_entry_window.hide_window()
-
-	if modal_id == "game_over":
-		game_over_window.show_window(_runtime_proxy.get_game_over_context())
-	else:
-		game_over_window.hide_window()
 
 
 func _process(delta: float) -> void:
@@ -563,37 +570,37 @@ func _on_settlement_window_closed() -> void:
 	_runtime_proxy.command_close_active_modal()
 
 
-func _on_shop_window_closed() -> void:
+func _on_shop_service_modal_closed() -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_close_active_modal()
 
 
-func _on_contract_board_window_closed() -> void:
+func _on_contract_board_service_modal_closed() -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_close_active_modal()
 
 
-func _on_contract_board_action_requested(_settlement_id: String, action_id: String, payload: Dictionary) -> void:
+func _on_contract_board_service_modal_action_requested(_settlement_id: String, action_id: String, payload: Dictionary) -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_execute_settlement_action(action_id, payload)
 
 
-func _on_forge_window_closed() -> void:
+func _on_forge_service_modal_closed() -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_close_active_modal()
 
 
-func _on_stagecoach_window_closed() -> void:
+func _on_stagecoach_service_modal_closed() -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_close_active_modal()
 
 
-func _on_shop_action_requested(_settlement_id: String, _action_id: String, payload: Dictionary) -> void:
+func _on_shop_service_modal_action_requested(_settlement_id: String, _action_id: String, payload: Dictionary) -> void:
 	if _runtime == null:
 		return
 	var quantity := maxi(int(payload.get("request_quantity", 1)), 1)
@@ -605,13 +612,13 @@ func _on_shop_action_requested(_settlement_id: String, _action_id: String, paylo
 			_runtime_proxy.command_shop_buy(item_id, quantity)
 
 
-func _on_forge_action_requested(_settlement_id: String, action_id: String, payload: Dictionary) -> void:
+func _on_forge_service_modal_action_requested(_settlement_id: String, action_id: String, payload: Dictionary) -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_execute_settlement_action(action_id, payload)
 
 
-func _on_stagecoach_action_requested(_settlement_id: String, _action_id: String, payload: Dictionary) -> void:
+func _on_stagecoach_service_modal_action_requested(_settlement_id: String, _action_id: String, payload: Dictionary) -> void:
 	if _runtime == null:
 		return
 	var target_settlement_id := String(payload.get("target_settlement_id", payload.get("settlement_id", "")))
@@ -697,19 +704,47 @@ func _on_submap_entry_confirmed() -> void:
 	if modal_id == "battle_start_confirm":
 		_runtime_proxy.command_confirm_battle_start()
 		return
+	if modal_id == "game_over":
+		_return_to_startup_scene()
+		return
 	_runtime_proxy.command_confirm_submap_entry()
 
 
 func _on_submap_entry_cancelled() -> void:
 	if _runtime == null:
 		return
-	if _runtime_proxy.get_active_modal_id() == "battle_start_confirm":
+	var modal_id := _runtime_proxy.get_active_modal_id()
+	if modal_id == "battle_start_confirm" or modal_id == "game_over":
 		_render_from_runtime(false)
 		return
 	_runtime_proxy.command_cancel_submap_entry()
 
 
-func _on_game_over_return_requested() -> void:
+func _build_confirmation_prompt(modal_id: String) -> Dictionary:
+	if modal_id == "submap_confirm":
+		return _runtime_proxy.get_pending_submap_prompt()
+	if modal_id == "battle_start_confirm":
+		return _runtime_proxy.get_pending_battle_start_prompt()
+	if modal_id == "game_over":
+		var prompt := _runtime_proxy.get_game_over_context()
+		prompt["cancel_visible"] = false
+		prompt["dismiss_on_shade"] = false
+		prompt["accept_input_enabled"] = true
+		prompt["panel_min_size"] = Vector2(760, 320)
+		prompt["title_font_size"] = 40
+		prompt["description_font_size"] = 24
+		prompt["confirm_button_min_size"] = Vector2(240, 64)
+		prompt["confirm_button_font_size"] = 24
+		prompt["margin_left"] = 40
+		prompt["margin_top"] = 34
+		prompt["margin_right"] = 40
+		prompt["margin_bottom"] = 34
+		prompt["layout_separation"] = 26
+		return prompt
+	return {}
+
+
+func _return_to_startup_scene() -> void:
 	_clear_world_move_hold()
 	var scene_tree := get_tree()
 	if scene_tree == null:
