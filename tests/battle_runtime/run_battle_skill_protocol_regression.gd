@@ -14,6 +14,7 @@ const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle_runti
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
 const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -328,11 +329,11 @@ func _test_damage_resolver_reports_hp_damage_after_shield_absorption() -> void:
 	var source := BATTLE_UNIT_STATE_SCRIPT.new()
 	source.unit_id = &"shield_contract_source"
 	source.current_hp = 30
-	source.attribute_snapshot.set_value(&"physical_attack", 0)
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var target := BATTLE_UNIT_STATE_SCRIPT.new()
 	target.unit_id = &"shield_contract_target"
 	target.current_hp = 30
-	target.attribute_snapshot.set_value(&"physical_defense", 0)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	target.current_shield_hp = 6
 	target.shield_max_hp = 6
 	target.shield_duration = 60
@@ -342,8 +343,6 @@ func _test_damage_resolver_reports_hp_damage_after_shield_absorption() -> void:
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
 	damage_effect.power = 10
-	damage_effect.scaling_attribute_id = &"physical_attack"
-	damage_effect.defense_attribute_id = &"physical_defense"
 
 	var result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
 
@@ -391,18 +390,16 @@ func _test_damage_resolver_uses_fixed_resistance_and_allows_zero_damage() -> voi
 	var source := BATTLE_UNIT_STATE_SCRIPT.new()
 	source.unit_id = &"fixed_resistance_source"
 	source.current_hp = 30
-	source.attribute_snapshot.set_value(&"magic_attack", 0)
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var target := BATTLE_UNIT_STATE_SCRIPT.new()
 	target.unit_id = &"fixed_resistance_target"
 	target.current_hp = 30
-	target.attribute_snapshot.set_value(&"magic_defense", 0)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	target.attribute_snapshot.set_value(&"fire_resistance", 12)
 
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
 	damage_effect.power = 10
-	damage_effect.scaling_attribute_id = &"magic_attack"
-	damage_effect.defense_attribute_id = &"magic_defense"
 	damage_effect.resistance_attribute_id = &"fire_resistance"
 
 	var result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
@@ -416,13 +413,13 @@ func _test_damage_resolver_guarding_only_reduces_physical_damage() -> void:
 	var source := BATTLE_UNIT_STATE_SCRIPT.new()
 	source.unit_id = &"guarding_source"
 	source.current_hp = 30
-	source.attribute_snapshot.set_value(&"physical_attack", 0)
-	source.attribute_snapshot.set_value(&"magic_attack", 0)
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 
 	var physical_target := BATTLE_UNIT_STATE_SCRIPT.new()
 	physical_target.unit_id = &"guarding_physical_target"
 	physical_target.current_hp = 30
-	physical_target.attribute_snapshot.set_value(&"physical_defense", 0)
+	physical_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	physical_target.status_effects[&"guarding"] = {
 		"status_id": &"guarding",
 		"power": 1,
@@ -432,7 +429,7 @@ func _test_damage_resolver_guarding_only_reduces_physical_damage() -> void:
 	var magic_target := BATTLE_UNIT_STATE_SCRIPT.new()
 	magic_target.unit_id = &"guarding_magic_target"
 	magic_target.current_hp = 30
-	magic_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	magic_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	magic_target.status_effects[&"guarding"] = {
 		"status_id": &"guarding",
 		"power": 1,
@@ -442,14 +439,11 @@ func _test_damage_resolver_guarding_only_reduces_physical_damage() -> void:
 	var physical_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	physical_effect.effect_type = &"damage"
 	physical_effect.power = 10
-	physical_effect.scaling_attribute_id = &"physical_attack"
-	physical_effect.defense_attribute_id = &"physical_defense"
 
 	var magic_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	magic_effect.effect_type = &"damage"
 	magic_effect.power = 10
-	magic_effect.scaling_attribute_id = &"magic_attack"
-	magic_effect.defense_attribute_id = &"magic_defense"
+	magic_effect.damage_tag = &"magic"
 
 	var physical_result: Dictionary = resolver.resolve_effects(source, physical_target, [physical_effect])
 	var magic_result: Dictionary = resolver.resolve_effects(source, magic_target, [magic_effect])
@@ -463,11 +457,11 @@ func _test_damage_resolver_damage_reduction_up_uses_fixed_value() -> void:
 	var source := BATTLE_UNIT_STATE_SCRIPT.new()
 	source.unit_id = &"damage_reduction_up_source"
 	source.current_hp = 30
-	source.attribute_snapshot.set_value(&"physical_attack", 0)
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var target := BATTLE_UNIT_STATE_SCRIPT.new()
 	target.unit_id = &"damage_reduction_up_target"
 	target.current_hp = 30
-	target.attribute_snapshot.set_value(&"physical_defense", 0)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	target.status_effects[&"damage_reduction_up"] = {
 		"status_id": &"damage_reduction_up",
 		"power": 1,
@@ -477,8 +471,6 @@ func _test_damage_resolver_damage_reduction_up_uses_fixed_value() -> void:
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
 	damage_effect.power = 10
-	damage_effect.scaling_attribute_id = &"physical_attack"
-	damage_effect.defense_attribute_id = &"physical_defense"
 
 	var result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
 
@@ -508,11 +500,11 @@ func _test_content_skill_magic_shield_halves_generic_magic_damage() -> void:
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var support_unit := _build_manual_unit(&"magic_shield_support", "魔力护盾施法者", &"player", Vector2i.ZERO, [], 2, 6)
 	var attacker := _build_manual_unit(&"magic_shield_attacker", "奥术攻击者", &"enemy", Vector2i(1, 0), [], 2, 6)
-	attacker.attribute_snapshot.set_value(&"magic_attack", 0)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var baseline_target := _build_manual_unit(&"magic_shield_baseline", "魔力护盾基线目标", &"player", Vector2i(0, 0), [], 2, 6)
-	baseline_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	baseline_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var target := _build_manual_unit(&"magic_shield_target", "魔力护盾目标", &"player", Vector2i(0, 1), [], 2, 6)
-	target.attribute_snapshot.set_value(&"magic_defense", 0)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var baseline_result: Dictionary = resolver.resolve_effects(attacker, baseline_target, arcane_missile_skill.combat_profile.effect_defs)
 	var baseline_damage := int(baseline_result.get("damage", 0))
 
@@ -560,12 +552,12 @@ func _test_content_skills_prismatic_barrier_and_spellward_map_half_and_immune() 
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var support_unit := _build_manual_unit(&"mitigation_support", "减伤施法者", &"player", Vector2i.ZERO, [], 2, 6)
 	var attacker := _build_manual_unit(&"mitigation_attacker", "法术攻击者", &"enemy", Vector2i(1, 0), [], 2, 6)
-	attacker.attribute_snapshot.set_value(&"magic_attack", 0)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 
 	var fire_baseline_target := _build_manual_unit(&"prismatic_fire_baseline", "棱彩火焰基线目标", &"player", Vector2i(0, 0), [], 2, 6)
-	fire_baseline_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	fire_baseline_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var prismatic_target := _build_manual_unit(&"prismatic_target", "棱彩目标", &"player", Vector2i(0, 1), [], 2, 6)
-	prismatic_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	prismatic_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var fire_baseline_result: Dictionary = resolver.resolve_effects(attacker, fire_baseline_target, fireball_skill.combat_profile.effect_defs)
 	var fire_baseline_damage := int(fire_baseline_result.get("damage", 0))
 	resolver.resolve_skill(support_unit, prismatic_target, prismatic_barrier_skill)
@@ -578,9 +570,9 @@ func _test_content_skills_prismatic_barrier_and_spellward_map_half_and_immune() 
 	)
 
 	var generic_baseline_target := _build_manual_unit(&"prismatic_generic_baseline", "棱彩泛法术基线目标", &"player", Vector2i(0, 0), [], 2, 6)
-	generic_baseline_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	generic_baseline_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var prismatic_generic_target := _build_manual_unit(&"prismatic_generic_target", "棱彩泛法术目标", &"player", Vector2i(0, 2), [], 2, 6)
-	prismatic_generic_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	prismatic_generic_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var generic_baseline_result: Dictionary = resolver.resolve_effects(attacker, generic_baseline_target, arcane_missile_skill.combat_profile.effect_defs)
 	var generic_baseline_damage := int(generic_baseline_result.get("damage", 0))
 	resolver.resolve_skill(support_unit, prismatic_generic_target, prismatic_barrier_skill)
@@ -588,9 +580,9 @@ func _test_content_skills_prismatic_barrier_and_spellward_map_half_and_immune() 
 	_assert_eq(int(generic_result.get("damage", -1)), generic_baseline_damage, "prismatic_barrier 不应错误覆盖无元素 tag 的通用奥术伤害。")
 
 	var spellward_baseline_target := _build_manual_unit(&"spellward_arcane_baseline", "结界泛法术基线目标", &"player", Vector2i(0, 0), [], 2, 6)
-	spellward_baseline_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	spellward_baseline_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var spellward_target := _build_manual_unit(&"spellward_target", "结界目标", &"player", Vector2i(0, 3), [], 2, 6)
-	spellward_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	spellward_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var spellward_baseline_result: Dictionary = resolver.resolve_effects(attacker, spellward_baseline_target, arcane_missile_skill.combat_profile.effect_defs)
 	var spellward_baseline_damage := int(spellward_baseline_result.get("damage", 0))
 	resolver.resolve_skill(support_unit, spellward_target, spellward_skill)
@@ -604,7 +596,7 @@ func _test_content_skills_prismatic_barrier_and_spellward_map_half_and_immune() 
 	)
 
 	var immune_target := _build_manual_unit(&"death_ward_target", "负能量免疫目标", &"player", Vector2i(0, 4), [], 2, 6)
-	immune_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	immune_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	resolver.resolve_skill(support_unit, immune_target, spellward_skill)
 	var immune_result: Dictionary = resolver.resolve_effects(attacker, immune_target, shadow_bolt_skill.combat_profile.effect_defs)
 	_assert_eq(int(immune_result.get("damage", -1)), 0, "death_ward 应让负能量伤害直接归零。")
@@ -637,15 +629,15 @@ func _test_content_skill_hex_of_frailty_applies_double_and_cancels_with_half() -
 
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var curse_caster := _build_manual_unit(&"frailty_caster", "衰弱施法者", &"enemy", Vector2i.ZERO, [], 2, 6)
-	curse_caster.attribute_snapshot.set_value(&"magic_attack", 0)
+	curse_caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var support_unit := _build_manual_unit(&"frailty_support", "防护施法者", &"player", Vector2i(1, 0), [], 2, 6)
 	var attacker := _build_manual_unit(&"frailty_attacker", "奥术攻击者", &"enemy", Vector2i(2, 0), [], 2, 6)
-	attacker.attribute_snapshot.set_value(&"magic_attack", 0)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 
 	var double_baseline_target := _build_manual_unit(&"frailty_baseline_target", "法术易伤基线目标", &"player", Vector2i(0, 0), [], 2, 6)
-	double_baseline_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	double_baseline_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var double_target := _build_manual_unit(&"frailty_target", "法术易伤目标", &"player", Vector2i(0, 1), [], 2, 6)
-	double_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	double_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var double_baseline_result: Dictionary = resolver.resolve_effects(attacker, double_baseline_target, arcane_missile_skill.combat_profile.effect_defs)
 	var double_baseline_damage := int(double_baseline_result.get("damage", 0))
 	resolver.resolve_skill(curse_caster, double_target, hex_skill)
@@ -655,7 +647,7 @@ func _test_content_skill_hex_of_frailty_applies_double_and_cancels_with_half() -
 	_assert_eq(int(double_result.get("damage", -1)), double_baseline_damage * 2, "hex_of_frailty 应按 DOUBLE 规则放大通用法术伤害。")
 
 	var canceled_target := _build_manual_unit(&"frailty_canceled_target", "半伤抵消目标", &"player", Vector2i(0, 2), [], 2, 6)
-	canceled_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	canceled_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	resolver.resolve_skill(curse_caster, canceled_target, hex_skill)
 	canceled_target.current_hp = 30
 	resolver.resolve_skill(support_unit, canceled_target, magic_shield_skill)
@@ -663,7 +655,7 @@ func _test_content_skill_hex_of_frailty_applies_double_and_cancels_with_half() -
 	_assert_eq(int(canceled_result.get("damage", -1)), double_baseline_damage, "magic_shield 的 HALF 应与 hex_of_frailty 的 DOUBLE 互相抵消，回到 NORMAL。")
 
 	var immune_target := _build_manual_unit(&"frailty_immune_target", "免疫优先目标", &"player", Vector2i(0, 3), [], 2, 6)
-	immune_target.attribute_snapshot.set_value(&"magic_defense", 0)
+	immune_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	resolver.resolve_skill(curse_caster, immune_target, hex_skill)
 	immune_target.current_hp = 30
 	resolver.resolve_skill(support_unit, immune_target, spellward_skill)
@@ -727,7 +719,6 @@ func _test_facade_shield_skill_writes_shield_and_does_not_decay_on_tu_tick() -> 
 	var state: BattleState = _build_flat_state(Vector2i(3, 1))
 	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
-	state.timeline.action_threshold = 100
 	var caster: BattleUnitState = _build_manual_unit(
 		&"shield_caster",
 		"护盾施法者",
@@ -737,6 +728,7 @@ func _test_facade_shield_skill_writes_shield_and_does_not_decay_on_tu_tick() -> 
 		2,
 		6
 	)
+	caster.action_threshold = 100
 	var ally: BattleUnitState = _build_manual_unit(
 		&"shield_ally",
 		"护盾友军",
@@ -746,6 +738,7 @@ func _test_facade_shield_skill_writes_shield_and_does_not_decay_on_tu_tick() -> 
 		2,
 		0
 	)
+	ally.action_threshold = 100
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"shield_enemy",
 		"敌人",
@@ -755,6 +748,7 @@ func _test_facade_shield_skill_writes_shield_and_does_not_decay_on_tu_tick() -> 
 		2,
 		0
 	)
+	enemy.action_threshold = 100
 	_add_unit_to_state(facade, state, caster, false)
 	_add_unit_to_state(facade, state, ally, false)
 	_add_unit_to_state(facade, state, enemy, true)
@@ -807,8 +801,8 @@ func _test_preview_reports_shield_absorption_and_break() -> void:
 		&"test_preview_shield_break",
 		"测试破盾打击",
 		10,
-		&"physical_attack",
-		&"physical_defense"
+		ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS,
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS
 	)
 	game_session.get_skill_defs()[skill_def.skill_id] = skill_def
 
@@ -825,7 +819,7 @@ func _test_preview_reports_shield_absorption_and_break() -> void:
 		2,
 		0
 	)
-	caster.attribute_snapshot.set_value(&"physical_attack", 0)
+	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"preview_shield_enemy",
 		"预览护盾目标",
@@ -835,7 +829,7 @@ func _test_preview_reports_shield_absorption_and_break() -> void:
 		2,
 		0
 	)
-	enemy.attribute_snapshot.set_value(&"physical_defense", 0)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	enemy.current_shield_hp = 6
 	enemy.shield_max_hp = 6
 	enemy.shield_duration = 60
@@ -881,8 +875,8 @@ func _test_runtime_logs_zero_hp_damage_when_shield_absorbs_everything() -> void:
 		&"test_zero_hp_damage_shield",
 		"测试零掉血护盾打击",
 		6,
-		&"physical_attack",
-		&"physical_defense"
+		ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS,
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS
 	)
 	game_session.get_skill_defs()[skill_def.skill_id] = skill_def
 
@@ -899,7 +893,7 @@ func _test_runtime_logs_zero_hp_damage_when_shield_absorbs_everything() -> void:
 		2,
 		0
 	)
-	caster.attribute_snapshot.set_value(&"physical_attack", 0)
+	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"shield_log_enemy",
 		"护盾日志目标",
@@ -909,7 +903,7 @@ func _test_runtime_logs_zero_hp_damage_when_shield_absorbs_everything() -> void:
 		2,
 		0
 	)
-	enemy.attribute_snapshot.set_value(&"physical_defense", 0)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	enemy.current_shield_hp = 6
 	enemy.shield_max_hp = 6
 	enemy.shield_duration = 60
@@ -989,7 +983,7 @@ func _test_facade_stamina_skill_updates_battle_state_snapshot_and_logs() -> void
 	var caster_snapshot := _find_battle_unit_snapshot(battle_snapshot, String(caster.unit_id))
 	var text_snapshot := facade.build_text_snapshot()
 	var move_log := _find_log_entry(facade.get_log_snapshot(), "battle.move_to")
-	var logged_units: Array = move_log.get("context", {}).get("after", {}).get("battle", {}).get("units", [])
+	var logged_units: Array = move_log.get("context", {}).get("battle_changed_units", [])
 	var logged_caster := _find_unit_entry(logged_units, String(caster.unit_id))
 
 	_assert_true(runtime_caster != null, "stamina 回归中应能从 battle state 读取施法者单位。")
@@ -998,7 +992,8 @@ func _test_facade_stamina_skill_updates_battle_state_snapshot_and_logs() -> void
 	_assert_eq(int(caster_snapshot.get("stamina_max", -1)), 12, "battle snapshot 应稳定暴露 stamina_max。")
 	_assert_true(text_snapshot.contains("unit=stamina_cost_user |"), "battle 文本快照应渲染 stamina 施法者单位行。")
 	_assert_true(text_snapshot.contains("st=10"), "battle 文本快照应渲染扣费后的 stamina。")
-	_assert_eq(int(logged_caster.get("current_stamina", -1)), 10, "战斗命令日志后态也应暴露扣费后的 current_stamina。")
+	_assert_true(not move_log.get("context", {}).has("after"), "战斗命令日志不应再写整包 after 快照。")
+	_assert_eq(int(logged_caster.get("current_stamina", -1)), 10, "战斗命令日志 changed_units 也应暴露扣费后的 current_stamina。")
 
 	_cleanup_test_session(game_session)
 
@@ -1049,7 +1044,7 @@ func _test_facade_aura_skill_updates_battle_state_snapshot_and_logs() -> void:
 	var caster_snapshot := _find_battle_unit_snapshot(battle_snapshot, String(caster.unit_id))
 	var text_snapshot := facade.build_text_snapshot()
 	var move_log := _find_log_entry(facade.get_log_snapshot(), "battle.move_to")
-	var logged_units: Array = move_log.get("context", {}).get("after", {}).get("battle", {}).get("units", [])
+	var logged_units: Array = move_log.get("context", {}).get("battle_changed_units", [])
 	var logged_caster := _find_unit_entry(logged_units, String(caster.unit_id))
 
 	_assert_true(runtime_caster != null, "aura 回归中应能从 battle state 读取施法者单位。")
@@ -1058,7 +1053,8 @@ func _test_facade_aura_skill_updates_battle_state_snapshot_and_logs() -> void:
 	_assert_eq(int(caster_snapshot.get("aura_max", -1)), 2, "battle snapshot 应稳定暴露 aura_max。")
 	_assert_true(text_snapshot.contains("unit=aura_cost_user |"), "battle 文本快照应渲染 aura 施法者单位行。")
 	_assert_true(text_snapshot.contains("au=1/2"), "battle 文本快照应渲染扣费后的 aura。")
-	_assert_eq(int(logged_caster.get("current_aura", -1)), 1, "战斗命令日志后态也应暴露扣费后的 current_aura。")
+	_assert_true(not move_log.get("context", {}).has("after"), "战斗命令日志不应再写整包 after 快照。")
+	_assert_eq(int(logged_caster.get("current_aura", -1)), 1, "战斗命令日志 changed_units 也应暴露扣费后的 current_aura。")
 
 	_cleanup_test_session(game_session)
 
@@ -1194,7 +1190,6 @@ func _test_facade_cooldown_skill_reduces_after_battle_tick() -> void:
 	var state: BattleState = _build_flat_state(Vector2i(3, 1))
 	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
-	state.timeline.action_threshold = 100
 	var caster: BattleUnitState = _build_manual_unit(
 		&"aa_cooldown_tick_user",
 		"冷却施法者",
@@ -1204,6 +1199,7 @@ func _test_facade_cooldown_skill_reduces_after_battle_tick() -> void:
 		2,
 		0
 	)
+	caster.action_threshold = 5
 	caster.current_stamina = 12
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"zz_cooldown_tick_enemy",
@@ -1214,6 +1210,7 @@ func _test_facade_cooldown_skill_reduces_after_battle_tick() -> void:
 		2,
 		0
 	)
+	enemy.action_threshold = 5
 	_add_unit_to_state(facade, state, caster, false)
 	_add_unit_to_state(facade, state, enemy, true)
 	state.phase = &"unit_acting"
@@ -1258,7 +1255,6 @@ func _test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates(
 	var state: BattleState = _build_flat_state(Vector2i(3, 1))
 	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
-	state.timeline.action_threshold = 1000
 	var ally: BattleUnitState = _build_manual_unit(
 		&"overlay_refresh_ally",
 		"标题栏测试友军",
@@ -1268,7 +1264,7 @@ func _test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates(
 		2,
 		0
 	)
-	ally.attribute_snapshot.set_value(&"speed", 1)
+	ally.action_threshold = 1000
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"overlay_refresh_enemy",
 		"标题栏测试敌军",
@@ -1278,7 +1274,7 @@ func _test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates(
 		2,
 		0
 	)
-	enemy.attribute_snapshot.set_value(&"speed", 1)
+	enemy.action_threshold = 1000
 	_add_unit_to_state(facade, state, ally, false)
 	_add_unit_to_state(facade, state, enemy, true)
 	state.phase = &"timeline_running"
@@ -1366,11 +1362,12 @@ func _build_manual_unit(
 	unit.attribute_snapshot.set_value(&"hp_max", 30)
 	unit.attribute_snapshot.set_value(&"mp_max", maxi(current_mp, 6))
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 2))
-	unit.attribute_snapshot.set_value(&"physical_attack", 10)
-	unit.attribute_snapshot.set_value(&"magic_attack", 12)
-	unit.attribute_snapshot.set_value(&"physical_defense", 4)
-	unit.attribute_snapshot.set_value(&"magic_defense", 4)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
@@ -1456,15 +1453,13 @@ func _build_test_damage_skill(
 	skill_id: StringName,
 	display_name: String,
 	power: int,
-	scaling_attribute_id: StringName,
-	defense_attribute_id: StringName,
+	_attack_bonus_attribute_id: StringName,
+	_armor_class_attribute_id: StringName,
 	resistance_attribute_id: StringName = &""
 ) -> SkillDef:
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = power
-	effect_def.scaling_attribute_id = scaling_attribute_id
-	effect_def.defense_attribute_id = defense_attribute_id
 	effect_def.resistance_attribute_id = resistance_attribute_id
 
 	var combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()

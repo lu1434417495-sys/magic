@@ -21,10 +21,8 @@ var source_skill_id: StringName = &""
 var target_team_filter: StringName = &"any"
 ## 字段说明：记录强度，会参与运行时状态流转、系统协作和存档恢复。
 var power := 0
-## 字段说明：记录成长系数属性唯一标识，作为查表、序列化和跨系统引用时使用的主键。
-var scaling_attribute_id: StringName = &""
-## 字段说明：记录防御属性唯一标识，作为查表、序列化和跨系统引用时使用的主键。
-var defense_attribute_id: StringName = &""
+## 字段说明：记录伤害标签，作为抗性、减伤和日志语义的结算主键。
+var damage_tag: StringName = &""
 ## 字段说明：记录抗性属性唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var resistance_attribute_id: StringName = &""
 ## 字段说明：记录剩余TU，会参与运行时状态流转、系统协作和存档恢复。
@@ -48,8 +46,7 @@ func to_dict() -> Dictionary:
 		"source_skill_id": String(source_skill_id),
 		"target_team_filter": String(target_team_filter),
 		"power": power,
-		"scaling_attribute_id": String(scaling_attribute_id),
-		"defense_attribute_id": String(defense_attribute_id),
+		"damage_tag": String(damage_tag),
 		"resistance_attribute_id": String(resistance_attribute_id),
 		"remaining_tu": remaining_tu,
 		"tick_interval_tu": tick_interval_tu,
@@ -68,8 +65,7 @@ static func from_dict(data: Dictionary):
 	effect_state.source_skill_id = StringName(String(data.get("source_skill_id", "")))
 	effect_state.target_team_filter = StringName(String(data.get("target_team_filter", "any")))
 	effect_state.power = int(data.get("power", 0))
-	effect_state.scaling_attribute_id = StringName(String(data.get("scaling_attribute_id", "")))
-	effect_state.defense_attribute_id = StringName(String(data.get("defense_attribute_id", "")))
+	effect_state.damage_tag = StringName(String(data.get("damage_tag", "")))
 	effect_state.resistance_attribute_id = StringName(String(data.get("resistance_attribute_id", "")))
 	effect_state.remaining_tu = maxi(int(data.get("remaining_tu", 0)), 0)
 	effect_state.tick_interval_tu = maxi(int(data.get("tick_interval_tu", 0)), 0)

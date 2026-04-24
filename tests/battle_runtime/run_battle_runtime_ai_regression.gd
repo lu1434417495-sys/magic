@@ -9,12 +9,18 @@ const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
 const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
+const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_range_action.gd")
 const USE_CHARGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_charge_action.gd")
 const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
+const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -38,6 +44,7 @@ func _run() -> void:
 	_test_charge_action_scores_with_resolved_stop_anchor()
 	_test_ai_ground_skill_generates_legal_command()
 	_test_ai_skill_score_input_exposes_ground_metrics()
+	_test_ai_skill_score_input_uses_fate_aware_repeat_attack_success_rate()
 	_test_melee_aggressor_prefers_later_higher_score_skill_action()
 	_test_ranged_controller_prefers_later_higher_score_skill_action()
 	_test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster()
@@ -45,6 +52,7 @@ func _run() -> void:
 	_test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire()
 	_test_ai_unit_skill_action_skips_aura_blocked_primary_skill()
 	_test_ai_unit_skill_scoring_prefers_higher_hit_payoff_target()
+	_test_move_to_range_prefers_closing_distance_over_wait_when_far_from_band()
 	_test_taunt_forces_nearest_enemy_selector_to_source_unit()
 	_test_taunt_forces_lowest_hp_enemy_selector_to_source_unit()
 	_test_healer_controller_uses_control_when_battle_is_stable()
@@ -250,6 +258,7 @@ func _test_ai_charge_decision_logs_brain_state_action() -> void:
 		36,
 		2
 	)
+	wolf.current_move_points = 0
 	var player = _build_manual_unit(&"player_01", "玩家", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
 	_add_unit_to_state(runtime, state, wolf, true)
 	_add_unit_to_state(runtime, state, player, false)
@@ -280,6 +289,7 @@ func _test_frontline_bulwark_charge_decision_logs_brain_state_action() -> void:
 		42,
 		2
 	)
+	vanguard.current_move_points = 0
 	var player = _build_manual_unit(&"player_01", "玩家", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
 	_add_unit_to_state(runtime, state, vanguard, true)
 	_add_unit_to_state(runtime, state, player, false)
@@ -427,6 +437,64 @@ func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
 	_assert_eq(score_input.position_objective_kind, &"cast_distance", "ground skill score input 应记录默认站位目标类型。")
 	_assert_true(score_input.distance_to_primary_coord >= 0, "ground skill score input 应记录站位目标距离。")
 	_assert_true(score_input.position_objective_score >= 0, "ground skill score input 应暴露站位目标评分。")
+
+
+func _test_ai_skill_score_input_uses_fate_aware_repeat_attack_success_rate() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var skill_def := SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = &"ai_fate_preview_combo"
+	skill_def.display_name = "评分命契连斩"
+	skill_def.combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
+	skill_def.combat_profile.skill_id = skill_def.skill_id
+	skill_def.combat_profile.attack_roll_bonus = 0
+	skill_def.combat_profile.aura_cost = 1
+	var repeat_attack_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
+	repeat_attack_effect.effect_type = &"repeat_attack_until_fail"
+	repeat_attack_effect.params = {
+		"base_attack_bonus": 0,
+		"follow_up_attack_penalty": 0,
+		"follow_up_cost_multiplier": 2.0,
+		"cost_resource": &"aura",
+	}
+	var damage_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = 10
+	skill_def.combat_profile.effect_defs = [repeat_attack_effect, damage_effect]
+	runtime._skill_defs[skill_def.skill_id] = skill_def
+
+	var state = _build_flat_state(Vector2i(5, 3))
+	runtime._state = state
+	var scorer = _build_manual_unit(&"fate_score_user", "评分高运者", &"hostile", Vector2i(1, 1), [skill_def.skill_id])
+	scorer.current_aura = 1
+	scorer.attribute_snapshot.set_value(&"aura_max", 1)
+	scorer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	scorer.attribute_snapshot.set_value(&"hidden_luck_at_birth", 2)
+	var target = _build_manual_unit(&"fate_score_target", "高闪避目标", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 99)
+	_add_unit_to_state(runtime, state, scorer, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, scorer)
+
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = command.TYPE_SKILL
+	command.unit_id = scorer.unit_id
+	command.skill_id = skill_def.skill_id
+	command.target_unit_id = target.unit_id
+	command.target_coord = target.coord
+	var preview = runtime.preview_command(command)
+	var score_input = ai_context.build_skill_score_input(
+		skill_def,
+		command,
+		preview,
+		skill_def.combat_profile.effect_defs,
+		{"position_target_unit": target, "desired_min_distance": 1, "desired_max_distance": 1}
+	)
+	_assert_true(score_input != null, "AI fate-aware 命中率回归应构造出合法 score input。")
+	if score_input == null:
+		return
+	_assert_eq(preview.hit_preview.get("stage_base_hit_rates", []), [10], "AI 回归前置：preview 应保留 raw 命中率。")
+	_assert_eq(preview.hit_preview.get("stage_hit_rates", []), [15], "AI 回归前置：preview 应把高位大成功自动命中并入成功率。")
+	_assert_eq(score_input.estimated_hit_rate_percent, 15, "AI 评分应消费 fate-aware repeat_attack 成功率，而不是 raw hit rate。")
 
 
 func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
@@ -644,9 +712,11 @@ func _test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster() -> 
 	)
 	var player_a = _build_manual_unit(&"player_a", "玩家A", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
 	var player_b = _build_manual_unit(&"player_b", "玩家B", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	var player_c = _build_manual_unit(&"player_c", "玩家C", &"player", Vector2i(6, 2), [&"warrior_heavy_strike"])
 	_add_unit_to_state(runtime, state, harrier, true)
 	_add_unit_to_state(runtime, state, player_a, false)
 	_add_unit_to_state(runtime, state, player_b, false)
+	_add_unit_to_state(runtime, state, player_c, false)
 	var ai_context = _build_ai_context(runtime, harrier)
 	var decision = runtime._ai_service.choose_command(ai_context)
 	_assert_true(decision != null and decision.state_id == &"pressure", "ranged_suppressor 在有效射程内应保持 pressure 状态。")
@@ -792,9 +862,9 @@ func _test_ai_unit_skill_scoring_prefers_higher_hit_payoff_target() -> void:
 		2
 	)
 	var close_tank = _build_manual_unit(&"close_tank", "近处重甲", &"player", Vector2i(2, 2), [&"warrior_heavy_strike"])
-	close_tank.attribute_snapshot.set_value(&"physical_defense", 20)
+	close_tank.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 45)
 	var far_scout = _build_manual_unit(&"far_scout", "远处轻甲", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
-	far_scout.attribute_snapshot.set_value(&"physical_defense", 0)
+	far_scout.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 8)
 	_add_unit_to_state(runtime, state, archer, true)
 	_add_unit_to_state(runtime, state, close_tank, false)
 	_add_unit_to_state(runtime, state, far_scout, false)
@@ -853,6 +923,57 @@ func _test_ai_unit_skill_scoring_prefers_higher_hit_payoff_target() -> void:
 		decision.command.target_unit_id if decision != null and decision.command != null else &"",
 		far_scout.unit_id,
 		"UseUnitSkillAction 应根据共享评分上下文选择更高命中收益的目标。"
+	)
+
+
+func _test_move_to_range_prefers_closing_distance_over_wait_when_far_from_band() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
+	brain.brain_id = &"far_gap_mover_brain"
+	brain.default_state_id = &"engage"
+	brain.pressure_distance = 0
+	var engage_state = ENEMY_AI_STATE_DEF_SCRIPT.new()
+	engage_state.state_id = &"engage"
+	var move_action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	move_action.action_id = &"far_gap_close_in"
+	move_action.target_selector = &"nearest_enemy"
+	move_action.desired_min_distance = 4
+	move_action.desired_max_distance = 5
+	var wait_action = WAIT_ACTION_SCRIPT.new()
+	wait_action.action_id = &"far_gap_wait"
+	engage_state.actions = [move_action, wait_action]
+	brain.states = [engage_state]
+	runtime._enemy_ai_brains[brain.brain_id] = brain
+	runtime._ai_service.setup(runtime._enemy_ai_brains)
+
+	var state = _build_flat_state(Vector2i(31, 3))
+	runtime._state = state
+	var mover = _build_ai_unit(
+		&"far_gap_enemy",
+		"远距接敌者",
+		&"hostile",
+		Vector2i(1, 1),
+		brain.brain_id,
+		&"engage",
+		[],
+		26,
+		2
+	)
+	var player = _build_manual_unit(&"far_gap_player", "远距目标", &"player", Vector2i(28, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, mover, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, mover)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.command != null, "远距离 move_to_range 回归应产出合法指令。")
+	_assert_eq(
+		decision.command.command_type if decision != null and decision.command != null else &"",
+		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
+		"当远远超出目标距离带时，AI 不应继续待机。"
+	)
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(3, 1),
+		"远距离 move_to_range 回归应优先选择本回合可达的最大有效逼近落点。"
 	)
 
 
@@ -1213,11 +1334,10 @@ func _build_ai_unit(
 	unit.attribute_snapshot.set_value(&"mp_max", 8)
 	unit.attribute_snapshot.set_value(&"stamina_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 2))
-	unit.attribute_snapshot.set_value(&"physical_attack", 10)
-	unit.attribute_snapshot.set_value(&"magic_attack", 12)
-	unit.attribute_snapshot.set_value(&"physical_defense", 4)
-	unit.attribute_snapshot.set_value(&"magic_defense", 4)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
@@ -1242,9 +1362,8 @@ func _build_manual_unit(
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 30)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(&"physical_attack", 10)
-	unit.attribute_snapshot.set_value(&"magic_attack", 6)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1

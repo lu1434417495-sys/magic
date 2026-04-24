@@ -298,8 +298,7 @@ func _apply_charge_path_step_aoe_effects(
 	var stage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	stage_effect.effect_type = &"damage"
 	stage_effect.power = int(path_step_aoe_effect.power)
-	stage_effect.scaling_attribute_id = path_step_aoe_effect.scaling_attribute_id
-	stage_effect.defense_attribute_id = path_step_aoe_effect.defense_attribute_id
+	stage_effect.damage_tag = path_step_aoe_effect.damage_tag
 	stage_effect.resistance_attribute_id = path_step_aoe_effect.resistance_attribute_id
 
 	for target_unit in _runtime.collect_units_in_coords(effect_coords):
@@ -311,6 +310,7 @@ func _apply_charge_path_step_aoe_effects(
 
 		var result: Dictionary = _runtime.get_damage_resolver().resolve_effects(active_unit, target_unit, [stage_effect])
 		_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
+		_runtime.append_result_source_status_effects(batch, active_unit, result)
 		if not bool(result.get("applied", false)):
 			continue
 
@@ -535,7 +535,7 @@ func _resolve_charge_blocker(
 			_runtime.append_changed_coords(batch, previous_coords)
 			_runtime.append_changed_unit_coords(batch, blocker)
 			_runtime.append_changed_unit_id(batch, blocker.unit_id)
-			batch.log_lines.append("%s 将 %s 顶向侧面。" % [active_unit.display_name, blocker.display_name])
+			batch.log_lines.append("%s 的冲锋将 %s 顶向侧面。" % [active_unit.display_name, blocker.display_name])
 			var fall_layers: int = int(side_push.get("fall_layers", 0))
 			if fall_layers > 0:
 				var fall_result: Dictionary = _runtime.get_damage_resolver().resolve_fall_damage(blocker, fall_layers)
@@ -543,7 +543,8 @@ func _resolve_charge_blocker(
 				var shield_absorbed := int(fall_result.get("shield_absorbed", 0))
 				if fall_damage > 0 or shield_absorbed > 0:
 					if fall_damage > 0:
-						batch.log_lines.append("%s 因侧推跌落 %d 层，受到 %d 点坠落伤害。" % [
+						batch.log_lines.append("%s 的侧推使 %s 跌落 %d 层，受到 %d 点坠落伤害。" % [
+							active_unit.display_name,
 							blocker.display_name,
 							fall_layers,
 							fall_damage,
@@ -554,7 +555,8 @@ func _resolve_charge_blocker(
 								shield_absorbed,
 							])
 					else:
-						batch.log_lines.append("%s 因侧推跌落 %d 层，但被护盾吸收了 %d 点坠落伤害。" % [
+						batch.log_lines.append("%s 的侧推使 %s 跌落 %d 层，但被护盾吸收了 %d 点坠落伤害。" % [
+							active_unit.display_name,
 							blocker.display_name,
 							fall_layers,
 							shield_absorbed,
@@ -574,7 +576,7 @@ func _resolve_charge_blocker(
 			_runtime.append_changed_coords(batch, previous_coords)
 			_runtime.append_changed_unit_coords(batch, blocker)
 			_runtime.append_changed_unit_id(batch, blocker.unit_id)
-			batch.log_lines.append("%s 将 %s 向前顶开。" % [active_unit.display_name, blocker.display_name])
+			batch.log_lines.append("%s 的冲锋将 %s 向前顶开。" % [active_unit.display_name, blocker.display_name])
 			return "continue"
 
 	var collision_result: Dictionary = _runtime.get_damage_resolver().resolve_collision_damage(blocker, active_unit.body_size, blocker.body_size)
@@ -582,7 +584,7 @@ func _resolve_charge_blocker(
 	var shield_absorbed := int(collision_result.get("shield_absorbed", 0))
 	_runtime.append_changed_unit_id(batch, blocker.unit_id)
 	if collision_damage > 0:
-		batch.log_lines.append("%s 撞上 %s，造成 %d 点碰撞伤害。" % [
+		batch.log_lines.append("%s 的冲锋撞上 %s，造成 %d 点碰撞伤害。" % [
 			active_unit.display_name,
 			blocker.display_name,
 			collision_damage,
@@ -593,7 +595,7 @@ func _resolve_charge_blocker(
 				shield_absorbed,
 			])
 	elif shield_absorbed > 0:
-		batch.log_lines.append("%s 撞上 %s，但被护盾吸收了 %d 点碰撞伤害。" % [
+		batch.log_lines.append("%s 的冲锋撞上 %s，但被护盾吸收了 %d 点碰撞伤害。" % [
 			active_unit.display_name,
 			blocker.display_name,
 			shield_absorbed,
@@ -611,7 +613,7 @@ func _resolve_charge_blocker(
 			_runtime.append_changed_coords(batch, previous_coords)
 			_runtime.append_changed_unit_coords(batch, blocker)
 			_runtime.append_changed_unit_id(batch, blocker.unit_id)
-			batch.log_lines.append("%s 被强行撞退一格。" % blocker.display_name)
+			batch.log_lines.append("%s 的冲锋将 %s 强行撞退一格。" % [active_unit.display_name, blocker.display_name])
 			return "continue"
 	return "stop"
 

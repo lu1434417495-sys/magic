@@ -13,8 +13,6 @@ const DEFAULT_TICK_INTERVAL_SECONDS := 1.0
 var current_tu := 0
 ## 字段说明：记录时间轴每秒推进的单位数，用于把真实时间换算为战斗 TU 进度。
 var units_per_second := TU_GRANULARITY
-## 字段说明：记录行动阈值，达到该值时通常会触发后续逻辑或状态切换。
-var action_threshold := 1000
 ## 字段说明：记录离散时间轴的秒级节拍；大于 0 时，TU 只会在满一个节拍后按整块推进。
 var tick_interval_seconds := DEFAULT_TICK_INTERVAL_SECONDS
 ## 字段说明：记录每个离散节拍应推进的 TU 数量。
@@ -30,7 +28,6 @@ var delta_remainder := 0.0
 func clear() -> void:
 	current_tu = 0
 	units_per_second = TU_GRANULARITY
-	action_threshold = 1000
 	tick_interval_seconds = DEFAULT_TICK_INTERVAL_SECONDS
 	tu_per_tick = TU_GRANULARITY
 	frozen = false
@@ -42,7 +39,6 @@ func to_dict() -> Dictionary:
 	return {
 		"current_tu": current_tu,
 		"units_per_second": units_per_second,
-		"action_threshold": action_threshold,
 		"tick_interval_seconds": tick_interval_seconds,
 		"tu_per_tick": tu_per_tick,
 		"frozen": frozen,
@@ -55,7 +51,6 @@ static func from_dict(data: Dictionary):
 	var state = BATTLE_TIMELINE_STATE_SCRIPT.new()
 	state.current_tu = int(data.get("current_tu", 0))
 	state.units_per_second = int(data.get("units_per_second", TU_GRANULARITY))
-	state.action_threshold = int(data.get("action_threshold", 1000))
 	state.tick_interval_seconds = float(data.get("tick_interval_seconds", DEFAULT_TICK_INTERVAL_SECONDS))
 	state.tu_per_tick = int(data.get("tu_per_tick", TU_GRANULARITY))
 	state.frozen = bool(data.get("frozen", false))

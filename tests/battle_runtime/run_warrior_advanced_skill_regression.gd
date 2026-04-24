@@ -10,6 +10,7 @@ const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 var _failures: Array[String] = []
 
@@ -109,7 +110,7 @@ func _test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_set
 		"圣剑连斩应在目标倒下时停止追击。"
 	)
 	_assert_true(
-		int(repeat_effect.params.get("follow_up_hit_rate_penalty", 0)) > 0,
+		int(repeat_effect.params.get("follow_up_attack_penalty", 0)) > 0,
 		"圣剑连斩的后续追击应带命中惩罚。"
 	)
 	_assert_true(skill_def.combat_profile.ap_cost > 0, "圣剑连斩应具备基础 AP 消耗。")
@@ -173,12 +174,12 @@ func _test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful
 		return
 	var warrior := _build_unit(&"saint_blade_user", Vector2i(1, 1), 2)
 	warrior.current_aura = 3
-	warrior.attribute_snapshot.set_value(&"hit_rate", 100)
+	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	warrior.known_active_skill_ids = [&"saint_blade_combo"]
 	warrior.known_skill_level_map = {&"saint_blade_combo": 1}
 	var enemy := _build_unit(&"saint_blade_target", Vector2i(2, 1), 2)
 	enemy.faction_id = &"enemy"
-	enemy.attribute_snapshot.set_value(&"evasion", -10)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, -10)
 
 	_add_unit(runtime, state, warrior)
 	_add_unit(runtime, state, enemy)
@@ -229,12 +230,12 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 		return
 	var warrior := _build_unit(&"saint_blade_miss_user", Vector2i(1, 1), 2)
 	warrior.current_aura = 3
-	warrior.attribute_snapshot.set_value(&"hit_rate", 100)
+	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	warrior.known_active_skill_ids = [&"saint_blade_combo"]
 	warrior.known_skill_level_map = {&"saint_blade_combo": 1}
 	var enemy := _build_unit(&"saint_blade_miss_target", Vector2i(2, 1), 2)
 	enemy.faction_id = &"enemy"
-	enemy.attribute_snapshot.set_value(&"evasion", 0)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 
 	_add_unit(runtime, state, warrior)
 	_add_unit(runtime, state, enemy)
@@ -346,13 +347,12 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(&"stamina_max", 4)
 	unit.attribute_snapshot.set_value(&"aura_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(&"physical_attack", 12)
-	unit.attribute_snapshot.set_value(&"physical_defense", 4)
-	unit.attribute_snapshot.set_value(&"magic_attack", 6)
-	unit.attribute_snapshot.set_value(&"magic_defense", 4)
-	unit.attribute_snapshot.set_value(&"hit_rate", 80)
-	unit.attribute_snapshot.set_value(&"evasion", 5)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 5)
 	return unit
 
 

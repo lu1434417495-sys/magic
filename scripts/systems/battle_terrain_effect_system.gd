@@ -154,8 +154,7 @@ func apply_timed_terrain_effect_tick(
 	var temp_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
 	temp_effect.effect_type = effect_state.effect_type
 	temp_effect.power = int(effect_state.power)
-	temp_effect.scaling_attribute_id = effect_state.scaling_attribute_id
-	temp_effect.defense_attribute_id = effect_state.defense_attribute_id
+	temp_effect.damage_tag = effect_state.damage_tag
 	temp_effect.resistance_attribute_id = effect_state.resistance_attribute_id
 	temp_effect.status_id = ProgressionDataUtils.to_string_name(effect_state.params.get("status_id", ""))
 	temp_effect.params = effect_state.params.duplicate(true)
@@ -165,6 +164,7 @@ func apply_timed_terrain_effect_tick(
 		return
 
 	_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
+	_runtime.append_result_source_status_effects(batch, source_unit, result)
 	_runtime.append_changed_unit_id(batch, target_unit.unit_id)
 	_runtime.append_changed_unit_coords(batch, target_unit)
 	var damage := int(result.get("damage", 0))
@@ -246,8 +246,7 @@ func _build_timed_terrain_effect(
 	effect_state.source_skill_id = skill_def.skill_id if skill_def != null else &""
 	effect_state.target_team_filter = _resolve_effect_target_filter(skill_def, effect_def)
 	effect_state.power = int(effect_def.power)
-	effect_state.scaling_attribute_id = effect_def.scaling_attribute_id
-	effect_state.defense_attribute_id = effect_def.defense_attribute_id
+	effect_state.damage_tag = effect_def.damage_tag
 	effect_state.resistance_attribute_id = effect_def.resistance_attribute_id
 	effect_state.tick_interval_tu = tick_interval_tu
 	effect_state.remaining_tu = maxi(duration_tu, tick_interval_tu)

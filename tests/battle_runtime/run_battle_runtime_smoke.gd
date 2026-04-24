@@ -20,6 +20,7 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 var _failures: Array[String] = []
 
@@ -38,6 +39,7 @@ func _run() -> void:
 	_test_move_command_executes_normally_on_stacked_columns()
 	_test_runtime_reports_multistep_reachable_move_coords()
 	_test_spawn_anchor_prefers_better_local_mobility_over_corner_slot()
+	_test_spawn_anchor_rejects_water_start_cells()
 	_test_movement_tags_override_water_traversal_rules()
 	_test_height_delta_rebuilds_cell_columns()
 	_test_height_delta_reclassifies_adjacent_water_component()
@@ -59,6 +61,7 @@ func _run() -> void:
 	_test_archer_multishot_uses_target_unit_ids_in_manual_order()
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
+	_test_timeline_tick_uses_per_unit_action_threshold()
 	_test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch()
 	_test_status_duration_serialization_preserves_tu_window()
 	_test_status_duration_blocks_target_turn_until_tu_expiry()
@@ -111,9 +114,9 @@ func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 	var resolver := BattleHitResolver.new()
 
 	var accurate_attacker := _build_unit(&"hit_boundary_accurate", Vector2i.ZERO, 1)
-	accurate_attacker.attribute_snapshot.set_value(&"hit_rate", 100)
+	accurate_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	var easy_target := _build_enemy_unit(&"hit_boundary_easy_target", Vector2i(1, 0))
-	easy_target.attribute_snapshot.set_value(&"evasion", -10)
+	easy_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, -10)
 	var easy_check := resolver.build_skill_attack_check(accurate_attacker, easy_target, null)
 	_assert_true(int(easy_check.get("required_roll", 99)) <= 1, "低 required roll 夹具应进入天然 1 边界语义。")
 	_assert_eq(int(easy_check.get("display_required_roll", 0)), 2, "低 required roll 预览应稳定显示为 2+。")
@@ -141,9 +144,9 @@ func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 		_assert_true(String(natural_one_result.get("resolution_text", "")).contains("天然 1 失手"), "天然 1 结算文案应显式标注 auto miss。")
 
 	var weak_attacker := _build_unit(&"hit_boundary_weak", Vector2i.ZERO, 1)
-	weak_attacker.attribute_snapshot.set_value(&"hit_rate", 0)
+	weak_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var evasive_target := _build_enemy_unit(&"hit_boundary_evasive_target", Vector2i(1, 0))
-	evasive_target.attribute_snapshot.set_value(&"evasion", 100)
+	evasive_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 100)
 	var hard_check := resolver.build_skill_attack_check(weak_attacker, evasive_target, null)
 	_assert_true(int(hard_check.get("required_roll", 0)) > 20, "高 required roll 夹具应进入仅天然 20 命中语义。")
 	_assert_eq(int(hard_check.get("display_required_roll", 0)), 20, "高 required roll 预览应稳定显示为 20+。")
@@ -475,7 +478,8 @@ func _test_move_command_executes_normally_on_stacked_columns() -> void:
 	command.target_coord = Vector2i(1, 0)
 	var batch := runtime.issue_command(command)
 	_assert_true(unit.coord == Vector2i(1, 0), "issue_command(move) 在真堆叠列地图上仍应更新单位坐标。")
-	_assert_true(unit.current_ap == 2, "issue_command(move) 在真堆叠列地图上仍应按移动消耗扣除行动点。")
+	_assert_true(unit.current_move_points == 1, "issue_command(move) 在真堆叠列地图上仍应按移动消耗扣除行动点。")
+	_assert_true(unit.current_ap == 3, "普通移动改走行动点后，不应再扣除 AP。")
 	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "移动批次仍应记录变更单位。")
 	_assert_true(state.cells[Vector2i(1, 0)].occupant_unit_id == unit.unit_id, "目标地格占位应在移动后同步更新。")
 
@@ -511,8 +515,8 @@ func _test_runtime_reports_multistep_reachable_move_coords() -> void:
 	var reachable_coords := runtime.get_unit_reachable_move_coords(unit)
 	_assert_true(reachable_coords.has(Vector2i(0, 1)), "可达集应包含一步可达的 land 地格。")
 	_assert_true(reachable_coords.has(Vector2i(1, 1)), "可达集应包含两步可达地格，而不只是相邻地格。")
-	_assert_true(reachable_coords.has(Vector2i(1, 0)), "可达集应包含花费 2 AP 的泥地。")
-	_assert_true(not reachable_coords.has(Vector2i(2, 0)), "穿过泥地后超出 AP 预算的地格不应进入可达集。")
+	_assert_true(reachable_coords.has(Vector2i(1, 0)), "可达集应包含花费 2 点行动点的泥地。")
+	_assert_true(not reachable_coords.has(Vector2i(2, 0)), "穿过泥地后超出行动点预算的地格不应进入可达集。")
 	_assert_true(not reachable_coords.has(Vector2i(3, 1)), "不可通行的水域不应进入可达集。")
 
 	var move_command := BattleCommand.new()
@@ -524,7 +528,7 @@ func _test_runtime_reports_multistep_reachable_move_coords() -> void:
 
 	var batch := runtime.issue_command(move_command)
 	_assert_true(unit.coord == Vector2i(1, 1), "issue_command(move) 应允许直接移动到两步内可达终点。")
-	_assert_true(unit.current_ap == 0, "多步移动后应累计扣除整条路径消耗。")
+	_assert_true(unit.current_move_points == 0, "多步移动后应累计扣除整条路径消耗。")
 	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "多步移动批次应记录变更单位。")
 	_assert_true(state.cells[Vector2i(1, 1)].occupant_unit_id == unit.unit_id, "多步移动后目标地格占位应同步更新。")
 
@@ -558,6 +562,38 @@ func _test_spawn_anchor_prefers_better_local_mobility_over_corner_slot() -> void
 		chosen_coord,
 		Vector2i(1, 3),
 		"spawn ring 含角落死角时，运行时应优先选择局部机动空间更大的出生格。"
+	)
+
+
+func _test_spawn_anchor_rejects_water_start_cells() -> void:
+	var runtime := BattleRuntimeModule.new()
+	var state := BattleState.new()
+	state.battle_id = &"spawn_anchor_water_smoke"
+	state.phase = &"timeline_running"
+	state.map_size = Vector2i(3, 2)
+	state.timeline = BattleTimelineState.new()
+	state.cells = {}
+	for y in range(state.map_size.y):
+		for x in range(state.map_size.x):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
+	var shallow_water_cell := state.cells.get(Vector2i(1, 0)) as BattleCellState
+	if shallow_water_cell != null:
+		shallow_water_cell.base_terrain = BattleCellState.TERRAIN_SHALLOW_WATER
+		shallow_water_cell.recalculate_runtime_values()
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+	runtime._state = state
+
+	var unit := _build_unit(&"spawn_anchor_water_unit", Vector2i.ZERO, 4)
+	var preferred_coords: Array[Vector2i] = [
+		Vector2i(1, 0),
+		Vector2i(0, 0),
+		Vector2i(2, 0),
+	]
+	var chosen_coord := runtime._find_spawn_anchor(unit, preferred_coords)
+	_assert_eq(
+		chosen_coord,
+		Vector2i(0, 0),
+		"战斗起始锚点即使可通行，也不应落在浅水等水域地格上。"
 	)
 
 
@@ -600,8 +636,8 @@ func _test_movement_tags_override_water_traversal_rules() -> void:
 
 	var wade_unit := _build_unit(&"wade_water_unit", Vector2i.ZERO, 3)
 	wade_unit.movement_tags = [BattleTerrainRules.TAG_WADE]
-	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(1, 0)), 1, "涉水单位进入浅水应只消耗 1 AP。")
-	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(2, 0)), 2, "涉水单位进入流水应消耗 2 AP。")
+	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(1, 0)), 1, "涉水单位进入浅水应只消耗 1 点行动点。")
+	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(2, 0)), 2, "涉水单位进入流水应消耗 2 点行动点。")
 
 	var amphibious_state := BattleState.new()
 	amphibious_state.battle_id = &"amphibious_water_unit"
@@ -1217,11 +1253,15 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 	var state := _build_skill_test_state(Vector2i(4, 1))
 	var archer := _build_unit(&"archer_multishot_user", Vector2i(0, 0), 3)
 	archer.current_stamina = 20
+	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	archer.known_active_skill_ids = [&"archer_multishot"]
 	archer.known_skill_level_map = {&"archer_multishot": 1}
 	var enemy_a := _build_enemy_unit(&"enemy_a", Vector2i(1, 0))
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var enemy_b := _build_enemy_unit(&"enemy_b", Vector2i(2, 0))
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var enemy_c := _build_enemy_unit(&"enemy_c", Vector2i(3, 0))
+	enemy_c.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 
 	state.units = {
 		archer.unit_id: archer,
@@ -1242,6 +1282,9 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 	command.command_type = BattleCommand.TYPE_SKILL
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_multishot"
+	command.skill_variant_id = &"multishot_volley"
+	command.target_unit_id = enemy_c.unit_id
+	command.target_coord = enemy_c.coord
 	command.target_unit_ids = [enemy_c.unit_id, enemy_a.unit_id, enemy_b.unit_id]
 	var preview := runtime.preview_command(command)
 	_assert_true(preview.allowed, "连珠箭应允许一次锁定三个离散敌方单位。")
@@ -1249,11 +1292,14 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 	_assert_eq(preview.target_unit_ids, [enemy_c.unit_id, enemy_a.unit_id, enemy_b.unit_id], "连珠箭预览应保持玩家选择顺序。")
 
 	var batch := runtime.issue_command(command)
+	var resolution_lines := _collect_damage_resolution_lines(batch.log_lines, archer.display_name)
 	_assert_true(batch.changed_unit_ids.has(archer.unit_id), "连珠箭应记录施法者变更。")
 	_assert_eq(archer.current_stamina, 18, "连珠箭应只按一次施放消耗体力。")
-	_assert_eq(
-		batch.log_lines[0].find(String(enemy_c.display_name)) >= 0 and batch.log_lines[1].find(String(enemy_a.display_name)) >= 0 and batch.log_lines[2].find(String(enemy_b.display_name)) >= 0,
-		true,
+	_assert_true(
+		resolution_lines.size() >= 3
+			and resolution_lines[0].find(String(enemy_c.display_name)) >= 0
+			and resolution_lines[1].find(String(enemy_a.display_name)) >= 0
+			and resolution_lines[2].find(String(enemy_b.display_name)) >= 0,
 		"连珠箭日志应按玩家选择顺序依次结算。"
 	)
 	_assert_true(enemy_a.current_hp < 30, "连珠箭应对敌人 A 造成伤害。")
@@ -1274,11 +1320,15 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 	var state := _build_skill_test_state(Vector2i(4, 2))
 	var mage := _build_unit(&"mage_arcane_missile_user", Vector2i(0, 1), 3)
 	mage.current_mp = 3
+	mage.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	mage.known_active_skill_ids = [&"mage_arcane_missile"]
 	mage.known_skill_level_map = {&"mage_arcane_missile": 1}
 	var enemy_a := _build_enemy_unit(&"enemy_a", Vector2i(2, 0))
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var enemy_b := _build_enemy_unit(&"enemy_b", Vector2i(0, 0))
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var enemy_c := _build_enemy_unit(&"enemy_c", Vector2i(1, 0))
+	enemy_c.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 
 	state.units = {
 		mage.unit_id: mage,
@@ -1305,13 +1355,14 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 	_assert_eq(preview.target_unit_ids, [enemy_b.unit_id, enemy_c.unit_id, enemy_a.unit_id], "稳定排序应按战场坐标归一化目标顺序。")
 
 	var batch := runtime.issue_command(command)
+	var resolution_lines := _collect_damage_resolution_lines(batch.log_lines, mage.display_name)
 	_assert_true(batch.changed_unit_ids.has(mage.unit_id), "奥术飞弹应记录施法者变更。")
 	_assert_eq(mage.current_mp, 2, "奥术飞弹应只按一次施放消耗法力。")
 	_assert_true(
-		batch.log_lines.size() >= 3
-			and batch.log_lines[0].find(String(enemy_b.display_name)) >= 0
-			and batch.log_lines[1].find(String(enemy_c.display_name)) >= 0
-			and batch.log_lines[2].find(String(enemy_a.display_name)) >= 0,
+		resolution_lines.size() >= 3
+			and resolution_lines[0].find(String(enemy_b.display_name)) >= 0
+			and resolution_lines[1].find(String(enemy_c.display_name)) >= 0
+			and resolution_lines[2].find(String(enemy_a.display_name)) >= 0,
 		"奥术飞弹日志应按稳定排序后的命中顺序依次结算。"
 	)
 
@@ -1367,11 +1418,12 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	state.phase = &"timeline_running"
 	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
-	state.timeline.action_threshold = 10
 	var archer := _build_unit(&"aa_cooldown_turn_user", Vector2i(0, 0), 1)
+	archer.action_threshold = 5
 	archer.cooldowns = {&"archer_long_draw": 15}
 	archer.last_turn_tu = 0
 	var enemy := _build_enemy_unit(&"zz_cooldown_turn_enemy", Vector2i(1, 0))
+	enemy.action_threshold = 5
 
 	state.units = {
 		archer.unit_id: archer,
@@ -1397,6 +1449,44 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	_assert_true(turn_batch.changed_unit_ids.has(archer.unit_id), "零 TU 的队列回合切换仍应记录行动单位变更。")
 	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 10, "零 TU 回合切换不应继续递减 cooldown。")
 	_assert_eq(archer.last_turn_tu, 5, "零 TU 回合切换不应篡改当前的 timeline TU 锚点。")
+
+
+func _test_timeline_tick_uses_per_unit_action_threshold() -> void:
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {}, {}, {})
+
+	var state := _build_skill_test_state(Vector2i(3, 1))
+	state.phase = &"timeline_running"
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 5
+	var first_unit := _build_unit(&"aa_timeline_threshold_10", Vector2i(0, 0), 1)
+	first_unit.action_threshold = 10
+	var second_unit := _build_enemy_unit(&"zz_timeline_threshold_15", Vector2i(1, 0))
+	second_unit.action_threshold = 15
+
+	state.units = {
+		first_unit.unit_id: first_unit,
+		second_unit.unit_id: second_unit,
+	}
+	state.ally_unit_ids = [first_unit.unit_id]
+	state.enemy_unit_ids = [second_unit.unit_id]
+	_assert_true(runtime._grid_service.place_unit(state, first_unit, first_unit.coord, true), "10 TU 阈值测试单位应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, second_unit, second_unit.coord, true), "15 TU 阈值测试单位应能成功放入战场。")
+	runtime._state = state
+
+	runtime.advance(1.0)
+	_assert_eq(state.timeline.current_tu, 5, "第一个离散 tick 应只推进 5 TU。")
+	_assert_eq(first_unit.action_progress, 5, "10 TU 阈值单位的行动进度应按 tu_per_tick 累加。")
+	_assert_eq(second_unit.action_progress, 5, "15 TU 阈值单位的行动进度也应按 tu_per_tick 累加。")
+	_assert_true(state.timeline.ready_unit_ids.is_empty(), "所有单位未达到各自 action_threshold 前不应产生行动单位。")
+	_assert_eq(state.phase, &"timeline_running", "未达到任一行动阈值前应保持时间轴推进阶段。")
+
+	runtime.advance(1.0)
+	_assert_eq(state.timeline.current_tu, 10, "第二个离散 tick 后 current_tu 应累计到 10。")
+	_assert_eq(first_unit.action_progress, 0, "达到该单位 action_threshold 后应扣除一次阈值。")
+	_assert_eq(second_unit.action_progress, 10, "未达到自己阈值的单位不应提前入队。")
+	_assert_eq(state.active_unit_id, first_unit.unit_id, "达到阈值后应激活已满足自身阈值的单位。")
+	_assert_true(not state.timeline.ready_unit_ids.has(second_unit.unit_id), "未达到自身阈值的单位不应留在 ready 队列。")
 
 
 func _test_status_duration_serialization_preserves_tu_window() -> void:
@@ -1607,6 +1697,7 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.display_name = String(unit_id)
 	unit.faction_id = &"player"
 	unit.current_ap = current_ap
+	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	unit.current_hp = 10
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
@@ -1618,6 +1709,18 @@ func _build_enemy_unit(unit_id: StringName, coord: Vector2i) -> BattleUnitState:
 	unit.faction_id = &"enemy"
 	unit.current_hp = 30
 	return unit
+
+
+func _collect_damage_resolution_lines(log_lines: Array, actor_name: String) -> Array[String]:
+	var resolution_lines: Array[String] = []
+	for log_line_variant in log_lines:
+		var log_line := String(log_line_variant)
+		if not log_line.contains(actor_name):
+			continue
+		if not log_line.contains("造成"):
+			continue
+		resolution_lines.append(log_line)
+	return resolution_lines
 
 
 func _build_skill_test_state(map_size: Vector2i) -> BattleState:
@@ -1642,7 +1745,10 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
-	state.timeline.action_threshold = 1000000
+	for unit_variant in state.units.values():
+		var unit_state := unit_variant as BattleUnitState
+		if unit_state != null:
+			unit_state.action_threshold = 1000000
 	runtime.advance(float(total_tu) / 5.0)
 
 

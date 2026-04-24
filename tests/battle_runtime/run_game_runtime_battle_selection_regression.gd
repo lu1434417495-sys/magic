@@ -8,6 +8,7 @@ const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -184,7 +185,8 @@ func _test_selection_sidecar_executes_multistep_reachable_movement() -> void:
 	var click_mode := String(selection.attempt_battle_move_to(Vector2i(1, 1)))
 	_assert_eq(click_mode, "full", "点击两步内可达蓝色地格后应触发完整战斗刷新。")
 	_assert_eq(mover.coord, Vector2i(1, 1), "点击两步内可达蓝色地格后应真正移动到目标终点。")
-	_assert_eq(mover.current_ap, 0, "多步移动后应累计扣除路径消耗。")
+	_assert_eq(mover.current_move_points, 0, "多步移动后应累计扣除路径消耗。")
+	_assert_eq(mover.current_ap, 2, "普通移动改走行动点后，不应再扣除 AP。")
 
 	_cleanup_test_session(game_session)
 
@@ -800,17 +802,19 @@ func _build_manual_unit(
 	unit.current_hp = 30
 	unit.current_mp = current_mp
 	unit.current_ap = current_ap
+	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
 	unit.current_stamina = 20
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 30)
 	unit.attribute_snapshot.set_value(&"mp_max", maxi(current_mp, 6))
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 2))
-	unit.attribute_snapshot.set_value(&"physical_attack", 10)
-	unit.attribute_snapshot.set_value(&"magic_attack", 12)
-	unit.attribute_snapshot.set_value(&"physical_defense", 4)
-	unit.attribute_snapshot.set_value(&"magic_defense", 4)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1

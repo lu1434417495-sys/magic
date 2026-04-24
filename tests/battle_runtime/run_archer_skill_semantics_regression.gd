@@ -144,7 +144,7 @@ func _test_evasive_roll_repositions_and_grants_evasion() -> void:
 		archer.coord == Vector2i(2, 1),
 		"翻滚卸力应真实位移 2 格并优先远离威胁。actual=%s log=%s" % [str(archer.coord), str(batch.log_lines)]
 	)
-	_assert_true(archer.status_effects.has(&"evasion_up"), "翻滚卸力应为施法者挂上闪避状态。")
+	_assert_true(archer.status_effects.has(&"dodge_bonus_up"), "翻滚卸力应为施法者挂上闪避状态。")
 
 
 func _build_runtime() -> BattleRuntimeModule:

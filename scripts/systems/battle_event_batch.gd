@@ -17,6 +17,8 @@ var changed_unit_ids: Array[StringName] = []
 var changed_coords: Array[Vector2i] = []
 ## 字段说明：保存日志文本行，便于顺序遍历、批量展示、批量运算和整体重建。
 var log_lines: Array[String] = []
+## 字段说明：保存结构化战报条目，供 UI / headless / 剧情系统订阅稳定字段而不依赖自由文本解析。
+var report_entries: Array[Dictionary] = []
 ## 字段说明：保存成长增量列表，便于顺序遍历、批量展示、批量运算和整体重建。
 var progression_deltas: Array[CharacterProgressionDelta] = []
 ## 字段说明：用于标记模态相关当前是否成立或生效，供脚本后续分支判断使用，会参与运行时状态流转、系统协作和存档恢复。
@@ -29,5 +31,6 @@ func clear() -> void:
 	changed_unit_ids.clear()
 	changed_coords.clear()
 	log_lines.clear()
+	report_entries.clear()
 	progression_deltas.clear()
 	modal_requested = false

@@ -11,14 +11,16 @@ const BattleSimUnitSpec = preload("res://scripts/systems/battle_sim_unit_spec.gd
 @export_multiline var description: String = ""
 @export var map_size: Vector2i = Vector2i(7, 5)
 @export var terrain_profile_id: StringName = &"simulation"
+@export var use_formal_terrain_generation := false
+@export var world_coord: Vector2i = Vector2i.ZERO
 @export var ally_units: Array = []
 @export var enemy_units: Array = []
 @export var cell_overrides: Array[Dictionary] = []
 @export var tick_interval_seconds := 1.0
 @export var tu_per_tick := 5
-@export var action_threshold := 1000
 @export var max_iterations := 200
 @export var manual_policy: StringName = &"wait"
+@export var trace_enabled := true
 @export var seeds: PackedInt32Array = PackedInt32Array([101])
 
 
@@ -32,18 +34,23 @@ func resolve_seeds() -> Array[int]:
 
 
 func build_start_context() -> Dictionary:
-	return {
+	var context := {
 		"battle_party": _build_unit_payloads(ally_units, &"player", &"manual"),
 		"enemy_units": _build_unit_payloads(enemy_units, &"hostile", &"ai"),
-		"ally_spawns": _build_spawn_coords(ally_units),
-		"enemy_spawns": _build_spawn_coords(enemy_units),
-		"map_size": map_size,
-		"cells": _build_cells(),
 		"tick_interval_seconds": tick_interval_seconds,
 		"tu_per_tick": tu_per_tick,
-		"action_threshold": action_threshold,
 		"battle_terrain_profile": terrain_profile_id,
+		"world_coord": world_coord,
 	}
+	if use_formal_terrain_generation:
+		if map_size != Vector2i.ZERO:
+			context["battle_map_size"] = map_size
+		return context
+	context["ally_spawns"] = _build_spawn_coords(ally_units)
+	context["enemy_spawns"] = _build_spawn_coords(enemy_units)
+	context["map_size"] = map_size
+	context["cells"] = _build_cells()
+	return context
 
 
 func to_dict() -> Dictionary:
@@ -53,11 +60,13 @@ func to_dict() -> Dictionary:
 		"description": description,
 		"map_size": map_size,
 		"terrain_profile_id": String(terrain_profile_id),
+		"use_formal_terrain_generation": use_formal_terrain_generation,
+		"world_coord": world_coord,
 		"tick_interval_seconds": tick_interval_seconds,
 		"tu_per_tick": tu_per_tick,
-		"action_threshold": action_threshold,
 		"max_iterations": max_iterations,
 		"manual_policy": String(manual_policy),
+		"trace_enabled": trace_enabled,
 		"seeds": resolve_seeds(),
 		"ally_unit_count": ally_units.size(),
 		"enemy_unit_count": enemy_units.size(),

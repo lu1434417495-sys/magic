@@ -1,15 +1,12 @@
 class_name WildEncounterRosterDef
 extends Resource
 
-const DROP_TYPE_ITEM: StringName = &"item"
-
 @export var profile_id: StringName = &""
 @export var display_name: String = ""
 @export var initial_stage := 0
 @export var growth_step_interval := 1
 @export var suppression_steps_on_victory := 0
 @export var stages: Array[Dictionary] = []
-@export var drop_entries: Array[Dictionary] = []
 
 
 func get_max_stage() -> int:
@@ -39,16 +36,6 @@ func get_stage_unit_entries(stage: int) -> Array[Dictionary]:
 		best_stage = stage_index
 		best_entries = entries
 	return best_entries
-
-
-func get_drop_entries() -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	for entry_variant in drop_entries:
-		if entry_variant is not Dictionary:
-			continue
-		result.append((entry_variant as Dictionary).duplicate(true))
-	return result
-
 
 func validate_schema(known_templates: Dictionary = {}) -> Array[String]:
 	var errors: Array[String] = []
@@ -108,12 +95,4 @@ func validate_schema(known_templates: Dictionary = {}) -> Array[String]:
 					String(template_id),
 				])
 
-	for entry_variant in drop_entries:
-		if entry_variant is not Dictionary:
-			errors.append("Wild encounter roster %s contains a non-Dictionary drop entry." % String(profile_id))
-			continue
-		var entry_data := entry_variant as Dictionary
-		var drop_id := ProgressionDataUtils.to_string_name(entry_data.get("drop_id", ""))
-		if drop_id == &"":
-			errors.append("Wild encounter roster %s contains a drop entry without drop_id." % String(profile_id))
 	return errors

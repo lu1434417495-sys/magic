@@ -9,6 +9,7 @@ const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 var _failures: Array[String] = []
 
@@ -445,7 +446,7 @@ func _measure_execution_cleave_damage(target_current_hp: int) -> int:
 	var enemy := _build_unit(&"execution_cleave_target", Vector2i(2, 1), 2)
 	enemy.faction_id = &"enemy"
 	enemy.current_hp = target_current_hp
-	enemy.attribute_snapshot.set_value(&"physical_defense", 10)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
 
 	_add_unit(runtime, state, warrior)
 	_add_unit(runtime, state, enemy)
@@ -496,7 +497,10 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
-	state.timeline.action_threshold = 1000000
+	for unit_variant in state.units.values():
+		var unit_state := unit_variant as BattleUnitState
+		if unit_state != null:
+			unit_state.action_threshold = 1000000
 	runtime.advance(float(total_tu) / 5.0)
 
 
@@ -527,11 +531,10 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(&"stamina_max", 4)
 	unit.attribute_snapshot.set_value(&"aura_max", 2)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(&"physical_attack", 12)
-	unit.attribute_snapshot.set_value(&"physical_defense", 4)
-	unit.attribute_snapshot.set_value(&"magic_attack", 6)
-	unit.attribute_snapshot.set_value(&"magic_defense", 4)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	return unit
 
 

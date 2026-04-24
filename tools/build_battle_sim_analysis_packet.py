@@ -148,9 +148,74 @@ def build_run_skill_counts(metrics: dict[str, Any]) -> Counter[str]:
 	return counter
 
 
+def build_run_skill_attempt_counts(metrics: dict[str, Any]) -> Counter[str]:
+	counter: Counter[str] = Counter()
+	for unit_entry in metrics.get("units", {}).values():
+		if not isinstance(unit_entry, dict):
+			continue
+		skill_counts = unit_entry.get("skill_attempt_counts", {})
+		if not isinstance(skill_counts, dict):
+			continue
+		for skill_id, count in skill_counts.items():
+			counter[str(skill_id)] += int(count)
+	return counter
+
+
+def build_failure_counter(
+	attempt_counts: Counter[str] | dict[str, Any],
+	success_counts: Counter[str] | dict[str, Any],
+) -> Counter[str]:
+	failures: Counter[str] = Counter()
+	keys = set(str(key) for key in attempt_counts.keys()) | set(str(key) for key in success_counts.keys())
+	for skill_id in keys:
+		attempts = int(attempt_counts.get(skill_id, 0))
+		successes = int(success_counts.get(skill_id, 0))
+		failure_count = max(attempts - successes, 0)
+		if failure_count > 0:
+			failures[skill_id] = failure_count
+	return failures
+
+
+def build_skill_counter_snapshot(
+	success_counts: dict[str, Any],
+	attempt_counts: dict[str, Any],
+	limit: int = 5,
+) -> dict[str, Any]:
+	success_counter = Counter({str(key): int(value) for key, value in success_counts.items()})
+	attempt_counter = Counter({str(key): int(value) for key, value in attempt_counts.items()})
+	failure_counter = build_failure_counter(attempt_counter, success_counter)
+	return {
+		"success_totals": dict(sorted(success_counter.items())),
+		"attempt_totals": dict(sorted(attempt_counter.items())),
+		"failure_totals": dict(sorted(failure_counter.items())),
+		"top_skill_successes": sorted_counter_items(success_counter, limit=limit),
+		"top_skill_attempts": sorted_counter_items(attempt_counter, limit=limit),
+		"top_skill_failures": sorted_counter_items(failure_counter, limit=limit),
+	}
+
+
+def build_profile_skill_counters(runs: list[dict[str, Any]], summary: dict[str, Any], limit: int = 5) -> dict[str, Any]:
+	success_counter: Counter[str] = Counter()
+	attempt_counter: Counter[str] = Counter()
+	for run in runs:
+		metrics = run.get("metrics", {})
+		if not isinstance(metrics, dict):
+			continue
+		success_counter.update(build_run_skill_counts(metrics))
+		attempt_counter.update(build_run_skill_attempt_counts(metrics))
+	if not success_counter and isinstance(summary.get("skill_usage_totals", {}), dict):
+		success_counter.update({str(key): int(value) for key, value in summary.get("skill_usage_totals", {}).items()})
+	if not attempt_counter and isinstance(summary.get("skill_attempt_totals", {}), dict):
+		attempt_counter.update({str(key): int(value) for key, value in summary.get("skill_attempt_totals", {}).items()})
+	return build_skill_counter_snapshot(dict(success_counter), dict(attempt_counter), limit=limit)
+
+
 def build_run_digest(run: dict[str, Any]) -> dict[str, Any]:
 	traces = run.get("ai_turn_traces", [])
 	metrics = run.get("metrics", {})
+	skill_success_counts = build_run_skill_counts(metrics)
+	skill_attempt_counts = build_run_skill_attempt_counts(metrics)
+	skill_failure_counts = build_failure_counter(skill_attempt_counts, skill_success_counts)
 	return {
 		"seed": int(run.get("seed", 0)),
 		"battle_ended": bool(run.get("battle_ended", False)),
@@ -162,7 +227,9 @@ def build_run_digest(run: dict[str, Any]) -> dict[str, Any]:
 		"enemy_alive": int(run.get("enemy_alive", 0)),
 		"trace_count": len(traces),
 		"top_action_choices": sorted_counter_items(build_run_action_counts(traces), limit=5),
-		"top_skill_successes": sorted_counter_items(build_run_skill_counts(metrics), limit=5),
+		"top_skill_successes": sorted_counter_items(skill_success_counts, limit=5),
+		"top_skill_attempts": sorted_counter_items(skill_attempt_counts, limit=5),
+		"top_skill_failures": sorted_counter_items(skill_failure_counts, limit=5),
 	}
 
 
@@ -214,11 +281,18 @@ def build_profile_guardrails(entry: dict[str, Any], scenario: dict[str, Any]) ->
 def build_profile_summaries(profile_entries: list[dict[str, Any]], scenario: dict[str, Any]) -> list[dict[str, Any]]:
 	summaries: list[dict[str, Any]] = []
 	for entry in profile_entries:
+		runs = [run for run in entry.get("runs", []) if isinstance(run, dict)]
+		summary = entry.get("summary", {})
+		skill_counters = build_profile_skill_counters(
+			runs,
+			summary if isinstance(summary, dict) else {},
+		)
 		summaries.append(
 			{
 				"profile": entry.get("profile", {}),
-				"summary": entry.get("summary", {}),
-				"run_digest": [build_run_digest(run) for run in entry.get("runs", [])],
+				"summary": summary,
+				"skill_counters": skill_counters,
+				"run_digest": [build_run_digest(run) for run in runs],
 				"guardrails": build_profile_guardrails(entry, scenario),
 			}
 		)
@@ -233,7 +307,12 @@ def build_focus_hints(
 	hints: list[dict[str, Any]] = []
 	for comparison in comparisons:
 		skill_deltas = sorted_delta_items(comparison.get("skill_usage_delta", {}), top_skills)
+		skill_failure_deltas = sorted_delta_items(comparison.get("skill_failure_delta", {}), top_skills)
+		skill_attempt_deltas = sorted_delta_items(comparison.get("skill_attempt_delta", {}), top_skills)
 		action_deltas = sorted_delta_items(comparison.get("action_choice_delta", {}), top_actions)
+		focus_skill_ids = {
+			str(entry["id"]) for entry in skill_deltas + skill_failure_deltas + skill_attempt_deltas if entry.get("id", "")
+		}
 		hints.append(
 			{
 				"baseline_profile_id": str(comparison.get("baseline_profile_id", "")),
@@ -242,8 +321,10 @@ def build_focus_hints(
 				"average_iterations_delta": float(comparison.get("average_iterations_delta", 0.0)),
 				"win_rate_delta": comparison.get("win_rate_delta", {}),
 				"top_skill_deltas": skill_deltas,
+				"top_skill_attempt_deltas": skill_attempt_deltas,
+				"top_skill_failure_deltas": skill_failure_deltas,
 				"top_action_deltas": action_deltas,
-				"focus_skill_ids": [entry["id"] for entry in skill_deltas],
+				"focus_skill_ids": sorted(focus_skill_ids),
 				"focus_action_ids": [entry["id"] for entry in action_deltas],
 			}
 		)
@@ -521,6 +602,10 @@ def build_analysis_brief(
 					f"- average_iterations_delta: `{hint.get('average_iterations_delta', 0.0)}`",
 					"- top_skill_deltas:",
 					*format_delta_entries(hint.get("top_skill_deltas", []), "delta"),
+					"- top_skill_attempt_deltas:",
+					*format_delta_entries(hint.get("top_skill_attempt_deltas", []), "delta"),
+					"- top_skill_failure_deltas:",
+					*format_delta_entries(hint.get("top_skill_failure_deltas", []), "delta"),
 					"- top_action_deltas:",
 					*format_delta_entries(hint.get("top_action_deltas", []), "delta"),
 					"",
@@ -530,6 +615,7 @@ def build_analysis_brief(
 	for summary_entry in profile_summaries:
 		profile = summary_entry.get("profile", {})
 		guardrails = summary_entry.get("guardrails", {})
+		skill_counters = summary_entry.get("skill_counters", {})
 		lines.extend(
 			[
 				f"### `{profile.get('profile_id', '')}`",
@@ -537,6 +623,12 @@ def build_analysis_brief(
 				f"- completed_run_count: `{guardrails.get('completed_run_count', 0)}`",
 				f"- unfinished_run_count: `{guardrails.get('unfinished_run_count', 0)}`",
 				f"- completed_only_win_rate_by_faction: `{guardrails.get('completed_only_win_rate_by_faction', {})}`",
+				"- top_skill_successes:",
+				*format_delta_entries(skill_counters.get("top_skill_successes", []), "count"),
+				"- top_skill_attempts:",
+				*format_delta_entries(skill_counters.get("top_skill_attempts", []), "count"),
+				"- top_skill_failures:",
+				*format_delta_entries(skill_counters.get("top_skill_failures", []), "count"),
 			]
 		)
 		for warning in guardrails.get("warnings", []):

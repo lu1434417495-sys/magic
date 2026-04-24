@@ -45,6 +45,9 @@ func apply_repeat_attack_skill_result(
 	var executed := false
 
 	while stage_index < REPEAT_ATTACK_STAGE_GUARD and target_unit.is_alive:
+		if stage_index > 0 and _runtime != null and _runtime.is_unit_follow_up_locked(active_unit):
+			batch.log_lines.append("%s 受折手封印影响，无法继续追击。" % active_unit.display_name)
+			break
 		var stage_aura_cost: int = _get_repeat_attack_stage_cost(skill_def, repeat_attack_effect, stage_index)
 		if stage_index > 0:
 			if not _can_pay_repeat_attack_stage_cost(active_unit, repeat_attack_effect, stage_aura_cost):
@@ -57,11 +60,20 @@ func apply_repeat_attack_skill_result(
 			_consume_repeat_attack_stage_cost(active_unit, repeat_attack_effect, stage_aura_cost)
 			_runtime.append_changed_unit_id(batch, active_unit.unit_id)
 
-		var hit_result := _resolve_repeat_attack_stage_hit_result(active_unit, target_unit, skill_def, repeat_attack_effect, stage_index)
-		var stage_hit_rate: int = int(hit_result.get("hit_rate_percent", 0))
-		var stage_resolution_text := String(hit_result.get("resolution_text", "%d%%" % stage_hit_rate))
+		var stage_damage_multiplier: float = _get_repeat_attack_stage_damage_multiplier(repeat_attack_effect, stage_index)
+		var stage_effects := _build_repeat_attack_stage_effects(staged_effects, repeat_attack_effect, stage_damage_multiplier)
+		var stage_result := _resolve_repeat_attack_stage_result(
+			active_unit,
+			target_unit,
+			skill_def,
+			repeat_attack_effect,
+			stage_index,
+			stage_effects
+		)
+		var stage_hit_rate: int = int(stage_result.get("hit_rate_percent", 0))
+		var stage_resolution_text := String(stage_result.get("resolution_text", "%d%%" % stage_hit_rate))
 		executed = true
-		if not bool(hit_result.get("success", false)):
+		if not bool(stage_result.get("attack_success", false)):
 			batch.log_lines.append("%s 的 %s 第 %d 段未命中 %s，%s，AU 消耗 %d。" % [
 				active_unit.display_name,
 				skill_def.display_name,
@@ -70,20 +82,19 @@ func apply_repeat_attack_skill_result(
 				stage_resolution_text,
 				stage_aura_cost,
 			])
+			_runtime.append_result_report_entry(batch, stage_result)
 			if _should_stop_repeat_attack_on_miss(repeat_attack_effect):
 				break
 			stage_index += 1
 			continue
 
-		var stage_damage_multiplier: float = _get_repeat_attack_stage_damage_multiplier(repeat_attack_effect, stage_index)
-		var stage_effects := _build_repeat_attack_stage_effects(staged_effects, repeat_attack_effect, stage_damage_multiplier)
-		var result: Dictionary = _runtime.get_damage_resolver().resolve_effects(active_unit, target_unit, stage_effects)
-		_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
+		_runtime.mark_applied_statuses_for_turn_timing(target_unit, stage_result.get("status_effect_ids", []))
+		_runtime.append_result_source_status_effects(batch, active_unit, stage_result)
 		_runtime.append_changed_unit_id(batch, target_unit.unit_id)
 		_runtime.append_changed_unit_coords(batch, target_unit)
 
-		var damage := int(result.get("damage", 0))
-		var healing := int(result.get("healing", 0))
+		var damage := int(stage_result.get("damage", 0))
+		var healing := int(stage_result.get("healing", 0))
 		total_damage += damage
 		total_healing += healing
 		_runtime.append_damage_result_log_lines(
@@ -97,8 +108,9 @@ func apply_repeat_attack_skill_result(
 				stage_resolution_text,
 			],
 			target_unit.display_name,
-			result
+			stage_result
 		)
+		_runtime.append_result_report_entry(batch, stage_result)
 		if healing > 0:
 			batch.log_lines.append("%s 的 %s 第 %d 段为 %s 恢复 %d 点生命。" % [
 				active_unit.display_name,
@@ -107,7 +119,7 @@ func apply_repeat_attack_skill_result(
 				target_unit.display_name,
 				healing,
 			])
-		for status_id in result.get("status_effect_ids", []):
+		for status_id in stage_result.get("status_effect_ids", []):
 			batch.log_lines.append("%s 获得状态 %s。" % [target_unit.display_name, String(status_id)])
 
 		if not target_unit.is_alive:
@@ -146,16 +158,17 @@ func collect_repeat_attack_base_effects(effect_defs: Array[CombatEffectDef]) -> 
 	return staged_effects
 
 
-func _resolve_repeat_attack_stage_hit_result(
+func _resolve_repeat_attack_stage_result(
 	active_unit: BattleUnitState,
 	target_unit: BattleUnitState,
 	skill_def: SkillDef,
 	repeat_attack_effect: CombatEffectDef,
-	stage_index: int
+	stage_index: int,
+	stage_effects: Array[CombatEffectDef]
 ) -> Dictionary:
 	var hit_resolver = _runtime.get_hit_resolver() if _has_runtime() and _runtime.get_hit_resolver() != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
 	var battle_state = _runtime.get_state() if _has_runtime() else null
-	return hit_resolver.resolve_repeat_attack_stage_hit(
+	var attack_check: Dictionary = hit_resolver.build_fate_aware_repeat_attack_stage_hit_check(
 		battle_state,
 		active_unit,
 		target_unit,
@@ -163,6 +176,42 @@ func _resolve_repeat_attack_stage_hit_result(
 		repeat_attack_effect,
 		stage_index
 	)
+	var damage_resolver = _runtime.get_damage_resolver() if _has_runtime() else null
+	var result: Dictionary = damage_resolver.resolve_attack_effects(
+		active_unit,
+		target_unit,
+		stage_effects,
+		attack_check,
+		{"battle_state": battle_state}
+	) if damage_resolver != null else {
+		"attack_success": false,
+		"hit_rate_percent": int(attack_check.get("hit_rate_percent", 0)),
+	}
+	result["hit_rate_percent"] = int(attack_check.get("hit_rate_percent", result.get("hit_rate_percent", 0)))
+	result["success_rate_percent"] = int(attack_check.get("success_rate_percent", result.get("hit_rate_percent", 0)))
+	result["resolution_text"] = _format_repeat_attack_stage_resolution_text(attack_check, result)
+	return result
+
+
+func _format_repeat_attack_stage_resolution_text(attack_check: Dictionary, attack_result: Dictionary) -> String:
+	var preview_text := String(attack_check.get("preview_text", "%d%%" % int(attack_check.get("hit_rate_percent", 0))))
+	var attack_resolution := ProgressionDataUtils.to_string_name(attack_result.get("attack_resolution", ""))
+	var hit_roll := int(attack_result.get("hit_roll", 0))
+	if hit_roll > 0:
+		match attack_resolution:
+			&"critical_hit":
+				return "%s，d20=%d（大成功）" % [preview_text, hit_roll]
+			&"critical_fail":
+				return "%s，d20=%d（大失败）" % [preview_text, hit_roll]
+			&"miss":
+				return "%s，d20=%d（未命中）" % [preview_text, hit_roll]
+			_:
+				return "%s，d20=%d" % [preview_text, hit_roll]
+	var crit_gate_die := int(attack_result.get("crit_gate_die", 0))
+	var crit_gate_roll := int(attack_result.get("crit_gate_roll", 0))
+	if crit_gate_die > 0 and crit_gate_roll > 0:
+		return "%s，门骰 d%d=%d" % [preview_text, crit_gate_die, crit_gate_roll]
+	return preview_text
 
 
 func _get_repeat_attack_stage_cost(

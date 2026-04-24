@@ -68,6 +68,7 @@ func _run() -> void:
 	await _test_holdout_push_board_contracts()
 	await _test_default_generation_respects_global_min_height()
 	await _test_default_water_height_normalization_is_component_local()
+	await _test_generated_spawn_coords_never_use_water_tiles()
 	await _test_battle_board_contracts()
 	await _test_raised_top_surface_click_maps_to_visual_cell()
 	await _test_board_initial_camera_fills_ultrawide_width()
@@ -80,6 +81,7 @@ func _run() -> void:
 	await _test_board_layer_draw_order_is_explicit()
 	await _test_active_unit_marker_uses_opaque_land_cover_blue()
 	await _test_skill_valid_target_highlight_renders_above_units()
+	await _test_unit_tokens_render_hp_bars_with_numeric_labels()
 	await _test_unit_render_depth_uses_positive_height_bias()
 	await _test_large_unit_footprint_respects_edge_barriers()
 	await _test_large_unit_partial_edge_barriers_block_all_directions()
@@ -376,6 +378,48 @@ func _test_default_water_height_normalization_is_component_local() -> void:
 	_assert_eq(int(heights.get(Vector2i(0, 1), -1)), 4, "左侧水域的每个格子都应共享同一水位。")
 	_assert_eq(int(heights.get(Vector2i(2, 0), -1)), 6, "右侧独立水域不应被错误拉低到另一片湖的水位。")
 	_assert_eq(int(heights.get(Vector2i(2, 1), -1)), 6, "独立水域应按各自连通分区单独归一化。")
+
+
+func _test_generated_spawn_coords_never_use_water_tiles() -> void:
+	var cases := [
+		{
+			"label": "canyon(seed=%d)" % TEST_SEED,
+			"layout": _build_canyon_layout(TEST_SEED),
+		},
+		{
+			"label": "canyon(seed=%d)" % (TEST_SEED + 17),
+			"layout": _build_canyon_layout(TEST_SEED + 17),
+		},
+		{
+			"label": "canyon(seed=%d)" % (TEST_SEED + 29),
+			"layout": _build_canyon_layout(TEST_SEED + 29),
+		},
+		{
+			"label": "default(seed=%d)" % TEST_SEED,
+			"layout": _build_default_layout(TEST_SEED),
+		},
+		{
+			"label": "default(seed=%d)" % (TEST_SEED + 17),
+			"layout": _build_default_layout(TEST_SEED + 17),
+		},
+		{
+			"label": "default(seed=%d)" % (TEST_SEED + 29),
+			"layout": _build_default_layout(TEST_SEED + 29),
+		},
+		{
+			"label": "narrow_assault(seed=%d)" % TEST_SEED,
+			"layout": _build_narrow_assault_layout(TEST_SEED),
+		},
+		{
+			"label": "holdout_push(seed=%d)" % TEST_SEED,
+			"layout": _build_holdout_push_layout(TEST_SEED),
+		},
+	]
+	for case_data in cases:
+		_assert_layout_spawn_coords_avoid_water(
+			case_data.get("layout", {}),
+			String(case_data.get("label", "unknown"))
+		)
 
 
 func _test_battle_board_contracts() -> void:
@@ -773,6 +817,67 @@ func _test_active_unit_marker_uses_opaque_land_cover_blue() -> void:
 			center.r <= 0.01 and center.g <= 0.01 and center.b >= 0.99,
 			"当前可行动 marker 中心像素应为纯蓝主导。"
 		)
+
+	board.queue_free()
+	await process_frame
+
+
+func _test_unit_tokens_render_hp_bars_with_numeric_labels() -> void:
+	var layout := _build_canyon_layout(TEST_SEED)
+	var state := _build_state(layout)
+	if state.ally_unit_ids.is_empty() or state.enemy_unit_ids.is_empty():
+		_assert_true(false, "战斗棋盘回归夹具应至少包含一名我方和一名敌方单位。")
+		return
+
+	var ally_unit := state.units.get(state.ally_unit_ids[0]) as BattleUnitState
+	var enemy_unit := state.units.get(state.enemy_unit_ids[0]) as BattleUnitState
+	_assert_true(ally_unit != null and enemy_unit != null, "测试夹具应成功创建单位用于血条展示检查。")
+	if ally_unit == null or enemy_unit == null:
+		return
+
+	ally_unit.attribute_snapshot.set_value(&"hp_max", 18)
+	ally_unit.current_hp = 12
+	enemy_unit.attribute_snapshot.set_value(&"hp_max", 27)
+	enemy_unit.current_hp = 9
+
+	var board := await _instantiate_board(state)
+	var unit_layer := board.get_node("UnitLayer") as Node2D
+	var cases := [
+		{"unit": ally_unit, "label": "我方"},
+		{"unit": enemy_unit, "label": "敌方"},
+	]
+
+	for case_variant in cases:
+		var case_data: Dictionary = case_variant
+		var unit_state := case_data.get("unit") as BattleUnitState
+		var label := String(case_data.get("label", "单位"))
+		if unit_state == null:
+			continue
+		var token := unit_layer.get_node_or_null(String(unit_state.unit_id)) as Node2D
+		_assert_true(token != null, "%s单位 token 应成功渲染到 UnitLayer。" % label)
+		if token == null:
+			continue
+
+		var health_bar := token.get_node_or_null("HealthBarRoot") as Control
+		_assert_true(health_bar != null, "%s单位 token 应包含正式血条节点。" % label)
+		if health_bar == null:
+			continue
+		_assert_true(health_bar.size.x <= 64.0, "%s单位血条宽度不能超过单格宽度。" % label)
+
+		var fill := health_bar.get_node_or_null("HealthBarFill") as ColorRect
+		_assert_true(fill != null, "%s单位血条应包含填充节点。" % label)
+		if fill != null:
+			_assert_true(fill.size.x <= health_bar.size.x, "%s单位血条填充宽度不能超过血条容器。" % label)
+			_assert_true(fill.size.x > 0.0, "%s单位在非零 HP 时应看到非空血量填充。" % label)
+
+		var value_label := health_bar.get_node_or_null("HealthBarTextLabel") as Label
+		_assert_true(value_label != null, "%s单位血条应显示数字文本。" % label)
+		if value_label != null:
+			_assert_eq(
+				value_label.text,
+				"%d/%d" % [unit_state.current_hp, int(unit_state.attribute_snapshot.get_value(&"hp_max"))],
+				"%s单位血条数字应显示当前 HP / 最大 HP。" % label
+			)
 
 	board.queue_free()
 	await process_frame
@@ -1459,6 +1564,47 @@ func _extract_layout_coords(coords_variant: Variant) -> Array[Vector2i]:
 		if coord_variant is Vector2i:
 			coords.append(coord_variant)
 	return coords
+
+
+func _assert_layout_spawn_coords_avoid_water(layout: Dictionary, label: String) -> void:
+	var cells: Dictionary = layout.get("cells", {})
+	var groups := [
+		{
+			"field": "player_coord",
+			"coords": [layout.get("player_coord", Vector2i(-1, -1))],
+		},
+		{
+			"field": "enemy_coord",
+			"coords": [layout.get("enemy_coord", Vector2i(-1, -1))],
+		},
+		{
+			"field": "ally_spawns",
+			"coords": _extract_layout_coords(layout.get("ally_spawns", [])),
+		},
+		{
+			"field": "enemy_spawns",
+			"coords": _extract_layout_coords(layout.get("enemy_spawns", [])),
+		},
+	]
+	for group_variant in groups:
+		var group: Dictionary = group_variant
+		var field_name := String(group.get("field", "spawn"))
+		var coords: Array[Vector2i] = []
+		var coords_variant = group.get("coords", [])
+		if coords_variant is Array:
+			for coord_variant in coords_variant:
+				if coord_variant is Vector2i:
+					coords.append(coord_variant)
+		_assert_true(not coords.is_empty(), "%s 的 %s 不应为空。" % [label, field_name])
+		for coord in coords:
+			var cell := cells.get(coord) as BattleCellState
+			_assert_true(cell != null, "%s 的 %s 必须指向有效战斗格：%s" % [label, field_name, str(coord)])
+			if cell == null:
+				continue
+			_assert_true(
+				not BattleTerrainRules.is_water_terrain(cell.base_terrain),
+				"%s 的 %s 不应落在水域上：%s -> %s" % [label, field_name, str(coord), String(cell.base_terrain)]
+			)
 
 
 func _count_coords_on_or_left_of_x(coords: Array[Vector2i], x_limit: int) -> int:

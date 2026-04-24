@@ -65,7 +65,6 @@ func _build_scenario():
 	scenario.map_size = Vector2i(7, 5)
 	scenario.tick_interval_seconds = 1.0
 	scenario.tu_per_tick = 5
-	scenario.action_threshold = 120
 	scenario.max_iterations = 40
 	scenario.manual_policy = &"wait"
 	scenario.seeds = PackedInt32Array([101, 102])
@@ -91,9 +90,8 @@ func _build_manual_unit(unit_id: StringName, display_name: String, coord: Vector
 	unit_spec.attribute_overrides = {
 		"hp_max": 80,
 		"action_points": 2,
-		"physical_defense": 6,
-		"magic_defense": 6,
-		"speed": 10,
+		"armor_class": 16,
+		"armor_ac_bonus": 0,
 	}
 	return unit_spec
 
@@ -121,11 +119,9 @@ func _build_enemy_archer(unit_id: StringName, display_name: String, coord: Vecto
 		"mp_max": 20,
 		"stamina_max": 20,
 		"action_points": 2,
-		"physical_attack": 12,
-		"magic_attack": 8,
-		"physical_defense": 4,
-		"magic_defense": 4,
-		"speed": 10,
+		"attack_bonus": 6,
+		"armor_class": 14,
+		"armor_ac_bonus": 0,
 	}
 	return unit_spec
 

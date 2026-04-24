@@ -46,6 +46,11 @@ func decide(context):
 					continue
 				var resolved_anchor: Vector2i = preview.resolved_anchor_coord if preview.resolved_anchor_coord != Vector2i(-1, -1) else context.unit_state.coord
 				var resolved_distance = _distance_from_anchor_to_unit(context, context.unit_state, resolved_anchor, focus_target)
+				var resolved_move_distance: int = context.grid_service.get_distance(
+					context.unit_state.coord,
+					resolved_anchor
+				) if context.grid_service != null else 0
+				var charge_action_base_score: int = 20 + maxi(resolved_move_distance - 1, 0) * 8
 				var score_input = _build_skill_score_input(
 					context,
 					skill_def,
@@ -53,6 +58,11 @@ func decide(context):
 					preview,
 					cast_variant.effect_defs,
 					{
+						# Charge is a mobility skill. Scale its base value with the
+						# distance covered so normal movement does not always dominate
+						# after movement stopped consuming AP.
+						"action_kind": &"move",
+						"action_base_score": charge_action_base_score,
 						"position_target_unit": focus_target,
 						"position_anchor_coord": resolved_anchor,
 						"desired_min_distance": 1,

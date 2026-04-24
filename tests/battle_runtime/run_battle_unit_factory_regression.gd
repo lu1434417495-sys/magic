@@ -14,6 +14,7 @@ const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_an
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 
 var _failures: Array[String] = []
@@ -40,11 +41,22 @@ class FakeCharacterGateway:
 		return null
 
 
+class FakeTerrainGenerator:
+	extends RefCounted
+
+	var last_context: Dictionary = {}
+
+	func generate(_encounter_anchor, _seed: int, context: Dictionary) -> Dictionary:
+		last_context = context.duplicate(true)
+		return {}
+
+
 class FakeRuntime:
 	extends BattleUnitFactoryRuntime
 
 	var _character_gateway: Object = null
 	var _skill_defs: Dictionary = {}
+	var _terrain_generator: Object = null
 	var _min_battle_surface_height := 4
 
 	func get_character_gateway() -> Object:
@@ -52,6 +64,9 @@ class FakeRuntime:
 
 	func get_skill_defs() -> Dictionary:
 		return _skill_defs
+
+	func get_terrain_generator():
+		return _terrain_generator
 
 	func get_min_battle_surface_height() -> int:
 		return _min_battle_surface_height
@@ -64,7 +79,8 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
-	_test_battle_unit_factory_fallback_terrain_uses_runtime_bridge_contract()
+	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
+	_test_battle_unit_factory_no_longer_builds_manual_fallback_terrain()
 	if _failures.is_empty():
 		print("Battle unit factory regression: PASS")
 		quit(0)
@@ -92,9 +108,7 @@ func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party
 	encounter_anchor.region_tag = &"north_wilds"
 
 	var state = runtime.start_battle(encounter_anchor, 1901, {
-		"map_size": Vector2i(2, 2),
-		"ally_spawns": [Vector2i(0, 0)],
-		"enemy_spawns": [Vector2i(1, 1)],
+		"battle_map_size": Vector2i(7, 7),
 	})
 	_assert_true(state != null and not state.is_empty(), "战斗应能在没有 build_battle_party() 的 gateway 上正常创建。")
 	_assert_eq(state.ally_unit_ids.size(), 1, "战斗应从 BattleUnitFactory 构建出 1 个友方单位。")
@@ -151,19 +165,45 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "known skills 刷新也应走同一 runtime bridge。")
 
 
-func _test_battle_unit_factory_fallback_terrain_uses_runtime_bridge_contract() -> void:
+func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> void:
+	var factory := BattleUnitFactory.new()
+	var encounter_anchor := ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
+	encounter_anchor.entity_id = &"factory_enemy_defaults"
+	encounter_anchor.display_name = "默认敌人"
+	encounter_anchor.faction_id = &"hostile"
+
+	var units: Array = factory.build_enemy_units(encounter_anchor, {})
+	_assert_eq(units.size(), 1, "fallback enemy builder 应产出 1 个默认敌人。")
+	if units.is_empty():
+		return
+	var unit = units[0]
+	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+		_assert_eq(
+			int(unit.attribute_snapshot.get_value(attribute_id)),
+			4,
+			"fallback enemy 应补齐基础六维 %s。" % String(attribute_id)
+		)
+
+
+func _test_battle_unit_factory_no_longer_builds_manual_fallback_terrain() -> void:
 	var runtime := FakeRuntime.new()
-	runtime._min_battle_surface_height = 9
+	var terrain_generator := FakeTerrainGenerator.new()
+	runtime._terrain_generator = terrain_generator
 	var factory := BattleUnitFactory.new()
 	factory.setup(runtime)
 
 	var terrain_data := factory.build_terrain_data(null, 7, {
 		"map_size": Vector2i(1, 1),
 	})
-	var cell = terrain_data.get("cells", {}).get(Vector2i.ZERO)
-	_assert_true(cell != null, "fallback terrain 应创建默认地格。")
-	if cell != null:
-		_assert_eq(cell.base_height, 9, "fallback terrain 应读取 runtime bridge 的最小地表高度。")
+	_assert_true(terrain_data.is_empty(), "BattleUnitFactory 不应再为 map_size 手工拼 fallback terrain。")
+	_assert_true(
+		not terrain_generator.last_context.has("map_size"),
+		"BattleUnitFactory 不应再把 legacy map_size 继续透传给正式 terrain generator。"
+	)
+	_assert_true(
+		not terrain_generator.last_context.has("battle_map_size"),
+		"BattleUnitFactory 不应再把 legacy map_size 升级成 battle_map_size。"
+	)
 
 
 func _make_party_state(member_ids: Array[StringName]) -> PartyState:

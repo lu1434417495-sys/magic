@@ -111,7 +111,7 @@ func _generate_default(encounter_context: Dictionary, terrain_profile_id: String
 
 	for attempt in range(12):
 		_rng.seed = battle_seed + attempt * 1013
-		var map_size: Vector2i = DEFAULT_FORMAL_SIZES[_rng.randi_range(0, DEFAULT_FORMAL_SIZES.size() - 1)]
+		var map_size := _resolve_default_map_size(encounter_context)
 		var cells := _build_default_cells(map_size)
 		var cell_columns := BattleCellState.build_columns_from_surface_cells(cells)
 		var edge_faces := _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
@@ -132,6 +132,15 @@ func _generate_default(encounter_context: Dictionary, terrain_profile_id: String
 		}
 
 	return {}
+
+
+func _resolve_default_map_size(encounter_context: Dictionary) -> Vector2i:
+	var configured_map_size: Variant = encounter_context.get("battle_map_size", null)
+	if configured_map_size is Vector2i:
+		var battle_map_size := configured_map_size as Vector2i
+		if battle_map_size.x > 0 and battle_map_size.y > 0:
+			return battle_map_size
+	return DEFAULT_FORMAL_SIZES[_rng.randi_range(0, DEFAULT_FORMAL_SIZES.size() - 1)]
 
 
 func _build_default_cells(map_size: Vector2i) -> Dictionary:
@@ -1369,7 +1378,7 @@ func _pick_farthest_coord(
 			continue
 
 		var cell := cells.get(coord) as BattleCellState
-		if cell == null:
+		if not _is_dry_spawn_cell(cell):
 			continue
 		var is_safe_terrain := cell.base_terrain == TERRAIN_LAND or cell.base_terrain == TERRAIN_FOREST
 		var terrain_bonus := 2 if is_safe_terrain else 0
@@ -1382,6 +1391,12 @@ func _pick_farthest_coord(
 			best_coord = coord
 
 	return best_coord
+
+
+func _is_dry_spawn_cell(cell: BattleCellState) -> bool:
+	if cell == null or not cell.passable:
+		return false
+	return not BattleTerrainRules.is_water_terrain(cell.base_terrain)
 
 
 func _can_traverse_edge(cells: Dictionary, edge_faces: Dictionary, from_coord: Vector2i, to_coord: Vector2i) -> bool:
@@ -1479,12 +1494,15 @@ func _finalize_water_terrain(cells: Dictionary, map_size: Vector2i) -> void:
 
 
 func _collect_spawn_ring(cells: Dictionary, center: Vector2i, edge_faces: Dictionary = {}) -> Array[Vector2i]:
+	var center_cell := cells.get(center) as BattleCellState
+	if not _is_dry_spawn_cell(center_cell):
+		return []
 	var coords: Array[Vector2i] = [center]
 	var resolved_edge_faces := edge_faces if not edge_faces.is_empty() else _edge_service.build_edge_faces_for_cells(cells, _infer_map_size_from_cells(cells), BattleCellState.build_columns_from_surface_cells(cells))
 	for direction in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
 		var candidate: Vector2i = center + direction
 		var cell: BattleCellState = cells.get(candidate) as BattleCellState
-		if cell != null and cell.passable and _can_traverse_edge(cells, resolved_edge_faces, center, candidate):
+		if _is_dry_spawn_cell(cell) and _can_traverse_edge(cells, resolved_edge_faces, center, candidate):
 			coords.append(candidate)
 	return coords
 

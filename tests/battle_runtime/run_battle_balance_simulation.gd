@@ -29,6 +29,8 @@ func _run() -> void:
 			return
 		profiles.append(profile)
 	var runner = BATTLE_SIM_RUNNER_SCRIPT.new()
+	runner.set_progress_logging_enabled(true)
+	runner.set_progress_log_path("res://battle_sim_progress.log")
 	var report: Dictionary = runner.run_scenario(scenario, profiles)
 	print("[BattleSim] scenario=%s profiles=%d comparisons=%d report_json=%s traces_jsonl=%s" % [
 		String(report.get("scenario", {}).get("scenario_id", "")),

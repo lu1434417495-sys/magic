@@ -154,11 +154,12 @@ func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
 	_assert_true(preview != null and preview.allowed, "slow 状态下的相邻移动仍应合法。")
 	_assert_true(
 		preview != null and preview.log_lines.size() > 0 and String(preview.log_lines[0]).contains("消耗 2 点行动点"),
-		"slow 应把基础 1 AP 的平地移动提升为 2 AP。"
+		"slow 应把基础 1 点行动点的平地移动提升为 2 点行动点。"
 	)
 
 	runtime.issue_command(move_command)
-	_assert_eq(target.current_ap, 1, "slow 提高移动消耗后，执行移动应实际多扣 1 点行动点。")
+	_assert_eq(target.current_move_points, 0, "slow 提高移动消耗后，执行移动应实际多扣 1 点行动点。")
+	_assert_eq(target.current_ap, 3, "slow 只应抬高移动行动点消耗，不应继续扣除 AP。")
 	var wait_command := BattleCommand.new()
 	wait_command.command_type = BattleCommand.TYPE_WAIT
 	wait_command.unit_id = target.unit_id
@@ -294,7 +295,10 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
-	state.timeline.action_threshold = 1000000
+	for unit_variant in state.units.values():
+		var unit_state := unit_variant as BattleUnitState
+		if unit_state != null:
+			unit_state.action_threshold = 1000000
 	runtime.advance(float(total_tu) / 5.0)
 
 
@@ -314,6 +318,7 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.display_name = String(unit_id)
 	unit.faction_id = &"player"
 	unit.current_ap = current_ap
+	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	unit.current_hp = 30
 	unit.current_mp = 4
 	unit.current_stamina = 4
@@ -324,7 +329,6 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
 	unit.attribute_snapshot.set_value(&"stamina_max", 4)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(&"speed", 10)
 	return unit
 
 

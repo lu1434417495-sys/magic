@@ -2,12 +2,12 @@ class_name BattleUnitFactory
 extends RefCounted
 
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle_unit_factory_runtime.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 var _runtime_ref: WeakRef = null
 var _runtime: BattleUnitFactoryRuntime = null:
@@ -78,6 +78,11 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 		maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
 	)
 	unit_state.current_ap = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
+	unit_state.current_move_points = clampi(
+		unit_state.current_move_points,
+		0,
+		BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
+	)
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
 	unit_state.refresh_footprint()
@@ -124,69 +129,25 @@ func _normalize_unit_payloads(payloads: Array) -> Array:
 
 
 func build_terrain_data(encounter_anchor, seed: int, context: Dictionary) -> Dictionary:
-	if _uses_manual_terrain_layout(context):
-		return build_fallback_terrain(context)
-
+	var terrain_context := context.duplicate(true)
+	terrain_context.erase("map_size")
 	var terrain_data: Dictionary = {}
 	if _runtime != null and _runtime.get_terrain_generator() != null:
-		terrain_data = _runtime.get_terrain_generator().generate(encounter_anchor, seed, context)
-	return terrain_data
+		terrain_data = _runtime.get_terrain_generator().generate(encounter_anchor, seed, terrain_context)
+	return _apply_terrain_generation_overrides(terrain_data, terrain_context)
 
 
-func build_fallback_terrain(context: Dictionary) -> Dictionary:
-	var map_size: Vector2i = context.get("map_size", Vector2i(5, 5))
-	var min_surface_height := 4
-	if _runtime != null:
-		min_surface_height = maxi(_runtime.get_min_battle_surface_height(), 1)
-
-	var cells: Dictionary = _normalize_manual_cells(context.get("cells", {}))
-	if cells.is_empty():
-		for y in range(map_size.y):
-			for x in range(map_size.x):
-				var cell_state: BattleCellState = BattleCellState.new()
-				cell_state.coord = Vector2i(x, y)
-				cell_state.base_terrain = &"land"
-				cell_state.base_height = min_surface_height
-				cell_state.height_offset = 0
-				cell_state.terrain_effect_ids.clear()
-				cell_state.timed_terrain_effects.clear()
-				if _runtime != null and _runtime.get_grid_service() != null:
-					_runtime.get_grid_service().recalculate_cell(cell_state)
-				else:
-					cell_state.recalculate_runtime_values()
-				cells[cell_state.coord] = cell_state
-
-	return {
-		"map_size": map_size,
-		"cells": cells,
-		"cell_columns": BattleCellState.build_columns_from_surface_cells(cells),
-		"ally_spawns": context.get("ally_spawns", [Vector2i(1, 1), Vector2i(1, 3)]),
-		"enemy_spawns": context.get("enemy_spawns", [Vector2i(3, 1), Vector2i(3, 3)]),
-	}
-
-
-func _normalize_manual_cells(raw_cells: Variant) -> Dictionary:
-	var cells: Dictionary = {}
-	if raw_cells is not Dictionary:
-		return cells
-	for coord_variant in raw_cells.keys():
-		var coord: Vector2i = coord_variant if coord_variant is Vector2i else Vector2i.ZERO
-		var cell_variant = raw_cells.get(coord_variant)
-		var cell_state := cell_variant as BattleCellState
-		if cell_state == null and cell_variant is Dictionary:
-			cell_state = BattleCellState.from_dict(cell_variant)
-		if cell_state == null and cell_variant != null and cell_variant.has_method("to_dict"):
-			cell_state = BattleCellState.from_dict(cell_variant.to_dict())
-		if cell_state == null:
-			continue
-		if coord != Vector2i.ZERO or (cell_variant is Dictionary and not cell_variant.has("coord")):
-			cell_state.coord = coord
-		if _runtime != null and _runtime.get_grid_service() != null:
-			_runtime.get_grid_service().recalculate_cell(cell_state)
-		else:
-			cell_state.recalculate_runtime_values()
-		cells[cell_state.coord] = cell_state
-	return cells
+func _apply_terrain_generation_overrides(terrain_data: Dictionary, context: Dictionary) -> Dictionary:
+	if terrain_data.is_empty():
+		return {}
+	var terrain_result := terrain_data.duplicate(true)
+	var ally_spawns: Variant = context.get("ally_spawns", null)
+	if ally_spawns is Array and not ally_spawns.is_empty():
+		terrain_result["ally_spawns"] = (ally_spawns as Array).duplicate(true)
+	var enemy_spawns: Variant = context.get("enemy_spawns", null)
+	if enemy_spawns is Array and not enemy_spawns.is_empty():
+		terrain_result["enemy_spawns"] = (enemy_spawns as Array).duplicate(true)
+	return terrain_result
 
 
 func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, context: Dictionary):
@@ -212,6 +173,8 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	unit_state.current_stamina = stamina_max
 	unit_state.current_aura = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
 	unit_state.current_ap = action_points
+	unit_state.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
+	unit_state.action_threshold = int(context.get("default_ally_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression if member_state != null else null)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression if member_state != null else null)
 	unit_state.movement_tags = _extract_movement_tags(context.get("ally_movement_tags", []))
@@ -240,20 +203,26 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	var mp_max := int(context.get("default_enemy_mp", 0))
 	var stamina_max := int(context.get("default_enemy_stamina", 0))
 	var action_points := int(context.get("default_enemy_ap", 1))
+	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+		var attribute_key := "default_enemy_%s" % String(attribute_id)
+		unit_state.attribute_snapshot.set_value(attribute_id, int(context.get(attribute_key, 4)))
 	unit_state.attribute_snapshot.set_value(&"hp_max", maxi(hp_max, 1))
 	unit_state.attribute_snapshot.set_value(&"mp_max", maxi(mp_max, 0))
 	unit_state.attribute_snapshot.set_value(&"stamina_max", maxi(stamina_max, 0))
 	unit_state.attribute_snapshot.set_value(&"action_points", maxi(action_points, 1))
-	unit_state.attribute_snapshot.set_value(&"physical_attack", int(context.get("default_attack", 8)))
-	unit_state.attribute_snapshot.set_value(&"physical_defense", int(context.get("default_defense", 4)))
-	unit_state.attribute_snapshot.set_value(&"magic_attack", int(context.get("default_magic_attack", 6)))
-	unit_state.attribute_snapshot.set_value(&"magic_defense", int(context.get("default_magic_defense", 3)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_enemy_attack_bonus", 4)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_enemy_armor_class", 12)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_enemy_armor_ac_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_enemy_shield_ac_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(&"fire_resistance", int(context.get("default_fire_resistance", 0)))
-	unit_state.attribute_snapshot.set_value(&"speed", int(context.get("default_speed", 100)))
+	unit_state.action_threshold = int(context.get("default_enemy_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
 	unit_state.current_hp = hp_max
 	unit_state.current_mp = mp_max
 	unit_state.current_stamina = stamina_max
 	unit_state.current_ap = action_points
+	unit_state.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	unit_state.is_alive = unit_state.current_hp > 0
 	unit_state.movement_tags = _extract_movement_tags(context.get("enemy_movement_tags", []))
 	var enemy_skills: Variant = context.get("enemy_skill_ids", [])
@@ -304,15 +273,6 @@ func _is_valid_enemy_skill(skill_def: SkillDef) -> bool:
 	return skill_def.combat_profile.target_team_filter == &"enemy"
 
 
-func _uses_manual_terrain_layout(context: Dictionary) -> bool:
-	return (
-		context.has("cells")
-		or context.has("map_size")
-		or context.has("ally_spawns")
-		or context.has("enemy_spawns")
-	)
-
-
 func _extract_ally_member_ids(context: Dictionary) -> Array:
 	var member_ids: Variant = context.get("ally_member_ids", context.get("battle_member_ids", context.get("member_ids", [])))
 	if member_ids is Array:
@@ -334,12 +294,13 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary) -> Attr
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(int(context.get("default_ally_stamina", 0)), 0))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, maxi(int(context.get("default_ally_aura", 0)), 0))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, maxi(int(context.get("default_ally_ap", 6)), 1))
-		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_ATTACK, int(context.get("default_ally_attack", 8)))
-		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_DEFENSE, int(context.get("default_ally_defense", 4)))
-		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MAGIC_ATTACK, int(context.get("default_ally_magic_attack", 10)))
-		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MAGIC_DEFENSE, int(context.get("default_ally_magic_defense", 4)))
+		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_ally_attack_bonus", 4)))
+		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_ally_armor_class", 10)))
+		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_ally_armor_ac_bonus", 0)))
+		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_ally_shield_ac_bonus", 0)))
+		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_ally_dodge_bonus", 0)))
+		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_ally_deflection_bonus", 0)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.FIRE_RESISTANCE, int(context.get("default_ally_fire_resistance", 0)))
-		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPEED, int(context.get("default_ally_speed", 100)))
 		return snapshot
 
 	if _runtime != null and _runtime.get_character_gateway() != null:
@@ -352,12 +313,13 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary) -> Attr
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(int(context.get("default_ally_stamina", 0)), 0))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, maxi(int(context.get("default_ally_aura", 0)), 0))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, maxi(int(context.get("default_ally_ap", 6)), 1))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_ATTACK, int(context.get("default_ally_attack", 8)))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_DEFENSE, int(context.get("default_ally_defense", 4)))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MAGIC_ATTACK, int(context.get("default_ally_magic_attack", 10)))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MAGIC_DEFENSE, int(context.get("default_ally_magic_defense", 4)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_ally_attack_bonus", 4)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_ally_armor_class", 10)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_ally_armor_ac_bonus", 0)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_ally_shield_ac_bonus", 0)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_ally_dodge_bonus", 0)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_ally_deflection_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.FIRE_RESISTANCE, int(context.get("default_ally_fire_resistance", 0)))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPEED, int(context.get("default_ally_speed", 100)))
 	return snapshot
 
 

@@ -13,13 +13,26 @@ const BattleSimProfileDef = preload("res://scripts/systems/battle_sim_profile_de
 
 const REPORT_DIRECTORY := "user://simulation_reports"
 const MAX_IDLE_LOOPS := 25
+const PROGRESS_ITERATION_INTERVAL := 100
 
 var _override_applier = BATTLE_SIM_OVERRIDE_APPLIER_SCRIPT.new()
 var _report_builder = BATTLE_SIM_REPORT_BUILDER_SCRIPT.new()
+var progress_logging_enabled := false
+var progress_log_path := ""
+var _progress_log_file: FileAccess = null
+
+
+func set_progress_logging_enabled(enabled: bool) -> void:
+	progress_logging_enabled = enabled
+
+
+func set_progress_log_path(path: String) -> void:
+	progress_log_path = path
 
 
 func run_scenario(scenario_def, profile_defs: Array = []) -> Dictionary:
-	var resolved_profiles := _resolve_profiles(profile_defs)
+	var resolved_profiles: Array = _resolve_profiles(profile_defs)
+	var resolved_seeds: Array[int] = scenario_def.resolve_seeds()
 	var report := {
 		"scenario": scenario_def.to_dict(),
 		"generated_at_unix": int(Time.get_unix_time_from_system()),
@@ -27,10 +40,43 @@ func run_scenario(scenario_def, profile_defs: Array = []) -> Dictionary:
 		"comparisons": [],
 		"output_files": {},
 	}
-	for profile in resolved_profiles:
+	if progress_logging_enabled:
+		_open_progress_log()
+		_log_progress("[BattleSim] progress_log=%s" % ProjectSettings.globalize_path(progress_log_path))
+		_log_progress("[BattleSim] start scenario=%s profiles=%d seeds=%d max_iterations=%d" % [
+			String(scenario_def.scenario_id),
+			resolved_profiles.size(),
+			resolved_seeds.size(),
+			int(scenario_def.max_iterations),
+		])
+	for profile_index in range(resolved_profiles.size()):
+		var profile = resolved_profiles[profile_index]
 		var runs: Array = []
-		for seed in scenario_def.resolve_seeds():
-			runs.append(_run_single_simulation(scenario_def, profile, seed))
+		for seed_index in range(resolved_seeds.size()):
+			var seed := int(resolved_seeds[seed_index])
+			if progress_logging_enabled:
+				_log_progress("[BattleSim] run-start profile=%s profile_index=%d/%d seed=%d seed_index=%d/%d" % [
+					String(profile.profile_id),
+					profile_index + 1,
+					resolved_profiles.size(),
+					seed,
+					seed_index + 1,
+					resolved_seeds.size(),
+				])
+			var run_result := _run_single_simulation(scenario_def, profile, seed)
+			runs.append(run_result)
+			if progress_logging_enabled:
+				_log_progress("[BattleSim] run-done profile=%s seed=%d ended=%s winner=%s final_tu=%d iterations=%d idle_loops=%d ally_alive=%d enemy_alive=%d" % [
+					String(profile.profile_id),
+					seed,
+					str(bool(run_result.get("battle_ended", false))),
+					String(run_result.get("winner_faction_id", "")),
+					int(run_result.get("final_tu", 0)),
+					int(run_result.get("iterations", 0)),
+					int(run_result.get("idle_loops", 0)),
+					int(run_result.get("ally_alive", 0)),
+					int(run_result.get("enemy_alive", 0)),
+				])
 		report["profile_entries"].append({
 			"profile": profile.to_dict(),
 			"runs": runs,
@@ -38,6 +84,12 @@ func run_scenario(scenario_def, profile_defs: Array = []) -> Dictionary:
 		})
 	report["comparisons"] = _report_builder.build_profile_comparisons(report.get("profile_entries", []))
 	report["output_files"] = _write_report_files(scenario_def, report)
+	if progress_logging_enabled:
+		_log_progress("[BattleSim] report-written report_json=%s traces_jsonl=%s" % [
+			String(report.get("output_files", {}).get("report_json", "")),
+			String(report.get("output_files", {}).get("turn_trace_jsonl", "")),
+		])
+		_close_progress_log()
 	return report
 
 
@@ -70,7 +122,7 @@ func _run_single_simulation(scenario_def, profile, seed: int) -> Dictionary:
 		overrides.get("enemy_ai_brains", {}),
 		null
 	)
-	runtime.set_ai_trace_enabled(true)
+	runtime.set_ai_trace_enabled(bool(scenario_def.trace_enabled))
 	runtime.set_ai_score_profile(overrides.get("ai_score_profile", null))
 	var encounter_anchor = _build_encounter_anchor(scenario_def)
 	var state = runtime.start_battle(encounter_anchor, seed, scenario_def.build_start_context())
@@ -87,6 +139,18 @@ func _run_single_simulation(scenario_def, profile, seed: int) -> Dictionary:
 				runtime.advance(0.0)
 		else:
 			runtime.advance(float(scenario_def.tick_interval_seconds))
+		if progress_logging_enabled and iterations % PROGRESS_ITERATION_INTERVAL == 0:
+			_log_progress("[BattleSim] progress profile=%s seed=%d iteration=%d phase=%s active_unit=%s tu=%d idle_loops=%d %s last_log=\"%s\"" % [
+				String(profile.profile_id),
+				seed,
+				iterations,
+				String(state.phase),
+				String(state.active_unit_id),
+				int(state.timeline.current_tu) if state.timeline != null else 0,
+				idle_loops,
+				_build_active_unit_progress_summary(state),
+				_get_last_log_line(state),
+			])
 		var next_signature := _build_progress_signature(state)
 		if previous_signature == next_signature:
 			idle_loops += 1
@@ -139,12 +203,27 @@ func _issue_manual_policy(runtime, manual_policy: StringName, unit_id: StringNam
 func _build_progress_signature(state) -> String:
 	if state == null:
 		return ""
-	return "%s|%s|%s|%d|%d" % [
+	var unit_parts: Array[String] = []
+	for unit_id_str in ProgressionDataUtils.sorted_string_keys(state.units):
+		var unit_state = state.units.get(StringName(unit_id_str))
+		if unit_state == null:
+			continue
+		unit_parts.append("%s:%d,%d:%d:%d:%d:%d:%d" % [
+			unit_id_str,
+			unit_state.coord.x,
+			unit_state.coord.y,
+			1 if bool(unit_state.is_alive) else 0,
+			int(unit_state.current_hp),
+			int(unit_state.current_ap),
+			int(unit_state.current_stamina),
+			int(unit_state.current_move_points),
+		])
+	return "%s|%s|%s|%d|%s" % [
 		String(state.phase),
 		String(state.active_unit_id),
 		String(state.winner_faction_id),
 		int(state.timeline.current_tu) if state.timeline != null else 0,
-		state.log_entries.size(),
+		";".join(unit_parts),
 	]
 
 
@@ -206,6 +285,52 @@ func _write_report_files(scenario_def, report: Dictionary) -> Dictionary:
 		"report_json": report_path,
 		"turn_trace_jsonl": trace_path,
 	}
+
+
+func _open_progress_log() -> void:
+	if progress_log_path.is_empty():
+		return
+	var base_dir := progress_log_path.get_base_dir()
+	if not base_dir.is_empty():
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(base_dir))
+	_progress_log_file = FileAccess.open(progress_log_path, FileAccess.WRITE)
+
+
+func _close_progress_log() -> void:
+	if _progress_log_file != null:
+		_progress_log_file.close()
+		_progress_log_file = null
+
+
+func _log_progress(message: String) -> void:
+	print(message)
+	if _progress_log_file != null:
+		_progress_log_file.store_line(message)
+		_progress_log_file.flush()
+
+
+func _build_active_unit_progress_summary(state) -> String:
+	if state == null or state.active_unit_id == &"":
+		return ""
+	var active_unit = state.units.get(state.active_unit_id)
+	if active_unit == null:
+		return ""
+	return "coord=(%d,%d) hp=%d ap=%d stamina=%d move=%d last_action=%s decisions=%d" % [
+		active_unit.coord.x,
+		active_unit.coord.y,
+		int(active_unit.current_hp),
+		int(active_unit.current_ap),
+		int(active_unit.current_stamina),
+		int(active_unit.current_move_points),
+		String(active_unit.ai_blackboard.get("last_action_id", "")),
+		int(active_unit.ai_blackboard.get("turn_decision_count", 0)),
+	]
+
+
+func _get_last_log_line(state) -> String:
+	if state == null or state.log_entries.is_empty():
+		return ""
+	return String(state.log_entries[-1]).replace("\n", " ")
 
 
 func _normalize_variant(value):

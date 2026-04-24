@@ -4,6 +4,7 @@ extends RefCounted
 
 func build_profile_summary(profile, runs: Array) -> Dictionary:
 	var wins_by_faction: Dictionary = {}
+	var skill_attempt_totals: Dictionary = {}
 	var skill_usage_totals: Dictionary = {}
 	var action_choice_counts: Dictionary = {}
 	var faction_metric_totals: Dictionary = {}
@@ -17,6 +18,7 @@ func build_profile_summary(profile, runs: Array) -> Dictionary:
 			wins_by_faction[winner_faction] = int(wins_by_faction.get(winner_faction, 0)) + 1
 		total_final_tu += int(run_entry.get("final_tu", 0))
 		total_iterations += int(run_entry.get("iterations", 0))
+		_merge_skill_counter(skill_attempt_totals, run_entry.get("metrics", {}), "skill_attempt_counts")
 		_merge_skill_usage(skill_usage_totals, run_entry.get("metrics", {}))
 		_merge_action_choices(action_choice_counts, run_entry.get("ai_turn_traces", []))
 		_merge_faction_metric_totals(faction_metric_totals, run_entry.get("metrics", {}))
@@ -29,7 +31,9 @@ func build_profile_summary(profile, runs: Array) -> Dictionary:
 		"win_rate_by_faction": _build_rate_dictionary(wins_by_faction, runs.size()),
 		"average_final_tu": float(total_final_tu) / float(run_count),
 		"average_iterations": float(total_iterations) / float(run_count),
+		"skill_attempt_totals": skill_attempt_totals,
 		"skill_usage_totals": skill_usage_totals,
+		"skill_failure_totals": _build_skill_failure_totals(skill_attempt_totals, skill_usage_totals),
 		"action_choice_counts": action_choice_counts,
 		"faction_metric_totals": faction_metric_totals,
 	}
@@ -61,6 +65,14 @@ func build_profile_comparisons(profile_entries: Array) -> Array[Dictionary]:
 				baseline_summary.get("skill_usage_totals", {}),
 				candidate_summary.get("skill_usage_totals", {})
 			),
+			"skill_attempt_delta": _diff_int_dictionary(
+				baseline_summary.get("skill_attempt_totals", {}),
+				candidate_summary.get("skill_attempt_totals", {})
+			),
+			"skill_failure_delta": _diff_int_dictionary(
+				baseline_summary.get("skill_failure_totals", {}),
+				candidate_summary.get("skill_failure_totals", {})
+			),
 			"action_choice_delta": _diff_int_dictionary(
 				baseline_summary.get("action_choice_counts", {}),
 				candidate_summary.get("action_choice_counts", {})
@@ -70,18 +82,38 @@ func build_profile_comparisons(profile_entries: Array) -> Array[Dictionary]:
 
 
 func _merge_skill_usage(skill_usage_totals: Dictionary, metrics: Dictionary) -> void:
+	_merge_skill_counter(skill_usage_totals, metrics, "skill_success_counts")
+
+
+func _merge_skill_counter(skill_totals: Dictionary, metrics: Dictionary, counter_key: String) -> void:
 	var units = metrics.get("units", {})
 	if units is not Dictionary:
 		return
 	for unit_entry in units.values():
 		if unit_entry is not Dictionary:
 			continue
-		var skill_counts = unit_entry.get("skill_success_counts", {})
+		var skill_counts = unit_entry.get(counter_key, {})
 		if skill_counts is not Dictionary:
 			continue
 		for skill_key in skill_counts.keys():
 			var normalized_key := String(skill_key)
-			skill_usage_totals[normalized_key] = int(skill_usage_totals.get(normalized_key, 0)) + int(skill_counts.get(skill_key, 0))
+			skill_totals[normalized_key] = int(skill_totals.get(normalized_key, 0)) + int(skill_counts.get(skill_key, 0))
+
+
+func _build_skill_failure_totals(skill_attempt_totals: Dictionary, skill_usage_totals: Dictionary) -> Dictionary:
+	var failures: Dictionary = {}
+	var keys: Dictionary = {}
+	for skill_key in skill_attempt_totals.keys():
+		keys[String(skill_key)] = true
+	for skill_key in skill_usage_totals.keys():
+		keys[String(skill_key)] = true
+	for skill_key in keys.keys():
+		var attempts := int(skill_attempt_totals.get(skill_key, 0))
+		var successes := int(skill_usage_totals.get(skill_key, 0))
+		var failures_for_skill := maxi(attempts - successes, 0)
+		if failures_for_skill > 0:
+			failures[skill_key] = failures_for_skill
+	return failures
 
 
 func _merge_action_choices(action_choice_counts: Dictionary, ai_turn_traces: Variant) -> void:

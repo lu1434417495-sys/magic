@@ -7,7 +7,9 @@ extends RefCounted
 
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/pending_character_reward.gd")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
+const BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
 
 ## 字段说明：记录战斗唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var battle_id: StringName = &""
@@ -125,7 +127,7 @@ static func _normalize_drop_entry_variants(loot_entry_variants: Variant) -> Arra
 		var drop_source_label := String(loot_entry_data.get("drop_source_label", "")).strip_edges()
 		if drop_source_label.is_empty():
 			drop_source_label = String(drop_source_id)
-		normalized_entries.append({
+		var normalized_entry := {
 			"drop_type": String(drop_type),
 			"drop_source_kind": String(drop_source_kind),
 			"drop_source_id": String(drop_source_id),
@@ -133,7 +135,17 @@ static func _normalize_drop_entry_variants(loot_entry_variants: Variant) -> Arra
 			"drop_entry_id": String(drop_entry_id),
 			"item_id": String(item_id),
 			"quantity": quantity,
-		})
+		}
+		if drop_type == BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE:
+			var equipment_instance_data := _normalize_equipment_instance_data(
+				loot_entry_data.get("equipment_instance", loot_entry_data.get("equipment_instance_data", {}))
+			)
+			if equipment_instance_data.is_empty():
+				continue
+			normalized_entry["equipment_instance"] = equipment_instance_data
+			normalized_entry["quantity"] = 1
+			normalized_entry["item_id"] = String(ProgressionDataUtils.to_string_name(equipment_instance_data.get("item_id", item_id)))
+		normalized_entries.append(normalized_entry)
 	return normalized_entries
 
 
@@ -199,3 +211,18 @@ static func _duplicate_variant_array(values: Variant) -> Array:
 		else:
 			result.append(value)
 	return result
+
+
+static func _normalize_equipment_instance_data(value: Variant) -> Dictionary:
+	if value == null:
+		return {}
+	if value is Dictionary:
+		var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(value)
+		if instance == null or instance.item_id == &"":
+			return {}
+		return instance.to_dict()
+	if value.has_method("to_dict"):
+		var instance_dict: Variant = value.to_dict()
+		if instance_dict is Dictionary:
+			return _normalize_equipment_instance_data(instance_dict)
+	return {}

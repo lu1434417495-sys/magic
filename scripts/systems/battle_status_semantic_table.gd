@@ -18,7 +18,7 @@ const STATUS_ATTACK_UP: StringName = &"attack_up"
 const STATUS_BURNING: StringName = &"burning"
 const STATUS_DEATH_WARD: StringName = &"death_ward"
 const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
-const STATUS_EVASION_UP: StringName = &"evasion_up"
+const STATUS_DODGE_BONUS_UP: StringName = &"dodge_bonus_up"
 const STATUS_FROZEN: StringName = &"frozen"
 const STATUS_GUARDING: StringName = &"guarding"
 const STATUS_HEX_OF_FRAILTY: StringName = &"hex_of_frailty"
@@ -33,6 +33,10 @@ const STATUS_SPELLWARD: StringName = &"spellward"
 const STATUS_STAGGERED: StringName = &"staggered"
 const STATUS_TAUNTED: StringName = &"taunted"
 const STATUS_TENDON_CUT: StringName = &"tendon_cut"
+const STATUS_CROWN_BREAK_BROKEN_FANG: StringName = &"crown_break_broken_fang"
+const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
+const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
+const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
 
 
 static func has_semantic(status_id: StringName) -> bool:
@@ -41,9 +45,9 @@ static func has_semantic(status_id: StringName) -> bool:
 
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_EVASION_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD:
+		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_DODGE_BONUS_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD:
 			return _build_refresh_timeline_semantic()
-		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT:
+		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT:
 			return _build_refresh_timeline_semantic()
 		STATUS_BURNING:
 			return {

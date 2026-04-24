@@ -16,13 +16,14 @@ const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd"
 const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
 const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 const MAP_SIZE := Vector2i(20, 14)
 const DEFAULT_TARGET_TU := 200
 const MAX_ITERATIONS := 5000
 const TIMELINE_TICK_SECONDS := 1.0
 const TIMELINE_TU_PER_TICK := 5
-const ACTION_THRESHOLD := 1000
+const ACTION_THRESHOLD := 120
 const ALLY_COUNT := 6
 const ENEMY_COUNT := 40
 const SCENARIO_MIXED_PRESSURE := &"mixed_pressure"
@@ -207,7 +208,6 @@ func _build_flat_state(map_size: Vector2i, scenario_id: StringName):
 	state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.new()
 	state.timeline.tick_interval_seconds = TIMELINE_TICK_SECONDS
 	state.timeline.tu_per_tick = TIMELINE_TU_PER_TICK
-	state.timeline.action_threshold = ACTION_THRESHOLD
 	state.timeline.frozen = false
 	for y in range(map_size.y):
 		for x in range(map_size.x):
@@ -293,8 +293,8 @@ func _populate_ground_skill_heavy_units(runtime, state) -> void:
 		)
 		ally_unit.current_hp = 720
 		ally_unit.attribute_snapshot.set_value(&"hp_max", 720)
-		ally_unit.attribute_snapshot.set_value(&"physical_defense", 30)
-		ally_unit.attribute_snapshot.set_value(&"magic_defense", 30)
+		ally_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 30)
+		ally_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 30)
 		_add_unit_to_state(runtime, state, ally_unit, false)
 
 	var enemy_positions: Array[Vector2i] = []
@@ -319,7 +319,7 @@ func _populate_ground_skill_heavy_units(runtime, state) -> void:
 		enemy_unit.current_stamina = 120
 		enemy_unit.attribute_snapshot.set_value(&"hp_max", 220)
 		enemy_unit.attribute_snapshot.set_value(&"mp_max", 240)
-		enemy_unit.attribute_snapshot.set_value(&"magic_attack", 14)
+		enemy_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 14)
 		enemy_unit.known_skill_level_map[HEAVY_GROUND_SKILL_ID] = 5
 		_add_unit_to_state(runtime, state, enemy_unit, true)
 
@@ -383,8 +383,6 @@ func _build_heavy_ground_damage_effect(damage_power: int):
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = damage_power
-	effect_def.scaling_attribute_id = &"magic_attack"
-	effect_def.defense_attribute_id = &"magic_defense"
 	return effect_def
 
 
@@ -424,6 +422,7 @@ func _build_manual_benchmark_unit(unit_id: StringName, display_name: String, coo
 	unit.current_stamina = 120
 	unit.current_aura = 120
 	unit.current_ap = 2
+	unit.action_threshold = ACTION_THRESHOLD
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 260)
@@ -431,11 +430,10 @@ func _build_manual_benchmark_unit(unit_id: StringName, display_name: String, coo
 	unit.attribute_snapshot.set_value(&"stamina_max", 120)
 	unit.attribute_snapshot.set_value(&"aura_max", 120)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(&"physical_attack", 18)
-	unit.attribute_snapshot.set_value(&"magic_attack", 12)
-	unit.attribute_snapshot.set_value(&"physical_defense", 24)
-	unit.attribute_snapshot.set_value(&"magic_defense", 20)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 24)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 20)
 	return unit
 
 
@@ -458,6 +456,7 @@ func _build_ai_benchmark_unit(
 	unit.current_stamina = 120
 	unit.current_aura = 120
 	unit.current_ap = 2
+	unit.action_threshold = ACTION_THRESHOLD
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 180)
@@ -465,11 +464,10 @@ func _build_ai_benchmark_unit(
 	unit.attribute_snapshot.set_value(&"stamina_max", 120)
 	unit.attribute_snapshot.set_value(&"aura_max", 120)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(&"physical_attack", 16)
-	unit.attribute_snapshot.set_value(&"magic_attack", 16)
-	unit.attribute_snapshot.set_value(&"physical_defense", 18)
-	unit.attribute_snapshot.set_value(&"magic_defense", 18)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 18)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1

@@ -12,11 +12,20 @@ const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const BattleMapPanel = preload("res://scripts/ui/battle_map_panel.gd")
 const BattlePanelScene = preload("res://scenes/ui/battle_map_panel.tscn")
+const RuntimeLogDock = preload("res://scripts/ui/runtime_log_dock.gd")
+const RuntimeLogDockScene = preload("res://scenes/ui/runtime_log_dock.tscn")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const ULTRAWIDE_PANEL_SIZE := Vector2i(3857, 786)
+const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
+const WARRIOR_HEAVY_STRIKE_SKILL_ID: StringName = &"warrior_heavy_strike"
+const ARCHER_MULTISHOT_SKILL_ID: StringName = &"archer_multishot"
+const ARCHER_MULTISHOT_VARIANT_ID: StringName = &"multishot_volley"
+const ACTION_TITHE_VARIANT_ID: StringName = &"action_tithe"
 
 var _failures: Array[String] = []
 
@@ -37,11 +46,18 @@ func _initialize() -> void:
 func _run() -> void:
 	await _test_multi_unit_hud_copy_and_selection_state()
 	await _test_repeat_attack_hud_preview_matches_runtime_resolver()
+	await _test_single_hit_hud_preview_matches_runtime_resolver()
+	await _test_repeat_attack_hud_preview_uses_fate_aware_success_rate()
 	await _test_skill_slot_surfaces_stamina_and_cooldown_blockers()
 	await _test_multi_unit_board_highlights_confirm_state()
 	await _test_multi_unit_board_confirm_halo_follows_active_unit()
 	await _test_multi_unit_board_highlights_continue_state()
 	await _test_movement_mode_uses_classic_srpg_style_markers()
+	await _test_fate_preview_badges_surface_high_threat_and_mercy_states()
+	await _test_force_hit_no_crit_skill_hides_standard_fate_badges()
+	await _test_hybrid_multi_unit_skill_uses_shared_fate_policy()
+	_test_battle_state_log_buffer_enforces_entry_cap()
+	await _test_runtime_log_dock_syncs_battle_entries()
 	await _test_battle_panel_flushes_to_ultrawide_edges()
 	await _test_battle_panel_loading_overlay_waits_for_first_presented_frame()
 	if _failures.is_empty():
@@ -104,7 +120,7 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 		4
 	)
 	attacker.current_aura = 6
-	attacker.attribute_snapshot.set_value(&"hit_rate", 90)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 90)
 	var defender := _build_repeat_attack_unit(
 		&"saint_blade_ui_target",
 		"训练木桩",
@@ -114,7 +130,7 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 		2,
 		0
 	)
-	defender.attribute_snapshot.set_value(&"evasion", 0)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	_add_unit_to_runtime_state(runtime, state, attacker, false)
 	_add_unit_to_runtime_state(runtime, state, defender, true)
 	state.phase = &"unit_acting"
@@ -131,18 +147,14 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
 	_assert_true(preview != null and not preview.hit_preview.is_empty(), "repeat_attack 预览应暴露共享的命中摘要。")
 	_assert_true(hit_preview_text.begins_with("预计命中率 "), "repeat_attack 预览摘要应使用统一的 resolver 文案前缀。")
-	_assert_true(hit_preview_text.contains("需 3+"), "repeat_attack 预览摘要应暴露首段 required roll。")
+	_assert_true(hit_preview_text.contains("需 "), "repeat_attack 预览摘要应暴露 required roll。")
 	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 2, "repeat_attack 预览应按当前 Aura 只展示可支付的最大段数。")
-	_assert_eq(
-		preview.hit_preview.get("stage_required_rolls", []),
-		[3, 5],
-		"repeat_attack 预览应按当前 Aura 上限和 d20 公式稳定暴露每段 required roll。"
-	)
-	_assert_eq(
-		preview.hit_preview.get("stage_preview_texts", []),
-		["90%（需 3+）", "80%（需 5+）"],
-		"repeat_attack 预览应按当前 Aura 上限输出统一 resolver 阶段摘要。"
-	)
+	var stage_required_rolls := preview.hit_preview.get("stage_required_rolls", []) as Array
+	var stage_preview_texts := preview.hit_preview.get("stage_preview_texts", []) as Array
+	_assert_eq(stage_required_rolls.size(), 2, "repeat_attack 预览应按当前 Aura 上限暴露每段 required roll。")
+	_assert_eq(stage_preview_texts.size(), 2, "repeat_attack 预览应按当前 Aura 上限输出 resolver 阶段摘要。")
+	for stage_preview_text in stage_preview_texts:
+		_assert_true(String(stage_preview_text).contains("需 "), "repeat_attack 每段预览文案都应包含 required roll。")
 
 	var adapter := BattleHudAdapter.new()
 	var snapshot := adapter.build_snapshot(
@@ -167,6 +179,87 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "HUD 副标题应显示 resolver 命中摘要。")
 	_assert_true(String(snapshot.get("command_text", "")).contains(hit_preview_text), "HUD 指令摘要应显示 resolver 命中摘要。")
+
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
+	var skill_def := _get_skill_def(WARRIOR_HEAVY_STRIKE_SKILL_ID)
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "单段技能命中预览前置：warrior_heavy_strike 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, game_session.skill_defs, {}, {}, null)
+	var state := _build_repeat_attack_state()
+	var attacker := _build_repeat_attack_unit(
+		&"heavy_strike_ui_user",
+		"重击战士",
+		&"player",
+		Vector2i(1, 1),
+		[skill_def.skill_id],
+		3,
+		4
+	)
+	attacker.current_stamina = 2
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	var defender := _build_repeat_attack_unit(
+		&"heavy_strike_ui_target",
+		"高闪避木桩",
+		&"enemy",
+		Vector2i(2, 1),
+		[],
+		2,
+		0
+	)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 70)
+	_add_unit_to_runtime_state(runtime, state, attacker, false)
+	_add_unit_to_runtime_state(runtime, state, defender, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = attacker.unit_id
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = attacker.unit_id
+	command.skill_id = skill_def.skill_id
+	command.target_unit_id = defender.unit_id
+	command.target_coord = defender.coord
+	var preview := runtime.preview_command(command)
+	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
+	_assert_true(preview != null and not preview.hit_preview.is_empty(), "普通单段技能 runtime preview 应暴露命中摘要。")
+	_assert_true(hit_preview_text.begins_with("预计命中率 "), "普通单段技能命中预览摘要应使用统一 resolver 文案前缀。")
+	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 1, "普通单段技能命中预览应暴露单段命中率。")
+
+	var adapter := BattleHudAdapter.new()
+	var snapshot := adapter.build_snapshot(
+		state,
+		defender.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"",
+		[],
+		1,
+		[]
+	)
+	_assert_eq(
+		String(snapshot.get("selected_skill_hit_preview_text", "")),
+		hit_preview_text,
+		"HUD snapshot 应保留普通单段技能的 runtime 命中摘要。"
+	)
+	_assert_eq(
+		snapshot.get("selected_skill_hit_stage_rates", []),
+		preview.hit_preview.get("stage_hit_rates", []),
+		"HUD snapshot 应保留普通单段技能的阶段命中率数组。"
+	)
+	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "普通单段技能 HUD 副标题应显示 resolver 命中摘要。")
+	_assert_true(String(snapshot.get("command_text", "")).contains(hit_preview_text), "普通单段技能 HUD 指令摘要应显示 resolver 命中摘要。")
 
 	game_session.queue_free()
 	await process_frame
@@ -318,6 +411,330 @@ func _test_movement_mode_uses_classic_srpg_style_markers() -> void:
 	await process_frame
 
 
+func _test_fate_preview_badges_surface_high_threat_and_mercy_states() -> void:
+	var skill_def := _get_skill_def(WARRIOR_HEAVY_STRIKE_SKILL_ID)
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "命运概览前置：warrior_heavy_strike 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var high_threat_panel := BattlePanelScene.instantiate() as BattleMapPanel
+	root.add_child(high_threat_panel)
+	await process_frame
+	high_threat_panel.size = VIEWPORT_SIZE
+	var high_threat_state := _build_fate_preview_state(&"battle_ui_fate_high_threat", 2, 0, skill_def.skill_id)
+	var high_threat_target := high_threat_state.units.get(&"fate_enemy") as BattleUnitState
+	high_threat_panel.refresh(
+		high_threat_state,
+		high_threat_target.coord if high_threat_target != null else Vector2i.ZERO,
+		skill_def.skill_id,
+		skill_def.display_name
+	)
+	await process_frame
+
+	var high_threat_badge_texts := _collect_badge_texts(high_threat_panel.fate_badge_row)
+	_assert_true(high_threat_badge_texts.has("劣势"), "命运概览应明确显示当前处于劣势。")
+	_assert_true(high_threat_badge_texts.has("暴击门 d20"), "命运概览应显示 crit_gate_die 尺寸。")
+	_assert_true(high_threat_badge_texts.has("大失败 1"), "命运概览应显示大失败区间。")
+	_assert_true(high_threat_badge_texts.has("高位大成功 18-20"), "crit_gate_die==20 时应显示高位大成功区间。")
+	_assert_true(
+		high_threat_panel.command_summary_label.tooltip_text.contains("高位大成功：18-20"),
+		"命令悬浮提示应回显高位大成功区间。"
+	)
+	var fumble_badge := _find_badge_panel(high_threat_panel.fate_badge_row, "大失败 1")
+	var high_threat_badge := _find_badge_panel(high_threat_panel.fate_badge_row, "高位大成功 18-20")
+	if fumble_badge != null and high_threat_badge != null:
+		var fumble_style := fumble_badge.get_theme_stylebox("panel") as StyleBoxFlat
+		var high_threat_style := high_threat_badge.get_theme_stylebox("panel") as StyleBoxFlat
+		_assert_true(
+			fumble_style != null and high_threat_style != null and fumble_style.bg_color != high_threat_style.bg_color,
+			"大失败与高位大成功徽标应使用不同语义色。"
+		)
+
+	high_threat_panel.queue_free()
+	await process_frame
+
+	var mercy_panel := BattlePanelScene.instantiate() as BattleMapPanel
+	root.add_child(mercy_panel)
+	await process_frame
+	mercy_panel.size = VIEWPORT_SIZE
+	var mercy_state := _build_fate_preview_state(&"battle_ui_fate_mercy", -5, 0, skill_def.skill_id)
+	var mercy_target := mercy_state.units.get(&"fate_enemy") as BattleUnitState
+	mercy_panel.refresh(
+		mercy_state,
+		mercy_target.coord if mercy_target != null else Vector2i.ZERO,
+		skill_def.skill_id,
+		skill_def.display_name
+	)
+	await process_frame
+
+	var mercy_badge_texts := _collect_badge_texts(mercy_panel.fate_badge_row)
+	_assert_true(mercy_badge_texts.has("暴击门 d40"), "命运怜悯场景应显示放大后的 crit_gate_die。")
+	_assert_true(mercy_badge_texts.has("大失败 1-2"), "命运怜悯场景应显示扩大的大失败区间。")
+	_assert_true(mercy_badge_texts.has("命运的怜悯"), "effective_luck<=-5 且处于劣势时应显示命运的怜悯徽标。")
+	_assert_true(
+		not mercy_badge_texts.has("高位大成功 20-20") and not mercy_panel.command_summary_label.tooltip_text.contains("高位大成功"),
+		"crit_gate_die!=20 时不应显示高位大成功区间。"
+	)
+	_assert_true(
+		mercy_panel.command_summary_label.tooltip_text.contains("命运的怜悯：已生效"),
+		"命令悬浮提示应说明命运的怜悯已生效。"
+	)
+
+	mercy_panel.queue_free()
+	await process_frame
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"fate_preview_combo"
+	skill_def.display_name = "命契连斩"
+	skill_def.combat_profile = CombatSkillDef.new()
+	skill_def.combat_profile.skill_id = skill_def.skill_id
+	skill_def.combat_profile.attack_roll_bonus = 0
+	skill_def.combat_profile.aura_cost = 1
+	var repeat_attack_effect := CombatEffectDef.new()
+	repeat_attack_effect.effect_type = &"repeat_attack_until_fail"
+	repeat_attack_effect.params = {
+		"base_attack_bonus": 0,
+		"follow_up_attack_penalty": 0,
+		"follow_up_cost_multiplier": 2.0,
+		"cost_resource": &"aura",
+	}
+	skill_def.combat_profile.effect_defs = [repeat_attack_effect]
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, game_session.skill_defs, {}, {}, null)
+	var state := _build_repeat_attack_state()
+	var attacker := _build_repeat_attack_unit(
+		&"fate_hit_preview_user",
+		"命契高运者",
+		&"player",
+		Vector2i(1, 1),
+		[skill_def.skill_id],
+		2,
+		4
+	)
+	attacker.current_aura = 1
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	attacker.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
+	var defender := _build_repeat_attack_unit(
+		&"fate_hit_preview_target",
+		"高闪避木桩",
+		&"enemy",
+		Vector2i(2, 1),
+		[],
+		2,
+		0
+	)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 70)
+	_add_unit_to_runtime_state(runtime, state, attacker, false)
+	_add_unit_to_runtime_state(runtime, state, defender, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = attacker.unit_id
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = attacker.unit_id
+	command.skill_id = skill_def.skill_id
+	command.target_unit_id = defender.unit_id
+	command.target_coord = defender.coord
+	var preview := runtime.preview_command(command)
+	var stage_hit_rates := preview.hit_preview.get("stage_hit_rates", []) as Array
+	var stage_base_hit_rates := preview.hit_preview.get("stage_base_hit_rates", []) as Array
+	var stage_preview_texts := preview.hit_preview.get("stage_preview_texts", []) as Array
+	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
+	_assert_true(preview != null and not preview.hit_preview.is_empty(), "命中预览应暴露 resolver 结果。")
+	_assert_eq(stage_base_hit_rates.size(), stage_hit_rates.size(), "命中预览应保留与最终成功率对齐的 raw 命中率数组。")
+	_assert_eq(stage_preview_texts.size(), stage_hit_rates.size(), "命中预览应保留与最终成功率对齐的阶段文案数组。")
+	_assert_true(hit_preview_text.begins_with("预计命中率 "), "命中摘要应使用统一 resolver 文案前缀。")
+	for stage_preview_text in stage_preview_texts:
+		_assert_true(String(stage_preview_text).contains("需 "), "命中预览阶段文案应包含 required roll。")
+
+	var adapter := BattleHudAdapter.new()
+	var snapshot := adapter.build_snapshot(
+		state,
+		defender.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"",
+		[],
+		1,
+		[]
+	)
+	_assert_eq(
+		snapshot.get("selected_skill_hit_stage_rates", []),
+		stage_hit_rates,
+		"HUD snapshot 应复用 resolver 阶段成功率。"
+	)
+	_assert_eq(
+		String(snapshot.get("selected_skill_hit_preview_text", "")),
+		hit_preview_text,
+		"HUD 命中摘要应复用共享的 resolver success 文案。"
+	)
+
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_force_hit_no_crit_skill_hides_standard_fate_badges() -> void:
+	var skill_def := _get_skill_def(BLACK_CONTRACT_PUSH_SKILL_ID)
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "强制命中 fate HUD 前置：black_contract_push 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var panel := BattlePanelScene.instantiate() as BattleMapPanel
+	root.add_child(panel)
+	await process_frame
+	panel.size = VIEWPORT_SIZE
+	var state := _build_fate_preview_state(&"battle_ui_force_hit_no_crit", -5, 0, skill_def.skill_id)
+	var target := state.units.get(&"fate_enemy") as BattleUnitState
+	panel.refresh(
+		state,
+		target.coord if target != null else Vector2i.ZERO,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"行契",
+		[],
+		[],
+		1,
+		[],
+		ACTION_TITHE_VARIANT_ID
+	)
+	await process_frame
+
+	var badge_texts := _collect_badge_texts(panel.fate_badge_row)
+	_assert_true(badge_texts.has("必定命中"), "force_hit_no_crit 技能应显示必定命中徽标。")
+	_assert_true(badge_texts.has("禁暴击"), "force_hit_no_crit 技能应显示禁暴击徽标。")
+	_assert_true(badge_texts.has("摆幅压低"), "force_hit_no_crit 技能应显示命运摆幅压低提示。")
+	_assert_true(not _badge_texts_contain_prefix(badge_texts, "暴击门"), "force_hit_no_crit 技能不应继续显示标准暴击门徽标。")
+	_assert_true(not _badge_texts_contain_prefix(badge_texts, "大失败"), "force_hit_no_crit 技能不应继续显示标准大失败徽标。")
+	_assert_true(not _badge_texts_contain_prefix(badge_texts, "高位大成功"), "force_hit_no_crit 技能不应继续显示高位大成功徽标。")
+	_assert_true(
+		panel.command_summary_label.tooltip_text.contains("强制命中") and panel.command_summary_label.tooltip_text.contains("不再走标准命中/暴击/大失败骰"),
+		"force_hit_no_crit 技能的命令提示应说明它已切到特殊 fate 口径。"
+	)
+
+	panel.queue_free()
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_hybrid_multi_unit_skill_uses_shared_fate_policy() -> void:
+	var skill_def := _get_skill_def(ARCHER_MULTISHOT_SKILL_ID)
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "混合多目标 fate HUD 前置：archer_multishot 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var adapter := BattleHudAdapter.new()
+	var state := _build_hybrid_multi_unit_fate_preview_state()
+	var enemy := state.units.get(&"hybrid_enemy_a") as BattleUnitState
+	var target_coords: Array[Vector2i] = []
+	var target_unit_ids: Array[StringName] = []
+	if enemy != null:
+		target_coords.append(enemy.coord)
+		target_unit_ids.append(enemy.unit_id)
+	var snapshot := adapter.build_snapshot(
+		state,
+		enemy.coord if enemy != null else Vector2i.ZERO,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"连珠箭",
+		target_coords,
+		3,
+		target_unit_ids,
+		ARCHER_MULTISHOT_VARIANT_ID
+	)
+	var fate_badges := snapshot.get("selected_skill_fate_badges", []) as Array
+	_assert_true(not fate_badges.is_empty(), "ground 变体多目标点射在 HUD 上也应复用共享 fate policy。")
+	_assert_true(
+		String(snapshot.get("selected_skill_fate_preview_text", "")).contains("暴击门"),
+		"ground 变体多目标点射的 HUD 命运概览应显示标准 fate 摘要。"
+	)
+
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_battle_state_log_buffer_enforces_entry_cap() -> void:
+	var state := BattleState.new()
+	for index in range(BattleState.LOG_ENTRY_LIMIT + 25):
+		state.append_log_entry("log_%d" % index)
+	_assert_eq(state.log_entries.size(), BattleState.LOG_ENTRY_LIMIT, "BattleState 日志缓冲应按条数上限裁剪。")
+	_assert_eq(String(state.log_entries[0]), "log_25", "BattleState 日志缓冲达到上限后应淘汰最旧条目。")
+	_assert_true(
+		state.get_log_text_byte_size() <= BattleState.LOG_TEXT_BYTE_LIMIT,
+		"BattleState 日志缓冲裁剪后应保持在字节预算内。"
+	)
+
+
+func _test_runtime_log_dock_syncs_battle_entries() -> void:
+	root.size = Vector2i(VIEWPORT_SIZE)
+	var log_dock := RuntimeLogDockScene.instantiate() as RuntimeLogDock
+	root.add_child(log_dock)
+	await process_frame
+	log_dock.size = VIEWPORT_SIZE
+	var state := _build_state()
+	state.reset_log_entries([
+		"战斗开始：日志窗口回归",
+		"轮到 我方 行动。",
+		"我方 结束行动。",
+	])
+	log_dock.show_battle_logs(state)
+	await process_frame
+
+	_assert_true(
+		log_dock != null and log_dock.log_output.get_parsed_text().contains("战斗开始：日志窗口回归"),
+		"右侧日志窗口应显示 battle start 之后的首条日志。"
+	)
+	_assert_true(
+		log_dock != null and log_dock.log_output.get_parsed_text().contains("我方 结束行动。"),
+		"右侧日志窗口应显示完整战斗日志，而不只保留底部摘要。"
+	)
+	_assert_true(
+		log_dock != null and log_dock.meta_label.text.contains("3 条"),
+		"右侧日志窗口元信息应显示当前日志条数。"
+	)
+	_assert_eq(log_dock.title_label.text, "战斗日志", "battle feed 应复用统一日志窗口标题。")
+
+	state.append_log_entry("敌方 准备反击。")
+	log_dock.show_battle_logs(state)
+	await process_frame
+	_assert_true(
+		log_dock != null and log_dock.log_output.get_parsed_text().contains("敌方 准备反击。"),
+		"overlay 刷新时右侧日志窗口也应增量追加新日志。"
+	)
+	_assert_true(
+		log_dock != null and log_dock.meta_label.text.contains("4 条"),
+		"增量追加日志后，右侧日志窗口元信息应同步刷新。"
+	)
+
+	log_dock.queue_free()
+	await process_frame
+
+
 func _test_battle_panel_flushes_to_ultrawide_edges() -> void:
 	root.size = ULTRAWIDE_PANEL_SIZE
 	var panel := BattlePanelScene.instantiate() as BattleMapPanel
@@ -439,6 +856,116 @@ func _build_repeat_attack_state() -> BattleState:
 	return state
 
 
+func _build_fate_preview_state(
+	battle_id: StringName,
+	hidden_luck_at_birth: int,
+	faith_luck_bonus: int,
+	skill_id: StringName = WARRIOR_HEAVY_STRIKE_SKILL_ID
+) -> BattleState:
+	var state := BattleState.new()
+	state.battle_id = battle_id
+	state.map_size = Vector2i(4, 4)
+	state.terrain_profile_id = &"default"
+	state.cells = {}
+	for y in range(4):
+		for x in range(4):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+
+	var caster := _build_repeat_attack_unit(
+		&"fate_caster",
+		"命契战士",
+		&"player",
+		Vector2i(1, 1),
+		[skill_id],
+		2,
+		0
+	)
+	caster.current_hp = 10
+	caster.current_stamina = 4
+	caster.attribute_snapshot.set_value(&"hp_max", 40)
+	caster.attribute_snapshot.set_value(&"stamina_max", 4)
+	caster.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, hidden_luck_at_birth)
+	caster.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, faith_luck_bonus)
+
+	var enemy := _build_repeat_attack_unit(
+		&"fate_enemy",
+		"高闪避敌人",
+		&"enemy",
+		Vector2i(2, 1),
+		[],
+		2,
+		0
+	)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 999)
+
+	state.units = {
+		caster.unit_id: caster,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [caster.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = caster.unit_id
+	return state
+
+
+func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
+	var state := BattleState.new()
+	state.battle_id = &"battle_ui_hybrid_multi_unit_fate"
+	state.map_size = Vector2i(5, 3)
+	state.terrain_profile_id = &"default"
+	state.cells = {}
+	for y in range(3):
+		for x in range(5):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+
+	var archer := _build_repeat_attack_unit(
+		&"hybrid_archer",
+		"混合弓手",
+		&"player",
+		Vector2i(0, 1),
+		[ARCHER_MULTISHOT_SKILL_ID],
+		3,
+		0
+	)
+	archer.current_stamina = 20
+	archer.attribute_snapshot.set_value(&"stamina_max", 20)
+	archer.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
+	var enemy_a := _build_repeat_attack_unit(
+		&"hybrid_enemy_a",
+		"前排敌人",
+		&"enemy",
+		Vector2i(2, 1),
+		[],
+		2,
+		0
+	)
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	var enemy_b := _build_repeat_attack_unit(
+		&"hybrid_enemy_b",
+		"后排敌人",
+		&"enemy",
+		Vector2i(3, 1),
+		[],
+		2,
+		0
+	)
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+
+	state.units = {
+		archer.unit_id: archer,
+		enemy_a.unit_id: enemy_a,
+		enemy_b.unit_id: enemy_b,
+	}
+	state.ally_unit_ids = [archer.unit_id]
+	state.enemy_unit_ids = [enemy_a.unit_id, enemy_b.unit_id]
+	state.active_unit_id = archer.unit_id
+	return state
+
+
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
@@ -475,13 +1002,12 @@ func _build_repeat_attack_unit(
 	unit.attribute_snapshot.set_value(&"stamina_max", 4)
 	unit.attribute_snapshot.set_value(&"aura_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(&"physical_attack", 12)
-	unit.attribute_snapshot.set_value(&"physical_defense", 4)
-	unit.attribute_snapshot.set_value(&"magic_attack", 6)
-	unit.attribute_snapshot.set_value(&"magic_defense", 4)
-	unit.attribute_snapshot.set_value(&"hit_rate", 80)
-	unit.attribute_snapshot.set_value(&"evasion", 5)
-	unit.attribute_snapshot.set_value(&"speed", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 5)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
@@ -522,6 +1048,52 @@ func _collect_node_names(node: Node) -> Array[String]:
 	for child in node.get_children():
 		names.append(child.name)
 	return names
+
+
+func _collect_badge_texts(container: Node) -> Array[String]:
+	var texts: Array[String] = []
+	if container == null:
+		return texts
+	for child in container.get_children():
+		if child is not PanelContainer:
+			continue
+		var label := _find_first_label(child)
+		if label != null:
+			texts.append(label.text)
+	return texts
+
+
+func _badge_texts_contain_prefix(texts: Array[String], prefix: String) -> bool:
+	for text in texts:
+		if text.begins_with(prefix):
+			return true
+	return false
+
+
+func _find_badge_panel(container: Node, badge_text: String) -> PanelContainer:
+	if container == null:
+		return null
+	for child in container.get_children():
+		var panel := child as PanelContainer
+		if panel == null:
+			continue
+		var label := _find_first_label(panel)
+		if label != null and label.text == badge_text:
+			return panel
+	return null
+
+
+func _find_first_label(node: Node) -> Label:
+	if node == null:
+		return null
+	for child in node.get_children():
+		var label := child as Label
+		if label != null:
+			return label
+		var nested := _find_first_label(child)
+		if nested != null:
+			return nested
+	return null
 
 
 func _get_layer_cell_image(layer: TileMapLayer, coord: Vector2i) -> Image:

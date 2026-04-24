@@ -9,11 +9,15 @@ const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_stat
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
 const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle_status_effect_state.gd")
+const DEFAULT_MOVE_POINTS_PER_TURN := 2
+const DEFAULT_ACTION_THRESHOLD := 120
 
 ## 字段说明：记录单位唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var unit_id: StringName = &""
 ## 字段说明：记录来源成员唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var source_member_id: StringName = &""
+## 字段说明：记录敌方模板唯一标识，供战斗内按击杀生成掉落、任务统计与日志归因使用。
+var enemy_template_id: StringName = &""
 ## 字段说明：用于界面展示的名称文本，主要服务于玩家阅读和调试观察，不直接参与数值判定。
 var display_name: String = ""
 ## 字段说明：记录阵营唯一标识，作为查表、序列化和跨系统引用时使用的主键。
@@ -48,6 +52,8 @@ var current_stamina := 0
 var current_aura := 0
 ## 字段说明：记录当前行动点，会参与运行时状态流转、系统协作和存档恢复。
 var current_ap := 0
+## 字段说明：记录当前剩余行动点，仅供普通移动链路消耗，不再与技能 AP 共用预算。
+var current_move_points := DEFAULT_MOVE_POINTS_PER_TURN
 ## 字段说明：记录当前剩余护盾值，供伤害在进入生命前优先吸收。
 var current_shield_hp := 0
 ## 字段说明：记录当前护盾池的原始最大值，供刷新、日志与调试使用。
@@ -66,6 +72,8 @@ var shield_params: Dictionary = {}
 var current_free_move_points := 0
 ## 字段说明：保存行动进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var action_progress := 0
+## 字段说明：记录该单位进入行动队列所需的 TU 阈值。
+var action_threshold := DEFAULT_ACTION_THRESHOLD
 ## 字段说明：保存已知激活技能标识列表，便于批量遍历、交叉查找和界面展示。
 var known_active_skill_ids: Array[StringName] = []
 ## 字段说明：按键缓存已知技能等级映射表，便于在较多对象中快速定位目标并减少重复遍历。
@@ -184,6 +192,7 @@ func to_dict() -> Dictionary:
 	return {
 		"unit_id": String(unit_id),
 		"source_member_id": String(source_member_id),
+		"enemy_template_id": String(enemy_template_id),
 		"display_name": display_name,
 		"faction_id": String(faction_id),
 		"control_mode": String(control_mode),
@@ -202,6 +211,7 @@ func to_dict() -> Dictionary:
 		"current_aura": current_aura,
 		"aura_max": get_aura_max(),
 		"current_ap": current_ap,
+		"current_move_points": current_move_points,
 		"current_shield_hp": current_shield_hp,
 		"shield_max_hp": shield_max_hp,
 		"shield_duration": shield_duration,
@@ -211,6 +221,7 @@ func to_dict() -> Dictionary:
 		"shield_params": shield_params.duplicate(true),
 		"current_free_move_points": current_free_move_points,
 		"action_progress": action_progress,
+		"action_threshold": action_threshold,
 		"known_active_skill_ids": _string_name_array_to_strings(known_active_skill_ids),
 		"known_skill_level_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_level_map),
 		"movement_tags": _string_name_array_to_strings(movement_tags),
@@ -225,6 +236,7 @@ static func from_dict(data: Dictionary):
 	var unit_state = BATTLE_UNIT_STATE_SCRIPT.new()
 	unit_state.unit_id = StringName(String(data.get("unit_id", "")))
 	unit_state.source_member_id = StringName(String(data.get("source_member_id", "")))
+	unit_state.enemy_template_id = StringName(String(data.get("enemy_template_id", "")))
 	unit_state.display_name = String(data.get("display_name", ""))
 	unit_state.faction_id = StringName(String(data.get("faction_id", "")))
 	unit_state.control_mode = StringName(String(data.get("control_mode", "manual")))
@@ -242,6 +254,11 @@ static func from_dict(data: Dictionary):
 	if data.has("aura_max") and unit_state.attribute_snapshot != null:
 		unit_state.attribute_snapshot.set_value(&"aura_max", maxi(int(data.get("aura_max", 0)), 0))
 	unit_state.current_ap = int(data.get("current_ap", 0))
+	unit_state.current_move_points = clampi(
+		int(data.get("current_move_points", DEFAULT_MOVE_POINTS_PER_TURN)),
+		0,
+		DEFAULT_MOVE_POINTS_PER_TURN
+	)
 	unit_state.current_shield_hp = int(data.get("current_shield_hp", 0))
 	unit_state.shield_max_hp = int(data.get("shield_max_hp", 0))
 	unit_state.shield_duration = int(data.get("shield_duration", -1))
@@ -251,6 +268,7 @@ static func from_dict(data: Dictionary):
 	unit_state.shield_params = data.get("shield_params", {}).duplicate(true) if data.get("shield_params", {}) is Dictionary else {}
 	unit_state.current_free_move_points = int(data.get("current_free_move_points", 0))
 	unit_state.action_progress = int(data.get("action_progress", 0))
+	unit_state.action_threshold = int(data.get("action_threshold", DEFAULT_ACTION_THRESHOLD))
 	unit_state.known_active_skill_ids = _strings_to_string_name_array(data.get("known_active_skill_ids", []))
 	unit_state.known_skill_level_map = ProgressionDataUtils.to_string_name_int_map(data.get("known_skill_level_map", {}))
 	unit_state.movement_tags = _strings_to_string_name_array(data.get("movement_tags", []))

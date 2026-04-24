@@ -304,24 +304,14 @@ func start_battle(encounter_anchor) -> void:
 	if not _is_battle_ready() or encounter_anchor == null:
 		return
 	_runtime.prepare_battle_start(encounter_anchor)
-
-	var battle_runtime = _get_battle_runtime()
-	if battle_runtime == null:
-		_runtime.handle_battle_start_failure()
-		return
-	var runtime_state = battle_runtime.start_battle(
+	var start_state: StringName = _runtime.begin_battle_start(
 		encounter_anchor,
 		build_battle_seed(encounter_anchor),
 		build_battle_start_context(encounter_anchor)
 	)
-	if runtime_state == null or runtime_state.is_empty():
+	if start_state == &"failed":
 		_runtime.handle_battle_start_failure()
 		return
-
-	refresh_battle_runtime_state()
-	if _runtime != null:
-		_runtime.present_battle_start_confirmation()
-	_update_status("遭遇 %s，战斗地图已载入，等待确认开始。" % _runtime.get_active_battle_encounter_name())
 
 
 func resolve_active_battle() -> void:
@@ -432,6 +422,8 @@ func apply_battle_batch(batch) -> void:
 		return
 	capture_pending_promotion_prompt(batch.progression_deltas)
 	refresh_battle_runtime_state()
+	if _runtime != null and _runtime.has_method("record_command_battle_batch"):
+		_runtime.record_command_battle_batch(batch)
 	if not batch.log_lines.is_empty():
 		_update_status(String(batch.log_lines[-1]))
 	var battle_state := _get_battle_state()

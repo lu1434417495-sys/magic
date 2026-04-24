@@ -76,7 +76,7 @@ func _get_skill_cast_block_reason(context, skill_def: SkillDef) -> String:
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
 	if unit_state.current_ap < int(combat_profile.ap_cost):
-		return "行动点不足，无法施放该技能。"
+		return "AP不足，无法施放该技能。"
 	if unit_state.current_mp < int(combat_profile.mp_cost):
 		return "法力不足，无法施放该技能。"
 	if unit_state.current_stamina < int(combat_profile.stamina_cost):

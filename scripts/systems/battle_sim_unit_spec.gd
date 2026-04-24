@@ -19,6 +19,8 @@ const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 @export var current_stamina := 0
 @export var current_aura := 0
 @export var current_ap := 1
+@export var current_move_points := BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
+@export var action_threshold := BattleUnitState.DEFAULT_ACTION_THRESHOLD
 @export var attribute_overrides: Dictionary = {}
 @export var skill_ids: Array = []
 @export var skill_level_map: Dictionary = {}
@@ -48,6 +50,8 @@ func to_battle_unit_state(default_faction_id: StringName = &"", default_control_
 	unit_state.current_stamina = clampi(current_stamina, 0, maxi(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0))
 	unit_state.current_aura = clampi(current_aura, 0, maxi(unit_state.attribute_snapshot.get_value(&"aura_max"), 0))
 	unit_state.current_ap = maxi(current_ap, 0)
+	unit_state.current_move_points = clampi(current_move_points, 0, BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN)
+	unit_state.action_threshold = action_threshold
 	unit_state.known_active_skill_ids.clear()
 	for raw_skill_id in skill_ids:
 		var skill_id := ProgressionDataUtils.to_string_name(raw_skill_id)
@@ -83,8 +87,9 @@ func _apply_attribute_defaults(unit_state: BattleUnitState) -> void:
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(current_stamina, 0))
 	unit_state.attribute_snapshot.set_value(&"aura_max", maxi(current_aura, 0))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, maxi(current_ap, 1))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_ATTACK, int(attribute_overrides.get("physical_attack", 10)))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_DEFENSE, int(attribute_overrides.get("physical_defense", 4)))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MAGIC_ATTACK, int(attribute_overrides.get("magic_attack", 8)))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MAGIC_DEFENSE, int(attribute_overrides.get("magic_defense", 4)))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPEED, int(attribute_overrides.get("speed", 10)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(attribute_overrides.get("attack_bonus", 4)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(attribute_overrides.get("armor_class", 12)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(attribute_overrides.get("armor_ac_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(attribute_overrides.get("shield_ac_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(attribute_overrides.get("dodge_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(attribute_overrides.get("deflection_bonus", 0)))

@@ -159,12 +159,20 @@ func _populate_hit_metrics(score_input: BattleAiScoreInput, context, effect_defs
 func _resolve_estimated_hit_rate_percent(preview) -> int:
 	if preview == null or preview.hit_preview.is_empty():
 		return 100
+	var stage_success_rates: Array = preview.hit_preview.get("stage_success_rates", [])
+	if stage_success_rates is Array and not stage_success_rates.is_empty():
+		var total := 0
+		for hit_rate_variant in stage_success_rates:
+			total += int(hit_rate_variant)
+		return maxi(int(round(float(total) / float(stage_success_rates.size()))), 0)
 	var stage_hit_rates: Array = preview.hit_preview.get("stage_hit_rates", [])
 	if stage_hit_rates is Array and not stage_hit_rates.is_empty():
 		var total := 0
 		for hit_rate_variant in stage_hit_rates:
 			total += int(hit_rate_variant)
 		return maxi(int(round(float(total) / float(stage_hit_rates.size()))), 0)
+	if preview.hit_preview.has("success_rate_percent"):
+		return maxi(int(preview.hit_preview.get("success_rate_percent", 100)), 0)
 	if preview.hit_preview.has("hit_rate_percent"):
 		return maxi(int(preview.hit_preview.get("hit_rate_percent", 100)), 0)
 	return 100
@@ -200,6 +208,7 @@ func _populate_position_metrics(score_input: BattleAiScoreInput, context, metada
 		score_input.position_objective_score = 0
 		return
 	var position_target_unit = metadata.get("position_target_unit", null) as BattleUnitState
+	var current_distance_to_target := -1
 	if position_target_unit != null:
 		score_input.position_objective_kind = explicit_objective_kind if explicit_objective_kind != &"" else &"distance_band"
 		score_input.position_anchor_coord = _resolve_position_anchor_coord(score_input, context, metadata)
@@ -208,6 +217,12 @@ func _populate_position_metrics(score_input: BattleAiScoreInput, context, metada
 			score_input.position_anchor_coord,
 			position_target_unit
 		)
+		if score_input.position_objective_kind == &"distance_band_progress":
+			current_distance_to_target = _distance_from_anchor_to_unit(
+				context,
+				context.unit_state.coord,
+				position_target_unit
+			)
 	else:
 		score_input.position_objective_kind = explicit_objective_kind if explicit_objective_kind != &"" else &"cast_distance"
 		score_input.position_anchor_coord = _resolve_position_anchor_coord(score_input, context, metadata)
@@ -219,7 +234,8 @@ func _populate_position_metrics(score_input: BattleAiScoreInput, context, metada
 		score_input.position_objective_kind,
 		score_input.distance_to_primary_coord,
 		score_input.desired_min_distance,
-		score_input.desired_max_distance
+		score_input.desired_max_distance,
+		current_distance_to_target
 	)
 
 
@@ -250,15 +266,67 @@ func _build_position_objective_score(
 	position_objective_kind: StringName,
 	distance_value: int,
 	desired_min_distance: int,
-	desired_max_distance: int
+	desired_max_distance: int,
+	current_distance_value: int = -1
 ) -> int:
 	if distance_value < 0 or desired_min_distance < 0 or desired_max_distance < 0:
 		return 0
+	if position_objective_kind == &"distance_band_progress":
+		return _build_distance_band_progress_score(
+			distance_value,
+			desired_min_distance,
+			desired_max_distance,
+			current_distance_value
+		)
 	if position_objective_kind == &"distance_floor":
 		if distance_value < desired_min_distance:
 			return -((desired_min_distance - distance_value) * _score_profile.position_undershoot_penalty)
 		return _score_profile.position_base_score \
 			+ (distance_value - desired_min_distance) * _score_profile.position_distance_step
+	if distance_value >= desired_min_distance and distance_value <= desired_max_distance:
+		return maxi(_score_profile.position_base_score - distance_value * _score_profile.position_distance_step, 0)
+	if distance_value < desired_min_distance:
+		return -((desired_min_distance - distance_value) * _score_profile.position_undershoot_penalty)
+	return -((distance_value - desired_max_distance) * _score_profile.position_overshoot_penalty)
+
+
+func _build_distance_band_progress_score(
+	distance_value: int,
+	desired_min_distance: int,
+	desired_max_distance: int,
+	current_distance_value: int
+) -> int:
+	var candidate_gap := _build_distance_gap(distance_value, desired_min_distance, desired_max_distance)
+	if candidate_gap < 0:
+		return 0
+	var current_gap := _build_distance_gap(current_distance_value, desired_min_distance, desired_max_distance)
+	if current_gap < 0:
+		return _build_distance_band_absolute_score(distance_value, desired_min_distance, desired_max_distance)
+	if current_gap == 0:
+		return _build_distance_band_absolute_score(distance_value, desired_min_distance, desired_max_distance)
+	if candidate_gap < current_gap:
+		var progress_steps := current_gap - candidate_gap
+		return _score_profile.position_base_score + progress_steps * _score_profile.position_distance_step
+	if candidate_gap == current_gap:
+		return -_score_profile.position_distance_step
+	return -((candidate_gap - current_gap) * _score_profile.position_overshoot_penalty)
+
+
+func _build_distance_gap(distance_value: int, desired_min_distance: int, desired_max_distance: int) -> int:
+	if distance_value < 0 or desired_min_distance < 0 or desired_max_distance < 0:
+		return -1
+	if distance_value < desired_min_distance:
+		return desired_min_distance - distance_value
+	if distance_value > desired_max_distance:
+		return distance_value - desired_max_distance
+	return 0
+
+
+func _build_distance_band_absolute_score(
+	distance_value: int,
+	desired_min_distance: int,
+	desired_max_distance: int
+) -> int:
 	if distance_value >= desired_min_distance and distance_value <= desired_max_distance:
 		return maxi(_score_profile.position_base_score - distance_value * _score_profile.position_distance_step, 0)
 	if distance_value < desired_min_distance:
