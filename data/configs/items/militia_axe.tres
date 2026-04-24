@@ -5,17 +5,17 @@
 
 [sub_resource type="Resource" id="Resource_attack_bonus"]
 script = ExtResource("2_modifier")
-attribute_id = "physical_attack"
+attribute_id = "attack_bonus"
 mode = "flat"
-value = 5
+value = 1
 source_type = "equipment"
 source_id = "militia_axe"
 
 [sub_resource type="Resource" id="Resource_hit_bonus"]
 script = ExtResource("2_modifier")
-attribute_id = "hit_rate"
+attribute_id = "attack_bonus"
 mode = "flat"
-value = 2
+value = 0
 source_type = "equipment"
 source_id = "militia_axe"
 

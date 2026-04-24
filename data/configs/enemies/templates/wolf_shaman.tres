@@ -8,15 +8,23 @@ template_id = &"wolf_shaman"
 display_name = "荒狼祭司"
 brain_id = &"ranged_controller"
 initial_state_id = &"support"
+action_threshold = 135
+tags = Array[StringName]([&"wolf", &"shaman"])
+base_attribute_overrides = {
+"strength": 5,
+"agility": 6,
+"constitution": 5,
+"perception": 6,
+"intelligence": 7,
+"willpower": 8,
+}
 skill_ids = Array[StringName]([&"mage_ice_lance", &"mage_temporal_rewind"])
 attribute_overrides = {
 "hp_max": 22,
 "mp_max": 12,
 "stamina_max": 0,
 "action_points": 2,
-"physical_attack": 4,
-"physical_defense": 2,
-"magic_attack": 11,
-"magic_defense": 5,
-"speed": 9
+"attack_bonus": 6,
+"armor_class": 12,
+"armor_ac_bonus": 0,
 }

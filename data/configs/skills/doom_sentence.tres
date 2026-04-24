@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_5fk2h"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="2_1m3zn"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="3_m0g2p"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="4_w4d7q"]
+
+[sub_resource type="Resource" id="Resource_t3h9y"]
+script = ExtResource("2_1m3zn")
+effect_type = &"status"
+status_id = &"doom_sentence_verdict"
+duration_tu = 60
+params = {
+"counts_as_debuff": false,
+"incoming_damage_multiplier": 1.2,
+"lock_counterattack": true,
+"lock_crit": true,
+"lock_dodge_bonus": true,
+"main_skill_lock_other_debuff_count": 2
+}
+
+[sub_resource type="Resource" id="Resource_w7s2b"]
+script = ExtResource("3_m0g2p")
+skill_id = &"doom_sentence"
+target_team_filter = &"enemy"
+range_value = 5
+ap_cost = 1
+effect_defs = Array[ExtResource("2_1m3zn")]([SubResource("Resource_t3h9y")])
+
+[resource]
+script = ExtResource("4_w4d7q")
+skill_id = &"doom_sentence"
+display_name = "厄命宣判"
+icon_id = &"doom_sentence"
+description = "每战 1 次，消耗 5 点 calamity；仅能对 elite / boss 施放 2 回合【厄命宣判】：目标不能暴击、反击或闪避，且受到全队额外伤害；若其已有 2 个以上 debuff，则主技能失效。"
+max_level = 1
+mastery_curve = PackedInt32Array(60)
+tags = Array[StringName]([&"misfortune", &"doom", &"calamity", &"sentence"])
+combat_profile = SubResource("Resource_w7s2b")

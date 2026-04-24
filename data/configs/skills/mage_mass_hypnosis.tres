@@ -16,7 +16,7 @@ area_value = 2
 ap_cost = 3
 mp_cost = 3
 cooldown_tu = 20
-hit_rate = -5
+attack_roll_bonus = -1
 aura_cost = 1
 
 [resource]

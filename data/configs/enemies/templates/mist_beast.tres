@@ -9,16 +9,16 @@ display_name = "雾沼异兽"
 brain_id = &"ranged_controller"
 initial_state_id = &"pressure"
 enemy_count = 2
+action_threshold = 135
+tags = Array[StringName]([&"beast", &"mist"])
 skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 8,
 "stamina_max": 0,
 "action_points": 2,
-"physical_attack": 4,
-"physical_defense": 2,
-"magic_attack": 12,
-"magic_defense": 5,
-"fire_resistance": 2,
-"speed": 9
+"attack_bonus": 6,
+"armor_class": 12,
+"armor_ac_bonus": 0,
+"fire_resistance": 2
 }

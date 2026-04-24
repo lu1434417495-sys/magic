@@ -1,0 +1,88 @@
+[gd_resource type="Resource" script_class="FaithDeityDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/faith_deity_def.gd" id="1_deity"]
+[ext_resource type="Script" path="res://scripts/player/progression/faith_rank_def.gd" id="2_rank"]
+
+[sub_resource type="Resource" id="FaithRank_fortuna_1"]
+script = ExtResource("2_rank")
+rank_index = 1
+rank_name = "浅信徒"
+required_gold = 500
+required_custom_stat_id = "fortune_marked"
+required_custom_stat_min_value = 1
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "Fortuna 的第一道赐福。",
+"target_id": "faith_luck_bonus",
+"target_label": "faith_luck_bonus"
+}])
+
+[sub_resource type="Resource" id="FaithRank_fortuna_2"]
+script = ExtResource("2_rank")
+rank_index = 2
+rank_name = "真信徒"
+required_gold = 2000
+required_level = 8
+required_achievement_id = "fortuna_guidance_true"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "Fortuna 的第二道赐福。",
+"target_id": "faith_luck_bonus",
+"target_label": "faith_luck_bonus"
+}])
+
+[sub_resource type="Resource" id="FaithRank_fortuna_3"]
+script = ExtResource("2_rank")
+rank_index = 3
+rank_name = "虔诚信徒"
+required_gold = 4500
+required_level = 14
+required_achievement_id = "fortuna_guidance_devout"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "Fortuna 的第三道赐福。",
+"target_id": "faith_luck_bonus",
+"target_label": "faith_luck_bonus"
+}])
+
+[sub_resource type="Resource" id="FaithRank_fortuna_4"]
+script = ExtResource("2_rank")
+rank_index = 4
+rank_name = "至诚信徒"
+required_gold = 8000
+required_level = 20
+required_achievement_id = "fortuna_guidance_exalted"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "Fortuna 的第四道赐福。",
+"target_id": "faith_luck_bonus",
+"target_label": "faith_luck_bonus"
+}])
+
+[sub_resource type="Resource" id="FaithRank_fortuna_5"]
+script = ExtResource("2_rank")
+rank_index = 5
+rank_name = "神眷者"
+required_gold = 14000
+required_level = 28
+required_achievement_id = "fortuna_guidance_blessed"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "Fortuna 的第五道赐福。",
+"target_id": "faith_luck_bonus",
+"target_label": "faith_luck_bonus"
+}])
+
+[resource]
+script = ExtResource("1_deity")
+deity_id = "fortuna"
+display_name = "Fortuna"
+service_type_label = "命运供奉"
+power_domain_tags = Array[StringName]([&"luck", &"fortune", &"fate"])
+rank_progress_stat_id = "faith_luck_bonus"
+rank_defs = Array[Resource]([SubResource("FaithRank_fortuna_1"), SubResource("FaithRank_fortuna_2"), SubResource("FaithRank_fortuna_3"), SubResource("FaithRank_fortuna_4"), SubResource("FaithRank_fortuna_5")])

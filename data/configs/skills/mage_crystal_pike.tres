@@ -10,8 +10,7 @@
 script = ExtResource("3_omo2u")
 effect_type = &"damage"
 power = 12
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 
 [sub_resource type="Resource" id="Resource_ob00m"]
 script = ExtResource("4_k13kr")

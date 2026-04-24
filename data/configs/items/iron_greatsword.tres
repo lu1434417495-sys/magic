@@ -5,9 +5,9 @@
 
 [sub_resource type="Resource" id="Resource_attack_bonus"]
 script = ExtResource("2_modifier")
-attribute_id = "physical_attack"
+attribute_id = "attack_bonus"
 mode = "flat"
-value = 8
+value = 2
 source_type = "equipment"
 source_id = "iron_greatsword"
 
@@ -15,7 +15,7 @@ source_id = "iron_greatsword"
 script = ExtResource("1_item")
 item_id = "iron_greatsword"
 display_name = "铁制大剑"
-description = "双手持用的重型武器，同时占用主手与副手槽，物攻加成可观。"
+description = "双手持用的重型武器，同时占用主手与副手槽，攻击检定加值可观。"
 icon = "res://icon.svg"
 is_stackable = false
 base_price = 240

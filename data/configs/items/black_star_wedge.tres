@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_black_star_wedge_flag"]
+script = ExtResource("2_modifier")
+attribute_id = "low_luck_black_star_wedge"
+mode = "flat"
+value = 1
+source_type = "equipment"
+source_id = "black_star_wedge"
+
+[resource]
+script = ExtResource("1_item")
+item_id = "black_star_wedge"
+display_name = "黑星楔钉"
+description = "首击会硬撬开一部分 guard，但若这一下没能击倒对手，佩戴者会立刻暴露破绽。"
+icon = "res://icon.svg"
+is_stackable = false
+base_price = 0
+sellable = false
+max_stack = 1
+item_category = "equipment"
+tags = Array[StringName](["relic", "low_luck_fixed_reward"])
+equipment_slot_ids = Array[String](["accessory_1", "accessory_2"])
+equipment_type_id = "accessory"
+attribute_modifiers = Array[Resource]([SubResource("Resource_black_star_wedge_flag")])

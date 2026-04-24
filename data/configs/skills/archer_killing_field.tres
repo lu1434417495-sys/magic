@@ -10,8 +10,6 @@
 script = ExtResource("3_ge818")
 effect_type = &"damage"
 power = 7
-scaling_attribute_id = &"physical_attack"
-defense_attribute_id = &"physical_defense"
 
 [sub_resource type="Resource" id="Resource_khpcn"]
 script = ExtResource("4_kt5er")
@@ -22,7 +20,7 @@ area_pattern = &"radius"
 area_value = 2
 ap_cost = 3
 cooldown_tu = 5
-hit_rate = -10
+attack_roll_bonus = -2
 aura_cost = 2
 effect_defs = Array[ExtResource("3_ge818")]([SubResource("Resource_kah2p")])
 

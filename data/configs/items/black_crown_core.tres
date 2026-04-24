@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "black_crown_core"
+display_name = "黑冕之核"
+description = "唯有被厄命宣判终结的王冠级目标才会坠落的核心残片，保留着尚未散尽的黑冕回响。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 80
+sellable = true
+max_stack = 20
+tags = Array[StringName](["material", "fate", "boss"])
+crafting_groups = Array[StringName](["fate", "boss", "relic"])

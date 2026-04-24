@@ -10,8 +10,7 @@
 script = ExtResource("3_ymrxf")
 effect_type = &"damage"
 power = 11
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 resistance_attribute_id = &"fire_resistance"
 
 [sub_resource type="Resource" id="Resource_7yom8"]
@@ -24,7 +23,7 @@ area_value = 1
 ap_cost = 2
 mp_cost = 1
 cooldown_tu = 5
-hit_rate = 5
+attack_roll_bonus = 1
 effect_defs = Array[ExtResource("3_ymrxf")]([SubResource("Resource_1xdhh")])
 
 [resource]

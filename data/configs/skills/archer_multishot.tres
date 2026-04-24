@@ -10,8 +10,6 @@
 script = ExtResource("3_k6vtb")
 effect_type = &"damage"
 power = 8
-scaling_attribute_id = &"physical_attack"
-defense_attribute_id = &"physical_defense"
 
 [sub_resource type="Resource" id="Resource_lbxdn"]
 script = ExtResource("2_1mjqn")
@@ -30,7 +28,7 @@ range_value = 5
 ap_cost = 2
 stamina_cost = 2
 cooldown_tu = 10
-hit_rate = -5
+attack_roll_bonus = -1
 ai_tags = Array[StringName]([&"multi_target", &"focus_fire"])
 target_selection_mode = &"multi_unit"
 min_target_count = 2

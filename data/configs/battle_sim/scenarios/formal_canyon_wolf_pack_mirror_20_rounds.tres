@@ -1,0 +1,138 @@
+[gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_scenario_def.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_unit_spec.gd" id="2_unit"]
+
+[sub_resource type="Resource" id="Resource_ally_wolf_01"]
+script = ExtResource("2_unit")
+unit_id = &"ally_wolf_01"
+display_name = "盟狼01"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(0, 1)
+current_hp = 24
+current_stamina = 12
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+attribute_overrides = {
+"hp_max": 24,
+"mp_max": 0,
+"stamina_max": 12,
+"action_points": 2,
+"attack_bonus": 8,
+"armor_class": 13,
+"armor_ac_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[sub_resource type="Resource" id="Resource_ally_wolf_02"]
+script = ExtResource("2_unit")
+unit_id = &"ally_wolf_02"
+display_name = "盟狼02"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(0, 2)
+current_hp = 24
+current_stamina = 12
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+attribute_overrides = {
+"hp_max": 24,
+"mp_max": 0,
+"stamina_max": 12,
+"action_points": 2,
+"attack_bonus": 8,
+"armor_class": 13,
+"armor_ac_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[sub_resource type="Resource" id="Resource_enemy_wolf_01"]
+script = ExtResource("2_unit")
+unit_id = &"enemy_wolf_01"
+display_name = "敌狼01"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(18, 8)
+current_hp = 24
+current_stamina = 12
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+attribute_overrides = {
+"hp_max": 24,
+"mp_max": 0,
+"stamina_max": 12,
+"action_points": 2,
+"attack_bonus": 8,
+"armor_class": 13,
+"armor_ac_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[sub_resource type="Resource" id="Resource_enemy_wolf_02"]
+script = ExtResource("2_unit")
+unit_id = &"enemy_wolf_02"
+display_name = "敌狼02"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(18, 9)
+current_hp = 24
+current_stamina = 12
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+attribute_overrides = {
+"hp_max": 24,
+"mp_max": 0,
+"stamina_max": 12,
+"action_points": 2,
+"attack_bonus": 8,
+"armor_class": 13,
+"armor_ac_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"formal_canyon_wolf_pack_mirror_20_rounds"
+display_name = "Formal Canyon Wolf Pack Mirror 10 Rounds"
+description = "正式 canyon 地图上 2 只狼对 2 只狼，双方都使用 melee_aggressor 狼系 AI，固定 10 个 seed 做镜像对战。"
+map_size = Vector2i(19, 11)
+terrain_profile_id = &"canyon"
+use_formal_terrain_generation = true
+world_coord = Vector2i(7, 11)
+ally_units = Array[Resource]([SubResource("Resource_ally_wolf_01"), SubResource("Resource_ally_wolf_02")])
+enemy_units = Array[Resource]([SubResource("Resource_enemy_wolf_01"), SubResource("Resource_enemy_wolf_02")])
+tick_interval_seconds = 0.1
+tu_per_tick = 5
+max_iterations = 1500
+manual_policy = &"wait"
+trace_enabled = false
+seeds = PackedInt32Array(5101, 5102, 5103, 5104, 5105, 5106, 5107, 5108, 5109, 5110)

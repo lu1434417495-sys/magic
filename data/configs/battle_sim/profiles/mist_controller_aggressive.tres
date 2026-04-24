@@ -1,0 +1,59 @@
+[gd_resource type="Resource" script_class="BattleSimProfileDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_profile_def.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/systems/battle_ai_score_profile.gd" id="2_score"]
+
+[sub_resource type="Resource" id="Resource_score"]
+script = ExtResource("2_score")
+movement_cost_weight = 8
+position_base_score = 72
+action_base_scores = {
+"skill": 0,
+"move": 32,
+"retreat": 35,
+"wait": -70
+}
+bucket_priorities = {
+"mist_support": 120,
+"mist_control": 110,
+"mist_offense": 105,
+"frontline_guard": 130,
+"harrier_pressure": 100
+}
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"mist_controller_aggressive"
+display_name = "Mist Controller Aggressive"
+description = "让 ranged_controller 在 1v1 中更愿意接近、压低待机倾向，并放宽 mist_aoe 的命中人数要求，用于验证雾沼异兽的主动性。"
+ai_score_profile = SubResource("Resource_score")
+override_patches = Array[Dictionary]([{
+"target_type": "brain",
+"target_id": "ranged_controller",
+"path": "pressure_distance",
+"value": 5
+}, {
+"target_type": "action",
+"brain_id": "ranged_controller",
+"action_id": "mist_keep_range",
+"path": "desired_min_distance",
+"value": 2
+}, {
+"target_type": "action",
+"brain_id": "ranged_controller",
+"action_id": "mist_keep_range",
+"path": "desired_max_distance",
+"value": 3
+}, {
+"target_type": "action",
+"brain_id": "ranged_controller",
+"action_id": "mist_ranged_single",
+"path": "desired_max_distance",
+"value": 5
+}, {
+"target_type": "action",
+"brain_id": "ranged_controller",
+"action_id": "mist_aoe",
+"path": "minimum_hit_count",
+"value": 1
+}])

@@ -1,0 +1,118 @@
+[gd_resource type="Resource" script_class="FaithDeityDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/faith_deity_def.gd" id="1_deity"]
+[ext_resource type="Script" path="res://scripts/player/progression/faith_rank_def.gd" id="2_rank"]
+
+[sub_resource type="Resource" id="FaithRank_misfortune_1"]
+script = ExtResource("2_rank")
+rank_index = 1
+rank_name = "见厄者"
+required_gold = 500
+required_custom_stat_id = "doom_marked"
+required_custom_stat_min_value = 1
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "黑冕赐下第一道厄命权柄。",
+"target_id": "doom_authority",
+"target_label": "doom_authority"
+}, {
+"amount": 1,
+"entry_type": "knowledge_unlock",
+"reason_text": "黑星烙印骨架占位已解锁。",
+"target_id": "black_star_brand",
+"target_label": "black_star_brand"
+}])
+
+[sub_resource type="Resource" id="FaithRank_misfortune_2"]
+script = ExtResource("2_rank")
+rank_index = 2
+rank_name = "灾厄持灯者"
+required_gold = 2000
+required_level = 8
+required_achievement_id = "misfortune_guidance_true"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "黑冕赐下第二道厄命权柄。",
+"target_id": "doom_authority",
+"target_label": "doom_authority"
+}, {
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "calamity 上限骨架 +1。",
+"target_id": "calamity_capacity_bonus",
+"target_label": "calamity_capacity_bonus"
+}])
+
+[sub_resource type="Resource" id="FaithRank_misfortune_3"]
+script = ExtResource("2_rank")
+rank_index = 3
+rank_name = "折冠者"
+required_gold = 4500
+required_level = 14
+required_achievement_id = "misfortune_guidance_devout"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "黑冕赐下第三道厄命权柄。",
+"target_id": "doom_authority",
+"target_label": "doom_authority"
+}, {
+"amount": 1,
+"entry_type": "knowledge_unlock",
+"reason_text": "折冠技骨架占位已解锁。",
+"target_id": "crown_break",
+"target_label": "crown_break"
+}])
+
+[sub_resource type="Resource" id="FaithRank_misfortune_4"]
+script = ExtResource("2_rank")
+rank_index = 4
+rank_name = "厄运代行者"
+required_gold = 8000
+required_level = 20
+required_achievement_id = "misfortune_guidance_exalted"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "黑冕赐下第四道厄命权柄。",
+"target_id": "doom_authority",
+"target_label": "doom_authority"
+}, {
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "calamity 上限骨架再 +1。",
+"target_id": "calamity_capacity_bonus",
+"target_label": "calamity_capacity_bonus"
+}])
+
+[sub_resource type="Resource" id="FaithRank_misfortune_5"]
+script = ExtResource("2_rank")
+rank_index = 5
+rank_name = "黑冕宣判者"
+required_gold = 14000
+required_level = 28
+required_achievement_id = "misfortune_guidance_blessed"
+reward_entries = Array[Dictionary]([{
+"amount": 1,
+"entry_type": "attribute_delta",
+"reason_text": "黑冕赐下第五道厄命权柄。",
+"target_id": "doom_authority",
+"target_label": "doom_authority"
+}, {
+"amount": 1,
+"entry_type": "knowledge_unlock",
+"reason_text": "厄命宣判骨架占位已解锁。",
+"target_id": "doom_sentence",
+"target_label": "doom_sentence"
+}])
+
+[resource]
+script = ExtResource("1_deity")
+deity_id = "misfortune_black_crown"
+display_name = "Misfortune"
+service_type_label = "黑冕供奉"
+power_domain_tags = Array[StringName]([&"doom", &"misfortune", &"calamity"])
+rank_progress_stat_id = "doom_authority"
+rank_defs = Array[Resource]([SubResource("FaithRank_misfortune_1"), SubResource("FaithRank_misfortune_2"), SubResource("FaithRank_misfortune_3"), SubResource("FaithRank_misfortune_4"), SubResource("FaithRank_misfortune_5")])

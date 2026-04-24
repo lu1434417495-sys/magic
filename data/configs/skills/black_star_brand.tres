@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_xxq1r"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_fh0m3"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_hm7yq"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_tq2hp"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_u3h0g"]
+
+[sub_resource type="Resource" id="Resource_dgb0u"]
+script = ExtResource("4_tq2hp")
+skill_id = &"black_star_brand"
+range_value = 5
+
+[resource]
+script = ExtResource("5_u3h0g")
+skill_id = &"black_star_brand"
+display_name = "黑星烙印"
+icon_id = &"black_star_brand"
+description = "每战首次免费施放；之后每次施放消耗 1 点 calamity。普通敌人被封锁反击与格挡，elite/boss 则失去暴击、命中下降，并在第一次受击时被穿透部分格挡。"
+max_level = 1
+mastery_curve = PackedInt32Array(36)
+tags = Array[StringName]([&"misfortune", &"doom", &"calamity"])
+combat_profile = SubResource("Resource_dgb0u")

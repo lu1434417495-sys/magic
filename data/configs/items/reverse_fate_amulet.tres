@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_reverse_fate_flag"]
+script = ExtResource("2_modifier")
+attribute_id = "low_luck_reverse_fate_amulet"
+mode = "flat"
+value = 1
+source_type = "equipment"
+source_id = "reverse_fate_amulet"
+
+[resource]
+script = ExtResource("1_item")
+item_id = "reverse_fate_amulet"
+display_name = "逆命护符"
+description = "每战第一次大失败会被改写成普通 miss，但随后两回合造成的伤害会明显下降。"
+icon = "res://icon.svg"
+is_stackable = false
+base_price = 0
+sellable = false
+max_stack = 1
+item_category = "equipment"
+tags = Array[StringName](["relic", "low_luck_fixed_reward"])
+equipment_slot_ids = Array[String](["accessory_1", "accessory_2"])
+equipment_type_id = "accessory"
+attribute_modifiers = Array[Resource]([SubResource("Resource_reverse_fate_flag")])

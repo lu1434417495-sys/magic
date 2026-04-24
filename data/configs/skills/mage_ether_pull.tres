@@ -10,8 +10,7 @@
 script = ExtResource("3_dgj6s")
 effect_type = &"damage"
 power = 6
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 
 [sub_resource type="Resource" id="Resource_gtqok"]
 script = ExtResource("4_863ed")
@@ -19,7 +18,7 @@ skill_id = &"mage_ether_pull"
 range_value = 5
 mp_cost = 1
 cooldown_tu = 5
-hit_rate = 10
+attack_roll_bonus = 2
 effect_defs = Array[ExtResource("3_dgj6s")]([SubResource("Resource_0qk2p")])
 
 [resource]

@@ -10,8 +10,6 @@
 script = ExtResource("3_fjo0d")
 effect_type = &"damage"
 power = 10
-scaling_attribute_id = &"physical_attack"
-defense_attribute_id = &"physical_defense"
 
 [sub_resource type="Resource" id="Resource_wort7"]
 script = ExtResource("4_r37ed")
@@ -19,7 +17,7 @@ skill_id = &"archer_backstep_shot"
 range_value = 4
 stamina_cost = 1
 cooldown_tu = 10
-hit_rate = 5
+attack_roll_bonus = 1
 effect_defs = Array[ExtResource("3_fjo0d")]([SubResource("Resource_wc65s")])
 
 [resource]

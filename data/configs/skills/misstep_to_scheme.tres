@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"misstep_to_scheme"
+display_name = "失手成筹"
+icon_id = &"misstep_to_scheme"
+description = "每战第一次大失败时，额外获得 1 点 calamity。该奖励与其他大失败计数独立结算。"
+skill_type = &"passive"
+max_level = 1
+mastery_curve = PackedInt32Array(32)
+tags = Array[StringName]([&"fate", &"misfortune", &"calamity", &"passive"])

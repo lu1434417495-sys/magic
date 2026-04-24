@@ -10,8 +10,7 @@
 script = ExtResource("3_nub84")
 effect_type = &"damage"
 power = 17
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 resistance_attribute_id = &"fire_resistance"
 
 [sub_resource type="Resource" id="Resource_yihuu"]
@@ -25,8 +24,7 @@ effect_defs = Array[ExtResource("3_nub84")]([SubResource("Resource_yqxva")])
 script = ExtResource("3_nub84")
 effect_type = &"damage"
 power = 17
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 resistance_attribute_id = &"fire_resistance"
 
 [sub_resource type="Resource" id="Resource_khn4w"]

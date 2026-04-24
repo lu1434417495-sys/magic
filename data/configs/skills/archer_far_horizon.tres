@@ -10,8 +10,6 @@
 script = ExtResource("3_n3dvf")
 effect_type = &"damage"
 power = 15
-scaling_attribute_id = &"physical_attack"
-defense_attribute_id = &"physical_defense"
 
 [sub_resource type="Resource" id="Resource_2eo21"]
 script = ExtResource("4_dedob")
@@ -19,7 +17,7 @@ skill_id = &"archer_far_horizon"
 range_value = 7
 ap_cost = 2
 cooldown_tu = 15
-hit_rate = -10
+attack_roll_bonus = -2
 aura_cost = 1
 effect_defs = Array[ExtResource("3_n3dvf")]([SubResource("Resource_2v3qn")])
 

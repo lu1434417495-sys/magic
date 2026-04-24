@@ -10,8 +10,7 @@
 script = ExtResource("3_sxgm1")
 effect_type = &"damage"
 power = 16
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 resistance_attribute_id = &"lightning_resistance"
 
 [sub_resource type="Resource" id="Resource_peyrd"]
@@ -24,7 +23,7 @@ area_value = 2
 ap_cost = 3
 mp_cost = 3
 cooldown_tu = 20
-hit_rate = -10
+attack_roll_bonus = -2
 aura_cost = 1
 effect_defs = Array[ExtResource("3_sxgm1")]([SubResource("Resource_u41b7")])
 

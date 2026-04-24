@@ -1,0 +1,79 @@
+[gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_scenario_def.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle_sim_unit_spec.gd" id="2_unit"]
+
+[sub_resource type="Resource" id="Resource_mist_beast"]
+script = ExtResource("2_unit")
+unit_id = &"player_mist_beast_ai"
+display_name = "雾沼异兽"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"ranged_controller"
+ai_state_id = &"pressure"
+coord = Vector2i(0, 2)
+current_hp = 24
+current_mp = 8
+current_stamina = 0
+current_ap = 2
+action_threshold = 135
+attribute_overrides = {
+"hp_max": 24,
+"mp_max": 8,
+"stamina_max": 0,
+"action_points": 2,
+"attack_bonus": 6,
+"armor_class": 12,
+"armor_ac_bonus": 0
+"fire_resistance": 2
+}
+skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
+skill_level_map = {
+"mage_fireball": 1,
+"mage_ice_lance": 1,
+"mage_temporal_rewind": 1
+}
+
+[sub_resource type="Resource" id="Resource_mist_harrier"]
+script = ExtResource("2_unit")
+unit_id = &"enemy_mist_harrier_ai"
+display_name = "雾沼猎压者"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"ranged_suppressor"
+ai_state_id = &"pressure"
+coord = Vector2i(6, 2)
+current_hp = 26
+current_mp = 0
+current_stamina = 4
+current_ap = 2
+action_threshold = 110
+attribute_overrides = {
+"hp_max": 26,
+"mp_max": 0,
+"stamina_max": 4,
+"action_points": 2,
+"attack_bonus": 5,
+"armor_class": 13,
+"armor_ac_bonus": 0
+}
+skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
+skill_level_map = {
+"archer_suppressive_fire": 1,
+"archer_pinning_shot": 1
+}
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"mist_beast_vs_harrier_10_rounds"
+display_name = "Mist Beast vs Harrier 10 Rounds"
+description = "雾沼异兽与雾沼猎压者在正式 canyon 生成逻辑与正式尺寸地图上进行 10 个 seed 的 AI vs AI 对战，用于观察远程控制脑是否会主动接近。"
+map_size = Vector2i(19, 11)
+terrain_profile_id = &"canyon"
+use_formal_terrain_generation = true
+ally_units = Array[Resource]([SubResource("Resource_mist_beast")])
+enemy_units = Array[Resource]([SubResource("Resource_mist_harrier")])
+tick_interval_seconds = 1.0
+tu_per_tick = 5
+max_iterations = 160
+seeds = PackedInt32Array(4101, 4102, 4103, 4104, 4105, 4106, 4107, 4108, 4109, 4110)

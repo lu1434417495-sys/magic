@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="2_skill"]
+
+[sub_resource type="Resource" id="Resource_profile"]
+script = ExtResource("1_combat")
+skill_id = &"doom_shift"
+target_mode = &"unit"
+target_team_filter = &"ally"
+range_value = 3
+ap_cost = 1
+
+[resource]
+script = ExtResource("2_skill")
+skill_id = &"doom_shift"
+display_name = "断命换位"
+icon_id = &"doom_shift"
+description = "自给 1 个 debuff，并立刻与 3 格内队友交换位置。"
+max_level = 1
+mastery_curve = PackedInt32Array(48)
+tags = Array[StringName]([&"fate", &"misfortune", &"position", &"tactical"])
+combat_profile = SubResource("Resource_profile")

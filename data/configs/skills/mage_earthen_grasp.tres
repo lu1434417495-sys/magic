@@ -10,8 +10,7 @@
 script = ExtResource("3_fsfkv")
 effect_type = &"damage"
 power = 8
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 
 [sub_resource type="Resource" id="Resource_wikkm"]
 script = ExtResource("4_s0l0x")
@@ -19,7 +18,7 @@ skill_id = &"mage_earthen_grasp"
 range_value = 4
 mp_cost = 1
 cooldown_tu = 5
-hit_rate = 5
+attack_roll_bonus = 1
 effect_defs = Array[ExtResource("3_fsfkv")]([SubResource("Resource_p6apx")])
 
 [resource]

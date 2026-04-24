@@ -15,15 +15,14 @@ coord = Vector2i(0, 1)
 current_hp = 48
 current_stamina = 3
 current_ap = 2
+action_threshold = 110
 attribute_overrides = {
 "hp_max": 48,
 "stamina_max": 3,
 "action_points": 2,
-"physical_attack": 11,
-"physical_defense": 5,
-"magic_attack": 0,
-"magic_defense": 3,
-"speed": 11
+"attack_bonus": 6,
+"armor_class": 15,
+"armor_ac_bonus": 0
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -44,16 +43,15 @@ current_hp = 42
 current_mp = 20
 current_stamina = 20
 current_ap = 2
+action_threshold = 120
 attribute_overrides = {
 "hp_max": 42,
 "mp_max": 20,
 "stamina_max": 20,
 "action_points": 2,
-"physical_attack": 11,
-"physical_defense": 3,
-"magic_attack": 6,
-"magic_defense": 3,
-"speed": 10
+"attack_bonus": 6,
+"armor_class": 13,
+"armor_ac_bonus": 0
 }
 skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
 skill_level_map = {
@@ -71,6 +69,5 @@ ally_units = Array[Resource]([SubResource("Resource_player_vanguard")])
 enemy_units = Array[Resource]([SubResource("Resource_enemy_harrier")])
 tick_interval_seconds = 1.0
 tu_per_tick = 5
-action_threshold = 120
 max_iterations = 120
 seeds = PackedInt32Array(301, 302)

@@ -10,8 +10,7 @@
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
 power = 11
-scaling_attribute_id = &"magic_attack"
-defense_attribute_id = &"magic_defense"
+damage_tag = &"magic"
 
 [sub_resource type="Resource" id="Resource_x8cf6"]
 script = ExtResource("3_xlsww")

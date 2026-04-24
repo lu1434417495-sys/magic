@@ -49,9 +49,3 @@ stages = Array[Dictionary]([{
 "count": 1
 }]
 }])
-drop_entries = Array[Dictionary]([{
-"drop_id": &"wolf_den_hide_bundle",
-"drop_type": &"item",
-"item_id": &"beast_hide",
-"quantity": 2
-}])

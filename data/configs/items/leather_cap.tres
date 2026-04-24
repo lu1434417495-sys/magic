@@ -5,17 +5,17 @@
 
 [sub_resource type="Resource" id="Resource_defense_bonus"]
 script = ExtResource("2_modifier")
-attribute_id = "physical_defense"
+attribute_id = "armor_ac_bonus"
 mode = "flat"
-value = 2
+value = 1
 source_type = "equipment"
 source_id = "leather_cap"
 
-[sub_resource type="Resource" id="Resource_evasion_bonus"]
+[sub_resource type="Resource" id="Resource_dodge_bonus"]
 script = ExtResource("2_modifier")
-attribute_id = "evasion"
+attribute_id = "dodge_bonus"
 mode = "flat"
-value = 2
+value = 1
 source_type = "equipment"
 source_id = "leather_cap"
 
@@ -35,4 +35,4 @@ item_category = "equipment"
 tags = Array[StringName](["armor", "head", "leather", "light_armor"])
 equipment_slot_ids = Array[String](["head"])
 equipment_type_id = "armor"
-attribute_modifiers = Array[Resource]([SubResource("Resource_defense_bonus"), SubResource("Resource_evasion_bonus")])
+attribute_modifiers = Array[Resource]([SubResource("Resource_defense_bonus"), SubResource("Resource_dodge_bonus")])

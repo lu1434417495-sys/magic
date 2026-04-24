@@ -10,7 +10,7 @@
 script = ExtResource("3_msu4p")
 effect_type = &"status"
 power = 1
-status_id = &"evasion_up"
+status_id = &"dodge_bonus_up"
 duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_4sjbg"]

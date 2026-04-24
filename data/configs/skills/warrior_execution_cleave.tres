@@ -11,8 +11,6 @@ script = ExtResource("3_7k4xh")
 effect_type = &"damage"
 power = 16
 damage_ratio_percent = 180
-scaling_attribute_id = &"physical_attack"
-defense_attribute_id = &"physical_defense"
 bonus_condition = &"target_low_hp"
 
 [sub_resource type="Resource" id="Resource_r1utu"]

@@ -1,0 +1,66 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_dv4c2"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_r7s1n"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_q4k8m"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_k3v6p"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_f2n9x"]
+
+[sub_resource type="Resource" id="Resource_7m3kp"]
+script = ExtResource("3_q4k8m")
+effect_type = &"status"
+status_id = &"crown_break_broken_fang"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_9t1vb"]
+script = ExtResource("2_r7s1n")
+variant_id = &"broken_fang"
+display_name = "断牙"
+description = "封印 2 回合，目标无法暴击。"
+effect_defs = Array[ExtResource("3_q4k8m")]([SubResource("Resource_7m3kp")])
+
+[sub_resource type="Resource" id="Resource_6h2sd"]
+script = ExtResource("3_q4k8m")
+effect_type = &"status"
+status_id = &"crown_break_broken_hand"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_3x8ql"]
+script = ExtResource("2_r7s1n")
+variant_id = &"broken_hand"
+display_name = "折手"
+description = "封印 2 回合，目标不能反击或追击。"
+effect_defs = Array[ExtResource("3_q4k8m")]([SubResource("Resource_6h2sd")])
+
+[sub_resource type="Resource" id="Resource_4n5we"]
+script = ExtResource("3_q4k8m")
+effect_type = &"status"
+status_id = &"crown_break_blinded_eye"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_1p6yj"]
+script = ExtResource("2_r7s1n")
+variant_id = &"blinded_eye"
+display_name = "遮目"
+description = "封印 2 回合，目标无法闪避。"
+effect_defs = Array[ExtResource("3_q4k8m")]([SubResource("Resource_4n5we")])
+
+[sub_resource type="Resource" id="Resource_8g4ra"]
+script = ExtResource("4_k3v6p")
+skill_id = &"crown_break"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 5
+ap_cost = 1
+cast_variants = Array[ExtResource("2_r7s1n")]([SubResource("Resource_9t1vb"), SubResource("Resource_3x8ql"), SubResource("Resource_1p6yj")])
+
+[resource]
+script = ExtResource("5_f2n9x")
+skill_id = &"crown_break"
+display_name = "折冠"
+icon_id = &"crown_break"
+description = "消耗 2 点 calamity，只能对已被黑星烙印的 elite / boss 施放；断牙禁暴击，折手禁反击与追击，遮目禁闪避，持续 2 回合。"
+max_level = 1
+mastery_curve = PackedInt32Array(48)
+tags = Array[StringName]([&"misfortune", &"doom", &"calamity", &"seal"])
+combat_profile = SubResource("Resource_8g4ra")

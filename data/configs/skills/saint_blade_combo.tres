@@ -10,19 +10,17 @@
 script = ExtResource("3_3q1il")
 effect_type = &"damage"
 power = 12
-scaling_attribute_id = &"physical_attack"
-defense_attribute_id = &"physical_defense"
 
 [sub_resource type="Resource" id="Resource_ndvel"]
 script = ExtResource("3_3q1il")
 effect_type = &"repeat_attack_until_fail"
 params = {
-"base_hit_rate": 0,
+"base_attack_bonus": 0,
 "cost_resource": "aura",
 "damage_multiplier_stage": "pre_resistance",
 "follow_up_cost_multiplier": 2,
 "follow_up_damage_multiplier": 2,
-"follow_up_hit_rate_penalty": 10,
+"follow_up_attack_penalty": 2,
 "same_target_only": true,
 "stop_on_insufficient_resource": true,
 "stop_on_miss": true,

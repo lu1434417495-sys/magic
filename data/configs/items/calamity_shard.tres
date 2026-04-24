@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "calamity_shard"
+display_name = "灾厄碎片"
+description = "从战场余烬里析出的灾厄结晶，可作为后续命运工艺与黑冕素材的基础媒介。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 18
+sellable = true
+max_stack = 99
+tags = Array[StringName](["material", "fate", "misfortune"])
+crafting_groups = Array[StringName](["fate", "misfortune", "relic"])

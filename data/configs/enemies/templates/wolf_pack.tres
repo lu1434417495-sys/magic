@@ -9,15 +9,21 @@ display_name = "荒狼群"
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 enemy_count = 2
+action_threshold = 120
+tags = Array[StringName]([&"beast", &"wolf"])
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+drop_entries = Array[Dictionary]([{
+"drop_id": &"wolf_hide",
+"drop_type": &"item",
+"item_id": &"beast_hide",
+"quantity": 1
+}])
 attribute_overrides = {
 "hp_max": 28,
 "mp_max": 0,
 "stamina_max": 3,
 "action_points": 2,
-"physical_attack": 9,
-"physical_defense": 3,
-"magic_attack": 0,
-"magic_defense": 1,
-"speed": 10
+"attack_bonus": 5,
+"armor_class": 13,
+"armor_ac_bonus": 0,
 }

@@ -8,15 +8,23 @@ template_id = &"mist_harrier"
 display_name = "雾沼猎压者"
 brain_id = &"ranged_suppressor"
 initial_state_id = &"pressure"
+action_threshold = 110
+tags = Array[StringName]([&"mist", &"harrier"])
+base_attribute_overrides = {
+"strength": 5,
+"agility": 7,
+"constitution": 5,
+"perception": 7,
+"intelligence": 4,
+"willpower": 5,
+}
 skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
 attribute_overrides = {
 "hp_max": 26,
 "mp_max": 0,
 "stamina_max": 4,
 "action_points": 2,
-"physical_attack": 9,
-"physical_defense": 3,
-"magic_attack": 0,
-"magic_defense": 2,
-"speed": 11
+"attack_bonus": 5,
+"armor_class": 13,
+"armor_ac_bonus": 0,
 }
