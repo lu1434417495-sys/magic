@@ -378,16 +378,42 @@ func record_achievement_event(
 
 		progress_state.current_value += amount
 		if progress_state.current_value >= achievement_def.threshold:
-			progress_state.is_unlocked = true
-			progress_state.unlocked_at_unix_time = int(Time.get_unix_time_from_system())
-			var reward = _build_achievement_pending_reward(member_state, achievement_def, meta)
-			if reward != null and not reward.is_empty():
-				enqueue_pending_character_rewards([reward])
+			_finalize_achievement_unlock(member_state, achievement_def, progress_state, meta)
 			_append_unique_string_name(unlocked_ids, achievement_def.achievement_id)
 
 		member_state.progression.set_achievement_progress_state(progress_state)
 
 	return unlocked_ids
+
+
+func unlock_achievement(
+	member_id: StringName,
+	achievement_id: StringName,
+	meta: Dictionary = {}
+) -> bool:
+	if member_id == &"" or achievement_id == &"":
+		return false
+
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return false
+
+	var achievement_def = _achievement_defs.get(achievement_id)
+	if achievement_def == null:
+		return false
+
+	var progress_state = member_state.progression.get_achievement_progress_state(achievement_id)
+	if progress_state == null:
+		progress_state = ACHIEVEMENT_PROGRESS_STATE_SCRIPT.new()
+		progress_state.achievement_id = achievement_id
+	if progress_state.is_unlocked:
+		member_state.progression.set_achievement_progress_state(progress_state)
+		return false
+
+	progress_state.current_value = maxi(progress_state.current_value, maxi(int(achievement_def.threshold), 1))
+	_finalize_achievement_unlock(member_state, achievement_def, progress_state, meta)
+	member_state.progression.set_achievement_progress_state(progress_state)
+	return true
 
 
 func build_pending_character_reward(
@@ -413,6 +439,21 @@ func build_pending_character_reward(
 	reward.summary_text = summary_text
 	reward.entries = _normalize_pending_character_entries(entry_variants)
 	return reward if not reward.is_empty() else null
+
+
+func _finalize_achievement_unlock(
+	member_state: PartyMemberState,
+	achievement_def,
+	progress_state,
+	meta: Dictionary
+) -> void:
+	if member_state == null or achievement_def == null or progress_state == null:
+		return
+	progress_state.is_unlocked = true
+	progress_state.unlocked_at_unix_time = int(Time.get_unix_time_from_system())
+	var reward = _build_achievement_pending_reward(member_state, achievement_def, meta)
+	if reward != null and not reward.is_empty():
+		enqueue_pending_character_rewards([reward])
 
 
 func build_pending_skill_mastery_reward(
@@ -489,7 +530,14 @@ func apply_pending_character_reward(reward: PendingCharacterReward) -> Character
 					applied_any = true
 				_merge_delta(delta, mastery_delta)
 			&"attribute_delta":
-				if attribute_service.apply_permanent_attribute_change(entry.target_id, entry.amount):
+				if attribute_service.apply_permanent_attribute_change(
+					entry.target_id,
+					entry.amount,
+					{
+						"source_type": normalized_reward.source_type,
+						"source_id": normalized_reward.source_id,
+					}
+				):
 					applied_any = true
 					delta.attribute_changes.append({
 						"attribute_id": entry.target_id,
@@ -1384,16 +1432,18 @@ func _resolve_attribute_label(attribute_id: StringName) -> String:
 			return "体力上限"
 		ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS:
 			return "行动点"
-		ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_ATTACK:
-			return "物攻"
-		ATTRIBUTE_SERVICE_SCRIPT.MAGIC_ATTACK:
-			return "法攻"
-		ATTRIBUTE_SERVICE_SCRIPT.PHYSICAL_DEFENSE:
-			return "物防"
-		ATTRIBUTE_SERVICE_SCRIPT.MAGIC_DEFENSE:
-			return "法防"
-		ATTRIBUTE_SERVICE_SCRIPT.SPEED:
-			return "速度"
+		ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS:
+			return "攻击加值"
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS:
+			return "AC"
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS:
+			return "护甲 AC"
+		ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS:
+			return "盾牌 AC"
+		ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS:
+			return "闪避加值"
+		ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS:
+			return "偏斜加值"
 		_:
 			return String(attribute_id)
 

@@ -13,15 +13,14 @@ const MP_MAX: StringName = &"mp_max"
 const STAMINA_MAX: StringName = &"stamina_max"
 const AURA_MAX: StringName = &"aura_max"
 const ACTION_POINTS: StringName = &"action_points"
-const PHYSICAL_ATTACK: StringName = &"physical_attack"
-const MAGIC_ATTACK: StringName = &"magic_attack"
-const PHYSICAL_DEFENSE: StringName = &"physical_defense"
-const MAGIC_DEFENSE: StringName = &"magic_defense"
-const HIT_RATE: StringName = &"hit_rate"
-const EVASION: StringName = &"evasion"
+const ATTACK_BONUS: StringName = &"attack_bonus"
+const ARMOR_CLASS: StringName = &"armor_class"
+const ARMOR_AC_BONUS: StringName = &"armor_ac_bonus"
+const SHIELD_AC_BONUS: StringName = &"shield_ac_bonus"
+const DODGE_BONUS: StringName = &"dodge_bonus"
+const DEFLECTION_BONUS: StringName = &"deflection_bonus"
 const CRIT_RATE: StringName = &"crit_rate"
 const CRIT_DAMAGE: StringName = &"crit_damage"
-const SPEED: StringName = &"speed"
 const FIRE_RESISTANCE: StringName = &"fire_resistance"
 const BLEED_RESISTANCE: StringName = &"bleed_resistance"
 const FREEZE_RESISTANCE: StringName = &"freeze_resistance"
@@ -38,15 +37,21 @@ const RESOURCE_ATTRIBUTE_IDS := [
 ]
 
 const COMBAT_ATTRIBUTE_IDS := [
-	PHYSICAL_ATTACK,
-	MAGIC_ATTACK,
-	PHYSICAL_DEFENSE,
-	MAGIC_DEFENSE,
-	HIT_RATE,
-	EVASION,
+	ATTACK_BONUS,
+	ARMOR_CLASS,
+	ARMOR_AC_BONUS,
+	SHIELD_AC_BONUS,
+	DODGE_BONUS,
+	DEFLECTION_BONUS,
 	CRIT_RATE,
 	CRIT_DAMAGE,
-	SPEED,
+]
+
+const AC_COMPONENT_ATTRIBUTE_IDS := [
+	ARMOR_AC_BONUS,
+	SHIELD_AC_BONUS,
+	DODGE_BONUS,
+	DEFLECTION_BONUS,
 ]
 
 const RESISTANCE_ATTRIBUTE_IDS := [
@@ -57,6 +62,14 @@ const RESISTANCE_ATTRIBUTE_IDS := [
 	POISON_RESISTANCE,
 	NEGATIVE_ENERGY_RESISTANCE,
 ]
+
+const PROTECTED_CUSTOM_STAT_KEYS: Array[StringName] = [
+	UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH,
+]
+
+const PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION: StringName = &"character_creation"
+const PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT: StringName = &"story_script"
+const PROTECTED_CUSTOM_STAT_WRITE_FLAG: StringName = &"allow_protected_custom_stat_write"
 
 ## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var _unit_progress: UnitProgress = null
@@ -141,13 +154,17 @@ func get_snapshot() -> AttributeSnapshot:
 	return snapshot
 
 
-func apply_permanent_attribute_change(attribute_id: StringName, delta: int) -> bool:
-	if not UnitBaseAttributes.BASE_ATTRIBUTE_IDS.has(attribute_id):
-		push_warning("AttributeService: refuse permanent change for non-base attribute %s." % String(attribute_id))
-		return false
-
+func apply_permanent_attribute_change(attribute_id: StringName, delta: int, source_context: Dictionary = {}) -> bool:
 	var unit_base_attributes := _get_unit_base_attributes()
 	if unit_base_attributes == null:
+		return false
+
+	if _is_protected_custom_stat(attribute_id) and not _can_write_protected_custom_stat(source_context):
+		push_warning(_build_protected_custom_stat_rejection_message(attribute_id, delta, source_context))
+		return false
+
+	if not UnitBaseAttributes.BASE_ATTRIBUTE_IDS.has(attribute_id) and not _can_write_custom_stat(attribute_id):
+		push_warning("AttributeService: refuse permanent change for unsupported attribute %s." % String(attribute_id))
 		return false
 
 	unit_base_attributes.set_attribute_value(attribute_id, unit_base_attributes.get_attribute_value(attribute_id) + delta)
@@ -158,6 +175,39 @@ func _get_unit_base_attributes() -> UnitBaseAttributes:
 	if _unit_progress == null:
 		return null
 	return _unit_progress.unit_base_attributes
+
+
+func _is_protected_custom_stat(attribute_id: StringName) -> bool:
+	return not UnitBaseAttributes.BASE_ATTRIBUTE_IDS.has(attribute_id) and PROTECTED_CUSTOM_STAT_KEYS.has(attribute_id)
+
+
+func _can_write_custom_stat(attribute_id: StringName) -> bool:
+	if attribute_id == &"" or UnitBaseAttributes.BASE_ATTRIBUTE_IDS.has(attribute_id):
+		return false
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
+		return false
+	return unit_base_attributes.custom_stats.has(attribute_id) or PROTECTED_CUSTOM_STAT_KEYS.has(attribute_id)
+
+
+func _can_write_protected_custom_stat(source_context: Dictionary) -> bool:
+	var source_type := ProgressionDataUtils.to_string_name(source_context.get("source_type", ""))
+	if source_type == PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION:
+		return true
+	if source_type != PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT:
+		return false
+	return bool(source_context.get(PROTECTED_CUSTOM_STAT_WRITE_FLAG, false))
+
+
+func _build_protected_custom_stat_rejection_message(attribute_id: StringName, delta: int, source_context: Dictionary) -> String:
+	var source_type := ProgressionDataUtils.to_string_name(source_context.get("source_type", ""))
+	var source_id := ProgressionDataUtils.to_string_name(source_context.get("source_id", ""))
+	return "AttributeService: reject protected custom stat write %s delta=%d source_type=%s source_id=%s." % [
+		String(attribute_id),
+		delta,
+		String(source_type),
+		String(source_id),
+	]
 
 
 func _index_skill_defs(skill_defs: Variant) -> Dictionary:
@@ -335,7 +385,8 @@ func _apply_modifier_pipeline(attribute_id: StringName, base_value: int, modifie
 	var percent_delta := 0
 
 	for entry in modifier_entries:
-		if ProgressionDataUtils.to_string_name(entry.get("attribute_id", "")) != attribute_id:
+		var modifier_attribute_id := ProgressionDataUtils.to_string_name(entry.get("attribute_id", ""))
+		if not _modifier_entry_applies_to_attribute(attribute_id, modifier_attribute_id):
 			continue
 
 		var value := int(entry.get("value", 0))
@@ -352,6 +403,12 @@ func _apply_modifier_pipeline(attribute_id: StringName, base_value: int, modifie
 	return _clamp_attribute_value(attribute_id, result)
 
 
+func _modifier_entry_applies_to_attribute(attribute_id: StringName, modifier_attribute_id: StringName) -> bool:
+	if modifier_attribute_id == attribute_id:
+		return true
+	return attribute_id == ARMOR_CLASS and AC_COMPONENT_ATTRIBUTE_IDS.has(modifier_attribute_id)
+
+
 func _clamp_attribute_value(attribute_id: StringName, value: int) -> int:
 	if RESISTANCE_ATTRIBUTE_IDS.has(attribute_id):
 		return clampi(value, 0, 95)
@@ -363,14 +420,16 @@ func _clamp_attribute_value(attribute_id: StringName, value: int) -> int:
 			return maxi(value, 0)
 		ACTION_POINTS:
 			return maxi(value, 1)
-		HIT_RATE, EVASION:
-			return clampi(value, 0, 100)
+		ATTACK_BONUS:
+			return clampi(value, -20, 50)
+		ARMOR_CLASS:
+			return clampi(value, 1, 99)
+		ARMOR_AC_BONUS, SHIELD_AC_BONUS, DODGE_BONUS, DEFLECTION_BONUS:
+			return maxi(value, 0)
 		CRIT_RATE:
 			return clampi(value, 0, 100)
 		CRIT_DAMAGE:
 			return maxi(value, 100)
-		SPEED:
-			return maxi(value, 1)
 		_:
 			return value
 
@@ -463,67 +522,26 @@ func _build_default_rules() -> Dictionary:
 		6,
 		1
 	)
-	rules[PHYSICAL_ATTACK] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		PHYSICAL_ATTACK,
-		4,
+	rules[ATTACK_BONUS] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
+		ATTACK_BONUS,
+		2,
 		{
-			UnitBaseAttributes.STRENGTH: 8,
-			UnitBaseAttributes.CONSTITUTION: 2,
-		},
-		4,
-		0
-	)
-	rules[MAGIC_ATTACK] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		MAGIC_ATTACK,
-		4,
-		{
-			UnitBaseAttributes.INTELLIGENCE: 8,
-			UnitBaseAttributes.WILLPOWER: 2,
-		},
-		4,
-		0
-	)
-	rules[PHYSICAL_DEFENSE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		PHYSICAL_DEFENSE,
-		3,
-		{
-			UnitBaseAttributes.CONSTITUTION: 8,
-			UnitBaseAttributes.STRENGTH: 2,
-		},
-		4,
-		0
-	)
-	rules[MAGIC_DEFENSE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		MAGIC_DEFENSE,
-		3,
-		{
-			UnitBaseAttributes.WILLPOWER: 8,
-			UnitBaseAttributes.INTELLIGENCE: 2,
-		},
-		4,
-		0
-	)
-	rules[HIT_RATE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		HIT_RATE,
-		70,
-		{
-			UnitBaseAttributes.PERCEPTION: 6,
-			UnitBaseAttributes.AGILITY: 2,
-		},
-		4,
-		0,
-		100
-	)
-	rules[EVASION] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		EVASION,
-		5,
-		{
-			UnitBaseAttributes.AGILITY: 8,
 			UnitBaseAttributes.PERCEPTION: 2,
+			UnitBaseAttributes.AGILITY: 1,
+			UnitBaseAttributes.STRENGTH: 1,
 		},
 		4,
-		0,
-		100
+		0
+	)
+	rules[ARMOR_CLASS] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
+		ARMOR_CLASS,
+		8,
+		{
+			UnitBaseAttributes.AGILITY: 1,
+		},
+		1,
+		8,
+		14
 	)
 	rules[CRIT_RATE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
 		CRIT_RATE,
@@ -545,16 +563,6 @@ func _build_default_rules() -> Dictionary:
 		},
 		4,
 		100
-	)
-	rules[SPEED] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		SPEED,
-		10,
-		{
-			UnitBaseAttributes.AGILITY: 8,
-			UnitBaseAttributes.PERCEPTION: 2,
-		},
-		4,
-		1
 	)
 	rules[FIRE_RESISTANCE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
 		FIRE_RESISTANCE,

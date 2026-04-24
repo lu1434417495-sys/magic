@@ -32,8 +32,8 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var stamina_cost := 0
 ## 字段说明：在编辑器中暴露冷却TU配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var cooldown_tu := 0
-## 字段说明：在编辑器中暴露命中率配置，供后续统一命中/闪避结算链读取。
-@export var hit_rate := 0
+## 字段说明：在编辑器中暴露 D20 攻击检定加值配置，供命中结算链读取。
+@export var attack_roll_bonus := 0
 ## 字段说明：在编辑器中暴露斗气消耗配置，便于定义文档中的 aura 资源技能。
 @export var aura_cost := 0
 ## 字段说明：在编辑器中暴露影响区域原点模式配置，用于补充 line / cone / self 等范围语义。

@@ -11,6 +11,13 @@ const CONSTITUTION: StringName = &"constitution"
 const PERCEPTION: StringName = &"perception"
 const INTELLIGENCE: StringName = &"intelligence"
 const WILLPOWER: StringName = &"willpower"
+const HIDDEN_LUCK_AT_BIRTH: StringName = &"hidden_luck_at_birth"
+const FAITH_LUCK_BONUS: StringName = &"faith_luck_bonus"
+
+const EFFECTIVE_LUCK_MIN := -6
+const EFFECTIVE_LUCK_MAX := 7
+const DROP_LUCK_MAX := 5
+const COMBAT_LUCK_SCORE_MAX := 4
 
 const BASE_ATTRIBUTE_IDS := [
 	STRENGTH,
@@ -75,6 +82,32 @@ func set_attribute_value(attribute_id: StringName, value: int) -> void:
 
 func get_all_base_attribute_ids() -> Array[StringName]:
 	return ProgressionDataUtils.to_string_name_array(BASE_ATTRIBUTE_IDS)
+
+
+func get_hidden_luck_at_birth() -> int:
+	return get_attribute_value(HIDDEN_LUCK_AT_BIRTH)
+
+
+func get_faith_luck_bonus() -> int:
+	return get_attribute_value(FAITH_LUCK_BONUS)
+
+
+func get_effective_luck() -> int:
+	return clampi(
+		get_hidden_luck_at_birth() + get_faith_luck_bonus(),
+		EFFECTIVE_LUCK_MIN,
+		EFFECTIVE_LUCK_MAX
+	)
+
+
+func get_combat_luck_score() -> int:
+	var positive_hidden_luck := maxi(0, get_hidden_luck_at_birth())
+	var positive_faith_luck := maxi(0, get_faith_luck_bonus())
+	return mini(COMBAT_LUCK_SCORE_MAX, positive_hidden_luck + int(positive_faith_luck / 2.0))
+
+
+func get_drop_luck() -> int:
+	return clampi(get_effective_luck(), EFFECTIVE_LUCK_MIN, DROP_LUCK_MAX)
 
 
 func to_dict() -> Dictionary:

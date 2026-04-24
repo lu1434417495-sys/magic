@@ -22,6 +22,8 @@ const PROGRESSION_SERIALIZATION_SCRIPT = preload("res://scripts/systems/progress
 const SAVE_SERIALIZER_SCRIPT = preload("res://scripts/systems/save_serializer.gd")
 const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/game_log_service.gd")
 const WORLD_PRESET_REGISTRY_SCRIPT = preload("res://scripts/utils/world_preset_registry.gd")
+const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/character_creation_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 const SAVE_DIRECTORY := "user://saves"
 const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
@@ -139,7 +141,8 @@ func start_new_game(generation_config_path: String) -> int:
 func create_new_save(
 	generation_config_path: String,
 	preset_id: StringName = &"",
-	preset_name: String = ""
+	preset_name: String = "",
+	character_creation_payload: Dictionary = {}
 ) -> int:
 	_reset_runtime_state()
 	if generation_config_path.is_empty():
@@ -156,6 +159,8 @@ func create_new_save(
 	var prepare_error := _prepare_new_world(generation_config_path, generation_config)
 	if prepare_error != OK:
 		return prepare_error
+
+	_apply_character_creation_payload_to_main_character(character_creation_payload)
 
 	var timestamp := int(Time.get_unix_time_from_system())
 	var save_id := _generate_unique_save_id(timestamp)
@@ -194,7 +199,8 @@ func load_bundled_save(
 	save_id: String,
 	display_name: String,
 	world_preset_id: StringName = &"",
-	world_preset_name: String = ""
+	world_preset_name: String = "",
+	character_creation_payload: Dictionary = {}
 ) -> int:
 	var normalized_save_id := save_id.strip_edges()
 	if template_path.is_empty() or normalized_save_id.is_empty():
@@ -255,6 +261,8 @@ func load_bundled_save(
 	var load_error := _load_v5_payload(payload, generation_config_path, generation_config, save_meta)
 	if load_error != OK:
 		return load_error
+
+	_apply_character_creation_payload_to_main_character(character_creation_payload)
 
 	_rotate_log_session()
 	var persist_error := _persist_game_state()
@@ -963,6 +971,41 @@ func _remove_directory_recursive(virtual_path: String) -> int:
 
 	dir.list_dir_end()
 	return DirAccess.remove_absolute(absolute_path)
+
+
+func _apply_character_creation_payload_to_main_character(payload: Dictionary) -> void:
+	if payload == null or payload.is_empty():
+		return
+	if _party_state == null:
+		return
+
+	var main_member_id: StringName = _party_state.get_resolved_main_character_member_id()
+	if main_member_id == &"":
+		push_warning("GameSession: no resolvable main character; skipping character creation override.")
+		return
+
+	var member_state = _party_state.get_member_state(main_member_id)
+	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
+		push_warning("GameSession: main character %s missing progression; skipping character creation override." % String(main_member_id))
+		return
+
+	var display_name := String(payload.get("display_name", "")).strip_edges()
+	if not display_name.is_empty():
+		member_state.display_name = display_name
+		member_state.progression.display_name = display_name
+
+	var base_attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
+	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
+		if payload.has(String(attribute_id)):
+			base_attributes.set_attribute_value(attribute_id, int(payload[String(attribute_id)]))
+
+	var reroll_count_value: Variant = payload.get("reroll_count", 0)
+	var attribute_service = ATTRIBUTE_SERVICE_SCRIPT.new()
+	attribute_service.setup(member_state.progression)
+	var creation_service = CHARACTER_CREATION_SERVICE_SCRIPT.new()
+	var baked: bool = creation_service.bake_hidden_luck_at_birth(attribute_service, reroll_count_value)
+	if not baked:
+		push_warning("GameSession: failed to bake hidden_luck_at_birth for main character %s." % String(main_member_id))
 
 
 func _create_default_party_state():

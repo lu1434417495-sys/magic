@@ -1,6 +1,5 @@
 extends SceneTree
 
-const DesignSkillCatalog = preload("res://scripts/player/progression/design_skill_catalog.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
@@ -72,7 +71,6 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_design_mage_catalog_root_cast_variant_compatibility()
 	_test_seed_skill_resources_scan_and_validate()
 	_test_progression_registry_keeps_skill_resource_and_compat_bridge()
 	_test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs()
@@ -98,7 +96,7 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
-	_assert_resource_backed_skill_ids(skill_defs, _build_mage_catalog_skill_ids(), &"mage", "法师")
+	_assert_resource_backed_skill_ids(skill_defs, _collect_mage_skill_ids(skill_defs), &"mage", "法师")
 	_assert_true(skill_defs.has(&"warrior_heavy_strike"), "SkillContentRegistry 应扫描到已迁移的重击资源。")
 	_assert_true(heavy_strike != null, "重击资源应成功转成 SkillDef。")
 	if heavy_strike == null:
@@ -127,7 +125,7 @@ func _test_progression_registry_keeps_skill_resource_and_compat_bridge() -> void
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
-	_assert_resource_backed_skill_ids(skill_defs, _build_mage_catalog_skill_ids(), &"mage", "法师")
+	_assert_resource_backed_skill_ids(skill_defs, _collect_mage_skill_ids(skill_defs), &"mage", "法师")
 	_assert_true(heavy_strike != null, "ProgressionContentRegistry 应暴露已迁移的重击资源。")
 	_assert_true(charge != null, "seed 未全迁完前，兼容桥仍应保留 code seed 的冲锋。")
 	if heavy_strike != null:
@@ -135,14 +133,6 @@ func _test_progression_registry_keeps_skill_resource_and_compat_bridge() -> void
 	if charge != null:
 		_assert_true(String(charge.resource_path).is_empty(), "冲锋当前仍应通过兼容桥从 code seed 提供。")
 	_assert_cast_variant_compat_shape(fossil_to_mud, "ProgressionContentRegistry")
-
-
-func _test_design_mage_catalog_root_cast_variant_compatibility() -> void:
-	var skill_defs := _build_mage_catalog_skill_defs()
-	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
-
-	_assert_true(fossil_to_mud != null, "DesignSkillCatalog 应继续解析根级 cast_variant 技能。")
-	_assert_cast_variant_compat_shape(fossil_to_mud, "DesignSkillCatalog")
 
 
 func _test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs() -> void:
@@ -198,22 +188,16 @@ func _assert_resource_backed_skill_ids(
 		)
 
 
-func _build_mage_catalog_skill_ids() -> Array[StringName]:
-	var skill_defs := _build_mage_catalog_skill_defs()
+func _collect_mage_skill_ids(skill_defs: Dictionary) -> Array[StringName]:
 	var skill_ids: Array[StringName] = []
 	for skill_key in skill_defs.keys():
+		var skill_def := skill_defs.get(skill_key) as SkillDef
+		if skill_def == null:
+			continue
+		if not skill_def.tags.has(&"mage"):
+			continue
 		skill_ids.append(StringName(skill_key))
 	return skill_ids
-
-
-func _build_mage_catalog_skill_defs() -> Dictionary:
-	var skill_defs: Dictionary = {}
-	DesignSkillCatalog.new().register_mage_skills(func(skill_def: SkillDef) -> void:
-		if skill_def == null or skill_def.skill_id == &"":
-			return
-		skill_defs[skill_def.skill_id] = skill_def
-	)
-	return skill_defs
 
 
 func _assert_cast_variant_compat_shape(skill_def: SkillDef, source_label: String) -> void:

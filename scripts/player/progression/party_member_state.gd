@@ -33,6 +33,41 @@ var is_dead := false
 var body_size := 1
 
 
+func get_hidden_luck_at_birth() -> int:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
+		return 0
+	return unit_base_attributes.get_hidden_luck_at_birth()
+
+
+func get_faith_luck_bonus() -> int:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
+		return 0
+	return unit_base_attributes.get_faith_luck_bonus()
+
+
+func get_effective_luck() -> int:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
+		return 0
+	return unit_base_attributes.get_effective_luck()
+
+
+func get_combat_luck_score() -> int:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
+		return 0
+	return unit_base_attributes.get_combat_luck_score()
+
+
+func get_drop_luck() -> int:
+	var unit_base_attributes := _get_unit_base_attributes()
+	if unit_base_attributes == null:
+		return 0
+	return unit_base_attributes.get_drop_luck()
+
+
 func to_dict() -> Dictionary:
 	return {
 		"member_id": String(member_id),
@@ -77,3 +112,9 @@ static func from_dict(data: Dictionary):
 		member_state.progression.display_name = member_state.display_name
 
 	return member_state
+
+
+func _get_unit_base_attributes() -> UnitBaseAttributes:
+	if progression == null:
+		return null
+	return progression.unit_base_attributes

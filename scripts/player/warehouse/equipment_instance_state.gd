@@ -7,10 +7,20 @@ extends RefCounted
 
 const SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
+enum RarityTier {
+	COMMON,
+	UNCOMMON,
+	RARE,
+	EPIC,
+	LEGENDARY,
+}
+
 ## 字段说明：装备实例唯一标识，创建后不可变更。
 var instance_id: StringName = &""
 ## 字段说明：对应物品定义的 item_id，用于查找静态属性。
 var item_id: StringName = &""
+## 字段说明：装备品质层级；旧存档缺字段时回退为 COMMON。
+var rarity: int = RarityTier.COMMON
 ## 字段说明：当前剩余耐久；-1 表示耐久功能尚未启用。
 var current_durability: int = -1
 ## 字段说明：护甲磨损累计进度；0.0 为未磨损（阈值由规则层决定）。
@@ -36,6 +46,7 @@ func to_dict() -> Dictionary:
 	return {
 		"instance_id": String(instance_id),
 		"item_id": String(item_id),
+		"rarity": rarity,
 		"current_durability": current_durability,
 		"armor_wear_progress": armor_wear_progress,
 		"weapon_wear_progress": weapon_wear_progress,
@@ -48,7 +59,15 @@ static func from_dict(data: Variant) -> EquipmentInstanceState:
 		return inst
 	inst.instance_id = ProgressionDataUtils.to_string_name(data.get("instance_id", ""))
 	inst.item_id = ProgressionDataUtils.to_string_name(data.get("item_id", ""))
+	inst.rarity = normalize_rarity(data.get("rarity", RarityTier.COMMON))
 	inst.current_durability = int(data.get("current_durability", -1))
 	inst.armor_wear_progress = float(data.get("armor_wear_progress", 0.0))
 	inst.weapon_wear_progress = float(data.get("weapon_wear_progress", 0.0))
 	return inst
+
+
+static func normalize_rarity(value: Variant) -> int:
+	var normalized := int(value)
+	if normalized < RarityTier.COMMON or normalized > RarityTier.LEGENDARY:
+		return RarityTier.COMMON
+	return normalized

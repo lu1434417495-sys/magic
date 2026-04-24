@@ -372,6 +372,94 @@ func _register_seed_quests() -> void:
 			]
 		)
 	)
+	_register_achievement(
+		_build_achievement(
+			&"fortuna_guidance_true",
+			"Fortuna Guidance I",
+			"已被 Fortuna 标记后，再次对 elite 或 boss 触发一次劣势大成功。",
+			&"fortuna_guidance_true_manual",
+			&"",
+			1,
+			[]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"fortuna_guidance_devout",
+			"Fortuna Guidance II",
+			"已信 Fortuna 的角色在低血且承受强 debuff 的逆境中活下来并赢下战斗。",
+			&"fortuna_guidance_devout_manual",
+			&"",
+			1,
+			[]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"fortuna_guidance_exalted",
+			"Fortuna Guidance III",
+			"已信 Fortuna 的角色用高位威胁区间而非门骰，对 elite 或 boss 打出一次大成功。",
+			&"fortuna_guidance_exalted_manual",
+			&"",
+			1,
+			[]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"fortuna_guidance_blessed",
+			"Fortuna Guidance IV",
+			"完成一个章节且无人永久死亡，并且该角色在本章内至少经历过一次 Fortuna 相关战斗事件。",
+			&"fortuna_guidance_blessed_manual",
+			&"",
+			1,
+			[]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"misfortune_guidance_true",
+			"Misfortune Guidance I",
+			"已被黑冕标记后，成功用 Misfortune 的封印链终结一次 elite 或 boss。",
+			&"misfortune_guidance_true_manual",
+			&"",
+			1,
+			[]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"misfortune_guidance_devout",
+			"Misfortune Guidance II",
+			"同一战斗内曾遭遇大失败或强 debuff，随后再用封印链赢下 elite 或 boss。",
+			&"misfortune_guidance_devout_manual",
+			&"",
+			1,
+			[]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"misfortune_guidance_exalted",
+			"Misfortune Guidance III",
+			"把同一战斗中未用完的 calamity 结算成 shard，并用固定黑冕材料打造第一件黑暗装备。",
+			&"misfortune_guidance_exalted_manual",
+			&"",
+			1,
+			[]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"misfortune_guidance_blessed",
+			"Misfortune Guidance IV",
+			"用 doom_sentence 的宣判击杀完成一次 boss 终结。",
+			&"misfortune_guidance_blessed_manual",
+			&"",
+			1,
+			[]
+		)
+	)
 
 
 func _build_achievement(
@@ -490,17 +578,15 @@ func _build_modifier(attribute_id: StringName, value: int) -> AttributeModifier:
 
 func _build_damage_effect(
 	power: int,
-	scaling_attribute_id: StringName = &"physical_attack",
-	defense_attribute_id: StringName = &"",
+	damage_tag: StringName = &"",
 	resistance_attribute_id: StringName = &"",
 	target_team_filter: StringName = &""
 ) -> CombatEffectDef:
 	var effect_def := CombatEffectDef.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = power
-	effect_def.scaling_attribute_id = scaling_attribute_id
-	if defense_attribute_id != &"":
-		effect_def.defense_attribute_id = defense_attribute_id
+	if damage_tag != &"":
+		effect_def.damage_tag = damage_tag
 	if resistance_attribute_id != &"":
 		effect_def.resistance_attribute_id = resistance_attribute_id
 	if target_team_filter != &"":
@@ -594,7 +680,6 @@ func _build_basic_melee_combat_profile(skill_id: StringName, range_value: int, p
 	var effect_def: CombatEffectDef = CombatEffectDef.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = power
-	effect_def.scaling_attribute_id = &"physical_attack"
 
 	var combat_profile: CombatSkillDef = CombatSkillDef.new()
 	combat_profile.skill_id = skill_id
@@ -712,8 +797,7 @@ func _build_timed_terrain_effect(
 	tick_effect_type: StringName = &"damage",
 	status_id: StringName = &"",
 	target_team_filter: StringName = &"",
-	scaling_attribute_id: StringName = &"physical_attack",
-	defense_attribute_id: StringName = &"physical_defense",
+	damage_tag: StringName = &"",
 	resistance_attribute_id: StringName = &""
 ) -> CombatEffectDef:
 	var effect_def := CombatEffectDef.new()
@@ -727,8 +811,7 @@ func _build_timed_terrain_effect(
 	if target_team_filter != &"":
 		effect_def.effect_target_team_filter = target_team_filter
 	if tick_effect_type == &"damage":
-		effect_def.scaling_attribute_id = scaling_attribute_id
-		effect_def.defense_attribute_id = defense_attribute_id
+		effect_def.damage_tag = damage_tag
 		if resistance_attribute_id != &"":
 			effect_def.resistance_attribute_id = resistance_attribute_id
 	if status_id != &"":
@@ -893,8 +976,6 @@ func _append_invalid_achievement_errors(
 		errors.append("Achievement %s is missing event_type." % String(achievement_id))
 	if achievement_def.threshold <= 0:
 		errors.append("Achievement %s must have a positive threshold." % String(achievement_id))
-	if achievement_def.rewards.is_empty():
-		errors.append("Achievement %s must define at least one reward." % String(achievement_id))
 
 	for reward in achievement_def.rewards:
 		if reward == null:

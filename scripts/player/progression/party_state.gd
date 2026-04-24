@@ -22,6 +22,10 @@ var gold: int = 0
 var leader_member_id: StringName = &""
 ## 字段说明：记录主角成员唯一标识，作为 GameOver 与主角专属规则的正式真相源；在合法编队中主角必须保持为上阵成员。
 var main_character_member_id: StringName = &""
+## 字段说明：记录本周目的命运事件触发锁和流程标记，供后续命运系统与存档读取。
+var fate_run_flags: Dictionary = {}
+## 字段说明：记录本周目的通用剧情 / 事件去重标记，供低 luck 事件池与后续剧情脚本复用。
+var meta_flags: Dictionary = {}
 ## 字段说明：保存激活成员标识列表，便于批量遍历、交叉查找和界面展示。
 var active_member_ids: Array = []
 ## 字段说明：保存预备成员标识列表，便于批量遍历、交叉查找和界面展示。
@@ -57,6 +61,68 @@ func get_resolved_main_character_member_id() -> StringName:
 	if main_character_member_id != &"" and has_member_state(main_character_member_id):
 		return main_character_member_id
 	return &""
+
+
+func get_fate_run_flags() -> Dictionary:
+	return _normalize_fate_run_flags(fate_run_flags)
+
+
+func set_fate_run_flags(values: Dictionary) -> void:
+	fate_run_flags = _normalize_fate_run_flags(values)
+
+
+func get_fate_run_flag(flag_id: StringName, default_value: bool = false) -> bool:
+	if flag_id == &"":
+		return default_value
+	var normalized_flags := _normalize_fate_run_flags(fate_run_flags)
+	return bool(normalized_flags.get(flag_id, default_value))
+
+
+func has_fate_run_flag(flag_id: StringName) -> bool:
+	return get_fate_run_flag(flag_id, false)
+
+
+func set_fate_run_flag(flag_id: StringName, enabled: bool = true) -> void:
+	if flag_id == &"":
+		return
+	fate_run_flags[flag_id] = bool(enabled)
+
+
+func clear_fate_run_flag(flag_id: StringName) -> void:
+	if flag_id == &"":
+		return
+	fate_run_flags.erase(flag_id)
+
+
+func get_meta_flags() -> Dictionary:
+	return _normalize_meta_flags(meta_flags)
+
+
+func set_meta_flags(values: Dictionary) -> void:
+	meta_flags = _normalize_meta_flags(values)
+
+
+func get_meta_flag(flag_id: StringName, default_value: bool = false) -> bool:
+	if flag_id == &"":
+		return default_value
+	var normalized_flags := _normalize_meta_flags(meta_flags)
+	return bool(normalized_flags.get(flag_id, default_value))
+
+
+func has_meta_flag(flag_id: StringName) -> bool:
+	return get_meta_flag(flag_id, false)
+
+
+func set_meta_flag(flag_id: StringName, enabled: bool = true) -> void:
+	if flag_id == &"":
+		return
+	meta_flags[flag_id] = bool(enabled)
+
+
+func clear_meta_flag(flag_id: StringName) -> void:
+	if flag_id == &"":
+		return
+	meta_flags.erase(flag_id)
 
 
 func remove_member_from_rosters(member_id: StringName) -> void:
@@ -303,6 +369,8 @@ func to_dict() -> Dictionary:
 		"gold": get_gold(),
 		"leader_member_id": String(leader_member_id),
 		"main_character_member_id": String(main_character_member_id),
+		"fate_run_flags": _serialize_fate_run_flags(fate_run_flags),
+		"meta_flags": _serialize_meta_flags(meta_flags),
 		"active_member_ids": ProgressionDataUtils.string_name_array_to_string_array(
 			ProgressionDataUtils.to_string_name_array(active_member_ids)
 		),
@@ -345,12 +413,20 @@ static func from_dict(data: Dictionary):
 	var completed_quest_ids_variant: Variant = data.get("completed_quest_ids", null)
 	if completed_quest_ids_variant is not Array:
 		return null
+	var fate_run_flags_variant: Variant = data.get("fate_run_flags", {})
+	if fate_run_flags_variant is not Dictionary:
+		return null
+	var meta_flags_variant: Variant = data.get("meta_flags", {})
+	if meta_flags_variant is not Dictionary:
+		return null
 
 	var party_state := PARTY_STATE_SCRIPT.new()
 	party_state.version = int(data.get("version", 3))
 	party_state.gold = maxi(int(data.get("gold", 0)), 0)
 	party_state.leader_member_id = ProgressionDataUtils.to_string_name(data.get("leader_member_id", ""))
 	party_state.main_character_member_id = ProgressionDataUtils.to_string_name(data.get("main_character_member_id", ""))
+	party_state.set_fate_run_flags(fate_run_flags_variant)
+	party_state.set_meta_flags(meta_flags_variant)
 	party_state.active_member_ids = ProgressionDataUtils.to_string_name_array(data.get("active_member_ids", []))
 	party_state.reserve_member_ids = ProgressionDataUtils.to_string_name_array(data.get("reserve_member_ids", []))
 	party_state.warehouse_state = WAREHOUSE_STATE_SCRIPT.from_dict(warehouse_state_data)
@@ -438,3 +514,47 @@ static func _normalize_unique_string_name_array(values: Array) -> Array[StringNa
 		seen_values[normalized_value] = true
 		normalized_values.append(normalized_value)
 	return normalized_values
+
+
+static func _normalize_fate_run_flags(values: Variant) -> Dictionary:
+	var normalized_flags: Dictionary = {}
+	if values is not Dictionary:
+		return normalized_flags
+	for raw_key in values.keys():
+		var flag_id := ProgressionDataUtils.to_string_name(raw_key)
+		if flag_id == &"":
+			continue
+		normalized_flags[flag_id] = bool(values[raw_key])
+	return normalized_flags
+
+
+static func _serialize_fate_run_flags(values: Dictionary) -> Dictionary:
+	var serialized_flags: Dictionary = {}
+	for key in ProgressionDataUtils.sorted_string_keys(values):
+		var flag_id := ProgressionDataUtils.to_string_name(key)
+		if flag_id == &"":
+			continue
+		serialized_flags[String(flag_id)] = bool(values.get(flag_id, values.get(key, false)))
+	return serialized_flags
+
+
+static func _normalize_meta_flags(values: Variant) -> Dictionary:
+	var normalized_flags: Dictionary = {}
+	if values is not Dictionary:
+		return normalized_flags
+	for raw_key in values.keys():
+		var flag_id := ProgressionDataUtils.to_string_name(raw_key)
+		if flag_id == &"":
+			continue
+		normalized_flags[flag_id] = bool(values[raw_key])
+	return normalized_flags
+
+
+static func _serialize_meta_flags(values: Dictionary) -> Dictionary:
+	var serialized_flags: Dictionary = {}
+	for key in ProgressionDataUtils.sorted_string_keys(values):
+		var flag_id := ProgressionDataUtils.to_string_name(key)
+		if flag_id == &"":
+			continue
+		serialized_flags[String(flag_id)] = bool(values.get(flag_id, values.get(key, false)))
+	return serialized_flags

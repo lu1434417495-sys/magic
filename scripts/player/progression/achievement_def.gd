@@ -34,7 +34,7 @@ func matches_event(target_event_type: StringName, target_subject_id: StringName 
 
 
 func is_empty() -> bool:
-	return achievement_id == &"" or event_type == &"" or threshold <= 0 or rewards.is_empty()
+	return achievement_id == &"" or event_type == &"" or threshold <= 0
 
 
 func to_dict() -> Dictionary:

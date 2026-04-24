@@ -36,6 +36,7 @@ func _run() -> void:
 	_test_equip_creates_instance_id_in_slot()
 	_test_instance_id_preserved_through_unequip_and_reequip()
 	_test_two_items_of_same_type_get_different_instance_ids()
+	_test_equipment_instance_rarity_round_trip_and_legacy_fallback()
 	_finish()
 
 
@@ -221,19 +222,19 @@ func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> voi
 	var after_snapshot = manager.get_member_attribute_snapshot(&"hero")
 
 	_assert_eq(
-		after_snapshot.get_value(AttributeService.PHYSICAL_ATTACK) - before_snapshot.get_value(AttributeService.PHYSICAL_ATTACK),
+		after_snapshot.get_value(AttributeService.ATTACK_BONUS) - before_snapshot.get_value(AttributeService.ATTACK_BONUS),
+		2,
+		"青铜短剑应提供攻击检定加值。"
+	)
+	_assert_eq(
+		after_snapshot.get_value(AttributeService.ARMOR_AC_BONUS) - before_snapshot.get_value(AttributeService.ARMOR_AC_BONUS),
+		3,
+		"皮革短甲与皮革护帽应合计提供护甲 AC 加值。"
+	)
+	_assert_eq(
+		after_snapshot.get_value(AttributeService.ARMOR_CLASS) - before_snapshot.get_value(AttributeService.ARMOR_CLASS),
 		4,
-		"青铜短剑应为物攻提供固定加值。"
-	)
-	_assert_eq(
-		after_snapshot.get_value(AttributeService.HIT_RATE) - before_snapshot.get_value(AttributeService.HIT_RATE),
-		5,
-		"青铜短剑应为命中提供固定加值。"
-	)
-	_assert_eq(
-		after_snapshot.get_value(AttributeService.PHYSICAL_DEFENSE) - before_snapshot.get_value(AttributeService.PHYSICAL_DEFENSE),
-		5,
-		"皮革短甲与皮革护帽应合计为物防提供固定加值。"
+		"皮革短甲、皮革护帽与闪避加值应合计提高 AC。"
 	)
 	_assert_eq(
 		after_snapshot.get_value(AttributeService.HP_MAX) - before_snapshot.get_value(AttributeService.HP_MAX),
@@ -241,9 +242,9 @@ func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> voi
 		"皮革短甲应为生命上限提供固定加值。"
 	)
 	_assert_eq(
-		after_snapshot.get_value(AttributeService.EVASION) - before_snapshot.get_value(AttributeService.EVASION),
-		2,
-		"皮革护帽应为闪避提供固定加值。"
+		after_snapshot.get_value(AttributeService.DODGE_BONUS) - before_snapshot.get_value(AttributeService.DODGE_BONUS),
+		1,
+		"皮革护帽应提供闪避加值。"
 	)
 
 	var restored_party_state = PartyState.from_dict(party_state.to_dict())
@@ -337,16 +338,16 @@ func _test_two_handed_weapon_attribute_not_double_counted() -> void:
 	baseline_manager.setup(party_state, progression_registry.get_skill_defs(), progression_registry.get_profession_defs(), {}, item_defs)
 	var snapshot = baseline_manager.get_member_attribute_snapshot(&"hero")
 
-	# iron_greatsword 声明 physical_attack +8，不应因占 2 槽而翻倍
+	# iron_greatsword 声明 attack_bonus +2，不应因占 2 槽而翻倍
 	var empty_party := _build_party_with_member(&"blank", "Blank", 8)
 	var empty_manager := CharacterManagementModule.new()
 	empty_manager.setup(empty_party, progression_registry.get_skill_defs(), progression_registry.get_profession_defs(), {}, item_defs)
 	var empty_snapshot = empty_manager.get_member_attribute_snapshot(&"blank")
 
 	_assert_eq(
-		snapshot.get_value(AttributeService.PHYSICAL_ATTACK) - empty_snapshot.get_value(AttributeService.PHYSICAL_ATTACK),
-		8,
-		"双手大剑物攻加成应精确为 +8，不得因占两槽而翻倍。"
+		snapshot.get_value(AttributeService.ATTACK_BONUS) - empty_snapshot.get_value(AttributeService.ATTACK_BONUS),
+		2,
+		"双手大剑攻击检定加值应精确为 +2，不得因占两槽而翻倍。"
 	)
 
 
@@ -518,6 +519,48 @@ func _test_two_items_of_same_type_get_different_instance_ids() -> void:
 	_assert_true(id1 != &"", "饰品一槽应有 instance_id。")
 	_assert_true(id2 != &"", "饰品二槽应有 instance_id。")
 	_assert_true(id1 != id2, "同种装备的两个实例应拥有不同的 instance_id。")
+
+
+func _test_equipment_instance_rarity_round_trip_and_legacy_fallback() -> void:
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var epic_instance := EquipmentInstanceState.create(&"bronze_sword")
+	epic_instance.rarity = EquipmentInstanceState.RarityTier.EPIC
+	party_state.warehouse_state.equipment_instances = [epic_instance]
+
+	var restored_party_state = PartyState.from_dict(party_state.to_dict())
+	_assert_true(restored_party_state != null, "带 rarity 的 PartyState round-trip 应成功。")
+	if restored_party_state == null:
+		return
+
+	var restored_instances: Array = restored_party_state.warehouse_state.get_non_empty_instances()
+	_assert_eq(restored_instances.size(), 1, "带 rarity 的装备实例 round-trip 后应保持 1 条。")
+	if restored_instances.is_empty():
+		return
+
+	var restored_instance = restored_instances[0]
+	_assert_eq(
+		int(restored_instance.rarity),
+		int(EquipmentInstanceState.RarityTier.EPIC),
+		"装备实例 round-trip 后应保留 rarity tier。"
+	)
+
+	var legacy_instance = EquipmentInstanceState.from_dict({
+		"instance_id": "eq_legacy_bronze_sword",
+		"item_id": "bronze_sword",
+		"current_durability": -1,
+		"armor_wear_progress": 0.0,
+		"weapon_wear_progress": 0.0,
+	})
+	_assert_eq(
+		int(legacy_instance.rarity),
+		int(EquipmentInstanceState.RarityTier.COMMON),
+		"旧存档缺少 rarity 字段时应回退为 COMMON。"
+	)
+	_assert_eq(
+		int(legacy_instance.to_dict().get("rarity", -1)),
+		int(EquipmentInstanceState.RarityTier.COMMON),
+		"旧存档回填后的实例再次序列化时应带上 rarity 字段。"
+	)
 
 
 func _build_party_with_member(member_id: StringName, display_name: String, storage_space: int) -> PartyState:
