@@ -99,7 +99,7 @@ flowchart TD
 	effect_type / tick_effect_type
 	power / damage_ratio_percent
 	scaling_attribute_id
-	defense_attribute_id / resistance_attribute_id
+	defense_attribute_id
 	status_id
 	terrain_effect_id / terrain_replace_to
 	height_delta

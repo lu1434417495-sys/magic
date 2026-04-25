@@ -125,11 +125,11 @@
 - 默认应优先落为固定值 `resistance`、护盾值或有限 `DR X`。
 - 仅在显式内容需要时，才允许扩展为带 bypass tag 的物理减伤。
 
-### `resistance_attribute_id`
+### 伤害类型防护
 
 - 主学 `PF2e` 的分类抗性。
 - 长期方向是不再使用线性百分比抗性作为正式主口径。
-- 应逐步收敛为固定值抗性、免疫或弱点体系。
+- 不再保留旧抗性属性字段；类型防护统一通过 `damage_tag + mitigation_tier`、显式 `DR` 或护盾池表达。
 
 ### `attack_up` / `archer_pre_aim` / `marked` / `armor_break`
 
@@ -196,11 +196,11 @@
 
 - 是否在 battle 正式规则层引入统一的 modifier type（如 `status / stance / item / terrain`）？
 - `guarding` 是更适合做“反应式 block”，还是“持续 stance + 固定减伤”？
-- 元素抗性从当前线性百分比迁移到固定值抗性的过渡期如何处理旧内容？
+- 元素防护是否只保留 `HALF / IMMUNE / DOUBLE` 档位，还是需要后续引入其他显式状态？
 
 ## Next implementation steps
 
-1. 审核现有 `guarding`、`damage_reduction_up`、`resistance_attribute_id`、`attack_up`、`armor_break`、`marked` 的正式语义归属。
+1. 审核现有 `guarding`、`damage_reduction_up`、`attack_up`、`armor_break`、`marked` 的正式语义归属。
 2. 为 battle 规则层补一份最小 modifier taxonomy，明确哪些来源允许叠加，哪些不允许。
 3. 基于本约束，重写伤害与减伤子系统 spec，优先处理 `ISSUE-BATTLE-05`。
-4. 为 resolver 增加“固定值抗性 / DR / 反应式格挡”所需的最小回归样例。
+4. 为 resolver 增加“DR / 反应式格挡 / 护盾池”所需的最小回归样例。

@@ -42,7 +42,7 @@
 - 伤害真相源继续放在 CU-16 的纯规则层，以 `BattleDamageResolver` 为 owner。
 - preview、runtime、AI 必须读取同一条伤害流水线。
 - `BattleStatusSemanticTable` 继续持有状态的 stack / duration / tick 真相，不允许伤害逻辑私下定义 stack 规则。
-- 现有 `resistance_attribute_id`、`damage_ratio_percent`、`runtime_pre_resistance_damage_multiplier`、`guarding`、`damage_reduction_up` 需要兼容过渡。
+- 现有 `damage_ratio_percent`、`runtime_pre_resistance_damage_multiplier`、`guarding`、`damage_reduction_up` 需要兼容过渡。
 
 ## Current snapshot
 
@@ -71,7 +71,7 @@
 2. 聚合攻击侧倍率，得到 `offense_multiplier`。
 3. 对攻击侧结果只做一次取整，得到 `rolled_damage`。
 4. 先应用防御侧百分比档位：`IMMUNE / HALF / NORMAL / DOUBLE`。
-5. 再应用固定值减伤：`typed_resistance / all_damage_reduction / DR / guard block`。
+5. 再应用固定值减伤：`all_damage_reduction / DR / guard block`。
 6. 最终只在末尾做一次下限夹取，默认 `MIN_DAMAGE_FLOOR = 0`。
 
 正式公式：
@@ -98,7 +98,6 @@ if target mitigation tier for damage_tag == double:
 
 mitigated_damage =
 	rolled_damage
-	- typed_resistance
 	- all_damage_resistance
 	- physical_dr_if_applicable
 	- guard_block_if_applicable
@@ -121,7 +120,7 @@ hp_damage = final_damage - shield_absorbed
 
 ### 2. 伤害类型与标签
 
-伤害正式引入 `damage_tag` 概念，用于驱动 `IMMUNE / HALF / DOUBLE`、固定值抗性与 `DR bypass`。
+伤害正式引入 `damage_tag` 概念，用于驱动 `IMMUNE / HALF / DOUBLE` 与 `DR bypass`。
 
 首批正式 tag：
 
@@ -150,13 +149,9 @@ hp_damage = final_damage - shield_absorbed
 
 过渡规则：
 
-- 当前 `resistance_attribute_id` 继续保留，但它不再表示百分比，而表示“该 tag 的固定抗性值”。
-- 若 `effect_def` 未显式提供 `damage_tag`，则按现有字段推断：
-  - 有 `resistance_attribute_id = fire_resistance`，则视为 `fire`
-  - 有 `resistance_attribute_id = freeze_resistance`，则视为 `freeze`
-  - 有 `resistance_attribute_id = lightning_resistance`，则视为 `lightning`
-  - 有 `resistance_attribute_id = negative_energy_resistance`，则视为 `negative_energy`
-  - 无元素抗性字段时，按 `defense_attribute_id` 和技能内容默认归为某种 `physical_*`
+- `effect_def` 应显式提供 `damage_tag`。
+- 若历史或临时内容缺少 `damage_tag`，resolver 只做保守默认：归为 `physical_slash`，并由内容校验 / 回归推动补齐。
+- 不再保留旧抗性属性入口作为伤害类型推断或抗性读取来源。
 
 ### 3. 攻击侧倍率
 
@@ -181,20 +176,7 @@ hp_damage = final_damage - shield_absorbed
 
 ### 4. 防御侧减免分类
 
-#### 4.1 元素 / 类型抗性
-
-`resistance_attribute_id` 迁移为固定值抗性：
-
-- `fire_resistance = 10` 表示火焰伤害减 10，不是减 10%
-- `freeze_resistance = 5` 表示寒冷伤害减 5
-
-正式规则：
-
-- 抗性值在防御阶段直接做整数减法
-- 不参与乘法
-- 可以把伤害压到 0
-
-#### 4.2 `damage_reduction_up`
+#### 4.1 `damage_reduction_up`
 
 `damage_reduction_up` 的正式语义改为“全伤害固定抗性”，不再表示百分比乘区。
 
@@ -216,7 +198,7 @@ hp_damage = final_damage - shield_absorbed
 - `damage_reduction_up` 不再作为 `warrior_shield_wall` 的长期承载效果。
 - 若某技能的目标语义是“先吃伤害的独立护盾池”，必须走 `shield_hp`，不能继续包装成固定减伤。
 
-#### 4.2.1 `shield_hp` / 护盾池
+#### 4.1.1 `shield_hp` / 护盾池
 
 对“团队保护但不想继续走减伤”的技能，正式引入护盾值语义。
 
@@ -242,7 +224,7 @@ hp_damage = final_damage - shield_absorbed
 - 让 `warrior_guard` 保持武技型物理防御身份。
 - 让团队保护更接近 `temporary hp / holy ward` 的读感，而不是近战 stance 减伤。
 
-#### 4.2.2 `shield_hp` 的 M1 数据模型
+#### 4.1.2 `shield_hp` 的 M1 数据模型
 
 `shield_hp` 在 M1 阶段不做“多层护盾数组”，而是作为 `BattleUnitState` 的一组一等字段存在。
 
@@ -341,7 +323,7 @@ M1 与日志 / preview 的最小联动字段：
   - “护盾被击碎”
   - “剩余 Y 点伤害穿透到生命”
 
-#### 4.2.3 resolver 护盾结果 contract（M1 锁定）
+#### 4.1.3 resolver 护盾结果 contract（M1 锁定）
 
 M1 正式锁定 `BattleDamageResolver` 的护盾相关返回字段语义，避免 `damage` 同时代表“总伤害”和“进血伤害”。
 
@@ -373,7 +355,7 @@ M1 正式约束：
 - “是否击倒目标”与“造成了多少 HP 伤害”天然同口径。
 - 若未来要单独统计“总命中伤害”或“护盾吸收贡献”，可在调用层按现有字段组合，不需要在 M1 先引入第二个歧义总量字段。
 
-#### 4.3 `guarding`
+#### 4.2 `guarding`
 
 `guarding` 的最终目标语义改为 `hardness-like block`，而不是晚到的伤害乘区。
 
@@ -399,7 +381,7 @@ M1 正式约束：
 - 文档层面不再把它定义为百分比减伤。
 - `guarding` 的 M1 口径默认是固定物理减伤，不允许实现成全伤害减伤。
 
-#### 4.3.1 `warrior_guard` 技能锁定要求
+#### 4.2.1 `warrior_guard` 技能锁定要求
 
 `warrior_guard` 在本 spec 中单独锁定为物理防御技能：
 
@@ -413,7 +395,7 @@ M1 正式约束：
 - 不让它同时覆盖“泛用法术减伤”，避免和元素抗性、`HALF / IMMUNE`、团队减伤 buff 发生定位重叠。
 - 把 `warrior_guard` 与 `priest_aid` 的职责拆开，前者偏自身物理防御，后者负责牧师系团队护盾。
 
-#### 4.4 `DR X / bypass tag`
+#### 4.3 `DR X / bypass tag`
 
 `DR` 不是普战默认机制，而是 `3.5e / PF1e` 风格的显式内容扩展。
 
@@ -433,7 +415,7 @@ M1 正式约束：
 - 若攻击满足 bypass tag，则该层不生效
 - `DR` 与元素抗性、全伤害抗性可共存，但都按固定值顺序扣减
 
-#### 4.5 `IMMUNE / DOUBLE`
+#### 4.4 `IMMUNE / DOUBLE`
 
 新增正式概念：
 
@@ -452,13 +434,12 @@ M1 正式约束：
 - `HALF` 与 `DOUBLE` 同时存在时，结果回到 `NORMAL`。
 - 当前正式主链不支持“固定值 weakness”与 `DOUBLE` 并存；若后续确需引入，必须以单独 spec 重新定义。
 
-### 4.6 最小 modifier taxonomy（M1 前置）
+### 4.5 最小 modifier taxonomy（M1 前置）
 
-为避免 `guarding`、`damage_reduction_up`、元素抗性和 `DR` 在 M1 期直接线性叠加，M1 落地前需要补最小减伤 taxonomy。
+为避免 `guarding`、`damage_reduction_up` 和 `DR` 在 M1 期直接线性叠加，M1 落地前需要补最小减伤 taxonomy。
 
 首批分类：
 
-- `typed_resistance`
 - `buff_reduction`
 - `stance_reduction`
 - `content_dr`
@@ -466,7 +447,6 @@ M1 正式约束：
 
 首批映射：
 
-- 元素抗性 / 类型抗性 -> `typed_resistance`
 - `damage_reduction_up` -> `buff_reduction`
 - `guarding` 的 M1 持续 stance 形态 -> `stance_reduction`
 - `DR X/bypass` -> `content_dr`
@@ -487,7 +467,7 @@ M1 正式约束：
 原因：
 
 - `PF2e` 和 `3.5e / PF1e` 风格下，命中了但被完全吃掉，是合法且有辨识度的结果。
-- 全局最低伤害 1 会再次把固定值抗性、`DR`、`guard block` 的价值压平。
+- 全局最低伤害 1 会再次把固定值减伤、`DR`、`guard block` 的价值压平。
 
 补充约束：
 
@@ -525,19 +505,18 @@ M1 正式约束：
 
 ### M1：修复结构性 bug，不改太多内容表达
 
-- 先补最小 modifier taxonomy，至少覆盖 `typed_resistance / buff_reduction / stance_reduction / content_dr / guard_block`
+- 先补最小 modifier taxonomy，至少覆盖 `buff_reduction / stance_reduction / content_dr / guard_block`
 - 去掉中间步骤的 `maxi(..., 1)` 和重复 `round`
 - 攻击侧倍率聚合一次
 - 防御侧百分比档位改为 `IMMUNE / HALF / NORMAL / DOUBLE`
 - 固定值减伤在 `IMMUNE / HALF / DOUBLE` 之后结算
-- `resistance_attribute_id` 从百分比重解释为固定值抗性
 - `damage_reduction_up` 从百分比重解释为固定值减免
 - `guarding` 从百分比重解释为 guard block / 临时 fixed mitigation
 - `warrior_guard` 迁移后只保留 `guarding`，移除自带 `damage_reduction_up`
 - `priest_aid` 作为正式牧师系范围护盾技能保留 `radius 1 / 60 TU` 骨架，效果改为 `shield_hp`
 - 在 battle state / preview / log contract 中补正式护盾层，不允许用 `damage_reduction_up` 模拟团队护盾
 - 同步接入 `0` 伤害、免疫、被吸收三种 log / preview 表达
-- 在数值重解释前准备旧 `%` -> 新固定值的换算对照表与校准基准
+- 在数值重解释前准备 `damage_reduction_up / guarding / shield_hp` 的校准基准
 
 ### M2：补充正式内容标签
 
@@ -647,23 +626,9 @@ M1 正式约束：
 
 | 类别 | 当前来源 | 当前口径 | 当前内容实值 | 迁移目标 | 候选新值 | 验证场景 | 预期结果 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 元素/类型抗性 `resistance_attribute_id` | `fire_resistance / freeze_resistance / lightning_resistance / negative_energy_resistance` | `reduction_ratio = clamp(value / 100, 0, 0.85)` | 例：`mist_beast.fire_resistance = 2` => 当前减 `2%` | 固定值抗性，或 `IMMUNE / HALF / NORMAL / DOUBLE` 档位 | `fire = __`、`freeze = __`、`lightning = __`、`negative = __` | 选 1 个法术伤害夹具 + 1 个有对应抗性的敌人 | 对应属性攻击有稳定可感知差距，但不会把常规技能全打成 0 | 若改成固定值，必须同步准备 `% -> 固定值` 对照表 |
 | 状态 `damage_reduction_up` | `warrior_guard`、原 `warrior_shield_wall`（旧内容） | `10% * power`，上限 `30%` | 当前确认内容 `power = 1` => `10%` | 从这两个技能中移除；若未来仍保留，只作为固定值减伤状态供其他内容使用 | `power1 = __`、`power2 = __`、`power3 = __` | 若未来保留该状态，再用近战单体 / 法术单体各 1 组测试；若不保留，则只做迁移清理回归 | 不再由 `warrior_guard` / 旧 `warrior_shield_wall` 承担正式防护表达 | 当前已确定团队护盾正式迁为 `priest_aid` |
 | 护盾值 `shield_hp` | `priest_aid` | 当前正式字段已落到 `BattleUnitState` | 当前正式内容锁定为 D&D 2 环风格 `1d8 + 3`，单次施法共享一组骰值 | 固定值护盾池；先吸收伤害，再扣 HP | M1 固定为 `1d8 + 3` | 单体近战、单体法术、多段小伤害各 1 组 | 护盾应先被消耗，剩余伤害才进入 HP；同类护盾取高值或刷新持续时间 | 护盾 contract 已进入 `BattleUnitState / BattleRuntimeModule / BattleDamageResolver`，后续只继续调数值与 preview/log 细节 |
 | 状态 `guarding` | `warrior_guard` | `15% * power`，上限 `45%` | 当前确认内容 `power = 1` => `15%` | M1 固定值 `stance_reduction`；仅减物理；M3 演化为首次受击自动 block | `power1 = __`、`power2 = __`、`power3 = __` | 普攻、重击、多段物理伤害各 1 组；另加火/冰/雷/负能量法术对照组 | 应显著拉高防御姿态对物理伤害的收益，但对法术伤害没有任何效果 | 必须按 modifier taxonomy 与 `damage_reduction_up` 隔离；`warrior_guard` 迁移后不再附带 `damage_reduction_up` |
-
-### 建议补的对照子表
-
-用于把旧百分比值换算到新固定值，尤其是元素/类型抗性：
-
-| 旧值（%） | 旧口径示例 | 候选新固定值 | 目标敌方单次伤害中位数 | 迁移后预期承伤变化 | 是否需要改成 `HALF / IMMUNE` |
-| --- | --- | --- | --- | --- | --- |
-| `2` | 极低抗性 | `__` | `__` | `__` | `否 / HALF / IMMUNE` |
-| `10` | 轻抗性 | `__` | `__` | `__` | `否 / HALF / IMMUNE` |
-| `20` | 中低抗性 | `__` | `__` | `__` | `否 / HALF / IMMUNE` |
-| `30` | 中抗性 | `__` | `__` | `__` | `否 / HALF / IMMUNE` |
-| `40` | 高抗性 | `__` | `__` | `__` | `否 / HALF / IMMUNE` |
-| `50+` | 极高抗性 | `__` | `__` | `__` | `否 / HALF / IMMUNE` |
 
 ### 建议记录的首批验证夹具
 
@@ -671,8 +636,6 @@ M1 正式约束：
 - `warrior_guard` 自身承受 1 个火系、1 个冰系、1 个雷系、1 个负能量技能，确认 `guarding` 不生效。
 - `priest_aid`：友军承受单体近战伤害，确认先掉护盾不掉血。
 - `priest_aid`：友军承受单体法术伤害，确认同样先掉护盾。
-- 1 个火系技能打带 `fire_resistance` 的敌人。
-- 1 个冰系技能打带 `freeze_resistance` 的敌人。
 - 1 个多段 / 小伤害技能打 `guarding` 目标。
 - 1 个高单段 / 重击技能打 `guarding` 目标。
 
@@ -681,8 +644,7 @@ M1 正式约束：
 1. 在 `BattleDamageResolver` 里落地新的伤害流水线，并去掉中间步骤反复 `round + floor 1`。
 2. 先补最小减伤 modifier taxonomy，避免 `guarding + damage_reduction_up` 默认线性叠加。
 3. 为 `0` 伤害、免疫、被吸收三种结果补 log / preview 表达，并把它作为 `MIN_DAMAGE_FLOOR = 0` 的合入前置条件。
-4. 为 `resistance_attribute_id` 明确固定值口径，准备旧 `%` -> 新固定值的换算表与校准锚点，再补最小回归。
-5. 为团队护盾补正式 `shield_hp` 层、状态/日志/preview contract，并把正式技能固定为 `priest_aid`。
-6. 让 `damage_reduction_up`、`guarding` 拥有新的正式减免语义，并补回归。
-7. 基于新流水线重新校准首批技能、护盾值与敌人的抗性数值。
-8. 审计攻击侧倍率叠乘上限，必要时在 M2 前先加局部限幅。
+4. 为团队护盾补正式 `shield_hp` 层、状态/日志/preview contract，并把正式技能固定为 `priest_aid`。
+5. 让 `damage_reduction_up`、`guarding` 拥有新的正式减免语义，并补回归。
+6. 基于新流水线重新校准首批技能、护盾值与防护状态数值。
+7. 审计攻击侧倍率叠乘上限，必要时在 M2 前先加局部限幅。

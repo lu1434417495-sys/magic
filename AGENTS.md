@@ -30,8 +30,13 @@ Follow existing GDScript style: tabs for indentation, `snake_case` for files, fu
 ## Testing Guidelines
 Tests are standalone `.gd` runners named `run_*_regression.gd`, `run_*_smoke.gd`, or similar. Add tests beside the system you changed, and run the narrowest relevant scripts before opening a PR. UI or battle-layout work should include a regression script when feasible and a screenshot when behavior is visual.
 
+Battle simulation and balance runners are not part of the routine full regression suite. Do not include numeric simulation entry points such as `tests/battle_runtime/run_battle_simulation_regression.gd`, `tests/battle_runtime/run_battle_ai_vs_ai_simulation_regression.gd`, or `tests/battle_runtime/run_battle_balance_simulation.gd` in a normal "run all tests" pass unless the user explicitly asks for battle simulation or balance analysis.
+
 ## Commit & Pull Request Guidelines
 Recent history uses short subjects with Conventional Commit prefixes, for example `feat:` and `chore:`. Keep using that pattern: `feat: add warehouse item stacking`, `fix: preserve battle save lock`. Pull requests should include a brief summary, affected scenes/scripts, test commands run, and screenshots for UI changes. Call out save-format or serialization impacts explicitly.
 
 ## Configuration & Safety Notes
 `project.godot` defines the main scene and the `GameSession` autoload. Treat save/load changes and serialization version bumps as high risk. Do not commit transient workspace state, generated `.godot` edits, or local save artifacts unless the change intentionally updates tracked fixtures.
+
+## Compatibility Policy
+Do not add compatibility logic, legacy aliases, fallback migrations, or old payload/schema support without confirming with the user first. When asking whether compatibility should be preserved, explicitly explain why the compatibility path may be needed and what concrete problems or breakages will happen if compatibility is not added.
