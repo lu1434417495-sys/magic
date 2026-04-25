@@ -6,6 +6,7 @@ const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_stat
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const RUNTIME_UNAVAILABLE_MESSAGE := "运行时尚未初始化。"
 
 var _runtime_ref: WeakRef = null
@@ -283,13 +284,13 @@ func handle_battle_input(key_event: InputEventKey) -> bool:
 			battle_selection.cycle_selected_battle_skill_variant(1)
 		KEY_ESCAPE:
 			battle_selection.clear_battle_skill_selection(true)
-		KEY_LEFT, KEY_A:
+		KEY_LEFT:
 			attempt_battle_move(Vector2i.LEFT)
-		KEY_RIGHT, KEY_D:
+		KEY_RIGHT:
 			attempt_battle_move(Vector2i.RIGHT)
-		KEY_UP, KEY_W:
+		KEY_UP:
 			attempt_battle_move(Vector2i.UP)
-		KEY_DOWN, KEY_S:
+		KEY_DOWN:
 			attempt_battle_move(Vector2i.DOWN)
 		KEY_R:
 			battle_selection.reset_battle_movement()
@@ -393,30 +394,6 @@ func on_battle_skill_slot_selected(index: int) -> void:
 		battle_selection.select_battle_skill_slot(index)
 
 
-func on_battle_skill_variant_cycle_requested(step: int) -> void:
-	if not _is_battle_ready():
-		return
-	var block_reason := _get_battle_interaction_block_reason()
-	if not block_reason.is_empty():
-		_update_status(block_reason)
-		return
-	var battle_selection = _get_battle_selection()
-	if battle_selection != null:
-		battle_selection.cycle_selected_battle_skill_variant(step)
-
-
-func on_battle_skill_clear_requested() -> void:
-	if not _is_battle_ready():
-		return
-	var block_reason := _get_battle_interaction_block_reason()
-	if not block_reason.is_empty():
-		_update_status(block_reason)
-		return
-	var battle_selection = _get_battle_selection()
-	if battle_selection != null:
-		battle_selection.clear_battle_skill_selection(true)
-
-
 func apply_battle_batch(batch) -> void:
 	if batch == null:
 		return
@@ -452,10 +429,7 @@ func refresh_battle_runtime_state() -> void:
 func build_battle_seed(encounter_anchor) -> int:
 	if encounter_anchor == null:
 		return 0
-	var generation_config = _runtime.get_generation_config() if _runtime != null else null
-	var player_coord: Vector2i = _runtime.get_player_coord() if _runtime != null else Vector2i.ZERO
-	var base_seed := int(generation_config.seed) if generation_config != null else 0
-	return base_seed ^ String(encounter_anchor.entity_id).hash() ^ (player_coord.x * 73856093) ^ (player_coord.y * 19349663)
+	return TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
 
 
 func get_runtime_battle_state() -> BattleState:

@@ -194,87 +194,6 @@ func create_new_save(
 	return persist_error
 
 
-func load_bundled_save(
-	template_path: String,
-	save_id: String,
-	display_name: String,
-	world_preset_id: StringName = &"",
-	world_preset_name: String = "",
-	character_creation_payload: Dictionary = {}
-) -> int:
-	var normalized_save_id := save_id.strip_edges()
-	if template_path.is_empty() or normalized_save_id.is_empty():
-		return ERR_INVALID_PARAMETER
-	if not _get_save_meta_by_id(normalized_save_id).is_empty() or FileAccess.file_exists(_build_save_file_path(normalized_save_id)):
-		log_event(
-			"warn",
-			"session",
-			"session.save.bundle.slot_already_exists",
-			"Bundled save import refused to overwrite existing slot %s." % normalized_save_id,
-			{
-				"template_path": template_path,
-				"save_id": normalized_save_id,
-			}
-		)
-		return ERR_ALREADY_EXISTS
-
-	var read_result := _read_save_payload(template_path)
-	var read_error := int(read_result.get("error", ERR_CANT_OPEN))
-	if read_error != OK:
-		return read_error
-
-	var payload = read_result.get("payload", {})
-	if typeof(payload) != TYPE_DICTIONARY:
-		return ERR_INVALID_DATA
-
-	var generation_config_path := String(payload.get("generation_config_path", ""))
-	if generation_config_path.is_empty():
-		_push_session_error(
-			"session.save.bundle.missing_generation_config",
-			"Bundled save template %s is missing generation_config_path." % template_path,
-			{
-				"template_path": template_path,
-				"save_id": normalized_save_id,
-			}
-		)
-		return ERR_INVALID_DATA
-
-	var generation_config = _load_generation_config(generation_config_path)
-	if generation_config == null:
-		return ERR_CANT_OPEN
-
-	var timestamp := int(Time.get_unix_time_from_system())
-	var resolved_preset_name := world_preset_name if not world_preset_name.is_empty() else WORLD_PRESET_REGISTRY_SCRIPT.get_fallback_preset_name(generation_config_path)
-	var save_meta := _build_save_meta(
-		normalized_save_id,
-		display_name,
-		generation_config_path,
-		world_preset_id,
-		resolved_preset_name,
-		generation_config.get_world_size_cells(),
-		timestamp,
-		timestamp
-	)
-	payload["save_id"] = normalized_save_id
-	payload["save_slot_meta"] = save_meta.duplicate(true)
-
-	var load_error := _load_v5_payload(payload, generation_config_path, generation_config, save_meta)
-	if load_error != OK:
-		return load_error
-
-	_apply_character_creation_payload_to_main_character(character_creation_payload)
-
-	_rotate_log_session()
-	var persist_error := _persist_game_state()
-	if persist_error == OK:
-		_log_session_info("session.save.bundle.ok", "已加载并落盘内置测试存档。", {
-			"template_path": template_path,
-			"save_id": normalized_save_id,
-			"generation_config_path": generation_config_path,
-		})
-	return persist_error
-
-
 func list_save_slots() -> Array[Dictionary]:
 	return _load_save_index_entries()
 
@@ -1142,6 +1061,12 @@ func _is_random_start_book_skill_candidate(skill_def: SkillDef, progression) -> 
 	if skill_def.learn_source != &"book":
 		return false
 	if skill_def.unlock_mode == &"composite_upgrade":
+		return false
+	if not skill_def.learn_requirements.is_empty() \
+		or not skill_def.knowledge_requirements.is_empty() \
+		or not skill_def.skill_level_requirements.is_empty() \
+		or not skill_def.attribute_requirements.is_empty() \
+		or not skill_def.achievement_requirements.is_empty():
 		return false
 	var learned_progress = progression.get_skill_progress(skill_def.skill_id)
 	return learned_progress == null or not learned_progress.is_learned

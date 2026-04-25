@@ -12,13 +12,9 @@ const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_set
 const CHARACTER_CREATION_WINDOW_SCRIPT = preload("res://scripts/ui/character_creation_window.gd")
 
 const PENDING_START_TYPE_PRESET: StringName = &"preset"
-const PENDING_START_TYPE_TEST: StringName = &"test"
 
 const TEST_PRESET_ID := &"test"
 const DEFAULT_START_PRESET_ID := &"small"
-const FIXED_TEST_SAVE_TEMPLATE_PATH := "res://data/saves/fixed_test_world_save.dat"
-const FIXED_TEST_SAVE_ID_PREFIX := "fixed_test_world"
-const FIXED_TEST_SAVE_DISPLAY_NAME := "固定测试存档"
 
 ## 字段说明：在编辑器中配置开始场景路径，运行时会据此加载场景、资源、配置文件或存档模板。
 @export_file("*.tscn") var start_scene_path: String
@@ -48,9 +44,9 @@ var _is_transitioning := false
 var _display_settings_service: DisplaySettingsService = null
 ## 字段说明：缓存当前生效的显示设置字典，供窗口回填和重新应用时复用。
 var _display_settings: Dictionary = {}
-## 字段说明：缓存当前等待建卡完成的入口类型（预设 / 测试），用于分发后续开档调用。
+## 字段说明：缓存当前等待建卡完成的入口类型，用于分发后续开档调用。
 var _pending_start_type: StringName = &""
-## 字段说明：缓存选择地图流程中等待建卡的预设 id，供建卡确认后传入 create_new_save。
+## 字段说明：缓存选择地图流程中等待建卡的预设 id，供建卡确认后传入 create_new_save；测试地图也使用同一条预设生成链。
 var _pending_preset_id: StringName = &""
 
 
@@ -102,7 +98,7 @@ func _on_test_button_pressed() -> void:
 		return
 	if not _validate_start_scene_path():
 		return
-	_open_character_creation_for(PENDING_START_TYPE_TEST, &"")
+	_open_character_creation_for(PENDING_START_TYPE_PRESET, TEST_PRESET_ID)
 
 
 func _on_load_button_pressed() -> void:
@@ -174,8 +170,6 @@ func _on_character_creation_confirmed(payload: Dictionary) -> void:
 	match start_type:
 		PENDING_START_TYPE_PRESET:
 			_start_preset(preset_id, payload)
-		PENDING_START_TYPE_TEST:
-			_start_bundled_test_save(payload)
 		_:
 			_show_idle_status()
 
@@ -250,17 +244,7 @@ func _start_preset(preset_id: StringName, character_creation_payload: Dictionary
 	var preset_name := String(preset_data.get("display_name", "世界"))
 	status_label.text = "正在创建 %s 存档并进入游戏..." % preset_name
 
-	var game_session = _get_game_session()
-	if game_session == null:
-		_set_transition_state(false)
-		_show_error("未找到 GameSession。")
-		return
-	var session_error: int = int(game_session.create_new_save(
-		generation_config_path,
-		preset_id,
-		preset_name,
-		character_creation_payload
-	))
+	var session_error: int = _create_save_for_preset(preset_id, character_creation_payload)
 	if session_error != OK:
 		_set_transition_state(false)
 		_show_error("世界创建失败，请检查持久化目录或配置。")
@@ -270,43 +254,25 @@ func _start_preset(preset_id: StringName, character_creation_payload: Dictionary
 	_change_to_start_scene()
 
 
-func _start_bundled_test_save(character_creation_payload: Dictionary = {}) -> void:
-	if _is_transitioning:
-		return
-	if not _validate_start_scene_path():
-		return
-
-	_set_transition_state(true)
-	status_label.text = "正在加载固定测试存档并进入游戏..."
-
-	var session_error := _import_bundled_test_save(character_creation_payload)
-	if session_error != OK:
-		_set_transition_state(false)
-		_show_error("固定测试存档加载失败，请检查内置存档资源。")
-		push_error("Failed to import bundled test save. Error code: %s" % session_error)
-		return
-
-	_change_to_start_scene()
-
-
-func _import_bundled_test_save(character_creation_payload: Dictionary = {}) -> int:
-	var preset_data := WORLD_PRESET_REGISTRY_SCRIPT.get_preset(TEST_PRESET_ID)
+func _create_save_for_preset(preset_id: StringName, character_creation_payload: Dictionary = {}) -> int:
+	var preset_data := WORLD_PRESET_REGISTRY_SCRIPT.get_preset(preset_id)
 	if preset_data.is_empty():
-		return ERR_CANT_OPEN
+		return ERR_DOES_NOT_EXIST
+
+	var generation_config_path := String(preset_data.get("generation_config_path", ""))
+	if generation_config_path.is_empty():
+		return ERR_INVALID_DATA
+
 	var game_session = _get_game_session()
 	if game_session == null:
 		return ERR_UNCONFIGURED
-	var save_id: String = String(game_session.allocate_unique_save_id(FIXED_TEST_SAVE_ID_PREFIX))
-	if save_id.is_empty():
-		return ERR_CANT_CREATE
-	return game_session.load_bundled_save(
-		FIXED_TEST_SAVE_TEMPLATE_PATH,
-		save_id,
-		FIXED_TEST_SAVE_DISPLAY_NAME,
-		TEST_PRESET_ID,
-		String(preset_data.get("display_name", "测试")),
+
+	return int(game_session.create_new_save(
+		generation_config_path,
+		preset_id,
+		String(preset_data.get("display_name", "世界")),
 		character_creation_payload
-	)
+	))
 
 
 func _change_to_start_scene() -> void:
@@ -339,7 +305,7 @@ func _is_modal_open() -> bool:
 
 
 func _show_idle_status() -> void:
-	status_label.text = "点击“进入游戏”创建正式世界，点击“加载存档”继续已有进度，或点击“测试地图”加载固定测试存档。"
+	status_label.text = "点击“进入游戏”创建正式世界，点击“加载存档”继续已有进度，或点击“测试地图”创建测试世界。"
 
 
 func _show_error(message: String) -> void:

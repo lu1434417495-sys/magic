@@ -7,6 +7,7 @@ const SETTLEMENT_RESEARCH_SERVICE_SCRIPT = preload("res://scripts/systems/settle
 const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement_service_result.gd")
 const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
 const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/low_luck_relic_rules.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 
 const REST_FULL_COST := 50
 const INTEL_NETWORK_COST := 50
@@ -1305,7 +1306,7 @@ func _mark_settlement_visited(settlement_id: String) -> void:
 func _get_or_create_settlement_state(settlement_id: String) -> Dictionary:
 	var settlement_state := _get_settlement_state(settlement_id)
 	if settlement_state.is_empty():
-		settlement_state = {"visited": false, "reputation": 0, "active_conditions": [], "cooldowns": {}, "shop_inventory_seed": 0, "shop_last_refresh_step": 0, "shop_states": {}}
+		settlement_state = {"visited": false, "reputation": 0, "active_conditions": [], "cooldowns": {}, "shop_inventory_seed": TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed(), "shop_last_refresh_step": 0, "shop_states": {}}
 		_set_active_settlement_state(settlement_id, settlement_state)
 	return settlement_state
 

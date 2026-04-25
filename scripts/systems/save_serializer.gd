@@ -2,6 +2,7 @@ class_name SaveSerializer
 extends RefCounted
 
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const DEFAULT_PLAYER_FACTION_ID := "player"
 const SAVE_DIRECTORY := "user://saves"
 
@@ -244,6 +245,7 @@ func normalize_save_meta(raw_meta: Dictionary) -> Dictionary:
 
 func normalize_world_data(world_data: Dictionary) -> Dictionary:
 	var normalized = world_data.duplicate(true)
+	normalized["map_seed"] = _normalize_runtime_seed(world_data.get("map_seed", 0))
 	normalized["world_step"] = maxi(int(world_data.get("world_step", 0)), 0)
 	normalized["active_submap_id"] = String(world_data.get("active_submap_id", ""))
 	normalized["submap_return_stack"] = _normalize_submap_return_stack(world_data.get("submap_return_stack", []))
@@ -265,6 +267,7 @@ func normalize_world_data(world_data: Dictionary) -> Dictionary:
 func serialize_world_data(world_data: Dictionary) -> Dictionary:
 	var serialized_world_data = world_data.duplicate(true)
 	serialized_world_data["active_submap_id"] = String(world_data.get("active_submap_id", ""))
+	serialized_world_data["map_seed"] = _normalize_runtime_seed(world_data.get("map_seed", 0))
 	serialized_world_data["submap_return_stack"] = _serialize_submap_return_stack(world_data.get("submap_return_stack", []))
 	serialized_world_data["world_events"] = _serialize_world_events(world_data.get("world_events", []))
 	var encounter_anchor_payloads: Array[Dictionary] = []
@@ -486,6 +489,11 @@ func _is_supported_vector2i_value(value: Variant) -> bool:
 		var vector_dict := value as Dictionary
 		return vector_dict.has("x") and vector_dict.has("y")
 	return false
+
+
+func _normalize_runtime_seed(value: Variant) -> int:
+	var seed := int(value)
+	return seed if seed > 0 else TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
 
 
 func sort_save_meta_newest_first(a: Dictionary, b: Dictionary) -> bool:

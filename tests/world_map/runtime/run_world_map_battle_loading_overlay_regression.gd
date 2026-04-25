@@ -14,11 +14,13 @@ var _game_session = null
 class PendingTerrainGenerator:
 	extends BattleTerrainGenerator
 
+	const PENDING_FAIL_CALLS := 8
+
 	var _generate_call_count := 0
 
 	func generate(_encounter_anchor_or_context, _seed: int = 0, _context: Dictionary = {}) -> Dictionary:
 		_generate_call_count += 1
-		if _generate_call_count == 1:
+		if _generate_call_count <= PENDING_FAIL_CALLS:
 			return {}
 		var map_size := Vector2i(3, 2)
 		var cells: Dictionary = {}

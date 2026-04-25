@@ -19,6 +19,8 @@ const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.
 @export var player_vision_range := 4
 ## 字段说明：在编辑器中暴露程序化生成启用开关，便于决定当前世界是否走程序化生成流程。
 @export var procedural_generation_enabled := false
+## 字段说明：控制程序化野外遭遇按 chunk 抽签的稀疏度；数值越小，怪物越密。
+@export_range(1, 32, 1) var procedural_wild_spawn_chunk_chance_denominator := 2
 ## 字段说明：控制当前世界在初始化时是否自动注入主世界默认内容库，避免把通用据点、设施和野怪模板重复写入每个预设。
 @export var inject_default_main_world_content := false
 ## 字段说明：在编辑器中暴露程序化村庄数量参数，便于直接调整生成数量、奖励数量或容量规模。

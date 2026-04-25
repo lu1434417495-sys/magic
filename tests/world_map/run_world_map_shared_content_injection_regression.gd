@@ -33,9 +33,11 @@ func _run() -> void:
 	_test_shared_city_name_pool_exposes_300_unique_names()
 	_test_shared_capital_name_pool_exposes_100_unique_names()
 	_test_shared_metropolis_name_pool_exposes_50_unique_names()
+	_test_new_world_generation_records_runtime_map_seed()
 	_test_world_generation_injects_shared_main_world_content()
 	_test_world_stronghold_instances_keep_stronghold_semantics()
 	_test_demo_world_generation_includes_metropolis_instances()
+	_test_procedural_wild_spawn_density_can_be_configured()
 	_test_procedural_wild_spawn_region_tags_ignore_rule_order()
 	_test_small_world_generation_assigns_unique_display_names()
 
@@ -57,6 +59,8 @@ func _test_generic_main_world_presets_keep_template_shape() -> void:
 		if config == null:
 			continue
 		_assert_true(bool(config.inject_default_main_world_content), "%s 应开启共享主世界内容注入。" % config_path)
+		_assert_eq(int(config.procedural_wild_spawn_chunk_chance_denominator), 2, "%s 应使用更密集的主世界野怪 chunk 抽签配置。" % config_path)
+		_assert_true(bool(config.guarantee_starting_wild_encounter), "%s 应保底在起始区域附近生成野外遭遇。" % config_path)
 		_assert_eq((config.settlement_library as Array).size(), 0, "%s 不应再内嵌通用据点模板。" % config_path)
 		_assert_eq((config.facility_library as Array).size(), 0, "%s 不应再内嵌通用设施模板。" % config_path)
 		_assert_eq((config.wild_monster_distribution as Array).size(), 0, "%s 不应再内嵌通用野怪规则。" % config_path)
@@ -105,6 +109,25 @@ func _test_world_generation_injects_shared_main_world_content() -> void:
 	_assert_true(found_north_wild, "共享内容注入后应生成 north_wilds 遭遇。")
 	_assert_true(found_south_mist_hollow, "共享内容注入后应生成指向 mist_hollow 的 south_wilds 遭遇。")
 
+	_cleanup(game_session)
+
+
+func _test_new_world_generation_records_runtime_map_seed() -> void:
+	var config = load(TEST_WORLD_CONFIG)
+	_assert_true(config != null, "runtime map seed 回归需要可加载的测试世界配置。")
+	if config == null:
+		return
+
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG, &"runtime_map_seed", "运行时地图 seed 验证"))
+	_assert_eq(create_error, OK, "新世界应能成功创建以验证 runtime map seed。")
+	if create_error != OK:
+		_cleanup(game_session)
+		return
+
+	var map_seed := int(game_session.get_world_data().get("map_seed", 0))
+	_assert_true(map_seed > 0, "新世界 world_data 应记录由真随机接口分配的 map_seed。")
+	_assert_true(map_seed != int(config.seed), "运行时 map_seed 不应直接沿用 world config 的固定 seed。")
 	_cleanup(game_session)
 
 
@@ -172,6 +195,8 @@ func _test_procedural_wild_spawn_region_tags_ignore_rule_order() -> void:
 	config.inject_default_main_world_content = false
 	config.settlement_library = settlement_bundle.settlement_library.duplicate(true)
 	config.facility_library = settlement_bundle.facility_library.duplicate(true)
+	config.guarantee_starting_wild_encounter = false
+	config.procedural_wild_spawn_chunk_chance_denominator = 1
 
 	var south_rule = WILD_SPAWN_RULE_SCRIPT.new()
 	south_rule.region_tag = "south_wilds"
@@ -224,6 +249,64 @@ func _test_procedural_wild_spawn_region_tags_ignore_rule_order() -> void:
 	_assert_true(found_south_in_south, "south_wilds 应仍然出现在世界南半区。")
 	_assert_true(not misplaced_north, "north_wilds 不应因为数组顺序变化而跑到南半区。")
 	_assert_true(not misplaced_south, "south_wilds 不应因为数组顺序变化而跑到北半区。")
+
+
+func _test_procedural_wild_spawn_density_can_be_configured() -> void:
+	var base_config = load(TEST_WORLD_CONFIG)
+	_assert_true(base_config != null, "wild spawn density 回归需要可加载的测试世界配置。")
+	if base_config == null:
+		return
+	var settlement_bundle = load(SHARED_SETTLEMENT_BUNDLE_PATH)
+	_assert_true(settlement_bundle != null, "wild spawn density 回归需要可加载的共享据点 bundle。")
+	if settlement_bundle == null:
+		return
+
+	var config = base_config.duplicate(true)
+	_assert_true(config != null, "测试世界配置应支持 duplicate(true) 以验证野怪密度。")
+	if config == null:
+		return
+	config.inject_default_main_world_content = false
+	config.settlement_library = settlement_bundle.settlement_library.duplicate(true)
+	config.facility_library = settlement_bundle.facility_library.duplicate(true)
+	config.guarantee_starting_wild_encounter = false
+	config.procedural_wild_spawn_chunk_chance_denominator = 1
+
+	var north_rule = WILD_SPAWN_RULE_SCRIPT.new()
+	north_rule.region_tag = "north_wilds"
+	north_rule.monster_name = "北境狼群"
+	north_rule.monster_template_id = &"wolf_pack"
+	north_rule.density_per_chunk = 1
+	north_rule.min_distance_to_settlement = 3
+	north_rule.vision_range = 1
+
+	var south_rule = WILD_SPAWN_RULE_SCRIPT.new()
+	south_rule.region_tag = "south_wilds"
+	south_rule.monster_name = "南境雾兽"
+	south_rule.monster_template_id = &"mist_beast"
+	south_rule.encounter_profile_id = &"mist_hollow"
+	south_rule.density_per_chunk = 1
+	south_rule.min_distance_to_settlement = 3
+	south_rule.vision_range = 1
+
+	config.wild_monster_distribution = [north_rule, south_rule]
+
+	var grid_system = WORLD_MAP_GRID_SYSTEM_SCRIPT.new()
+	grid_system.setup(config.world_size_in_chunks, config.chunk_size)
+	var spawn_system = WORLD_MAP_SPAWN_SYSTEM_SCRIPT.new()
+	var world_data: Dictionary = spawn_system.build_world(config, grid_system)
+	var single_encounter_count := 0
+	for encounter_variant in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+		if encounter_anchor == null:
+			continue
+		if encounter_anchor.encounter_kind == ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE:
+			single_encounter_count += 1
+
+	var expected_minimum := int(config.world_size_in_chunks.x * config.world_size_in_chunks.y)
+	_assert_true(
+		single_encounter_count >= expected_minimum,
+		"chunk 抽签分母为 1 时，每个 chunk 至少应生成一组单体野外遭遇。actual=%d expected_minimum=%d" % [single_encounter_count, expected_minimum]
+	)
 
 
 func _test_small_world_generation_assigns_unique_display_names() -> void:

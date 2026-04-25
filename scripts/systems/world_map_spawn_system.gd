@@ -9,6 +9,7 @@ const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const WORLD_EVENT_CONFIG_SCRIPT = preload("res://scripts/utils/world_event_config.gd")
 const MOUNTED_SUBMAP_CONFIG_SCRIPT = preload("res://scripts/utils/mounted_submap_config.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const DEFAULT_MAIN_WORLD_SETTLEMENT_BUNDLE_PATH := "res://data/configs/world_map/shared/main_world_default_settlement_bundle.tres"
 const DEFAULT_MAIN_WORLD_WILD_SPAWN_BUNDLE_PATH := "res://data/configs/world_map/shared/main_world_default_wild_spawn_bundle.tres"
 const DEFAULT_MAIN_WORLD_SETTLEMENT_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres"
@@ -50,8 +51,10 @@ const SERVICE_ACTION_ID_BY_INTERACTION := {
 	"service_hire_expert": "service:hire_expert",
 }
 
-## 字段说明：缓存随机数生成器实例，保证生成逻辑集中使用同一套随机来源并保持可复现性。
+## 字段说明：缓存随机数生成器实例，保证生成逻辑集中使用同一套随机来源。
 var _rng := RandomNumberGenerator.new()
+## 字段说明：记录本次建图由真随机接口分配的地图种子，派生地图随机项只在本次生成内消费。
+var _map_seed := 0
 ## 字段说明：记录生成配置，会参与运行时状态流转、系统协作和存档恢复。
 var _generation_config
 ## 字段说明：记录网格系统，会参与运行时状态流转、系统协作和存档恢复。
@@ -85,7 +88,8 @@ var _remaining_default_main_world_metropolis_display_names: Array[String] = []
 func build_world(generation_config, grid_system) -> Dictionary:
 	_generation_config = generation_config
 	_grid_system = grid_system
-	_rng.seed = generation_config.seed
+	_map_seed = TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
+	_rng.seed = _map_seed
 	_build_libraries()
 
 	var settlements := _generate_settlements()
@@ -95,6 +99,7 @@ func build_world(generation_config, grid_system) -> Dictionary:
 	var encounter_anchors := _generate_encounter_anchors(settlements, player_start_coord)
 
 	return {
+		"map_seed": _map_seed,
 		"settlements": settlements,
 		"world_npcs": world_npcs,
 		"encounter_anchors": encounter_anchors,
@@ -459,7 +464,7 @@ func _build_default_settlement_state(is_player_start: bool) -> Dictionary:
 		"reputation": 0,
 		"active_conditions": [],
 		"cooldowns": {},
-		"shop_inventory_seed": 0,
+		"shop_inventory_seed": TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed(),
 		"shop_last_refresh_step": 0,
 		"shop_states": {},
 	}
@@ -656,6 +661,10 @@ func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -
 	var world_chunks: Vector2i = _generation_config.world_size_in_chunks
 	var midpoint_chunk_y: int = int(world_chunks.y / 2)
 	var monster_index := 0
+	var spawn_chunk_chance_denominator := maxi(
+		int(_generation_config.procedural_wild_spawn_chunk_chance_denominator),
+		1
+	)
 
 	for chunk_y in range(world_chunks.y):
 		for chunk_x in range(world_chunks.x):
@@ -663,8 +672,8 @@ func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -
 			var rule: WildSpawnRule = _resolve_procedural_wild_spawn_rule_for_chunk_y(chunk_y)
 			if rule == null:
 				continue
-			var chunk_seed: int = int(_generation_config.seed) + chunk_x * 92821 + chunk_y * 68917
-			if posmod(chunk_seed, 6) != 0:
+			var chunk_seed: int = TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
+			if posmod(chunk_seed, spawn_chunk_chance_denominator) != 0:
 				continue
 
 			for offset in range(max(rule.density_per_chunk, 0)):
@@ -819,7 +828,7 @@ func _ensure_default_settlement_encounter(encounter_anchors: Array, settlement_c
 				chunk_coord,
 				maxi(int(rule.min_distance_to_settlement), 2),
 				settlement_cells,
-				int(_generation_config.seed) + chunk_coord.x * 4099 + chunk_coord.y * 8191 + 17
+				TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
 			)
 			if spawn_coord == Vector2i(-1, -1):
 				continue
@@ -943,7 +952,7 @@ func _build_default_main_world_metropolis_display_names() -> Array[String]:
 	)
 
 
-func _build_shuffled_display_names_from_pool(resource_path: String, seed_offset: int, warning_label: String) -> Array[String]:
+func _build_shuffled_display_names_from_pool(resource_path: String, _seed_offset: int, warning_label: String) -> Array[String]:
 	var name_pool = _load_default_main_world_settlement_name_pool(resource_path, warning_label)
 	if name_pool == null:
 		return []
@@ -952,7 +961,7 @@ func _build_shuffled_display_names_from_pool(resource_path: String, seed_offset:
 		return []
 
 	var name_rng := RandomNumberGenerator.new()
-	name_rng.seed = int(_generation_config.seed) + seed_offset
+	name_rng.seed = TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
 	for index in range(unique_names.size() - 1, 0, -1):
 		var swap_index := name_rng.randi_range(0, index)
 		var temp_name := unique_names[index]

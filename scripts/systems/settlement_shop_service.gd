@@ -1,6 +1,7 @@
 class_name SettlementShopService
 extends RefCounted
 
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const DEFAULT_FALLBACK_PRICE := 10
 
 const SHOP_DEFS := {
@@ -375,13 +376,12 @@ func _get_or_refresh_shop_state(
 
 func _generate_shop_state(
 	shop_def: Dictionary,
-	settlement_record: Dictionary,
+	_settlement_record: Dictionary,
 	item_defs: Dictionary,
 	current_world_step: int
 ) -> Dictionary:
 	var shop_id := String(shop_def.get("shop_id", ""))
-	var settlement_id := String(settlement_record.get("settlement_id", ""))
-	var seed := absi(hash("%s:%s:%d" % [settlement_id, shop_id, current_world_step]))
+	var seed := TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
 	_rng.seed = seed
 	var inventory: Array[Dictionary] = []
 	for entry_variant in shop_def.get("guaranteed_items", []):

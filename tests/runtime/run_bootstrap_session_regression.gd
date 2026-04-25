@@ -5,8 +5,7 @@ const LOGIN_SCREEN_SCENE = preload("res://scenes/main/login_screen.tscn")
 const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_settings_service.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
-const BUNDLED_TEST_SAVE_TEMPLATE_PATH := "res://data/saves/fixed_test_world_save.dat"
-const BUNDLED_TEST_SAVE_DISPLAY_NAME := "固定测试存档"
+const TEST_PRESET_ID := &"test"
 const TEMP_SETTINGS_PATH := "user://bootstrap_display_settings_test.cfg"
 
 var _failures: Array[String] = []
@@ -19,9 +18,8 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_display_settings_round_trip()
 	_test_decode_v5_payload_rejects_empty_world_data()
-	_test_bundled_save_preserves_display_name_and_rejects_duplicate_slot()
 	_test_game_session_rotates_log_boundary_on_create_load_unload()
-	await _test_login_screen_imports_bundled_test_save()
+	await _test_login_screen_test_entry_creates_generated_world()
 
 	if _failures.is_empty():
 		print("Bootstrap session regression: PASS")
@@ -91,65 +89,6 @@ func _test_decode_v5_payload_rejects_empty_world_data() -> void:
 	_cleanup_test_session(game_session)
 
 
-func _test_bundled_save_preserves_display_name_and_rejects_duplicate_slot() -> void:
-	var game_session = GAME_SESSION_SCRIPT.new()
-	var clear_error := int(game_session.clear_persisted_game())
-	_assert_eq(clear_error, OK, "bundled save 回归前置：应能清理旧存档目录。")
-
-	var save_id := game_session.allocate_unique_save_id("bootstrap_bundle")
-	_assert_true(not save_id.is_empty(), "bundled save 回归前置：应能分配唯一导入槽位。")
-	if save_id.is_empty():
-		_cleanup_test_session(game_session)
-		return
-
-	var import_error := int(game_session.load_bundled_save(
-		BUNDLED_TEST_SAVE_TEMPLATE_PATH,
-		save_id,
-		BUNDLED_TEST_SAVE_DISPLAY_NAME,
-		&"test",
-		"测试"
-	))
-	_assert_eq(import_error, OK, "GameSession 应能导入固定 bundled save。")
-	if import_error != OK:
-		_cleanup_test_session(game_session)
-		return
-
-	_assert_eq(
-		String(game_session.get_active_save_meta().get("display_name", "")),
-		BUNDLED_TEST_SAVE_DISPLAY_NAME,
-		"bundled save 首次导入后应保留显式 display_name。"
-	)
-	var resave_error := int(game_session.save_game_state())
-	_assert_eq(resave_error, OK, "bundled save 导入后应能再次保存。")
-	_assert_eq(
-		String(game_session.get_active_save_meta().get("display_name", "")),
-		BUNDLED_TEST_SAVE_DISPLAY_NAME,
-		"bundled save 再次持久化后仍应保留显式 display_name。"
-	)
-	var save_slots := game_session.list_save_slots()
-	_assert_eq(save_slots.size(), 1, "bundled save 导入后应只生成一个槽位。")
-	if save_slots.size() == 1:
-		_assert_eq(
-			String(save_slots[0].get("display_name", "")),
-			BUNDLED_TEST_SAVE_DISPLAY_NAME,
-			"save index 中的 bundled save display_name 应与导入时保持一致。"
-		)
-
-	var duplicate_error := int(game_session.load_bundled_save(
-		BUNDLED_TEST_SAVE_TEMPLATE_PATH,
-		save_id,
-		BUNDLED_TEST_SAVE_DISPLAY_NAME,
-		&"test",
-		"测试"
-	))
-	_assert_eq(
-		duplicate_error,
-		ERR_ALREADY_EXISTS,
-		"bundled save 导入不应覆盖已有槽位。"
-	)
-	_cleanup_test_session(game_session)
-
-
 func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var initial_log_path := game_session.get_active_log_file_path()
@@ -197,36 +136,42 @@ func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 	game_session.free()
 
 
-func _test_login_screen_imports_bundled_test_save() -> void:
+func _test_login_screen_test_entry_creates_generated_world() -> void:
 	var shared_game_session = _get_shared_game_session()
-	_assert_true(shared_game_session != null, "登录壳 bundled save 回归前置：SceneTree 应提供共享 GameSession。")
+	_assert_true(shared_game_session != null, "登录壳测试入口回归前置：SceneTree 应提供共享 GameSession。")
 	if shared_game_session == null:
 		return
 	var clear_error := int(shared_game_session.clear_persisted_game())
-	_assert_eq(clear_error, OK, "登录壳 bundled save 回归前置：应能清理旧存档目录。")
+	_assert_eq(clear_error, OK, "登录壳测试入口回归前置：应能清理旧存档目录。")
 
 	var login_screen = LOGIN_SCREEN_SCENE.instantiate()
 	root.add_child(login_screen)
 	await process_frame
 
 	_assert_true(
-		String(login_screen.status_label.text).contains("固定测试存档"),
-		"登录壳空闲提示应明确说明测试地图走固定测试存档入口。"
+		String(login_screen.status_label.text).contains("创建测试世界"),
+		"登录壳空闲提示应明确说明测试地图会创建测试世界。"
 	)
+	login_screen._on_test_button_pressed()
+	_assert_eq(login_screen._pending_start_type, login_screen.PENDING_START_TYPE_PRESET, "测试地图按钮应进入正式预设建卡流程。")
+	_assert_eq(login_screen._pending_preset_id, TEST_PRESET_ID, "测试地图按钮应把 test 预设交给正式建卡流程。")
 
-	var import_error := int(login_screen._import_bundled_test_save())
-	_assert_eq(import_error, OK, "登录壳测试地图入口应导入固定 bundled save。")
-	if import_error == OK:
+	var create_error := int(login_screen._create_save_for_preset(TEST_PRESET_ID))
+	_assert_eq(create_error, OK, "登录壳测试地图入口应通过 create_new_save 生成测试世界。")
+	if create_error == OK:
 		var active_meta: Dictionary = shared_game_session.get_active_save_meta()
-		_assert_eq(String(active_meta.get("display_name", "")), BUNDLED_TEST_SAVE_DISPLAY_NAME, "登录壳导入后的 save meta 应保留 bundled save display_name。")
-		_assert_eq(String(active_meta.get("world_preset_id", "")), "test", "登录壳导入后的 save meta 应标记 test preset。")
-		_assert_eq(shared_game_session.get_generation_config_path(), TEST_WORLD_CONFIG, "登录壳导入后的测试存档应回到 test world generation config。")
-		_assert_eq(shared_game_session.list_save_slots().size(), 1, "登录壳测试地图入口应只导入一个 bundled save 槽位。")
+		_assert_eq(String(active_meta.get("world_preset_id", "")), "test", "登录壳生成后的 save meta 应标记 test preset。")
+		_assert_eq(String(active_meta.get("world_preset_name", "")), "测试", "登录壳生成后的 save meta 应保留 test preset 名称。")
+		_assert_eq(shared_game_session.get_generation_config_path(), TEST_WORLD_CONFIG, "登录壳生成后的测试存档应使用 test world generation config。")
+		_assert_eq(shared_game_session.list_save_slots().size(), 1, "登录壳测试地图入口应只生成一个新存档槽位。")
+		var world_data: Dictionary = shared_game_session.get_world_data()
+		_assert_true(int(world_data.get("map_seed", 0)) != 0, "测试地图应通过正式生成链分配运行时 map_seed。")
+		_assert_true((world_data.get("settlements", []) as Array).size() > 0, "测试地图应通过正式生成链生成据点。")
 
 	login_screen.queue_free()
 	await process_frame
 	var cleanup_error := int(shared_game_session.clear_persisted_game())
-	_assert_eq(cleanup_error, OK, "登录壳 bundled save 回归结束后应能清理旧存档目录。")
+	_assert_eq(cleanup_error, OK, "登录壳测试入口回归结束后应能清理旧存档目录。")
 
 
 func _cleanup_test_session(game_session) -> void:
