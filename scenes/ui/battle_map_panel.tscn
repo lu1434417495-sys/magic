@@ -1,14 +1,8 @@
-[gd_scene load_steps=2 format=3]
-; Scene purpose: Battle map panel scene combining board viewport, HUD, and action controls.
-; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
+[gd_scene format=3 uid="uid://ksx1yp4hfmd1"]
 
+[ext_resource type="Script" uid="uid://dvuekldbrvvae" path="res://scripts/ui/battle_map_panel.gd" id="1_pnl12"]
 
-; External scripts, scenes, and shared assets referenced by this scene.
-[ext_resource type="Script" path="res://scripts/ui/battle_map_panel.gd" id="1_pnl12"]
-
-; Root node and primary scene tree.
-[node name="BattleMapPanel" type="Control"]
-visible = false
+[node name="BattleMapPanel" type="Control" unique_id=905716978]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -17,28 +11,33 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_pnl12")
 
-; Framed viewport branch that owns the embedded battle board.
-[node name="MapFrame" type="PanelContainer" parent="."]
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="MapFrame" type="PanelContainer" parent="." unique_id=156294457]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 0.0
 offset_top = 92.0
-offset_right = 0.0
 offset_bottom = -184.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="MapViewportContainer" type="SubViewportContainer" parent="MapFrame"]
+[node name="MapViewportContainer" type="SubViewportContainer" parent="MapFrame" unique_id=821501431]
 unique_name_in_owner = true
 layout_mode = 2
-stretch = false
 
-; HUD branch for timeline, action buttons, skill slots, and logs.
-[node name="HudRoot" type="Control" parent="."]
+[node name="HudRoot" type="Control" parent="." unique_id=1863115516]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -48,237 +47,179 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="TopBar" type="PanelContainer" parent="HudRoot"]
+[node name="TopBar" type="PanelContainer" parent="HudRoot" unique_id=1767947553]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_left = 0.0
 offset_top = 12.0
-offset_right = 0.0
 offset_bottom = 78.0
 grow_horizontal = 2
 
-[node name="Margin" type="MarginContainer" parent="HudRoot/TopBar"]
-layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 12
-
-[node name="TopLayout" type="HBoxContainer" parent="HudRoot/TopBar/Margin"]
+[node name="TopLayout" type="HBoxContainer" parent="HudRoot/TopBar" unique_id=1929772257]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="SystemButtons" type="HBoxContainer" parent="HudRoot/TopBar/Margin/TopLayout"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="ResetQuickButton" type="Button" parent="HudRoot/TopBar/Margin/TopLayout/SystemButtons"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 42)
-layout_mode = 2
-text = "复位"
-
-[node name="PrevQuickButton" type="Button" parent="HudRoot/TopBar/Margin/TopLayout/SystemButtons"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 42)
-layout_mode = 2
-text = "形-"
-
-[node name="NextQuickButton" type="Button" parent="HudRoot/TopBar/Margin/TopLayout/SystemButtons"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 42)
-layout_mode = 2
-text = "形+"
-
-[node name="ClearQuickButton" type="Button" parent="HudRoot/TopBar/Margin/TopLayout/SystemButtons"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 42)
-layout_mode = 2
-text = "清技"
-
-[node name="HeaderText" type="VBoxContainer" parent="HudRoot/TopBar/Margin/TopLayout"]
+[node name="HeaderText" type="VBoxContainer" parent="HudRoot/TopBar/TopLayout" unique_id=1556489390]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
 
-[node name="HeaderTitleLabel" type="Label" parent="HudRoot/TopBar/Margin/TopLayout/HeaderText"]
+[node name="HeaderTitleLabel" type="Label" parent="HudRoot/TopBar/TopLayout/HeaderText" unique_id=85907835]
 unique_name_in_owner = true
 layout_mode = 2
 text = "战斗地图"
 
-[node name="HeaderSubtitleLabel" type="Label" parent="HudRoot/TopBar/Margin/TopLayout/HeaderText"]
+[node name="HeaderSubtitleLabel" type="Label" parent="HudRoot/TopBar/TopLayout/HeaderText" unique_id=2013009534]
 unique_name_in_owner = true
 layout_mode = 2
 text = "等待战斗开始"
 autowrap_mode = 3
 
-[node name="BadgeColumn" type="VBoxContainer" parent="HudRoot/TopBar/Margin/TopLayout"]
+[node name="BadgeColumn" type="VBoxContainer" parent="HudRoot/TopBar/TopLayout" unique_id=1385368542]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="RoundLabel" type="Label" parent="HudRoot/TopBar/Margin/TopLayout/BadgeColumn"]
+[node name="RoundLabel" type="Label" parent="HudRoot/TopBar/TopLayout/BadgeColumn" unique_id=2023688852]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(92, 0)
 layout_mode = 2
+text = "TU --
+READY 0"
 horizontal_alignment = 1
-text = "TU --\nREADY 0"
 
-[node name="ModeValueLabel" type="Label" parent="HudRoot/TopBar/Margin/TopLayout/BadgeColumn"]
+[node name="ModeValueLabel" type="Label" parent="HudRoot/TopBar/TopLayout/BadgeColumn" unique_id=830634616]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(92, 0)
 layout_mode = 2
-horizontal_alignment = 1
 text = "手动"
+horizontal_alignment = 1
 
-[node name="BottomPanel" type="PanelContainer" parent="HudRoot"]
+[node name="BottomPanel" type="PanelContainer" parent="HudRoot" unique_id=812677194]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 0.0
 offset_top = -166.0
-offset_right = 0.0
 offset_bottom = -18.0
 grow_horizontal = 2
 grow_vertical = 0
 
-[node name="BottomBand" type="HBoxContainer" parent="HudRoot/BottomPanel"]
+[node name="BottomBand" type="HBoxContainer" parent="HudRoot/BottomPanel" unique_id=813230237]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="UnitCard" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand"]
+[node name="UnitCard" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand" unique_id=808197548]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(286, 0)
 layout_mode = 2
 
-[node name="Margin" type="MarginContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard"]
-layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 14
-
-[node name="CardLayout" type="HBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin"]
+[node name="CardLayout" type="HBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard" unique_id=941147385]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="PortraitFrame" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout"]
+[node name="PortraitFrame" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout" unique_id=1132240515]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(96, 124)
 layout_mode = 2
 
-[node name="PortraitCenter" type="CenterContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/PortraitFrame"]
+[node name="PortraitCenter" type="CenterContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/PortraitFrame" unique_id=783818194]
 layout_mode = 2
 
-[node name="PortraitStack" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/PortraitFrame/PortraitCenter"]
+[node name="PortraitStack" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/PortraitFrame/PortraitCenter" unique_id=1151785251]
 layout_mode = 2
-alignment = 1
 theme_override_constants/separation = 4
+alignment = 1
 
-[node name="PortraitGlyphLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/PortraitFrame/PortraitCenter/PortraitStack"]
+[node name="PortraitGlyphLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/PortraitFrame/PortraitCenter/PortraitStack" unique_id=626462416]
 unique_name_in_owner = true
 layout_mode = 2
-horizontal_alignment = 1
 text = "?"
+horizontal_alignment = 1
 
-[node name="PortraitKeyLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/PortraitFrame/PortraitCenter/PortraitStack"]
+[node name="PortraitKeyLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/PortraitFrame/PortraitCenter/PortraitStack" unique_id=521995722]
 unique_name_in_owner = true
 layout_mode = 2
-horizontal_alignment = 1
 text = "portrait://pending"
+horizontal_alignment = 1
 
-[node name="InfoColumn" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout"]
+[node name="InfoColumn" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout" unique_id=671547857]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="UnitNameLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="UnitNameLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=981832814]
 unique_name_in_owner = true
 layout_mode = 2
 text = "待命"
 
-[node name="UnitRoleLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="UnitRoleLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=366267]
 unique_name_in_owner = true
 layout_mode = 2
 text = "未选中单位"
 
-[node name="HpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="HpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=2131968737]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 show_percentage = false
 
-[node name="HpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="HpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=1001972996]
 unique_name_in_owner = true
 layout_mode = 2
 text = "HP 0/1"
 
-[node name="MpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="MpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=788448658]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 show_percentage = false
 
-[node name="MpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="MpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=1182586279]
 unique_name_in_owner = true
 layout_mode = 2
 text = "MP 0/1"
 
-[node name="ApBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="ApBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=2046964045]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 show_percentage = false
 
-[node name="ApValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
+[node name="ApValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=2124613819]
 unique_name_in_owner = true
 layout_mode = 2
 text = "行动 0/2"
 
-[node name="UnitDetailLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/Margin/CardLayout/InfoColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "左键选择地格或技能。"
-autowrap_mode = 3
-
-[node name="SkillPanel" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand"]
+[node name="SkillPanel" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand" unique_id=836238387]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Margin" type="MarginContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 14
-
-[node name="SkillLayout" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin"]
+[node name="SkillLayout" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel" unique_id=1847017840]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="SkillTitleLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin/SkillLayout"]
+[node name="SkillTitleLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=105848614]
 unique_name_in_owner = true
 layout_mode = 2
 text = "技能矩阵"
 
-[node name="SkillSubtitleLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin/SkillLayout"]
+[node name="SkillSubtitleLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=276460978]
 unique_name_in_owner = true
 layout_mode = 2
 text = "等待战斗数据"
 autowrap_mode = 3
 
-[node name="FateBadgeRow" type="HFlowContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin/SkillLayout"]
+[node name="FateBadgeRow" type="HFlowContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=418070993]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 6
 
-[node name="SkillGrid" type="GridContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin/SkillLayout"]
+[node name="SkillGrid" type="GridContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=1485002171]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
@@ -286,72 +227,8 @@ theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 columns = 5
 
-[node name="TileLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin/SkillLayout"]
+[node name="TileLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=690991457]
 unique_name_in_owner = true
 layout_mode = 2
 text = "地格 (--, --)  ·  无  ·  高度 0  ·  占位 无"
 autowrap_mode = 3
-
-[node name="HintLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin/SkillLayout"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "左键地格移动或攻击，右键单位查看信息。"
-autowrap_mode = 3
-
-[node name="LogLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/Margin/SkillLayout"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "战报：暂无记录"
-autowrap_mode = 3
-
-[node name="CommandDock" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(192, 0)
-layout_mode = 2
-
-[node name="Margin" type="MarginContainer" parent="HudRoot/BottomPanel/BottomBand/CommandDock"]
-layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 14
-
-[node name="CommandLayout" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/CommandDock/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="CommandSummaryLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/CommandDock/Margin/CommandLayout"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "等待行动单位"
-autowrap_mode = 3
-
-[node name="ResetMovementButton" type="Button" parent="HudRoot/BottomPanel/BottomBand/CommandDock/Margin/CommandLayout"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-text = "重置移动"
-
-[node name="PrevVariantButton" type="Button" parent="HudRoot/BottomPanel/BottomBand/CommandDock/Margin/CommandLayout"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-text = "上一形态"
-
-[node name="NextVariantButton" type="Button" parent="HudRoot/BottomPanel/BottomBand/CommandDock/Margin/CommandLayout"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-text = "下一形态"
-
-[node name="ClearSkillButton" type="Button" parent="HudRoot/BottomPanel/BottomBand/CommandDock/Margin/CommandLayout"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-text = "清除技能"
-
-[node name="ResolveBattleButton" type="Button" parent="HudRoot/BottomPanel/BottomBand/CommandDock/Margin/CommandLayout"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 46)
-layout_mode = 2
-text = "结束遭遇"

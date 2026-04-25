@@ -3005,14 +3005,6 @@ func _on_battle_skill_slot_selected(index: int) -> void:
 	_battle_session_facade.on_battle_skill_slot_selected(index)
 
 
-func _on_battle_skill_variant_cycle_requested(step: int) -> void:
-	_battle_session_facade.on_battle_skill_variant_cycle_requested(step)
-
-
-func _on_battle_skill_clear_requested() -> void:
-	_battle_session_facade.on_battle_skill_clear_requested()
-
-
 func _try_open_settlement_at(coord: Vector2i, announce_failure: bool = true) -> bool:
 	if _is_battle_active():
 		return false

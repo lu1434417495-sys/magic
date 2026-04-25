@@ -5,21 +5,9 @@
 
 ; External scripts, scenes, and shared assets referenced by this scene.
 [ext_resource type="Script" path="res://scripts/ui/party_management_window.gd" id="1_j4xsl"]
+[ext_resource type="Texture2D" uid="uid://bi0fjtdedv7ji" path="res://assets/main/basic_map/log.png" id="2_log"]
 
 ; Local sub-resources defined inline for this scene only.
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-bg_color = Color(0.0823529, 0.109804, 0.188235, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.407843, 0.537255, 0.784314, 0.9)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0, 0, 0, 0.35)
-shadow_size = 18
 
 ; Root node and primary scene tree.
 [node name="PartyManagementWindow" type="Control"]
@@ -53,21 +41,41 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(960, 620)
+[node name="Panel" type="Control" parent="CenterContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1380, 780)
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="WindowFrame" type="NinePatchRect" parent="CenterContainer/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_log")
+region_rect = Rect2(70, 58, 884, 1398)
+patch_margin_left = 70
+patch_margin_top = 70
+patch_margin_right = 70
+patch_margin_bottom = 70
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
-layout_mode = 2
-theme_override_constants/margin_left = 28
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 28
-theme_override_constants/margin_bottom = 24
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 148
+theme_override_constants/margin_top = 118
+theme_override_constants/margin_right = 148
+theme_override_constants/margin_bottom = 112
 
 [node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 14
 
 [node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
 layout_mode = 2
@@ -81,14 +89,14 @@ theme_override_constants/separation = 8
 [node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.16, 0.094, 0.035, 1)
 theme_override_font_sizes/font_size = 30
 text = "队伍管理"
 
 [node name="MetaLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
+theme_override_colors/font_color = Color(0.286275, 0.184314, 0.0705882, 1)
 theme_override_font_sizes/font_size = 15
 text = "队长必须属于上阵成员。"
 
@@ -102,27 +110,27 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 18
 
-[node name="Lists" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+[node name="Lists" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
+custom_minimum_size = Vector2(300, 0)
 size_flags_vertical = 3
-theme_override_constants/separation = 16
+theme_override_constants/separation = 10
 
 [node name="ActiveColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists"]
 layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 8
 
 [node name="ActiveTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ActiveColumn"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_colors/font_color = Color(0.192157, 0.12549, 0.0470588, 1)
 theme_override_font_sizes/font_size = 20
 text = "上阵成员"
 
 [node name="ActiveList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ActiveColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 360)
+custom_minimum_size = Vector2(0, 190)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -130,68 +138,70 @@ select_mode = 0
 
 [node name="ReserveColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists"]
 layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 8
 
 [node name="ReserveTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ReserveColumn"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_colors/font_color = Color(0.192157, 0.12549, 0.0470588, 1)
 theme_override_font_sizes/font_size = 20
 text = "替补成员"
 
 [node name="ReserveList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ReserveColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 360)
+custom_minimum_size = Vector2(0, 170)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 select_mode = 0
 
 [node name="Controls" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 4
+custom_minimum_size = Vector2(136, 0)
+size_flags_vertical = 0
 theme_override_constants/separation = 10
 
 [node name="SetLeaderButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Body/Controls"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 44)
+custom_minimum_size = Vector2(136, 40)
 layout_mode = 2
 text = "设为队长"
 
 [node name="MoveToActiveButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Body/Controls"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 44)
+custom_minimum_size = Vector2(136, 40)
 layout_mode = 2
 text = "加入上阵"
 
 [node name="MoveToReserveButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Body/Controls"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 44)
+custom_minimum_size = Vector2(136, 40)
 layout_mode = 2
 text = "移到替补"
 
 [node name="WarehouseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Body/Controls"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 44)
+custom_minimum_size = Vector2(136, 40)
 layout_mode = 2
 text = "打开仓库"
 
-[node name="DetailsColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+[node name="OverviewColumn" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
+custom_minimum_size = Vector2(250, 0)
 size_flags_vertical = 3
 theme_override_constants/separation = 8
 
-[node name="DetailsTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn"]
+[node name="OverviewTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/OverviewColumn"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_colors/font_color = Color(0.192157, 0.12549, 0.0470588, 1)
 theme_override_font_sizes/font_size = 20
-text = "成员详情"
+text = "角色概览"
 
-[node name="DetailsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn"]
+[node name="OverviewLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/OverviewColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 360)
+custom_minimum_size = Vector2(0, 420)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -200,16 +210,79 @@ scroll_active = true
 fit_content = false
 text = "详情"
 
-[node name="StatusTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
-text = "当前编成"
-
-[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn"]
+[node name="DetailsTabs" type="TabContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
+size_flags_horizontal = 3
+size_flags_vertical = 3
+current_tab = 0
+
+[node name="属性" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+layout_mode = 2
+
+[node name="AttributesLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/属性"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 420)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "属性"
+
+[node name="装备" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+layout_mode = 2
+
+[node name="EquipmentLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/装备"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 420)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "装备"
+
+[node name="技能" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+layout_mode = 2
+
+[node name="SkillsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/技能"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 420)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "技能"
+
+[node name="职业" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+layout_mode = 2
+
+[node name="ProfessionsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/职业"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 420)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "职业"
+
+[node name="StatusTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.192157, 0.12549, 0.0470588, 1)
+theme_override_font_sizes/font_size = 16
+text = "当前编成"
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.286275, 0.184314, 0.0705882, 1)
 theme_override_font_sizes/font_size = 15
 autowrap_mode = 3
 text = "状态"

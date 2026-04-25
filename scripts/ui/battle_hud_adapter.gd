@@ -91,23 +91,6 @@ func build_snapshot(
 		),
 		"skill_slots": _build_skill_slots(active_unit, selected_skill_id),
 		"tile_text": _build_tile_text(selected_coord, selected_cell, selected_unit),
-		"hint_text": _build_hint_text(
-			selected_skill_name,
-			selected_skill_variant_name,
-			selected_target_count,
-			selected_skill_required_coord_count,
-			selection_info
-		),
-		"log_text": _build_log_text(battle_state.log_entries),
-		"command_text": _build_command_text(
-			active_unit,
-			selected_skill_name,
-			selected_skill_variant_name,
-			selected_target_count,
-			selected_skill_required_coord_count,
-			selection_info,
-			hit_preview
-		),
 		"selected_skill_hit_preview_text": String(hit_preview.get("summary_text", "")),
 		"selected_skill_hit_stage_rates": (hit_preview.get("stage_hit_rates", []) as Array).duplicate(true),
 		"selected_skill_fate_preview_text": String(fate_preview.get("summary_text", "")),
@@ -213,7 +196,6 @@ func _build_focus_unit_snapshot(unit_state: BattleUnitState, battle_state: Battl
 		return {
 			"name": "待命",
 			"role_text": "未选中单位",
-			"detail_text": "左键选择地格或技能。",
 			"resource_info": _build_resource_info(null),
 			"glyph": "?",
 			"portrait_key": "",
@@ -238,7 +220,6 @@ func _build_focus_unit_snapshot(unit_state: BattleUnitState, battle_state: Battl
 	return {
 		"name": _format_unit_name(unit_state, "单位"),
 		"role_text": _build_focus_role_text(unit_state, battle_state),
-		"detail_text": _build_focus_detail_text(unit_state),
 		"resource_info": _build_resource_info(unit_state),
 		"glyph": portrait_data.get("glyph", "?"),
 		"portrait_key": portrait_data.get("portrait_key", ""),
@@ -315,18 +296,6 @@ func _build_focus_role_text(unit_state: BattleUnitState, battle_state: BattleSta
 		faction_text,
 		_format_control_mode(unit_state.control_mode),
 		maxi(unit_state.body_size, 1),
-	]
-
-
-func _build_focus_detail_text(unit_state: BattleUnitState) -> String:
-	var status_count := unit_state.status_effects.size()
-	var cooldown_count := unit_state.cooldowns.size()
-	return "技能 %d  ·  状态 %d  ·  冷却 %d  ·  AP %d  ·  行动 %d" % [
-		unit_state.known_active_skill_ids.size(),
-		status_count,
-		cooldown_count,
-		int(unit_state.current_ap),
-		int(unit_state.current_move_points),
 	]
 
 
@@ -500,93 +469,6 @@ func _build_tile_text(selected_coord: Vector2i, selected_cell: BattleCellState, 
 		_format_terrain_name(selected_cell),
 		int(selected_cell.current_height) if selected_cell != null else 0,
 		_format_unit_name(selected_unit, "无"),
-	]
-
-
-func _build_hint_text(
-	selected_skill_name: String,
-	selected_skill_variant_name: String,
-	selected_count: int,
-	required_count: int,
-	selection_info: Dictionary
-) -> String:
-	if selected_skill_name.is_empty():
-		return "左键地格移动或攻击，右键单位查看信息。数字键或技能槽选择技能，Q/E 或按钮切换形态。滚轮缩放，中键拖拽平移。"
-	if bool(selection_info.get("is_multi_unit", false)):
-		var min_target_count := int(selection_info.get("min_target_count", 1))
-		var max_target_count := int(selection_info.get("max_target_count", maxi(required_count, 1)))
-		if selected_count < min_target_count:
-			return "当前技能：%s。左键逐个点选单位目标，点击已锁定目标可取消；还需 %d 个目标，最少需要 %d 个。" % [
-				_build_skill_title(selected_skill_name, selected_skill_variant_name),
-				min_target_count - selected_count,
-				min_target_count,
-			]
-		if selected_count < max_target_count:
-			return "当前技能：%s。已满足最小数量，可点击自己或空地确认；继续点选将自动施放，点击已锁定目标可取消，最多 %d 个。" % [
-				_build_skill_title(selected_skill_name, selected_skill_variant_name),
-				max_target_count,
-			]
-		return "当前技能：%s。已达到目标上限 %d 个，技能会自动施放；点击已锁定目标可取消。" % [
-			_build_skill_title(selected_skill_name, selected_skill_variant_name),
-			max_target_count,
-		]
-	if required_count <= 1:
-		return "当前技能：%s。左键选择目标格施放，Esc 或按钮清除选择。滚轮缩放，中键拖拽平移。" % _build_skill_title(selected_skill_name, selected_skill_variant_name)
-	return "当前技能：%s。左键逐格选点，当前 %d/%d；再次点击已选格可取消。" % [
-		_build_skill_title(selected_skill_name, selected_skill_variant_name),
-		selected_count,
-		required_count,
-	]
-
-
-func _build_log_text(log_entries: Array[String]) -> String:
-	if log_entries.is_empty():
-		return "战报：暂无记录"
-	var start_index := maxi(log_entries.size() - 2, 0)
-	var entries: PackedStringArray = []
-	for index in range(start_index, log_entries.size()):
-		entries.append(log_entries[index])
-	return "战报：%s" % "  /  ".join(entries)
-
-
-func _build_command_text(
-	active_unit: BattleUnitState,
-	selected_skill_name: String,
-	selected_skill_variant_name: String,
-	selected_count: int,
-	required_count: int,
-	selection_info: Dictionary,
-	hit_preview: Dictionary = {}
-) -> String:
-	if active_unit == null:
-		return "等待行动单位"
-	if selected_skill_name.is_empty():
-		return "%s  ·  AP %d  ·  行动 %d  ·  %s" % [
-			_format_unit_name(active_unit, "单位"),
-			active_unit.current_ap,
-			int(active_unit.current_move_points),
-			_format_control_mode(active_unit.control_mode),
-		]
-	if bool(selection_info.get("is_multi_unit", false)):
-		var min_target_count := int(selection_info.get("min_target_count", 1))
-		var max_target_count := int(selection_info.get("max_target_count", maxi(required_count, 1)))
-		if selected_count < min_target_count:
-			return "已锁定 %d 个单位目标  ·  继续选目标，最少还需 %d 个" % [selected_count, min_target_count - selected_count]
-		if selected_count < max_target_count:
-			return "已锁定 %d 个单位目标  ·  已满足最小数量，可点击自己或空地确认" % [selected_count]
-		return "已锁定 %d 个单位目标  ·  已达到上限 %d 个，将自动施放" % [selected_count, max_target_count]
-	var hit_preview_text := String(hit_preview.get("summary_text", ""))
-	if not hit_preview_text.is_empty():
-		return "已锁定 %s  ·  %s" % [
-			_build_skill_title(selected_skill_name, selected_skill_variant_name),
-			hit_preview_text,
-		]
-	if required_count <= 1:
-		return "已锁定 %s" % _build_skill_title(selected_skill_name, selected_skill_variant_name)
-	return "已锁定 %s  ·  选点 %d/%d" % [
-		_build_skill_title(selected_skill_name, selected_skill_variant_name),
-		selected_count,
-		required_count,
 	]
 
 
@@ -1039,10 +921,39 @@ func _skill_target_filter_matches_unit(
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def) -> int:
 	if skill_def == null or skill_def.combat_profile == null:
 		return 0
-	var skill_range := int(skill_def.combat_profile.range_value)
+	var skill_range := _resolve_base_skill_range(active_unit, skill_def)
 	if active_unit != null and active_unit.has_status_effect(&"archer_range_up"):
 		skill_range += 1
 	return skill_range
+
+
+func _resolve_base_skill_range(active_unit: BattleUnitState, skill_def) -> int:
+	if _is_weapon_range_skill(skill_def):
+		var weapon_range := _get_weapon_attack_range(active_unit)
+		if weapon_range > 0:
+			return weapon_range
+		if _skill_has_tag(skill_def, &"melee"):
+			return 1
+	return int(skill_def.combat_profile.range_value)
+
+
+func _is_weapon_range_skill(skill_def) -> bool:
+	return _skill_has_tag(skill_def, &"melee") or _skill_has_tag(skill_def, &"bow") or _skill_has_tag(skill_def, &"weapon")
+
+
+func _get_weapon_attack_range(active_unit: BattleUnitState) -> int:
+	if active_unit == null or active_unit.attribute_snapshot == null:
+		return 0
+	return maxi(int(active_unit.attribute_snapshot.get_value(&"weapon_attack_range")), 0)
+
+
+func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:
+	if skill_def == null or expected_tag == &"":
+		return false
+	for tag in skill_def.tags:
+		if ProgressionDataUtils.to_string_name(tag) == expected_tag:
+			return true
+	return false
 
 
 func _get_party_member_state(member_id: StringName):

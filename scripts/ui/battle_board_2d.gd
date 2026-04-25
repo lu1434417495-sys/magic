@@ -21,6 +21,7 @@ const DEFAULT_CAMERA_ZOOM := 2.0
 const MIN_CAMERA_ZOOM := 1.25
 const MAX_CAMERA_ZOOM := 4.0
 const CAMERA_ZOOM_STEP := 0.2
+const KEYBOARD_CAMERA_PAN_STEP := 96.0
 const CAMERA_EDGE_MARGIN_X := 0.0
 const CAMERA_EDGE_MARGIN_Y := 72.0
 const FOCUS_VIEWPORT_RATIO := Vector2(0.5, 0.44)
@@ -178,6 +179,16 @@ func zoom_viewport(step: int, viewport_position: Vector2) -> bool:
 	_camera_initialized = true
 	_clamp_camera_position()
 	return true
+
+
+func pan_viewport_direction(direction: Vector2i) -> bool:
+	if direction == Vector2i.ZERO:
+		return false
+	var previous_position := position
+	position -= Vector2(direction) * KEYBOARD_CAMERA_PAN_STEP
+	_camera_initialized = true
+	_clamp_camera_position()
+	return not position.is_equal_approx(previous_position)
 
 
 func handle_viewport_mouse_button(viewport_position: Vector2, button_index: int) -> bool:

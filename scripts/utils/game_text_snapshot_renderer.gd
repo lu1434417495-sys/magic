@@ -488,7 +488,7 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 	if not hud.is_empty():
 		lines.append("hud_header=%s" % String(hud.get("header_subtitle", "")))
 		lines.append("hud_round=%s" % String(hud.get("round_badge", "")))
-		lines.append("hud_command=%s" % String(hud.get("command_text", "")))
+		lines.append("hud_command=%s" % String(hud.get("command_text", hud.get("skill_subtitle", ""))))
 		lines.append("hud_log=%s" % String(hud.get("log_text", "")))
 	lines.append("report_entry_count=%d" % int(battle.get("report_entry_count", 0)))
 	var report_entries_variant = battle.get("report_entries", [])

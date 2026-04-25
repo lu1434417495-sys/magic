@@ -19,7 +19,7 @@ func _run() -> void:
 	await _reset_session()
 	await _test_world_confirm_key_split()
 	await _reset_session()
-	await _test_battle_wait_key_split_and_modal_block()
+	await _test_battle_reset_key_split_and_modal_block()
 	await _reset_session()
 	await _test_game_over_confirmation_ui_accept_and_scene_return()
 	await _cleanup()
@@ -83,7 +83,7 @@ func _test_world_confirm_key_split() -> void:
 	await process_frame
 
 
-func _test_battle_wait_key_split_and_modal_block() -> void:
+func _test_battle_reset_key_split_and_modal_block() -> void:
 	var create_error := int(_game_session.start_new_game(TEST_CONFIG_PATH))
 	_assert_eq(create_error, OK, "battle input routing 回归前置：应能创建测试世界。")
 	if create_error != OK:
@@ -154,21 +154,37 @@ func _test_battle_wait_key_split_and_modal_block() -> void:
 		return
 	_assert_true(runtime.get_manual_battle_unit() != null, "推进 battle tick 后应出现手动行动单位。")
 
+	var manual_unit = runtime.get_manual_battle_unit()
+	_assert_true(manual_unit != null, "Space 复位回归需要一个手动行动单位。")
+	if manual_unit != null:
+		var log_count_before_space: int = battle_state.log_entries.size()
+		var offset_coord: Vector2i = manual_unit.coord + Vector2i(1, 0)
+		runtime.set_runtime_battle_selected_coord(offset_coord)
+		_assert_eq(
+			runtime.get_battle_selected_coord(),
+			offset_coord,
+			"Space 复位回归前置：应先把 battle selected coord 设置到非当前行动单位坐标。"
+		)
+		_send_key(world_map, KEY_SPACE)
+		await process_frame
+		_assert_eq(
+			runtime.get_battle_selected_coord(),
+			manual_unit.coord,
+			"正式战斗中 Space 应复位到当前行动单位。"
+		)
+		_assert_eq(
+			battle_state.log_entries.size(),
+			log_count_before_space,
+			"正式战斗中 Space 不应再触发等待/继续。"
+		)
+
 	var log_count_before_enter: int = battle_state.log_entries.size()
 	_send_key(world_map, KEY_ENTER)
 	await process_frame
 	_assert_eq(runtime.get_active_modal_id(), "", "正式战斗中不应因 Enter 打开 modal。")
-	_assert_eq(
-		battle_state.log_entries.size(),
-		log_count_before_enter,
-		"正式战斗中 Enter 不应再触发等待/继续。"
-	)
-
-	_send_key(world_map, KEY_SPACE)
-	await process_frame
 	_assert_true(
 		battle_state.log_entries.size() > log_count_before_enter,
-		"正式战斗中 Space 应继续触发等待/继续。"
+		"正式战斗中 Enter 应触发等待/继续。"
 	)
 
 	world_map.queue_free()

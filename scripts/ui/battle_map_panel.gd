@@ -14,16 +14,8 @@ const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
 signal battle_cell_clicked(coord: Vector2i)
 ## 信号说明：当战斗格子被右键点击时发出的信号，供外层执行二级交互、取消或上下文操作。
 signal battle_cell_right_clicked(coord: Vector2i)
-## 信号说明：当界面请求移动相关时发出的信号，具体处理由外层系统或控制器负责。
-signal movement_reset_requested
-## 信号说明：当界面请求结算时发出的信号，具体处理由外层系统或控制器负责。
-signal resolve_requested
 ## 信号说明：当战斗技能槽位被选中时发出的信号，供外层同步当前选择结果。
 signal battle_skill_slot_selected(index: int)
-## 信号说明：当界面请求战斗技能变体循环时发出的信号，具体处理由外层系统或控制器负责。
-signal battle_skill_variant_cycle_requested(step: int)
-## 信号说明：当界面请求战斗技能清除时发出的信号，具体处理由外层系统或控制器负责。
-signal battle_skill_clear_requested
 ## 信号说明：当 battle 首帧准备状态变化时发出的信号，供外层切图遮罩同步黑屏与进度条。
 signal battle_loading_state_changed(is_loading: bool, progress_value: float)
 
@@ -53,11 +45,15 @@ const LOADING_PROGRESS_FRAME_QUEUED := 82.0
 const LOADING_PROGRESS_READY := 100.0
 const MIN_BATTLE_LOADING_DURATION_SECONDS := 0.35
 const MAX_BATTLE_RENDER_READY_FRAMES := 12
+const HUD_PANEL_CONTENT_MARGIN := 10
+const BATTLE_BACKGROUND_COLOR := Color.BLACK
 
 ## 字段说明：记录战斗界面适配，作为界面刷新、输入处理和窗口联动的重要依据。
 var _hud_adapter := BattleHudAdapter.new()
 ## 字段说明：缓存地图子视口节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 var _map_subviewport: SubViewport = null
+## 字段说明：缓存战斗棋盘子视口底色节点，确保棋盘外露区域不会透出世界地图背景。
+var _battle_background_rect: ColorRect = null
 ## 字段说明：缓存战斗棋盘实例，作为界面刷新、输入处理和窗口联动的重要依据。
 var _battle_board: BattleBoard2D = null
 ## 字段说明：记录当前正在等待首帧呈现的战斗唯一标识，避免重复触发加载遮罩或过早放开输入。
@@ -89,14 +85,6 @@ var _pending_show_battle_payload: Dictionary = {}
 @onready var round_label: Label = %RoundLabel
 ## 字段说明：缓存模式数值标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var mode_value_label: Label = %ModeValueLabel
-## 字段说明：缓存相关快捷按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var reset_quick_button: Button = %ResetQuickButton
-## 字段说明：缓存上一个快捷按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var prev_quick_button: Button = %PrevQuickButton
-## 字段说明：缓存下一个快捷按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var next_quick_button: Button = %NextQuickButton
-## 字段说明：缓存清除快捷按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var clear_quick_button: Button = %ClearQuickButton
 ## 字段说明：缓存单位卡片节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var unit_card: PanelContainer = %UnitCard
 ## 字段说明：缓存头像框架节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
@@ -121,8 +109,6 @@ var _pending_show_battle_payload: Dictionary = {}
 @onready var ap_bar: ProgressBar = %ApBar
 ## 字段说明：复用 legacy ApValueLabel 节点显示移动用行动点文案。
 @onready var ap_value_label: Label = %ApValueLabel
-## 字段说明：缓存单位详情标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var unit_detail_label: Label = %UnitDetailLabel
 ## 字段说明：缓存技能面板节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var skill_panel: PanelContainer = %SkillPanel
 ## 字段说明：缓存技能标题标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
@@ -135,37 +121,12 @@ var _pending_show_battle_payload: Dictionary = {}
 @onready var skill_grid: GridContainer = %SkillGrid
 ## 字段说明：缓存瓦片标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var tile_label: Label = %TileLabel
-## 字段说明：缓存提示标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var hint_label: Label = %HintLabel
-## 字段说明：缓存日志标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var log_label: Label = %LogLabel
-## 字段说明：缓存指令停靠区节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var command_dock: PanelContainer = %CommandDock
-## 字段说明：缓存指令摘要标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var command_summary_label: Label = %CommandSummaryLabel
-## 字段说明：缓存相关移动按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var reset_movement_button: Button = %ResetMovementButton
-## 字段说明：缓存上一个变体按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var prev_variant_button: Button = %PrevVariantButton
-## 字段说明：缓存下一个变体按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var next_variant_button: Button = %NextVariantButton
-## 字段说明：缓存清除技能按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var clear_skill_button: Button = %ClearSkillButton
-## 字段说明：缓存结算按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var resolve_button: Button = %ResolveBattleButton
 
 
 func _ready() -> void:
 	visible = false
 	_ensure_battle_board()
 	map_viewport_container.gui_input.connect(_on_map_viewport_container_gui_input)
-	_connect_button_pair(reset_quick_button, reset_movement_button, _emit_movement_reset_requested)
-	_connect_button_pair(clear_quick_button, clear_skill_button, _emit_skill_clear_requested)
-	_connect_variant_button(prev_quick_button, -1)
-	_connect_variant_button(prev_variant_button, -1)
-	_connect_variant_button(next_quick_button, 1)
-	_connect_variant_button(next_variant_button, 1)
-	resolve_button.pressed.connect(_on_resolve_button_pressed)
 	_apply_static_skin()
 	_set_placeholder_state()
 	_update_battle_loading_state(false, 0.0)
@@ -187,6 +148,15 @@ func get_loading_progress() -> float:
 
 func is_battle_render_content_ready() -> bool:
 	return _battle_board != null and _battle_board.is_render_content_ready()
+
+
+func pan_battle_camera(direction: Vector2i) -> bool:
+	if _battle_board == null:
+		return false
+	var did_pan := _battle_board.pan_viewport_direction(direction)
+	if did_pan:
+		_request_map_viewport_update()
+	return did_pan
 
 
 func show_battle(
@@ -344,7 +314,6 @@ func _refresh_internal(
 		selected_skill_variant_id
 	)
 	_apply_snapshot(snapshot)
-	_update_button_states(selected_skill_id)
 	if _battle_board != null:
 		var selected_skill_target_selection_mode := StringName(snapshot.get("selected_skill_target_selection_mode", &"single_unit"))
 		if selected_skill_id == &"" and not selected_skill_valid_target_coords.is_empty():
@@ -542,6 +511,13 @@ func _ensure_battle_board() -> void:
 	_map_subviewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
 	map_viewport_container.add_child(_map_subviewport)
 
+	_battle_background_rect = ColorRect.new()
+	_battle_background_rect.name = "BattleBackground"
+	_battle_background_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_battle_background_rect.color = BATTLE_BACKGROUND_COLOR
+	_battle_background_rect.z_index = -4096
+	_map_subviewport.add_child(_battle_background_rect)
+
 	var board_instance := BATTLE_BOARD_SCENE.instantiate()
 	_battle_board = board_instance as BattleBoard2D
 	if _battle_board == null:
@@ -560,6 +536,8 @@ func _resize_map_viewport() -> void:
 		maxi(int(round(container_size.y)), 1)
 	)
 	_map_subviewport.size = viewport_size
+	if _battle_background_rect != null:
+		_battle_background_rect.size = Vector2(viewport_size)
 	_battle_board.set_viewport_size(Vector2(viewport_size))
 	_request_map_viewport_update()
 
@@ -570,43 +548,18 @@ func _request_map_viewport_update() -> void:
 	_map_subviewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
-func _emit_movement_reset_requested() -> void:
-	movement_reset_requested.emit()
-
-
-func _emit_skill_clear_requested() -> void:
-	battle_skill_clear_requested.emit()
-
-
-func _on_resolve_button_pressed() -> void:
-	resolve_requested.emit()
-
-
-func _connect_button_pair(primary_button: Button, secondary_button: Button, callable: Callable) -> void:
-	primary_button.pressed.connect(callable)
-	secondary_button.pressed.connect(callable)
-
-
-func _connect_variant_button(button: Button, step: int) -> void:
-	button.pressed.connect(func() -> void:
-		battle_skill_variant_cycle_requested.emit(step)
-	)
-
-
 func _apply_static_skin() -> void:
 	add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
 
-	for panel in [map_frame, top_bar, bottom_panel, unit_card, skill_panel, command_dock]:
+	for panel in [map_frame, bottom_panel]:
 		panel.add_theme_stylebox_override("panel", _build_panel_style(HUD_PANEL_BG, HUD_PANEL_EDGE))
+	for padded_panel in [top_bar, unit_card, skill_panel]:
+		padded_panel.add_theme_stylebox_override(
+			"panel",
+			_build_panel_style(HUD_PANEL_BG, HUD_PANEL_EDGE, 20, 2, Color(0.0, 0.0, 0.0, 0.34), HUD_PANEL_CONTENT_MARGIN)
+		)
 
 	portrait_frame.add_theme_stylebox_override("panel", _build_panel_style(Color(0.3, 0.14, 0.08, 1.0), HUD_PANEL_EDGE, 18, 2))
-
-	for compact_button in [reset_quick_button, prev_quick_button, next_quick_button, clear_quick_button]:
-		_apply_button_skin(compact_button, true)
-
-	for command_button in [reset_movement_button, prev_variant_button, next_variant_button, clear_skill_button]:
-		_apply_button_skin(command_button, false)
-	_apply_button_skin(resolve_button, false, true)
 
 	_style_header_label(header_title_label, 24, HUD_TEXT_PRIMARY)
 	_style_header_label(header_subtitle_label, 15, HUD_TEXT_SECONDARY)
@@ -614,13 +567,9 @@ func _apply_static_skin() -> void:
 	_style_header_label(mode_value_label, 15, HUD_TEXT_PRIMARY)
 	_style_header_label(unit_name_label, 22, HUD_TEXT_PRIMARY)
 	_style_header_label(unit_role_label, 13, HUD_TEXT_SECONDARY)
-	_style_header_label(unit_detail_label, 12, HUD_TEXT_MUTED)
 	_style_header_label(skill_title_label, 20, HUD_TEXT_PRIMARY)
 	_style_header_label(skill_subtitle_label, 13, HUD_TEXT_SECONDARY)
 	_style_header_label(tile_label, 12, HUD_TEXT_SECONDARY)
-	_style_header_label(hint_label, 12, HUD_TEXT_MUTED)
-	_style_header_label(log_label, 11, HUD_TEXT_MUTED)
-	_style_header_label(command_summary_label, 13, HUD_TEXT_SECONDARY)
 	_style_header_label(portrait_glyph_label, 34, Color(1.0, 0.96, 0.9, 0.98))
 	_style_header_label(portrait_key_label, 11, HUD_TEXT_SECONDARY)
 	_style_stat_label(hp_value_label)
@@ -639,7 +588,6 @@ func _set_placeholder_state() -> void:
 	mode_value_label.text = "手动"
 	unit_name_label.text = "待命"
 	unit_role_label.text = "未选中单位"
-	unit_detail_label.text = "左键选择地格或技能。"
 	portrait_glyph_label.text = "?"
 	portrait_key_label.text = "portrait://pending"
 	_set_progress_bar_values(hp_bar, hp_value_label, 0, 1, "HP")
@@ -648,12 +596,8 @@ func _set_placeholder_state() -> void:
 	skill_title_label.text = "技能矩阵"
 	skill_subtitle_label.text = "等待战斗数据"
 	skill_subtitle_label.tooltip_text = ""
-	command_summary_label.tooltip_text = ""
 	_rebuild_fate_badges([])
 	tile_label.text = "地格 (--, --)  ·  无  ·  高度 0  ·  占位 无"
-	hint_label.text = "左键地格移动或攻击，右键单位查看信息。滚轮缩放，中键拖拽平移。"
-	log_label.text = "战报：暂无记录"
-	command_summary_label.text = "等待行动单位"
 	_rebuild_skill_grid([])
 
 
@@ -662,18 +606,14 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	header_subtitle_label.text = String(snapshot.get("header_subtitle", ""))
 	round_label.text = String(snapshot.get("round_badge", "TU --\nREADY 0"))
 	mode_value_label.text = String(snapshot.get("mode_text", "手动"))
-	command_summary_label.text = String(snapshot.get("command_text", ""))
 	_refresh_focus_unit_card(snapshot.get("focus_unit", {}))
 	_rebuild_skill_grid(snapshot.get("skill_slots", []))
 	skill_title_label.text = String(snapshot.get("skill_title", "技能矩阵"))
 	skill_subtitle_label.text = String(snapshot.get("skill_subtitle", ""))
 	var preview_tooltip_text := String(snapshot.get("selected_skill_preview_tooltip_text", ""))
 	skill_subtitle_label.tooltip_text = preview_tooltip_text
-	command_summary_label.tooltip_text = preview_tooltip_text
 	_rebuild_fate_badges(snapshot.get("selected_skill_fate_badges", []))
 	tile_label.text = String(snapshot.get("tile_text", ""))
-	hint_label.text = String(snapshot.get("hint_text", ""))
-	log_label.text = String(snapshot.get("log_text", ""))
 
 
 func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
@@ -688,7 +628,6 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 	portrait_key_label.text = "portrait://%s" % String(focus_unit.get("portrait_key", "pending"))
 	unit_name_label.text = String(focus_unit.get("name", "待命"))
 	unit_role_label.text = String(focus_unit.get("role_text", "未选中单位"))
-	unit_detail_label.text = String(focus_unit.get("detail_text", ""))
 
 	_set_progress_bar_values(
 		hp_bar,
@@ -864,12 +803,6 @@ func _on_skill_slot_pressed(index: int) -> void:
 	battle_skill_slot_selected.emit(index)
 
 
-func _update_button_states(selected_skill_id: StringName) -> void:
-	var has_skill := selected_skill_id != &""
-	for button in [prev_quick_button, next_quick_button, clear_quick_button, prev_variant_button, next_variant_button, clear_skill_button]:
-		button.disabled = not has_skill
-
-
 func _build_skill_slot_tooltip(slot: Dictionary) -> String:
 	if bool(slot.get("is_empty", false)):
 		return ""
@@ -985,7 +918,8 @@ func _build_panel_style(
 	border_color: Color,
 	radius: int = 20,
 	border_width: int = 2,
-	shadow_color: Color = Color(0.0, 0.0, 0.0, 0.34)
+	shadow_color: Color = Color(0.0, 0.0, 0.0, 0.34),
+	content_margin: int = 0
 ) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background_color
@@ -1000,6 +934,11 @@ func _build_panel_style(
 	style.corner_radius_bottom_left = radius
 	style.shadow_color = shadow_color
 	style.shadow_size = 10
+	if content_margin > 0:
+		style.content_margin_left = content_margin
+		style.content_margin_top = content_margin
+		style.content_margin_right = content_margin
+		style.content_margin_bottom = content_margin
 	return style
 
 

@@ -19,8 +19,15 @@ const BATTLE_LOADING_BAR_BORDER_COLOR := Color(0.76, 0.87, 0.98, 0.78)
 const BATTLE_LOADING_PROGRESS_MIN := 0.0
 const BATTLE_LOADING_PROGRESS_MAX := 100.0
 const BATTLE_LOADING_MODAL_ID := "battle_loading"
+const LOG_DOCK_DESIGN_TOP_MARGIN := 60.0
+const LOG_DOCK_DESIGN_BOTTOM_MARGIN := 60.0
+const LOG_DOCK_DESIGN_RIGHT_MARGIN := 12.0
+const LOG_DOCK_MIN_HEIGHT := 360.0
+const LOG_DOCK_BATTLE_TOP_MARGIN := 92.0
+const LOG_DOCK_BATTLE_BOTTOM_MARGIN := 184.0
 
 @onready var world_map_view = $MapViewport/WorldMapView
+@onready var map_viewport := $MapViewport as Control
 @onready var world_map_background := get_node_or_null("MapViewport/WorldMapBackground") as CanvasItem
 @onready var battle_map_panel: BattleMapPanel = $MapViewport/BattleMapPanel
 @onready var runtime_log_dock: RuntimeLogDock = %RuntimeLogDock
@@ -38,6 +45,8 @@ const BATTLE_LOADING_MODAL_ID := "battle_loading"
 @onready var submap_entry_window = $SubmapEntryWindow
 @onready var submap_hint_panel: Control = %SubmapHintPanel
 @onready var submap_hint_label: Label = %SubmapHintLabel
+@onready var bottom_action_bar: Control = %BottomActionBar
+@onready var party_button: Button = %PartyButton
 @onready var battle_loading_overlay: Control = %BattleLoadingOverlay
 @onready var battle_loading_label: Label = %BattleLoadingLabel
 @onready var battle_loading_progress_bar: ProgressBar = %BattleLoadingProgressBar
@@ -66,6 +75,11 @@ func _ready() -> void:
 	_runtime.setup(_game_session)
 	_runtime_proxy.setup(_runtime, Callable(self, "_render_from_runtime"))
 
+	resized.connect(_update_responsive_log_layout)
+	if runtime_log_dock != null:
+		runtime_log_dock.panel_layout_changed.connect(_update_responsive_log_layout)
+	_update_responsive_log_layout()
+	call_deferred("_update_responsive_log_layout")
 	battle_map_panel.battle_loading_state_changed.connect(_on_battle_loading_state_changed)
 	battle_map_panel.hide_battle()
 	if runtime_log_dock != null:
@@ -74,6 +88,8 @@ func _ready() -> void:
 	_set_battle_loading_overlay(false, 0.0)
 	party_management_window.set_achievement_defs(_game_session.get_achievement_defs())
 	party_management_window.set_item_defs(_game_session.get_item_defs())
+	party_management_window.set_skill_defs(_game_session.get_skill_defs())
+	party_management_window.set_profession_defs(_game_session.get_profession_defs())
 
 	settlement_window.action_requested.connect(_on_settlement_action_requested)
 	settlement_window.closed.connect(_on_settlement_window_closed)
@@ -99,15 +115,12 @@ func _ready() -> void:
 	character_reward_window.confirmed.connect(_on_character_reward_confirmed)
 	submap_entry_window.confirmed.connect(_on_submap_entry_confirmed)
 	submap_entry_window.cancelled.connect(_on_submap_entry_cancelled)
+	party_button.pressed.connect(_on_party_button_pressed)
 	world_map_view.cell_clicked.connect(_on_world_map_cell_clicked)
 	world_map_view.cell_right_clicked.connect(_on_world_map_cell_right_clicked)
 	battle_map_panel.battle_cell_clicked.connect(_on_battle_cell_clicked)
 	battle_map_panel.battle_cell_right_clicked.connect(_on_battle_cell_right_clicked)
-	battle_map_panel.movement_reset_requested.connect(_reset_battle_movement)
-	battle_map_panel.resolve_requested.connect(_resolve_active_battle)
 	battle_map_panel.battle_skill_slot_selected.connect(_on_battle_skill_slot_selected)
-	battle_map_panel.battle_skill_variant_cycle_requested.connect(_on_battle_skill_variant_cycle_requested)
-	battle_map_panel.battle_skill_clear_requested.connect(_on_battle_skill_clear_requested)
 
 	world_map_view.configure(
 		_runtime_proxy.get_grid_system(),
@@ -129,12 +142,47 @@ func _exit_tree() -> void:
 	_runtime = null
 
 
+func _update_responsive_log_layout() -> void:
+	if runtime_log_dock == null or map_viewport == null:
+		return
+	var viewport_size := size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return
+	var design_panel_size := runtime_log_dock.get_design_panel_size()
+	var right_margin := LOG_DOCK_DESIGN_RIGHT_MARGIN
+	var is_battle_active := _runtime_proxy != null and _runtime_proxy.is_battle_active()
+	var top_margin := LOG_DOCK_BATTLE_TOP_MARGIN if is_battle_active else LOG_DOCK_DESIGN_TOP_MARGIN
+	var bottom_margin := LOG_DOCK_BATTLE_BOTTOM_MARGIN if is_battle_active else LOG_DOCK_DESIGN_BOTTOM_MARGIN
+	var available_height := viewport_size.y - top_margin - bottom_margin
+	var panel_size := Vector2(
+		design_panel_size.x,
+		runtime_log_dock.get_preferred_height(available_height, LOG_DOCK_MIN_HEIGHT)
+	)
+
+	runtime_log_dock.anchor_left = 1.0
+	runtime_log_dock.anchor_top = 0.0
+	runtime_log_dock.anchor_right = 1.0
+	runtime_log_dock.anchor_bottom = 0.0
+	runtime_log_dock.offset_left = -right_margin - panel_size.x
+	runtime_log_dock.offset_top = top_margin
+	runtime_log_dock.offset_right = -right_margin
+	runtime_log_dock.offset_bottom = top_margin + panel_size.y
+	runtime_log_dock.apply_layout_scale(1.0)
+
+	map_viewport.offset_right = 0.0
+
+
 func _render_from_runtime(refresh_world: bool = true, command_result: Dictionary = {}) -> void:
 	if _runtime == null:
 		return
 	if status_label != null:
 		status_label.text = _runtime_proxy.get_status_text()
 	var modal_id: String = _runtime_proxy.get_active_modal_id()
+	_update_responsive_log_layout()
+	if bottom_action_bar != null:
+		bottom_action_bar.visible = not _runtime_proxy.is_battle_active()
+	if party_button != null:
+		party_button.disabled = _runtime_proxy.is_battle_active() or _runtime_proxy.is_modal_window_open()
 
 	if _runtime_proxy.is_battle_active():
 		if world_map_background != null:
@@ -413,7 +461,7 @@ func _is_world_settlement_confirm_key(keycode: int) -> bool:
 
 
 func _is_battle_wait_confirm_key(keycode: int) -> bool:
-	return keycode == KEY_SPACE
+	return keycode == KEY_ENTER or keycode == KEY_KP_ENTER
 
 
 func _handle_battle_input(key_event: InputEventKey) -> bool:
@@ -426,19 +474,35 @@ func _handle_battle_input(key_event: InputEventKey) -> bool:
 			_runtime_proxy.command_battle_cycle_variant(1)
 		KEY_ESCAPE, KEY_R:
 			_runtime_proxy.command_battle_clear_skill()
-		KEY_LEFT, KEY_A:
+		KEY_SPACE:
+			_runtime_proxy.reset_battle_focus()
+		KEY_A:
+			return _pan_battle_camera(Vector2i.LEFT)
+		KEY_D:
+			return _pan_battle_camera(Vector2i.RIGHT)
+		KEY_W:
+			return _pan_battle_camera(Vector2i.UP)
+		KEY_S:
+			return _pan_battle_camera(Vector2i.DOWN)
+		KEY_LEFT:
 			_runtime_proxy.command_battle_move_direction(Vector2i.LEFT)
-		KEY_RIGHT, KEY_D:
+		KEY_RIGHT:
 			_runtime_proxy.command_battle_move_direction(Vector2i.RIGHT)
-		KEY_UP, KEY_W:
+		KEY_UP:
 			_runtime_proxy.command_battle_move_direction(Vector2i.UP)
-		KEY_DOWN, KEY_S:
+		KEY_DOWN:
 			_runtime_proxy.command_battle_move_direction(Vector2i.DOWN)
 		_ when _is_battle_wait_confirm_key(key_event.keycode):
 			_runtime_proxy.command_battle_wait_or_resolve()
 		_:
 			return false
 	return true
+
+
+func _pan_battle_camera(direction: Vector2i) -> bool:
+	if battle_map_panel == null:
+		return false
+	return battle_map_panel.pan_battle_camera(direction)
 
 
 func _on_battle_loading_state_changed(is_loading: bool, progress_value: float) -> void:
@@ -504,18 +568,6 @@ func _format_battle_loading_percent(progress_value: float) -> String:
 	return "%d%%" % int(round(progress_value))
 
 
-func _resolve_active_battle() -> void:
-	if _runtime == null:
-		return
-	_runtime_proxy.command_battle_wait_or_resolve()
-
-
-func _reset_battle_movement() -> void:
-	if _runtime == null:
-		return
-	_runtime_proxy.reset_battle_focus()
-
-
 func _on_world_map_cell_clicked(coord: Vector2i) -> void:
 	if _runtime == null:
 		return
@@ -537,6 +589,9 @@ func _on_battle_cell_clicked(coord: Vector2i) -> void:
 func _on_battle_cell_right_clicked(coord: Vector2i) -> void:
 	if _runtime == null:
 		return
+	if _runtime_proxy.get_selected_battle_skill_id() != &"":
+		_runtime_proxy.command_battle_clear_skill()
+		return
 	_runtime_proxy.inspect_battle_cell(coord)
 
 
@@ -544,18 +599,6 @@ func _on_battle_skill_slot_selected(index: int) -> void:
 	if _runtime == null or _runtime_proxy.is_modal_window_open():
 		return
 	_runtime_proxy.command_battle_select_skill(index)
-
-
-func _on_battle_skill_variant_cycle_requested(step: int) -> void:
-	if _runtime == null or _runtime_proxy.is_modal_window_open():
-		return
-	_runtime_proxy.command_battle_cycle_variant(step)
-
-
-func _on_battle_skill_clear_requested() -> void:
-	if _runtime == null or _runtime_proxy.is_modal_window_open():
-		return
-	_runtime_proxy.command_battle_clear_skill()
 
 
 func _on_settlement_action_requested(_settlement_id: String, action_id: String, payload: Dictionary) -> void:
@@ -653,6 +696,12 @@ func _on_party_management_warehouse_requested() -> void:
 	if _runtime == null:
 		return
 	_runtime_proxy.command_open_party_warehouse()
+
+
+func _on_party_button_pressed() -> void:
+	if _runtime == null or _runtime_proxy.is_battle_active() or _runtime_proxy.is_modal_window_open():
+		return
+	_runtime_proxy.command_open_party()
 
 
 func _on_party_warehouse_discard_one_requested(item_id: StringName) -> void:

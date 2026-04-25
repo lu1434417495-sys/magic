@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 ; Scene purpose: World map root scene that hosts exploration, battle overlays, and related windows.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
@@ -32,6 +32,11 @@ corner_radius_top_right = 18
 corner_radius_bottom_right = 18
 corner_radius_bottom_left = 18
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action_bar"]
+bg_color = Color(0.0784314, 0.101961, 0.180392, 0.96)
+border_width_top = 2
+border_color = Color(0.266667, 0.392157, 0.631373, 0.85)
+
 ; Root node and primary scene tree.
 [node name="WorldMap" type="Control"]
 layout_mode = 3
@@ -59,7 +64,6 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_right = -368.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -70,13 +74,13 @@ anchors_preset = 9
 anchor_left = 1.0
 anchor_top = 0.0
 anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -356.0
-offset_top = 92.0
+anchor_bottom = 0.0
+offset_left = -424.0
+offset_top = 60.0
 offset_right = -12.0
-offset_bottom = -184.0
+offset_bottom = 660.0
 grow_horizontal = 0
-grow_vertical = 2
+grow_vertical = 0
 
 [node name="WorldMapBackground" type="TextureRect" parent="MapViewport"]
 layout_mode = 1
@@ -144,6 +148,37 @@ offset_bottom = 10.0
 grow_horizontal = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+; Fixed bottom action bar for world-map level commands.
+[node name="BottomActionBar" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -56.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_action_bar")
+
+[node name="ActionMargin" type="MarginContainer" parent="BottomActionBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 8
+
+[node name="Actions" type="HBoxContainer" parent="BottomActionBar/ActionMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PartyButton" type="Button" parent="BottomActionBar/ActionMargin/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 40)
+layout_mode = 2
+focus_mode = 0
+text = "队伍"
 
 ; Scene-owned modal windows used during exploration.
 [node name="SettlementWindow" parent="." instance=ExtResource("3_9o3k0")]
