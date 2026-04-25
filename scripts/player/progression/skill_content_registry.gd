@@ -7,6 +7,7 @@ extends RefCounted
 
 const SKILL_CONFIG_DIRECTORY := "res://data/configs/skills"
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
+const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_growth_service.gd")
 const TU_GRANULARITY := 5
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -132,9 +133,42 @@ func _append_skill_validation_errors(
 
 	if skill_def.skill_type == &"active" and skill_def.combat_profile == null:
 		errors.append("Skill %s is active but missing combat_profile." % String(skill_id))
+	_append_attribute_growth_validation_errors(errors, skill_id, skill_def)
 
 	if skill_def.combat_profile != null:
 		_append_combat_profile_validation_errors(errors, skill_id, skill_def.combat_profile)
+
+
+func _append_attribute_growth_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_def: SkillDef
+) -> void:
+	if skill_def.attribute_growth_progress.is_empty() and skill_def.growth_tier == &"":
+		return
+	if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_growth_tier(skill_def.growth_tier):
+		errors.append("Skill %s uses unsupported growth_tier %s." % [String(skill_id), String(skill_def.growth_tier)])
+		return
+
+	var progress_total := 0
+	for attribute_key in skill_def.attribute_growth_progress.keys():
+		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
+		var amount := int(skill_def.attribute_growth_progress.get(attribute_key, 0))
+		if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_attribute_id(attribute_id):
+			errors.append("Skill %s attribute_growth_progress references invalid attribute %s." % [String(skill_id), String(attribute_id)])
+		if amount <= 0:
+			errors.append("Skill %s attribute_growth_progress for %s must be > 0." % [String(skill_id), String(attribute_id)])
+		progress_total += amount
+
+	var expected_total := ATTRIBUTE_GROWTH_SERVICE_SCRIPT.get_tier_budget(skill_def.growth_tier)
+	if progress_total != expected_total:
+		errors.append(
+			"Skill %s attribute_growth_progress total must equal %d for growth_tier %s." % [
+				String(skill_id),
+				expected_total,
+				String(skill_def.growth_tier),
+			]
+		)
 
 
 func _append_combat_profile_validation_errors(

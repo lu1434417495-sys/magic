@@ -24,6 +24,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_item_registry_accepts_equipment_seed_data()
+	_test_melee_weapons_declare_exactly_one_physical_damage_tag()
 	_test_equipment_service_moves_items_between_warehouse_and_slots()
 	_test_equipment_modifiers_change_attribute_snapshot_and_round_trip()
 	_test_equipment_state_requires_canonical_payload()
@@ -140,6 +141,39 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 		covered_equipment_slots.has(&"head"),
 		"正式装备种子至少应覆盖 head 槽位。"
 	)
+
+
+func _test_melee_weapons_declare_exactly_one_physical_damage_tag() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var expected_weapon_tags := {
+		&"bronze_sword": ItemDef.DAMAGE_TAG_PHYSICAL_SLASH,
+		&"iron_greatsword": ItemDef.DAMAGE_TAG_PHYSICAL_SLASH,
+		&"militia_axe": ItemDef.DAMAGE_TAG_PHYSICAL_SLASH,
+		&"watchman_mace": ItemDef.DAMAGE_TAG_PHYSICAL_BLUNT,
+		&"scout_dagger": ItemDef.DAMAGE_TAG_PHYSICAL_PIERCE,
+	}
+	var covered_melee_weapon_count := 0
+	for item_def_variant in item_defs.values():
+		var item_def := item_def_variant as ItemDef
+		if item_def == null or not item_def.is_weapon() or not item_def.get_tags().has(&"melee"):
+			continue
+		covered_melee_weapon_count += 1
+		var damage_tag := item_def.get_weapon_physical_damage_tag()
+		_assert_true(
+			ItemDef.get_valid_weapon_physical_damage_tags().has(damage_tag),
+			"近战武器 %s 必须声明唯一有效的物理伤害类型。" % String(item_def.item_id)
+		)
+	for item_id in expected_weapon_tags.keys():
+		var item_def := item_defs.get(item_id) as ItemDef
+		_assert_true(item_def != null, "正式近战武器 %s 应存在。" % String(item_id))
+		if item_def == null:
+			continue
+		_assert_eq(
+			item_def.get_weapon_physical_damage_tag(),
+			expected_weapon_tags.get(item_id),
+			"近战武器 %s 应映射到指定的唯一物理伤害类型。" % String(item_id)
+		)
+	_assert_true(covered_melee_weapon_count >= expected_weapon_tags.size(), "正式近战武器种子应全部纳入伤害类型约束。")
 
 
 func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:

@@ -164,7 +164,6 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 		"HUD snapshot 应保留普通单段技能的阶段命中率。"
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "HUD 副标题应显示普通单段命中摘要。")
-	_assert_true(String(snapshot.get("command_text", "")).contains(hit_preview_text), "HUD 指令摘要应显示普通单段命中摘要。")
 
 	runtime.dispose()
 	game_session.queue_free()

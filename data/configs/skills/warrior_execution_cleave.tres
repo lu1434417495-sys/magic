@@ -10,6 +10,7 @@
 script = ExtResource("3_7k4xh")
 effect_type = &"damage"
 power = 16
+damage_tag = &"physical_slash"
 damage_ratio_percent = 180
 bonus_condition = &"target_low_hp"
 

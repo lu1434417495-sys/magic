@@ -9,6 +9,7 @@
 script = ExtResource("2_effect")
 effect_type = &"damage"
 power = 12
+damage_tag = &"physical_blunt"
 
 [sub_resource type="Resource" id="Resource_blood"]
 script = ExtResource("1_variant")

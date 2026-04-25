@@ -10,6 +10,7 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
 const PROFESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/profession_content_registry.gd")
+const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_growth_service.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
@@ -268,6 +269,17 @@ func _register_seed_quests() -> void:
 					"连战后的脚步更敢向前。"
 				),
 			]
+		)
+	)
+	_register_achievement(
+		_build_achievement(
+			&"near_death_unbroken",
+			"濒死未倒",
+			"在生命低于三分之一时承受重击仍存活，证明自身已经能在生死边缘守住形神。",
+			&"near_death_unbroken_manual",
+			&"",
+			1,
+			[]
 		)
 	)
 	_register_achievement(
@@ -579,7 +591,6 @@ func _build_modifier(attribute_id: StringName, value: int) -> AttributeModifier:
 func _build_damage_effect(
 	power: int,
 	damage_tag: StringName = &"",
-	resistance_attribute_id: StringName = &"",
 	target_team_filter: StringName = &""
 ) -> CombatEffectDef:
 	var effect_def := CombatEffectDef.new()
@@ -587,8 +598,6 @@ func _build_damage_effect(
 	effect_def.power = power
 	if damage_tag != &"":
 		effect_def.damage_tag = damage_tag
-	if resistance_attribute_id != &"":
-		effect_def.resistance_attribute_id = resistance_attribute_id
 	if target_team_filter != &"":
 		effect_def.effect_target_team_filter = target_team_filter
 	return effect_def
@@ -797,8 +806,7 @@ func _build_timed_terrain_effect(
 	tick_effect_type: StringName = &"damage",
 	status_id: StringName = &"",
 	target_team_filter: StringName = &"",
-	damage_tag: StringName = &"",
-	resistance_attribute_id: StringName = &""
+	damage_tag: StringName = &""
 ) -> CombatEffectDef:
 	var effect_def := CombatEffectDef.new()
 	effect_def.effect_type = &"terrain_effect"
@@ -812,8 +820,6 @@ func _build_timed_terrain_effect(
 		effect_def.effect_target_team_filter = target_team_filter
 	if tick_effect_type == &"damage":
 		effect_def.damage_tag = damage_tag
-		if resistance_attribute_id != &"":
-			effect_def.resistance_attribute_id = resistance_attribute_id
 	if status_id != &"":
 		effect_def.status_id = status_id
 		effect_def.duration_tu = _normalize_tu_value(tick_interval_tu, "terrain status duration_tu")
@@ -907,9 +913,11 @@ func _append_invalid_skill_errors(
 		errors.append("Skill %s must have max_level >= 1." % String(skill_id))
 	if skill_def.mastery_curve.size() != skill_def.max_level:
 		errors.append("Skill %s mastery_curve size must match max_level." % String(skill_id))
+	_append_skill_attribute_growth_errors(errors, skill_id, skill_def)
 
 	_append_skill_requirement_errors(errors, skill_id, skill_def.learn_requirements, "learn_requirements")
 	_append_skill_level_requirement_errors(errors, skill_id, skill_def.skill_level_requirements)
+	_append_attribute_requirement_errors(errors, skill_id, skill_def.attribute_requirements)
 	_append_skill_requirement_errors(errors, skill_id, skill_def.upgrade_source_skill_ids, "upgrade_source_skill_ids")
 	for achievement_id in skill_def.achievement_requirements:
 		if achievement_id == &"":
@@ -917,6 +925,38 @@ func _append_invalid_skill_errors(
 
 	if skill_def.unlock_mode == &"composite_upgrade" and skill_def.upgrade_source_skill_ids.is_empty():
 		errors.append("Skill %s is composite_upgrade but missing upgrade_source_skill_ids." % String(skill_id))
+
+
+func _append_skill_attribute_growth_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_def: SkillDef
+) -> void:
+	if skill_def.attribute_growth_progress.is_empty() and skill_def.growth_tier == &"":
+		return
+	if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_growth_tier(skill_def.growth_tier):
+		errors.append("Skill %s uses unsupported growth_tier %s." % [String(skill_id), String(skill_def.growth_tier)])
+		return
+
+	var progress_total := 0
+	for attribute_key in skill_def.attribute_growth_progress.keys():
+		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
+		var amount := int(skill_def.attribute_growth_progress.get(attribute_key, 0))
+		if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_attribute_id(attribute_id):
+			errors.append("Skill %s attribute_growth_progress references invalid attribute %s." % [String(skill_id), String(attribute_id)])
+		if amount <= 0:
+			errors.append("Skill %s attribute_growth_progress for %s must be > 0." % [String(skill_id), String(attribute_id)])
+		progress_total += amount
+
+	var expected_total := ATTRIBUTE_GROWTH_SERVICE_SCRIPT.get_tier_budget(skill_def.growth_tier)
+	if progress_total != expected_total:
+		errors.append(
+			"Skill %s attribute_growth_progress total must equal %d for growth_tier %s." % [
+				String(skill_id),
+				expected_total,
+				String(skill_def.growth_tier),
+			]
+		)
 
 
 func _append_skill_requirement_errors(
@@ -965,6 +1005,36 @@ func _append_skill_level_requirement_errors(
 					String(required_skill_id),
 				]
 			)
+
+
+func _append_attribute_requirement_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	attribute_requirements: Dictionary
+) -> void:
+	for attribute_key_variant in attribute_requirements.keys():
+		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key_variant)
+		if attribute_id == &"":
+			errors.append("Skill %s has an empty attribute_id in attribute_requirements." % String(skill_id))
+			continue
+		if not UnitBaseAttributes.get_all_base_attribute_ids().has(attribute_id):
+			errors.append(
+				"Skill %s references unsupported attribute %s in attribute_requirements." % [
+					String(skill_id),
+					String(attribute_id),
+				]
+			)
+		var required_value := int(attribute_requirements[attribute_key_variant])
+		if required_value <= 0:
+			errors.append(
+				"Skill %s requires non-positive value %d for %s in attribute_requirements." % [
+					String(skill_id),
+					required_value,
+					String(attribute_id),
+				]
+			)
+
+
 func _append_invalid_achievement_errors(
 	errors: Array[String],
 	achievement_id: StringName,

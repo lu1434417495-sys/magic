@@ -14,9 +14,15 @@ const ITEM_CATEGORY_SKILL_BOOK: StringName = &"skill_book"
 const EQUIPMENT_TYPE_WEAPON: StringName = &"weapon"
 const EQUIPMENT_TYPE_ARMOR: StringName = &"armor"
 const EQUIPMENT_TYPE_ACCESSORY: StringName = &"accessory"
+const DAMAGE_TAG_PHYSICAL_SLASH: StringName = &"physical_slash"
+const DAMAGE_TAG_PHYSICAL_PIERCE: StringName = &"physical_pierce"
+const DAMAGE_TAG_PHYSICAL_BLUNT: StringName = &"physical_blunt"
 
 ## 字段说明：在编辑器中暴露物品唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var item_id: StringName = &""
+## 字段说明：当此 ItemDef 引用模板时填写模板 item_id；空表示该资源不依赖任何模板。
+## 模板继承在 ItemContentRegistry 注册阶段一次性合并，运行时拿到的始终是已合并的 ItemDef。
+@export var base_item_id: StringName = &""
 ## 字段说明：用于界面展示的名称文本，主要服务于玩家阅读和调试观察，不直接参与数值判定。
 @export var display_name: String = ""
 ## 字段说明：用于界面说明的描述文本，帮助玩家或策划理解该对象的用途与限制。
@@ -36,7 +42,9 @@ const EQUIPMENT_TYPE_ACCESSORY: StringName = &"accessory"
 ## 字段说明：在编辑器中暴露最大堆叠参数，用于限制该对象可达到的上限并控制成长或容量边界。
 @export_range(1, 9999, 1) var max_stack := 99
 ## 字段说明：记录物品分类，用于区分普通素材、可装备道具等行为分支。
-@export var item_category: StringName = ITEM_CATEGORY_MISC
+## 默认 &""（未填）：注册阶段会让模板继承生效；运行时通过 get_item_category_normalized() 视作 misc。
+## 显式写 misc / equipment / skill_book 时覆盖模板，且和现有语义保持一致。
+@export var item_category: StringName = &""
 ## 字段说明：记录物品标签集合，供后续配方、任务和筛选逻辑引用。
 @export var tags: Array[StringName] = []
 ## 字段说明：记录物品所属的合成分组，供后续配方过滤和内容分桶使用。
@@ -56,6 +64,10 @@ const EQUIPMENT_TYPE_ACCESSORY: StringName = &"accessory"
 @export var equip_requirement: Resource = null
 ## 字段说明：装备大类标识，用于候选过滤与文案显示，不参与核心规则判定。
 @export var equipment_type_id: StringName = &""
+## 字段说明：武器装备后的攻击范围；武器技能射程从该值读取，不再从技能资源单独配置。
+@export_range(0, 99, 1) var weapon_attack_range := 0
+## 字段说明：近战武器造成的唯一物理伤害类型；武器近战技能会在战斗中实时读取该值覆盖技能默认伤害类型。
+@export var weapon_physical_damage_tag: StringName = &""
 
 
 func get_effective_max_stack() -> int:
@@ -96,8 +108,17 @@ func get_quest_groups() -> Array[StringName]:
 	return _normalize_string_name_list(quest_groups)
 
 
+## 归一化读取 item_category：&"" 视作 misc，其余原样返回。
+## 所有判定（has_equipment_category / is_skill_book / 注册校验 / UI payload）一律走该口径，
+## 避免"未填实例"被静默归到 misc 而导致装备校验整段被跳过的旧 bug。
+func get_item_category_normalized() -> StringName:
+	if item_category == &"":
+		return ITEM_CATEGORY_MISC
+	return item_category
+
+
 func has_equipment_category() -> bool:
-	return item_category == ITEM_CATEGORY_EQUIPMENT
+	return get_item_category_normalized() == ITEM_CATEGORY_EQUIPMENT
 
 
 func get_equipment_slot_ids() -> Array[StringName]:
@@ -123,6 +144,13 @@ func is_weapon() -> bool:
 	return get_equipment_type_id_normalized() == EQUIPMENT_TYPE_WEAPON
 
 
+func get_weapon_physical_damage_tag() -> StringName:
+	var normalized := ProgressionDataUtils.to_string_name(weapon_physical_damage_tag)
+	if is_weapon() and get_valid_weapon_physical_damage_tags().has(normalized):
+		return normalized
+	return &""
+
+
 func is_armor() -> bool:
 	return get_equipment_type_id_normalized() == EQUIPMENT_TYPE_ARMOR
 
@@ -132,11 +160,20 @@ func is_accessory() -> bool:
 
 
 func is_skill_book() -> bool:
-	return item_category == ITEM_CATEGORY_SKILL_BOOK and granted_skill_id != &""
+	return get_item_category_normalized() == ITEM_CATEGORY_SKILL_BOOK and granted_skill_id != &""
 
 
 func get_attribute_modifiers() -> Array[AttributeModifier]:
-	return attribute_modifiers.duplicate()
+	var modifiers: Array[AttributeModifier] = attribute_modifiers.duplicate()
+	if is_weapon() and weapon_attack_range > 0:
+		var range_modifier := AttributeModifier.new()
+		range_modifier.attribute_id = &"weapon_attack_range"
+		range_modifier.mode = AttributeModifier.MODE_FLAT
+		range_modifier.value = weapon_attack_range
+		range_modifier.source_type = &"equipment"
+		range_modifier.source_id = item_id
+		modifiers.append(range_modifier)
+	return modifiers
 
 
 static func get_valid_equipment_type_ids() -> Array[StringName]:
@@ -144,6 +181,14 @@ static func get_valid_equipment_type_ids() -> Array[StringName]:
 		EQUIPMENT_TYPE_WEAPON,
 		EQUIPMENT_TYPE_ARMOR,
 		EQUIPMENT_TYPE_ACCESSORY,
+	]
+
+
+static func get_valid_weapon_physical_damage_tags() -> Array[StringName]:
+	return [
+		DAMAGE_TAG_PHYSICAL_SLASH,
+		DAMAGE_TAG_PHYSICAL_PIERCE,
+		DAMAGE_TAG_PHYSICAL_BLUNT,
 	]
 
 

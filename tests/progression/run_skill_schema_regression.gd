@@ -3,6 +3,7 @@ extends SceneTree
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const OFFICIAL_SKILL_RESOURCE_DIRECTORY := "res://data/configs/skills/"
 const OFFICIAL_HEAVY_STRIKE_PATH := "res://data/configs/skills/warrior_heavy_strike.tres"
@@ -73,6 +74,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_seed_skill_resources_scan_and_validate()
 	_test_progression_registry_keeps_skill_resource_and_compat_bridge()
+	_test_attribute_growth_progress_schema_validation()
 	_test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs()
 
 	if _failures.is_empty():
@@ -133,6 +135,37 @@ func _test_progression_registry_keeps_skill_resource_and_compat_bridge() -> void
 	if charge != null:
 		_assert_true(String(charge.resource_path).is_empty(), "冲锋当前仍应通过兼容桥从 code seed 提供。")
 	_assert_cast_variant_compat_shape(fossil_to_mud, "ProgressionContentRegistry")
+
+
+func _test_attribute_growth_progress_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var valid_skill := _make_growth_schema_skill(&"valid_growth_schema_skill", &"intermediate", {
+		UnitBaseAttributes.AGILITY: 90,
+		UnitBaseAttributes.PERCEPTION: 30,
+	})
+	var valid_errors: Array[String] = []
+	registry._append_attribute_growth_validation_errors(valid_errors, valid_skill.skill_id, valid_skill)
+	_assert_true(valid_errors.is_empty(), "合法属性进度配置应通过 SkillContentRegistry 校验。")
+
+	var invalid_total_skill := _make_growth_schema_skill(&"invalid_total_growth_schema_skill", &"advanced", {
+		UnitBaseAttributes.AGILITY: 120,
+	})
+	var invalid_total_errors: Array[String] = []
+	registry._append_attribute_growth_validation_errors(invalid_total_errors, invalid_total_skill.skill_id, invalid_total_skill)
+	_assert_true(
+		_has_error_containing(invalid_total_errors, "attribute_growth_progress total must equal 180"),
+		"advanced 技能属性进度总和必须等于 180。"
+	)
+
+	var invalid_attribute_skill := _make_growth_schema_skill(&"invalid_attribute_growth_schema_skill", &"basic", {
+		&"hp_max": 60,
+	})
+	var invalid_attribute_errors: Array[String] = []
+	registry._append_attribute_growth_validation_errors(invalid_attribute_errors, invalid_attribute_skill.skill_id, invalid_attribute_skill)
+	_assert_true(
+		_has_error_containing(invalid_attribute_errors, "references invalid attribute hp_max"),
+		"属性进度配置只能引用六项基础属性。"
+	)
 
 
 func _test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs() -> void:
@@ -214,6 +247,23 @@ func _assert_cast_variant_compat_shape(skill_def: SkillDef, source_label: String
 	_assert_cast_variant_compat_entry(skill_def, 1, &"lower_single_1", &"single", 1, source_label)
 	_assert_cast_variant_compat_entry(skill_def, 2, &"lower_line2_1", &"line2", 2, source_label)
 	_assert_cast_variant_compat_entry(skill_def, 3, &"mud_square2", &"square2", 4, source_label)
+
+
+func _make_growth_schema_skill(
+	skill_id: StringName,
+	growth_tier: StringName,
+	attribute_growth_progress: Dictionary
+) -> SkillDef:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = String(skill_id)
+	skill_def.icon_id = skill_id
+	skill_def.skill_type = &"passive"
+	skill_def.max_level = 1
+	skill_def.mastery_curve = PackedInt32Array([1])
+	skill_def.growth_tier = growth_tier
+	skill_def.attribute_growth_progress = attribute_growth_progress.duplicate(true)
+	return skill_def
 
 
 func _assert_cast_variant_compat_entry(

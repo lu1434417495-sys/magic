@@ -14,6 +14,7 @@ const PROFESSION_RULE_SERVICE_SCRIPT = preload("res://scripts/systems/profession
 const PROFESSION_ASSIGNMENT_SERVICE_SCRIPT = preload("res://scripts/systems/profession_assignment_service.gd")
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/skill_merge_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_growth_service.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const QUEST_PROGRESS_SERVICE_SCRIPT = preload("res://scripts/systems/quest_progress_service.gd")
@@ -35,7 +36,8 @@ const REWARD_ENTRY_ORDER := {
 	&"knowledge_unlock": 0,
 	&"skill_unlock": 1,
 	&"skill_mastery": 2,
-	&"attribute_delta": 3,
+	&"attribute_progress": 3,
+	&"attribute_delta": 4,
 }
 
 ## 字段说明：缓存队伍状态实例，会参与运行时状态流转、系统协作和存档恢复。
@@ -299,6 +301,21 @@ func get_member_attribute_snapshot(member_id: StringName) -> AttributeSnapshot:
 	return _build_attribute_service(member_state).get_snapshot()
 
 
+func get_member_weapon_physical_damage_tag(member_id: StringName) -> StringName:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.equipment_state == null:
+		return &""
+	if not (member_state.equipment_state is Object and member_state.equipment_state.has_method("get_equipped_item_id")):
+		return &""
+	var weapon_item_id := ProgressionDataUtils.to_string_name(member_state.equipment_state.get_equipped_item_id(&"main_hand"))
+	if weapon_item_id == &"":
+		return &""
+	var item_def = _item_defs.get(weapon_item_id)
+	if item_def != null and item_def.has_method("get_weapon_physical_damage_tag"):
+		return ProgressionDataUtils.to_string_name(item_def.call("get_weapon_physical_damage_tag"))
+	return &""
+
+
 func learn_skill(member_id: StringName, skill_id: StringName) -> bool:
 	return _learn_skill_internal(member_id, skill_id)
 
@@ -340,14 +357,32 @@ func grant_battle_mastery(
 	skill_id: StringName,
 	amount: int
 ) -> CharacterProgressionDelta:
-	return _grant_skill_mastery_internal(
+	return grant_skill_mastery_from_source(
 		member_id,
 		skill_id,
 		amount,
 		&"battle",
-		_build_default_source_label(&"battle"),
-		"",
-		true
+		_build_default_source_label(&"battle")
+	)
+
+
+func grant_skill_mastery_from_source(
+	member_id: StringName,
+	skill_id: StringName,
+	amount: int,
+	source_type: StringName,
+	source_label: String = "",
+	reason_text: String = "",
+	emit_achievement_event: bool = true
+) -> CharacterProgressionDelta:
+	return _grant_skill_mastery_internal(
+		member_id,
+		skill_id,
+		amount,
+		source_type,
+		source_label if not source_label.is_empty() else _build_default_source_label(source_type),
+		reason_text,
+		emit_achievement_event
 	)
 
 
@@ -497,6 +532,8 @@ func apply_pending_character_reward(reward: PendingCharacterReward) -> Character
 	_append_unique_string_name(delta.unlocked_achievement_ids, normalized_reward.source_id if normalized_reward.source_type == REWARD_TYPE_ACHIEVEMENT else &"")
 
 	var attribute_service: AttributeService = _build_attribute_service(member_state)
+	var attribute_growth_service = ATTRIBUTE_GROWTH_SERVICE_SCRIPT.new()
+	attribute_growth_service.setup(member_state.progression)
 	var mastery_source_type := _resolve_mastery_source_type(normalized_reward.source_type)
 	var applied_any := false
 
@@ -543,6 +580,25 @@ func apply_pending_character_reward(reward: PendingCharacterReward) -> Character
 						"attribute_id": entry.target_id,
 						"attribute_label": _resolve_reward_target_label(entry.entry_type, entry.target_id, entry.target_label),
 						"delta": entry.amount,
+						"reason_text": entry.reason_text,
+					})
+			&"attribute_progress":
+				var growth_result: Dictionary = attribute_growth_service.apply_attribute_progress(
+					entry.target_id,
+					entry.amount,
+					entry.reason_text
+				)
+				if bool(growth_result.get("applied", false)):
+					applied_any = true
+					delta.attribute_changes.append({
+						"attribute_id": entry.target_id,
+						"attribute_label": _resolve_reward_target_label(entry.entry_type, entry.target_id, entry.target_label),
+						"progress_delta": int(growth_result.get("progress_delta", 0)),
+						"progress_before": int(growth_result.get("progress_before", 0)),
+						"progress_after": int(growth_result.get("progress_after", 0)),
+						"delta": int(growth_result.get("attribute_delta", 0)),
+						"attribute_before": int(growth_result.get("attribute_before", 0)),
+						"attribute_after": int(growth_result.get("attribute_after", 0)),
 						"reason_text": entry.reason_text,
 					})
 			_:
@@ -823,7 +879,59 @@ func _grant_skill_mastery_internal(
 			delta.unlocked_achievement_ids,
 			record_achievement_event(member_id, &"skill_mastery_gained", amount, skill_id)
 		)
+	_enqueue_core_max_attribute_growth_reward(member_state, skill_id, source_label)
 	return delta
+
+
+func _enqueue_core_max_attribute_growth_reward(
+	member_state: PartyMemberState,
+	skill_id: StringName,
+	source_label: String
+) -> void:
+	if member_state == null or member_state.progression == null:
+		return
+	var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
+	if skill_def == null or skill_def.attribute_growth_progress.is_empty():
+		return
+	var skill_progress = member_state.progression.get_skill_progress(skill_id)
+	if skill_progress == null:
+		return
+	if not skill_progress.is_learned or not skill_progress.is_core:
+		return
+	if bool(skill_progress.core_max_growth_claimed):
+		return
+	if int(skill_progress.skill_level) < int(skill_def.max_level):
+		return
+
+	var entries: Array = []
+	for attribute_key in ProgressionDataUtils.sorted_string_keys(skill_def.attribute_growth_progress):
+		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
+		var amount := int(skill_def.attribute_growth_progress.get(attribute_id, skill_def.attribute_growth_progress.get(attribute_key, 0)))
+		if amount <= 0:
+			continue
+		entries.append({
+			"entry_type": "attribute_progress",
+			"target_id": String(attribute_id),
+			"target_label": _resolve_attribute_label(attribute_id),
+			"amount": amount,
+			"reason_text": "%s 满级成长" % _resolve_skill_label(skill_id),
+		})
+	if entries.is_empty():
+		return
+
+	skill_progress.core_max_growth_claimed = true
+	member_state.progression.set_skill_progress(skill_progress)
+	var reward := build_pending_character_reward(
+		member_state.member_id,
+		&"",
+		&"skill_core_max",
+		skill_id,
+		source_label if not source_label.is_empty() else _resolve_skill_label(skill_id),
+		entries,
+		"%s 达到核心满级，获得属性成长进度。" % _resolve_skill_label(skill_id)
+	)
+	if reward != null and not reward.is_empty():
+		enqueue_pending_character_rewards([reward])
 
 
 func _capture_skill_levels(progression_state) -> Dictionary:
@@ -876,7 +984,6 @@ func _normalize_pending_skill_mastery_entries(
 		return normalized_entries
 
 	var entry_map: Dictionary = {}
-	var mastery_source_type := _resolve_mastery_source_type(source_type)
 	for entry_variant in entry_variants:
 		if entry_variant is not Dictionary:
 			continue
@@ -887,6 +994,11 @@ func _normalize_pending_skill_mastery_entries(
 		var mastery_amount := int(entry_data.get("amount", 0))
 		if skill_id == &"" or mastery_amount <= 0:
 			continue
+		var entry_source_type := ProgressionDataUtils.to_string_name(entry_data.get(
+			"mastery_source_type",
+			entry_data.get("source_type", source_type)
+		))
+		var mastery_source_type := _resolve_mastery_source_type(entry_source_type)
 
 		var skill_progress = progression_state.get_skill_progress(skill_id)
 		var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
@@ -1402,7 +1514,7 @@ func _resolve_reward_target_label(entry_type: StringName, target_id: StringName,
 	match entry_type:
 		&"skill_unlock", &"skill_mastery":
 			return _resolve_skill_label(target_id)
-		&"attribute_delta":
+		&"attribute_delta", &"attribute_progress":
 			return _resolve_attribute_label(target_id)
 		&"knowledge_unlock":
 			return String(target_id)
@@ -1449,10 +1561,15 @@ func _resolve_attribute_label(attribute_id: StringName) -> String:
 
 
 func _resolve_mastery_source_type(source_type: StringName) -> StringName:
-	match source_type:
+	var normalized_source_type := ProgressionDataUtils.to_string_name(source_type)
+	match normalized_source_type:
 		&"battle", &"battle_rating":
 			return &"battle"
 		&"training", &"npc_teach", &"npc", &"teaching":
+			return &"training"
+		&"heavy_hit_taken", &"max_damage_die_taken", &"elite_or_boss_damage_taken":
+			return normalized_source_type
+		&"":
 			return &"training"
 		_:
 			return &"training"

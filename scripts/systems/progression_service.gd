@@ -7,6 +7,8 @@ extends RefCounted
 
 const SELECTION_KEY_QUALIFIER_SKILL_IDS := "selected_qualifier_skill_ids"
 const SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS := "selected_assigned_core_skill_ids"
+const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
+const VAJRA_BODY_NON_CORE_MAX_LEVEL := 9
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/skill_merge_service.gd")
@@ -54,6 +56,7 @@ func refresh_runtime_state() -> void:
 		return
 
 	_unit_progress.sync_active_core_skill_ids()
+	_normalize_skill_levels_to_effective_max()
 	recalculate_character_level()
 	if _rule_service != null:
 		_rule_service.refresh_all_profession_states()
@@ -78,6 +81,14 @@ func learn_skill(skill_id: StringName) -> bool:
 	if skill_def.learn_source == &"profession":
 		return false
 	if not _can_learn_skill_requirements(skill_def.learn_requirements):
+		return false
+	if not _can_satisfy_knowledge_requirements(skill_def.knowledge_requirements):
+		return false
+	if not _can_satisfy_skill_level_requirements(skill_def.skill_level_requirements):
+		return false
+	if not _can_satisfy_attribute_requirements(skill_def.attribute_requirements):
+		return false
+	if not _can_satisfy_achievement_requirements(skill_def.achievement_requirements):
 		return false
 	if skill_def.unlock_mode == &"composite_upgrade":
 		if not _can_learn_composite_upgrade(skill_def):
@@ -148,13 +159,16 @@ func grant_skill_mastery(skill_id: StringName, amount: int, source_type: StringN
 		_:
 			pass
 
-	if skill_progress.skill_level >= skill_def.max_level:
+	var effective_max_level := _get_effective_skill_max_level(skill_def, skill_progress)
+	if skill_progress.skill_level >= effective_max_level:
+		skill_progress.skill_level = effective_max_level
+		skill_progress.current_mastery = 0
 		_unit_progress.set_skill_progress(skill_progress)
 		refresh_runtime_state()
 		return true
 
 	skill_progress.current_mastery += amount
-	while skill_progress.skill_level < skill_def.max_level:
+	while skill_progress.skill_level < effective_max_level:
 		var mastery_required: int = skill_def.get_mastery_required_for_level(skill_progress.skill_level)
 		if mastery_required <= 0:
 			break
@@ -164,8 +178,8 @@ func grant_skill_mastery(skill_id: StringName, amount: int, source_type: StringN
 		skill_progress.current_mastery -= mastery_required
 		skill_progress.skill_level += 1
 
-	if skill_progress.skill_level >= skill_def.max_level:
-		skill_progress.skill_level = skill_def.max_level
+	if skill_progress.skill_level >= effective_max_level:
+		skill_progress.skill_level = effective_max_level
 		skill_progress.current_mastery = 0
 
 	_unit_progress.set_skill_progress(skill_progress)
@@ -315,6 +329,32 @@ func _get_skill_def(skill_id: StringName) -> SkillDef:
 	return _skill_defs.get(skill_id) as SkillDef
 
 
+func _normalize_skill_levels_to_effective_max() -> void:
+	if _unit_progress == null:
+		return
+	for skill_key in ProgressionDataUtils.sorted_string_keys(_unit_progress.skills):
+		var skill_id := StringName(skill_key)
+		var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
+		var skill_def := _get_skill_def(skill_id)
+		if skill_progress == null or skill_def == null:
+			continue
+		var effective_max_level := _get_effective_skill_max_level(skill_def, skill_progress)
+		if int(skill_progress.skill_level) <= effective_max_level:
+			continue
+		skill_progress.skill_level = effective_max_level
+		skill_progress.current_mastery = 0
+		_unit_progress.set_skill_progress(skill_progress)
+
+
+func _get_effective_skill_max_level(skill_def: SkillDef, skill_progress) -> int:
+	if skill_def == null:
+		return 0
+	var absolute_max := maxi(int(skill_def.max_level), 0)
+	if skill_def.skill_id == VAJRA_BODY_SKILL_ID and (skill_progress == null or not bool(skill_progress.is_core)):
+		return mini(absolute_max, VAJRA_BODY_NON_CORE_MAX_LEVEL)
+	return absolute_max
+
+
 func _get_profession_def(profession_id: StringName) -> ProfessionDef:
 	return _profession_defs.get(profession_id) as ProfessionDef
 
@@ -348,6 +388,8 @@ func _can_learn_composite_upgrade(skill_def: SkillDef) -> bool:
 		return false
 	if not _can_satisfy_skill_level_requirements(skill_def.skill_level_requirements):
 		return false
+	if not _can_satisfy_attribute_requirements(skill_def.attribute_requirements):
+		return false
 	if not _can_satisfy_achievement_requirements(skill_def.achievement_requirements):
 		return false
 	return true
@@ -374,6 +416,19 @@ func _can_satisfy_skill_level_requirements(required_skill_level_map: Dictionary)
 		if required_skill_progress == null or not required_skill_progress.is_learned:
 			return false
 		if int(required_skill_progress.skill_level) < required_level:
+			return false
+	return true
+
+
+func _can_satisfy_attribute_requirements(required_attribute_map: Dictionary) -> bool:
+	if _unit_progress == null or _unit_progress.unit_base_attributes == null:
+		return false
+	for attribute_key_variant in required_attribute_map.keys():
+		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key_variant)
+		var required_value := int(required_attribute_map.get(attribute_key_variant, 0))
+		if attribute_id == &"" or required_value <= 0:
+			return false
+		if int(_unit_progress.unit_base_attributes.get_attribute_value(attribute_id)) < required_value:
 			return false
 	return true
 

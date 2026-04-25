@@ -10,8 +10,7 @@
 script = ExtResource("3_7auls")
 effect_type = &"damage"
 power = 8
-damage_tag = &"magic"
-resistance_attribute_id = &"lightning_resistance"
+damage_tag = &"lightning"
 
 [sub_resource type="Resource" id="Resource_n1lev"]
 script = ExtResource("4_jaqfj")

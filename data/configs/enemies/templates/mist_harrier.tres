@@ -8,7 +8,7 @@ template_id = &"mist_harrier"
 display_name = "雾沼猎压者"
 brain_id = &"ranged_suppressor"
 initial_state_id = &"pressure"
-action_threshold = 110
+action_threshold = 30
 tags = Array[StringName]([&"mist", &"harrier"])
 base_attribute_overrides = {
 "strength": 5,

@@ -811,10 +811,39 @@ func _skill_target_filter_matches_unit(active_unit: BattleUnitState, target_unit
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def) -> int:
 	if skill_def == null or skill_def.combat_profile == null:
 		return 0
-	var skill_range := int(skill_def.combat_profile.range_value)
+	var skill_range := _resolve_base_skill_range(active_unit, skill_def)
 	if active_unit != null and active_unit.has_status_effect(&"archer_range_up"):
 		skill_range += 1
 	return skill_range
+
+
+func _resolve_base_skill_range(active_unit: BattleUnitState, skill_def) -> int:
+	if _is_weapon_range_skill(skill_def):
+		var weapon_range := _get_weapon_attack_range(active_unit)
+		if weapon_range > 0:
+			return weapon_range
+		if _skill_has_tag(skill_def, &"melee"):
+			return 1
+	return int(skill_def.combat_profile.range_value)
+
+
+func _is_weapon_range_skill(skill_def) -> bool:
+	return _skill_has_tag(skill_def, &"melee") or _skill_has_tag(skill_def, &"bow") or _skill_has_tag(skill_def, &"weapon")
+
+
+func _get_weapon_attack_range(active_unit: BattleUnitState) -> int:
+	if active_unit == null or active_unit.attribute_snapshot == null:
+		return 0
+	return maxi(int(active_unit.attribute_snapshot.get_value(&"weapon_attack_range")), 0)
+
+
+func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:
+	if skill_def == null or expected_tag == &"":
+		return false
+	for tag in skill_def.tags:
+		if ProgressionDataUtils.to_string_name(tag) == expected_tag:
+			return true
+	return false
 
 
 func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> String:

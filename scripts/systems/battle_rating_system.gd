@@ -43,6 +43,7 @@ func initialize_battle_rating_stats() -> void:
 			"total_damage_done": 0,
 			"total_healing_done": 0,
 			"kill_count": 0,
+			"passive_mastery": {},
 		}
 
 
@@ -71,6 +72,27 @@ func record_skill_effect_result(active_unit: BattleUnitState, damage: int, heali
 	stats["total_healing_done"] = int(stats.get("total_healing_done", 0)) + maxi(healing, 0)
 	stats["kill_count"] = int(stats.get("kill_count", 0)) + maxi(kill_count, 0)
 	_runtime.get_battle_rating_stats()[active_unit.source_member_id] = stats
+
+
+func record_passive_skill_mastery(unit_state: BattleUnitState, skill_id: StringName, amount: int, reason_text: String) -> void:
+	if not _has_runtime():
+		return
+	var stats := _get_battle_rating_stats(unit_state)
+	if stats.is_empty() or skill_id == &"" or amount <= 0:
+		return
+	var passive_mastery: Dictionary = stats.get("passive_mastery", {})
+	var skill_key := String(skill_id)
+	var entry: Dictionary = passive_mastery.get(skill_key, {
+		"skill_id": skill_key,
+		"amount": 0,
+		"reason_text": reason_text,
+	})
+	entry["amount"] = int(entry.get("amount", 0)) + amount
+	if String(entry.get("reason_text", "")).is_empty():
+		entry["reason_text"] = reason_text
+	passive_mastery[skill_key] = entry
+	stats["passive_mastery"] = passive_mastery
+	_runtime.get_battle_rating_stats()[unit_state.source_member_id] = stats
 
 
 func record_enemy_defeated_achievement(source_unit: BattleUnitState, target_unit: BattleUnitState) -> void:
@@ -113,11 +135,7 @@ func finalize_battle_rating_rewards() -> void:
 		var stats: Dictionary = stats_variant
 		var score := calculate_battle_rating_score(stats, player_victory)
 		var mastery_amount := resolve_battle_rating_mastery_amount(score)
-		if mastery_amount <= 0:
-			continue
 		var cast_counts: Dictionary = stats.get("cast_counts", {})
-		if cast_counts.is_empty():
-			continue
 
 		var member_id := ProgressionDataUtils.to_string_name(stats.get("member_id", ""))
 		if member_id == &"":
@@ -125,16 +143,33 @@ func finalize_battle_rating_rewards() -> void:
 		var member_name := String(stats.get("member_name", member_id))
 		var rating_label := resolve_battle_rating_label(score)
 		var reward_entries: Array[Dictionary] = []
-		for skill_key in cast_counts.keys():
-			var skill_id := ProgressionDataUtils.to_string_name(skill_key)
-			if skill_id == &"" or int(cast_counts.get(skill_key, 0)) <= 0:
+		if mastery_amount > 0:
+			for skill_key in cast_counts.keys():
+				var skill_id := ProgressionDataUtils.to_string_name(skill_key)
+				if skill_id == &"" or int(cast_counts.get(skill_key, 0)) <= 0:
+					continue
+				reward_entries.append({
+					"entry_type": "skill_mastery",
+					"target_id": String(skill_id),
+					"target_label": "",
+					"amount": mastery_amount,
+					"reason_text": "战斗评分 %d · %s" % [score, rating_label],
+				})
+		var passive_mastery: Dictionary = stats.get("passive_mastery", {})
+		for passive_entry_variant in passive_mastery.values():
+			if passive_entry_variant is not Dictionary:
+				continue
+			var passive_entry := passive_entry_variant as Dictionary
+			var passive_skill_id := ProgressionDataUtils.to_string_name(passive_entry.get("skill_id", ""))
+			var passive_amount := int(passive_entry.get("amount", 0))
+			if passive_skill_id == &"" or passive_amount <= 0:
 				continue
 			reward_entries.append({
 				"entry_type": "skill_mastery",
-				"target_id": String(skill_id),
+				"target_id": String(passive_skill_id),
 				"target_label": "",
-				"amount": mastery_amount,
-				"reason_text": "战斗评分 %d · %s" % [score, rating_label],
+				"amount": passive_amount,
+				"reason_text": String(passive_entry.get("reason_text", "被动战斗领悟")),
 			})
 		if reward_entries.is_empty():
 			continue

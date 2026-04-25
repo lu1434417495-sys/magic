@@ -399,7 +399,7 @@ func _test_new_consumable_seed_warehouse_schema() -> void:
 			continue
 		_assert_true(item_def.is_stackable, "新消耗品 %s 应走堆叠仓库流。" % String(item_id))
 		_assert_true(not item_def.is_equipment(), "新消耗品 %s 不应进入装备实例流。" % String(item_id))
-		_assert_eq(String(item_def.item_category), "misc", "新消耗品 %s 应保持 misc 分类。" % String(item_id))
+		_assert_eq(String(item_def.get_item_category_normalized()), "misc", "新消耗品 %s 应保持 misc 分类。" % String(item_id))
 
 		var quantity := int(NEW_CONSUMABLE_ITEM_QUANTITIES.get(item_id, 0))
 		var add_result := service.add_item(item_id, quantity)
@@ -433,7 +433,7 @@ func _test_material_seed_warehouse_schema() -> void:
 			continue
 		_assert_true(item_def.is_stackable, "材料 %s 应走堆叠仓库流。" % String(item_id))
 		_assert_true(not item_def.is_equipment(), "材料 %s 不应进入装备实例流。" % String(item_id))
-		_assert_eq(String(item_def.item_category), "misc", "材料 %s 应保持 misc 分类。" % String(item_id))
+		_assert_eq(String(item_def.get_item_category_normalized()), "misc", "材料 %s 应保持 misc 分类。" % String(item_id))
 		_assert_true(item_def.get_tags().has(&"material"), "材料 %s 应带有 material 标签。" % String(item_id))
 		_assert_true(not item_def.get_crafting_groups().is_empty(), "材料 %s 应声明 crafting_groups。" % String(item_id))
 		for tag in item_def.get_tags():
@@ -476,7 +476,7 @@ func _test_quest_item_seed_warehouse_schema() -> void:
 			continue
 		_assert_true(item_def.is_stackable, "任务物品 %s 应走堆叠仓库流。" % String(item_id))
 		_assert_true(not item_def.is_equipment(), "任务物品 %s 不应进入装备实例流。" % String(item_id))
-		_assert_eq(String(item_def.item_category), "misc", "任务物品 %s 应保持 misc 分类。" % String(item_id))
+		_assert_eq(String(item_def.get_item_category_normalized()), "misc", "任务物品 %s 应保持 misc 分类。" % String(item_id))
 		_assert_true(item_def.get_tags().has(&"quest_item"), "任务物品 %s 应带有 quest_item 标签。" % String(item_id))
 		_assert_true(not item_def.get_quest_groups().is_empty(), "任务物品 %s 应声明 quest_groups。" % String(item_id))
 		quest_item_categories[item_def.get_quest_groups()[0]] = true
@@ -576,7 +576,7 @@ func _test_world_map_entry_paths() -> void:
 	var warehouse = world_map.get_node("PartyWarehouseWindow")
 	_assert_true(management.visible, "按队伍入口应能打开 PartyManagementWindow。")
 	_assert_true(
-		not String(management.details_label.text).contains("storage_space"),
+		not String(management.overview_label.text).contains("storage_space"),
 		"队伍管理详情不应暴露隐藏属性 storage_space。"
 	)
 

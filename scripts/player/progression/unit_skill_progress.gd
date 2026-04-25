@@ -29,6 +29,8 @@ var mastery_from_training := 0
 var mastery_from_battle := 0
 ## 字段说明：记录职业授予来源，会参与成长规则判定、序列化和界面展示。
 var profession_granted_by: StringName = &""
+## 字段说明：标记该技能达到核心最高等级后的属性进度奖励是否已入队，避免重复发放。
+var core_max_growth_claimed := false
 
 
 func is_max_level(max_level: int) -> bool:
@@ -52,6 +54,7 @@ func to_dict() -> Dictionary:
 		"mastery_from_training": mastery_from_training,
 		"mastery_from_battle": mastery_from_battle,
 		"profession_granted_by": String(profession_granted_by),
+		"core_max_growth_claimed": core_max_growth_claimed,
 	}
 
 
@@ -68,4 +71,5 @@ static func from_dict(data: Dictionary):
 	progress.mastery_from_training = int(data.get("mastery_from_training", 0))
 	progress.mastery_from_battle = int(data.get("mastery_from_battle", 0))
 	progress.profession_granted_by = ProgressionDataUtils.to_string_name(data.get("profession_granted_by", ""))
+	progress.core_max_growth_claimed = bool(data.get("core_max_growth_claimed", false))
 	return progress

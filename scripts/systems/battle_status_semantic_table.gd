@@ -9,6 +9,7 @@ const STACK_ADD: StringName = &"add"
 const TICK_NONE: StringName = &"none"
 const TICK_TURN_START_AP_PENALTY: StringName = &"turn_start_ap_penalty"
 const TICK_TURN_START_DAMAGE: StringName = &"turn_start_damage"
+const TICK_TIMELINE_DAMAGE: StringName = &"timeline_damage"
 const TU_GRANULARITY := 5
 
 const STATUS_ARMOR_BREAK: StringName = &"armor_break"
@@ -53,7 +54,7 @@ static func get_semantic(status_id: StringName) -> Dictionary:
 			return {
 				"stack_mode": STACK_ADD,
 				"max_stacks": 3,
-				"tick_mode": TICK_TURN_START_DAMAGE,
+				"tick_mode": TICK_TIMELINE_DAMAGE,
 			}
 		STATUS_SLOW:
 			return {
@@ -103,6 +104,11 @@ static func merge_status(effect_def, source_unit_id: StringName, existing_entry:
 	if semantic_duration >= 0:
 		var previous_duration := int(status_entry.duration) if status_entry.has_duration() else -1
 		status_entry.duration = maxi(semantic_duration, previous_duration)
+	var tick_interval_tu := _resolve_tick_interval_tu(effect_def)
+	if tick_interval_tu > 0:
+		status_entry.tick_interval_tu = tick_interval_tu
+		if status_entry.next_tick_at_tu <= 0:
+			status_entry.next_tick_at_tu = tick_interval_tu
 	return status_entry
 
 
@@ -120,6 +126,15 @@ static func get_turn_start_damage(status_entry: BattleStatusEffectState) -> int:
 		return 0
 	var semantic := get_semantic(status_entry.status_id)
 	if ProgressionDataUtils.to_string_name(semantic.get("tick_mode", TICK_NONE)) != TICK_TURN_START_DAMAGE:
+		return 0
+	return _get_effect_intensity(status_entry)
+
+
+static func get_timeline_tick_damage(status_entry: BattleStatusEffectState) -> int:
+	if status_entry == null or status_entry.tick_interval_tu <= 0:
+		return 0
+	var semantic := get_semantic(status_entry.status_id)
+	if ProgressionDataUtils.to_string_name(semantic.get("tick_mode", TICK_NONE)) != TICK_TIMELINE_DAMAGE:
 		return 0
 	return _get_effect_intensity(status_entry)
 
@@ -163,6 +178,16 @@ static func _resolve_duration_tu(effect_def) -> int:
 	if effect_def.params != null and effect_def.params.has("duration"):
 		return _normalize_positive_tu_value(int(effect_def.params.get("duration", 0)), "legacy status duration")
 	return -1
+
+
+static func _resolve_tick_interval_tu(effect_def) -> int:
+	if effect_def == null:
+		return 0
+	if int(effect_def.tick_interval_tu) > 0:
+		return _normalize_positive_tu_value(int(effect_def.tick_interval_tu), "status tick_interval_tu")
+	if effect_def.params != null and effect_def.params.has("tick_interval_tu"):
+		return _normalize_positive_tu_value(int(effect_def.params.get("tick_interval_tu", 0)), "status params.tick_interval_tu")
+	return 0
 
 
 static func _clone_effect_params(effect_def) -> Dictionary:

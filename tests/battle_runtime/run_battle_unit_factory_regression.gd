@@ -77,6 +77,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_attribute_service_exposes_default_character_action_threshold()
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
@@ -89,6 +90,18 @@ func _run() -> void:
 		push_error(failure)
 	print("Battle unit factory regression: FAIL (%d)" % _failures.size())
 	quit(1)
+
+
+func _test_attribute_service_exposes_default_character_action_threshold() -> void:
+	var member_state := _make_member_state(&"hero")
+	var service := ATTRIBUTE_SERVICE_SCRIPT.new()
+	service.setup(member_state.progression, {}, {})
+	var snapshot = service.get_snapshot()
+	_assert_eq(
+		snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD),
+		ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+		"角色属性快照应暴露默认 action_threshold。"
+	)
 
 
 func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder() -> void:
@@ -118,6 +131,11 @@ func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party
 		if unit != null:
 			_assert_eq(unit.source_member_id, &"hero", "友方单位应保留原始 member_id。")
 			_assert_eq(unit.display_name, "Hero", "友方单位应从 party_state 读取显示名。")
+			_assert_eq(
+				unit.action_threshold,
+				ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+				"友方单位应从角色属性读取默认 action_threshold。"
+			)
 
 
 func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> void:
@@ -154,6 +172,7 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_eq(unit.current_stamina, 7, "刷新桥接应按属性快照上限回写 stamina。")
 	_assert_eq(unit.current_aura, 6, "刷新桥接应按属性快照上限回写 aura。")
 	_assert_eq(unit.current_ap, 9, "刷新桥接应按属性快照回写 action points。")
+	_assert_eq(unit.action_threshold, 30, "刷新桥接应按属性快照回写 action_threshold。")
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "刷新桥接应从成长进度重建可用主动技能。")
 	_assert_eq(int(unit.known_skill_level_map.get(&"warrior_heavy_strike", 0)), 2, "刷新桥接应从成长进度重建技能等级。")
 
@@ -243,6 +262,7 @@ func _make_attribute_snapshot() -> AttributeSnapshot:
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 7)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 6)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 9)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD, 30)
 	return snapshot
 
 

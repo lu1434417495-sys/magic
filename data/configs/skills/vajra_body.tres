@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"vajra_body"
+display_name = "金刚不坏"
+icon_id = &"vajra_body"
+description = "被动技能。学习后永久生效，不消耗资源。0 级受到所有来源伤害减少 1 点，1 级减少 2 点；之后每 2 级提高 1 点，9 级达到减少 6 点。10 级领悟后不会被敌方强制位移。"
+skill_type = &"passive"
+max_level = 10
+mastery_curve = PackedInt32Array(80, 180, 320, 500, 720, 980, 1280, 1620, 2000, 2440)
+tags = Array[StringName]([&"passive", &"defense", &"body_tempering", &"eastern", &"ultimate"])
+learn_source = &"book"
+attribute_requirements = {
+"constitution": 14,
+"strength": 13,
+"willpower": 14
+}
+achievement_requirements = Array[StringName]([&"near_death_unbroken"])
+mastery_sources = Array[StringName]([&"heavy_hit_taken", &"max_damage_die_taken", &"elite_or_boss_damage_taken"])

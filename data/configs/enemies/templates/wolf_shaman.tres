@@ -8,7 +8,7 @@ template_id = &"wolf_shaman"
 display_name = "荒狼祭司"
 brain_id = &"ranged_controller"
 initial_state_id = &"support"
-action_threshold = 135
+action_threshold = 45
 tags = Array[StringName]([&"wolf", &"shaman"])
 base_attribute_overrides = {
 "strength": 5,

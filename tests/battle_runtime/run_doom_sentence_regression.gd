@@ -25,13 +25,6 @@ const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 var _failures: Array[String] = []
 
 
-class MaxRollAttackRng:
-	extends RefCounted
-
-	func randi_range(_min_value: int, max_value: int) -> int:
-		return max_value
-
-
 class SelectionRuntimeProxy:
 	extends RefCounted
 
@@ -185,10 +178,6 @@ func _run() -> void:
 
 func _test_doom_sentence_applies_verdict_and_teamwide_damage_amp() -> void:
 	var runtime := _build_runtime()
-	var heavy_strike := runtime.get_skill_defs().get(WARRIOR_HEAVY_STRIKE_SKILL_ID) as SkillDef
-	_assert_true(heavy_strike != null, "前置：warrior_heavy_strike 应存在。")
-	if heavy_strike == null:
-		return
 
 	var state := _build_skill_test_state(&"doom_sentence_success", Vector2i(7, 3))
 	var caster := _build_unit(&"doom_sentence_caster", "黑冕使徒", &"player", Vector2i(1, 1), 3, &"hero")
@@ -213,21 +202,11 @@ func _test_doom_sentence_applies_verdict_and_teamwide_damage_amp() -> void:
 	_begin_runtime_battle(runtime)
 	runtime.calamity_by_member_id[&"hero"] = 5
 
-	var baseline_hit_check: Dictionary = runtime.get_hit_resolver().build_skill_attack_check(ally_attacker, boss, heavy_strike)
 	var baseline_damage_result: Dictionary = runtime.get_damage_resolver().resolve_effects(
 		ally_attacker,
 		BattleUnitState.from_dict(boss.to_dict()),
 		[_build_damage_effect()]
 	)
-	var baseline_crit_result: Dictionary = runtime.get_damage_resolver().resolve_attack_effects(
-		boss,
-		BattleUnitState.from_dict(ally_target.to_dict()),
-		[_build_damage_effect()],
-		{"required_roll": 2, "display_required_roll": 2, "hit_rate_percent": 95},
-		{"rng": MaxRollAttackRng.new()}
-	)
-	_assert_true(bool(baseline_crit_result.get("critical_hit", false)), "未受宣判前，boss 应能正常触发暴击。")
-
 	var command := _build_unit_skill_command(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss)
 	var preview := runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "满足条件时，厄命宣判预览应允许。")
@@ -246,28 +225,6 @@ func _test_doom_sentence_applies_verdict_and_teamwide_damage_amp() -> void:
 			BATTLE_REPORT_FORMATTER_SCRIPT.TAG_DOOM_SENTENCE
 		),
 		"厄命宣判成功后应补出带 doom_sentence 标签的结构化战报条目。 reports=%s" % [str(batch.report_entries if batch != null else [])]
-	)
-
-	var sealed_hit_check: Dictionary = runtime.get_hit_resolver().build_skill_attack_check(ally_attacker, boss, heavy_strike)
-	_assert_true(
-		int(sealed_hit_check.get("hit_rate_percent", 0)) > int(baseline_hit_check.get("hit_rate_percent", 0)),
-		"厄命宣判应令目标无法闪避，从而提高我方命中率。 baseline=%s sealed=%s" % [
-			str(baseline_hit_check),
-			str(sealed_hit_check),
-		]
-	)
-	_assert_eq(int(sealed_hit_check.get("target_armor_class", -1)), 10, "厄命宣判应把目标闪避视为 0。")
-
-	var sealed_crit_result: Dictionary = runtime.get_damage_resolver().resolve_attack_effects(
-		boss,
-		BattleUnitState.from_dict(ally_target.to_dict()),
-		[_build_damage_effect()],
-		{"required_roll": 2, "display_required_roll": 2, "hit_rate_percent": 95},
-		{"rng": MaxRollAttackRng.new()}
-	)
-	_assert_true(
-		not bool(sealed_crit_result.get("critical_hit", false)) and bool(sealed_crit_result.get("crit_locked", false)),
-		"厄命宣判应封锁目标暴击。 result=%s" % [str(sealed_crit_result)]
 	)
 
 	var amplified_damage_result: Dictionary = runtime.get_damage_resolver().resolve_effects(

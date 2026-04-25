@@ -11,6 +11,7 @@ const CONSTITUTION: StringName = &"constitution"
 const PERCEPTION: StringName = &"perception"
 const INTELLIGENCE: StringName = &"intelligence"
 const WILLPOWER: StringName = &"willpower"
+const ACTION_THRESHOLD: StringName = &"action_threshold"
 const HIDDEN_LUCK_AT_BIRTH: StringName = &"hidden_luck_at_birth"
 const FAITH_LUCK_BONUS: StringName = &"faith_luck_bonus"
 
@@ -80,7 +81,7 @@ func set_attribute_value(attribute_id: StringName, value: int) -> void:
 			custom_stats[attribute_id] = value
 
 
-func get_all_base_attribute_ids() -> Array[StringName]:
+static func get_all_base_attribute_ids() -> Array[StringName]:
 	return ProgressionDataUtils.to_string_name_array(BASE_ATTRIBUTE_IDS)
 
 

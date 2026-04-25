@@ -10,8 +10,7 @@
 script = ExtResource("3_v74mk")
 effect_type = &"damage"
 power = 13
-damage_tag = &"magic"
-resistance_attribute_id = &"freeze_resistance"
+damage_tag = &"freeze"
 
 [sub_resource type="Resource" id="Resource_sxkku"]
 script = ExtResource("4_pi3cc")

@@ -153,6 +153,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_battle_resolution_result_round_trip()
 	_test_battle_runtime_builds_resolution_result_on_battle_end()
+	_test_battle_runtime_draws_when_both_sides_are_cleared()
 	_test_battle_runtime_battle_end_integration_uses_real_character_gateway()
 	_test_battle_session_facade_prefers_canonical_resolution_result()
 	_test_battle_session_facade_requires_canonical_resolution_result()
@@ -237,6 +238,30 @@ func _test_battle_runtime_builds_resolution_result_on_battle_end() -> void:
 	)
 	_assert_true(runtime.consume_battle_resolution_result() == result, "consume_battle_resolution_result() 应返回已构建的结果。")
 	_assert_true(runtime.consume_battle_resolution_result() == null, "consume_battle_resolution_result() 第二次调用后应清空缓存。")
+
+
+func _test_battle_runtime_draws_when_both_sides_are_cleared() -> void:
+	var runtime := BattleRuntimeModule.new()
+	var gateway := _FakeBattleGateway.new()
+	runtime.setup(gateway, {}, {}, {}, null)
+	runtime._state = _build_battle_state_for_end_test(false, false)
+	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime._active_loot_entries = [_build_raw_loot_entry()]
+
+	var batch := BattleEventBatch.new()
+	_assert_true(runtime._check_battle_end(batch), "_check_battle_end() 应在双方同时清场后结束战斗。")
+	var result: BattleResolutionResult = runtime.get_battle_resolution_result()
+	_assert_true(result != null, "同归于尽后仍应生成 canonical BattleResolutionResult。")
+	if result == null:
+		return
+	_assert_eq(String(runtime._state.winner_faction_id), "draw", "双方同时清场时胜利方应为 draw。")
+	_assert_eq(String(result.winner_faction_id), "draw", "draw 应写入战斗结算结果。")
+	_assert_eq(String(result.encounter_resolution), "draw", "draw 应写入 encounter_resolution。")
+	_assert_eq(result.loot_entries.size(), 0, "draw 不应发放胜利掉落。")
+	_assert_true(
+		not _has_achievement_event_call(gateway.achievement_event_calls, "hero", "battle_won"),
+		"draw 不应记录 battle_won 成就事件。"
+	)
 
 
 func _test_battle_runtime_battle_end_integration_uses_real_character_gateway() -> void:
@@ -396,15 +421,15 @@ func _assert_canonical_overflow_entry(loot_entry: Dictionary, message_scope: Str
 	_assert_eq(int(loot_entry.get("quantity", 0)), 1, "%s 应保留稳定溢出数量。" % message_scope)
 
 
-func _build_battle_state_for_end_test() -> BattleState:
+func _build_battle_state_for_end_test(ally_alive: bool = true, enemy_alive: bool = false) -> BattleState:
 	var state := BattleState.new()
 	state.battle_id = &"battle_end_contract"
 	state.phase = &"timeline_running"
 	state.timeline = BattleTimelineState.new()
 	state.ally_unit_ids = [&"hero_unit"]
 	state.enemy_unit_ids = [&"enemy_unit"]
-	var ally_unit := _build_unit(&"hero_unit", &"hero", true)
-	var enemy_unit := _build_unit(&"enemy_unit", &"enemy", false)
+	var ally_unit := _build_unit(&"hero_unit", &"hero", ally_alive)
+	var enemy_unit := _build_unit(&"enemy_unit", &"enemy", enemy_alive)
 	state.units[ally_unit.unit_id] = ally_unit
 	state.units[enemy_unit.unit_id] = enemy_unit
 	return state

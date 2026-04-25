@@ -1,5 +1,5 @@
-## 文件说明：该脚本属于战斗命中解析器相关的解析脚本，集中收敛当前 BAB/降序 AC/d20 命中检定与 deterministic 掷骰口径。
-## 审查重点：重点核对 attack bonus / AC 检定值、required roll / 命中预览、seed/nonce 递增以及 repeat_attack 调用方是否仍保持单一 owner。
+## 文件说明：该脚本属于战斗命中解析器相关的解析脚本，集中收敛当前 BAB/降序 AC/d20 命中检定与真随机掷骰口径。
+## 审查重点：重点核对 attack bonus / AC 检定值、required roll / 命中预览、真随机骰子消耗以及 repeat_attack 调用方是否仍保持单一 owner。
 ## 备注：普通单体攻击与 repeat attack 都必须通过这里生成命中预览，不要把 D20 vs AC 公式散回 runtime 或技能侧车。
 
 class_name BattleHitResolver
@@ -12,6 +12,7 @@ const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/fate_attack_formula.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT := 3
@@ -368,11 +369,8 @@ func _roll_battle_d20(battle_state: BattleState) -> int:
 		return NATURAL_MISS_ROLL
 
 	var nonce := maxi(int(battle_state.attack_roll_nonce), 0)
-	var roll_seed_source := "%s:%d:%d" % [String(battle_state.battle_id), int(battle_state.seed), nonce]
-	var rng := RandomNumberGenerator.new()
-	rng.seed = int(roll_seed_source.hash())
 	battle_state.attack_roll_nonce = nonce + 1
-	return rng.randi_range(NATURAL_MISS_ROLL, NATURAL_HIT_ROLL)
+	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(NATURAL_MISS_ROLL, NATURAL_HIT_ROLL))
 
 
 func _resolve_repeat_attack_preview_stage_count(

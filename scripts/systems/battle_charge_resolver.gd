@@ -225,7 +225,6 @@ func _duplicate_state_for_preview(state: BattleState) -> BattleState:
 	cloned_state.battle_id = state.battle_id
 	cloned_state.seed = state.seed
 	cloned_state.attack_roll_nonce = state.attack_roll_nonce
-	cloned_state.effect_roll_nonce = state.effect_roll_nonce
 	cloned_state.phase = state.phase
 	cloned_state.map_size = state.map_size
 	cloned_state.world_coord = state.world_coord
@@ -299,7 +298,6 @@ func _apply_charge_path_step_aoe_effects(
 	stage_effect.effect_type = &"damage"
 	stage_effect.power = int(path_step_aoe_effect.power)
 	stage_effect.damage_tag = path_step_aoe_effect.damage_tag
-	stage_effect.resistance_attribute_id = path_step_aoe_effect.resistance_attribute_id
 
 	for target_unit in _runtime.collect_units_in_coords(effect_coords):
 		if not _runtime.is_unit_valid_for_effect(active_unit, target_unit, target_filter):

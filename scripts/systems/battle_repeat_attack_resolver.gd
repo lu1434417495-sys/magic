@@ -88,6 +88,8 @@ func apply_repeat_attack_skill_result(
 			stage_index += 1
 			continue
 
+		if _runtime != null and _runtime.has_method("record_skill_mastery_resolution"):
+			_runtime.record_skill_mastery_resolution(active_unit, target_unit, stage_result)
 		_runtime.mark_applied_statuses_for_turn_timing(target_unit, stage_result.get("status_effect_ids", []))
 		_runtime.append_result_source_status_effects(batch, active_unit, stage_result)
 		_runtime.append_changed_unit_id(batch, target_unit.unit_id)

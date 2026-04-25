@@ -10,6 +10,7 @@
 script = ExtResource("3_dmnkm")
 effect_type = &"damage"
 power = 13
+damage_tag = &"physical_pierce"
 
 [sub_resource type="Resource" id="Resource_u1vsk"]
 script = ExtResource("4_hf835")

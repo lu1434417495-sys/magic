@@ -7,11 +7,14 @@ const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
+const BATTLE_EVENT_BATCH_SCRIPT = preload("res://scripts/systems/battle_event_batch.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_damage_resolver.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle_runtime_module.gd")
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
+const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
@@ -30,19 +33,21 @@ func _run() -> void:
 	_test_battle_unit_state_serialization_exposes_shield()
 	_test_damage_resolver_reports_hp_damage_after_shield_absorption()
 	_test_environmental_damage_helpers_report_shield_absorption()
-	_test_damage_resolver_uses_fixed_resistance_and_allows_zero_damage()
+	_test_damage_resolver_uses_mitigation_tier_for_damage_type_defense()
+	_test_damage_resolver_reports_mitigation_sources()
+	_test_vajra_body_reduces_all_damage_tags_and_blocks_enemy_forced_move()
 	_test_damage_resolver_guarding_only_reduces_physical_damage()
 	_test_damage_resolver_damage_reduction_up_uses_fixed_value()
 	_test_content_skill_magic_shield_halves_generic_magic_damage()
 	_test_content_skills_prismatic_barrier_and_spellward_map_half_and_immune()
 	_test_content_skill_hex_of_frailty_applies_double_and_cancels_with_half()
-	_test_shield_dice_roll_is_deterministic_and_shared_per_cast()
+	_test_shield_dice_roll_is_random_and_shared_per_cast()
 	_test_facade_shield_skill_writes_shield_and_does_not_decay_on_tu_tick()
 	_test_preview_reports_shield_absorption_and_break()
 	_test_runtime_logs_zero_hp_damage_when_shield_absorbs_everything()
+	_test_runtime_preview_and_logs_include_mitigation_sources()
 	_test_facade_clicking_active_unit_casts_self_skill()
 	_test_facade_multi_unit_selection_tracks_target_unit_ids()
-	await _test_facade_ground_aoe_selection_highlight_preview_and_execution_share_range()
 	_test_facade_stamina_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_aura_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_selected_aura_skill_returns_formal_error_after_aura_drops()
@@ -165,8 +170,12 @@ func _test_facade_multi_unit_selection_tracks_target_unit_ids() -> void:
 
 	facade.command_battle_move_to(enemy_a.coord)
 	var after_cast_snapshot: Dictionary = facade.build_headless_snapshot().get("battle", {})
-	_assert_true(enemy_b.current_hp < 30, "多目标技能结算后应命中第一个已选单位。")
-	_assert_true(enemy_a.current_hp < 30, "多目标技能结算后应命中第二个已选单位。")
+	var move_log := _find_last_log_entry(facade.get_log_snapshot(), "battle.move_to")
+	_assert_eq(
+		_extract_unit_ids_from_entries(move_log.get("context", {}).get("battle_changed_units", [])),
+		["multi_unit_user", "enemy_b", "enemy_a"],
+		"多目标技能结算应按选择顺序依次解析目标，即使天然 1 导致未造成伤害。"
+	)
 	_assert_eq(enemy_c.current_hp, 30, "未被选中的单位不应受到多目标技能影响。")
 	_assert_eq(
 		_extract_string_array(after_cast_snapshot.get("selected_target_unit_ids", [])),
@@ -385,27 +394,193 @@ func _test_environmental_damage_helpers_report_shield_absorption() -> void:
 	_assert_eq(int((collision_result.get("damage_events", []) as Array).size()), 1, "碰撞伤害 helper 应返回结构化 damage_events。")
 
 
-func _test_damage_resolver_uses_fixed_resistance_and_allows_zero_damage() -> void:
+func _test_damage_resolver_uses_mitigation_tier_for_damage_type_defense() -> void:
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var source := BATTLE_UNIT_STATE_SCRIPT.new()
-	source.unit_id = &"fixed_resistance_source"
+	source.unit_id = &"tier_resistance_source"
 	source.current_hp = 30
 	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var target := BATTLE_UNIT_STATE_SCRIPT.new()
-	target.unit_id = &"fixed_resistance_target"
+	target.unit_id = &"tier_resistance_target"
 	target.current_hp = 30
 	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
-	target.attribute_snapshot.set_value(&"fire_resistance", 12)
 
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
 	damage_effect.power = 10
-	damage_effect.resistance_attribute_id = &"fire_resistance"
+	damage_effect.damage_tag = &"fire"
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
+	var baseline_result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
+	_assert_eq(
+		int(baseline_result.get("damage", -1)),
+		10,
+		"没有 mitigation_tier 状态时，火焰伤害不应被人物属性派生值减少。"
+	)
 
-	_assert_eq(int(result.get("damage", -1)), 0, "固定抗性应允许把伤害压到 0，而不是被旧的最小 1 伤拦住。")
-	_assert_eq(target.current_hp, 30, "固定抗性完全吃掉伤害时，目标 HP 不应下降。")
+	target.current_hp = 30
+	target.status_effects[&"fire_half"] = {
+		"status_id": &"fire_half",
+		"power": 1,
+		"duration": 60,
+		"params": {
+			"damage_tag": &"fire",
+			"mitigation_tier": &"half",
+		},
+	}
+	var half_result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
+	_assert_eq(int(half_result.get("damage", -1)), 5, "火焰减免应通过 mitigation_tier=half 状态生效。")
+
+
+func _test_damage_resolver_reports_mitigation_sources() -> void:
+	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	var source := BATTLE_UNIT_STATE_SCRIPT.new()
+	source.unit_id = &"mitigation_source_report_source"
+	source.current_hp = 30
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
+	var target := BATTLE_UNIT_STATE_SCRIPT.new()
+	target.unit_id = &"mitigation_source_report_target"
+	target.current_hp = 30
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+
+	var magic_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	magic_effect.effect_type = &"damage"
+	magic_effect.power = 10
+	magic_effect.damage_tag = &"magic"
+	target.status_effects[&"magic_shield"] = {
+		"status_id": &"magic_shield",
+		"power": 1,
+		"duration": 60,
+		"params": {
+			"damage_category": &"magic",
+			"mitigation_tier": &"half",
+		},
+	}
+
+	var half_result: Dictionary = resolver.resolve_effects(source, target, [magic_effect])
+	var half_events = half_result.get("damage_events", [])
+	_assert_true(half_events is Array and not (half_events as Array).is_empty(), "mitigation_tier 来源回归前置：应返回 damage_events。")
+	if half_events is Array and not (half_events as Array).is_empty():
+		var half_event := (half_events as Array)[0] as Dictionary
+		var mitigation_sources = half_event.get("mitigation_sources", [])
+		_assert_true(mitigation_sources is Array and not (mitigation_sources as Array).is_empty(), "damage_event 应记录 mitigation_tier 来源。")
+		if mitigation_sources is Array and not (mitigation_sources as Array).is_empty():
+			var source_entry := (mitigation_sources as Array)[0] as Dictionary
+			_assert_eq(String(source_entry.get("status_id", "")), "magic_shield", "mitigation_tier 来源应保留状态 id。")
+			_assert_eq(String(source_entry.get("tier", "")), "half", "mitigation_tier 来源应保留命中的 tier。")
+
+	target.current_hp = 30
+	target.status_effects.clear()
+	target.status_effects[&"guarding"] = {
+		"status_id": &"guarding",
+		"power": 1,
+		"duration": 60,
+	}
+	var physical_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	physical_effect.effect_type = &"damage"
+	physical_effect.power = 10
+
+	var guarded_result: Dictionary = resolver.resolve_effects(source, target, [physical_effect])
+	var guarded_events = guarded_result.get("damage_events", [])
+	_assert_true(guarded_events is Array and not (guarded_events as Array).is_empty(), "fixed mitigation 来源回归前置：应返回 damage_events。")
+	if guarded_events is Array and not (guarded_events as Array).is_empty():
+		var guarded_event := (guarded_events as Array)[0] as Dictionary
+		var fixed_sources = guarded_event.get("fixed_mitigation_sources", [])
+		_assert_true(fixed_sources is Array and not (fixed_sources as Array).is_empty(), "damage_event 应记录 fixed mitigation 来源。")
+		if fixed_sources is Array and not (fixed_sources as Array).is_empty():
+			var fixed_source := (fixed_sources as Array)[0] as Dictionary
+			_assert_eq(String(fixed_source.get("status_id", "")), "guarding", "fixed mitigation 来源应保留状态 id。")
+			_assert_eq(String(fixed_source.get("type", "")), "stance_reduction", "guarding 应以 stance_reduction 来源记录。")
+			_assert_eq(int(fixed_source.get("value", -1)), 4, "guarding 来源应记录实际固定减伤值。")
+
+
+func _test_vajra_body_reduces_all_damage_tags_and_blocks_enemy_forced_move() -> void:
+	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	var damage_tags: Array[StringName] = [
+		&"physical_slash",
+		&"fire",
+		&"negative_energy",
+	]
+	for damage_tag in damage_tags:
+		var source := _build_manual_unit(&"vajra_attacker", "攻击者", &"enemy", Vector2i.ZERO, [], 2, 0)
+		var target := _build_manual_unit(&"vajra_target", "金刚目标", &"player", Vector2i.ZERO, [], 2, 0)
+		_set_test_status(target, &"vajra_body", {
+			"passive_reduction": 3,
+		})
+		var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
+		effect_def.effect_type = &"damage"
+		effect_def.power = 10
+		effect_def.damage_tag = damage_tag
+		var effect_defs: Array[CombatEffectDef] = [effect_def]
+		var result: Dictionary = resolver.resolve_effects(source, target, effect_defs)
+		_assert_eq(int(result.get("damage", -1)), 7, "金刚不坏应对 %s 生效并减少 3 点伤害。" % String(damage_tag))
+		_assert_eq(target.current_hp, 23, "金刚不坏减伤后目标 HP 应只扣除实际伤害。")
+		var damage_events: Array = result.get("damage_events", [])
+		_assert_true(not damage_events.is_empty(), "金刚不坏减伤应保留 damage event。")
+		if not damage_events.is_empty():
+			var event: Dictionary = damage_events[0]
+			_assert_eq(int(event.get("passive_reduction", -1)), 3, "damage event 应记录 passive_reduction。")
+			_assert_eq(int(event.get("fixed_mitigation_total", -1)), 3, "fixed mitigation total 应包含 passive_reduction。")
+			_assert_true(
+				_fixed_sources_include(event.get("fixed_mitigation_sources", []), "vajra_body", "passive_reduction"),
+				"fixed_mitigation_sources 应标记金刚不坏来源。"
+			)
+
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var state: BattleState = _build_flat_state(Vector2i(4, 2))
+	var enemy := _build_manual_unit(&"vajra_pusher", "推动者", &"enemy", Vector2i(2, 0), [], 2, 0)
+	var target := _build_manual_unit(&"vajra_anchor", "金刚锚点", &"player", Vector2i(1, 0), [], 2, 0)
+	var member_id: StringName = game_session.get_party_state().get_resolved_main_character_member_id()
+	var member_state = game_session.get_party_state().get_member_state(member_id)
+	var vajra_progress = UNIT_SKILL_PROGRESS_SCRIPT.new()
+	vajra_progress.skill_id = &"vajra_body"
+	vajra_progress.is_learned = true
+	vajra_progress.skill_level = 10
+	vajra_progress.is_core = true
+	member_state.progression.set_skill_progress(vajra_progress)
+	_set_test_status(target, &"vajra_body", {
+		"forced_move_immune": true,
+		"passive_reduction": 6,
+	})
+	_add_unit_to_state(facade, state, enemy, true)
+	_add_unit_to_state(facade, state, target, false)
+	_apply_battle_state(facade, state)
+	target.source_member_id = member_id
+	target.current_hp = 9
+	enemy.attribute_snapshot.set_value(&"fortune_mark_target", 1)
+	facade._battle_runtime._battle_rating_system.initialize_battle_rating_stats()
+	var batch = BATTLE_EVENT_BATCH_SCRIPT.new()
+	facade._battle_runtime._record_vajra_body_mastery_from_incoming_damage(
+		enemy,
+		target,
+		_build_test_damage_skill(&"wolf_heavy_crush", "狼王重击", 10, &"", &""),
+		{
+			"critical_hit": true,
+			"damage_events": [
+				{"damage": 3},
+				{"damage": 4},
+			],
+		},
+		batch
+	)
+	var updated_vajra_progress = member_state.progression.get_skill_progress(&"vajra_body")
+	_assert_eq(
+		int(updated_vajra_progress.total_mastery_earned),
+		8,
+		"金刚不坏熟练度应按多段命中、精英来源与低血量倍率实时入账。"
+	)
+	_assert_eq(batch.progression_deltas.size(), 1, "金刚不坏受击熟练度应写入当前 battle batch。")
+	var forced_move_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	forced_move_effect.effect_type = &"forced_move"
+	forced_move_effect.forced_move_distance = 1
+	forced_move_effect.forced_move_mode = &"retreat"
+	var moved_steps := int(facade._battle_runtime._apply_forced_move_effect(enemy, target, forced_move_effect, null))
+	_assert_eq(moved_steps, 0, "金刚不坏 10 级状态应阻止敌方强制位移。")
+	_assert_eq(target.coord, Vector2i(1, 0), "被金刚不坏固定的目标坐标不应改变。")
+	_cleanup_test_session(game_session)
 
 
 func _test_damage_resolver_guarding_only_reduces_physical_damage() -> void:
@@ -665,44 +840,36 @@ func _test_content_skill_hex_of_frailty_applies_double_and_cancels_with_half() -
 	_cleanup_test_session(game_session)
 
 
-func _test_shield_dice_roll_is_deterministic_and_shared_per_cast() -> void:
-	var first_runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
-	var first_state: BattleState = BATTLE_STATE_SCRIPT.new()
-	first_state.battle_id = &"shield_dice_protocol"
-	first_state.seed = 20260419
-	first_runtime._state = first_state
-
-	var second_runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
-	var second_state: BattleState = BATTLE_STATE_SCRIPT.new()
-	second_state.battle_id = &"shield_dice_protocol"
-	second_state.seed = 20260419
-	second_runtime._state = second_state
+func _test_shield_dice_roll_is_random_and_shared_per_cast() -> void:
+	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
+	var state: BattleState = BATTLE_STATE_SCRIPT.new()
+	state.battle_id = &"shield_dice_protocol"
+	state.seed = 20260419
+	runtime._state = state
 
 	var skill_def := _build_test_dice_shield_skill(&"test_priest_aid", "测试援助术", 1, 8, 3, 60)
 	var effect_defs: Array[CombatEffectDef] = skill_def.combat_profile.effect_defs
 	var caster := _build_manual_unit(&"shield_caster", "施法者", &"player", Vector2i.ZERO, [], 2, 8)
 	var ally_a := _build_manual_unit(&"shield_ally_a", "友军A", &"player", Vector2i(1, 0), [], 2, 0)
 	var ally_b := _build_manual_unit(&"shield_ally_b", "友军B", &"player", Vector2i(0, 1), [], 2, 0)
-	var ally_a_repeat := _build_manual_unit(&"shield_ally_a_repeat", "友军A", &"player", Vector2i(1, 0), [], 2, 0)
-	var ally_b_repeat := _build_manual_unit(&"shield_ally_b_repeat", "友军B", &"player", Vector2i(0, 1), [], 2, 0)
+	var ally_c := _build_manual_unit(&"shield_ally_c", "友军C", &"player", Vector2i(2, 0), [], 2, 0)
+	var ally_d := _build_manual_unit(&"shield_ally_d", "友军D", &"player", Vector2i(0, 2), [], 2, 0)
 
 	var first_roll_context := {}
-	var first_result_a := first_runtime._apply_unit_shield_effects(caster, ally_a, skill_def, effect_defs, first_roll_context)
-	var first_result_b := first_runtime._apply_unit_shield_effects(caster, ally_b, skill_def, effect_defs, first_roll_context)
+	var first_result_a := runtime._apply_unit_shield_effects(caster, ally_a, skill_def, effect_defs, first_roll_context)
+	var first_result_b := runtime._apply_unit_shield_effects(caster, ally_b, skill_def, effect_defs, first_roll_context)
 	var second_roll_context := {}
-	var second_result_a := second_runtime._apply_unit_shield_effects(caster, ally_a_repeat, skill_def, effect_defs, second_roll_context)
-	var second_result_b := second_runtime._apply_unit_shield_effects(caster, ally_b_repeat, skill_def, effect_defs, second_roll_context)
+	var second_result_a := runtime._apply_unit_shield_effects(caster, ally_c, skill_def, effect_defs, second_roll_context)
+	var second_result_b := runtime._apply_unit_shield_effects(caster, ally_d, skill_def, effect_defs, second_roll_context)
 
 	var first_shield_hp := int(first_result_a.get("current_shield_hp", 0))
 	var second_shield_hp := int(second_result_a.get("current_shield_hp", 0))
 	_assert_true(bool(first_result_a.get("applied", false)), "骰子护盾对首个友军应成功生效。")
 	_assert_true(bool(first_result_b.get("applied", false)), "骰子护盾对第二个友军应成功生效。")
 	_assert_eq(first_shield_hp, int(first_result_b.get("current_shield_hp", -1)), "同一次群体施法的所有目标应共享同一组护盾骰值。")
-	_assert_eq(first_shield_hp, second_shield_hp, "相同 battle_id/seed 的护盾骰值应保持稳定复现。")
-	_assert_eq(second_shield_hp, int(second_result_b.get("current_shield_hp", -1)), "重放时群体护盾仍应共享同一组骰值。")
+	_assert_eq(second_shield_hp, int(second_result_b.get("current_shield_hp", -1)), "下一次群体施法仍应共享同一组护盾骰值。")
 	_assert_true(first_shield_hp >= 4 and first_shield_hp <= 11, "1d8+3 护盾值应落在合法区间内。")
-	_assert_eq(first_state.effect_roll_nonce, 1, "单次群体护盾施法只应消耗 1 次 effect_roll_nonce。")
-	_assert_eq(second_state.effect_roll_nonce, 1, "重放同一群体护盾施法时 effect_roll_nonce 应保持相同推进。")
+	_assert_true(second_shield_hp >= 4 and second_shield_hp <= 11, "下一次 1d8+3 护盾值也应落在合法区间内。")
 
 
 func _test_facade_shield_skill_writes_shield_and_does_not_decay_on_tu_tick() -> void:
@@ -935,6 +1102,144 @@ func _test_runtime_logs_zero_hp_damage_when_shield_absorbs_everything() -> void:
 	)
 
 	_cleanup_test_session(game_session)
+
+
+func _test_runtime_preview_and_logs_include_mitigation_sources() -> void:
+	var preview_session = _create_test_session()
+	if preview_session == null:
+		return
+
+	var magic_skill_def := _build_test_damage_skill(
+		&"test_mitigation_source_preview",
+		"测试来源预览",
+		10,
+		ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS,
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS,
+		&"magic"
+	)
+	preview_session.get_skill_defs()[magic_skill_def.skill_id] = magic_skill_def
+
+	var preview_facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	preview_facade.setup(preview_session)
+	var preview_state: BattleState = _build_flat_state(Vector2i(3, 1))
+	var preview_caster: BattleUnitState = _build_manual_unit(
+		&"mitigation_preview_user",
+		"来源预览施法者",
+		&"player",
+		Vector2i(0, 0),
+		[magic_skill_def.skill_id],
+		2,
+		0
+	)
+	preview_caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
+	var preview_enemy: BattleUnitState = _build_manual_unit(
+		&"mitigation_preview_enemy",
+		"来源预览目标",
+		&"enemy",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	preview_enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	preview_enemy.status_effects[&"magic_shield"] = {
+		"status_id": &"magic_shield",
+		"power": 1,
+		"duration": 60,
+		"params": {
+			"damage_category": &"magic",
+			"mitigation_tier": &"half",
+		},
+	}
+	_add_unit_to_state(preview_facade, preview_state, preview_caster, false)
+	_add_unit_to_state(preview_facade, preview_state, preview_enemy, true)
+	preview_state.phase = &"unit_acting"
+	preview_state.active_unit_id = preview_caster.unit_id
+	_apply_battle_state(preview_facade, preview_state)
+
+	var preview_command := BATTLE_COMMAND_SCRIPT.new()
+	preview_command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	preview_command.unit_id = preview_caster.unit_id
+	preview_command.skill_id = magic_skill_def.skill_id
+	preview_command.target_unit_id = preview_enemy.unit_id
+	preview_command.target_coord = preview_enemy.coord
+	var preview = preview_facade.preview_battle_command(preview_command)
+	_assert_true(preview != null and preview.allowed, "减伤来源预览回归前置：preview_command 应允许目标。")
+	if preview != null:
+		_assert_true(
+			preview.log_lines.any(func(line): return String(line).contains("magic_shield") and String(line).contains("伤害减半")),
+			"preview 应提示造成减半的状态来源。 log=%s" % [str(preview.log_lines)]
+		)
+
+	_cleanup_test_session(preview_session)
+
+	var log_session = _create_test_session()
+	if log_session == null:
+		return
+
+	var death_skill_def := _build_test_damage_skill(
+		&"test_mitigation_source_log",
+		"测试来源日志",
+		10,
+		ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS,
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS,
+		&"negative_energy"
+	)
+	log_session.get_skill_defs()[death_skill_def.skill_id] = death_skill_def
+
+	var log_facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	log_facade.setup(log_session)
+	var log_state: BattleState = _build_flat_state(Vector2i(3, 1))
+	var log_caster: BattleUnitState = _build_manual_unit(
+		&"mitigation_log_user",
+		"来源日志施法者",
+		&"player",
+		Vector2i(0, 0),
+		[death_skill_def.skill_id],
+		2,
+		0
+	)
+	log_caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
+	var log_enemy: BattleUnitState = _build_manual_unit(
+		&"mitigation_log_enemy",
+		"来源日志目标",
+		&"enemy",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	log_enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	log_enemy.status_effects[&"death_ward"] = {
+		"status_id": &"death_ward",
+		"power": 1,
+		"duration": 60,
+		"params": {
+			"damage_tag": &"negative_energy",
+			"mitigation_tier": &"immune",
+		},
+	}
+	_add_unit_to_state(log_facade, log_state, log_caster, false)
+	_add_unit_to_state(log_facade, log_state, log_enemy, true)
+	log_state.phase = &"unit_acting"
+	log_state.active_unit_id = log_caster.unit_id
+	_apply_battle_state(log_facade, log_state)
+
+	var log_command := BATTLE_COMMAND_SCRIPT.new()
+	log_command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	log_command.unit_id = log_caster.unit_id
+	log_command.skill_id = death_skill_def.skill_id
+	log_command.target_unit_id = log_enemy.unit_id
+	log_command.target_coord = log_enemy.coord
+	var batch = log_facade._battle_runtime.issue_command(log_command)
+	_assert_true(batch != null, "减伤来源日志回归前置：runtime.issue_command 应返回 batch。")
+	_assert_eq(log_enemy.current_hp, 30, "immune 来源生效时目标 HP 不应下降。")
+	_assert_true(
+		batch != null and batch.log_lines.any(func(line): return String(line).contains("death_ward") and String(line).contains("免疫")),
+		"runtime log 应提示免疫来源。 log=%s" % [str(batch.log_lines if batch != null else [])]
+	)
+
+	_cleanup_test_session(log_session)
 
 
 func _test_facade_stamina_skill_updates_battle_state_snapshot_and_logs() -> void:
@@ -1374,6 +1679,17 @@ func _build_manual_unit(
 	return unit
 
 
+func _set_test_status(unit: BattleUnitState, status_id: StringName, params: Dictionary = {}, power: int = 1) -> void:
+	var status_entry = BATTLE_STATUS_EFFECT_STATE_SCRIPT.new()
+	status_entry.status_id = status_id
+	status_entry.source_unit_id = unit.unit_id if unit != null else &""
+	status_entry.power = maxi(power, 1)
+	status_entry.stacks = 1
+	status_entry.duration = -1
+	status_entry.params = params.duplicate(true)
+	unit.set_status_effect(status_entry)
+
+
 func _build_test_shield_skill(skill_id: StringName, display_name: String, shield_hp: int, duration_tu: int) -> SkillDef:
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"shield"
@@ -1455,12 +1771,12 @@ func _build_test_damage_skill(
 	power: int,
 	_attack_bonus_attribute_id: StringName,
 	_armor_class_attribute_id: StringName,
-	resistance_attribute_id: StringName = &""
+	damage_tag: StringName = &""
 ) -> SkillDef:
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = power
-	effect_def.resistance_attribute_id = resistance_attribute_id
+	effect_def.damage_tag = damage_tag
 
 	var combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
 	combat_profile.skill_id = skill_id
@@ -1529,6 +1845,30 @@ func _extract_vector2i_pairs(coords: Array) -> Array:
 	return pairs
 
 
+func _extract_unit_ids_from_entries(unit_entries_variant) -> Array[String]:
+	var unit_ids: Array[String] = []
+	if unit_entries_variant is not Array:
+		return unit_ids
+	for unit_entry_variant in unit_entries_variant:
+		if unit_entry_variant is not Dictionary:
+			continue
+		var unit_entry := unit_entry_variant as Dictionary
+		unit_ids.append(String(unit_entry.get("unit_id", "")))
+	return unit_ids
+
+
+func _fixed_sources_include(sources_variant, status_id: String, source_type: String) -> bool:
+	if sources_variant is not Array:
+		return false
+	for source_variant in sources_variant:
+		if source_variant is not Dictionary:
+			continue
+		var source := source_variant as Dictionary
+		if String(source.get("status_id", "")) == status_id and String(source.get("type", "")) == source_type:
+			return true
+	return false
+
+
 func _collect_marker_used_coords(board: BattleBoard2D) -> Array[Vector2i]:
 	var coord_set: Dictionary = {}
 	if board == null:
@@ -1569,6 +1909,18 @@ func _find_unit_entry(unit_variants: Variant, unit_id: String) -> Dictionary:
 func _find_log_entry(log_snapshot: Dictionary, event_id: String) -> Dictionary:
 	var entries: Array = log_snapshot.get("entries", [])
 	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("event_id", "")) == event_id:
+			return entry.duplicate(true)
+	return {}
+
+
+func _find_last_log_entry(log_snapshot: Dictionary, event_id: String) -> Dictionary:
+	var entries: Array = log_snapshot.get("entries", [])
+	for index in range(entries.size() - 1, -1, -1):
+		var entry_variant = entries[index]
 		if entry_variant is not Dictionary:
 			continue
 		var entry: Dictionary = entry_variant

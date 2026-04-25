@@ -192,7 +192,7 @@ func _test_material_seed_coverage() -> void:
 			continue
 		_assert_true(item_def.is_stackable, "材料 %s 应保持可堆叠。" % String(item_id))
 		_assert_true(not item_def.is_equipment(), "材料 %s 不应进入装备实例流。" % String(item_id))
-		_assert_eq(String(item_def.item_category), "misc", "材料 %s 应保持 misc 分类。" % String(item_id))
+		_assert_eq(String(item_def.get_item_category_normalized()), "misc", "材料 %s 应保持 misc 分类。" % String(item_id))
 		_assert_eq(item_def.get_tags(), expectation.get("tags", []), "材料 %s 应保留稳定 tags 元数据。" % String(item_id))
 		_assert_eq(
 			item_def.get_crafting_groups(),
@@ -218,7 +218,7 @@ func _test_quest_item_seed_coverage() -> void:
 			continue
 		_assert_true(item_def.is_stackable, "任务物品 %s 应保持可堆叠。" % String(item_id))
 		_assert_true(not item_def.is_equipment(), "任务物品 %s 不应进入装备实例流。" % String(item_id))
-		_assert_eq(String(item_def.item_category), "misc", "任务物品 %s 应保持 misc 分类。" % String(item_id))
+		_assert_eq(String(item_def.get_item_category_normalized()), "misc", "任务物品 %s 应保持 misc 分类。" % String(item_id))
 		_assert_eq(item_def.get_tags(), expectation.get("tags", []), "任务物品 %s 应保留稳定 tags 元数据。" % String(item_id))
 		_assert_eq(
 			item_def.get_quest_groups(),

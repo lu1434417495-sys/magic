@@ -29,10 +29,8 @@ const STRONG_ATTACK_DISADVANTAGE_STATUS_IDS := {
 var battle_id: StringName = &""
 ## 字段说明：记录随机种子，会参与运行时状态流转、系统协作和存档恢复。
 var seed := 0
-## 字段说明：记录攻击检定随机游标，供 battle-seeded 命中判定保持单场战斗内稳定可复现。
+## 字段说明：记录攻击检定真随机骰子消耗次数，用于运行时观测和序列化状态推进。
 var attack_roll_nonce := 0
-## 字段说明：记录效果骰随机游标，供 battle-seeded 护盾等技能骰值保持单场战斗内稳定可复现。
-var effect_roll_nonce := 0
 ## 字段说明：记录阶段，会参与运行时状态流转、系统协作和存档恢复。
 var phase: StringName = &"timeline_running"
 ## 字段说明：记录地图尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。

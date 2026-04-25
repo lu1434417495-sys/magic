@@ -25,7 +25,6 @@ attribute_overrides = {
 "attack_bonus": 6,
 "armor_class": 12,
 "armor_ac_bonus": 0
-"fire_resistance": 2
 }
 skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
 skill_level_map = {

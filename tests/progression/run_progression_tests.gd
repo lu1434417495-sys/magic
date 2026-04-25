@@ -16,6 +16,7 @@ const PartyManagementWindowScene = preload("res://scenes/ui/party_management_win
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const ProgressionService = preload("res://scripts/systems/progression_service.gd")
 const ProgressionSerialization = preload("res://scripts/systems/progression_serialization.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
@@ -36,7 +37,11 @@ func _run() -> void:
 	_test_archer_book_skill_catalog_registers_and_is_learnable()
 	_test_new_game_random_skill_tier_mapping_uses_representative_defs()
 	_test_random_start_skill_pool_excludes_composite_upgrade_skills()
+	_test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_status()
 	_test_seed_growth_achievement_events_unlock_via_real_progression_actions()
+	_test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap()
+	_test_core_max_skill_queues_attribute_progress_once()
+	_test_attribute_growth_progress_round_trip_persists()
 	_test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement()
 	_test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core()
 	_test_achievement_progress_is_member_scoped_and_unlocks_once()
@@ -173,6 +178,7 @@ func _test_random_start_skill_pool_excludes_composite_upgrade_skills() -> void:
 	var progression := UnitProgress.new()
 	var standard_book_skill := skill_defs.get(&"warrior_heavy_strike") as SkillDef
 	var composite_book_skill := skill_defs.get(&"saint_blade_combo") as SkillDef
+	var gated_passive_skill := skill_defs.get(&"vajra_body") as SkillDef
 
 	_assert_true(
 		session._is_random_start_book_skill_candidate(standard_book_skill, progression),
@@ -182,7 +188,87 @@ func _test_random_start_skill_pool_excludes_composite_upgrade_skills() -> void:
 		not session._is_random_start_book_skill_candidate(composite_book_skill, progression),
 		"复合升级技能不应进入随机起始技能池。"
 	)
+	_assert_true(
+		not session._is_random_start_book_skill_candidate(gated_passive_skill, progression),
+		"随机开局技能池不应绕过金刚不坏的属性与成就门槛。"
+	)
 	session.free()
+
+
+func _test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_status() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var skill_def = registry.get_skill_defs().get(&"vajra_body") as SkillDef
+	_assert_true(skill_def != null, "金刚不坏技能资源应注册。")
+	if skill_def == null:
+		return
+	_assert_eq(skill_def.skill_type, &"passive", "金刚不坏应是被动技能。")
+	_assert_eq(skill_def.max_level, 10, "金刚不坏应支持最高 10 级。")
+	_assert_eq(int(skill_def.attribute_requirements.get("strength", 0)), 13, "金刚不坏应要求力量 13。")
+	_assert_eq(int(skill_def.attribute_requirements.get("constitution", 0)), 14, "金刚不坏应要求体质 14。")
+	_assert_eq(int(skill_def.attribute_requirements.get("willpower", 0)), 14, "金刚不坏应要求意志 14。")
+	_assert_true(skill_def.achievement_requirements.has(&"near_death_unbroken"), "金刚不坏应要求濒死未倒成就。")
+
+	var party_state := _make_party_state([&"hero"])
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
+	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 13)
+	attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 14)
+	attributes.set_attribute_value(UnitBaseAttributes.WILLPOWER, 13)
+	var manager := _setup_manager(party_state, registry.get_achievement_defs())
+	_assert_true(not manager.learn_skill(&"hero", &"vajra_body"), "意志不足时不应学会金刚不坏。")
+
+	attributes.set_attribute_value(UnitBaseAttributes.WILLPOWER, 14)
+	_assert_true(not manager.learn_skill(&"hero", &"vajra_body"), "未达成濒死未倒时不应学会金刚不坏。")
+	_assert_true(manager.unlock_achievement(&"hero", &"near_death_unbroken"), "测试前置应能解锁濒死未倒。")
+	_assert_true(manager.learn_skill(&"hero", &"vajra_body"), "满足属性与成就后应能学会金刚不坏。")
+
+	var skill_progress = member_state.progression.get_skill_progress(&"vajra_body")
+	_assert_true(skill_progress != null and skill_progress.is_learned, "金刚不坏学习结果应写入角色成长。")
+	var factory := BattleUnitFactory.new()
+	var units: Array = factory.build_ally_units(party_state, {})
+	var unit_state: BattleUnitState = (units[0] as BattleUnitState) if not units.is_empty() else null
+	var status_entry = unit_state.get_status_effect(&"vajra_body") if unit_state != null else null
+	_assert_true(status_entry != null, "学会金刚不坏后，战斗单位应同步 vajra_body 状态。")
+	if status_entry != null:
+		_assert_eq(int(status_entry.params.get("passive_reduction", -1)), 1, "0 级金刚不坏应减少 1 点伤害。")
+		_assert_true(not bool(status_entry.params.get("forced_move_immune", false)), "0 级金刚不坏不应免疫强制位移。")
+
+	skill_progress.skill_level = 7
+	units = factory.build_ally_units(party_state, {})
+	unit_state = (units[0] as BattleUnitState) if not units.is_empty() else null
+	status_entry = unit_state.get_status_effect(&"vajra_body") if unit_state != null else null
+	if status_entry != null:
+		_assert_eq(int(status_entry.params.get("passive_reduction", -1)), 5, "7 级金刚不坏应减少 5 点伤害。")
+		_assert_eq(int(status_entry.params.get("control_save_bonus", -1)), 1, "7 级金刚不坏应记录 1 点控制检定加值。")
+
+	var progression_service := ProgressionService.new()
+	progression_service.setup(member_state.progression, registry.get_skill_defs(), registry.get_profession_defs())
+	_assert_true(
+		progression_service.grant_skill_mastery(&"vajra_body", 20000, &"heavy_hit_taken"),
+		"非核心金刚不坏应能继续获得熟练度。"
+	)
+	_assert_eq(int(skill_progress.skill_level), 9, "非核心金刚不坏最多只能升到 9 级。")
+	units = factory.build_ally_units(party_state, {})
+	unit_state = (units[0] as BattleUnitState) if not units.is_empty() else null
+	status_entry = unit_state.get_status_effect(&"vajra_body") if unit_state != null else null
+	if status_entry != null:
+		_assert_eq(int(status_entry.params.get("passive_reduction", -1)), 6, "9 级金刚不坏应减少 6 点伤害。")
+		_assert_eq(int(status_entry.params.get("control_save_bonus", -1)), 2, "9 级金刚不坏应记录 2 点控制检定加值。")
+		_assert_true(not bool(status_entry.params.get("forced_move_immune", false)), "非核心 9 级金刚不坏不应免疫强制位移。")
+
+	_assert_true(progression_service.set_skill_core(&"vajra_body", true), "金刚不坏设为核心后应解锁 10 级上限。")
+	_assert_true(
+		progression_service.grant_skill_mastery(&"vajra_body", 3000, &"heavy_hit_taken"),
+		"核心金刚不坏应能继续获得熟练度。"
+	)
+	_assert_eq(int(skill_progress.skill_level), 10, "核心金刚不坏应能升到 10 级。")
+	units = factory.build_ally_units(party_state, {})
+	unit_state = (units[0] as BattleUnitState) if not units.is_empty() else null
+	status_entry = unit_state.get_status_effect(&"vajra_body") if unit_state != null else null
+	if status_entry != null:
+		_assert_eq(int(status_entry.params.get("passive_reduction", -1)), 6, "10 级金刚不坏应保持减少 6 点伤害。")
+		_assert_eq(int(status_entry.params.get("control_save_bonus", -1)), 2, "10 级金刚不坏应记录 2 点控制检定加值。")
+		_assert_true(bool(status_entry.params.get("forced_move_immune", false)), "核心 10 级金刚不坏应免疫敌方强制位移。")
 
 
 func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() -> void:
@@ -240,6 +326,152 @@ func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() 
 		attributes.get_attribute_value(UnitBaseAttributes.AGILITY),
 		agility_before + 1,
 		"确认熟练度成就奖励后，应提高敏捷。"
+	)
+
+
+func _test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var manager := CharacterManagementModule.new()
+	manager.setup(party_state, {}, {}, {})
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
+	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 2)
+
+	var first_reward = manager.build_pending_character_reward(
+		&"hero",
+		&"agility_progress_60",
+		&"skill_core_max",
+		&"test_basic_skill",
+		"测试基础技能",
+		[{
+			"entry_type": "attribute_progress",
+			"target_id": String(UnitBaseAttributes.AGILITY),
+			"amount": 60,
+			"reason_text": "测试属性进度",
+		}],
+		"测试属性进度"
+	)
+	manager.apply_pending_character_reward(first_reward)
+	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 2, "60 点敏捷进度不应直接提高属性。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 60, "60 点敏捷进度应被保存。")
+
+	var second_reward = manager.build_pending_character_reward(
+		&"hero",
+		&"agility_progress_50",
+		&"skill_core_max",
+		&"test_intermediate_skill",
+		"测试中级技能",
+		[{
+			"entry_type": "attribute_progress",
+			"target_id": String(UnitBaseAttributes.AGILITY),
+			"amount": 50,
+			"reason_text": "测试属性进度转化",
+		}],
+		"测试属性进度转化"
+	)
+	manager.apply_pending_character_reward(second_reward)
+	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 3, "累计达到 100 后敏捷应 +1。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 10, "转化后应保留 10 点敏捷进度。")
+
+	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 19)
+	member_state.progression.attribute_growth_progress[UnitBaseAttributes.AGILITY] = 90
+	var cap_reward = manager.build_pending_character_reward(
+		&"hero",
+		&"agility_progress_240",
+		&"skill_core_max",
+		&"test_ultimate_skill",
+		"测试终极技能",
+		[{
+			"entry_type": "attribute_progress",
+			"target_id": String(UnitBaseAttributes.AGILITY),
+			"amount": 240,
+			"reason_text": "测试 20 后累计",
+		}],
+		"测试 20 后累计"
+	)
+	manager.apply_pending_character_reward(cap_reward)
+	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 20, "属性低于 20 时应最多转化到 20。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 230, "达到 20 后剩余进度应继续保存。")
+
+	var over_cap_reward = manager.build_pending_character_reward(
+		&"hero",
+		&"agility_progress_after_20",
+		&"skill_core_max",
+		&"test_after_cap_skill",
+		"测试 20 后继续累计",
+		[{
+			"entry_type": "attribute_progress",
+			"target_id": String(UnitBaseAttributes.AGILITY),
+			"amount": 120,
+			"reason_text": "测试 20 后继续累计",
+		}],
+		"测试 20 后继续累计"
+	)
+	manager.apply_pending_character_reward(over_cap_reward)
+	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 20, "属性达到 20 后不应继续自动提高。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 350, "属性达到 20 后进度应无上限继续累计。")
+
+
+func _test_core_max_skill_queues_attribute_progress_once() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var skill_def := _make_test_growth_skill(
+		&"test_growth_core",
+		&"basic",
+		{
+			UnitBaseAttributes.AGILITY: 60,
+		}
+	)
+	var manager := CharacterManagementModule.new()
+	manager.setup(party_state, {skill_def.skill_id: skill_def}, {}, {})
+
+	_assert_true(manager.learn_skill(&"hero", skill_def.skill_id), "测试技能应能学会。")
+	var skill_progress = member_state.progression.get_skill_progress(skill_def.skill_id)
+	skill_progress.is_core = true
+	member_state.progression.set_skill_progress(skill_progress)
+
+	var first_delta = manager.grant_battle_mastery(&"hero", skill_def.skill_id, 999)
+	_assert_true(first_delta.mastery_changes.size() == 1, "核心技能满级时熟练度应正常入账。")
+	_assert_eq(int(skill_progress.skill_level), 3, "测试技能应提升到满级。")
+	_assert_eq(party_state.pending_character_rewards.size(), 1, "核心技能首次满级应入队一条属性进度奖励。")
+	_assert_true(bool(skill_progress.core_max_growth_claimed), "核心满级成长入队后应标记已领取。")
+
+	manager.grant_battle_mastery(&"hero", skill_def.skill_id, 999)
+	_assert_eq(party_state.pending_character_rewards.size(), 1, "同一技能重复获得熟练度不应重复入队满级成长奖励。")
+
+	manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 60, "确认奖励后应写入技能配置的 60 点敏捷进度。")
+
+
+func _test_attribute_growth_progress_round_trip_persists() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	progress.attribute_growth_progress[UnitBaseAttributes.STRENGTH] = 80
+	progress.attribute_growth_progress[UnitBaseAttributes.AGILITY] = 240
+
+	var skill_progress := UnitSkillProgress.new()
+	skill_progress.skill_id = &"test_growth_core"
+	skill_progress.is_learned = true
+	skill_progress.is_core = true
+	skill_progress.skill_level = 3
+	skill_progress.core_max_growth_claimed = true
+	progress.set_skill_progress(skill_progress)
+
+	var restored_progress = UnitProgress.from_dict(progress.to_dict())
+	var restored_skill_progress = restored_progress.get_skill_progress(&"test_growth_core")
+	_assert_eq(
+		int(restored_progress.attribute_growth_progress.get(UnitBaseAttributes.STRENGTH, 0)),
+		80,
+		"基础属性成长进度应通过 UnitProgress 存档往返保留。"
+	)
+	_assert_eq(
+		int(restored_progress.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)),
+		240,
+		"超过 100 的属性成长进度应通过 UnitProgress 存档往返保留。"
+	)
+	_assert_true(
+		restored_skill_progress != null and bool(restored_skill_progress.core_max_growth_claimed),
+		"核心满级成长已领取标记应通过 UnitSkillProgress 存档往返保留。"
 	)
 
 
@@ -974,7 +1206,7 @@ func _test_party_management_window_renders_achievement_summary() -> void:
 	window.show_party(party_state)
 	await process_frame
 
-	var details_text: String = String(window.details_label.text)
+	var details_text: String = String(window.overview_label.text)
 	_assert_text_contains(details_text, "成就摘要：", "队伍管理窗口应显示成就摘要标题。")
 	_assert_text_contains(details_text, "已解锁：1", "队伍管理窗口应显示已解锁成就数。")
 	_assert_text_contains(details_text, "进行中：1", "队伍管理窗口应显示进行中成就数。")
@@ -1003,7 +1235,7 @@ func _test_party_management_window_keeps_main_character_active() -> void:
 	_assert_true(window._active_member_ids.has(&"hero"), "点击禁用按钮后，窗口内部 active roster 不应丢失主角。")
 	_assert_true(not window._reserve_member_ids.has(&"hero"), "点击禁用按钮后，窗口内部 reserve roster 不应出现主角。")
 	_assert_text_contains(String(window.status_label.text), "主角必须保持上阵", "尝试下阵主角时应显示明确提示。")
-	_assert_text_contains(String(window.details_label.text), "主角：是", "主角详情应显式标记主角身份。")
+	_assert_text_contains(String(window.overview_label.text), "主角：是", "主角详情应显式标记主角身份。")
 
 	_assert_true(window.select_member(&"mage"), "队伍管理窗口应能选中普通上阵成员。")
 	_assert_true(not window.move_to_reserve_button.disabled, "非主角的上阵成员在人数允许时仍可下阵。")
@@ -1115,6 +1347,24 @@ func _make_reward(
 	reward.amount = amount
 	reward.reason_text = "测试奖励"
 	return reward
+
+
+func _make_test_growth_skill(
+	skill_id: StringName,
+	growth_tier: StringName,
+	attribute_growth_progress: Dictionary
+) -> SkillDef:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = String(skill_id)
+	skill_def.icon_id = skill_id
+	skill_def.skill_type = &"passive"
+	skill_def.learn_source = &"book"
+	skill_def.max_level = 3
+	skill_def.mastery_curve = PackedInt32Array([1, 1, 1])
+	skill_def.growth_tier = growth_tier
+	skill_def.attribute_growth_progress = attribute_growth_progress.duplicate(true)
+	return skill_def
 
 
 func _assert_true(condition: bool, message: String) -> void:

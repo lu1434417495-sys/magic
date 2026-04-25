@@ -13,7 +13,9 @@ const MP_MAX: StringName = &"mp_max"
 const STAMINA_MAX: StringName = &"stamina_max"
 const AURA_MAX: StringName = &"aura_max"
 const ACTION_POINTS: StringName = &"action_points"
+const ACTION_THRESHOLD: StringName = UnitBaseAttributes.ACTION_THRESHOLD
 const ATTACK_BONUS: StringName = &"attack_bonus"
+const WEAPON_ATTACK_RANGE: StringName = &"weapon_attack_range"
 const ARMOR_CLASS: StringName = &"armor_class"
 const ARMOR_AC_BONUS: StringName = &"armor_ac_bonus"
 const SHIELD_AC_BONUS: StringName = &"shield_ac_bonus"
@@ -21,12 +23,9 @@ const DODGE_BONUS: StringName = &"dodge_bonus"
 const DEFLECTION_BONUS: StringName = &"deflection_bonus"
 const CRIT_RATE: StringName = &"crit_rate"
 const CRIT_DAMAGE: StringName = &"crit_damage"
-const FIRE_RESISTANCE: StringName = &"fire_resistance"
-const BLEED_RESISTANCE: StringName = &"bleed_resistance"
-const FREEZE_RESISTANCE: StringName = &"freeze_resistance"
-const LIGHTNING_RESISTANCE: StringName = &"lightning_resistance"
-const POISON_RESISTANCE: StringName = &"poison_resistance"
-const NEGATIVE_ENERGY_RESISTANCE: StringName = &"negative_energy_resistance"
+
+const DEFAULT_CHARACTER_ACTION_THRESHOLD := 30
+const ACTION_THRESHOLD_GRANULARITY := 5
 
 const RESOURCE_ATTRIBUTE_IDS := [
 	HP_MAX,
@@ -34,10 +33,12 @@ const RESOURCE_ATTRIBUTE_IDS := [
 	STAMINA_MAX,
 	AURA_MAX,
 	ACTION_POINTS,
+	ACTION_THRESHOLD,
 ]
 
 const COMBAT_ATTRIBUTE_IDS := [
 	ATTACK_BONUS,
+	WEAPON_ATTACK_RANGE,
 	ARMOR_CLASS,
 	ARMOR_AC_BONUS,
 	SHIELD_AC_BONUS,
@@ -52,15 +53,6 @@ const AC_COMPONENT_ATTRIBUTE_IDS := [
 	SHIELD_AC_BONUS,
 	DODGE_BONUS,
 	DEFLECTION_BONUS,
-]
-
-const RESISTANCE_ATTRIBUTE_IDS := [
-	FIRE_RESISTANCE,
-	BLEED_RESISTANCE,
-	FREEZE_RESISTANCE,
-	LIGHTNING_RESISTANCE,
-	POISON_RESISTANCE,
-	NEGATIVE_ENERGY_RESISTANCE,
 ]
 
 const PROTECTED_CUSTOM_STAT_KEYS: Array[StringName] = [
@@ -120,10 +112,6 @@ func get_total_value(attribute_id: StringName) -> int:
 
 func get_action_points() -> int:
 	return get_total_value(ACTION_POINTS)
-
-
-func get_resistance_value(attribute_id: StringName) -> int:
-	return get_total_value(attribute_id)
 
 
 func get_snapshot() -> AttributeSnapshot:
@@ -377,6 +365,8 @@ func _get_persistent_base_value(attribute_id: StringName) -> int:
 	var unit_base_attributes := _get_unit_base_attributes()
 	if unit_base_attributes == null:
 		return 0
+	if attribute_id == ACTION_THRESHOLD and not unit_base_attributes.custom_stats.has(ACTION_THRESHOLD):
+		return DEFAULT_CHARACTER_ACTION_THRESHOLD
 	return unit_base_attributes.get_attribute_value(attribute_id)
 
 
@@ -410,9 +400,6 @@ func _modifier_entry_applies_to_attribute(attribute_id: StringName, modifier_att
 
 
 func _clamp_attribute_value(attribute_id: StringName, value: int) -> int:
-	if RESISTANCE_ATTRIBUTE_IDS.has(attribute_id):
-		return clampi(value, 0, 95)
-
 	match attribute_id:
 		HP_MAX:
 			return maxi(value, 1)
@@ -420,6 +407,8 @@ func _clamp_attribute_value(attribute_id: StringName, value: int) -> int:
 			return maxi(value, 0)
 		ACTION_POINTS:
 			return maxi(value, 1)
+		ACTION_THRESHOLD:
+			return _normalize_action_threshold(value)
 		ATTACK_BONUS:
 			return clampi(value, -20, 50)
 		ARMOR_CLASS:
@@ -441,10 +430,15 @@ func _get_known_non_base_attribute_ids() -> Array[StringName]:
 		result.append(attribute_id)
 	for attribute_id in COMBAT_ATTRIBUTE_IDS:
 		result.append(attribute_id)
-	for attribute_id in RESISTANCE_ATTRIBUTE_IDS:
-		result.append(attribute_id)
-
 	return result
+
+
+func _normalize_action_threshold(value: int) -> int:
+	var threshold := maxi(value, ACTION_THRESHOLD_GRANULARITY)
+	return maxi(
+		int(round(float(threshold) / float(ACTION_THRESHOLD_GRANULARITY))) * ACTION_THRESHOLD_GRANULARITY,
+		ACTION_THRESHOLD_GRANULARITY
+	)
 
 
 func _get_additional_attribute_ids(modifier_entries: Array) -> Array[StringName]:
@@ -564,71 +558,4 @@ func _build_default_rules() -> Dictionary:
 		4,
 		100
 	)
-	rules[FIRE_RESISTANCE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		FIRE_RESISTANCE,
-		0,
-		{
-			UnitBaseAttributes.CONSTITUTION: 2,
-			UnitBaseAttributes.WILLPOWER: 1,
-		},
-		3,
-		0,
-		95
-	)
-	rules[BLEED_RESISTANCE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		BLEED_RESISTANCE,
-		0,
-		{
-			UnitBaseAttributes.CONSTITUTION: 2,
-			UnitBaseAttributes.WILLPOWER: 1,
-		},
-		2,
-		0,
-		95
-	)
-	rules[FREEZE_RESISTANCE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		FREEZE_RESISTANCE,
-		0,
-		{
-			UnitBaseAttributes.CONSTITUTION: 1,
-			UnitBaseAttributes.WILLPOWER: 2,
-		},
-		2,
-		0,
-		95
-	)
-	rules[LIGHTNING_RESISTANCE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		LIGHTNING_RESISTANCE,
-		0,
-		{
-			UnitBaseAttributes.WILLPOWER: 2,
-			UnitBaseAttributes.INTELLIGENCE: 1,
-		},
-		2,
-		0,
-		95
-	)
-	rules[POISON_RESISTANCE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		POISON_RESISTANCE,
-		0,
-		{
-			UnitBaseAttributes.CONSTITUTION: 2,
-			UnitBaseAttributes.PERCEPTION: 1,
-		},
-		2,
-		0,
-		95
-	)
-	rules[NEGATIVE_ENERGY_RESISTANCE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		NEGATIVE_ENERGY_RESISTANCE,
-		0,
-		{
-			UnitBaseAttributes.WILLPOWER: 2,
-			UnitBaseAttributes.INTELLIGENCE: 1,
-		},
-		2,
-		0,
-		95
-	)
-
 	return rules

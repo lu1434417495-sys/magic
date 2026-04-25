@@ -28,12 +28,14 @@ const BATTLE_REPORT_FORMATTER_SCRIPT = preload("res://scripts/systems/battle_rep
 const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle_skill_resolution_rules.gd")
 const BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT = preload("res://scripts/systems/battle_terrain_topology_service.gd")
 const BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT = preload("res://scripts/systems/battle_target_collection_service.gd")
+const BATTLE_SPAWN_REACHABILITY_SERVICE_SCRIPT = preload("res://scripts/systems/battle_spawn_reachability_service.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
 const EQUIPMENT_DROP_SERVICE_SCRIPT = preload("res://scripts/systems/equipment_drop_service.gd")
 const FORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/fortune_service.gd")
 const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/low_luck_relic_rules.gd")
 const MISFORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/misfortune_service.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle_event_batch.gd")
@@ -69,6 +71,10 @@ const STATUS_MARKED: StringName = &"marked"
 const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
 const STATUS_ARCHER_QUICKSTEP: StringName = &"archer_quickstep"
 const STATUS_GUARDING: StringName = &"guarding"
+const STATUS_VAJRA_BODY: StringName = &"vajra_body"
+const MASTERY_SOURCE_HEAVY_HIT_TAKEN: StringName = &"heavy_hit_taken"
+const MASTERY_SOURCE_MAX_DAMAGE_DIE_TAKEN: StringName = &"max_damage_die_taken"
+const MASTERY_SOURCE_ELITE_OR_BOSS_DAMAGE_TAKEN: StringName = &"elite_or_boss_damage_taken"
 const STATUS_BLACK_STAR_BRAND_NORMAL: StringName = &"black_star_brand_normal"
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW: StringName = &"black_star_brand_elite_guard_window"
@@ -79,6 +85,7 @@ const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
 const STATUS_BLACK_CROWN_SEAL_COUNTERATTACK: StringName = &"black_crown_seal_counterattack"
 const STATUS_BLACK_CROWN_SEAL_CRIT: StringName = &"black_crown_seal_crit"
 const MISSTEP_TO_SCHEME_SKILL_ID: StringName = &"misstep_to_scheme"
+const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
 const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
 const DOOM_SHIFT_SKILL_ID: StringName = &"doom_shift"
 const BLACK_CROWN_SEAL_SKILL_ID: StringName = &"black_crown_seal"
@@ -131,6 +138,8 @@ const DEBUFF_STATUS_IDS := {
 const REPEAT_ATTACK_STAGE_GUARD := 32
 const TU_GRANULARITY := 5
 const DEFAULT_TICK_INTERVAL_SECONDS := 1.0
+const BATTLE_START_PLACEMENT_MAX_ATTEMPTS := 8
+const BATTLE_START_TERRAIN_RETRY_SEED_STEP := 7919
 
 ## 字段说明：缓存角色网关实例，会参与运行时状态流转、系统协作和存档恢复。
 var _character_gateway: Object = null
@@ -150,7 +159,7 @@ var _grid_service := BATTLE_GRID_SERVICE_SCRIPT.new()
 var _terrain_generator := BATTLE_TERRAIN_GENERATOR_SCRIPT.new()
 ## 字段说明：记录伤害解析器，会参与运行时状态流转、系统协作和存档恢复。
 var _damage_resolver := BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
-## 字段说明：记录命中解析器，会参与运行时状态流转、系统协作和 deterministic 掷骰。
+## 字段说明：记录命中解析器，会参与运行时状态流转、系统协作和真随机掷骰。
 var _hit_resolver: BattleHitResolver = BATTLE_HIT_RESOLVER_SCRIPT.new()
 ## 字段说明：记录自动决策服务，会参与运行时状态流转、系统协作和存档恢复。
 var _ai_service: BattleAiService = BATTLE_AI_SERVICE_SCRIPT.new()
@@ -163,6 +172,7 @@ var _report_formatter: BattleReportFormatter = BATTLE_REPORT_FORMATTER_SCRIPT.ne
 var _skill_resolution_rules = BATTLE_SKILL_RESOLUTION_RULES_SCRIPT.new()
 var _terrain_topology_service = BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT.new()
 var _target_collection_service = BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT.new()
+var _spawn_reachability_service = BATTLE_SPAWN_REACHABILITY_SERVICE_SCRIPT.new()
 var _equipment_drop_service = EQUIPMENT_DROP_SERVICE_SCRIPT.new()
 var _fortune_service = FORTUNE_SERVICE_SCRIPT.new()
 var _misfortune_service = MISFORTUNE_SERVICE_SCRIPT.new()
@@ -188,6 +198,7 @@ var _ai_turn_traces: Array[Dictionary] = []
 var _battle_metrics: Dictionary = {}
 ## 字段说明：记录 battle-local calamity 资源，按成员聚合并作为后续 Misfortune 技能燃料。
 var calamity_by_member_id: Dictionary = {}
+var _skill_mastery_resolution_events: Array[Dictionary] = []
 
 
 func setup(
@@ -237,49 +248,60 @@ func start_battle(
 	var has_explicit_enemy_units := enemy_build_context.has("enemy_units") \
 		and enemy_build_context.get("enemy_units", []) is Array \
 		and not (enemy_build_context.get("enemy_units", []) as Array).is_empty()
+	var validate_spawn_reachability := bool(context.get("validate_spawn_reachability", not has_explicit_enemy_units))
 	if _encounter_builder != null and not has_explicit_enemy_units:
 		enemy_units = _encounter_builder.build_enemy_units(encounter_anchor, enemy_build_context)
 	if enemy_units.is_empty():
 		enemy_units = _unit_factory.build_enemy_units(encounter_anchor, enemy_build_context)
-	var terrain_data := _unit_factory.build_terrain_data(encounter_anchor, seed, context)
-	if terrain_data.is_empty():
-		return BATTLE_STATE_SCRIPT.new()
+	for placement_attempt in range(BATTLE_START_PLACEMENT_MAX_ATTEMPTS):
+		var terrain_seed := seed + placement_attempt * BATTLE_START_TERRAIN_RETRY_SEED_STEP
+		var terrain_data := _unit_factory.build_terrain_data(encounter_anchor, terrain_seed, context)
+		if terrain_data.is_empty():
+			continue
 
-	_state = BATTLE_STATE_SCRIPT.new()
-	_state.battle_id = ProgressionDataUtils.to_string_name("%s_%d" % [String(encounter_anchor.entity_id), seed])
-	_state.seed = seed
-	_state.map_size = terrain_data.get("map_size", Vector2i.ZERO)
-	_state.world_coord = context.get("world_coord", encounter_anchor.world_coord if encounter_anchor != null else Vector2i.ZERO)
-	_state.encounter_anchor_id = ProgressionDataUtils.to_string_name(encounter_anchor.entity_id if encounter_anchor != null else "")
-	_state.terrain_profile_id = ProgressionDataUtils.to_string_name(
-		terrain_data.get("terrain_profile_id", context.get("battle_terrain_profile", "default"))
-	)
-	_state.cells = terrain_data.get("cells", {})
-	_state.cell_columns = terrain_data.get("cell_columns", BattleCellState.build_columns_from_surface_cells(_state.cells))
-	_state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.new()
-	_state.timeline.units_per_second = _resolve_timeline_units_per_second(context)
-	_state.timeline.tick_interval_seconds = _resolve_timeline_tick_interval_seconds(context)
-	_state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context)
-	_state.timeline.delta_remainder = 0.0
+		_state = BATTLE_STATE_SCRIPT.new()
+		_state.battle_id = ProgressionDataUtils.to_string_name("%s_%d" % [String(encounter_anchor.entity_id), seed])
+		_state.seed = seed
+		_state.map_size = terrain_data.get("map_size", Vector2i.ZERO)
+		_state.world_coord = context.get("world_coord", encounter_anchor.world_coord if encounter_anchor != null else Vector2i.ZERO)
+		_state.encounter_anchor_id = ProgressionDataUtils.to_string_name(encounter_anchor.entity_id if encounter_anchor != null else "")
+		_state.terrain_profile_id = ProgressionDataUtils.to_string_name(
+			terrain_data.get("terrain_profile_id", context.get("battle_terrain_profile", "default"))
+		)
+		_state.cells = terrain_data.get("cells", {})
+		_state.cell_columns = terrain_data.get("cell_columns", BattleCellState.build_columns_from_surface_cells(_state.cells))
+		_state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.new()
+		_state.timeline.units_per_second = _resolve_timeline_units_per_second(context)
+		_state.timeline.tick_interval_seconds = _resolve_timeline_tick_interval_seconds(context)
+		_state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context)
+		_state.timeline.delta_remainder = 0.0
 
-	_place_units(ally_units, terrain_data.get("ally_spawns", []), true)
-	_place_units(enemy_units, terrain_data.get("enemy_spawns", []), false)
-	_initialize_unit_action_thresholds()
-	_state.phase = &"timeline_running"
-	_state.active_unit_id = &""
-	_state.winner_faction_id = &""
-	_state.modal_state = &""
-	_state.attack_roll_nonce = 0
-	_state.effect_roll_nonce = 0
-	_state.reset_log_entries(["战斗开始：%s" % encounter_anchor.display_name])
-	_battle_rating_system.initialize_battle_rating_stats()
-	_misfortune_service.begin_battle(calamity_by_member_id)
-	_terrain_effect_nonce = 0
-	_battle_resolution_result = null
-	_battle_resolution_result_consumed = false
-	_ai_turn_traces.clear()
-	_initialize_battle_metrics()
-	return _state
+		_place_units(ally_units, terrain_data.get("ally_spawns", []), true)
+		_place_units(enemy_units, terrain_data.get("enemy_spawns", []), false)
+		if validate_spawn_reachability:
+			var spawn_reachability := _spawn_reachability_service.validate_state(_state, _grid_service, _skill_defs)
+			if not bool(spawn_reachability.get("valid", false)):
+				_state = null
+				continue
+
+		_initialize_unit_action_thresholds()
+		_state.phase = &"timeline_running"
+		_state.active_unit_id = &""
+		_state.winner_faction_id = &""
+		_state.modal_state = &""
+		_state.attack_roll_nonce = 0
+		_state.reset_log_entries(["战斗开始：%s" % encounter_anchor.display_name])
+		_battle_rating_system.initialize_battle_rating_stats()
+		_misfortune_service.begin_battle(calamity_by_member_id)
+		_terrain_effect_nonce = 0
+		_battle_resolution_result = null
+		_battle_resolution_result_consumed = false
+		_ai_turn_traces.clear()
+		_initialize_battle_metrics()
+		return _state
+
+	_state = null
+	return BATTLE_STATE_SCRIPT.new()
 
 
 func advance(delta_seconds: float) -> BattleEventBatch:
@@ -356,12 +378,24 @@ func _apply_timeline_step(batch: BattleEventBatch, _delta_seconds: float, tu_del
 		return
 	if tu_delta > 0:
 		_state.timeline.current_tu += tu_delta
-	for unit_id in _get_living_units_in_order():
+	for unit_id in _get_units_in_order():
 		var unit_state := _state.units.get(unit_id) as BattleUnitState
 		if unit_state == null or not unit_state.is_alive:
 			continue
+		var status_tick_result := _apply_unit_status_periodic_ticks(unit_state, tu_delta, batch) if tu_delta > 0 else {}
+		if bool(status_tick_result.get("changed", false)):
+			_append_changed_unit_id(batch, unit_state.unit_id)
+		if not unit_state.is_alive:
+			var defeat_source_unit_id := ProgressionDataUtils.to_string_name(status_tick_result.get("defeat_source_unit_id", ""))
+			var defeat_source_unit = _state.units.get(defeat_source_unit_id) as BattleUnitState if defeat_source_unit_id != &"" else null
+			_collect_defeated_unit_loot(unit_state, defeat_source_unit)
+			_clear_defeated_unit(unit_state, batch)
+			batch.log_lines.append("%s 因持续效果倒下。" % unit_state.display_name)
+			continue
 		if tu_delta > 0 and _advance_unit_status_durations(unit_state, tu_delta):
 			_append_changed_unit_id(batch, unit_state.unit_id)
+		if not unit_state.is_alive:
+			continue
 		if tu_delta > 0:
 			unit_state.action_progress += tu_delta
 		var action_threshold := _resolve_unit_action_threshold(unit_state)
@@ -458,16 +492,20 @@ func issue_command(command: BattleCommand) -> BattleEventBatch:
 			return batch
 
 	_append_batch_logs_to_state(batch)
+	var flushed_log_count := batch.log_lines.size()
+	var flushed_report_count := batch.report_entries.size()
 
 	if _state.modal_state != &"":
 		batch.modal_requested = true
 		return batch
 
 	if _check_battle_end(batch):
+		_append_batch_logs_to_state_from(batch, flushed_log_count, flushed_report_count)
 		return batch
 
 	if active_unit.current_ap <= 0 or not active_unit.is_alive or command.command_type == BattleCommand.TYPE_WAIT:
 		_end_active_turn(batch)
+		_append_batch_logs_to_state_from(batch, flushed_log_count, flushed_report_count)
 
 	return batch
 
@@ -497,11 +535,22 @@ func _should_block_skill_issue_from_preview(command: BattleCommand, batch: Battl
 
 
 func _append_batch_logs_to_state(batch: BattleEventBatch) -> void:
+	_append_batch_logs_to_state_from(batch)
+
+
+func _append_batch_logs_to_state_from(
+	batch: BattleEventBatch,
+	log_start_index: int = 0,
+	report_start_index: int = 0
+) -> void:
 	if _state == null or batch == null:
 		return
-	for log_line in batch.log_lines:
-		_state.append_log_entry(String(log_line))
-	for report_entry_variant in batch.report_entries:
+	var safe_log_start := clampi(log_start_index, 0, batch.log_lines.size())
+	for log_index in range(safe_log_start, batch.log_lines.size()):
+		_state.append_log_entry(String(batch.log_lines[log_index]))
+	var safe_report_start := clampi(report_start_index, 0, batch.report_entries.size())
+	for report_index in range(safe_report_start, batch.report_entries.size()):
+		var report_entry_variant = batch.report_entries[report_index]
 		if report_entry_variant is not Dictionary:
 			continue
 		_state.report_entries.append((report_entry_variant as Dictionary).duplicate(true))
@@ -715,12 +764,26 @@ func get_damage_resolver():
 	return _damage_resolver
 
 
+func configure_damage_resolver_for_tests(damage_resolver: BattleDamageResolver) -> void:
+	_damage_resolver = damage_resolver if damage_resolver != null else BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	if _ai_service != null:
+		_ai_service.setup(_enemy_ai_brains, _damage_resolver)
+	if _fortune_service != null:
+		_fortune_service.setup(_character_gateway, get_fate_event_bus())
+	if _misfortune_service != null:
+		_misfortune_service.setup(get_fate_event_bus(), Callable(self, "_find_unit_by_member_id"))
+
+
 func get_fate_event_bus():
 	return _damage_resolver.get_fate_event_bus() if _damage_resolver != null else null
 
 
 func get_hit_resolver():
 	return _hit_resolver
+
+
+func configure_hit_resolver_for_tests(hit_resolver: BattleHitResolver) -> void:
+	_hit_resolver = hit_resolver if hit_resolver != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
 
 
 func get_terrain_generator():
@@ -827,9 +890,26 @@ func format_skill_variant_label(skill_def: SkillDef, cast_variant: CombatCastVar
 
 
 func mark_applied_statuses_for_turn_timing(target_unit: BattleUnitState, status_effect_ids: Variant) -> void:
+	_initialize_applied_status_timeline_ticks(target_unit, status_effect_ids)
 	if _misfortune_service == null:
 		return
 	_misfortune_service.handle_applied_statuses(target_unit, status_effect_ids)
+
+
+func _initialize_applied_status_timeline_ticks(target_unit: BattleUnitState, status_effect_ids: Variant) -> void:
+	if target_unit == null:
+		return
+	var normalized_status_ids := ProgressionDataUtils.to_string_name_array(status_effect_ids)
+	if normalized_status_ids.is_empty():
+		return
+	var current_tu := int(_state.timeline.current_tu) if _state != null and _state.timeline != null else 0
+	for status_id in normalized_status_ids:
+		var status_entry = target_unit.get_status_effect(status_id)
+		if status_entry == null or status_entry.tick_interval_tu <= 0:
+			continue
+		if status_entry.next_tick_at_tu <= current_tu:
+			status_entry.next_tick_at_tu = current_tu + status_entry.tick_interval_tu
+			target_unit.set_status_effect(status_entry)
 
 
 func resolve_effect_target_filter(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:
@@ -1359,6 +1439,7 @@ func _handle_skill_command(active_unit: BattleUnitState, command: BattleCommand,
 
 	_record_skill_attempt(active_unit, command.skill_id)
 	_record_action_issued(active_unit, BattleCommand.TYPE_SKILL)
+	_skill_mastery_resolution_events.clear()
 	var applied := false
 	if _should_route_skill_command_to_unit_targeting(skill_def, command):
 		applied = _handle_unit_skill_command(active_unit, command, skill_def, unit_execution_cast_variant, batch)
@@ -1370,6 +1451,7 @@ func _handle_skill_command(active_unit: BattleUnitState, command: BattleCommand,
 
 	if applied:
 		_grant_skill_mastery_if_needed(active_unit, command.skill_id, batch)
+	_skill_mastery_resolution_events.clear()
 
 
 func _preview_skill_command(active_unit: BattleUnitState, command: BattleCommand, preview: BattlePreview) -> void:
@@ -1529,6 +1611,10 @@ func _build_unit_skill_hit_preview(
 
 func summarize_damage_result(result: Dictionary) -> Dictionary:
 	var absorb_labels: Array[String] = []
+	var half_source_labels: Array[String] = []
+	var double_source_labels: Array[String] = []
+	var immune_source_labels: Array[String] = []
+	var fixed_mitigation_source_labels: Array[String] = []
 	var summary := {
 		"damage": int(result.get("damage", 0)),
 		"healing": int(result.get("healing", 0)),
@@ -1538,8 +1624,14 @@ func summarize_damage_result(result: Dictionary) -> Dictionary:
 		"any_immune": false,
 		"any_half": false,
 		"any_double": false,
+		"fixed_mitigation_total": 0,
 		"absorb_labels": absorb_labels,
+		"half_source_labels": half_source_labels,
+		"double_source_labels": double_source_labels,
+		"immune_source_labels": immune_source_labels,
+		"fixed_mitigation_source_labels": fixed_mitigation_source_labels,
 		"absorb_reason_text": "",
+		"fixed_mitigation_source_text": "",
 	}
 	var damage_events = result.get("damage_events", [])
 	if damage_events is Array:
@@ -1548,6 +1640,7 @@ func summarize_damage_result(result: Dictionary) -> Dictionary:
 				continue
 			var event := event_variant as Dictionary
 			summary["has_damage_event"] = true
+			summary["fixed_mitigation_total"] = int(summary.get("fixed_mitigation_total", 0)) + int(event.get("fixed_mitigation_total", 0))
 			match ProgressionDataUtils.to_string_name(event.get("mitigation_tier", "")):
 				&"immune":
 					summary["any_immune"] = true
@@ -1555,32 +1648,111 @@ func summarize_damage_result(result: Dictionary) -> Dictionary:
 					summary["any_half"] = true
 				&"double":
 					summary["any_double"] = true
-			if int(event.get("typed_resistance", 0)) > 0:
-				_append_unique_damage_absorb_label(absorb_labels, "抗性")
-			if int(event.get("buff_reduction", 0)) > 0 or int(event.get("content_dr", 0)) > 0:
+			_append_damage_mitigation_source_labels(event.get("mitigation_sources", []), half_source_labels, double_source_labels, immune_source_labels)
+			_append_damage_fixed_source_labels(event.get("fixed_mitigation_sources", []), fixed_mitigation_source_labels)
+			if int(event.get("buff_reduction", 0)) > 0 \
+				or int(event.get("passive_reduction", 0)) > 0 \
+				or int(event.get("content_dr", 0)) > 0:
 				_append_unique_damage_absorb_label(absorb_labels, "减伤")
 			if int(event.get("stance_reduction", 0)) > 0 or int(event.get("guard_block", 0)) > 0:
 				_append_unique_damage_absorb_label(absorb_labels, "格挡")
 	summary["absorb_reason_text"] = build_damage_absorb_reason_text(summary)
+	summary["fixed_mitigation_source_text"] = _format_damage_source_labels(fixed_mitigation_source_labels)
 	return summary
 
 
 func build_damage_absorb_reason_text(summary: Dictionary) -> String:
 	if bool(summary.get("any_immune", false)):
-		return "免疫"
+		return _format_damage_source_labels(summary.get("immune_source_labels", []), "免疫")
 	var labels: PackedStringArray = []
 	if bool(summary.get("any_half", false)):
-		labels.append("减半")
+		var half_source_text := _format_damage_source_labels(summary.get("half_source_labels", []))
+		labels.append(half_source_text if not half_source_text.is_empty() else "减半")
 	var absorb_labels = summary.get("absorb_labels", [])
 	if absorb_labels is Array:
-		for label_variant in absorb_labels:
-			var label := String(label_variant)
-			if label.is_empty():
-				continue
-			labels.append(label)
+		if _format_damage_source_labels(summary.get("fixed_mitigation_source_labels", [])).is_empty():
+			for label_variant in absorb_labels:
+				var label := String(label_variant)
+				if label.is_empty():
+					continue
+				labels.append(label)
+	var fixed_source_text := _format_damage_source_labels(summary.get("fixed_mitigation_source_labels", []))
+	if not fixed_source_text.is_empty():
+		labels.append(fixed_source_text)
 	if labels.is_empty():
 		return "防护"
 	return "、".join(labels)
+
+
+func _append_damage_mitigation_source_labels(
+	sources,
+	half_source_labels: Array[String],
+	double_source_labels: Array[String],
+	immune_source_labels: Array[String]
+) -> void:
+	if sources is not Array:
+		return
+	for source_variant in sources:
+		if source_variant is not Dictionary:
+			continue
+		var source := source_variant as Dictionary
+		var source_label := _format_damage_source_label(source)
+		if source_label.is_empty():
+			continue
+		match ProgressionDataUtils.to_string_name(source.get("tier", "")):
+			&"half":
+				_append_unique_damage_absorb_label(half_source_labels, source_label)
+			&"double":
+				_append_unique_damage_absorb_label(double_source_labels, source_label)
+			&"immune":
+				_append_unique_damage_absorb_label(immune_source_labels, source_label)
+
+
+func _append_damage_fixed_source_labels(sources, fixed_source_labels: Array[String]) -> void:
+	if sources is not Array:
+		return
+	for source_variant in sources:
+		if source_variant is not Dictionary:
+			continue
+		var source_label := _format_damage_source_label(source_variant as Dictionary)
+		if source_label.is_empty():
+			continue
+		_append_unique_damage_absorb_label(fixed_source_labels, source_label)
+
+
+func _format_damage_source_label(source: Dictionary) -> String:
+	var status_id := String(source.get("status_id", ""))
+	if not status_id.is_empty():
+		return status_id
+	return String(source.get("type", ""))
+
+
+func _format_damage_source_labels(labels_variant, fallback: String = "") -> String:
+	if labels_variant is not Array:
+		return fallback
+	var labels := PackedStringArray()
+	for label_variant in labels_variant:
+		var label := String(label_variant)
+		if label.is_empty() or labels.has(label):
+			continue
+		labels.append(label)
+	if labels.is_empty():
+		return fallback
+	return "、".join(labels)
+
+
+func _format_damage_tier_log_suffix(summary: Dictionary) -> String:
+	if bool(summary.get("any_double", false)):
+		var double_source_text := _format_damage_source_labels(summary.get("double_source_labels", []))
+		if not double_source_text.is_empty():
+			return "（因 %s 触发易伤）" % double_source_text
+		return "（触发易伤）"
+	if bool(summary.get("any_half", false)):
+		var half_source_text := _format_damage_source_labels(summary.get("half_source_labels", []))
+		if not half_source_text.is_empty():
+			return "（因 %s 减半后结算）" % half_source_text
+		return "（减半后结算）"
+	return ""
 
 
 func append_damage_result_log_lines(
@@ -1596,18 +1768,33 @@ func append_damage_result_log_lines(
 		return
 	var damage := int(summary.get("damage", 0))
 	var shield_absorbed := int(summary.get("shield_absorbed", 0))
+	var fixed_mitigation_total := int(summary.get("fixed_mitigation_total", 0))
 	if damage > 0:
 		var damage_line := "%s 对 %s 造成 %d 点伤害" % [subject_label, target_display_name, damage]
-		if bool(summary.get("any_double", false)):
-			damage_line += "（触发易伤）"
-		elif bool(summary.get("any_half", false)):
-			damage_line += "（减半后结算）"
+		damage_line += _format_damage_tier_log_suffix(summary)
 		batch.log_lines.append("%s。" % damage_line)
+		if fixed_mitigation_total > 0:
+			var fixed_source_text := String(summary.get("fixed_mitigation_source_text", ""))
+			if fixed_source_text.is_empty():
+				fixed_source_text = String(summary.get("absorb_reason_text", "防护"))
+			batch.log_lines.append("%s 的 %s 吸收了 %d 点伤害。" % [
+				target_display_name,
+				fixed_source_text,
+				fixed_mitigation_total,
+			])
 		if shield_absorbed > 0:
 			batch.log_lines.append("%s 的护盾吸收了 %d 点伤害。" % [target_display_name, shield_absorbed])
 	else:
 		if bool(summary.get("any_immune", false)):
-			batch.log_lines.append("%s 命中 %s，但其免疫该伤害。" % [subject_label, target_display_name])
+			var immune_source_text := _format_damage_source_labels(summary.get("immune_source_labels", []))
+			if immune_source_text.is_empty():
+				batch.log_lines.append("%s 命中 %s，但其免疫该伤害。" % [subject_label, target_display_name])
+			else:
+				batch.log_lines.append("%s 命中 %s，但其因 %s 免疫该伤害。" % [
+					subject_label,
+					target_display_name,
+					immune_source_text,
+				])
 		elif shield_absorbed > 0:
 			batch.log_lines.append("%s 命中 %s，但被护盾吸收了 %d 点伤害。" % [
 				subject_label,
@@ -1615,7 +1802,7 @@ func append_damage_result_log_lines(
 				shield_absorbed,
 			])
 		else:
-			batch.log_lines.append("%s 命中 %s，但被%s完全吸收。" % [
+			batch.log_lines.append("%s 命中 %s，但被 %s 完全吸收。" % [
 				subject_label,
 				target_display_name,
 				String(summary.get("absorb_reason_text", "防护")),
@@ -1647,25 +1834,58 @@ func _build_unit_skill_resolution_preview_lines(
 	if bool(summary.get("has_damage_event", false)):
 		var damage := int(summary.get("damage", 0))
 		var shield_absorbed := int(summary.get("shield_absorbed", 0))
+		var fixed_mitigation_total := int(summary.get("fixed_mitigation_total", 0))
 		if damage > 0:
 			if bool(summary.get("any_double", false)):
-				lines.append("预计命中 %s 后会触发易伤，并造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
+				var double_source_text := _format_damage_source_labels(summary.get("double_source_labels", []))
+				if double_source_text.is_empty():
+					lines.append("预计命中 %s 后会触发易伤，并造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
+				else:
+					lines.append("预计命中 %s 后因 %s 触发易伤，并造成 %d 点 HP 伤害。" % [
+						target_unit.display_name,
+						double_source_text,
+						damage,
+					])
 			elif bool(summary.get("any_half", false)):
-				lines.append("预计命中 %s 后伤害减半，并造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
+				var half_source_text := _format_damage_source_labels(summary.get("half_source_labels", []))
+				if half_source_text.is_empty():
+					lines.append("预计命中 %s 后伤害减半，并造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
+				else:
+					lines.append("预计命中 %s 后因 %s 伤害减半，并造成 %d 点 HP 伤害。" % [
+						target_unit.display_name,
+						half_source_text,
+						damage,
+					])
 			else:
 				lines.append("预计命中 %s 后造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
+			if fixed_mitigation_total > 0:
+				var fixed_source_text := String(summary.get("fixed_mitigation_source_text", ""))
+				if fixed_source_text.is_empty():
+					fixed_source_text = String(summary.get("absorb_reason_text", "防护"))
+				lines.append("预计 %s 的 %s 会吸收 %d 点伤害。" % [
+					target_unit.display_name,
+					fixed_source_text,
+					fixed_mitigation_total,
+				])
 			if shield_absorbed > 0:
 				lines.append("预计 %s 的护盾会先吸收 %d 点伤害。" % [target_unit.display_name, shield_absorbed])
 		else:
 			if bool(summary.get("any_immune", false)):
-				lines.append("预计命中 %s，但其免疫该伤害。" % target_unit.display_name)
+				var immune_source_text := _format_damage_source_labels(summary.get("immune_source_labels", []))
+				if immune_source_text.is_empty():
+					lines.append("预计命中 %s，但其免疫该伤害。" % target_unit.display_name)
+				else:
+					lines.append("预计命中 %s，但其因 %s 免疫该伤害。" % [
+						target_unit.display_name,
+						immune_source_text,
+					])
 			elif shield_absorbed > 0:
 				lines.append("预计命中 %s，但会被护盾吸收 %d 点伤害。" % [
 					target_unit.display_name,
 					shield_absorbed,
 				])
 			else:
-				lines.append("预计命中 %s，但会被%s完全吸收。" % [
+				lines.append("预计命中 %s，但会被 %s 完全吸收。" % [
 					target_unit.display_name,
 					String(summary.get("absorb_reason_text", "防护")),
 				])
@@ -1908,6 +2128,7 @@ func _apply_unit_skill_result(
 	batch: BattleEventBatch
 ) -> bool:
 	var result := _resolve_unit_skill_effect_result(active_unit, target_unit, skill_def, effect_defs)
+	record_skill_mastery_resolution(active_unit, target_unit, result)
 	var shield_roll_context := {}
 	var shield_result := _apply_unit_shield_effects(
 		active_unit,
@@ -1942,6 +2163,7 @@ func _apply_unit_skill_result(
 	var damage := int(result.get("damage", 0))
 	var healing := int(result.get("healing", 0))
 	var moved_steps := int(special_result.get("moved_steps", 0))
+	_record_vajra_body_mastery_from_incoming_damage(active_unit, target_unit, skill_def, result, batch)
 	if moved_steps > 0:
 		batch.log_lines.append("%s 使用 %s，向更安全位置移动 %d 格。" % [
 			active_unit.display_name,
@@ -2056,7 +2278,7 @@ func _apply_unit_skill_special_effects(
 		if effect_def.effect_type != &"forced_move":
 			continue
 		var move_target := target_unit if target_unit != null else active_unit
-		var moved_steps := _apply_forced_move_effect(move_target, effect_def, batch)
+		var moved_steps := _apply_forced_move_effect(active_unit, move_target, effect_def, batch)
 		if moved_steps > 0:
 			result["applied"] = true
 			result["moved_steps"] = maxi(int(result.get("moved_steps", 0)), moved_steps)
@@ -2294,6 +2516,7 @@ func _skill_grants_guarding(skill_def: SkillDef) -> bool:
 
 
 func _apply_forced_move_effect(
+	source_unit: BattleUnitState,
 	unit_state: BattleUnitState,
 	effect_def: CombatEffectDef,
 	batch: BattleEventBatch
@@ -2304,6 +2527,10 @@ func _apply_forced_move_effect(
 	if move_distance <= 0:
 		move_distance = maxi(int(effect_def.params.get("distance", 0)), 0)
 	if move_distance <= 0:
+		return 0
+	if _blocks_enemy_forced_move(source_unit, unit_state):
+		if batch != null:
+			batch.log_lines.append("%s 稳如金刚，未被强制位移。" % unit_state.display_name)
 		return 0
 
 	var mode := effect_def.forced_move_mode
@@ -2325,6 +2552,138 @@ func _apply_forced_move_effect(
 		_append_changed_unit_coords(batch, unit_state)
 		_append_changed_unit_id(batch, unit_state.unit_id)
 	return moved_steps
+
+
+func _blocks_enemy_forced_move(source_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
+	if source_unit == null or target_unit == null:
+		return false
+	if source_unit.unit_id == target_unit.unit_id:
+		return false
+	if String(source_unit.faction_id) == String(target_unit.faction_id):
+		return false
+	var status_entry = target_unit.get_status_effect(STATUS_VAJRA_BODY)
+	if status_entry == null or status_entry.params == null:
+		return false
+	return bool(status_entry.params.get("forced_move_immune", false))
+
+
+func _record_vajra_body_mastery_from_incoming_damage(
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	skill_def: SkillDef,
+	result: Dictionary,
+	batch: BattleEventBatch = null
+) -> void:
+	if source_unit == null or target_unit == null or result == null:
+		return
+	if target_unit.source_member_id == &"" or not target_unit.is_alive:
+		return
+	if String(source_unit.faction_id) == String(target_unit.faction_id):
+		return
+	var status_entry = target_unit.get_status_effect(STATUS_VAJRA_BODY)
+	if status_entry == null:
+		return
+	var mastery_source_ids := _collect_vajra_body_mastery_source_ids(source_unit, skill_def, result)
+	var mastery_source_id := _resolve_first_allowed_skill_mastery_source(VAJRA_BODY_SKILL_ID, mastery_source_ids)
+	if mastery_source_id == &"":
+		return
+	var qualifying_hits := _count_vajra_body_mastery_hits(result)
+	if qualifying_hits <= 0:
+		return
+	var multiplier := _resolve_vajra_body_mastery_multiplier(source_unit, target_unit)
+	var mastery_amount := qualifying_hits * multiplier
+	if mastery_amount <= 0:
+		return
+	if _character_gateway == null:
+		return
+	if _is_vajra_body_low_hp_training_window(target_unit) and _character_gateway != null:
+		_character_gateway.record_achievement_event(
+			target_unit.source_member_id,
+			&"near_death_unbroken_manual",
+			1
+		)
+	var delta = _character_gateway.grant_skill_mastery_from_source(
+		target_unit.source_member_id,
+		VAJRA_BODY_SKILL_ID,
+		mastery_amount,
+		mastery_source_id,
+		"战斗受击",
+		"金刚不坏：承受重击或高威胁命中",
+		true
+	)
+	_append_progression_delta_to_batch(target_unit, delta, batch)
+
+
+func _collect_vajra_body_mastery_source_ids(
+	source_unit: BattleUnitState,
+	skill_def: SkillDef,
+	result: Dictionary
+) -> Array[StringName]:
+	var source_ids: Array[StringName] = []
+	if _is_vajra_body_heavy_hit_skill(skill_def):
+		source_ids.append(MASTERY_SOURCE_HEAVY_HIT_TAKEN)
+	if bool(result.get("critical_hit", false)):
+		source_ids.append(MASTERY_SOURCE_MAX_DAMAGE_DIE_TAKEN)
+	if _is_elite_or_boss_target(source_unit):
+		source_ids.append(MASTERY_SOURCE_ELITE_OR_BOSS_DAMAGE_TAKEN)
+	return source_ids
+
+
+func _resolve_first_allowed_skill_mastery_source(skill_id: StringName, source_ids: Array[StringName]) -> StringName:
+	if skill_id == &"" or source_ids.is_empty():
+		return &""
+	var skill_def := _skill_defs.get(skill_id) as SkillDef
+	if skill_def == null:
+		return &""
+	for source_id in source_ids:
+		if source_id == &"":
+			continue
+		if skill_def.mastery_sources.is_empty() or skill_def.mastery_sources.has(source_id):
+			return source_id
+	return &""
+
+
+func _count_vajra_body_mastery_hits(result: Dictionary) -> int:
+	var damage_events = result.get("damage_events", [])
+	if damage_events is not Array:
+		return 0
+	var count := 0
+	for event_variant in damage_events:
+		if event_variant is not Dictionary:
+			continue
+		var event := event_variant as Dictionary
+		if int(event.get("damage", event.get("hp_damage", 0))) <= 0:
+			continue
+		count += 1
+	return count
+
+
+func _is_vajra_body_heavy_hit_skill(skill_def: SkillDef) -> bool:
+	if skill_def == null:
+		return false
+	if String(skill_def.skill_id).contains("heavy"):
+		return true
+	if skill_def.display_name.contains("重击"):
+		return true
+	return skill_def.tags.has(&"heavy")
+
+
+func _resolve_vajra_body_mastery_multiplier(source_unit: BattleUnitState, target_unit: BattleUnitState) -> int:
+	var multiplier := 1
+	if _is_boss_target(source_unit):
+		multiplier = 3
+	elif _is_elite_or_boss_target(source_unit):
+		multiplier = 2
+	if _is_vajra_body_low_hp_training_window(target_unit):
+		multiplier *= 2
+	return multiplier
+
+
+func _is_vajra_body_low_hp_training_window(unit_state: BattleUnitState) -> bool:
+	if unit_state == null or unit_state.attribute_snapshot == null:
+		return false
+	var hp_max := maxi(int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 1)
+	return unit_state.current_hp > 0 and unit_state.current_hp * 3 < hp_max
 
 
 func _pick_forced_move_coord(unit_state: BattleUnitState, mode: StringName) -> Vector2i:
@@ -2390,16 +2749,25 @@ func _handle_ground_skill_command(
 	if not bool(validation.get("allowed", false)):
 		return false
 
+	var target_coords: Array[Vector2i] = []
+	for target_coord_variant in validation.get("target_coords", []):
+		if target_coord_variant is Vector2i:
+			target_coords.append(target_coord_variant)
+	var precast_validation_message := _get_ground_special_effect_validation_message(
+		active_unit,
+		skill_def,
+		cast_variant,
+		target_coords
+	)
+	if not precast_validation_message.is_empty():
+		batch.log_lines.append(precast_validation_message)
+		return false
+
 	if not _consume_skill_costs(active_unit, skill_def, null, batch):
 		return false
 	_append_changed_unit_id(batch, active_unit.unit_id)
 	if _charge_resolver.is_charge_variant(cast_variant):
 		return _charge_resolver.handle_charge_skill_command(active_unit, skill_def, cast_variant, validation, batch)
-
-	var target_coords: Array[Vector2i] = []
-	for target_coord_variant in validation.get("target_coords", []):
-		if target_coord_variant is Vector2i:
-			target_coords.append(target_coord_variant)
 	if not _apply_ground_precast_special_effects(active_unit, skill_def, cast_variant, target_coords, batch):
 		return false
 
@@ -2569,6 +2937,7 @@ func _apply_ground_unit_effects(
 			continue
 
 		var result := _damage_resolver.resolve_effects(source_unit, target_unit, applicable_effects)
+		record_skill_mastery_resolution(source_unit, target_unit, result)
 		var shield_result := _apply_unit_shield_effects(
 			source_unit,
 			target_unit,
@@ -2576,6 +2945,7 @@ func _apply_ground_unit_effects(
 			applicable_effects,
 			shield_roll_context
 		)
+		_record_vajra_body_mastery_from_incoming_damage(source_unit, target_unit, skill_def, result, batch)
 		mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		var unit_applied := bool(result.get("applied", false)) or bool(shield_result.get("applied", false))
 		if not unit_applied:
@@ -3030,12 +3400,7 @@ func _roll_battle_effect_die(dice_sides: int) -> int:
 	if _state == null:
 		return 1
 
-	var nonce := maxi(int(_state.effect_roll_nonce), 0)
-	var roll_seed_source := "%s:%d:effect:%d" % [String(_state.battle_id), int(_state.seed), nonce]
-	var rng := RandomNumberGenerator.new()
-	rng.seed = int(roll_seed_source.hash())
-	_state.effect_roll_nonce = nonce + 1
-	return rng.randi_range(1, dice_sides)
+	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(1, dice_sides))
 
 
 func _resolve_shield_duration_tu(effect_def: CombatEffectDef) -> int:
@@ -3132,14 +3497,107 @@ func _grant_skill_mastery_if_needed(active_unit: BattleUnitState, skill_id: Stri
 
 	_battle_rating_system.record_skill_success(active_unit, skill_id)
 	_character_gateway.record_achievement_event(active_unit.source_member_id, &"skill_used", 1, skill_id)
-	var delta = _character_gateway.grant_battle_mastery(active_unit.source_member_id, skill_id, 5)
-	batch.progression_deltas.append(delta)
-	_unit_factory.refresh_known_skills(active_unit)
+	var mastery_amount := _resolve_skill_mastery_amount_from_resolution_events()
+	if mastery_amount <= 0:
+		return
+	var delta = _character_gateway.grant_battle_mastery(active_unit.source_member_id, skill_id, mastery_amount)
+	_append_progression_delta_to_batch(active_unit, delta, batch)
+
+
+func record_skill_mastery_resolution(
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	result: Dictionary
+) -> void:
+	if source_unit == null or target_unit == null or result == null:
+		return
+	if source_unit.source_member_id == &"":
+		return
+	if not _is_skill_mastery_qualifying_result(result):
+		return
+	var amount := _resolve_skill_mastery_target_amount(source_unit, target_unit)
+	if amount <= 0:
+		return
+	_skill_mastery_resolution_events.append({
+		"target_unit_id": target_unit.unit_id,
+		"amount": amount,
+		"critical_hit": bool(result.get("critical_hit", false)),
+		"max_damage_die": _result_has_max_damage_die(result),
+	})
+
+
+func _resolve_skill_mastery_amount_from_resolution_events() -> int:
+	var total := 0
+	for event_variant in _skill_mastery_resolution_events:
+		if event_variant is not Dictionary:
+			continue
+		total += maxi(int((event_variant as Dictionary).get("amount", 0)), 0)
+	return total
+
+
+func _is_skill_mastery_qualifying_result(result: Dictionary) -> bool:
+	if result == null or result.is_empty():
+		return false
+	if int(result.get("damage", result.get("hp_damage", 0))) <= 0 and int(result.get("shield_absorbed", 0)) <= 0:
+		return false
+	return bool(result.get("critical_hit", false)) or _result_has_max_damage_die(result)
+
+
+func _result_has_max_damage_die(result: Dictionary) -> bool:
+	if bool(result.get("damage_dice_is_max", false)):
+		return true
+	var damage_events = result.get("damage_events", [])
+	if damage_events is not Array:
+		return false
+	for event_variant in damage_events:
+		if event_variant is Dictionary and bool((event_variant as Dictionary).get("damage_dice_is_max", false)):
+			return true
+	return false
+
+
+func _resolve_skill_mastery_target_amount(source_unit: BattleUnitState, target_unit: BattleUnitState) -> int:
+	if source_unit == null or target_unit == null:
+		return 0
+	if source_unit.faction_id == target_unit.faction_id:
+		return 0
+	if target_unit.faction_id != &"enemy":
+		return 0
+	if _is_boss_target(target_unit):
+		return 3
+	if _is_elite_or_boss_target(target_unit):
+		return 2
+	return 1
+
+
+func _append_progression_delta_to_batch(unit_state: BattleUnitState, delta, batch: BattleEventBatch) -> void:
+	if unit_state == null or delta == null:
+		return
+	if _progression_delta_is_empty(delta):
+		return
+	if batch != null:
+		batch.progression_deltas.append(delta)
+	_unit_factory.refresh_known_skills(unit_state)
 	if delta.needs_promotion_modal:
+		if _state == null:
+			return
 		_state.modal_state = &"promotion_choice"
 		_state.timeline.frozen = true
-		batch.modal_requested = true
-		batch.log_lines.append("%s 触发职业晋升选择。" % active_unit.display_name)
+		if batch != null:
+			batch.modal_requested = true
+			batch.log_lines.append("%s 触发职业晋升选择。" % unit_state.display_name)
+
+
+func _progression_delta_is_empty(delta) -> bool:
+	if delta == null:
+		return true
+	return delta.mastery_changes.is_empty() \
+		and delta.leveled_skill_ids.is_empty() \
+		and delta.granted_skill_ids.is_empty() \
+		and delta.changed_profession_ids.is_empty() \
+		and delta.knowledge_changes.is_empty() \
+		and delta.attribute_changes.is_empty() \
+		and delta.unlocked_achievement_ids.is_empty() \
+		and not delta.needs_promotion_modal
 
 
 func _resolve_ground_cast_variant(
@@ -3646,7 +4104,12 @@ func _check_battle_end(batch: BattleEventBatch) -> bool:
 		return false
 
 	_state.phase = &"battle_ended"
-	_state.winner_faction_id = &"player" if living_allies > 0 else &"hostile"
+	if living_allies <= 0 and living_enemies <= 0:
+		_state.winner_faction_id = &"draw"
+	elif living_allies > 0:
+		_state.winner_faction_id = &"player"
+	else:
+		_state.winner_faction_id = &"hostile"
 	_state.active_unit_id = &""
 	_state.timeline.ready_unit_ids.clear()
 	_state.timeline.frozen = true
@@ -4013,7 +4476,6 @@ func _apply_turn_start_statuses(unit_state: BattleUnitState, batch: BattleEventB
 	if unit_state == null:
 		return {"changed": false, "defeat_source_unit_id": ""}
 	var changed := false
-	var defeat_source_unit_id: StringName = &""
 	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
 		var status_entry = unit_state.get_status_effect(StringName(status_id_str))
 		if status_entry == null:
@@ -4025,18 +4487,56 @@ func _apply_turn_start_statuses(unit_state: BattleUnitState, batch: BattleEventB
 			if unit_state.current_ap != previous_ap:
 				changed = true
 				batch.log_lines.append("%s 受到踉跄影响，本回合少 %d 点 AP。" % [unit_state.display_name, previous_ap - unit_state.current_ap])
-		var tick_damage := BattleStatusSemanticTable.get_turn_start_damage(status_entry)
-		if tick_damage > 0 and unit_state.is_alive:
+	if changed:
+		_append_changed_unit_id(batch, unit_state.unit_id)
+	return {
+		"changed": changed,
+		"defeat_source_unit_id": "",
+	}
+
+
+func _apply_unit_status_periodic_ticks(
+	unit_state: BattleUnitState,
+	elapsed_tu: int,
+	batch: BattleEventBatch
+) -> Dictionary:
+	if _state == null or _state.timeline == null or unit_state == null or elapsed_tu <= 0:
+		return {"changed": false, "defeat_source_unit_id": ""}
+	var changed := false
+	var defeat_source_unit_id: StringName = &""
+	var current_tu := int(_state.timeline.current_tu)
+	var previous_tu := maxi(current_tu - elapsed_tu, 0)
+	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
+		if not unit_state.is_alive:
+			break
+		var status_entry = unit_state.get_status_effect(StringName(status_id_str))
+		if status_entry == null:
+			continue
+		var tick_damage := BattleStatusSemanticTable.get_timeline_tick_damage(status_entry)
+		if tick_damage <= 0:
+			continue
+		if status_entry.next_tick_at_tu <= previous_tu:
+			status_entry.next_tick_at_tu = previous_tu + status_entry.tick_interval_tu
+			changed = true
+		var tick_limit_tu := current_tu
+		if status_entry.has_duration():
+			tick_limit_tu = mini(tick_limit_tu, previous_tu + int(status_entry.duration))
+		while unit_state.is_alive and status_entry.next_tick_at_tu > 0 and status_entry.next_tick_at_tu <= tick_limit_tu:
 			var previous_hp := unit_state.current_hp
 			unit_state.current_hp = maxi(unit_state.current_hp - tick_damage, 0)
 			unit_state.is_alive = unit_state.current_hp > 0
+			status_entry.next_tick_at_tu += status_entry.tick_interval_tu
 			if unit_state.current_hp != previous_hp:
 				changed = true
-				batch.log_lines.append("%s 受到灼烧影响，损失 %d 点生命。" % [unit_state.display_name, previous_hp - unit_state.current_hp])
+				batch.log_lines.append("%s 受到 %s 持续影响，损失 %d 点生命。" % [
+					unit_state.display_name,
+					String(status_entry.status_id),
+					previous_hp - unit_state.current_hp,
+				])
 				if not unit_state.is_alive and status_entry.source_unit_id != &"":
 					defeat_source_unit_id = status_entry.source_unit_id
-	if changed:
-		_append_changed_unit_id(batch, unit_state.unit_id)
+		if unit_state.is_alive:
+			unit_state.set_status_effect(status_entry)
 	return {
 		"changed": changed,
 		"defeat_source_unit_id": String(defeat_source_unit_id),
@@ -4071,10 +4571,43 @@ func _advance_unit_status_durations(unit_state: BattleUnitState, elapsed_tu: int
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:
 	if skill_def == null or skill_def.combat_profile == null:
 		return 0
-	var skill_range := int(skill_def.combat_profile.range_value)
+	var skill_range := _resolve_base_skill_range(active_unit, skill_def)
 	if _has_status(active_unit, STATUS_ARCHER_RANGE_UP):
 		skill_range += 1
 	return skill_range
+
+
+func _resolve_base_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:
+	var configured_range := int(skill_def.combat_profile.range_value) if skill_def != null and skill_def.combat_profile != null else 0
+	if skill_def != null \
+		and skill_def.combat_profile != null \
+		and skill_def.combat_profile.target_mode == &"unit" \
+		and _is_weapon_range_skill(skill_def):
+		var weapon_range := _get_weapon_attack_range(active_unit)
+		if weapon_range > 0:
+			return weapon_range
+		if _skill_has_tag(skill_def, &"melee"):
+			return 1
+	return configured_range
+
+
+func _is_weapon_range_skill(skill_def: SkillDef) -> bool:
+	return _skill_has_tag(skill_def, &"melee") or _skill_has_tag(skill_def, &"bow") or _skill_has_tag(skill_def, &"weapon")
+
+
+func _get_weapon_attack_range(active_unit: BattleUnitState) -> int:
+	if active_unit == null or active_unit.attribute_snapshot == null:
+		return 0
+	return maxi(int(active_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE)), 0)
+
+
+func _skill_has_tag(skill_def: SkillDef, expected_tag: StringName) -> bool:
+	if skill_def == null or expected_tag == &"":
+		return false
+	for tag in skill_def.tags:
+		if ProgressionDataUtils.to_string_name(tag) == expected_tag:
+			return true
+	return false
 
 
 func _is_movement_blocked(unit_state: BattleUnitState) -> bool:
@@ -4183,7 +4716,7 @@ func _find_unit_by_member_id(member_id: StringName) -> BattleUnitState:
 	return null
 
 
-func _get_living_units_in_order() -> Array[StringName]:
+func _get_units_in_order() -> Array[StringName]:
 	var ordered_ids: Array[StringName] = []
 	for unit_id_str in ProgressionDataUtils.sorted_string_keys(_state.units):
 		ordered_ids.append(StringName(unit_id_str))
@@ -4386,6 +4919,8 @@ func _resolve_encounter_resolution() -> StringName:
 		return &"player_victory"
 	if _state.winner_faction_id == &"hostile":
 		return &"hostile_victory"
+	if _state.winner_faction_id == &"draw":
+		return &"draw"
 	return &"resolved"
 
 

@@ -396,7 +396,6 @@ func _build_enemy_snapshot_from_template(
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(stats.get("shield_ac_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(stats.get("dodge_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(stats.get("deflection_bonus", 0)))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.FIRE_RESISTANCE, int(stats.get("fire_resistance", 0)))
 	return snapshot
 
 

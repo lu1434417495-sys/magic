@@ -18,7 +18,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_staggered_refreshes_without_stacking_and_expires_on_tu_progress()
-	_test_burning_stacks_and_ticks_each_turn()
+	_test_burning_stacks_and_ticks_on_timeline_interval()
+	_test_short_burning_can_expire_before_first_tick()
 	_test_slow_increases_move_cost_and_expires_on_tu_progress()
 	_test_refresh_timeline_statuses_keep_single_stack_and_max_duration()
 	_test_taunted_uses_timeline_decay_without_turn_end_decay()
@@ -69,7 +70,7 @@ func _test_staggered_refreshes_without_stacking_and_expires_on_tu_progress() -> 
 	_assert_true(not target.has_status_effect(&"staggered"), "staggered 应在 TU 走完后移除。")
 
 
-func _test_burning_stacks_and_ticks_each_turn() -> void:
+func _test_burning_stacks_and_ticks_on_timeline_interval() -> void:
 	var runtime := _build_runtime()
 	var state := _build_state(Vector2i(4, 3))
 	var caster := _build_unit(&"burning_source", Vector2i(0, 1), 2)
@@ -84,19 +85,20 @@ func _test_burning_stacks_and_ticks_each_turn() -> void:
 	state.enemy_unit_ids = [target.unit_id]
 	runtime._state = state
 
-	_apply_status(runtime, caster, target, &"burning", 20)
-	_apply_status(runtime, caster, target, &"burning", 20)
+	_apply_status(runtime, caster, target, &"burning", 20, 1, 10)
+	_apply_status(runtime, caster, target, &"burning", 20, 1, 10)
 	var burning_entry = target.get_status_effect(&"burning")
 	_assert_true(burning_entry != null, "burning 应在重复施加后存在于正式状态字典中。")
 	_assert_eq(int(burning_entry.stacks) if burning_entry != null else -1, 2, "burning 应按 add 语义累加层数。")
 	_assert_eq(int(burning_entry.duration) if burning_entry != null else -1, 20, "burning 应沿用施加时给定的剩余 TU。")
+	_assert_eq(int(burning_entry.tick_interval_tu) if burning_entry != null else -1, 10, "burning 应记录正式周期 tick 间隔。")
 
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(target.unit_id)
 	runtime.advance(0.0)
-	_assert_eq(target.current_hp, 18, "2 层 burning 应在回合开始稳定结算 2 点灼烧伤害。")
+	_assert_eq(target.current_hp, 20, "burning 不应在回合开始隐式结算伤害。")
 	var first_wait := BattleCommand.new()
 	first_wait.command_type = BattleCommand.TYPE_WAIT
 	first_wait.unit_id = target.unit_id
@@ -107,13 +109,14 @@ func _test_burning_stacks_and_ticks_each_turn() -> void:
 	_advance_timeline_tu(runtime, state, 10)
 	burning_entry = target.get_status_effect(&"burning")
 	_assert_eq(int(burning_entry.duration) if burning_entry != null else -1, 10, "burning 应随时间轴推进递减剩余 TU。")
+	_assert_eq(target.current_hp, 18, "2 层 burning 应在第一个周期 tick 结算 2 点灼烧伤害。")
 
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(target.unit_id)
 	runtime.advance(0.0)
-	_assert_eq(target.current_hp, 16, "burning 应在第二个受影响回合继续结算同层数伤害。")
+	_assert_eq(target.current_hp, 18, "burning 不应因进入第二个行动窗口额外结算伤害。")
 	var second_wait := BattleCommand.new()
 	second_wait.command_type = BattleCommand.TYPE_WAIT
 	second_wait.unit_id = target.unit_id
@@ -121,6 +124,27 @@ func _test_burning_stacks_and_ticks_each_turn() -> void:
 	_assert_true(target.has_status_effect(&"burning"), "burning 不应在第二个回合结束时被 turn end 提前清除。")
 	_advance_timeline_tu(runtime, state, 10)
 	_assert_true(not target.has_status_effect(&"burning"), "burning 到期后应按 TU 正式移除。")
+	_assert_eq(target.current_hp, 16, "2 层 burning 应在到期边界完成第二个周期 tick。")
+
+
+func _test_short_burning_can_expire_before_first_tick() -> void:
+	var runtime := _build_runtime()
+	var state := _build_state(Vector2i(4, 3))
+	var caster := _build_unit(&"short_burning_source", Vector2i(0, 1), 2)
+	var target := _build_unit(&"short_burning_target", Vector2i(2, 1), 2)
+	target.faction_id = &"enemy"
+	target.current_hp = 20
+
+	_add_unit(runtime, state, caster)
+	_add_unit(runtime, state, target)
+	state.ally_unit_ids = [caster.unit_id]
+	state.enemy_unit_ids = [target.unit_id]
+	runtime._state = state
+
+	_apply_status(runtime, caster, target, &"burning", 5, 1, 10)
+	_advance_timeline_tu(runtime, state, 5)
+	_assert_true(not target.has_status_effect(&"burning"), "短于 tick 间隔的 burning 应按 TU 到期。")
+	_assert_eq(target.current_hp, 20, "短于 tick 间隔的 burning 不应保证至少触发一次伤害。")
 
 
 func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
@@ -256,7 +280,8 @@ func _apply_status(
 	target_unit: BattleUnitState,
 	status_id: StringName,
 	duration_tu: int,
-	power: int = 1
+	power: int = 1,
+	tick_interval_tu: int = 0
 ) -> void:
 	var effect_def := CombatEffectDef.new()
 	effect_def.effect_type = &"status"
@@ -264,7 +289,10 @@ func _apply_status(
 	effect_def.power = power
 	if duration_tu > 0:
 		effect_def.duration_tu = duration_tu
-	runtime._damage_resolver.resolve_effects(source_unit, target_unit, [effect_def])
+	if tick_interval_tu > 0:
+		effect_def.tick_interval_tu = tick_interval_tu
+	var result := runtime._damage_resolver.resolve_effects(source_unit, target_unit, [effect_def])
+	runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 
 
 func _build_runtime() -> BattleRuntimeModule:

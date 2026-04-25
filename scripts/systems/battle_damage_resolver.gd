@@ -13,6 +13,7 @@ const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_
 const BATTLE_FATE_ATTACK_RULES_SCRIPT = preload("res://scripts/systems/battle_fate_attack_rules.gd")
 const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/fate_attack_formula.gd")
 const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/low_luck_relic_rules.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
@@ -23,6 +24,7 @@ const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const STATUS_ATTACK_UP: StringName = &"attack_up"
 const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
 const STATUS_GUARDING: StringName = &"guarding"
+const STATUS_VAJRA_BODY: StringName = &"vajra_body"
 const STATUS_MARKED: StringName = &"marked"
 const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
@@ -59,24 +61,6 @@ const BLACK_STAR_BRAND_GUARD_IGNORE_FLAT := 4
 var _fate_event_bus: BattleFateEventBus = BATTLE_FATE_EVENT_BUS_SCRIPT.new()
 var _fate_attack_rules = BATTLE_FATE_ATTACK_RULES_SCRIPT.new()
 var _report_formatter: BattleReportFormatter = BATTLE_REPORT_FORMATTER_SCRIPT.new()
-
-
-class SeededAttackRng:
-	extends RefCounted
-
-	var _resolver: Variant = null
-	var _battle_state: BattleState = null
-
-
-	func _init(resolver: Variant, battle_state: BattleState) -> void:
-		_resolver = resolver
-		_battle_state = battle_state
-
-
-	func randi_range(min_value: int, max_value: int) -> int:
-		if _resolver == null or _battle_state == null:
-			return min_value
-		return int(_resolver._roll_seeded_attack_range(_battle_state, min_value, max_value))
 
 
 func resolve_skill(
@@ -310,25 +294,19 @@ func _resolve_attack_disadvantage(
 
 
 func _roll_attack_die(die_size: int, is_disadvantage: bool, attack_context: Dictionary) -> int:
-	var explicit_rng = attack_context.get("rng", null)
-	if explicit_rng != null and explicit_rng.has_method("randi_range"):
-		return int(FATE_ATTACK_FORMULA_SCRIPT.roll_die_with_disadvantage_rule(die_size, is_disadvantage, explicit_rng))
 	var battle_state := attack_context.get("battle_state", null) as BattleState
+	var normalized_die_size := maxi(die_size, 1)
+	var first_roll := _roll_true_random_attack_range(1, normalized_die_size, battle_state)
+	if not is_disadvantage:
+		return first_roll
+	var second_roll := _roll_true_random_attack_range(1, normalized_die_size, battle_state)
+	return mini(first_roll, second_roll)
+
+
+func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state: BattleState) -> int:
 	if battle_state != null:
-		var seeded_rng := SeededAttackRng.new(self, battle_state)
-		return int(FATE_ATTACK_FORMULA_SCRIPT.roll_die_with_disadvantage_rule(die_size, is_disadvantage, seeded_rng))
-	return int(FATE_ATTACK_FORMULA_SCRIPT.roll_die_with_disadvantage_rule(die_size, is_disadvantage))
-
-
-func _roll_seeded_attack_range(battle_state: BattleState, min_value: int, max_value: int) -> int:
-	if battle_state == null:
-		return min_value
-	var nonce := maxi(int(battle_state.attack_roll_nonce), 0)
-	var roll_seed_source := "%s:%d:%d" % [String(battle_state.battle_id), int(battle_state.seed), nonce]
-	var rng := RandomNumberGenerator.new()
-	rng.seed = int(roll_seed_source.hash())
-	battle_state.attack_roll_nonce = nonce + 1
-	return int(rng.randi_range(min_value, max_value))
+		battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
+	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(min_value, max_value))
 
 
 func _does_attack_roll_hit(hit_roll: int, attack_check: Dictionary) -> bool:
@@ -484,11 +462,15 @@ func _get_effective_luck(unit_state: BattleUnitState) -> int:
 
 
 func _resolve_damage_outcome(source_unit: BattleUnitState, target_unit: BattleUnitState, effect_def) -> Dictionary:
+	var damage_roll := _roll_damage_dice(effect_def)
 	var base_damage := maxi(int(effect_def.power) if effect_def != null else 0, 0)
+	if not damage_roll.is_empty():
+		base_damage += int(damage_roll.get("damage_dice_total", 0)) + int(damage_roll.get("damage_dice_bonus", 0))
 	var offense_multiplier := _build_offense_multiplier(source_unit, target_unit, effect_def)
 	var rolled_damage := maxi(int(round(float(base_damage) * offense_multiplier)), 0)
-	var damage_tag := _resolve_damage_tag(effect_def)
-	var mitigation_tier := _resolve_mitigation_tier(target_unit, damage_tag)
+	var damage_tag := _resolve_damage_tag(source_unit, effect_def)
+	var mitigation_tier_result := _resolve_mitigation_tier_result(target_unit, damage_tag)
+	var mitigation_tier := ProgressionDataUtils.to_string_name(mitigation_tier_result.get("tier", MITIGATION_TIER_NORMAL))
 	var tier_adjusted_damage := rolled_damage
 	match mitigation_tier:
 		MITIGATION_TIER_IMMUNE:
@@ -501,34 +483,70 @@ func _resolve_damage_outcome(source_unit: BattleUnitState, target_unit: BattleUn
 	var mitigation := _build_fixed_mitigation(target_unit, effect_def, damage_tag)
 	_apply_black_star_brand_guard_ignore(mitigation, target_unit)
 	_apply_low_luck_black_star_wedge_guard_ignore(mitigation, source_unit)
-	var typed_resistance := int(mitigation.get("typed_resistance", 0))
+	_trim_fixed_mitigation_sources(mitigation)
 	var buff_reduction := int(mitigation.get("buff_reduction", 0))
 	var stance_reduction := int(mitigation.get("stance_reduction", 0))
+	var passive_reduction := int(mitigation.get("passive_reduction", 0))
 	var content_dr := int(mitigation.get("content_dr", 0))
 	var guard_block := int(mitigation.get("guard_block", 0))
 	var guard_ignore_applied := int(mitigation.get("guard_ignore_applied", 0))
-	var fixed_mitigation_total := typed_resistance + buff_reduction + stance_reduction + content_dr + guard_block
+	var fixed_mitigation_total := buff_reduction + stance_reduction + passive_reduction + content_dr + guard_block
 	var final_damage := tier_adjusted_damage - fixed_mitigation_total
 	var resolved_damage := maxi(final_damage, MIN_DAMAGE_FLOOR)
 	return {
 		"damage_tag": damage_tag,
 		"mitigation_tier": mitigation_tier,
+		"mitigation_sources": mitigation_tier_result.get("sources", []),
 		"base_damage": base_damage,
+		"damage_dice_count": int(damage_roll.get("damage_dice_count", 0)),
+		"damage_dice_sides": int(damage_roll.get("damage_dice_sides", 0)),
+		"damage_dice_rolls": damage_roll.get("damage_dice_rolls", []),
+		"damage_dice_total": int(damage_roll.get("damage_dice_total", 0)),
+		"damage_dice_bonus": int(damage_roll.get("damage_dice_bonus", 0)),
+		"damage_dice_max_total": int(damage_roll.get("damage_dice_max_total", 0)),
+		"damage_dice_is_max": bool(damage_roll.get("damage_dice_is_max", false)),
 		"offense_multiplier": offense_multiplier,
 		"rolled_damage": rolled_damage,
 		"tier_adjusted_damage": tier_adjusted_damage,
 		"resolved_damage": resolved_damage,
-		"typed_resistance": typed_resistance,
 		"buff_reduction": buff_reduction,
 		"stance_reduction": stance_reduction,
+		"passive_reduction": passive_reduction,
 		"content_dr": content_dr,
 		"guard_block": guard_block,
 		"guard_ignore_applied": guard_ignore_applied,
+		"fixed_mitigation_sources": mitigation.get("fixed_mitigation_sources", []),
 		"low_luck_black_star_wedge_triggered": bool(mitigation.get("low_luck_black_star_wedge_triggered", false)),
 		"fixed_mitigation_total": fixed_mitigation_total,
 		"fully_absorbed_by_mitigation": resolved_damage <= 0 \
 			and mitigation_tier != MITIGATION_TIER_IMMUNE \
 			and tier_adjusted_damage > 0,
+	}
+
+
+func _roll_damage_dice(effect_def) -> Dictionary:
+	if effect_def == null or effect_def.params == null:
+		return {}
+	var dice_count := maxi(int(effect_def.params.get("dice_count", effect_def.params.get("damage_dice_count", 0))), 0)
+	var dice_sides := maxi(int(effect_def.params.get("dice_sides", effect_def.params.get("damage_dice_sides", 0))), 0)
+	if dice_count <= 0 or dice_sides <= 0:
+		return {}
+	var rolls: Array[int] = []
+	var dice_total := 0
+	for _roll_index in range(dice_count):
+		var roll := int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(1, dice_sides))
+		rolls.append(roll)
+		dice_total += roll
+	var dice_bonus := int(effect_def.params.get("dice_bonus", effect_def.params.get("damage_dice_bonus", 0)))
+	var max_total := dice_count * dice_sides
+	return {
+		"damage_dice_count": dice_count,
+		"damage_dice_sides": dice_sides,
+		"damage_dice_rolls": rolls,
+		"damage_dice_total": dice_total,
+		"damage_dice_bonus": dice_bonus,
+		"damage_dice_max_total": max_total,
+		"damage_dice_is_max": dice_total == max_total,
 	}
 
 
@@ -551,17 +569,11 @@ func _build_offense_multiplier(source_unit: BattleUnitState, target_unit: Battle
 	return maxf(multiplier, 0.0)
 
 
-func _resolve_damage_tag(effect_def) -> StringName:
-	var resistance_attribute_id: StringName = effect_def.resistance_attribute_id if effect_def != null else &""
-	match resistance_attribute_id:
-		ATTRIBUTE_SERVICE_SCRIPT.FIRE_RESISTANCE:
-			return DAMAGE_TAG_FIRE
-		ATTRIBUTE_SERVICE_SCRIPT.FREEZE_RESISTANCE:
-			return DAMAGE_TAG_FREEZE
-		ATTRIBUTE_SERVICE_SCRIPT.LIGHTNING_RESISTANCE:
-			return DAMAGE_TAG_LIGHTNING
-		ATTRIBUTE_SERVICE_SCRIPT.NEGATIVE_ENERGY_RESISTANCE:
-			return DAMAGE_TAG_NEGATIVE_ENERGY
+func _resolve_damage_tag(source_unit: BattleUnitState, effect_def) -> StringName:
+	if _should_use_weapon_physical_damage_tag(effect_def):
+		var weapon_damage_tag := _get_unit_weapon_physical_damage_tag(source_unit)
+		if weapon_damage_tag != &"":
+			return weapon_damage_tag
 	var explicit_effect_tag := ProgressionDataUtils.to_string_name(effect_def.damage_tag if effect_def != null else &"")
 	if explicit_effect_tag != &"":
 		return explicit_effect_tag
@@ -572,11 +584,34 @@ func _resolve_damage_tag(effect_def) -> StringName:
 	return DAMAGE_TAG_PHYSICAL_SLASH
 
 
+func _should_use_weapon_physical_damage_tag(effect_def) -> bool:
+	if effect_def == null or effect_def.params == null:
+		return false
+	return bool(effect_def.params.get("use_weapon_physical_damage_tag", false))
+
+
+func _get_unit_weapon_physical_damage_tag(unit_state: BattleUnitState) -> StringName:
+	if unit_state == null:
+		return &""
+	var damage_tag := ProgressionDataUtils.to_string_name(unit_state.weapon_physical_damage_tag)
+	if _is_physical_damage_tag(damage_tag):
+		return damage_tag
+	return &""
+
+
 func _resolve_mitigation_tier(target_unit: BattleUnitState, damage_tag: StringName) -> StringName:
+	return ProgressionDataUtils.to_string_name(_resolve_mitigation_tier_result(target_unit, damage_tag).get("tier", MITIGATION_TIER_NORMAL))
+
+
+func _resolve_mitigation_tier_result(target_unit: BattleUnitState, damage_tag: StringName) -> Dictionary:
 	if target_unit == null:
-		return MITIGATION_TIER_NORMAL
-	var has_half := false
-	var has_double := false
+		return {
+			"tier": MITIGATION_TIER_NORMAL,
+			"sources": [],
+		}
+	var half_sources: Array[Dictionary] = []
+	var double_sources: Array[Dictionary] = []
+	var immune_sources: Array[Dictionary] = []
 	for status_id_variant in target_unit.status_effects.keys():
 		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
 		var status_entry = target_unit.get_status_effect(status_id)
@@ -587,18 +622,38 @@ func _resolve_mitigation_tier(target_unit: BattleUnitState, damage_tag: StringNa
 		var mitigation_tier := ProgressionDataUtils.to_string_name(status_entry.params.get("mitigation_tier", ""))
 		match mitigation_tier:
 			MITIGATION_TIER_IMMUNE:
-				return MITIGATION_TIER_IMMUNE
+				immune_sources.append(_build_mitigation_source(status_id, "mitigation_tier", 0, mitigation_tier))
 			MITIGATION_TIER_HALF:
-				has_half = true
+				half_sources.append(_build_mitigation_source(status_id, "mitigation_tier", 0, mitigation_tier))
 			MITIGATION_TIER_DOUBLE:
-				has_double = true
-	if has_half and has_double:
-		return MITIGATION_TIER_NORMAL
-	if has_half:
-		return MITIGATION_TIER_HALF
-	if has_double:
-		return MITIGATION_TIER_DOUBLE
-	return MITIGATION_TIER_NORMAL
+				double_sources.append(_build_mitigation_source(status_id, "mitigation_tier", 0, mitigation_tier))
+	if not immune_sources.is_empty():
+		return {
+			"tier": MITIGATION_TIER_IMMUNE,
+			"sources": immune_sources,
+		}
+	if not half_sources.is_empty() and not double_sources.is_empty():
+		var cancelled_sources: Array[Dictionary] = []
+		cancelled_sources.append_array(half_sources)
+		cancelled_sources.append_array(double_sources)
+		return {
+			"tier": MITIGATION_TIER_NORMAL,
+			"sources": cancelled_sources,
+		}
+	if not half_sources.is_empty():
+		return {
+			"tier": MITIGATION_TIER_HALF,
+			"sources": half_sources,
+		}
+	if not double_sources.is_empty():
+		return {
+			"tier": MITIGATION_TIER_DOUBLE,
+			"sources": double_sources,
+		}
+	return {
+		"tier": MITIGATION_TIER_NORMAL,
+		"sources": [],
+	}
 
 
 func _status_params_apply_to_damage_tag(params: Dictionary, damage_tag: StringName) -> bool:
@@ -629,12 +684,24 @@ func _is_physical_damage_tag(damage_tag: StringName) -> bool:
 
 
 func _build_fixed_mitigation(target_unit: BattleUnitState, effect_def, damage_tag: StringName) -> Dictionary:
+	var buff_reduction_result := _resolve_buff_reduction_result(target_unit)
+	var stance_reduction_result := _resolve_stance_reduction_result(target_unit, damage_tag)
+	var passive_reduction_result := _resolve_passive_reduction_result(target_unit)
+	var content_dr_result := _resolve_content_dr_result(target_unit, effect_def, damage_tag)
+	var guard_block_result := _resolve_guard_block_result(target_unit, damage_tag)
+	var sources: Array[Dictionary] = []
+	sources.append_array(buff_reduction_result.get("sources", []))
+	sources.append_array(stance_reduction_result.get("sources", []))
+	sources.append_array(passive_reduction_result.get("sources", []))
+	sources.append_array(content_dr_result.get("sources", []))
+	sources.append_array(guard_block_result.get("sources", []))
 	return {
-		"typed_resistance": _resolve_typed_resistance(target_unit, effect_def),
-		"buff_reduction": _resolve_buff_reduction(target_unit),
-		"stance_reduction": _resolve_stance_reduction(target_unit, damage_tag),
-		"content_dr": _resolve_content_dr(target_unit, effect_def, damage_tag),
-		"guard_block": _resolve_guard_block(target_unit, damage_tag),
+		"buff_reduction": int(buff_reduction_result.get("value", 0)),
+		"stance_reduction": int(stance_reduction_result.get("value", 0)),
+		"passive_reduction": int(passive_reduction_result.get("value", 0)),
+		"content_dr": int(content_dr_result.get("value", 0)),
+		"guard_block": int(guard_block_result.get("value", 0)),
+		"fixed_mitigation_sources": sources,
 		"guard_ignore_applied": 0,
 	}
 
@@ -667,35 +734,91 @@ func _apply_black_star_brand_guard_ignore(mitigation: Dictionary, target_unit: B
 	target_unit.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW)
 
 
-func _resolve_typed_resistance(target_unit: BattleUnitState, effect_def) -> int:
-	if target_unit == null or target_unit.attribute_snapshot == null or effect_def == null:
-		return 0
-	var resistance_attribute_id: StringName = effect_def.resistance_attribute_id
-	if resistance_attribute_id == &"":
-		return 0
-	return maxi(int(target_unit.attribute_snapshot.get_value(resistance_attribute_id)), 0)
-
-
 func _resolve_buff_reduction(target_unit: BattleUnitState) -> int:
+	return int(_resolve_buff_reduction_result(target_unit).get("value", 0))
+
+
+func _resolve_buff_reduction_result(target_unit: BattleUnitState) -> Dictionary:
 	if not _has_status_effect(target_unit, STATUS_DAMAGE_REDUCTION_UP):
-		return 0
+		return {
+			"value": 0,
+			"sources": [],
+		}
 	var damage_reduction_strength := _get_status_strength(target_unit, STATUS_DAMAGE_REDUCTION_UP)
-	return maxi(damage_reduction_strength, 0) * DAMAGE_REDUCTION_UP_FIXED_PER_POWER
+	var value := maxi(damage_reduction_strength, 0) * DAMAGE_REDUCTION_UP_FIXED_PER_POWER
+	return {
+		"value": value,
+		"sources": [_build_mitigation_source(STATUS_DAMAGE_REDUCTION_UP, "buff_reduction", value)],
+	}
 
 
 func _resolve_stance_reduction(target_unit: BattleUnitState, damage_tag: StringName) -> int:
+	return int(_resolve_stance_reduction_result(target_unit, damage_tag).get("value", 0))
+
+
+func _resolve_stance_reduction_result(target_unit: BattleUnitState, damage_tag: StringName) -> Dictionary:
 	if not _is_physical_damage_tag(damage_tag):
-		return 0
+		return {
+			"value": 0,
+			"sources": [],
+		}
 	if not _has_status_effect(target_unit, STATUS_GUARDING):
-		return 0
+		return {
+			"value": 0,
+			"sources": [],
+		}
 	var guarding_strength := _get_status_strength(target_unit, STATUS_GUARDING)
-	return maxi(guarding_strength, 0) * GUARDING_PHYSICAL_REDUCTION_PER_POWER
+	var value := maxi(guarding_strength, 0) * GUARDING_PHYSICAL_REDUCTION_PER_POWER
+	return {
+		"value": value,
+		"sources": [_build_mitigation_source(STATUS_GUARDING, "stance_reduction", value)],
+	}
+
+
+func _resolve_passive_reduction(target_unit: BattleUnitState) -> int:
+	return int(_resolve_passive_reduction_result(target_unit).get("value", 0))
+
+
+func _resolve_passive_reduction_result(target_unit: BattleUnitState) -> Dictionary:
+	if target_unit == null:
+		return {
+			"value": 0,
+			"sources": [],
+		}
+	var max_passive_reduction := 0
+	var sources: Array[Dictionary] = []
+	for status_id_variant in target_unit.status_effects.keys():
+		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
+		var status_entry = target_unit.get_status_effect(status_id)
+		if status_entry == null or status_entry.params == null:
+			continue
+		var passive_reduction := maxi(int(status_entry.params.get("passive_reduction", 0)), 0)
+		if passive_reduction <= 0:
+			continue
+		if passive_reduction > max_passive_reduction:
+			max_passive_reduction = passive_reduction
+			sources.clear()
+			sources.append(_build_mitigation_source(status_id, "passive_reduction", passive_reduction))
+		elif passive_reduction == max_passive_reduction:
+			sources.append(_build_mitigation_source(status_id, "passive_reduction", passive_reduction))
+	return {
+		"value": max_passive_reduction,
+		"sources": sources,
+	}
 
 
 func _resolve_content_dr(target_unit: BattleUnitState, effect_def, damage_tag: StringName) -> int:
+	return int(_resolve_content_dr_result(target_unit, effect_def, damage_tag).get("value", 0))
+
+
+func _resolve_content_dr_result(target_unit: BattleUnitState, effect_def, damage_tag: StringName) -> Dictionary:
 	if target_unit == null or not _is_physical_damage_tag(damage_tag):
-		return 0
+		return {
+			"value": 0,
+			"sources": [],
+		}
 	var max_content_dr := 0
+	var sources: Array[Dictionary] = []
 	for status_id_variant in target_unit.status_effects.keys():
 		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
 		var status_entry = target_unit.get_status_effect(status_id)
@@ -709,14 +832,30 @@ func _resolve_content_dr(target_unit: BattleUnitState, effect_def, damage_tag: S
 		var bypass_tag := ProgressionDataUtils.to_string_name(status_entry.params.get("dr_bypass_tag", status_entry.params.get("bypass_tag", "")))
 		if bypass_tag != &"" and _effect_has_bypass_tag(effect_def, bypass_tag):
 			continue
-		max_content_dr = maxi(max_content_dr, content_dr)
-	return max_content_dr
+		if content_dr > max_content_dr:
+			max_content_dr = content_dr
+			sources.clear()
+			sources.append(_build_mitigation_source(status_id, "content_dr", content_dr))
+		elif content_dr == max_content_dr:
+			sources.append(_build_mitigation_source(status_id, "content_dr", content_dr))
+	return {
+		"value": max_content_dr,
+		"sources": sources,
+	}
 
 
 func _resolve_guard_block(target_unit: BattleUnitState, damage_tag: StringName) -> int:
+	return int(_resolve_guard_block_result(target_unit, damage_tag).get("value", 0))
+
+
+func _resolve_guard_block_result(target_unit: BattleUnitState, damage_tag: StringName) -> Dictionary:
 	if target_unit == null:
-		return 0
+		return {
+			"value": 0,
+			"sources": [],
+		}
 	var max_guard_block := 0
+	var sources: Array[Dictionary] = []
 	for status_id_variant in target_unit.status_effects.keys():
 		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
 		var status_entry = target_unit.get_status_effect(status_id)
@@ -724,8 +863,61 @@ func _resolve_guard_block(target_unit: BattleUnitState, damage_tag: StringName) 
 			continue
 		if not _status_params_apply_to_damage_tag(status_entry.params, damage_tag):
 			continue
-		max_guard_block = maxi(max_guard_block, maxi(int(status_entry.params.get("guard_block", 0)), 0))
-	return max_guard_block
+		var guard_block := maxi(int(status_entry.params.get("guard_block", 0)), 0)
+		if guard_block <= 0:
+			continue
+		if guard_block > max_guard_block:
+			max_guard_block = guard_block
+			sources.clear()
+			sources.append(_build_mitigation_source(status_id, "guard_block", guard_block))
+		elif guard_block == max_guard_block:
+			sources.append(_build_mitigation_source(status_id, "guard_block", guard_block))
+	return {
+		"value": max_guard_block,
+		"sources": sources,
+	}
+
+
+func _build_mitigation_source(status_id: StringName, source_type: String, value: int = 0, tier: StringName = &"") -> Dictionary:
+	return {
+		"status_id": String(status_id),
+		"type": source_type,
+		"value": value,
+		"tier": String(tier),
+	}
+
+
+func _trim_fixed_mitigation_sources(mitigation: Dictionary) -> void:
+	if mitigation == null:
+		return
+	var sources = mitigation.get("fixed_mitigation_sources", [])
+	if sources is not Array:
+		mitigation["fixed_mitigation_sources"] = []
+		return
+	var filtered_sources: Array[Dictionary] = []
+	for source_variant in sources:
+		if source_variant is not Dictionary:
+			continue
+		var source := source_variant as Dictionary
+		var source_type := String(source.get("type", ""))
+		var remaining := 0
+		match source_type:
+			"buff_reduction":
+				remaining = int(mitigation.get("buff_reduction", 0))
+			"stance_reduction":
+				remaining = int(mitigation.get("stance_reduction", 0))
+			"passive_reduction":
+				remaining = int(mitigation.get("passive_reduction", 0))
+			"content_dr":
+				remaining = int(mitigation.get("content_dr", 0))
+			"guard_block":
+				remaining = int(mitigation.get("guard_block", 0))
+		if remaining <= 0:
+			continue
+		var updated_source := source.duplicate()
+		updated_source["value"] = remaining
+		filtered_sources.append(updated_source)
+	mitigation["fixed_mitigation_sources"] = filtered_sources
 
 
 func _is_attack_crit_locked(unit_state: BattleUnitState) -> bool:
@@ -889,21 +1081,27 @@ func _coerce_damage_outcome(resolved_damage_input) -> Dictionary:
 		var outcome := (resolved_damage_input as Dictionary).duplicate(true)
 		if not outcome.has("resolved_damage"):
 			outcome["resolved_damage"] = maxi(int(outcome.get("damage", 0)), 0)
+		if not outcome.has("mitigation_sources"):
+			outcome["mitigation_sources"] = []
+		if not outcome.has("fixed_mitigation_sources"):
+			outcome["fixed_mitigation_sources"] = []
 		return outcome
 	var normalized_damage := maxi(int(resolved_damage_input), 0)
 	return {
 		"damage_tag": &"",
 		"mitigation_tier": MITIGATION_TIER_NORMAL,
+		"mitigation_sources": [],
 		"base_damage": normalized_damage,
 		"offense_multiplier": 1.0,
 		"rolled_damage": normalized_damage,
 		"tier_adjusted_damage": normalized_damage,
 		"resolved_damage": normalized_damage,
-		"typed_resistance": 0,
 		"buff_reduction": 0,
 		"stance_reduction": 0,
+		"passive_reduction": 0,
 		"content_dr": 0,
 		"guard_block": 0,
+		"fixed_mitigation_sources": [],
 		"fixed_mitigation_total": 0,
 		"fully_absorbed_by_mitigation": false,
 	}

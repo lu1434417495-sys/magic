@@ -33,6 +33,8 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var knowledge_requirements: Array[StringName] = []
 ## 字段说明：在编辑器中暴露技能等级前置映射，键为技能标识、值为所需等级。
 @export var skill_level_requirements: Dictionary = {}
+## 字段说明：在编辑器中暴露基础属性前置映射，键为属性标识、值为所需数值。
+@export var attribute_requirements: Dictionary = {}
 ## 字段说明：在编辑器中暴露成就前置集合配置，便于策划表达成就解锁条件。
 @export var achievement_requirements: Array[StringName] = []
 ## 字段说明：在编辑器中暴露升级来源技能集合配置，用于记录复合技能的来源血缘。
@@ -43,6 +45,10 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var core_skill_transition_mode: StringName = &"inherit"
 ## 字段说明：在编辑器中暴露熟练度来源列表配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var mastery_sources: Array[StringName] = []
+## 字段说明：在编辑器中暴露满级成长档位；未配置属性成长时可留空。
+@export var growth_tier: StringName = &""
+## 字段说明：技能达到当前允许最高等级后提供的基础属性进度，键为基础属性标识、值为进度量。
+@export var attribute_growth_progress: Dictionary = {}
 ## 字段说明：在编辑器中暴露属性修正列表配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var attribute_modifiers: Array[AttributeModifier] = []
 ## 字段说明：在编辑器中暴露战斗配置档配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

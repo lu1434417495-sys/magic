@@ -155,7 +155,6 @@ func apply_timed_terrain_effect_tick(
 	temp_effect.effect_type = effect_state.effect_type
 	temp_effect.power = int(effect_state.power)
 	temp_effect.damage_tag = effect_state.damage_tag
-	temp_effect.resistance_attribute_id = effect_state.resistance_attribute_id
 	temp_effect.status_id = ProgressionDataUtils.to_string_name(effect_state.params.get("status_id", ""))
 	temp_effect.params = effect_state.params.duplicate(true)
 
@@ -247,7 +246,6 @@ func _build_timed_terrain_effect(
 	effect_state.target_team_filter = _resolve_effect_target_filter(skill_def, effect_def)
 	effect_state.power = int(effect_def.power)
 	effect_state.damage_tag = effect_def.damage_tag
-	effect_state.resistance_attribute_id = effect_def.resistance_attribute_id
 	effect_state.tick_interval_tu = tick_interval_tu
 	effect_state.remaining_tu = maxi(duration_tu, tick_interval_tu)
 	effect_state.next_tick_at_tu = _runtime.get_state().timeline.current_tu + tick_interval_tu if _runtime != null and _runtime.get_state() != null and _runtime.get_state().timeline != null else tick_interval_tu

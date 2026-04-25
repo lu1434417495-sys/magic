@@ -31,6 +31,8 @@ var professions: Dictionary = {}
 var known_knowledge_ids: Array[StringName] = []
 ## 字段说明：保存激活核心技能标识列表，便于批量遍历、交叉查找和界面展示。
 var active_core_skill_ids: Array[StringName] = []
+## 字段说明：按基础属性缓存满级技能提供的成长进度，达到阈值后由规则服务转化为基础属性点。
+var attribute_growth_progress: Dictionary = {}
 ## 字段说明：缓存成就进度集合字典，集中保存可按键查询的运行时数据。
 var achievement_progress: Dictionary = {}
 ## 字段说明：保存待处理职业候选项，便于顺序遍历、批量展示、批量运算和整体重建。
@@ -209,6 +211,7 @@ func to_dict() -> Dictionary:
 		"professions": professions_data,
 		"known_knowledge_ids": ProgressionDataUtils.string_name_array_to_string_array(known_knowledge_ids),
 		"active_core_skill_ids": ProgressionDataUtils.string_name_array_to_string_array(active_core_skill_ids),
+		"attribute_growth_progress": ProgressionDataUtils.string_name_int_map_to_string_dict(attribute_growth_progress),
 		"achievement_progress": achievement_progress_data,
 		"pending_profession_choices": pending_choices_data,
 		"blocked_relearn_skill_ids": ProgressionDataUtils.string_name_array_to_string_array(blocked_relearn_skill_ids),
@@ -225,6 +228,7 @@ static func from_dict(data: Dictionary):
 	progress.unit_base_attributes = UnitBaseAttributes.from_dict(data.get("unit_base_attributes", {}))
 	progress.reputation_state = UNIT_REPUTATION_STATE_SCRIPT.from_dict(data.get("reputation_state", {}))
 	progress.known_knowledge_ids = ProgressionDataUtils.to_string_name_array(data.get("known_knowledge_ids", []))
+	progress.attribute_growth_progress = ProgressionDataUtils.to_string_name_int_map(data.get("attribute_growth_progress", {}))
 	progress.blocked_relearn_skill_ids = ProgressionDataUtils.to_string_name_array(data.get("blocked_relearn_skill_ids", []))
 	progress.merged_skill_source_map = ProgressionDataUtils.to_string_name_array_map(data.get("merged_skill_source_map", {}))
 

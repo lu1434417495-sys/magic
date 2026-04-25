@@ -22,15 +22,11 @@ source_id = "bronze_sword"
 [resource]
 script = ExtResource("1_item")
 item_id = "bronze_sword"
+base_item_id = "weapon_sword_one_handed_base"
 display_name = "青铜短剑"
 description = "朴素但可靠的入门单手武器，装备后提升攻击检定加值。"
-icon = "res://icon.svg"
 is_stackable = false
 base_price = 120
 sellable = true
 max_stack = 1
-item_category = "equipment"
-tags = Array[StringName](["weapon", "melee", "one_handed", "sword", "weapon_class_sword"])
-equipment_slot_ids = Array[String](["main_hand"])
-equipment_type_id = "weapon"
 attribute_modifiers = Array[Resource]([SubResource("Resource_attack_bonus"), SubResource("Resource_hit_bonus")])

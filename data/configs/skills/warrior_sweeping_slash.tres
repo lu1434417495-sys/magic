@@ -10,6 +10,7 @@
 script = ExtResource("3_ucqm2")
 effect_type = &"damage"
 power = 12
+damage_tag = &"physical_slash"
 
 [sub_resource type="Resource" id="Resource_qbvyj"]
 script = ExtResource("4_5ibie")

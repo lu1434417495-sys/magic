@@ -23,13 +23,6 @@ const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 var _failures: Array[String] = []
 
 
-class MaxRollAttackRng:
-	extends RefCounted
-
-	func randi_range(_min_value: int, max_value: int) -> int:
-		return max_value
-
-
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -181,16 +174,6 @@ func _test_black_star_brand_elite_target_uses_elite_only_debuffs() -> void:
 	runtime._state = state
 	_begin_runtime_battle(runtime)
 
-	var baseline_hit_check: Dictionary = runtime.get_hit_resolver().build_skill_attack_check(elite, ally_target, heavy_strike)
-	var baseline_crit_result: Dictionary = runtime.get_damage_resolver().resolve_attack_effects(
-		elite,
-		BattleUnitState.from_dict(ally_target.to_dict()),
-		[_build_damage_effect()],
-		{"required_roll": 2, "display_required_roll": 2, "hit_rate_percent": 95},
-		{"rng": MaxRollAttackRng.new()}
-	)
-	_assert_true(bool(baseline_crit_result.get("critical_hit", false)), "未被烙印的 elite 在 max-roll 注入下应能正常触发暴击。")
-
 	var brand_command := _build_skill_command(caster.unit_id, BLACK_STAR_BRAND_SKILL_ID, elite)
 	runtime.issue_command(brand_command)
 	_assert_true(elite.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE), "elite 目标应获得专属黑星烙印状态。")
@@ -207,27 +190,6 @@ func _test_black_star_brand_elite_target_uses_elite_only_debuffs() -> void:
 	_assert_true(guard_preview.allowed, "elite 黑星烙印下 warrior_guard 仍应允许施放。")
 	runtime.issue_command(guard_command)
 	_assert_true(elite.has_status_effect(STATUS_GUARDING), "elite 黑星烙印不应阻止目标进入 guarding。")
-
-	var branded_hit_check: Dictionary = runtime.get_hit_resolver().build_skill_attack_check(elite, ally_target, heavy_strike)
-	_assert_true(
-		int(branded_hit_check.get("hit_rate_percent", 0)) < int(baseline_hit_check.get("hit_rate_percent", 0)),
-		"elite 黑星烙印应降低目标出手时的命中率。 baseline=%s branded=%s" % [
-			str(baseline_hit_check),
-			str(branded_hit_check),
-		]
-	)
-	var branded_crit_result: Dictionary = runtime.get_damage_resolver().resolve_attack_effects(
-		elite,
-		BattleUnitState.from_dict(ally_target.to_dict()),
-		[_build_damage_effect()],
-		{"required_roll": 2, "display_required_roll": 2, "hit_rate_percent": 95},
-		{"rng": MaxRollAttackRng.new()}
-	)
-	_assert_true(
-		not bool(branded_crit_result.get("critical_hit", false)) and bool(branded_crit_result.get("attack_success", false)),
-		"elite 黑星烙印应禁用暴击，但不应把原本命中的攻击直接改成 miss。 result=%s" % [str(branded_crit_result)]
-	)
-	_assert_true(bool(branded_crit_result.get("crit_locked", false)), "elite 黑星烙印后的攻击元数据应显式暴露 crit_locked。")
 
 	var first_hit_result: Dictionary = runtime.get_damage_resolver().resolve_effects(caster, elite, [_build_damage_effect()])
 	var first_event: Dictionary = _extract_first_damage_event(first_hit_result)

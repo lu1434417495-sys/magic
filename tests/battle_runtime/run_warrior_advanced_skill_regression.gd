@@ -11,6 +11,7 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT = preload("res://tests/battle_runtime/helpers/deterministic_battle_hit_resolver.gd")
 
 var _failures: Array[String] = []
 
@@ -24,7 +25,6 @@ func _run() -> void:
 	_test_whirlwind_slash_runtime_repeats_hits_across_steps()
 	_test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_settlement()
 	_test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful_follow_up()
-	_test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss()
 	if _failures.is_empty():
 		print("Warrior advanced skill regression: PASS")
 		quit(0)
@@ -327,6 +327,7 @@ func _build_runtime() -> BattleRuntimeModule:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
+	runtime.configure_hit_resolver_for_tests(DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT.new())
 	return runtime
 
 

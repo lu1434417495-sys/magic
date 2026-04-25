@@ -356,7 +356,7 @@ func _build_inventory_entry(item_id: StringName, quantity: int, storage_mode: St
 		"total_quantity": count_item(normalized_item_id),
 		"is_stackable": item_def.is_stackable if item_def != null else resolved_quantity > 1,
 		"stack_limit": item_def.get_effective_max_stack() if item_def != null else maxi(resolved_quantity, 1),
-		"item_category": String(item_def.item_category) if item_def != null else "",
+		"item_category": String(item_def.get_item_category_normalized()) if item_def != null else "",
 		"is_skill_book": item_def != null and item_def.is_skill_book(),
 		"granted_skill_id": String(granted_skill_id),
 		"storage_mode": String(storage_mode),

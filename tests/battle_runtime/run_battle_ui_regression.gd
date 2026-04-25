@@ -90,8 +90,7 @@ func _test_multi_unit_hud_copy_and_selection_state() -> void:
 	_assert_eq(int(snapshot.get("selected_skill_target_min_count", 0)), 2, "multi_unit 技能应暴露最小目标数量。")
 	_assert_eq(int(snapshot.get("selected_skill_target_max_count", 0)), 3, "multi_unit 技能应暴露最大目标数量。")
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains("已满足最小数量"), "multi_unit HUD 副标题应提示确认态。")
-	_assert_true(String(snapshot.get("hint_text", "")).contains("点击自己或空地确认"), "multi_unit HUD 提示应说明确认路径。")
-	_assert_true(String(snapshot.get("command_text", "")).contains("可点击自己或空地确认"), "multi_unit 命令摘要应说明确认路径。")
+	_assert_true(String(snapshot.get("skill_subtitle", "")).contains("点击自己或空地确认"), "multi_unit HUD 副标题应说明确认路径。")
 	game_session.queue_free()
 	await process_frame
 
@@ -178,7 +177,6 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 		"HUD snapshot 应复用 runtime preview 的阶段命中率数组。"
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "HUD 副标题应显示 resolver 命中摘要。")
-	_assert_true(String(snapshot.get("command_text", "")).contains(hit_preview_text), "HUD 指令摘要应显示 resolver 命中摘要。")
 
 	game_session.queue_free()
 	await process_frame
@@ -259,7 +257,6 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 		"HUD snapshot 应保留普通单段技能的阶段命中率数组。"
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "普通单段技能 HUD 副标题应显示 resolver 命中摘要。")
-	_assert_true(String(snapshot.get("command_text", "")).contains(hit_preview_text), "普通单段技能 HUD 指令摘要应显示 resolver 命中摘要。")
 
 	game_session.queue_free()
 	await process_frame
@@ -442,8 +439,8 @@ func _test_fate_preview_badges_surface_high_threat_and_mercy_states() -> void:
 	_assert_true(high_threat_badge_texts.has("大失败 1"), "命运概览应显示大失败区间。")
 	_assert_true(high_threat_badge_texts.has("高位大成功 18-20"), "crit_gate_die==20 时应显示高位大成功区间。")
 	_assert_true(
-		high_threat_panel.command_summary_label.tooltip_text.contains("高位大成功：18-20"),
-		"命令悬浮提示应回显高位大成功区间。"
+		high_threat_panel.skill_subtitle_label.tooltip_text.contains("高位大成功：18-20"),
+		"技能副标题悬浮提示应回显高位大成功区间。"
 	)
 	var fumble_badge := _find_badge_panel(high_threat_panel.fate_badge_row, "大失败 1")
 	var high_threat_badge := _find_badge_panel(high_threat_panel.fate_badge_row, "高位大成功 18-20")
@@ -477,12 +474,12 @@ func _test_fate_preview_badges_surface_high_threat_and_mercy_states() -> void:
 	_assert_true(mercy_badge_texts.has("大失败 1-2"), "命运怜悯场景应显示扩大的大失败区间。")
 	_assert_true(mercy_badge_texts.has("命运的怜悯"), "effective_luck<=-5 且处于劣势时应显示命运的怜悯徽标。")
 	_assert_true(
-		not mercy_badge_texts.has("高位大成功 20-20") and not mercy_panel.command_summary_label.tooltip_text.contains("高位大成功"),
+		not mercy_badge_texts.has("高位大成功 20-20") and not mercy_panel.skill_subtitle_label.tooltip_text.contains("高位大成功"),
 		"crit_gate_die!=20 时不应显示高位大成功区间。"
 	)
 	_assert_true(
-		mercy_panel.command_summary_label.tooltip_text.contains("命运的怜悯：已生效"),
-		"命令悬浮提示应说明命运的怜悯已生效。"
+		mercy_panel.skill_subtitle_label.tooltip_text.contains("命运的怜悯：已生效"),
+		"技能副标题悬浮提示应说明命运的怜悯已生效。"
 	)
 
 	mercy_panel.queue_free()
@@ -628,8 +625,8 @@ func _test_force_hit_no_crit_skill_hides_standard_fate_badges() -> void:
 	_assert_true(not _badge_texts_contain_prefix(badge_texts, "大失败"), "force_hit_no_crit 技能不应继续显示标准大失败徽标。")
 	_assert_true(not _badge_texts_contain_prefix(badge_texts, "高位大成功"), "force_hit_no_crit 技能不应继续显示高位大成功徽标。")
 	_assert_true(
-		panel.command_summary_label.tooltip_text.contains("强制命中") and panel.command_summary_label.tooltip_text.contains("不再走标准命中/暴击/大失败骰"),
-		"force_hit_no_crit 技能的命令提示应说明它已切到特殊 fate 口径。"
+		panel.skill_subtitle_label.tooltip_text.contains("强制命中") and panel.skill_subtitle_label.tooltip_text.contains("不再走标准命中/暴击/大失败骰"),
+		"force_hit_no_crit 技能的技能副标题提示应说明它已切到特殊 fate 口径。"
 	)
 
 	panel.queue_free()

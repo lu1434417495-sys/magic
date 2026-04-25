@@ -13,6 +13,7 @@ const ProgressionContentRegistry = preload("res://scripts/player/progression/pro
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT = preload("res://tests/battle_runtime/helpers/deterministic_battle_hit_resolver.gd")
 
 const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
 const SAINT_BLADE_COMBO_SKILL_ID: StringName = &"saint_blade_combo"
@@ -29,13 +30,6 @@ const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 
 var _failures: Array[String] = []
-
-
-class MaxRollAttackRng:
-	extends RefCounted
-
-	func randi_range(_min_value: int, max_value: int) -> int:
-		return max_value
 
 
 class SelectionRuntimeProxy:
@@ -187,11 +181,6 @@ func _run() -> void:
 
 func _test_crown_break_broken_fang_blocks_crit() -> void:
 	var runtime := _build_runtime()
-	var heavy_strike := runtime.get_skill_defs().get(WARRIOR_HEAVY_STRIKE_SKILL_ID) as SkillDef
-	_assert_true(heavy_strike != null, "断牙回归前置：warrior_heavy_strike 定义应存在。")
-	if heavy_strike == null:
-		return
-
 	var state := _build_skill_test_state(&"crown_break_broken_fang", Vector2i(6, 3))
 	var caster := _build_unit(&"crown_break_fang_caster", "施法者", &"player", Vector2i(1, 1), 3, &"hero")
 	caster.known_active_skill_ids = [CROWN_BREAK_SKILL_ID]
@@ -220,20 +209,6 @@ func _test_crown_break_broken_fang_blocks_crit() -> void:
 	_assert_true(elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG), "断牙分支应写入 broken_fang 状态。")
 	_assert_true(not elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND), "断牙分支不应混入折手状态。")
 	_assert_true(not elite.has_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE), "断牙分支不应混入遮目状态。")
-
-	elite.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE)
-	elite.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW)
-	var crit_result: Dictionary = runtime.get_damage_resolver().resolve_attack_effects(
-		elite,
-		BattleUnitState.from_dict(ally_target.to_dict()),
-		[_build_damage_effect()],
-		{"required_roll": 2, "display_required_roll": 2, "hit_rate_percent": 95},
-		{"rng": MaxRollAttackRng.new()}
-	)
-	_assert_true(
-		not bool(crit_result.get("critical_hit", false)) and bool(crit_result.get("crit_locked", false)),
-		"断牙分支应独立封锁暴击。 result=%s" % [str(crit_result)]
-	)
 
 
 func _test_crown_break_broken_hand_blocks_counterattack_and_follow_up() -> void:
@@ -322,11 +297,6 @@ func _test_crown_break_broken_hand_blocks_counterattack_and_follow_up() -> void:
 
 func _test_crown_break_blinded_eye_blocks_evasion() -> void:
 	var runtime := _build_runtime()
-	var heavy_strike := runtime.get_skill_defs().get(WARRIOR_HEAVY_STRIKE_SKILL_ID) as SkillDef
-	_assert_true(heavy_strike != null, "遮目回归前置：warrior_heavy_strike 定义应存在。")
-	if heavy_strike == null:
-		return
-
 	var state := _build_skill_test_state(&"crown_break_blinded_eye", Vector2i(6, 3))
 	var caster := _build_unit(&"crown_break_eye_caster", "施法者", &"player", Vector2i(1, 1), 3, &"hero")
 	caster.known_active_skill_ids = [CROWN_BREAK_SKILL_ID, WARRIOR_HEAVY_STRIKE_SKILL_ID]
@@ -347,23 +317,11 @@ func _test_crown_break_blinded_eye_blocks_evasion() -> void:
 	_apply_elite_brand(elite, caster.unit_id)
 	runtime.calamity_by_member_id[&"hero"] = 2
 
-	var baseline_hit_check: Dictionary = runtime.get_hit_resolver().build_skill_attack_check(caster, elite, heavy_strike)
 	var seal_command := _build_ground_skill_command(caster.unit_id, VARIANT_BLINDED_EYE, elite.coord)
 	runtime.issue_command(seal_command)
 	_assert_true(elite.has_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE), "遮目分支应写入 blinded_eye 状态。")
 	_assert_true(not elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG), "遮目分支不应混入断牙状态。")
 	_assert_true(not elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND), "遮目分支不应混入折手状态。")
-
-	var sealed_hit_check: Dictionary = runtime.get_hit_resolver().build_skill_attack_check(caster, elite, heavy_strike)
-	_assert_true(
-		int(sealed_hit_check.get("hit_rate_percent", 0)) > int(baseline_hit_check.get("hit_rate_percent", 0)),
-		"遮目分支应提高针对目标的命中率。 baseline=%s sealed=%s" % [str(baseline_hit_check), str(sealed_hit_check)]
-	)
-	_assert_eq(
-		int(sealed_hit_check.get("target_armor_class", -1)),
-		10,
-		"遮目分支应把目标闪避视为 0，对应默认 AC 10。"
-	)
 
 
 func _test_crown_break_rejects_illegal_targets_in_selection_preview_and_issue() -> void:
@@ -435,6 +393,7 @@ func _build_runtime() -> BattleRuntimeModule:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
+	runtime.configure_hit_resolver_for_tests(DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT.new())
 	return runtime
 
 

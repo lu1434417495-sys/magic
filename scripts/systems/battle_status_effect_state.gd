@@ -9,6 +9,8 @@ var power := 0
 var params: Dictionary = {}
 var stacks := 0
 var duration := -1
+var tick_interval_tu := 0
+var next_tick_at_tu := 0
 var skip_next_turn_end_decay := false
 
 
@@ -34,6 +36,10 @@ func to_dict() -> Dictionary:
 	}
 	if has_duration():
 		payload["duration"] = duration
+	if tick_interval_tu > 0:
+		payload["tick_interval_tu"] = tick_interval_tu
+	if next_tick_at_tu > 0:
+		payload["next_tick_at_tu"] = next_tick_at_tu
 	if skip_next_turn_end_decay:
 		payload["skip_next_turn_end_decay"] = true
 	return payload
@@ -54,5 +60,7 @@ static func from_dict(data: Variant, fallback_status_id: StringName = &"") -> Ba
 	effect.params = data.get("params", {}).duplicate(true) if data.get("params", {}) is Dictionary else {}
 	effect.stacks = maxi(int(data.get("stacks", 1)), 1)
 	effect.duration = int(data.get("duration", -1)) if data.has("duration") else -1
+	effect.tick_interval_tu = maxi(int(data.get("tick_interval_tu", 0)), 0)
+	effect.next_tick_at_tu = maxi(int(data.get("next_tick_at_tu", 0)), 0)
 	effect.skip_next_turn_end_decay = bool(data.get("skip_next_turn_end_decay", false))
 	return effect

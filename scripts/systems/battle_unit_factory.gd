@@ -8,6 +8,10 @@ const ProgressionDataUtils = preload("res://scripts/player/progression/progressi
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
+const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
+const STATUS_VAJRA_BODY: StringName = &"vajra_body"
+const VAJRA_BODY_NON_CORE_MAX_LEVEL := 9
 
 var _runtime_ref: WeakRef = null
 var _runtime: BattleUnitFactoryRuntime = null:
@@ -65,6 +69,7 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 
 	unit_state.body_size = maxi(int(member_state.body_size), 1)
 	unit_state.attribute_snapshot = snapshot
+	unit_state.weapon_physical_damage_tag = _resolve_member_weapon_physical_damage_tag(unit_state.source_member_id)
 	unit_state.current_hp = clampi(unit_state.current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
 	unit_state.current_mp = clampi(unit_state.current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
 	unit_state.current_stamina = clampi(
@@ -78,6 +83,7 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 		maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
 	)
 	unit_state.current_ap = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
+	unit_state.action_threshold = _resolve_action_threshold_from_snapshot(snapshot)
 	unit_state.current_move_points = clampi(
 		unit_state.current_move_points,
 		0,
@@ -85,6 +91,7 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 	)
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+	_sync_passive_battle_statuses(unit_state, member_state.progression)
 	unit_state.refresh_footprint()
 
 
@@ -99,6 +106,7 @@ func refresh_known_skills(unit_state: BattleUnitState) -> void:
 		return
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+	_sync_passive_battle_statuses(unit_state, member_state.progression)
 
 
 func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
@@ -164,6 +172,7 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	unit_state.refresh_footprint()
 	var snapshot := _build_member_attribute_snapshot(member_state, context)
 	unit_state.attribute_snapshot = snapshot
+	unit_state.weapon_physical_damage_tag = _resolve_member_weapon_physical_damage_tag(member_id)
 	var hp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1)
 	var mp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0)
 	var stamina_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
@@ -174,9 +183,13 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	unit_state.current_aura = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
 	unit_state.current_ap = action_points
 	unit_state.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
-	unit_state.action_threshold = int(context.get("default_ally_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
+	unit_state.action_threshold = _resolve_action_threshold_from_snapshot(
+		snapshot,
+		int(context.get("default_ally_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
+	)
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression if member_state != null else null)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression if member_state != null else null)
+	_sync_passive_battle_statuses(unit_state, member_state.progression if member_state != null else null)
 	unit_state.movement_tags = _extract_movement_tags(context.get("ally_movement_tags", []))
 	if unit_state.known_active_skill_ids.is_empty():
 		var default_skills: Variant = context.get("default_active_skill_ids", [])
@@ -216,7 +229,6 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_enemy_shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
-	unit_state.attribute_snapshot.set_value(&"fire_resistance", int(context.get("default_fire_resistance", 0)))
 	unit_state.action_threshold = int(context.get("default_enemy_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
 	unit_state.current_hp = hp_max
 	unit_state.current_mp = mp_max
@@ -294,13 +306,19 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary) -> Attr
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(int(context.get("default_ally_stamina", 0)), 0))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, maxi(int(context.get("default_ally_aura", 0)), 0))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, maxi(int(context.get("default_ally_ap", 6)), 1))
+		snapshot.set_value(
+			ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD,
+			maxi(
+				int(context.get("default_ally_action_threshold", ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD)),
+				1
+			)
+		)
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_ally_attack_bonus", 4)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_ally_armor_class", 10)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_ally_armor_ac_bonus", 0)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_ally_shield_ac_bonus", 0)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_ally_dodge_bonus", 0)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_ally_deflection_bonus", 0)))
-		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.FIRE_RESISTANCE, int(context.get("default_ally_fire_resistance", 0)))
 		return snapshot
 
 	if _runtime != null and _runtime.get_character_gateway() != null:
@@ -313,14 +331,40 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary) -> Attr
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(int(context.get("default_ally_stamina", 0)), 0))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, maxi(int(context.get("default_ally_aura", 0)), 0))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, maxi(int(context.get("default_ally_ap", 6)), 1))
+	snapshot.set_value(
+		ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD,
+		maxi(
+			int(context.get("default_ally_action_threshold", ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD)),
+			1
+		)
+	)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_ally_attack_bonus", 4)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_ally_armor_class", 10)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_ally_armor_ac_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_ally_shield_ac_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_ally_dodge_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_ally_deflection_bonus", 0)))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.FIRE_RESISTANCE, int(context.get("default_ally_fire_resistance", 0)))
 	return snapshot
+
+
+func _resolve_member_weapon_physical_damage_tag(member_id: StringName) -> StringName:
+	if member_id == &"" or _runtime == null:
+		return &""
+	var character_gateway: Object = _runtime.get_character_gateway()
+	if character_gateway == null or not character_gateway.has_method("get_member_weapon_physical_damage_tag"):
+		return &""
+	return ProgressionDataUtils.to_string_name(character_gateway.call("get_member_weapon_physical_damage_tag", member_id))
+
+
+func _resolve_action_threshold_from_snapshot(
+	snapshot: AttributeSnapshot,
+	fallback_threshold: int = BattleUnitState.DEFAULT_ACTION_THRESHOLD
+) -> int:
+	if snapshot != null and snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD):
+		var snapshot_threshold := int(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD))
+		if snapshot_threshold > 0:
+			return snapshot_threshold
+	return fallback_threshold
 
 
 func _collect_known_active_skill_ids(progression_state) -> Array[StringName]:
@@ -363,6 +407,44 @@ func _collect_known_skill_level_map(progression_state) -> Dictionary:
 		skill_levels[skill_id] = int(skill_progress.skill_level)
 
 	return skill_levels
+
+
+func _sync_passive_battle_statuses(unit_state: BattleUnitState, progression_state) -> void:
+	if unit_state == null:
+		return
+	_sync_vajra_body_status(unit_state, progression_state)
+
+
+func _sync_vajra_body_status(unit_state: BattleUnitState, progression_state) -> void:
+	var skill_progress = progression_state.get_skill_progress(VAJRA_BODY_SKILL_ID) if progression_state != null else null
+	if skill_progress == null or not bool(skill_progress.is_learned):
+		unit_state.erase_status_effect(STATUS_VAJRA_BODY)
+		return
+	var max_status_level := 10 if bool(skill_progress.is_core) else VAJRA_BODY_NON_CORE_MAX_LEVEL
+	var skill_level := clampi(int(skill_progress.skill_level), 0, max_status_level)
+	var passive_reduction := int(floor(float(skill_level + 1) / 2.0)) + 1
+	var control_save_bonus := 0
+	if skill_level >= 9:
+		control_save_bonus = 2
+	elif skill_level >= 7:
+		control_save_bonus = 1
+	var params := {
+		"source_skill_id": String(VAJRA_BODY_SKILL_ID),
+		"skill_level": skill_level,
+		"passive_reduction": passive_reduction,
+	}
+	if control_save_bonus > 0:
+		params["control_save_bonus"] = control_save_bonus
+	if skill_level >= 10:
+		params["forced_move_immune"] = true
+	var status_entry = BATTLE_STATUS_EFFECT_STATE_SCRIPT.new()
+	status_entry.status_id = STATUS_VAJRA_BODY
+	status_entry.source_unit_id = unit_state.unit_id
+	status_entry.power = passive_reduction
+	status_entry.stacks = 1
+	status_entry.duration = -1
+	status_entry.params = params
+	unit_state.set_status_effect(status_entry)
 
 
 func _extract_movement_tags(raw_tags: Variant) -> Array[StringName]:

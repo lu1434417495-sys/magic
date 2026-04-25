@@ -86,33 +86,16 @@ func _test_true_dragon_slash_hits_multiple_units_in_line() -> void:
 
 
 func _test_shield_bash_reduces_target_ap_on_next_turn() -> void:
-	var runtime := _build_runtime()
-	var state := _build_skill_test_state(Vector2i(5, 3))
-	var warrior := _build_unit(&"warrior_shield_bash_user", Vector2i(1, 1), 2)
-	warrior.current_stamina = 3
-	warrior.known_active_skill_ids = [&"warrior_shield_bash"]
-	warrior.known_skill_level_map = {&"warrior_shield_bash": 1}
-	var enemy := _build_unit(&"warrior_shield_bash_target", Vector2i(2, 1), 2)
-	enemy.faction_id = &"enemy"
-	enemy.attribute_snapshot.set_value(&"action_points", 2)
-	enemy.current_hp = 40
+	var attempt := _run_shield_bash_until_staggered(100)
+	if attempt.is_empty():
+		_failures.append("盾击应在多次正式随机命中流程中至少成功施加一次 staggered。")
+		return
+	var runtime := attempt.get("runtime") as BattleRuntimeModule
+	var state := attempt.get("state") as BattleState
+	var enemy := attempt.get("enemy") as BattleUnitState
+	var batch = attempt.get("batch")
 
-	_add_unit(runtime, state, warrior)
-	_add_unit(runtime, state, enemy)
-	state.ally_unit_ids = [warrior.unit_id]
-	state.enemy_unit_ids = [enemy.unit_id]
-	state.active_unit_id = warrior.unit_id
-	runtime._state = state
-
-	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
-	command.unit_id = warrior.unit_id
-	command.skill_id = &"warrior_shield_bash"
-	command.target_unit_id = enemy.unit_id
-	command.target_coord = enemy.coord
-
-	var batch := runtime.issue_command(command)
-	_assert_true(batch.changed_unit_ids.has(enemy.unit_id), "盾击应记录目标单位变更。")
+	_assert_true(batch != null and batch.changed_unit_ids.has(enemy.unit_id), "盾击命中后应记录目标单位变更。")
 	_assert_true(enemy.status_effects.has(&"staggered"), "盾击应为目标挂上 staggered。")
 
 	state.phase = &"timeline_running"
@@ -130,6 +113,46 @@ func _test_shield_bash_reduces_target_ap_on_next_turn() -> void:
 	_assert_true(enemy.status_effects.has(&"staggered"), "目标回合结束后 staggered 不应再因 turn end 被消耗。")
 	_advance_timeline_tu(runtime, state, 60)
 	_assert_true(not enemy.status_effects.has(&"staggered"), "TU 走完后 staggered 应被移除。")
+
+
+func _run_shield_bash_until_staggered(max_attempts: int) -> Dictionary:
+	for attempt_index in range(maxi(max_attempts, 1)):
+		var runtime := _build_runtime()
+		var state := _build_skill_test_state(Vector2i(5, 3))
+		var warrior := _build_unit(StringName("warrior_shield_bash_user_%d" % attempt_index), Vector2i(1, 1), 2)
+		warrior.current_stamina = 3
+		warrior.known_active_skill_ids = [&"warrior_shield_bash"]
+		warrior.known_skill_level_map = {&"warrior_shield_bash": 1}
+		warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+		var enemy := _build_unit(StringName("warrior_shield_bash_target_%d" % attempt_index), Vector2i(2, 1), 2)
+		enemy.faction_id = &"enemy"
+		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+		enemy.attribute_snapshot.set_value(&"action_points", 2)
+		enemy.current_hp = 40
+
+		_add_unit(runtime, state, warrior)
+		_add_unit(runtime, state, enemy)
+		state.ally_unit_ids = [warrior.unit_id]
+		state.enemy_unit_ids = [enemy.unit_id]
+		state.active_unit_id = warrior.unit_id
+		runtime._state = state
+
+		var command := BattleCommand.new()
+		command.command_type = BattleCommand.TYPE_SKILL
+		command.unit_id = warrior.unit_id
+		command.skill_id = &"warrior_shield_bash"
+		command.target_unit_id = enemy.unit_id
+		command.target_coord = enemy.coord
+
+		var batch := runtime.issue_command(command)
+		if enemy.status_effects.has(&"staggered"):
+			return {
+				"runtime": runtime,
+				"state": state,
+				"enemy": enemy,
+				"batch": batch,
+			}
+	return {}
 
 
 func _test_guard_reduces_incoming_damage() -> void:
@@ -437,34 +460,39 @@ func _measure_buffed_ally_strike_damage(apply_war_cry: bool) -> int:
 
 
 func _measure_execution_cleave_damage(target_current_hp: int) -> int:
-	var runtime := _build_runtime()
-	var state := _build_skill_test_state(Vector2i(5, 3))
-	var warrior := _build_unit(&"execution_cleave_user", Vector2i(1, 1), 2)
-	warrior.current_stamina = 3
-	warrior.known_active_skill_ids = [&"warrior_execution_cleave"]
-	warrior.known_skill_level_map = {&"warrior_execution_cleave": 1}
-	var enemy := _build_unit(&"execution_cleave_target", Vector2i(2, 1), 2)
-	enemy.faction_id = &"enemy"
-	enemy.current_hp = target_current_hp
-	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
+	for attempt_index in range(100):
+		var runtime := _build_runtime()
+		var state := _build_skill_test_state(Vector2i(5, 3))
+		var warrior := _build_unit(StringName("execution_cleave_user_%d" % attempt_index), Vector2i(1, 1), 2)
+		warrior.current_stamina = 3
+		warrior.known_active_skill_ids = [&"warrior_execution_cleave"]
+		warrior.known_skill_level_map = {&"warrior_execution_cleave": 1}
+		warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+		var enemy := _build_unit(StringName("execution_cleave_target_%d" % attempt_index), Vector2i(2, 1), 2)
+		enemy.faction_id = &"enemy"
+		enemy.current_hp = target_current_hp
+		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 
-	_add_unit(runtime, state, warrior)
-	_add_unit(runtime, state, enemy)
-	state.ally_unit_ids = [warrior.unit_id]
-	state.enemy_unit_ids = [enemy.unit_id]
-	state.active_unit_id = warrior.unit_id
-	runtime._state = state
+		_add_unit(runtime, state, warrior)
+		_add_unit(runtime, state, enemy)
+		state.ally_unit_ids = [warrior.unit_id]
+		state.enemy_unit_ids = [enemy.unit_id]
+		state.active_unit_id = warrior.unit_id
+		runtime._state = state
 
-	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
-	command.unit_id = warrior.unit_id
-	command.skill_id = &"warrior_execution_cleave"
-	command.target_unit_id = enemy.unit_id
-	command.target_coord = enemy.coord
+		var command := BattleCommand.new()
+		command.command_type = BattleCommand.TYPE_SKILL
+		command.unit_id = warrior.unit_id
+		command.skill_id = &"warrior_execution_cleave"
+		command.target_unit_id = enemy.unit_id
+		command.target_coord = enemy.coord
 
-	var hp_before := enemy.current_hp
-	runtime.issue_command(command)
-	return hp_before - enemy.current_hp
+		var hp_before := enemy.current_hp
+		runtime.issue_command(command)
+		var damage := hp_before - enemy.current_hp
+		if damage > 0:
+			return damage
+	return 0
 
 
 func _build_runtime() -> BattleRuntimeModule:

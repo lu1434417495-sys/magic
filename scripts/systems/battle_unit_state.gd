@@ -80,6 +80,8 @@ var known_active_skill_ids: Array[StringName] = []
 var known_skill_level_map: Dictionary = {}
 ## 字段说明：记录单位移动标签，供战斗网格规则按地形动态修正通行性与移动消耗。
 var movement_tags: Array[StringName] = []
+## 字段说明：记录当前主手武器的唯一物理伤害类型，供武器近战技能在结算时实时覆盖伤害标签。
+var weapon_physical_damage_tag: StringName = &""
 ## 字段说明：缓存冷却表字典，集中保存可按键查询的运行时数据。
 var cooldowns: Dictionary = {}
 ## 字段说明：记录该单位上一次进入行动窗口时的时间轴 TU，用于把 cooldown_tu 的正式递减锚定到 battle timeline。
@@ -225,6 +227,7 @@ func to_dict() -> Dictionary:
 		"known_active_skill_ids": _string_name_array_to_strings(known_active_skill_ids),
 		"known_skill_level_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_level_map),
 		"movement_tags": _string_name_array_to_strings(movement_tags),
+		"weapon_physical_damage_tag": String(weapon_physical_damage_tag),
 		"cooldowns": cooldowns.duplicate(true),
 		"last_turn_tu": last_turn_tu,
 		"status_effects": status_payloads,
@@ -272,6 +275,7 @@ static func from_dict(data: Dictionary):
 	unit_state.known_active_skill_ids = _strings_to_string_name_array(data.get("known_active_skill_ids", []))
 	unit_state.known_skill_level_map = ProgressionDataUtils.to_string_name_int_map(data.get("known_skill_level_map", {}))
 	unit_state.movement_tags = _strings_to_string_name_array(data.get("movement_tags", []))
+	unit_state.weapon_physical_damage_tag = ProgressionDataUtils.to_string_name(data.get("weapon_physical_damage_tag", ""))
 	unit_state.cooldowns = data.get("cooldowns", {}).duplicate(true)
 	unit_state.last_turn_tu = int(data.get("last_turn_tu", -1))
 	unit_state.status_effects = _status_effects_from_dict(data.get("status_effects", {}))

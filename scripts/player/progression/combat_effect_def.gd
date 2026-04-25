@@ -13,10 +13,8 @@ extends Resource
 @export var power := 0
 ## 字段说明：在编辑器中暴露伤害倍率百分比配置，便于定义相对基准伤害而非固定强度。
 @export var damage_ratio_percent := 100
-## 字段说明：在编辑器中暴露伤害标签配置，便于命中后选择抗性、减伤和日志语义。
+## 字段说明：在编辑器中暴露伤害标签配置，便于命中后选择伤害分类、减伤和日志语义。
 @export var damage_tag: StringName = &""
-## 字段说明：在编辑器中暴露抗性属性唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
-@export var resistance_attribute_id: StringName = &""
 ## 字段说明：在编辑器中暴露效果目标队伍过滤配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var effect_target_team_filter: StringName = &""
 ## 字段说明：在编辑器中暴露状态唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

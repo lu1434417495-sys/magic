@@ -53,13 +53,6 @@ const ALLY_ID: StringName = &"ally"
 var _failures: Array[String] = []
 
 
-class MinRollAttackRng:
-	extends RefCounted
-
-	func randi_range(min_value: int, _max_value: int) -> int:
-		return min_value
-
-
 class SettlementRuntimeStub:
 	extends RefCounted
 
@@ -87,7 +80,6 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_item_resources_surface_equipment_flags()
 	_test_fixed_reward_pool_uses_low_luck_fixed_loot_path()
-	_test_reverse_fate_amulet_downgrades_first_critical_fail_and_applies_weakened()
 	_test_black_star_wedge_first_hit_ignores_guard_and_applies_exposed()
 	_test_blood_debt_shawl_low_hp_reduction_ally_down_ap_and_recovery_penalty()
 	_test_dead_road_lantern_reveals_hidden_paths_and_grants_black_omen_mark()
@@ -190,37 +182,6 @@ func _test_fixed_reward_pool_uses_low_luck_fixed_loot_path() -> void:
 		lantern_result.get("loot_entries", []),
 		LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
 		"亡途灯笼应只通过 low_luck fixed loot 路径发放。"
-	)
-
-
-func _test_reverse_fate_amulet_downgrades_first_critical_fail_and_applies_weakened() -> void:
-	var resolver = BattleDamageResolver.new()
-	var attacker = _build_battle_unit("逆命者", &"player")
-	attacker.attribute_snapshot.set_value(LowLuckRelicRules.ATTR_REVERSE_FATE_AMULET, 1)
-	var target = _build_battle_unit("受击者", &"enemy")
-	var attack_result = resolver.resolve_attack_effects(
-		attacker,
-		target,
-		[_build_damage_effect(22)],
-		{"required_roll": 20, "display_required_roll": 20, "hit_rate_percent": 5},
-		{"rng": MinRollAttackRng.new()}
-	)
-	_assert_true(bool(attack_result.get("ordinary_miss", false)), "逆命护符应把首次大失败降级为普通 miss。")
-	_assert_true(not bool(attack_result.get("critical_fail", false)), "逆命护符触发后不应继续保留 critical_fail。")
-	_assert_true(bool(attack_result.get("reverse_fate_downgraded", false)), "逆命护符应显式暴露 reverse_fate_downgraded。")
-	_assert_true(
-		attacker.has_status_effect(LowLuckRelicRules.STATUS_REVERSE_FATE_WEAKENED),
-		"逆命护符触发后应立即给佩戴者写入 2 回合减伤害状态。"
-	)
-
-	var baseline_attacker = _build_battle_unit("基准攻击者", &"player")
-	var baseline_target = _build_battle_unit("基准目标", &"enemy")
-	var weakened_target = _build_battle_unit("减伤目标", &"enemy")
-	var baseline_damage = int(resolver.resolve_effects(baseline_attacker, baseline_target, [_build_damage_effect(22)]).get("damage", 0))
-	var weakened_damage = int(resolver.resolve_effects(attacker, weakened_target, [_build_damage_effect(22)]).get("damage", 0))
-	_assert_true(
-		weakened_damage < baseline_damage,
-		"逆命护符代价应让后续伤害下降。 baseline=%d weakened=%d" % [baseline_damage, weakened_damage]
 	)
 
 

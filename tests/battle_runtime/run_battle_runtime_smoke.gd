@@ -6,6 +6,7 @@ extends SceneTree
 
 const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
 const BattleCommand = preload("res://scripts/systems/battle_command.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
 const BattleHitResolver = preload("res://scripts/systems/battle_hit_resolver.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
@@ -17,12 +18,50 @@ const BattleTerrainEffectState = preload("res://scripts/systems/battle_terrain_e
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
+const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const CharacterProgressionDelta = preload("res://scripts/systems/character_progression_delta.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 
 var _failures: Array[String] = []
+
+
+class MasteryGatewayStub:
+	extends RefCounted
+
+	var grants: Array[Dictionary] = []
+	var skill_used_events := 0
+
+	func record_achievement_event(
+		_member_id: StringName,
+		event_type: StringName,
+		_amount: int = 1,
+		_subject_id: StringName = &"",
+		_meta: Dictionary = {}
+	) -> Array[StringName]:
+		if event_type == &"skill_used":
+			skill_used_events += 1
+		return []
+
+	func grant_battle_mastery(member_id: StringName, skill_id: StringName, amount: int) -> CharacterProgressionDelta:
+		grants.append({
+			"member_id": member_id,
+			"skill_id": skill_id,
+			"amount": amount,
+		})
+		var delta := CharacterProgressionDelta.new()
+		delta.member_id = member_id
+		delta.mastery_changes.append({
+			"skill_id": skill_id,
+			"mastery_amount": amount,
+		})
+		return delta
+
+	func get_member_state(_member_id: StringName):
+		return null
 
 
 func _initialize() -> void:
@@ -30,7 +69,6 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_hit_resolver_seeded_rolls_are_deterministic()
 	_test_hit_resolver_boundary_natural_rules_are_explicit()
 	_test_timed_terrain_processing_accepts_dictionary_keys()
 	_test_start_battle_accepts_explicit_narrow_assault_profile()
@@ -61,6 +99,11 @@ func _run() -> void:
 	_test_archer_multishot_uses_target_unit_ids_in_manual_order()
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
+	_test_weapon_skill_range_uses_weapon_attack_range_not_skill_range()
+	_test_weapon_skill_damage_tag_uses_current_weapon_type()
+	_test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy_rank()
+	_test_ground_jump_precast_failure_does_not_consume_costs()
+	_test_issue_command_flushes_battle_end_logs_to_state()
 	_test_timeline_tick_uses_per_unit_action_threshold()
 	_test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch()
 	_test_status_duration_serialization_preserves_tu_window()
@@ -75,41 +118,6 @@ func _run() -> void:
 	quit(1)
 
 
-func _test_hit_resolver_seeded_rolls_are_deterministic() -> void:
-	var resolver := BattleHitResolver.new()
-	var attack_check := _build_synthetic_attack_check(resolver, 11)
-	var first_state := BattleState.new()
-	first_state.battle_id = &"hit_seeded_regression"
-	first_state.seed = 20260417
-	var first_rolls: Array[int] = []
-	var first_outcomes: Array[bool] = []
-	for _index in range(3):
-		var result := resolver.roll_attack_check(first_state, attack_check)
-		first_rolls.append(int(result.get("roll", 0)))
-		first_outcomes.append(bool(result.get("success", false)))
-	_assert_eq(first_state.attack_roll_nonce, 3, "battle-seeded 掷骰后应推进 attack_roll_nonce。")
-
-	var second_state := BattleState.new()
-	second_state.battle_id = &"hit_seeded_regression"
-	second_state.seed = 20260417
-	var second_rolls: Array[int] = []
-	var second_outcomes: Array[bool] = []
-	for _index in range(3):
-		var result := resolver.roll_attack_check(second_state, attack_check)
-		second_rolls.append(int(result.get("roll", 0)))
-		second_outcomes.append(bool(result.get("success", false)))
-	_assert_eq(first_rolls, second_rolls, "同 battle_id/seed 的 d20 序列应保持稳定复现。")
-	_assert_eq(first_outcomes, second_outcomes, "同 battle_id/seed 的命中结果应保持稳定复现。")
-
-	var shifted_state := BattleState.new()
-	shifted_state.battle_id = &"hit_seeded_regression"
-	shifted_state.seed = 20260417
-	shifted_state.attack_roll_nonce = 1
-	var shifted_result := resolver.roll_attack_check(shifted_state, attack_check)
-	if first_rolls.size() >= 2:
-		_assert_eq(int(shifted_result.get("roll", 0)), first_rolls[1], "attack_roll_nonce 应稳定切到同 seed 的下一次掷骰结果。")
-
-
 func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 	var resolver := BattleHitResolver.new()
 
@@ -122,26 +130,6 @@ func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 	_assert_eq(int(easy_check.get("display_required_roll", 0)), 2, "低 required roll 预览应稳定显示为 2+。")
 	_assert_eq(int(easy_check.get("hit_rate_percent", 0)), 95, "低 required roll 在天然 1 语义下应只保留 95% 命中。")
 	_assert_true(String(easy_check.get("preview_text", "")).contains("天然 1 仍失手"), "低 required roll 预览应显式提示天然 1 失手语义。")
-	var natural_one_seed := _find_seed_for_exact_attack_roll(
-		resolver,
-		easy_check,
-		1,
-		&"hit_boundary_natural_one"
-	)
-	_assert_true(natural_one_seed >= 0, "应能为天然 1 边界回归找到稳定 seed。")
-	if natural_one_seed >= 0:
-		var natural_one_state := BattleState.new()
-		natural_one_state.battle_id = &"hit_boundary_natural_one"
-		natural_one_state.seed = natural_one_seed
-		var natural_one_result := resolver.roll_attack_check(natural_one_state, easy_check)
-		_assert_eq(int(natural_one_result.get("roll", 0)), 1, "天然 1 边界回归应命中预期 d20 结果。")
-		_assert_true(not bool(natural_one_result.get("success", true)), "天然 1 应强制失手，即使 required roll 已低于 2。")
-		_assert_eq(
-			StringName(natural_one_result.get("roll_disposition", &"")),
-			BattleHitResolver.ROLL_DISPOSITION_NATURAL_AUTO_MISS,
-			"天然 1 边界回归应暴露显式的 resolver disposition。"
-		)
-		_assert_true(String(natural_one_result.get("resolution_text", "")).contains("天然 1 失手"), "天然 1 结算文案应显式标注 auto miss。")
 
 	var weak_attacker := _build_unit(&"hit_boundary_weak", Vector2i.ZERO, 1)
 	weak_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
@@ -152,26 +140,6 @@ func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 	_assert_eq(int(hard_check.get("display_required_roll", 0)), 20, "高 required roll 预览应稳定显示为 20+。")
 	_assert_eq(int(hard_check.get("hit_rate_percent", 0)), 5, "高 required roll 在天然 20 语义下应只保留 5% 命中。")
 	_assert_true(String(hard_check.get("preview_text", "")).contains("仅天然 20"), "高 required roll 预览应显式提示天然 20 语义。")
-	var natural_twenty_seed := _find_seed_for_exact_attack_roll(
-		resolver,
-		hard_check,
-		20,
-		&"hit_boundary_natural_twenty"
-	)
-	_assert_true(natural_twenty_seed >= 0, "应能为天然 20 边界回归找到稳定 seed。")
-	if natural_twenty_seed >= 0:
-		var natural_twenty_state := BattleState.new()
-		natural_twenty_state.battle_id = &"hit_boundary_natural_twenty"
-		natural_twenty_state.seed = natural_twenty_seed
-		var natural_twenty_result := resolver.roll_attack_check(natural_twenty_state, hard_check)
-		_assert_eq(int(natural_twenty_result.get("roll", 0)), 20, "天然 20 边界回归应命中预期 d20 结果。")
-		_assert_true(bool(natural_twenty_result.get("success", false)), "天然 20 应强制命中，即使 required roll 高于 20。")
-		_assert_eq(
-			StringName(natural_twenty_result.get("roll_disposition", &"")),
-			BattleHitResolver.ROLL_DISPOSITION_NATURAL_AUTO_HIT,
-			"天然 20 边界回归应暴露显式的 resolver disposition。"
-		)
-		_assert_true(String(natural_twenty_result.get("resolution_text", "")).contains("天然 20 命中"), "天然 20 结算文案应显式标注 auto hit。")
 
 
 func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:
@@ -370,50 +338,6 @@ func _build_cell(coord: Vector2i) -> BattleCellState:
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
 	return cell
-
-
-func _build_synthetic_attack_check(resolver: BattleHitResolver, required_roll: int) -> Dictionary:
-	var attack_check := {
-		"required_roll": required_roll,
-		"display_required_roll": clampi(required_roll, 2, 20),
-		"hit_rate_percent": 0,
-		"natural_one_auto_miss": true,
-		"natural_twenty_auto_hit": true,
-	}
-	attack_check["hit_rate_percent"] = int(round(float(_count_attack_check_successes(required_roll)) * 5.0))
-	attack_check["preview_text"] = resolver.format_attack_check_preview(attack_check)
-	return attack_check
-
-
-func _count_attack_check_successes(required_roll: int) -> int:
-	var success_count := 0
-	for roll in range(1, 21):
-		if roll == 1:
-			continue
-		if roll == 20 or roll >= required_roll:
-			success_count += 1
-	return success_count
-
-
-func _find_seed_for_exact_attack_roll(
-	resolver: BattleHitResolver,
-	attack_check: Dictionary,
-	expected_roll: int,
-	battle_id: StringName
-) -> int:
-	if resolver == null or attack_check.is_empty():
-		return -1
-	var battle_state := BattleState.new()
-	battle_state.battle_id = battle_id
-	for candidate_seed in range(4096):
-		battle_state.seed = candidate_seed
-		battle_state.attack_roll_nonce = 0
-		var roll_result := resolver.roll_attack_check(battle_state, attack_check)
-		if int(roll_result.get("roll", 0)) == expected_roll:
-			battle_state.attack_roll_nonce = 0
-			return candidate_seed
-	battle_state.attack_roll_nonce = 0
-	return -1
 
 
 func _test_evaluate_move_rules_survive_stacked_columns() -> void:
@@ -1292,19 +1216,13 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 	_assert_eq(preview.target_unit_ids, [enemy_c.unit_id, enemy_a.unit_id, enemy_b.unit_id], "连珠箭预览应保持玩家选择顺序。")
 
 	var batch := runtime.issue_command(command)
-	var resolution_lines := _collect_damage_resolution_lines(batch.log_lines, archer.display_name)
 	_assert_true(batch.changed_unit_ids.has(archer.unit_id), "连珠箭应记录施法者变更。")
 	_assert_eq(archer.current_stamina, 18, "连珠箭应只按一次施放消耗体力。")
-	_assert_true(
-		resolution_lines.size() >= 3
-			and resolution_lines[0].find(String(enemy_c.display_name)) >= 0
-			and resolution_lines[1].find(String(enemy_a.display_name)) >= 0
-			and resolution_lines[2].find(String(enemy_b.display_name)) >= 0,
-		"连珠箭日志应按玩家选择顺序依次结算。"
+	_assert_eq(
+		_extract_string_name_array(batch.changed_unit_ids),
+		[String(archer.unit_id), String(enemy_c.unit_id), String(enemy_a.unit_id), String(enemy_b.unit_id)],
+		"连珠箭应按玩家选择顺序依次解析目标；天然 1 未造成伤害时也应标记目标变更。"
 	)
-	_assert_true(enemy_a.current_hp < 30, "连珠箭应对敌人 A 造成伤害。")
-	_assert_true(enemy_b.current_hp < 30, "连珠箭应对敌人 B 造成伤害。")
-	_assert_true(enemy_c.current_hp < 30, "连珠箭应对敌人 C 造成伤害。")
 
 
 func _test_multi_unit_skill_uses_stable_target_order() -> void:
@@ -1355,15 +1273,12 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 	_assert_eq(preview.target_unit_ids, [enemy_b.unit_id, enemy_c.unit_id, enemy_a.unit_id], "稳定排序应按战场坐标归一化目标顺序。")
 
 	var batch := runtime.issue_command(command)
-	var resolution_lines := _collect_damage_resolution_lines(batch.log_lines, mage.display_name)
 	_assert_true(batch.changed_unit_ids.has(mage.unit_id), "奥术飞弹应记录施法者变更。")
 	_assert_eq(mage.current_mp, 2, "奥术飞弹应只按一次施放消耗法力。")
-	_assert_true(
-		resolution_lines.size() >= 3
-			and resolution_lines[0].find(String(enemy_b.display_name)) >= 0
-			and resolution_lines[1].find(String(enemy_c.display_name)) >= 0
-			and resolution_lines[2].find(String(enemy_a.display_name)) >= 0,
-		"奥术飞弹日志应按稳定排序后的命中顺序依次结算。"
+	_assert_eq(
+		_extract_string_name_array(batch.changed_unit_ids),
+		[String(mage.unit_id), String(enemy_b.unit_id), String(enemy_c.unit_id), String(enemy_a.unit_id)],
+		"奥术飞弹应按稳定排序后的顺序依次解析目标；天然 1 未造成伤害时也应标记目标变更。"
 	)
 
 
@@ -1406,6 +1321,209 @@ func _test_skill_costs_and_cooldowns_apply_in_runtime() -> void:
 	_assert_true(
 		not second_batch.log_lines.is_empty() and String(second_batch.log_lines[-1]).contains("冷却"),
 		"技能仍在冷却时，再次施放应给出明确提示。"
+	)
+
+
+func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void:
+	var skill := _build_direct_damage_skill(&"weapon_range_contract", 1)
+	skill.tags = [&"warrior", &"melee"]
+	skill.combat_profile.range_value = 99
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {skill.skill_id: skill}, {}, {})
+
+	var state := _build_skill_test_state(Vector2i(3, 1))
+	var warrior := _build_unit(&"weapon_range_user", Vector2i(0, 0), 2)
+	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 1)
+	warrior.known_active_skill_ids = [skill.skill_id]
+	warrior.known_skill_level_map = {skill.skill_id: 1}
+	var enemy := _build_enemy_unit(&"weapon_range_target", Vector2i(2, 0))
+	state.units = {
+		warrior.unit_id: warrior,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = warrior.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, warrior, warrior.coord, true), "武器射程回归中的战士应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "武器射程回归中的目标应能成功放入战场。")
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = warrior.unit_id
+	command.skill_id = skill.skill_id
+	command.target_unit_id = enemy.unit_id
+	command.target_coord = enemy.coord
+	var blocked_batch := runtime.issue_command(command)
+	_assert_true(
+		not blocked_batch.log_lines.is_empty() and String(blocked_batch.log_lines[-1]).contains("目标"),
+		"近战武器技能应使用武器攻击范围 1，而不是技能 range_value=99。 log=%s" % [str(blocked_batch.log_lines)]
+	)
+	_assert_eq(warrior.current_ap, 2, "武器攻击范围外的技能不应扣除 AP。")
+
+	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 2)
+	var allowed_batch := runtime.issue_command(command)
+	_assert_true(allowed_batch.changed_unit_ids.has(warrior.unit_id), "武器攻击范围提高到 2 后，同一目标应允许结算。")
+	_assert_eq(warrior.current_ap, 1, "武器攻击范围内的技能应正常扣除 AP。")
+
+
+func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
+	var resolver := BattleDamageResolver.new()
+	var effect := CombatEffectDef.new()
+	effect.effect_type = &"damage"
+	effect.power = 1
+	effect.damage_tag = &"physical_blunt"
+	effect.params = {
+		"use_weapon_physical_damage_tag": true,
+	}
+	var expected_tags := {
+		&"sword_user": &"physical_slash",
+		&"mace_user": &"physical_blunt",
+		&"dagger_user": &"physical_pierce",
+	}
+	for unit_id in expected_tags.keys():
+		var source := _build_unit(unit_id, Vector2i.ZERO, 1)
+		source.weapon_physical_damage_tag = expected_tags.get(unit_id)
+		var target := _build_enemy_unit(StringName("%s_target" % String(unit_id)), Vector2i(1, 0))
+		var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+		var events: Array = result.get("damage_events", [])
+		_assert_true(not events.is_empty(), "武器伤害类型回归应产生伤害事件。")
+		if events.is_empty():
+			continue
+		_assert_eq(
+			ProgressionDataUtils.to_string_name(events[0].get("damage_tag", "")),
+			expected_tags.get(unit_id),
+			"武器近战技能应按当前武器类型实时覆盖物理伤害类型。"
+		)
+
+
+func _test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy_rank() -> void:
+	var gateway := MasteryGatewayStub.new()
+	var skill := _build_ground_damage_dice_skill(&"mastery_rank_test", 0, 1, 1)
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(gateway, {skill.skill_id: skill}, {}, {})
+
+	var state := _build_skill_test_state(Vector2i(5, 1))
+	var caster := _build_unit(&"mastery_caster", Vector2i(0, 0), 3)
+	caster.source_member_id = &"hero"
+	caster.known_active_skill_ids = [skill.skill_id]
+	caster.known_skill_level_map = {skill.skill_id: 1}
+	var normal := _build_enemy_unit(&"mastery_normal", Vector2i(1, 0))
+	var elite := _build_enemy_unit(&"mastery_elite", Vector2i(2, 0))
+	elite.attribute_snapshot.set_value(&"fortune_mark_target", 1)
+	var boss := _build_enemy_unit(&"mastery_boss", Vector2i(3, 0))
+	boss.attribute_snapshot.set_value(&"fortune_mark_target", 2)
+	boss.attribute_snapshot.set_value(&"boss_target", 1)
+
+	state.units = {
+		caster.unit_id: caster,
+		normal.unit_id: normal,
+		elite.unit_id: elite,
+		boss.unit_id: boss,
+	}
+	state.ally_unit_ids = [caster.unit_id]
+	state.enemy_unit_ids = [normal.unit_id, elite.unit_id, boss.unit_id]
+	state.active_unit_id = caster.unit_id
+	for unit in [caster, normal, elite, boss]:
+		_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "%s 应能放入熟练度回归战场。" % unit.display_name)
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = caster.unit_id
+	command.skill_id = skill.skill_id
+	command.target_coord = Vector2i(2, 0)
+	var batch := runtime.issue_command(command)
+	_assert_true(batch.changed_unit_ids.has(caster.unit_id), "满骰熟练度技能应正常执行。")
+	_assert_eq(gateway.grants.size(), 1, "满伤害骰命中后应只提交一次聚合熟练度。")
+	if not gateway.grants.is_empty():
+		_assert_eq(int(gateway.grants[0].get("amount", 0)), 6, "普通/精英/BOSS 满骰命中应分别给 1/2/3 熟练度。")
+
+	var non_dice_skill := _build_ground_damage_dice_skill(&"mastery_no_dice_test", 1, 0, 0)
+	caster.current_ap = 3
+	caster.known_active_skill_ids = [non_dice_skill.skill_id]
+	caster.known_skill_level_map = {non_dice_skill.skill_id: 1}
+	runtime.setup(gateway, {non_dice_skill.skill_id: non_dice_skill}, {}, {})
+	runtime._state = state
+	command.skill_id = non_dice_skill.skill_id
+	runtime.issue_command(command)
+	_assert_eq(gateway.grants.size(), 1, "非暴击且没有伤害骰满值时不应增加熟练度。")
+
+
+func _test_ground_jump_precast_failure_does_not_consume_costs() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, registry.get_skill_defs(), {}, {})
+
+	var state := _build_skill_test_state(Vector2i(3, 1))
+	var warrior := _build_unit(&"jump_precast_user", Vector2i(0, 0), 3)
+	warrior.current_stamina = 3
+	warrior.known_active_skill_ids = [&"warrior_jump_slash"]
+	warrior.known_skill_level_map = {&"warrior_jump_slash": 1}
+	var blocker := _build_enemy_unit(&"jump_precast_blocker", Vector2i(1, 0))
+
+	state.units = {
+		warrior.unit_id: warrior,
+		blocker.unit_id: blocker,
+	}
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = [blocker.unit_id]
+	state.active_unit_id = warrior.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, warrior, warrior.coord, true), "跳跃扣费回归中的战士应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, blocker, blocker.coord, true), "跳跃扣费回归中的阻挡单位应能成功放入战场。")
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = warrior.unit_id
+	command.skill_id = &"warrior_jump_slash"
+	command.target_coord = blocker.coord
+	var batch := runtime.issue_command(command)
+	_assert_true(
+		batch.log_lines.any(func(line): return String(line).contains("跳跃落点") or String(line).contains("落点")),
+		"跳斩落点被占用时应给出明确日志。 log=%s" % [str(batch.log_lines)]
+	)
+	_assert_eq(warrior.current_ap, 3, "跳斩落点无效时不应扣除行动点。")
+	_assert_eq(warrior.current_stamina, 3, "跳斩落点无效时不应扣除体力。")
+	_assert_true(not warrior.cooldowns.has(&"warrior_jump_slash"), "跳斩落点无效时不应写入冷却。")
+	_assert_eq(warrior.coord, Vector2i(0, 0), "跳斩落点无效时不应移动施法者。")
+
+
+func _test_issue_command_flushes_battle_end_logs_to_state() -> void:
+	var skill := _build_direct_damage_skill(&"test_direct_finisher", 20)
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {skill.skill_id: skill}, {}, {})
+
+	var state := _build_skill_test_state(Vector2i(2, 1))
+	var caster := _build_unit(&"battle_end_log_caster", Vector2i(0, 0), 1)
+	caster.known_active_skill_ids = [skill.skill_id]
+	caster.known_skill_level_map = {skill.skill_id: 1}
+	var target := _build_unit(&"battle_end_log_target", Vector2i(1, 0), 1)
+	target.current_hp = 5
+
+	state.units = {
+		caster.unit_id: caster,
+		target.unit_id: target,
+	}
+	state.ally_unit_ids = [caster.unit_id]
+	state.enemy_unit_ids = [target.unit_id]
+	state.active_unit_id = caster.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, caster, caster.coord, true), "战斗结束日志回归中的施法者应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, target, target.coord, true), "战斗结束日志回归中的目标应能成功放入战场。")
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = caster.unit_id
+	command.skill_id = skill.skill_id
+	command.target_unit_id = target.unit_id
+	command.target_coord = target.coord
+	var batch := runtime.issue_command(command)
+	_assert_true(batch.battle_ended, "终结最后一个敌方单位后 issue_command() 应返回 battle_ended。")
+	_assert_eq(state.phase, &"battle_ended", "终结最后一个敌方单位后 state.phase 应进入 battle_ended。")
+	_assert_true(
+		state.log_entries.any(func(line): return String(line).contains("战斗结束")),
+		"issue_command() 追加的战斗结束日志应同步写入 BattleState.log_entries。 logs=%s" % [str(state.log_entries)]
 	)
 
 
@@ -1711,6 +1829,62 @@ func _build_enemy_unit(unit_id: StringName, coord: Vector2i) -> BattleUnitState:
 	return unit
 
 
+func _build_direct_damage_skill(skill_id: StringName, power: int) -> SkillDef:
+	var damage_effect := CombatEffectDef.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = power
+	damage_effect.effect_target_team_filter = &"any"
+
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.skill_id = skill_id
+	combat_profile.target_mode = &"unit"
+	combat_profile.target_team_filter = &"any"
+	combat_profile.range_value = 1
+	combat_profile.ap_cost = 1
+	var effect_defs: Array[CombatEffectDef] = [damage_effect]
+	combat_profile.effect_defs = effect_defs
+
+	var skill := SkillDef.new()
+	skill.skill_id = skill_id
+	skill.display_name = String(skill_id)
+	skill.combat_profile = combat_profile
+	return skill
+
+
+func _build_ground_damage_dice_skill(
+	skill_id: StringName,
+	power: int,
+	dice_count: int,
+	dice_sides: int
+) -> SkillDef:
+	var damage_effect := CombatEffectDef.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = power
+	damage_effect.effect_target_team_filter = &"enemy"
+	if dice_count > 0 and dice_sides > 0:
+		damage_effect.params = {
+			"dice_count": dice_count,
+			"dice_sides": dice_sides,
+		}
+
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.skill_id = skill_id
+	combat_profile.target_mode = &"ground"
+	combat_profile.target_team_filter = &"enemy"
+	combat_profile.range_value = 5
+	combat_profile.area_pattern = &"diamond"
+	combat_profile.area_value = 1
+	combat_profile.ap_cost = 1
+	var effect_defs: Array[CombatEffectDef] = [damage_effect]
+	combat_profile.effect_defs = effect_defs
+
+	var skill := SkillDef.new()
+	skill.skill_id = skill_id
+	skill.display_name = String(skill_id)
+	skill.combat_profile = combat_profile
+	return skill
+
+
 func _collect_damage_resolution_lines(log_lines: Array, actor_name: String) -> Array[String]:
 	var resolution_lines: Array[String] = []
 	for log_line_variant in log_lines:
@@ -1721,6 +1895,13 @@ func _collect_damage_resolution_lines(log_lines: Array, actor_name: String) -> A
 			continue
 		resolution_lines.append(log_line)
 	return resolution_lines
+
+
+func _extract_string_name_array(values: Array[StringName]) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(String(value))
+	return result
 
 
 func _build_skill_test_state(map_size: Vector2i) -> BattleState:
