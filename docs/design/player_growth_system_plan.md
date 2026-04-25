@@ -3,10 +3,10 @@
 更新日期：`2026-04-15`
 
 关联文档：
-- [achievement_system_plan.md](achievement_system_plan.md)
+- [achievement_system_plan.md](archive/achievement_system_plan.md)
 - [battle_achievement_stats_plan.md](battle_achievement_stats_plan.md)
 - [equipment_system_plan.md](equipment_system_plan.md)
-- [playable_vertical_slice_roadmap.md](playable_vertical_slice_roadmap.md)
+- [playable_vertical_slice_roadmap.md](archive/playable_vertical_slice_roadmap.md)
 
 ## Summary
 

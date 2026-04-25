@@ -2,8 +2,8 @@
 
 日期：2026-04-19
 关联文档：
-- `docs/design/2026-04-19-battle-reference-source-constraints-design.md`
-- `docs/design/battle_system_known_issues.md`
+- `docs/design/archive/2026-04-19-battle-reference-source-constraints-design.md`
+- `docs/design/archive/battle_system_known_issues.md`
 - `docs/design/dnd35e_combat_system_vision.md`
 
 覆盖模块：

@@ -4,10 +4,10 @@
 
 关联文档：
 - `docs/design/project_context_units.md`
-- `docs/design/architecture_mainline_roadmap.md`
+- `docs/design/archive/architecture_mainline_roadmap.md`
 - `docs/design/player_growth_system_plan.md`
 - `docs/design/skills_implementation_plan.md`
-- `docs/design/enemy_ai_action_state_machine_plan.md`
+- `docs/design/archive/enemy_ai_action_state_machine_plan.md`
 
 ## Summary
 

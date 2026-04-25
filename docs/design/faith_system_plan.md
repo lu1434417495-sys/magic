@@ -39,7 +39,7 @@
   - `UnitProgress.reputation_state`
   - `PartyState.pending_character_rewards`
   - `CharacterManagementModule.apply_pending_character_reward(...)`
-- 当前没有正式货币字段，但 `docs/design/playable_vertical_slice_roadmap.md` 已经把 `gold` 放进 `PartyState` 作为明确方向。
+- 当前没有正式货币字段，但归档路线图 `docs/design/archive/playable_vertical_slice_roadmap.md` 已经把 `gold` 放进 `PartyState` 作为明确方向。
 - 当前没有独立的 faith 文档，也没有成型的神灵状态、供奉扣费、升阶判定、指引门槛或信仰奖励。
 
 ## 目标与非目标
