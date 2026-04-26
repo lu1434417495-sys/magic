@@ -105,6 +105,7 @@ func _run() -> void:
 	_test_weapon_skill_range_uses_weapon_attack_range_not_skill_range()
 	_test_battle_range_service_layers_modifiers_without_snapshot_truth()
 	_test_weapon_skill_damage_tag_uses_current_weapon_type()
+	_test_requires_weapon_rejects_unarmed_and_natural_weapons()
 	_test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy_rank()
 	_test_ground_jump_precast_failure_does_not_consume_costs()
 	_test_issue_command_flushes_battle_end_logs_to_state()
@@ -1460,6 +1461,77 @@ func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 			expected_tags.get(unit_id),
 			"武器近战技能应按当前武器类型实时覆盖物理伤害类型。"
 		)
+
+
+func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
+	var skill := _build_direct_damage_skill(&"requires_weapon_contract", 1)
+	skill.tags = [&"warrior", &"melee"]
+	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
+	damage_effect.damage_tag = &"physical_blunt"
+	damage_effect.params = {
+		"requires_weapon": true,
+		"use_weapon_physical_damage_tag": true,
+	}
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {skill.skill_id: skill}, {}, {})
+
+	var state := _build_skill_test_state(Vector2i(2, 1))
+	var attacker := _build_unit(&"requires_weapon_user", Vector2i(0, 0), 2)
+	attacker.known_active_skill_ids = [skill.skill_id]
+	attacker.known_skill_level_map = {skill.skill_id: 1}
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	var target := _build_enemy_unit(&"requires_weapon_target", Vector2i(1, 0))
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	state.units = {
+		attacker.unit_id: attacker,
+		target.unit_id: target,
+	}
+	state.ally_unit_ids = [attacker.unit_id]
+	state.enemy_unit_ids = [target.unit_id]
+	state.active_unit_id = attacker.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, attacker, attacker.coord, true), "requires_weapon 测试中的攻击者应能放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, target, target.coord, true), "requires_weapon 测试中的目标应能放入战场。")
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = attacker.unit_id
+	command.skill_id = skill.skill_id
+	command.target_unit_id = target.unit_id
+	command.target_coord = target.coord
+
+	attacker.set_unarmed_weapon_projection()
+	var target_hp_before := target.current_hp
+	var unarmed_batch := runtime.issue_command(command)
+	_assert_true(
+		not unarmed_batch.log_lines.is_empty() and String(unarmed_batch.log_lines[-1]).contains("需要装备"),
+		"空手攻击不应满足 requires_weapon。 log=%s" % [str(unarmed_batch.log_lines)]
+	)
+	_assert_eq(attacker.current_ap, 2, "空手被 requires_weapon 阻断时不应扣除 AP。")
+	_assert_eq(target.current_hp, target_hp_before, "空手被 requires_weapon 阻断时不应结算伤害。")
+
+	attacker.set_natural_weapon_projection(&"natural_weapon", &"physical_slash", 1, {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0})
+	var natural_batch := runtime.issue_command(command)
+	_assert_true(
+		not natural_batch.log_lines.is_empty() and String(natural_batch.log_lines[-1]).contains("需要装备"),
+		"天生武器不应满足 requires_weapon。 log=%s" % [str(natural_batch.log_lines)]
+	)
+	_assert_eq(attacker.current_ap, 2, "天生武器被 requires_weapon 阻断时不应扣除 AP。")
+	_assert_eq(target.current_hp, target_hp_before, "天生武器被 requires_weapon 阻断时不应结算伤害。")
+
+	attacker.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "contract_blade",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_physical_damage_tag": "physical_slash",
+	})
+	var equipped_batch := runtime.issue_command(command)
+	_assert_true(equipped_batch.changed_unit_ids.has(attacker.unit_id), "装备武器应满足 requires_weapon 并正常结算。")
+	_assert_eq(attacker.current_ap, 1, "装备武器满足 requires_weapon 后应正常扣除 AP。")
+	_assert_true(target.current_hp < target_hp_before, "装备武器满足 requires_weapon 后应造成伤害。")
 
 
 func _test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy_rank() -> void:

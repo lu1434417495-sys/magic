@@ -13,6 +13,7 @@ const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
 const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/enemy_content_registry.gd")
+const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_template_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world_time_system.gd")
@@ -40,6 +41,7 @@ func _run() -> void:
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaults()
 	_test_encounter_roster_builder_projects_enemy_weapon_sources()
+	_test_non_beast_template_without_attack_equipment_validates_error_but_runtime_uses_unarmed()
 	_test_enemy_content_registry_registers_second_formal_roster()
 	_test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema()
 	_test_encounter_roster_builder_builds_mixed_mist_hollow_units()
@@ -218,6 +220,46 @@ func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
 	var shaman_anchor = _build_template_encounter_anchor(&"wolf_shaman_loot_projection", &"wolf_shaman")
 	var shaman_loot_entries: Array = builder.build_loot_entries(shaman_anchor, {})
 	_assert_true(shaman_loot_entries.is_empty(), "敌人攻击装备不应自动进入死亡掉落；掉落仍只看 drop_entries。")
+	game_session.free()
+
+
+func _test_non_beast_template_without_attack_equipment_validates_error_but_runtime_uses_unarmed() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = &"runtime_unarmed_non_beast"
+	template.display_name = "失械敌人"
+	template.brain_id = &"melee_aggressor"
+	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+		template.base_attribute_overrides[attribute_id] = 8
+	template.attribute_overrides = {
+		"hp_max": 10,
+		"action_points": 1,
+		"attack_bonus": 4,
+		"armor_class": 10,
+	}
+
+	var validation_errors: Array[String] = template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
+	_assert_true(
+		_errors_contain_fragment(validation_errors, "must declare attack_equipment_item_id"),
+		"非 beast 模板缺攻击装备应继续在内容校验阶段报错。"
+	)
+
+	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	builder.setup({}, {template.template_id: template})
+	var encounter_anchor = _build_template_encounter_anchor(&"runtime_unarmed_non_beast_projection", template.template_id)
+	var enemy_units: Array = builder.build_enemy_units(encounter_anchor, {
+		"skill_defs": game_session.get_skill_defs(),
+		"enemy_templates": {template.template_id: template},
+		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
+	})
+	_assert_true(not enemy_units.is_empty(), "非 beast 缺装备模板运行时仍应能构建敌方单位。")
+	var unit = enemy_units[0] if not enemy_units.is_empty() else null
+	if unit != null:
+		_assert_eq(String(unit.weapon_profile_kind), "unarmed", "非 beast 模板运行时缺有效攻击装备时应降级为空手。")
+		_assert_eq(String(unit.weapon_profile_type_id), "unarmed", "非 beast 缺装备降级应使用 unarmed profile。")
+		_assert_eq(_weapon_dice_signature(unit.weapon_one_handed_dice), [1, 4, 0], "非 beast 缺装备降级空手应使用 1D4。")
+		_assert_eq(String(unit.weapon_physical_damage_tag), "physical_blunt", "非 beast 缺装备降级空手应使用钝击。")
+		_assert_eq(unit.weapon_attack_range, 1, "非 beast 缺装备降级空手应保留 1 格攻击范围。")
 	game_session.free()
 
 

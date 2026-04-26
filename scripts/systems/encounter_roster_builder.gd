@@ -15,7 +15,6 @@ const BEAST_ATTRIBUTE_DICE_COUNT := 5
 const BEAST_ATTRIBUTE_DICE_SIDES := 3
 const BEAST_ATTRIBUTE_DICE_OFFSET := -1
 const BEAST_ATTRIBUTE_DICE_FLOOR := 4
-const DEFAULT_ENEMY_MELEE_DAMAGE_TAG: StringName = &"physical_slash"
 
 var _wild_encounter_rosters: Dictionary = {}
 var _enemy_templates: Dictionary = {}
@@ -496,7 +495,7 @@ func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build
 		unit_state.current_stamina = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)
 		unit_state.current_ap = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS)
 		unit_state.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
-		unit_state.set_natural_weapon_projection(&"natural_weapon", DEFAULT_ENEMY_MELEE_DAMAGE_TAG, 1)
+		unit_state.set_unarmed_weapon_projection()
 		unit_state.action_threshold = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_ACTION_THRESHOLD
 		unit_state.known_active_skill_ids = default_skill_ids.duplicate()
 		for skill_id in unit_state.known_active_skill_ids:

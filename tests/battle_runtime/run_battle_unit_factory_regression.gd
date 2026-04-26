@@ -317,6 +317,10 @@ func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> voi
 		not unit.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
 		"fallback enemy 不应再把武器攻击范围写入 attribute_snapshot。"
 	)
+	_assert_eq(String(unit.weapon_profile_kind), "unarmed", "fallback enemy 无模板攻击装备时应降级为空手投影。")
+	_assert_eq(String(unit.weapon_profile_type_id), "unarmed", "fallback enemy 空手投影应保留 unarmed profile。")
+	_assert_eq(_weapon_dice_signature(unit.weapon_one_handed_dice), [1, 4, 0], "fallback enemy 空手投影应使用 1D4。")
+	_assert_eq(String(unit.weapon_physical_damage_tag), "physical_blunt", "fallback enemy 空手投影应使用钝击。")
 	_assert_eq(unit.weapon_attack_range, 1, "fallback enemy 应把默认攻击范围投影到 BattleUnitState.weapon_attack_range。")
 
 

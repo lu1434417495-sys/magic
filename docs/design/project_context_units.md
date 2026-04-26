@@ -833,7 +833,7 @@ HeadlessGameTestSession
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
   - `BattleUnitFactory` 构建 / 刷新友军单位时从角色 attribute snapshot 读取 `action_threshold` 写入 `BattleUnitState.action_threshold`；正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
-  - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。需要当前近战武器伤害类型的近战技能必须同时具备战斗单位 `weapon_attack_range > 0` 与 `weapon_physical_damage_tag`，不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
+  - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足 `requires_weapon`，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前近战武器伤害类型的近战技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。
@@ -1223,7 +1223,7 @@ HeadlessGameTestSession
   - 在 registry 阶段校验 template -> brain、template.drop_entries、roster stage -> template 等静态引用。
   - `EnemyTemplateDef` 同时承担“这个敌人怎么打”和“这个敌人死后掉什么”的静态作者职责；`WildEncounterRosterDef` 只负责回答“这一场会出现哪些敌人、各几只”。
   - `EnemyTemplateDef` 现在同时拥有敌方六维来源：非野兽模板必须显式提供 `base_attribute_overrides`，带 `beast` 标签的模板在 `EncounterRosterBuilder` 入场时按 deterministic `5D3-1` 生成六维，然后再叠加 `attribute_overrides` 写出正式战斗面板。
-  - `EnemyTemplateDef` 也持有敌方武器来源：非 `beast` 模板必须通过 `attack_equipment_item_id` 显式引用一个正式武器 `ItemDef`，模板入场时投影为 `BattleUnitState` 的 equipped weapon；该攻击装备只影响战斗投影，不自动进入死亡掉落。
+  - `EnemyTemplateDef` 也持有敌方武器来源：非 `beast` 模板必须通过 `attack_equipment_item_id` 显式引用一个正式武器 `ItemDef`，模板入场时投影为 `BattleUnitState` 的 equipped weapon；该攻击装备只影响战斗投影，不自动进入死亡掉落。内容校验会报告非 `beast` 模板缺攻击装备；若运行时仍遇到缺失或无效攻击装备，战斗投影降级为 `unarmed`（1D4、`physical_blunt`、range 1）。
   - 带 `beast` 标签的模板默认投影 `natural_weapon`：`1D6`、`physical_blunt`、melee、range 1；模板可通过 `natural_weapon_damage_tag` 或 `bite/sting/horn`、`claw/tear`、`slam/charge/trample` 标签分别覆写为 pierce、slash、blunt。
   - `EnemyTemplateDef.attribute_overrides` 继续使用 `attack_bonus`、`armor_class` 与可选 AC 组件属性描述战斗面板；不要再写旧攻击 / 防御 / 命中 / 闪避属性，也不要再写 `weapon_attack_range` / `weapon_physical_damage_tag`。
   - 定义近战压迫型、远程控制型等默认行为树形态。

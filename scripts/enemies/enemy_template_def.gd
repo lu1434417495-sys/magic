@@ -58,7 +58,10 @@ func get_attack_equipment_item_id() -> StringName:
 func get_weapon_projection(item_defs: Dictionary = {}) -> Dictionary:
 	if has_tag(TAG_BEAST):
 		return get_natural_weapon_projection()
-	return get_attack_equipment_projection(item_defs)
+	var attack_equipment_projection := get_attack_equipment_projection(item_defs)
+	if not attack_equipment_projection.is_empty():
+		return attack_equipment_projection
+	return get_unarmed_weapon_projection()
 
 
 func get_attack_equipment_projection(item_defs: Dictionary = {}) -> Dictionary:
@@ -85,6 +88,21 @@ func get_natural_weapon_projection() -> Dictionary:
 		"weapon_is_versatile": false,
 		"weapon_uses_two_hands": false,
 		"weapon_physical_damage_tag": String(get_natural_weapon_damage_tag()),
+	}
+
+
+func get_unarmed_weapon_projection() -> Dictionary:
+	return {
+		"weapon_profile_kind": String(BattleUnitState.WEAPON_PROFILE_KIND_UNARMED),
+		"weapon_item_id": "",
+		"weapon_profile_type_id": "unarmed",
+		"weapon_current_grip": String(BattleUnitState.WEAPON_GRIP_ONE_HANDED),
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0},
+		"weapon_two_handed_dice": {},
+		"weapon_is_versatile": false,
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_blunt",
 	}
 
 

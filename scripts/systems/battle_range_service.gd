@@ -14,7 +14,9 @@ static func get_weapon_attack_range(unit_state: BattleUnitState) -> int:
 
 
 static func unit_has_melee_weapon(unit_state: BattleUnitState) -> bool:
-	return get_weapon_attack_range(unit_state) > 0 \
+	return unit_state != null \
+		and unit_state.weapon_profile_kind == BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED \
+		and get_weapon_attack_range(unit_state) > 0 \
 		and ProgressionDataUtils.to_string_name(unit_state.weapon_physical_damage_tag if unit_state != null else &"") != &""
 
 
@@ -27,16 +29,16 @@ static func get_effective_skill_range(unit_state: BattleUnitState, skill_def) ->
 
 
 static func requires_current_melee_weapon(skill_def) -> bool:
-	if skill_def == null or skill_def.combat_profile == null or not _skill_has_tag(skill_def, &"melee"):
+	if skill_def == null or skill_def.combat_profile == null:
 		return false
 	for effect_def in skill_def.combat_profile.effect_defs:
-		if effect_uses_weapon_physical_damage_tag(effect_def):
+		if effect_requires_weapon(effect_def):
 			return true
 	for cast_variant in skill_def.combat_profile.cast_variants:
 		if cast_variant == null:
 			continue
 		for effect_def in cast_variant.effect_defs:
-			if effect_uses_weapon_physical_damage_tag(effect_def):
+			if effect_requires_weapon(effect_def):
 				return true
 	return false
 
@@ -71,6 +73,12 @@ static func effect_uses_weapon_physical_damage_tag(effect_def) -> bool:
 	return effect_def != null \
 		and effect_def.params != null \
 		and bool(effect_def.params.get("use_weapon_physical_damage_tag", false))
+
+
+static func effect_requires_weapon(effect_def) -> bool:
+	return effect_def != null \
+		and effect_def.params != null \
+		and bool(effect_def.params.get("requires_weapon", false))
 
 
 static func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:

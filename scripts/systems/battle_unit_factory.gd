@@ -236,13 +236,16 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_enemy_shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
-	var enemy_weapon_attack_range := maxi(int(context.get("default_enemy_weapon_attack_range", 1)), 0)
-	_apply_enemy_natural_weapon_projection(
-		unit_state,
-		ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_profile_type_id", "natural_weapon")),
-		ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_physical_damage_tag", DEFAULT_ENEMY_MELEE_DAMAGE_TAG)),
-		enemy_weapon_attack_range
-	)
+	if _has_explicit_default_enemy_weapon_context(context):
+		var enemy_weapon_attack_range := maxi(int(context.get("default_enemy_weapon_attack_range", 1)), 0)
+		_apply_enemy_natural_weapon_projection(
+			unit_state,
+			ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_profile_type_id", "natural_weapon")),
+			ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_physical_damage_tag", DEFAULT_ENEMY_MELEE_DAMAGE_TAG)),
+			enemy_weapon_attack_range
+		)
+	else:
+		unit_state.set_unarmed_weapon_projection()
 	unit_state.action_threshold = int(context.get("default_enemy_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
 	unit_state.current_hp = hp_max
 	unit_state.current_mp = mp_max
@@ -408,6 +411,12 @@ func _apply_enemy_natural_weapon_projection(
 		damage_tag,
 		attack_range
 	)
+
+
+func _has_explicit_default_enemy_weapon_context(context: Dictionary) -> bool:
+	return context.has("default_enemy_weapon_attack_range") \
+		or context.has("default_enemy_weapon_profile_type_id") \
+		or context.has("default_enemy_weapon_physical_damage_tag")
 
 
 func _resolve_action_threshold_from_snapshot(

@@ -4280,7 +4280,7 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: Skill
 	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
 	if _requires_melee_weapon(skill_def) and not _unit_has_melee_weapon(active_unit):
-		return "需要装备可近战攻击的武器，无法施放该技能。"
+		return "需要装备有效武器，无法施放该技能。"
 	if _is_main_skill_locked_by_status(active_unit, skill_def):
 		return "厄命宣判压制了主技能，无法施放该技能。"
 	if _is_black_star_brand_skill(skill_def.skill_id):
