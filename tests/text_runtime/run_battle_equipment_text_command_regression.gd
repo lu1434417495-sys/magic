@@ -1,6 +1,12 @@
 extends SceneTree
 
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
+const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
+const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
+
+const VERSATILE_TEST_WEAPON_ID: StringName = &"wpndice_versatile_longsword"
+const OFFHAND_TEST_ITEM_ID: StringName = &"wpndice_offhand_focus"
 
 var _failures: Array[String] = []
 
@@ -14,13 +20,20 @@ func _run() -> void:
 	await runner.initialize()
 
 	await _run_command(runner, "game new test")
+	_install_battle_equipment_test_items(runner)
 	await _run_command(runner, "warehouse capacity 10")
 	await _run_command(runner, "warehouse add bronze_sword 1")
 	await _run_command(runner, "warehouse add leather_cap 1")
 	await _run_command(runner, "warehouse add leather_jerkin 1")
+	await _run_command(runner, "warehouse add iron_greatsword 1")
+	await _run_command(runner, "warehouse add %s 1" % String(VERSATILE_TEST_WEAPON_ID))
+	await _run_command(runner, "warehouse add %s 1" % String(OFFHAND_TEST_ITEM_ID))
 	await _run_command(runner, "battle start settlement")
 	await _run_command(runner, "battle confirm")
 	await _advance_to_manual_battle_turn(runner)
+	var active_unit_state = _get_active_unit_state(runner)
+	var active_member_id := String(active_unit_state.source_member_id) if active_unit_state != null else ""
+	_assert_true(not active_member_id.is_empty(), "战斗换装回归前置：手动单位应关联队伍成员。")
 
 	_prime_active_unit_ap(runner, 4)
 	var equip_result = await _run_command(runner, "battle equip head leather_cap")
@@ -44,6 +57,25 @@ func _run() -> void:
 	_assert_battle_unequip_backpack_full_failure(full_result.snapshot, full_result.snapshot_text)
 
 	await _run_command(runner, "warehouse capacity 10")
+	_prime_active_unit_ap(runner, 6)
+	var two_handed_result = await _run_command(runner, "battle equip main_hand iron_greatsword")
+	_assert_battle_two_handed_weapon_linkage(two_handed_result.snapshot)
+
+	_prime_active_unit_ap(runner, 6)
+	var versatile_result = await _run_command(
+		runner,
+		"battle equip main_hand %s" % String(VERSATILE_TEST_WEAPON_ID)
+	)
+	_assert_battle_versatile_free_offhand_linkage(versatile_result.snapshot)
+
+	_prime_active_unit_ap(runner, 6)
+	var offhand_result = await _run_command(
+		runner,
+		"battle equip off_hand %s" % String(OFFHAND_TEST_ITEM_ID)
+	)
+	_assert_battle_offhand_forces_versatile_one_handed(offhand_result.snapshot)
+	_assert_party_equipment_not_updated_during_battle(offhand_result.snapshot, active_member_id)
+
 	_prime_active_unit_ap(runner, 4)
 	var hp_equip_result = await _run_command(runner, "battle equip body leather_jerkin")
 	_assert_battle_hp_item_equipped(hp_equip_result.snapshot)
@@ -51,6 +83,9 @@ func _run() -> void:
 	_prime_active_unit_hp_and_ap(runner, int(hp_equip_report.get("hp_max_after", 0)), 2)
 	var hp_unequip_result = await _run_command(runner, "battle unequip body")
 	_assert_battle_unequip_hp_clamp_and_turn_end(hp_unequip_result.snapshot, hp_unequip_result.snapshot_text)
+
+	var finish_result = await _run_command(runner, "battle finish player")
+	_assert_party_equipment_written_back_after_battle(finish_result.snapshot, active_member_id)
 
 	await runner.dispose(true)
 	_finish()
@@ -94,6 +129,58 @@ func _get_active_unit_state(runner):
 	if battle_state == null or battle_state.active_unit_id == &"":
 		return null
 	return battle_state.units.get(battle_state.active_unit_id)
+
+
+func _install_battle_equipment_test_items(runner) -> void:
+	var game_session = runner.get_session().get_game_session()
+	_assert_true(game_session != null, "战斗换装回归前置：应存在 GameSession。")
+	if game_session == null:
+		return
+	var item_defs: Dictionary = game_session.get_item_defs()
+	item_defs[VERSATILE_TEST_WEAPON_ID] = _build_versatile_test_weapon_def()
+	item_defs[OFFHAND_TEST_ITEM_ID] = _build_offhand_test_item_def()
+
+
+func _build_versatile_test_weapon_def() -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = VERSATILE_TEST_WEAPON_ID
+	item_def.display_name = "WPNDICE Versatile Longsword"
+	item_def.is_stackable = false
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	item_def.equipment_slot_ids = ["main_hand"]
+	item_def.tags = [&"weapon", &"melee", &"versatile", &"test"]
+
+	var profile := WeaponProfileDef.new()
+	profile.weapon_type_id = &"wpndice_longsword"
+	profile.damage_tag = ItemDef.DAMAGE_TAG_PHYSICAL_SLASH
+	profile.attack_range = 1
+	profile.one_handed_dice = _build_weapon_dice(1, 8, 0)
+	profile.two_handed_dice = _build_weapon_dice(1, 10, 0)
+	profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	profile.properties = [&"versatile"]
+	item_def.weapon_profile = profile
+	return item_def
+
+
+func _build_offhand_test_item_def() -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = OFFHAND_TEST_ITEM_ID
+	item_def.display_name = "WPNDICE Offhand Focus"
+	item_def.is_stackable = false
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ACCESSORY
+	item_def.equipment_slot_ids = ["off_hand"]
+	item_def.tags = [&"off_hand", &"focus", &"test"]
+	return item_def
+
+
+func _build_weapon_dice(dice_count: int, dice_sides: int, flat_bonus: int) -> WeaponDamageDiceDef:
+	var dice := WeaponDamageDiceDef.new()
+	dice.dice_count = dice_count
+	dice.dice_sides = dice_sides
+	dice.flat_bonus = flat_bonus
+	return dice
 
 
 func _assert_successful_battle_equip(snapshot: Dictionary, text_snapshot: String) -> void:
@@ -142,6 +229,81 @@ func _assert_battle_unequip_backpack_full_failure(snapshot: Dictionary, text_sna
 	_assert_eq(String(equipped.get("item_id", "")), "leather_cap", "背包满卸装失败后 head 装备应保持不变。")
 	_assert_eq(_count_battle_backpack_item(snapshot, "leather_cap"), 0, "背包满卸装失败后装备不应进入 battle-local 背包。")
 	_assert_true(text_snapshot.contains("error=backpack_capacity_exceeded"), "文本快照应渲染背包满失败原因。")
+
+
+func _assert_battle_two_handed_weapon_linkage(snapshot: Dictionary) -> void:
+	var report := _find_latest_change_equipment_report(snapshot)
+	_assert_true(bool(report.get("ok", false)), "双手武器战斗换装应成功。")
+	_assert_eq(String(report.get("operation", "")), "equip", "双手武器 report 应来自装备操作。")
+	_assert_eq(String(report.get("slot_id", "")), "main_hand", "双手武器入口槽应为 main_hand。")
+	_assert_eq(String(report.get("item_id", "")), "iron_greatsword", "双手武器 report 应记录铁制大剑。")
+	_assert_eq(String(report.get("weapon_item_id", "")), "iron_greatsword", "双手武器投影应使用铁制大剑。")
+	_assert_eq(String(report.get("weapon_current_grip", "")), "two_handed", "双手武器投影应切到 two_handed grip。")
+	_assert_true(bool(report.get("weapon_uses_two_hands", false)), "双手武器投影应标记占用双手。")
+
+	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
+	var main_entry := _find_equipped_entry(unit.get("equipment", []), "main_hand")
+	_assert_eq(String(main_entry.get("item_id", "")), "iron_greatsword", "双手武器装备后 battle-local 主手应显示铁制大剑。")
+	_assert_true(_array_has_string(main_entry.get("occupied_slot_ids", []), "off_hand"), "双手武器 battle-local 装备 entry 应联动占用副手。")
+
+
+func _assert_battle_versatile_free_offhand_linkage(snapshot: Dictionary) -> void:
+	var report := _find_latest_change_equipment_report(snapshot)
+	_assert_true(bool(report.get("ok", false)), "versatile 武器战斗换装应成功。")
+	_assert_eq(String(report.get("item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "versatile report 应记录测试武器。")
+	_assert_eq(String(report.get("weapon_item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "versatile 投影应使用测试武器。")
+	_assert_eq(String(report.get("weapon_current_grip", "")), "two_handed", "副手空闲时 versatile 应自动使用双手握法。")
+	_assert_true(bool(report.get("weapon_uses_two_hands", false)), "副手空闲时 versatile 应标记双手使用。")
+
+	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
+	var main_entry := _find_equipped_entry(unit.get("equipment", []), "main_hand")
+	var offhand_entry := _find_equipped_entry(unit.get("equipment", []), "off_hand")
+	_assert_eq(String(main_entry.get("item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "versatile 装备后 battle-local 主手应显示测试武器。")
+	_assert_true(offhand_entry.is_empty(), "副手空闲时 versatile 不应写入独立 off_hand 装备 entry。")
+
+
+func _assert_battle_offhand_forces_versatile_one_handed(snapshot: Dictionary) -> void:
+	var report := _find_latest_change_equipment_report(snapshot)
+	_assert_true(bool(report.get("ok", false)), "副手装备战斗换装应成功。")
+	_assert_eq(String(report.get("slot_id", "")), "off_hand", "副手装备 report 应记录 off_hand 槽。")
+	_assert_eq(String(report.get("item_id", "")), String(OFFHAND_TEST_ITEM_ID), "副手装备 report 应记录测试副手物品。")
+	_assert_eq(String(report.get("weapon_item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "装备副手后主手武器投影仍应来自 versatile 武器。")
+	_assert_eq(String(report.get("weapon_current_grip", "")), "one_handed", "副手被占用时 versatile 应自动回到单手握法。")
+	_assert_true(not bool(report.get("weapon_uses_two_hands", true)), "副手被占用时 versatile 不应继续标记双手使用。")
+
+	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
+	var main_entry := _find_equipped_entry(unit.get("equipment", []), "main_hand")
+	var offhand_entry := _find_equipped_entry(unit.get("equipment", []), "off_hand")
+	_assert_eq(String(main_entry.get("item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "副手装备后 battle-local 主手应保留 versatile 武器。")
+	_assert_eq(String(offhand_entry.get("item_id", "")), String(OFFHAND_TEST_ITEM_ID), "副手装备后 battle-local 副手应显示测试副手物品。")
+
+
+func _assert_party_equipment_not_updated_during_battle(snapshot: Dictionary, member_id: String) -> void:
+	var member := _find_party_member(snapshot.get("party", {}).get("members", []), member_id)
+	_assert_true(not member.is_empty(), "战斗中 party 快照应包含当前行动成员。")
+	var party_main := _find_equipped_entry(member.get("equipment", []), "main_hand")
+	var party_offhand := _find_equipped_entry(member.get("equipment", []), "off_hand")
+	_assert_true(String(party_main.get("item_id", "")) != String(VERSATILE_TEST_WEAPON_ID), "战斗中换装不应直接写入 party 主手。")
+	_assert_true(String(party_offhand.get("item_id", "")) != String(OFFHAND_TEST_ITEM_ID), "战斗中换装不应直接写入 party 副手。")
+
+	var report := _find_latest_change_equipment_report(snapshot)
+	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
+	_assert_eq(String(_find_equipped_entry(unit.get("equipment", []), "main_hand").get("item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "同一快照中 battle-local 主手应已经换成 versatile 武器。")
+	_assert_eq(String(_find_equipped_entry(unit.get("equipment", []), "off_hand").get("item_id", "")), String(OFFHAND_TEST_ITEM_ID), "同一快照中 battle-local 副手应已经换成测试副手物品。")
+
+
+func _assert_party_equipment_written_back_after_battle(snapshot: Dictionary, member_id: String) -> void:
+	_assert_true(not bool(snapshot.get("battle", {}).get("active", false)), "战斗结算后 battle 应退出 active 状态。")
+	var member := _find_party_member(snapshot.get("party", {}).get("members", []), member_id)
+	_assert_true(not member.is_empty(), "战后 party 快照应包含当前行动成员。")
+	var main_entry := _find_equipped_entry(member.get("equipment", []), "main_hand")
+	var offhand_entry := _find_equipped_entry(member.get("equipment", []), "off_hand")
+	var head_entry := _find_equipped_entry(member.get("equipment", []), "head")
+	var body_entry := _find_equipped_entry(member.get("equipment", []), "body")
+	_assert_eq(String(main_entry.get("item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "战后 party 主手才应写回 battle-local versatile 武器。")
+	_assert_eq(String(offhand_entry.get("item_id", "")), String(OFFHAND_TEST_ITEM_ID), "战后 party 副手才应写回 battle-local 副手物品。")
+	_assert_eq(String(head_entry.get("item_id", "")), "leather_cap", "战后 party 头部应写回 battle-local 皮革护帽。")
+	_assert_true(body_entry.is_empty(), "HP clamp 卸装后战后 party body 槽应保持清空。")
 
 
 func _assert_battle_hp_item_equipped(snapshot: Dictionary) -> void:
@@ -205,6 +367,16 @@ func _find_other_battle_unit_id(snapshot: Dictionary) -> String:
 	return "not_current_unit"
 
 
+func _find_party_member(entries: Array, member_id: String) -> Dictionary:
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("member_id", "")) == member_id:
+			return entry
+	return {}
+
+
 func _find_equipped_entry(entries: Array, slot_id: String) -> Dictionary:
 	for entry_variant in entries:
 		if entry_variant is not Dictionary:
@@ -213,6 +385,15 @@ func _find_equipped_entry(entries: Array, slot_id: String) -> Dictionary:
 		if String(entry.get("slot_id", "")) == slot_id:
 			return entry
 	return {}
+
+
+func _array_has_string(values, expected: String) -> bool:
+	if values is not Array:
+		return false
+	for value in values:
+		if String(value) == expected:
+			return true
+	return false
 
 
 func _count_battle_backpack_item(snapshot: Dictionary, item_id: String) -> int:
