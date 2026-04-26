@@ -7,60 +7,76 @@ const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_
 
 const WEAPON_INSTANCE_EXPECTATIONS := {
 	&"bronze_sword": {
-		"base_item_id": &"weapon_sword_one_handed_base",
-		"tags": [&"weapon", &"melee", &"one_handed", &"sword", &"weapon_class_sword"],
-		"damage_tag": &"physical_slash",
+		"base_item_id": &"weapon_type_shortsword_base",
+		"tags": [&"weapon", &"melee", &"one_handed", &"shortsword", &"sword", &"weapon_class_sword", &"weapon_type_shortsword"],
+		"weapon_type_id": &"shortsword",
+		"training_group": &"martial",
+		"range_type": &"melee",
+		"family": &"sword",
+		"damage_tag": &"physical_pierce",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": [],
 		"attack_range": 1,
+		"one_handed_dice": [1, 6, 0],
+		"two_handed_dice": [],
+		"properties": [&"finesse", &"light"],
 		"modifier_count": 2,
 		"base_price": 120,
 		"buy_price": 0,
 		"sell_price": 0,
 	},
 	&"iron_greatsword": {
-		"base_item_id": &"weapon_greatsword_two_handed_base",
-		"tags": [&"weapon", &"melee", &"two_handed", &"greatsword", &"weapon_class_sword"],
+		"base_item_id": &"weapon_type_greatsword_base",
+		"tags": [&"weapon", &"melee", &"two_handed", &"greatsword", &"sword", &"weapon_class_sword", &"weapon_type_greatsword"],
+		"weapon_type_id": &"greatsword",
+		"training_group": &"martial",
+		"range_type": &"melee",
+		"family": &"sword",
 		"damage_tag": &"physical_slash",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": ["main_hand", "off_hand"],
 		"attack_range": 1,
+		"one_handed_dice": [],
+		"two_handed_dice": [2, 6, 0],
+		"properties": [&"two_handed"],
 		"modifier_count": 1,
 		"base_price": 240,
 		"buy_price": 0,
 		"sell_price": 0,
 	},
 	&"militia_axe": {
-		"base_item_id": &"weapon_axe_one_handed_base",
-		"tags": [&"weapon", &"melee", &"one_handed", &"axe", &"weapon_class_axe"],
+		"base_item_id": &"weapon_type_handaxe_base",
+		"tags": [&"weapon", &"melee", &"one_handed", &"handaxe", &"axe", &"weapon_class_axe", &"weapon_type_handaxe"],
+		"weapon_type_id": &"handaxe",
+		"training_group": &"simple",
+		"range_type": &"melee",
+		"family": &"axe",
 		"damage_tag": &"physical_slash",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": [],
 		"attack_range": 1,
+		"one_handed_dice": [1, 6, 0],
+		"two_handed_dice": [],
+		"properties": [&"light", &"thrown"],
 		"modifier_count": 2,
 		"base_price": 135,
 		"buy_price": 145,
 		"sell_price": 70,
 	},
-	&"scout_dagger": {
-		"base_item_id": &"weapon_dagger_one_handed_base",
-		"tags": [&"weapon", &"melee", &"one_handed", &"dagger", &"weapon_class_dagger"],
-		"damage_tag": &"physical_pierce",
-		"equipment_slot_ids": ["main_hand"],
-		"occupied_slot_ids": [],
-		"attack_range": 1,
-		"modifier_count": 2,
-		"base_price": 120,
-		"buy_price": 130,
-		"sell_price": 65,
-	},
 	&"watchman_mace": {
-		"base_item_id": &"weapon_mace_one_handed_base",
-		"tags": [&"weapon", &"melee", &"one_handed", &"mace", &"weapon_class_mace"],
+		"base_item_id": &"weapon_type_mace_base",
+		"tags": [&"weapon", &"melee", &"one_handed", &"mace", &"weapon_class_mace", &"weapon_type_mace"],
+		"weapon_type_id": &"mace",
+		"training_group": &"simple",
+		"range_type": &"melee",
+		"family": &"mace",
 		"damage_tag": &"physical_blunt",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": [],
 		"attack_range": 1,
+		"one_handed_dice": [1, 6, 0],
+		"two_handed_dice": [],
+		"properties": [],
 		"modifier_count": 2,
 		"base_price": 165,
 		"buy_price": 175,
@@ -69,14 +85,10 @@ const WEAPON_INSTANCE_EXPECTATIONS := {
 }
 
 const TEMPLATE_IDS := [
-	&"weapon_melee_base",
-	&"weapon_melee_one_handed_base",
-	&"weapon_melee_two_handed_base",
-	&"weapon_sword_one_handed_base",
-	&"weapon_greatsword_two_handed_base",
-	&"weapon_axe_one_handed_base",
-	&"weapon_dagger_one_handed_base",
-	&"weapon_mace_one_handed_base",
+	&"weapon_type_shortsword_base",
+	&"weapon_type_greatsword_base",
+	&"weapon_type_handaxe_base",
+	&"weapon_type_mace_base",
 ]
 
 var _failures: Array[String] = []
@@ -133,6 +145,16 @@ func _test_weapon_instances_resolve_against_templates() -> void:
 		_assert_eq(item_def.get_tags(), expectation["tags"], "%s 合并后 tags 应与原始一致。" % String(item_id))
 		_assert_eq(String(item_def.get_weapon_physical_damage_tag()), String(expectation["damage_tag"]), "%s 合并后 damage_tag 应来自 weapon_profile 模板。" % String(item_id))
 		_assert_eq(int(item_def.get_weapon_attack_range()), int(expectation["attack_range"]), "%s 合并后 attack_range 应来自 weapon_profile 模板。" % String(item_id))
+		var weapon_profile := item_def.get("weapon_profile") as WeaponProfileDef
+		_assert_true(weapon_profile != null, "%s 合并后应保留 WeaponProfileDef。" % String(item_id))
+		if weapon_profile != null:
+			_assert_eq(String(weapon_profile.weapon_type_id), String(expectation["weapon_type_id"]), "%s 应声明 BG3 weapon_type_id。" % String(item_id))
+			_assert_eq(String(weapon_profile.training_group), String(expectation["training_group"]), "%s 应声明 BG3 training_group。" % String(item_id))
+			_assert_eq(String(weapon_profile.range_type), String(expectation["range_type"]), "%s 应声明 BG3 range_type。" % String(item_id))
+			_assert_eq(String(weapon_profile.family), String(expectation["family"]), "%s 应声明 BG3 family。" % String(item_id))
+			_assert_eq(_dice_to_list(weapon_profile.one_handed_dice), expectation["one_handed_dice"], "%s one_handed_dice 应符合 BG3 模板。" % String(item_id))
+			_assert_eq(_dice_to_list(weapon_profile.two_handed_dice), expectation["two_handed_dice"], "%s two_handed_dice 应符合 BG3 模板。" % String(item_id))
+			_assert_eq(weapon_profile.get_properties(), expectation["properties"], "%s weapon properties 应符合 BG3 模板。" % String(item_id))
 		_assert_eq(String(item_def.equipment_type_id), "weapon", "%s 合并后 equipment_type_id 应为 weapon。" % String(item_id))
 		_assert_eq(String(item_def.item_category), "equipment", "%s 合并后 item_category 应为 equipment。" % String(item_id))
 		_assert_eq(item_def.icon, "res://icon.svg", "%s 合并后 icon 应来自模板。" % String(item_id))
@@ -417,6 +439,16 @@ func _array_to_string_list(values: Array) -> Array:
 	for value in values:
 		result.append(String(value))
 	return result
+
+
+func _dice_to_list(dice_resource) -> Array:
+	if dice_resource == null:
+		return []
+	return [
+		int(dice_resource.get("dice_count")),
+		int(dice_resource.get("dice_sides")),
+		int(dice_resource.get("flat_bonus")),
+	]
 
 
 func _build_weapon_profile(attack_range: int, damage_tag: StringName) -> WeaponProfileDef:

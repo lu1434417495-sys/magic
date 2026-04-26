@@ -22,7 +22,7 @@ source_id = "bronze_sword"
 [resource]
 script = ExtResource("1_item")
 item_id = "bronze_sword"
-base_item_id = "weapon_sword_one_handed_base"
+base_item_id = "weapon_type_shortsword_base"
 display_name = "青铜短剑"
 description = "朴素但可靠的入门单手武器，装备后提升攻击检定加值。"
 is_stackable = false

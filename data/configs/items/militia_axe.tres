@@ -22,7 +22,7 @@ source_id = "militia_axe"
 [resource]
 script = ExtResource("1_item")
 item_id = "militia_axe"
-base_item_id = "weapon_axe_one_handed_base"
+base_item_id = "weapon_type_handaxe_base"
 display_name = "民兵手斧"
 description = "配发给前线民兵的单手战斧，挥砍沉稳，适合作为剑类之外的基础近战武器。"
 is_stackable = false

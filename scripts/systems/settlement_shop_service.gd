@@ -52,7 +52,6 @@ const SHOP_DEFS := {
 			{"item_id": &"bronze_sword", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
 			{"item_id": &"militia_axe", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
 			{"item_id": &"watchman_mace", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"scout_dagger", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
 			{"item_id": &"leather_cap", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
 			{"item_id": &"leather_jerkin", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
 			{"item_id": &"scout_charm", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},

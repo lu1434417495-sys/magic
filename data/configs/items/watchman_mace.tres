@@ -22,7 +22,7 @@ source_id = "watchman_mace"
 [resource]
 script = ExtResource("1_item")
 item_id = "watchman_mace"
-base_item_id = "weapon_mace_one_handed_base"
+base_item_id = "weapon_type_mace_base"
 display_name = "卫兵钉锤"
 description = "城镇卫兵常备的单手钉锤，压制力强，是单手钝器系的基础型号。"
 is_stackable = false

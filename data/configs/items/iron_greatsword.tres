@@ -14,7 +14,7 @@ source_id = "iron_greatsword"
 [resource]
 script = ExtResource("1_item")
 item_id = "iron_greatsword"
-base_item_id = "weapon_greatsword_two_handed_base"
+base_item_id = "weapon_type_greatsword_base"
 display_name = "铁制大剑"
 description = "双手持用的重型武器，同时占用主手与副手槽，攻击检定加值可观。"
 is_stackable = false

@@ -544,9 +544,9 @@ HeadlessGameTestSession
   - `scripts/ui/party_warehouse_window.gd`
   - `data/configs/recipes/*.tres`
   - `data/configs/items/bronze_sword.tres`
+  - `data/configs/items/iron_greatsword.tres`
   - `data/configs/items/militia_axe.tres`
   - `data/configs/items/watchman_mace.tres`
-  - `data/configs/items/scout_dagger.tres`
   - `data/configs/items/leather_cap.tres`
   - `data/configs/items/leather_jerkin.tres`
   - `data/configs/items/scout_charm.tres`
@@ -570,7 +570,7 @@ HeadlessGameTestSession
 - 主要职责：
   - 按堆栈管理共享仓库。
   - 用全队 `storage_space` 统计容量。
-  - `ItemContentRegistry` 在注册阶段先扫描 `data/configs/items_templates`，再扫描 `data/configs/items`；实例若声明 `base_item_id` 会沿模板链合并（标量空回退、tags/modifiers 合并去重、equipment_slot_ids 覆盖、attribute_modifiers 深拷贝并把 source_id 重写为最终 item_id），合并产物才进入 `_item_defs`。模板自身不暴露给运行时；循环或缺失模板在校验阶段报错。
+  - `ItemContentRegistry` 在注册阶段先扫描 `data/configs/items_templates`，再扫描 `data/configs/items`；当前武器模板只保留正式会用到的 BG3 子集（Shortsword / Greatsword / Handaxe / Mace），实例若声明 `base_item_id` 会沿模板链合并（标量空回退、tags/modifiers 合并去重、equipment_slot_ids 覆盖、weapon_profile 委托 `WeaponProfileDef` 合并、attribute_modifiers 深拷贝并把 source_id 重写为最终 item_id），合并产物才进入 `_item_defs`。模板自身不暴露给运行时；循环或缺失模板在校验阶段报错。
   - `RecipeContentRegistry` 负责扫描 / 校验 `RecipeDef`，供据点 forge 流读取。
   - `EquipmentDropService` 负责把调用方已 clamp 的 `drop_luck` 映射为正式装备稀有度；当前不持有掉落表内容，也不二次 clamp。
   - 战斗内随机装备掉落现在由 `BattleRuntimeModule` 在敌人死亡瞬间调用 `EquipmentDropService` 预 roll，`GameRuntimeFacade` 只负责把已解析好的 `equipment_instance` 写入共享仓库。

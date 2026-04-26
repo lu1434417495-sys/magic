@@ -340,7 +340,7 @@ func _test_shop_seed_references_formal_item_seeds() -> void:
 	var buy_entries: Array = window_data.get("buy_entries", [])
 	_assert_true(not _find_entry(buy_entries, "militia_axe").is_empty(), "城市市场应正式引用民兵手斧。")
 	_assert_true(not _find_entry(buy_entries, "watchman_mace").is_empty(), "城市市场应正式引用卫兵钉锤。")
-	_assert_true(not _find_entry(buy_entries, "scout_dagger").is_empty(), "城市市场应正式引用斥候匕首。")
+	_assert_true(_find_entry(buy_entries, "scout_dagger").is_empty(), "城市市场不应继续引用已移除的斥候匕首。")
 	_assert_true(not _find_entry(buy_entries, "leather_cap").is_empty(), "城市市场应正式引用头部护具皮革护帽。")
 	_assert_true(not _find_entry(buy_entries, "antidote_herb").is_empty(), "城市市场应正式引用解毒草。")
 	_assert_true(not _find_entry(buy_entries, "hardwood_lumber").is_empty(), "城市市场应正式引用硬木板。")
