@@ -27,6 +27,8 @@ const ProgressionContentRegistry = preload("res://scripts/player/progression/pro
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const CharacterProgressionDelta = preload("res://scripts/systems/character_progression_delta.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 
 var _failures: Array[String] = []
 
@@ -78,6 +80,8 @@ func _run() -> void:
 	_test_start_battle_accepts_explicit_holdout_push_profile()
 	_test_evaluate_move_rules_survive_stacked_columns()
 	_test_move_command_executes_normally_on_stacked_columns()
+	_test_change_equipment_command_validates_target_ap_and_state_atomicity()
+	_test_change_equipment_command_all_slots_use_battle_local_views()
 	_test_runtime_reports_multistep_reachable_move_coords()
 	_test_spawn_anchor_prefers_better_local_mobility_over_corner_slot()
 	_test_spawn_anchor_rejects_water_start_cells()
@@ -442,6 +446,101 @@ func _test_move_command_executes_normally_on_stacked_columns() -> void:
 	_assert_true(unit.current_ap == 3, "普通移动改走行动点后，不应再扣除 AP。")
 	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "移动批次仍应记录变更单位。")
 	_assert_true(state.cells[Vector2i(1, 0)].occupant_unit_id == unit.unit_id, "目标地格占位应在移动后同步更新。")
+
+
+func _test_change_equipment_command_validates_target_ap_and_state_atomicity() -> void:
+	var fixture := _build_change_equipment_fixture(&"change_equipment_atomic", &"head", 1, &"battle_cap_001", &"leather_cap")
+	var runtime: BattleRuntimeModule = fixture.get("runtime")
+	var state: BattleState = fixture.get("state")
+	var unit: BattleUnitState = fixture.get("unit")
+	var command := _build_change_equipment_command(
+		unit.unit_id,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		&"head",
+		&"battle_cap_001",
+		&"leather_cap"
+	)
+	var backpack_before := _backpack_instance_id_signature(state.get_party_backpack_view())
+	var ap_batch := runtime.issue_command(command)
+	_assert_true(
+		ap_batch.log_lines.any(func(line): return String(line).contains("AP不足")),
+		"AP 不足时换装命令应回传可观察错误日志。 log=%s" % [str(ap_batch.log_lines)]
+	)
+	_assert_eq(unit.current_ap, 1, "AP 不足换装失败不应扣 AP。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"head")), "", "AP 不足换装失败不应写入装备 view。")
+	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), backpack_before, "AP 不足换装失败不应移动背包实例。")
+
+	var other := _build_unit(&"change_equipment_other_ally", Vector2i(1, 0), 2)
+	state.units[other.unit_id] = other
+	state.ally_unit_ids.append(other.unit_id)
+	_assert_true(runtime._grid_service.place_unit(state, other, other.coord, true), "换装目标校验测试中的其他友方应能放入战场。")
+	unit.current_ap = 2
+	command.target_unit_id = other.unit_id
+	var target_batch := runtime.issue_command(command)
+	_assert_true(
+		target_batch.log_lines.any(func(line): return String(line).contains("当前行动单位自己")),
+		"换装命令不允许替其他友方换装，并应回传错误日志。 log=%s" % [str(target_batch.log_lines)]
+	)
+	_assert_eq(unit.current_ap, 2, "替其他友方换装被拒绝时不应扣 AP。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"head")), "", "替其他友方换装被拒绝时不应写入装备 view。")
+	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), backpack_before, "替其他友方换装被拒绝时不应移动背包实例。")
+
+
+func _test_change_equipment_command_all_slots_use_battle_local_views() -> void:
+	for slot_id in EQUIPMENT_RULES_SCRIPT.get_all_slot_ids():
+		var instance_id := ProgressionDataUtils.to_string_name("battle_%s_001" % String(slot_id))
+		var item_id := ProgressionDataUtils.to_string_name("item_%s" % String(slot_id))
+		var fixture := _build_change_equipment_fixture(
+			ProgressionDataUtils.to_string_name("change_equipment_%s" % String(slot_id)),
+			slot_id,
+			2,
+			instance_id,
+			item_id
+		)
+		var runtime: BattleRuntimeModule = fixture.get("runtime")
+		var state: BattleState = fixture.get("state")
+		var unit: BattleUnitState = fixture.get("unit")
+		var command := _build_change_equipment_command(
+			unit.unit_id,
+			BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+			slot_id,
+			instance_id,
+			item_id
+		)
+		var preview := runtime.preview_command(command)
+		_assert_true(
+			preview != null and preview.allowed,
+			"所有装备槽都应通过战斗内换装预览：%s log=%s" % [String(slot_id), str(preview.log_lines if preview != null else [])]
+		)
+		var batch := runtime.issue_command(command)
+		_assert_true(batch.changed_unit_ids.has(unit.unit_id), "换装成功后批次应记录变更单位：%s" % String(slot_id))
+		_assert_true(
+			batch.report_entries.any(func(entry): return entry is Dictionary and String(entry.get("type", "")) == "change_equipment" and bool(entry.get("ok", false))),
+			"换装成功后应输出结构化战报条目：%s reports=%s" % [String(slot_id), str(batch.report_entries)]
+		)
+		_assert_eq(unit.current_ap, 0, "换装成功应消耗 2 AP：%s" % String(slot_id))
+		_assert_eq(
+			String(unit.get_equipment_view().get_equipped_instance_id(slot_id)),
+			String(instance_id),
+			"换装成功应写入 battle-local 装备 view：%s" % String(slot_id)
+		)
+		_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [], "换装成功应从 battle-local 背包移除实例：%s" % String(slot_id))
+
+		var unequip_command := _build_change_equipment_command(
+			unit.unit_id,
+			BattleCommand.EQUIPMENT_OPERATION_UNEQUIP,
+			slot_id,
+			instance_id,
+			item_id
+		)
+		state.phase = &"unit_acting"
+		state.active_unit_id = unit.unit_id
+		unit.current_ap = 2
+		var unequip_batch := runtime.issue_command(unequip_command)
+		_assert_true(unequip_batch.changed_unit_ids.has(unit.unit_id), "卸装成功后批次应记录变更单位：%s" % String(slot_id))
+		_assert_eq(unit.current_ap, 0, "卸装成功应消耗 2 AP：%s" % String(slot_id))
+		_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(slot_id)), "", "卸装成功应清空 battle-local 装备 view：%s" % String(slot_id))
+		_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [String(instance_id)], "卸装成功应把实例放回 battle-local 背包：%s" % String(slot_id))
 
 
 func _test_runtime_reports_multistep_reachable_move_coords() -> void:
@@ -2025,6 +2124,79 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	return unit
+
+
+func _build_change_equipment_fixture(
+	battle_id: StringName,
+	slot_id: StringName,
+	current_ap: int,
+	instance_id: StringName,
+	item_id: StringName
+) -> Dictionary:
+	var runtime := BattleRuntimeModule.new()
+	var state := _build_skill_test_state(Vector2i(3, 1))
+	state.battle_id = battle_id
+	var unit := _build_unit(ProgressionDataUtils.to_string_name("%s_user" % String(battle_id)), Vector2i(0, 0), current_ap)
+	unit.source_member_id = unit.unit_id
+	var enemy := _build_enemy_unit(ProgressionDataUtils.to_string_name("%s_enemy" % String(battle_id)), Vector2i(2, 0))
+	state.units = {
+		unit.unit_id: unit,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [unit.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = unit.unit_id
+	state.get_party_backpack_view().equipment_instances = [_make_equipment_instance(instance_id, item_id)]
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "换装命令测试单位应能成功放入战场：%s/%s" % [String(battle_id), String(slot_id)])
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "换装命令测试敌方应能成功放入战场：%s/%s" % [String(battle_id), String(slot_id)])
+	runtime._state = state
+	return {
+		"runtime": runtime,
+		"state": state,
+		"unit": unit,
+	}
+
+
+func _build_change_equipment_command(
+	unit_id: StringName,
+	operation: StringName,
+	slot_id: StringName,
+	instance_id: StringName,
+	item_id: StringName
+) -> BattleCommand:
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.unit_id = unit_id
+	command.target_unit_id = unit_id
+	command.equipment_operation = operation
+	command.equipment_slot_id = slot_id
+	command.equipment_item_id = item_id
+	command.equipment_instance_id = instance_id
+	command.equipment_instance = {
+		"instance_id": String(instance_id),
+		"item_id": String(item_id),
+	}
+	command.equipment_occupied_slot_ids = [slot_id]
+	return command
+
+
+func _make_equipment_instance(instance_id: StringName, item_id: StringName):
+	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.new()
+	instance.instance_id = ProgressionDataUtils.to_string_name(instance_id)
+	instance.item_id = ProgressionDataUtils.to_string_name(item_id)
+	return instance
+
+
+func _backpack_instance_id_signature(backpack_view) -> Array[String]:
+	var result: Array[String] = []
+	if backpack_view == null:
+		return result
+	for instance in backpack_view.equipment_instances:
+		if instance == null:
+			continue
+		result.append(String(instance.instance_id))
+	result.sort()
+	return result
 
 
 func _build_enemy_unit(unit_id: StringName, coord: Vector2i) -> BattleUnitState:

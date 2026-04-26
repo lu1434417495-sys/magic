@@ -8,6 +8,10 @@ extends RefCounted
 const TYPE_MOVE: StringName = &"move"
 const TYPE_SKILL: StringName = &"skill"
 const TYPE_WAIT: StringName = &"wait"
+const TYPE_CHANGE_EQUIPMENT: StringName = &"change_equipment"
+
+const EQUIPMENT_OPERATION_EQUIP: StringName = &"equip"
+const EQUIPMENT_OPERATION_UNEQUIP: StringName = &"unequip"
 
 ## 字段说明：记录指令类型，用于区分不同规则、资源类别或行为分支。
 var command_type: StringName = &""
@@ -25,6 +29,18 @@ var target_unit_ids: Array[StringName] = []
 var target_coord: Vector2i = Vector2i(-1, -1)
 ## 字段说明：保存目标坐标列表，供范围判定、占位刷新、批量渲染或目标选择复用。
 var target_coords: Array[Vector2i] = []
+## 字段说明：记录战斗内换装操作，当前支持 equip / unequip。
+var equipment_operation: StringName = &""
+## 字段说明：记录战斗内换装入口槽位，必须来自 EquipmentRules 的正式槽位集合。
+var equipment_slot_id: StringName = &""
+## 字段说明：记录战斗内换装物品 ID；若为空，运行时会从 equipment_instance 或背包实例补齐。
+var equipment_item_id: StringName = &""
+## 字段说明：记录战斗内换装装备实例 ID，用于在 battle-local 背包与装备 view 间移动实例。
+var equipment_instance_id: StringName = &""
+## 字段说明：保存可选装备实例 payload，至少可包含 instance_id 与 item_id。
+var equipment_instance: Dictionary = {}
+## 字段说明：保存可选实际占用槽位；为空时运行时按入口槽位占用 1 格处理。
+var equipment_occupied_slot_ids: Array[StringName] = []
 
 
 func is_move() -> bool:
@@ -37,3 +53,7 @@ func is_skill() -> bool:
 
 func is_wait() -> bool:
 	return command_type == TYPE_WAIT
+
+
+func is_change_equipment() -> bool:
+	return command_type == TYPE_CHANGE_EQUIPMENT
