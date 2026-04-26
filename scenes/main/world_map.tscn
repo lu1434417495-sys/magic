@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 ; Scene purpose: World map root scene that hosts exploration, battle overlays, and related windows.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/promotion_choice_window.tscn" id="8_6h2fm"]
 [ext_resource type="PackedScene" path="res://scenes/ui/mastery_reward_window.tscn" id="9_h8l3n"]
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/basic_map_dark.png" id="10_2dj0w"]
+[ext_resource type="Texture2D" path="res://assets/main/basic_map/village.png" id="11_village"]
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/npc/protagonist.png" id="12_2mc6t"]
 [ext_resource type="PackedScene" path="res://scenes/ui/submap_entry_window.tscn" id="13_submap"]
 [ext_resource type="PackedScene" path="res://scenes/ui/shop_window.tscn" id="14_shop"]
@@ -105,6 +106,7 @@ grow_vertical = 2
 script = ExtResource("2_7d2f8")
 cell_background_texture = ExtResource("10_2dj0w")
 player_texture = ExtResource("12_2mc6t")
+village_settlement_texture = ExtResource("11_village")
 
 [node name="BattleMapPanel" parent="MapViewport" instance=ExtResource("5_ba71e")]
 visible = false

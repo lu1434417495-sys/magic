@@ -80,6 +80,19 @@ func _test_world_map_scene_exposes_default_view_palette() -> void:
 				"WorldMapView 的 %s 默认值应继续贴近当前主线视觉。" % property_name
 			)
 
+		_assert_true(
+			_property_list_has_name(world_map_view, "village_settlement_texture"),
+			"WorldMapView 应把 village_settlement_texture 暴露为可配置导出字段。"
+		)
+		var village_texture := world_map_view.get("village_settlement_texture") as Texture2D
+		_assert_true(village_texture != null, "world_map.tscn 应绑定村级据点贴图。")
+		if village_texture != null:
+			_assert_eq(
+				village_texture.resource_path,
+				"res://assets/main/basic_map/village.png",
+				"world_map.tscn 的村级据点贴图应指向重命名后的 village.png。"
+			)
+
 		var tier_to_property := {
 			SettlementConfig.SettlementTier.VILLAGE: "village_tier_color",
 			SettlementConfig.SettlementTier.TOWN: "town_tier_color",

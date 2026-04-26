@@ -441,6 +441,7 @@ HeadlessGameTestSession
 
 - 文件：
   - `scripts/ui/world_map_view.gd`
+  - `assets/main/basic_map/village.png`
 - 真相源：
   - 当前视口内 world map 的绘制结果。
 - 主要职责：

@@ -196,7 +196,7 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 			color = color.darkened(0.45)
 			color.a = 0.85
 
-		_draw_settlement_body(rect, settlement.get("tier", 0), color)
+		_draw_settlement_body(rect, settlement.get("tier", 0), color, fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_EXPLORED)
 		draw_rect(rect, Color(0.05, 0.08, 0.14, 0.95), false, 2.0)
 
 		if not can_draw_labels:
@@ -207,10 +207,10 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 		draw_string(font, label_pos, label, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 12.0, font_size, Color.WHITE)
 
 
-func _draw_settlement_body(rect: Rect2, tier: int, color: Color) -> void:
+func _draw_settlement_body(rect: Rect2, tier: int, color: Color, is_explored: bool) -> void:
 	if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.VILLAGE and village_settlement_texture != null:
 		draw_texture_rect(village_settlement_texture, rect, false, Color(1.0, 1.0, 1.0, color.a))
-		if color != village_tier_color:
+		if is_explored:
 			draw_rect(rect, Color(0.0, 0.0, 0.0, 0.35))
 		return
 	draw_rect(rect, color)
