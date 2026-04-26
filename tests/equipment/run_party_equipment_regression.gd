@@ -38,6 +38,7 @@ func _run() -> void:
 	_test_equip_creates_instance_id_in_slot()
 	_test_instance_id_preserved_through_unequip_and_reequip()
 	_test_two_items_of_same_type_get_different_instance_ids()
+	_test_weapon_profile_equipment_entry_round_trip()
 	_test_equipment_instance_rarity_round_trip_and_legacy_fallback()
 	_finish()
 
@@ -579,6 +580,65 @@ func _test_two_items_of_same_type_get_different_instance_ids() -> void:
 	_assert_true(id1 != &"", "饰品一槽应有 instance_id。")
 	_assert_true(id2 != &"", "饰品二槽应有 instance_id。")
 	_assert_true(id1 != id2, "同种装备的两个实例应拥有不同的 instance_id。")
+
+
+func _test_weapon_profile_equipment_entry_round_trip() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var bronze_sword := item_defs.get(&"bronze_sword") as ItemDef
+	_assert_true(bronze_sword != null, "weapon profile 装备回归前置：应能加载 bronze_sword。")
+	if bronze_sword == null:
+		return
+	var profile := bronze_sword.get("weapon_profile") as WeaponProfileDef
+	_assert_true(profile != null, "bronze_sword 应通过 weapon_profile 提供武器运行时字段。")
+	_assert_eq(int(bronze_sword.get_weapon_attack_range()), 1, "weapon profile 不应影响装备前读取攻击距离。")
+	_assert_eq(String(bronze_sword.get_weapon_physical_damage_tag()), "physical_pierce", "weapon profile 不应影响装备前读取伤害类型。")
+
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	warehouse_service.add_item(&"bronze_sword", 1)
+	var equip_result := equipment_service.equip_item(&"hero", &"bronze_sword")
+	_assert_true(bool(equip_result.get("success", false)), "带 weapon_profile 的武器应能正常装备。")
+	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 0, "装备后 weapon_profile 武器不应残留在仓库。")
+
+	var equipment_state = party_state.get_member_state(&"hero").equipment_state
+	var instance_id: StringName = equipment_state.get_equipped_instance_id(&"main_hand")
+	_assert_true(instance_id != &"", "带 weapon_profile 的武器装备后应拥有实例 ID。")
+	var equipment_payload: Dictionary = equipment_state.to_dict()
+	var slot_payload: Dictionary = equipment_payload.get("equipped_slots", {}).get("main_hand", {})
+	_assert_eq(String(slot_payload.get("item_id", "")), "bronze_sword", "装备 payload 应只记录 item_id。")
+	_assert_eq(String(slot_payload.get("instance_id", "")), String(instance_id), "装备 payload 应记录同一个 instance_id。")
+	_assert_true(not slot_payload.has("weapon_profile"), "装备 entry payload 不应序列化 weapon_profile 静态资源。")
+	_assert_true(not slot_payload.has("weapon_attack_range"), "装备 entry payload 不应写入旧 weapon_attack_range 字段。")
+	_assert_true(not slot_payload.has("weapon_physical_damage_tag"), "装备 entry payload 不应写入旧 weapon_physical_damage_tag 字段。")
+
+	var restored_party_state = PartyState.from_dict(party_state.to_dict())
+	_assert_true(restored_party_state != null, "带 weapon_profile 武器的 PartyState round-trip 应成功。")
+	if restored_party_state == null:
+		return
+	var restored_equipment_state = restored_party_state.get_member_state(&"hero").equipment_state
+	_assert_eq(String(restored_equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "round-trip 后应保留 weapon_profile 武器 item_id。")
+	_assert_eq(String(restored_equipment_state.get_equipped_instance_id(&"main_hand")), String(instance_id), "round-trip 后应保留 weapon_profile 武器 instance_id。")
+
+	var restored_warehouse := PartyWarehouseService.new()
+	restored_warehouse.setup(restored_party_state, item_defs)
+	var restored_equipment_service := PartyEquipmentService.new()
+	restored_equipment_service.setup(restored_party_state, item_defs, restored_warehouse)
+	var unequip_result := restored_equipment_service.unequip_item(&"hero", &"main_hand")
+	_assert_true(bool(unequip_result.get("success", false)), "round-trip 后带 weapon_profile 的武器应能卸回仓库。")
+	_assert_eq(restored_warehouse.count_item(&"bronze_sword"), 1, "卸装后带 weapon_profile 的武器应作为装备实例回仓。")
+
+	var restored_instances: Array = restored_party_state.warehouse_state.get_non_empty_instances()
+	_assert_eq(restored_instances.size(), 1, "卸装后仓库中应只有 1 件 weapon_profile 武器实例。")
+	if not restored_instances.is_empty():
+		var instance_payload: Dictionary = restored_instances[0].to_dict()
+		_assert_eq(String(instance_payload.get("instance_id", "")), String(instance_id), "卸回仓库的实例应保留原 instance_id。")
+		_assert_true(not instance_payload.has("weapon_profile"), "装备实例 payload 不应序列化 weapon_profile 静态资源。")
+		_assert_true(not instance_payload.has("weapon_attack_range"), "装备实例 payload 不应写入旧 weapon_attack_range 字段。")
+		_assert_true(not instance_payload.has("weapon_physical_damage_tag"), "装备实例 payload 不应写入旧 weapon_physical_damage_tag 字段。")
 
 
 func _test_equipment_instance_rarity_round_trip_and_legacy_fallback() -> void:

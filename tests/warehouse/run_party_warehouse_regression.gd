@@ -16,6 +16,7 @@ const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
 const WarehouseStackState = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
@@ -57,6 +58,7 @@ func _run() -> void:
 	await _ensure_game_session()
 	await _test_warehouse_service_rules()
 	await _test_inventory_entries_include_equipment_instances()
+	await _test_weapon_profile_equipment_instances_stack_round_trip()
 	await _test_batch_swap_commit_is_atomic()
 	await _test_quest_reward_item_materializer()
 	await _test_skill_book_generation_and_use_rules()
@@ -314,6 +316,55 @@ func _test_inventory_entries_include_equipment_instances() -> void:
 	_assert_true(not herb_entry.is_empty(), "展示条目中应保留普通堆叠物品。")
 	_assert_eq(int(herb_entry.get("quantity", 0)), 7, "普通堆叠物品应保留堆叠数量。")
 	_assert_eq(String(herb_entry.get("storage_mode", "")), "stack", "普通物品条目应标记为 stack 存储模式。")
+
+
+func _test_weapon_profile_equipment_instances_stack_round_trip() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var bronze_sword := item_defs.get(&"bronze_sword") as ItemDef
+	_assert_true(bronze_sword != null, "weapon profile 仓库回归前置：应能加载 bronze_sword。")
+	if bronze_sword == null:
+		return
+	var profile := bronze_sword.get("weapon_profile") as WeaponProfileDef
+	_assert_true(profile != null, "bronze_sword 应通过 weapon_profile 提供武器运行时字段。")
+	_assert_eq(int(bronze_sword.get_weapon_attack_range()), 1, "warehouse 回归应能从 weapon_profile 读取武器攻击距离。")
+	_assert_eq(String(bronze_sword.get_weapon_physical_damage_tag()), "physical_pierce", "warehouse 回归应能从 weapon_profile 读取武器伤害类型。")
+
+	var party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 6),
+	])
+	party.main_character_member_id = &"porter"
+	var service := PartyWarehouseService.new()
+	service.setup(party, item_defs)
+
+	var sword_result := service.add_item(&"bronze_sword", 2)
+	var herb_result := service.add_item(&"healing_herb", 7)
+	_assert_eq(int(sword_result.get("added_quantity", 0)), 2, "带 weapon_profile 的武器应能按装备实例加入仓库。")
+	_assert_eq(int(herb_result.get("added_quantity", 0)), 7, "加入 weapon_profile 武器后普通堆叠物仍应能入仓。")
+	_assert_eq(service.count_item(&"bronze_sword"), 2, "带 weapon_profile 的武器库存计数应来自装备实例数。")
+	_assert_eq(service.count_item(&"healing_herb"), 7, "普通堆叠物数量不应受 weapon_profile 装备影响。")
+	_assert_eq(service.get_used_slots(), 3, "2 件装备实例 + 1 个普通堆叠应占 3 格。")
+	_assert_eq(_stack_signature(party), ["healing_herb:7"], "带 weapon_profile 武器不应写入普通 stacks。")
+	_assert_eq(_instance_signature(party), ["bronze_sword", "bronze_sword"], "带 weapon_profile 武器应写入 equipment_instances。")
+
+	var entries := service.get_inventory_entries()
+	var sword_entry := _find_inventory_entry(entries, "bronze_sword")
+	var herb_entry := _find_inventory_entry(entries, "healing_herb")
+	_assert_eq(String(sword_entry.get("storage_mode", "")), "instance", "带 weapon_profile 武器展示条目应保持 instance 模式。")
+	_assert_eq(int(sword_entry.get("quantity", 0)), 2, "带 weapon_profile 武器展示数量应聚合装备实例。")
+	_assert_eq(String(herb_entry.get("storage_mode", "")), "stack", "普通物品展示条目应保持 stack 模式。")
+	_assert_eq(int(herb_entry.get("quantity", 0)), 7, "普通物品展示数量应保持堆叠数量。")
+
+	var restored_party = PartyState.from_dict(party.to_dict())
+	_assert_true(restored_party != null, "带 weapon_profile 武器实例和普通堆叠的 PartyState round-trip 应成功。")
+	if restored_party == null:
+		return
+	_assert_eq(_stack_signature(restored_party), ["healing_herb:7"], "round-trip 后普通堆叠应保持。")
+	_assert_eq(_instance_signature(restored_party), ["bronze_sword", "bronze_sword"], "round-trip 后 weapon_profile 武器实例应保持。")
+	for instance in restored_party.warehouse_state.get_non_empty_instances():
+		var payload: Dictionary = instance.to_dict()
+		_assert_true(not payload.has("weapon_profile"), "仓库装备实例 payload 不应序列化 weapon_profile 静态资源。")
+		_assert_true(not payload.has("weapon_attack_range"), "仓库装备实例 payload 不应写入旧 weapon_attack_range 字段。")
+		_assert_true(not payload.has("weapon_physical_damage_tag"), "仓库装备实例 payload 不应写入旧 weapon_physical_damage_tag 字段。")
 
 
 func _test_skill_book_generation_and_use_rules() -> void:

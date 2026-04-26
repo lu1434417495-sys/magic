@@ -4,6 +4,9 @@ const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
 const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
+const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
+
+const LEGACY_WEAPON_FIELDS_FIXTURE := "res://tests/fixtures/resource_validation/item_registry_invalid/legacy_weapon_fields_item.tres"
 
 const WEAPON_INSTANCE_EXPECTATIONS := {
 	&"bronze_sword": {
@@ -105,8 +108,10 @@ func _run() -> void:
 	_test_templates_excluded_from_item_defs()
 	_test_standalone_item_without_template_unchanged()
 	_test_item_def_exposes_only_weapon_profile_runtime_source()
+	_test_legacy_weapon_fields_are_not_runtime_fallback()
 	_test_scalar_fallback()
 	_test_weapon_profile_merge_delegates_property_rules()
+	_test_weapon_profile_inheritance_override_and_property_modes()
 	_test_item_category_inherits_from_template()
 	_test_item_category_normalized_helper()
 	_test_string_name_array_merge_dedup_order()
@@ -208,6 +213,27 @@ func _test_item_def_exposes_only_weapon_profile_runtime_source() -> void:
 	_assert_true(not property_names.has("weapon_physical_damage_tag"), "ItemDef 不应继续暴露旧 weapon_physical_damage_tag 字段。")
 
 
+func _test_legacy_weapon_fields_are_not_runtime_fallback() -> void:
+	var no_profile_weapon := ItemDef.new()
+	no_profile_weapon.item_id = &"_fixture_no_profile_weapon"
+	no_profile_weapon.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	no_profile_weapon.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	no_profile_weapon.equipment_slot_ids = ["main_hand"]
+	no_profile_weapon.tags = [&"weapon", &"melee"]
+
+	_assert_eq(int(no_profile_weapon.get_weapon_attack_range()), 0, "缺少 weapon_profile 时不应从旧 weapon_attack_range 字段回退。")
+	_assert_eq(String(no_profile_weapon.get_weapon_physical_damage_tag()), "", "缺少 weapon_profile 时不应从旧 weapon_physical_damage_tag 字段回退。")
+	_assert_true(not _modifiers_include_attribute(no_profile_weapon.get_attribute_modifiers(), &"weapon_attack_range"), "缺少 weapon_profile.attack_range 时不应生成 weapon_attack_range 属性修正。")
+
+	var legacy_fixture := load(LEGACY_WEAPON_FIELDS_FIXTURE) as ItemDef
+	_assert_true(legacy_fixture != null, "旧武器裸字段夹具应能作为无效资源加载，用于验证无运行时 fallback。")
+	if legacy_fixture == null:
+		return
+	_assert_eq(int(legacy_fixture.get_weapon_attack_range()), 0, "旧资源中的 weapon_attack_range 不应作为运行时 fallback。")
+	_assert_eq(String(legacy_fixture.get_weapon_physical_damage_tag()), "", "旧资源中的 weapon_physical_damage_tag 不应作为运行时 fallback。")
+	_assert_true(not _modifiers_include_attribute(legacy_fixture.get_attribute_modifiers(), &"weapon_attack_range"), "旧资源裸 weapon_attack_range 不应注入属性快照。")
+
+
 func _test_scalar_fallback() -> void:
 	var template := ItemDef.new()
 	template.item_id = &"_fixture_template"
@@ -270,6 +296,93 @@ func _test_weapon_profile_merge_delegates_property_rules() -> void:
 	_assert_true(merged_profile != null, "合并后应保留 weapon_profile。")
 	if merged_profile != null:
 		_assert_eq(merged_profile.get_properties(), [&"versatile", &"shield_breaker"], "weapon_profile.properties 应由 WeaponProfileDef merge mode 处理。")
+
+
+func _test_weapon_profile_inheritance_override_and_property_modes() -> void:
+	var template_profile := _build_weapon_profile(1, ItemDef.DAMAGE_TAG_PHYSICAL_SLASH)
+	template_profile.weapon_type_id = &"longsword"
+	template_profile.training_group = &"martial"
+	template_profile.range_type = &"melee"
+	template_profile.family = &"sword"
+	template_profile.one_handed_dice = _build_weapon_dice(1, 8, 0)
+	template_profile.two_handed_dice = _build_weapon_dice(1, 10, 0)
+	template_profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	template_profile.properties = [&"finesse", &"light", &"versatile"]
+	var template := _build_weapon_item(&"_fixture_profile_template_full", template_profile)
+
+	var inherit_instance := _build_weapon_item(&"_fixture_profile_inherit", WeaponProfileDef.new())
+	var inherit_merged: ItemDef = ItemContentRegistry.merge_with_template(template, inherit_instance)
+	var inherit_profile := inherit_merged.get("weapon_profile") as WeaponProfileDef
+	_assert_true(inherit_profile != null, "空 instance weapon_profile 应继承模板 profile。")
+	if inherit_profile != null:
+		_assert_eq(String(inherit_profile.weapon_type_id), "longsword", "weapon_profile.weapon_type_id 空值应继承模板。")
+		_assert_eq(String(inherit_profile.training_group), "martial", "weapon_profile.training_group 空值应继承模板。")
+		_assert_eq(String(inherit_profile.range_type), "melee", "weapon_profile.range_type 空值应继承模板。")
+		_assert_eq(String(inherit_profile.family), "sword", "weapon_profile.family 空值应继承模板。")
+		_assert_eq(String(inherit_profile.damage_tag), "physical_slash", "weapon_profile.damage_tag 空值应继承模板。")
+		_assert_eq(int(inherit_profile.attack_range), 1, "weapon_profile.attack_range 继承哨兵应继承模板。")
+		_assert_eq(_dice_to_list(inherit_profile.one_handed_dice), [1, 8, 0], "one_handed_dice 空值应继承模板。")
+		_assert_eq(_dice_to_list(inherit_profile.two_handed_dice), [1, 10, 0], "two_handed_dice 空值应继承模板。")
+		_assert_eq(inherit_profile.get_properties(), [&"finesse", &"light", &"versatile"], "properties_mode=INHERIT 应继承模板 properties。")
+		inherit_profile.one_handed_dice.dice_sides = 99
+		_assert_eq(_dice_to_list(template_profile.one_handed_dice), [1, 8, 0], "继承得到的 dice 应是深拷贝，不应污染模板。")
+
+	var override_profile := WeaponProfileDef.new()
+	override_profile.weapon_type_id = &"spear"
+	override_profile.damage_tag = ItemDef.DAMAGE_TAG_PHYSICAL_PIERCE
+	override_profile.attack_range = 2
+	override_profile.one_handed_dice = _build_weapon_dice(1, 6, 1)
+	override_profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	override_profile.properties = [&"thrown"]
+	var override_instance := _build_weapon_item(&"_fixture_profile_override", override_profile)
+	var override_merged: ItemDef = ItemContentRegistry.merge_with_template(template, override_instance)
+	var merged_override_profile := override_merged.get("weapon_profile") as WeaponProfileDef
+	_assert_true(merged_override_profile != null, "覆盖 instance weapon_profile 应合并成功。")
+	if merged_override_profile != null:
+		_assert_eq(String(merged_override_profile.weapon_type_id), "spear", "非空 weapon_type_id 应覆盖模板。")
+		_assert_eq(String(merged_override_profile.training_group), "martial", "未覆盖字段仍应继承模板。")
+		_assert_eq(String(merged_override_profile.damage_tag), "physical_pierce", "非空 damage_tag 应覆盖模板。")
+		_assert_eq(int(merged_override_profile.attack_range), 2, "非继承哨兵 attack_range 应覆盖模板。")
+		_assert_eq(_dice_to_list(merged_override_profile.one_handed_dice), [1, 6, 1], "非空 one_handed_dice 应覆盖模板。")
+		_assert_eq(_dice_to_list(merged_override_profile.two_handed_dice), [1, 10, 0], "空 two_handed_dice 应继续继承模板。")
+
+	var property_cases := [
+		{
+			"label": "inherit",
+			"mode": WeaponProfileDef.PropertyMergeMode.INHERIT,
+			"properties": [&"ignored"],
+			"expected": [&"finesse", &"light", &"versatile"],
+		},
+		{
+			"label": "replace",
+			"mode": WeaponProfileDef.PropertyMergeMode.REPLACE,
+			"properties": [&"heavy", &"heavy"],
+			"expected": [&"heavy"],
+		},
+		{
+			"label": "add",
+			"mode": WeaponProfileDef.PropertyMergeMode.ADD,
+			"properties": [&"reach", &"light"],
+			"expected": [&"finesse", &"light", &"versatile", &"reach"],
+		},
+		{
+			"label": "remove",
+			"mode": WeaponProfileDef.PropertyMergeMode.REMOVE,
+			"properties": [&"light", &"missing"],
+			"expected": [&"finesse", &"versatile"],
+		},
+	]
+	for case_data in property_cases:
+		var profile := WeaponProfileDef.new()
+		profile.properties_mode = int(case_data.get("mode", WeaponProfileDef.PropertyMergeMode.INHERIT))
+		profile.properties = _to_string_name_array(case_data.get("properties", []))
+		var instance := _build_weapon_item(StringName("_fixture_profile_%s" % String(case_data.get("label", ""))), profile)
+		var merged: ItemDef = ItemContentRegistry.merge_with_template(template, instance)
+		var merged_profile := merged.get("weapon_profile") as WeaponProfileDef
+		_assert_true(merged_profile != null, "properties_mode=%s 应产出 weapon_profile。" % String(case_data.get("label", "")))
+		if merged_profile != null:
+			_assert_eq(merged_profile.get_properties(), _to_string_name_array(case_data.get("expected", [])), "properties_mode=%s 应按规则合并 properties。" % String(case_data.get("label", "")))
+			_assert_eq(int(merged_profile.properties_mode), int(WeaponProfileDef.PropertyMergeMode.REPLACE), "合并后的 properties_mode 应归一为 REPLACE，避免运行时再次解释合并模式。")
 
 
 func _test_item_category_inherits_from_template() -> void:
@@ -456,6 +569,45 @@ func _build_weapon_profile(attack_range: int, damage_tag: StringName) -> WeaponP
 	profile.attack_range = attack_range
 	profile.damage_tag = damage_tag
 	return profile
+
+
+func _build_weapon_dice(dice_count: int, dice_sides: int, flat_bonus: int = 0) -> WeaponDamageDiceDef:
+	var dice := WeaponDamageDiceDef.new()
+	dice.dice_count = dice_count
+	dice.dice_sides = dice_sides
+	dice.flat_bonus = flat_bonus
+	return dice
+
+
+func _build_weapon_item(item_id: StringName, weapon_profile: WeaponProfileDef) -> ItemDef:
+	var item := ItemDef.new()
+	item.item_id = item_id
+	item.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	item.equipment_slot_ids = ["main_hand"]
+	item.set("weapon_profile", weapon_profile)
+	return item
+
+
+func _modifiers_include_attribute(modifiers: Array, attribute_id: StringName) -> bool:
+	for modifier in modifiers:
+		if modifier == null:
+			continue
+		if modifier.attribute_id == attribute_id:
+			return true
+	return false
+
+
+func _to_string_name_array(values: Variant) -> Array[StringName]:
+	var result: Array[StringName] = []
+	if values is not Array:
+		return result
+	for raw_value in values:
+		var normalized := StringName(str(raw_value))
+		if normalized == &"":
+			continue
+		result.append(normalized)
+	return result
 
 
 func _assert_true(condition: bool, message: String) -> void:
