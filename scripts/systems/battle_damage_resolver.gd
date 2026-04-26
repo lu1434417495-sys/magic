@@ -43,6 +43,11 @@ const MITIGATION_TIER_DOUBLE: StringName = &"double"
 const MITIGATION_TIER_IMMUNE: StringName = &"immune"
 const DAMAGE_REDUCTION_UP_FIXED_PER_POWER := 2
 const GUARDING_PHYSICAL_REDUCTION_PER_POWER := 4
+const DAMAGE_DICE_HIGH_TOTAL_THRESHOLD_RATIO := 0.8
+const DICE_EVENT_REASON_CRITICAL_HIT: StringName = &"critical_hit"
+const DICE_EVENT_REASON_DICE_THRESHOLD: StringName = &"dice_threshold"
+const DICE_EVENT_REASON_SKILL_DICE_MAX: StringName = &"skill_dice_max"
+const DICE_EVENT_REASON_WEAPON_DICE_MAX: StringName = &"weapon_dice_max"
 const ATTACK_CHECK_TARGET := 21
 const NATURAL_HIT_ROLL := 20
 const ATTACK_RESOLUTION_HIT: StringName = &"hit"
@@ -178,7 +183,7 @@ func resolve_effects(
 	if black_star_wedge_triggered and target_unit.is_alive:
 		if _apply_low_luck_black_star_wedge_exposed(source_unit):
 			source_status_effect_ids.append(LOW_LUCK_RELIC_RULES_SCRIPT.STATUS_BLACK_STAR_WEDGE_EXPOSED)
-	return {
+	var result := {
 		"applied": applied,
 		"damage": total_damage,
 		"hp_damage": total_damage,
@@ -191,6 +196,8 @@ func resolve_effects(
 		"terrain_effect_ids": terrain_effect_ids,
 		"height_delta": total_height_delta,
 	}
+	_attach_damage_event_aggregates(result)
+	return result
 
 
 func _resolve_damage_amount(source_unit: BattleUnitState, target_unit: BattleUnitState, effect_def) -> int:
@@ -511,7 +518,8 @@ func _resolve_damage_outcome(
 	var fixed_mitigation_total := buff_reduction + stance_reduction + passive_reduction + content_dr + guard_block
 	var final_damage := tier_adjusted_damage - fixed_mitigation_total
 	var resolved_damage := maxi(final_damage, MIN_DAMAGE_FLOOR)
-	return {
+	var damage_dice_event_flags := _build_damage_dice_event_flags(critical_hit, damage_roll, weapon_roll)
+	var result := {
 		"damage_tag": damage_tag,
 		"mitigation_tier": mitigation_tier,
 		"mitigation_sources": mitigation_tier_result.get("sources", []),
@@ -559,6 +567,8 @@ func _resolve_damage_outcome(
 			and mitigation_tier != MITIGATION_TIER_IMMUNE \
 			and tier_adjusted_damage > 0,
 	}
+	_apply_damage_dice_event_flags(result, damage_dice_event_flags)
+	return result
 
 
 func _roll_damage_dice(effect_def, include_bonus: bool = true, field_prefix: String = "damage_dice") -> Dictionary:
@@ -606,6 +616,98 @@ func _roll_dice_pool(dice_count: int, dice_sides: int, dice_bonus: int, field_pr
 	result["%s_max_total" % field_prefix] = max_total
 	result["%s_is_max" % field_prefix] = dice_total == max_total
 	return result
+
+
+func _build_damage_dice_event_flags(critical_hit: bool, skill_roll: Dictionary, weapon_roll: Dictionary) -> Dictionary:
+	var skill_dice_count := int(skill_roll.get("damage_dice_count", 0))
+	var skill_dice_sides := int(skill_roll.get("damage_dice_sides", 0))
+	var skill_dice_total := int(skill_roll.get("damage_dice_total", 0))
+	var skill_dice_max_total := int(skill_roll.get("damage_dice_max_total", 0))
+	var has_skill_dice := skill_dice_count > 0 and skill_dice_sides > 0 and skill_dice_max_total > 0
+
+	var weapon_dice_count := int(weapon_roll.get("weapon_damage_dice_count", 0))
+	var weapon_dice_sides := int(weapon_roll.get("weapon_damage_dice_sides", 0))
+	var weapon_dice_total := int(weapon_roll.get("weapon_damage_dice_total", 0))
+	var weapon_dice_max_total := int(weapon_roll.get("weapon_damage_dice_max_total", 0))
+	var has_weapon_dice := weapon_dice_count > 0 and weapon_dice_sides > 0 and weapon_dice_max_total > 0
+
+	var has_any_regular_dice := has_skill_dice or has_weapon_dice
+	var regular_dice_total := skill_dice_total + weapon_dice_total
+	var regular_dice_max_total := skill_dice_max_total + weapon_dice_max_total
+
+	var result := {
+		"damage_dice_high_total_roll": false,
+		"damage_dice_high_total_roll_reason": &"",
+		"skill_damage_dice_is_max": false,
+		"skill_damage_dice_is_max_reason": &"",
+		"weapon_damage_dice_is_max": false,
+		"weapon_damage_dice_is_max_reason": &"",
+	}
+
+	if critical_hit and has_any_regular_dice:
+		result["damage_dice_high_total_roll"] = true
+		result["damage_dice_high_total_roll_reason"] = DICE_EVENT_REASON_CRITICAL_HIT
+	elif has_any_regular_dice \
+		and float(regular_dice_total) >= float(regular_dice_max_total) * DAMAGE_DICE_HIGH_TOTAL_THRESHOLD_RATIO:
+		result["damage_dice_high_total_roll"] = true
+		result["damage_dice_high_total_roll_reason"] = DICE_EVENT_REASON_DICE_THRESHOLD
+
+	if critical_hit and has_skill_dice:
+		result["skill_damage_dice_is_max"] = true
+		result["skill_damage_dice_is_max_reason"] = DICE_EVENT_REASON_CRITICAL_HIT
+	elif has_skill_dice and skill_dice_total == skill_dice_max_total:
+		result["skill_damage_dice_is_max"] = true
+		result["skill_damage_dice_is_max_reason"] = DICE_EVENT_REASON_SKILL_DICE_MAX
+
+	if critical_hit and has_weapon_dice:
+		result["weapon_damage_dice_is_max"] = true
+		result["weapon_damage_dice_is_max_reason"] = DICE_EVENT_REASON_CRITICAL_HIT
+	elif has_weapon_dice and weapon_dice_total == weapon_dice_max_total:
+		result["weapon_damage_dice_is_max"] = true
+		result["weapon_damage_dice_is_max_reason"] = DICE_EVENT_REASON_WEAPON_DICE_MAX
+
+	return result
+
+
+func _apply_damage_dice_event_flags(result: Dictionary, event_flags: Dictionary) -> void:
+	for key in event_flags.keys():
+		result[key] = event_flags[key]
+
+
+func _ensure_damage_dice_event_defaults(event: Dictionary) -> Dictionary:
+	if not event.has("damage_dice_high_total_roll"):
+		event["damage_dice_high_total_roll"] = false
+	if not event.has("damage_dice_high_total_roll_reason"):
+		event["damage_dice_high_total_roll_reason"] = &""
+	if not event.has("skill_damage_dice_is_max"):
+		event["skill_damage_dice_is_max"] = false
+	if not event.has("skill_damage_dice_is_max_reason"):
+		event["skill_damage_dice_is_max_reason"] = &""
+	if not event.has("weapon_damage_dice_is_max"):
+		event["weapon_damage_dice_is_max"] = false
+	if not event.has("weapon_damage_dice_is_max_reason"):
+		event["weapon_damage_dice_is_max_reason"] = &""
+	return event
+
+
+func _attach_damage_event_aggregates(result: Dictionary) -> void:
+	result["damage_dice_high_total_roll"] = false
+	result["skill_damage_dice_is_max"] = false
+	result["weapon_damage_dice_is_max"] = false
+
+	var damage_events = result.get("damage_events", [])
+	if damage_events is not Array:
+		return
+	for event_variant in damage_events:
+		if event_variant is not Dictionary:
+			continue
+		var event := _ensure_damage_dice_event_defaults(event_variant as Dictionary)
+		if bool(event.get("damage_dice_high_total_roll", false)):
+			result["damage_dice_high_total_roll"] = true
+		if bool(event.get("skill_damage_dice_is_max", false)):
+			result["skill_damage_dice_is_max"] = true
+		if bool(event.get("weapon_damage_dice_is_max", false)):
+			result["weapon_damage_dice_is_max"] = true
 
 
 func _roll_damage_die(dice_sides: int) -> int:
@@ -1071,6 +1173,9 @@ func _build_empty_result() -> Dictionary:
 		"shield_absorbed": 0,
 		"shield_broken": false,
 		"damage_events": [],
+		"damage_dice_high_total_roll": false,
+		"skill_damage_dice_is_max": false,
+		"weapon_damage_dice_is_max": false,
 		"status_effect_ids": [],
 		"source_status_effect_ids": [],
 		"terrain_effect_ids": [],
@@ -1131,6 +1236,7 @@ func _build_environmental_damage_result(damage_result: Dictionary) -> Dictionary
 	result["shield_absorbed"] = int(damage_result.get("shield_absorbed", 0))
 	result["shield_broken"] = bool(damage_result.get("shield_broken", false))
 	result["damage_events"] = [damage_result.duplicate(true)]
+	_attach_damage_event_aggregates(result)
 	return result
 
 
@@ -1169,9 +1275,9 @@ func _coerce_damage_outcome(resolved_damage_input) -> Dictionary:
 			outcome["mitigation_sources"] = []
 		if not outcome.has("fixed_mitigation_sources"):
 			outcome["fixed_mitigation_sources"] = []
-		return outcome
+		return _ensure_damage_dice_event_defaults(outcome)
 	var normalized_damage := maxi(int(resolved_damage_input), 0)
-	return {
+	var outcome := {
 		"damage_tag": &"",
 		"mitigation_tier": MITIGATION_TIER_NORMAL,
 		"mitigation_sources": [],
@@ -1189,6 +1295,7 @@ func _coerce_damage_outcome(resolved_damage_input) -> Dictionary:
 		"fixed_mitigation_total": 0,
 		"fully_absorbed_by_mitigation": false,
 	}
+	return _ensure_damage_dice_event_defaults(outcome)
 
 
 func _build_applied_damage_result(
@@ -1198,6 +1305,7 @@ func _build_applied_damage_result(
 	shield_broken: bool
 ) -> Dictionary:
 	var result := damage_outcome.duplicate(true)
+	_ensure_damage_dice_event_defaults(result)
 	result["damage"] = hp_damage
 	result["hp_damage"] = hp_damage
 	result["shield_absorbed"] = shield_absorbed

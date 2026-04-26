@@ -107,7 +107,7 @@ func _run() -> void:
 	_test_weapon_skill_damage_tag_uses_current_weapon_type()
 	_test_weapon_damage_tag_override_does_not_require_weapon()
 	_test_requires_weapon_rejects_unarmed_and_natural_weapons()
-	_test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy_rank()
+	_test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 	_test_ground_jump_precast_failure_does_not_consume_costs()
 	_test_issue_command_flushes_battle_end_logs_to_state()
 	_test_timeline_tick_uses_per_unit_action_threshold()
@@ -1580,7 +1580,7 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	_assert_true(target.current_hp < target_hp_before, "装备武器满足 requires_weapon 后应造成伤害。")
 
 
-func _test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy_rank() -> void:
+func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank() -> void:
 	var gateway := MasteryGatewayStub.new()
 	var skill := _build_ground_damage_dice_skill(&"mastery_rank_test", 0, 1, 1)
 	var runtime := BattleRuntimeModule.new()
@@ -1631,6 +1631,28 @@ func _test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy
 	command.skill_id = non_dice_skill.skill_id
 	runtime.issue_command(command)
 	_assert_eq(gateway.grants.size(), 1, "非暴击且没有伤害骰满值时不应增加熟练度。")
+
+	var weapon_only_skill := _build_ground_damage_dice_skill(&"mastery_weapon_only_test", 0, 0, 0)
+	var weapon_only_effect := weapon_only_skill.combat_profile.effect_defs[0] as CombatEffectDef
+	weapon_only_effect.params = {"add_weapon_dice": true}
+	caster.current_ap = 3
+	caster.known_active_skill_ids = [weapon_only_skill.skill_id]
+	caster.known_skill_level_map = {weapon_only_skill.skill_id: 1}
+	caster.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "mastery_weapon_only_sword",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 1, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
+	runtime.setup(gateway, {weapon_only_skill.skill_id: weapon_only_skill}, {}, {})
+	runtime._state = state
+	command.skill_id = weapon_only_skill.skill_id
+	runtime.issue_command(command)
+	_assert_eq(gateway.grants.size(), 1, "武器骰满值不应污染主动技能熟练度判定。")
 
 
 func _test_ground_jump_precast_failure_does_not_consume_costs() -> void:

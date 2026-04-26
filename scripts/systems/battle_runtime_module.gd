@@ -2622,10 +2622,11 @@ func _collect_vajra_body_mastery_source_ids(
 	result: Dictionary
 ) -> Array[StringName]:
 	var source_ids: Array[StringName] = []
+	if not _result_has_vajra_body_mastery_event(result):
+		return source_ids
 	if _is_vajra_body_heavy_hit_skill(skill_def):
 		source_ids.append(MASTERY_SOURCE_HEAVY_HIT_TAKEN)
-	if bool(result.get("critical_hit", false)):
-		source_ids.append(MASTERY_SOURCE_MAX_DAMAGE_DIE_TAKEN)
+	source_ids.append(MASTERY_SOURCE_MAX_DAMAGE_DIE_TAKEN)
 	if _is_elite_or_boss_target(source_unit):
 		source_ids.append(MASTERY_SOURCE_ELITE_OR_BOSS_DAMAGE_TAKEN)
 	return source_ids
@@ -2654,10 +2655,26 @@ func _count_vajra_body_mastery_hits(result: Dictionary) -> int:
 		if event_variant is not Dictionary:
 			continue
 		var event := event_variant as Dictionary
-		if int(event.get("damage", event.get("hp_damage", 0))) <= 0:
+		if not _is_vajra_body_mastery_event(event):
 			continue
 		count += 1
 	return count
+
+
+func _result_has_vajra_body_mastery_event(result: Dictionary) -> bool:
+	if result == null:
+		return false
+	var damage_events = result.get("damage_events", [])
+	if damage_events is not Array:
+		return false
+	for event_variant in damage_events:
+		if event_variant is Dictionary and _is_vajra_body_mastery_event(event_variant as Dictionary):
+			return true
+	return false
+
+
+func _is_vajra_body_mastery_event(event: Dictionary) -> bool:
+	return bool(event.get("damage_dice_high_total_roll", false)) and int(event.get("hp_damage", 0)) > 0
 
 
 func _is_vajra_body_heavy_hit_skill(skill_def: SkillDef) -> bool:
@@ -3540,7 +3557,7 @@ func record_skill_mastery_resolution(
 		"target_unit_id": target_unit.unit_id,
 		"amount": amount,
 		"critical_hit": bool(result.get("critical_hit", false)),
-		"max_damage_die": _result_has_max_damage_die(result),
+		"skill_damage_dice_is_max": _result_has_skill_damage_die_event(result),
 	})
 
 
@@ -3558,17 +3575,17 @@ func _is_skill_mastery_qualifying_result(result: Dictionary) -> bool:
 		return false
 	if int(result.get("damage", result.get("hp_damage", 0))) <= 0 and int(result.get("shield_absorbed", 0)) <= 0:
 		return false
-	return bool(result.get("critical_hit", false)) or _result_has_max_damage_die(result)
+	return _result_has_skill_damage_die_event(result)
 
 
-func _result_has_max_damage_die(result: Dictionary) -> bool:
-	if bool(result.get("damage_dice_is_max", false)):
+func _result_has_skill_damage_die_event(result: Dictionary) -> bool:
+	if bool(result.get("skill_damage_dice_is_max", false)):
 		return true
 	var damage_events = result.get("damage_events", [])
 	if damage_events is not Array:
 		return false
 	for event_variant in damage_events:
-		if event_variant is Dictionary and bool((event_variant as Dictionary).get("damage_dice_is_max", false)):
+		if event_variant is Dictionary and bool((event_variant as Dictionary).get("skill_damage_dice_is_max", false)):
 			return true
 	return false
 

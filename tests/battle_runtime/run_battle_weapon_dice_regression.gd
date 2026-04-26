@@ -43,6 +43,8 @@ func _run() -> void:
 	_test_critical_hit_rolls_extra_weapon_and_skill_dice_once()
 	_test_each_damage_effect_reads_add_weapon_dice_independently()
 	_test_current_two_handed_weapon_dice_is_used()
+	_test_dice_event_fields_split_by_dice_group()
+	_test_dice_event_fields_stay_false_without_dice_groups()
 	_test_warrior_heavy_strike_uses_weapon_plus_skill_dice_template()
 	if _failures.is_empty():
 		print("Battle weapon dice regression: PASS")
@@ -107,6 +109,15 @@ func _test_critical_hit_rolls_extra_weapon_and_skill_dice_once() -> void:
 	_assert_eq(int(event.get("critical_extra_weapon_damage_dice_total", 0)), 4, "暴击应额外掷一组武器骰。")
 	_assert_eq(int(event.get("damage_dice_bonus", 0)), 3, "技能 dice_bonus 不应因暴击重复加入。")
 	_assert_eq(int(event.get("weapon_damage_dice_bonus", 0)), 2, "武器 flat_bonus 不应因暴击重复加入。")
+	_assert_true(bool(event.get("damage_dice_high_total_roll", false)), "暴击且存在任意骰组时本段 high-total 事件应为 true。")
+	_assert_eq(String(event.get("damage_dice_high_total_roll_reason", "")), "critical_hit", "暴击 high-total reason 应记录 critical_hit。")
+	_assert_true(bool(event.get("skill_damage_dice_is_max", false)), "暴击且存在技能骰时本段技能骰事件应为 true。")
+	_assert_eq(String(event.get("skill_damage_dice_is_max_reason", "")), "critical_hit", "暴击技能骰 reason 应记录 critical_hit。")
+	_assert_true(bool(event.get("weapon_damage_dice_is_max", false)), "暴击且存在武器骰时本段武器骰事件应为 true。")
+	_assert_eq(String(event.get("weapon_damage_dice_is_max_reason", "")), "critical_hit", "暴击武器骰 reason 应记录 critical_hit。")
+	_assert_true(bool(result.get("damage_dice_high_total_roll", false)), "顶层 high-total 事件应 OR 汇总 damage_events。")
+	_assert_true(bool(result.get("skill_damage_dice_is_max", false)), "顶层技能骰事件应 OR 汇总 damage_events。")
+	_assert_true(bool(result.get("weapon_damage_dice_is_max", false)), "顶层武器骰事件应 OR 汇总 damage_events。")
 
 
 func _test_each_damage_effect_reads_add_weapon_dice_independently() -> void:
@@ -150,6 +161,59 @@ func _test_current_two_handed_weapon_dice_is_used() -> void:
 	_assert_eq(int(event.get("weapon_damage_dice_count", 0)), 2, "双手握法应读取 two_handed_dice 的骰子数量。")
 	_assert_eq(int(event.get("weapon_damage_dice_sides", 0)), 6, "双手握法应读取 two_handed_dice 的骰面。")
 	_assert_eq(int(event.get("base_damage", 0)), 7, "双手武器应按当前握法掷 2D6。")
+
+
+func _test_dice_event_fields_split_by_dice_group() -> void:
+	var resolver := FixedRollDamageResolver.new([6, 4])
+	var source := _build_unit(&"dice_event_split_user")
+	_apply_weapon(source, 1, 6, 0)
+	var target := _build_unit(&"dice_event_split_target")
+	var weapon_only_effect := _build_damage_effect(0, true)
+	var skill_only_effect := _build_damage_effect(0, false, 1, 4)
+
+	var result: Dictionary = resolver.resolve_effects(source, target, [weapon_only_effect, skill_only_effect])
+	var events = result.get("damage_events", [])
+	_assert_eq(events.size() if events is Array else 0, 2, "拆分骰子事件回归应产生两段 damage event。")
+	_assert_true(bool(result.get("damage_dice_high_total_roll", false)), "顶层 high-total 应只表达任意一段满足。")
+	_assert_true(bool(result.get("skill_damage_dice_is_max", false)), "顶层技能骰事件应只表达任意一段满足。")
+	_assert_true(bool(result.get("weapon_damage_dice_is_max", false)), "顶层武器骰事件应只表达任意一段满足。")
+	_assert_true(not result.has("damage_dice_high_total_roll_reason"), "顶层 high-total 不应携带单段 reason。")
+	_assert_true(not result.has("skill_damage_dice_is_max_reason"), "顶层技能骰事件不应携带单段 reason。")
+	_assert_true(not result.has("weapon_damage_dice_is_max_reason"), "顶层武器骰事件不应携带单段 reason。")
+	if events is Array and events.size() >= 2:
+		var weapon_event := events[0] as Dictionary
+		var skill_event := events[1] as Dictionary
+		_assert_true(bool(weapon_event.get("damage_dice_high_total_roll", false)), "武器满骰段应满足 high-total 阈值。")
+		_assert_eq(String(weapon_event.get("damage_dice_high_total_roll_reason", "")), "dice_threshold", "非暴击 high-total reason 应记录 dice_threshold。")
+		_assert_true(not bool(weapon_event.get("skill_damage_dice_is_max", true)), "没有技能骰的段不应触发技能骰事件。")
+		_assert_eq(String(weapon_event.get("skill_damage_dice_is_max_reason", "")), "", "没有技能骰时技能骰 reason 应为空。")
+		_assert_true(bool(weapon_event.get("weapon_damage_dice_is_max", false)), "武器满骰段应触发武器骰事件。")
+		_assert_eq(String(weapon_event.get("weapon_damage_dice_is_max_reason", "")), "weapon_dice_max", "武器满骰 reason 应记录 weapon_dice_max。")
+		_assert_true(bool(skill_event.get("damage_dice_high_total_roll", false)), "技能满骰段应满足 high-total 阈值。")
+		_assert_eq(String(skill_event.get("damage_dice_high_total_roll_reason", "")), "dice_threshold", "技能满骰 high-total reason 应记录 dice_threshold。")
+		_assert_true(bool(skill_event.get("skill_damage_dice_is_max", false)), "技能满骰段应触发技能骰事件。")
+		_assert_eq(String(skill_event.get("skill_damage_dice_is_max_reason", "")), "skill_dice_max", "技能满骰 reason 应记录 skill_dice_max。")
+		_assert_true(not bool(skill_event.get("weapon_damage_dice_is_max", true)), "没有武器骰的段不应触发武器骰事件。")
+		_assert_eq(String(skill_event.get("weapon_damage_dice_is_max_reason", "")), "", "没有武器骰时武器骰 reason 应为空。")
+
+
+func _test_dice_event_fields_stay_false_without_dice_groups() -> void:
+	var resolver := FixedRollDamageResolver.new([6])
+	var source := _build_unit(&"no_dice_event_user")
+	var target := _build_unit(&"no_dice_event_target")
+	var effect := _build_damage_effect(5, false)
+
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var event := _first_damage_event(result)
+	_assert_true(not bool(event.get("damage_dice_high_total_roll", true)), "无骰组时 high-total 事件必须为 false。")
+	_assert_true(not bool(event.get("skill_damage_dice_is_max", true)), "无技能骰组时技能骰事件必须为 false。")
+	_assert_true(not bool(event.get("weapon_damage_dice_is_max", true)), "无武器骰组时武器骰事件必须为 false。")
+	_assert_eq(String(event.get("damage_dice_high_total_roll_reason", "")), "", "无骰组时 high-total reason 应为空。")
+	_assert_eq(String(event.get("skill_damage_dice_is_max_reason", "")), "", "无技能骰组时技能骰 reason 应为空。")
+	_assert_eq(String(event.get("weapon_damage_dice_is_max_reason", "")), "", "无武器骰组时武器骰 reason 应为空。")
+	_assert_true(not bool(result.get("damage_dice_high_total_roll", true)), "顶层 high-total 汇总不应因 0 == 0 触发。")
+	_assert_true(not bool(result.get("skill_damage_dice_is_max", true)), "顶层技能骰汇总不应因 0 == 0 触发。")
+	_assert_true(not bool(result.get("weapon_damage_dice_is_max", true)), "顶层武器骰汇总不应因 0 == 0 触发。")
 
 
 func _test_warrior_heavy_strike_uses_weapon_plus_skill_dice_template() -> void:

@@ -626,8 +626,10 @@ func _test_vajra_body_reduces_all_damage_tags_and_blocks_enemy_forced_move() -> 
 		{
 			"critical_hit": true,
 			"damage_events": [
-				{"damage": 3},
-				{"damage": 4},
+				{"damage": 3, "hp_damage": 3, "damage_dice_high_total_roll": true},
+				{"damage": 4, "hp_damage": 4, "damage_dice_high_total_roll": true},
+				{"damage": 0, "hp_damage": 0, "shield_absorbed": 5, "damage_dice_high_total_roll": true},
+				{"damage": 2, "hp_damage": 2, "damage_dice_high_total_roll": false},
 			],
 		},
 		batch
@@ -639,6 +641,23 @@ func _test_vajra_body_reduces_all_damage_tags_and_blocks_enemy_forced_move() -> 
 		"金刚不坏熟练度应按多段命中、精英来源与低血量倍率实时入账。"
 	)
 	_assert_eq(batch.progression_deltas.size(), 1, "金刚不坏受击熟练度应写入当前 battle batch。")
+	facade._battle_runtime._record_vajra_body_mastery_from_incoming_damage(
+		enemy,
+		target,
+		_build_test_damage_skill(&"wolf_heavy_crush", "狼王重击", 10, &"", &""),
+		{
+			"critical_hit": true,
+			"damage_events": [
+				{"damage": 0, "hp_damage": 0, "shield_absorbed": 5, "damage_dice_high_total_roll": true},
+			],
+		},
+		batch
+	)
+	_assert_eq(
+		int(updated_vajra_progress.total_mastery_earned),
+		8,
+		"金刚不坏熟练度不应因护盾完全吸收的 high-total 事件入账。"
+	)
 	var forced_move_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	forced_move_effect.effect_type = &"forced_move"
 	forced_move_effect.forced_move_distance = 1
