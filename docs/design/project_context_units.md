@@ -565,7 +565,7 @@ HeadlessGameTestSession
   - 配方定义与 `recipe_id -> RecipeDef`。
   - 仓库堆栈状态。
   - 装备槽位状态与固定槽位规则。
-- 武器 `ItemDef.weapon_profile` 是武器运行时真相源；攻击范围、伤害类型、单双手骰、versatile 与当前握法会在开战时投影到 `BattleUnitState`，战斗内武器技能射程不再从角色 attribute snapshot 的旧 `weapon_attack_range` 兜底读取。
+- 武器 `ItemDef.weapon_profile` 是武器运行时真相源；攻击范围、伤害类型、单双手骰、versatile 与当前握法会在开战时投影到 `BattleUnitState`，战斗内武器技能射程统一由 `BattleRangeService` 从该投影读取并叠加临时修正，不再从角色 attribute snapshot 的旧 `weapon_attack_range` 兜底读取。
   - `EquipmentDropService` 当前持有装备掉落稀有度公式：`3d6 + drop_luck`。
   - 当前容量 / 已用 / 超容规则。
 - 主要职责：
@@ -577,7 +577,7 @@ HeadlessGameTestSession
   - 战斗内随机装备掉落现在由 `BattleRuntimeModule` 在敌人死亡瞬间调用 `EquipmentDropService` 预 roll，`GameRuntimeFacade` 只负责把已解析好的 `equipment_instance` 写入共享仓库。
   - `preview_add_item` / `add_item` / `remove_item`。
   - 处理仓库与装备槽位之间的基础装备 / 卸装事务。
-  - 维护武器攻击范围等装备侧战斗属性，并通过 `CharacterManagementModule.get_member_weapon_projection()` 给 `BattleUnitFactory` 提供战斗单位武器投影。
+  - 维护 weapon profile 静态配置与装备槽位流转；`ItemDef.get_attribute_modifiers()` 不再把 `weapon_profile.attack_range` 注入属性快照，战斗射程只通过 `CharacterManagementModule.get_member_weapon_projection()` 给 `BattleUnitFactory` 生成单位武器投影。
   - 仓库列表、详情、丢弃单件 / 全部。
 - 说明：
   - 当前装备仍以静态 `item_id` 流转为基线；统一设计与延后的耐久 / 实例化边界见 `docs/design/equipment_system_plan.md`。
@@ -798,6 +798,7 @@ HeadlessGameTestSession
   - `scripts/systems/battle_skill_resolution_rules.gd`
   - `scripts/systems/battle_spawn_reachability_service.gd`
   - `scripts/systems/battle_target_collection_service.gd`
+  - `scripts/systems/battle_range_service.gd`
   - `scripts/systems/battle_terrain_effect_system.gd`
   - `scripts/systems/battle_rating_system.gd`
   - `scripts/systems/battle_report_formatter.gd`
@@ -832,7 +833,7 @@ HeadlessGameTestSession
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
   - `BattleUnitFactory` 构建 / 刷新友军单位时从角色 attribute snapshot 读取 `action_threshold` 写入 `BattleUnitState.action_threshold`；正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
-  - 武器技能射程由 `BattleRuntimeModule` / selection / HUD 从 `BattleUnitState.weapon_attack_range` 读取；`BattleUnitState` 同时持有武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。需要当前近战武器伤害类型的近战技能必须同时具备战斗单位 `weapon_attack_range > 0` 与 `weapon_physical_damage_tag`，不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离。
+  - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。需要当前近战武器伤害类型的近战技能必须同时具备战斗单位 `weapon_attack_range > 0` 与 `weapon_physical_damage_tag`，不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。
@@ -892,6 +893,7 @@ HeadlessGameTestSession
   - `scripts/systems/battle_damage_resolver.gd`
   - `scripts/systems/battle_status_semantic_table.gd`
   - `scripts/systems/battle_hit_resolver.gd`
+  - `scripts/systems/battle_range_service.gd`
   - `scripts/utils/true_random_seed_service.gd`
   - `scripts/systems/battle_ai_context.gd`
   - `scripts/systems/battle_ai_score_input.gd`
@@ -905,6 +907,7 @@ HeadlessGameTestSession
 - 主要职责：
   - 提供 battle 纯规则层 API。
   - 处理 footprint、移动、墙边 / 高差 / 占位规则。
+  - `BattleRangeService` 负责战斗有效射程读取：以 `BattleUnitState.weapon_attack_range` 为武器基础射程，按技能标签 / 当前武器伤害标签需求解析技能射程，并在读取层叠加状态等临时射程修正；不要再让 runtime、HUD、selection、AI 可达性各自手写射程分支。
   - `BattleTerrainRules` 负责 `land / shallow_water / flowing_water / deep_water / mud / spike` 的基础通行与显示语义。
   - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
   - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。

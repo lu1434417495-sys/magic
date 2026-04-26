@@ -174,6 +174,11 @@ func _test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaul
 			13,
 			"正式狼系遭遇构建出的模板敌人应初始化 armor_class。"
 		)
+		_assert_true(
+			not wolf_unit.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
+			"正式狼系遭遇不应再把武器攻击范围写入 attribute_snapshot。"
+		)
+		_assert_eq(wolf_unit.weapon_attack_range, 1, "正式狼系遭遇应把武器攻击范围投影到 BattleUnitState。")
 	game_session.free()
 
 

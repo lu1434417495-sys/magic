@@ -3,6 +3,7 @@ extends RefCounted
 
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT = preload("res://scripts/systems/battle_target_collection_service.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_range_service.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
@@ -809,32 +810,19 @@ func _skill_target_filter_matches_unit(active_unit: BattleUnitState, target_unit
 
 
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def) -> int:
-	if skill_def == null or skill_def.combat_profile == null:
-		return 0
-	var skill_range := _resolve_base_skill_range(active_unit, skill_def)
-	if active_unit != null and active_unit.has_status_effect(&"archer_range_up"):
-		skill_range += 1
-	return skill_range
+	return BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(active_unit, skill_def)
 
 
 func _resolve_base_skill_range(active_unit: BattleUnitState, skill_def) -> int:
-	if _is_weapon_range_skill(skill_def):
-		var weapon_range := _get_weapon_attack_range(active_unit)
-		if weapon_range > 0:
-			return weapon_range
-		if _skill_has_tag(skill_def, &"melee"):
-			return 1
-	return int(skill_def.combat_profile.range_value)
+	return BATTLE_RANGE_SERVICE_SCRIPT.resolve_base_skill_range(active_unit, skill_def)
 
 
 func _is_weapon_range_skill(skill_def) -> bool:
-	return _skill_has_tag(skill_def, &"melee") or _skill_has_tag(skill_def, &"bow") or _skill_has_tag(skill_def, &"weapon")
+	return BATTLE_RANGE_SERVICE_SCRIPT.is_weapon_range_skill(skill_def)
 
 
 func _get_weapon_attack_range(active_unit: BattleUnitState) -> int:
-	if active_unit == null:
-		return 0
-	return active_unit.get_weapon_attack_range()
+	return BATTLE_RANGE_SERVICE_SCRIPT.get_weapon_attack_range(active_unit)
 
 
 func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:

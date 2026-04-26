@@ -237,7 +237,6 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
 	var enemy_weapon_attack_range := maxi(int(context.get("default_enemy_weapon_attack_range", 1)), 0)
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, enemy_weapon_attack_range)
 	_apply_enemy_natural_weapon_projection(
 		unit_state,
 		ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_profile_type_id", "natural_weapon")),

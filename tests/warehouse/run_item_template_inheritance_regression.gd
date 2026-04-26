@@ -150,6 +150,7 @@ func _test_weapon_instances_resolve_against_templates() -> void:
 		_assert_eq(item_def.get_tags(), expectation["tags"], "%s 合并后 tags 应与原始一致。" % String(item_id))
 		_assert_eq(String(item_def.get_weapon_physical_damage_tag()), String(expectation["damage_tag"]), "%s 合并后 damage_tag 应来自 weapon_profile 模板。" % String(item_id))
 		_assert_eq(int(item_def.get_weapon_attack_range()), int(expectation["attack_range"]), "%s 合并后 attack_range 应来自 weapon_profile 模板。" % String(item_id))
+		_assert_true(not _modifiers_include_attribute(item_def.get_attribute_modifiers(), &"weapon_attack_range"), "%s 的 weapon_profile.attack_range 不应注入 attribute modifiers。" % String(item_id))
 		var weapon_profile := item_def.get("weapon_profile") as WeaponProfileDef
 		_assert_true(weapon_profile != null, "%s 合并后应保留 WeaponProfileDef。" % String(item_id))
 		if weapon_profile != null:

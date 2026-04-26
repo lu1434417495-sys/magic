@@ -115,6 +115,10 @@ func _test_attribute_service_exposes_default_character_action_threshold() -> voi
 		ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
 		"角色属性快照应暴露默认 action_threshold。"
 	)
+	_assert_true(
+		not snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
+		"角色属性快照不应再默认暴露旧 weapon_attack_range 战斗字段。"
+	)
 
 
 func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder() -> void:
@@ -309,6 +313,11 @@ func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> voi
 			4,
 			"fallback enemy 应补齐基础六维 %s。" % String(attribute_id)
 		)
+	_assert_true(
+		not unit.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
+		"fallback enemy 不应再把武器攻击范围写入 attribute_snapshot。"
+	)
+	_assert_eq(unit.weapon_attack_range, 1, "fallback enemy 应把默认攻击范围投影到 BattleUnitState.weapon_attack_range。")
 
 
 func _test_battle_unit_factory_no_longer_builds_manual_fallback_terrain() -> void:

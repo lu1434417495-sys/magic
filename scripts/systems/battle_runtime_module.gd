@@ -29,6 +29,7 @@ const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/batt
 const BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT = preload("res://scripts/systems/battle_terrain_topology_service.gd")
 const BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT = preload("res://scripts/systems/battle_target_collection_service.gd")
 const BATTLE_SPAWN_REACHABILITY_SERVICE_SCRIPT = preload("res://scripts/systems/battle_spawn_reachability_service.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_range_service.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
 const EQUIPMENT_DROP_SERVICE_SCRIPT = preload("res://scripts/systems/equipment_drop_service.gd")
@@ -4306,31 +4307,15 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: Skill
 
 
 func _unit_has_melee_weapon(active_unit: BattleUnitState) -> bool:
-	return _get_weapon_attack_range(active_unit) > 0 \
-		and ProgressionDataUtils.to_string_name(active_unit.weapon_physical_damage_tag if active_unit != null else &"") != &""
+	return BATTLE_RANGE_SERVICE_SCRIPT.unit_has_melee_weapon(active_unit)
 
 
 func _requires_melee_weapon(skill_def: SkillDef) -> bool:
-	if skill_def == null or skill_def.combat_profile == null or not _skill_has_tag(skill_def, &"melee"):
-		return false
-	for effect_def_variant in skill_def.combat_profile.effect_defs:
-		var effect_def := effect_def_variant as CombatEffectDef
-		if _effect_uses_weapon_physical_damage_tag(effect_def):
-			return true
-	for cast_variant in skill_def.combat_profile.cast_variants:
-		if cast_variant == null:
-			continue
-		for effect_def_variant in cast_variant.effect_defs:
-			var effect_def := effect_def_variant as CombatEffectDef
-			if _effect_uses_weapon_physical_damage_tag(effect_def):
-				return true
-	return false
+	return BATTLE_RANGE_SERVICE_SCRIPT.requires_current_melee_weapon(skill_def)
 
 
 func _effect_uses_weapon_physical_damage_tag(effect_def: CombatEffectDef) -> bool:
-	return effect_def != null \
-		and effect_def.params != null \
-		and bool(effect_def.params.get("use_weapon_physical_damage_tag", false))
+	return BATTLE_RANGE_SERVICE_SCRIPT.effect_uses_weapon_physical_damage_tag(effect_def)
 
 
 func _get_skill_command_block_reason(
@@ -4625,38 +4610,19 @@ func _advance_unit_status_durations(unit_state: BattleUnitState, elapsed_tu: int
 
 
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:
-	if skill_def == null or skill_def.combat_profile == null:
-		return 0
-	var skill_range := _resolve_base_skill_range(active_unit, skill_def)
-	if _has_status(active_unit, STATUS_ARCHER_RANGE_UP):
-		skill_range += 1
-	return skill_range
+	return BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(active_unit, skill_def)
 
 
 func _resolve_base_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:
-	var configured_range := int(skill_def.combat_profile.range_value) if skill_def != null and skill_def.combat_profile != null else 0
-	if _requires_melee_weapon(skill_def):
-		return _get_weapon_attack_range(active_unit)
-	if skill_def != null \
-		and skill_def.combat_profile != null \
-		and skill_def.combat_profile.target_mode == &"unit" \
-		and _is_weapon_range_skill(skill_def):
-		var weapon_range := _get_weapon_attack_range(active_unit)
-		if weapon_range > 0:
-			return weapon_range
-		if _skill_has_tag(skill_def, &"melee"):
-			return 1
-	return configured_range
+	return BATTLE_RANGE_SERVICE_SCRIPT.resolve_base_skill_range(active_unit, skill_def)
 
 
 func _is_weapon_range_skill(skill_def: SkillDef) -> bool:
-	return _skill_has_tag(skill_def, &"melee") or _skill_has_tag(skill_def, &"bow") or _skill_has_tag(skill_def, &"weapon")
+	return BATTLE_RANGE_SERVICE_SCRIPT.is_weapon_range_skill(skill_def)
 
 
 func _get_weapon_attack_range(active_unit: BattleUnitState) -> int:
-	if active_unit == null:
-		return 0
-	return active_unit.get_weapon_attack_range()
+	return BATTLE_RANGE_SERVICE_SCRIPT.get_weapon_attack_range(active_unit)
 
 
 func _skill_has_tag(skill_def: SkillDef, expected_tag: StringName) -> bool:

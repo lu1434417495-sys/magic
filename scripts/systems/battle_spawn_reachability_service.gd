@@ -5,10 +5,9 @@ const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleTargetCollectionService = preload("res://scripts/systems/battle_target_collection_service.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_range_service.gd")
 
 const DEFAULT_MAX_SEARCH_NODES := 2048
-const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
 
 var _target_collection_service := BattleTargetCollectionService.new()
 
@@ -367,45 +366,19 @@ func _target_filter_allows(source_unit: BattleUnitState, target_unit: BattleUnit
 
 
 func _get_effective_skill_range(unit_state: BattleUnitState, skill_def) -> int:
-	if skill_def == null or skill_def.combat_profile == null:
-		return 0
-	if _is_weapon_range_skill(skill_def):
-		var weapon_range := _get_weapon_attack_range(unit_state)
-		if weapon_range > 0:
-			return weapon_range
-		if _requires_melee_weapon(skill_def):
-			return 0
-		if _skill_has_tag(skill_def, &"melee"):
-			return 1
-	var skill_range := int(skill_def.combat_profile.range_value)
-	if unit_state != null and unit_state.has_status_effect(STATUS_ARCHER_RANGE_UP):
-		skill_range += 1
-	return skill_range
+	return BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(unit_state, skill_def)
 
 
 func _is_weapon_range_skill(skill_def) -> bool:
-	return _skill_has_tag(skill_def, &"melee") or _skill_has_tag(skill_def, &"bow") or _skill_has_tag(skill_def, &"weapon")
+	return BATTLE_RANGE_SERVICE_SCRIPT.is_weapon_range_skill(skill_def)
 
 
 func _get_weapon_attack_range(unit_state: BattleUnitState) -> int:
-	if unit_state == null:
-		return 0
-	return unit_state.get_weapon_attack_range()
+	return BATTLE_RANGE_SERVICE_SCRIPT.get_weapon_attack_range(unit_state)
 
 
 func _requires_melee_weapon(skill_def) -> bool:
-	if skill_def == null or skill_def.combat_profile == null or not _skill_has_tag(skill_def, &"melee"):
-		return false
-	for effect_def in skill_def.combat_profile.effect_defs:
-		if effect_def != null and effect_def.params != null and bool(effect_def.params.get("use_weapon_physical_damage_tag", false)):
-			return true
-	for cast_variant in skill_def.combat_profile.cast_variants:
-		if cast_variant == null:
-			continue
-		for effect_def in cast_variant.effect_defs:
-			if effect_def != null and effect_def.params != null and bool(effect_def.params.get("use_weapon_physical_damage_tag", false)):
-				return true
-	return false
+	return BATTLE_RANGE_SERVICE_SCRIPT.requires_current_melee_weapon(skill_def)
 
 
 func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:

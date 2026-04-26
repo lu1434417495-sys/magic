@@ -172,17 +172,7 @@ func is_skill_book() -> bool:
 
 
 func get_attribute_modifiers() -> Array[AttributeModifier]:
-	var modifiers: Array[AttributeModifier] = attribute_modifiers.duplicate()
-	var weapon_attack_range := get_weapon_attack_range()
-	if weapon_attack_range > 0:
-		var range_modifier := AttributeModifier.new()
-		range_modifier.attribute_id = &"weapon_attack_range"
-		range_modifier.mode = AttributeModifier.MODE_FLAT
-		range_modifier.value = weapon_attack_range
-		range_modifier.source_type = &"equipment"
-		range_modifier.source_id = item_id
-		modifiers.append(range_modifier)
-	return modifiers
+	return attribute_modifiers.duplicate()
 
 
 static func get_valid_equipment_type_ids() -> Array[StringName]:

@@ -8,6 +8,7 @@ const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module
 const BattleCommand = preload("res://scripts/systems/battle_command.gd")
 const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
 const BattleHitResolver = preload("res://scripts/systems/battle_hit_resolver.gd")
+const BattleRangeService = preload("res://scripts/systems/battle_range_service.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
@@ -17,6 +18,7 @@ const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd"
 const BattleTerrainEffectState = preload("res://scripts/systems/battle_terrain_effect_state.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle_status_effect_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
@@ -101,6 +103,7 @@ func _run() -> void:
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
 	_test_weapon_skill_range_uses_weapon_attack_range_not_skill_range()
+	_test_battle_range_service_layers_modifiers_without_snapshot_truth()
 	_test_weapon_skill_damage_tag_uses_current_weapon_type()
 	_test_skill_mastery_requires_max_damage_die_or_critical_and_scales_by_enemy_rank()
 	_test_ground_jump_precast_failure_does_not_consume_costs()
@@ -1396,6 +1399,37 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 	var allowed_batch := runtime.issue_command(command)
 	_assert_true(allowed_batch.changed_unit_ids.has(warrior.unit_id), "武器攻击范围提高到 2 后，同一目标应允许结算。")
 	_assert_eq(warrior.current_ap, 1, "武器攻击范围内的技能应正常扣除 AP。")
+
+
+func _test_battle_range_service_layers_modifiers_without_snapshot_truth() -> void:
+	var skill := _build_direct_damage_skill(&"range_layer_contract", 1)
+	skill.tags = [&"archer", &"bow"]
+	skill.combat_profile.range_value = 99
+
+	var archer := _build_unit(&"range_layer_archer", Vector2i.ZERO, 2)
+	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 8)
+	archer.set_natural_weapon_projection(&"test_bow", &"physical_pierce", 2)
+
+	_assert_eq(
+		BattleRangeService.get_effective_skill_range(archer, skill),
+		2,
+		"有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
+	)
+
+	var range_status := BattleStatusEffectState.new()
+	range_status.status_id = &"archer_range_up"
+	range_status.source_unit_id = archer.unit_id
+	range_status.power = 1
+	range_status.stacks = 1
+	range_status.duration = 60
+	archer.set_status_effect(range_status)
+
+	_assert_eq(
+		BattleRangeService.get_effective_skill_range(archer, skill),
+		3,
+		"状态提供的射程修正应只在有效射程读取层叠加。"
+	)
+	_assert_eq(archer.weapon_attack_range, 2, "状态射程修正不应写回 BattleUnitState.weapon_attack_range 基础投影。")
 
 
 func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
