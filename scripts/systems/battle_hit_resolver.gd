@@ -27,6 +27,7 @@ const ROLL_DISPOSITION_NATURAL_AUTO_HIT: StringName = &"natural_20_auto_hit"
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
+const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_DODGE_BONUS_UP: StringName = &"dodge_bonus_up"
 const BLACK_STAR_BRAND_ATTACK_BONUS_DELTA := -3
 
@@ -248,11 +249,21 @@ func _get_unit_attribute_value(unit_state: BattleUnitState, attribute_id: String
 
 func _get_target_armor_class(target_unit: BattleUnitState) -> int:
 	var target_armor_class := _get_unit_attribute_value(target_unit, ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
+	target_armor_class -= _get_target_armor_break_penalty(target_unit)
 	if _is_target_dodge_bonus_locked(target_unit):
 		target_armor_class -= maxi(_get_unit_attribute_value(target_unit, ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, 0), 0)
 	else:
 		target_armor_class += _get_target_status_dodge_bonus(target_unit)
 	return maxi(target_armor_class, 1)
+
+
+func _get_target_armor_break_penalty(target_unit: BattleUnitState) -> int:
+	if target_unit == null:
+		return 0
+	var status_entry = target_unit.get_status_effect(STATUS_ARMOR_BREAK)
+	if status_entry == null:
+		return 0
+	return maxi(maxi(int(status_entry.power), int(status_entry.stacks)), 1) * 2
 
 
 func _get_target_status_dodge_bonus(target_unit: BattleUnitState) -> int:

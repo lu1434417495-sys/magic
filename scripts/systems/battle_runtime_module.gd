@@ -1551,7 +1551,7 @@ func _preview_ground_skill_command(
 	preview.target_unit_ids = _collect_ground_preview_unit_ids(
 		active_unit,
 		skill_def,
-		_collect_ground_unit_effect_defs(skill_def, cast_variant),
+		_collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit),
 		preview.target_coords
 	)
 	if bool(validation.get("allowed", false)):
@@ -1587,7 +1587,7 @@ func _build_unit_skill_hit_preview(
 	var target_unit := target_units[0] as BattleUnitState
 	if target_unit == null:
 		return {}
-	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant)
+	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
 	var repeat_attack_effect := _repeat_attack_resolver.get_repeat_attack_effect_def(
 		effect_defs
 	)
@@ -1820,7 +1820,7 @@ func _build_unit_skill_resolution_preview_lines(
 	var lines: Array[String] = []
 	if active_unit == null or target_unit == null or skill_def == null:
 		return lines
-	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant)
+	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
 	if effect_defs.is_empty():
 		return lines
 	if _repeat_attack_resolver.get_repeat_attack_effect_def(effect_defs) != null:
@@ -1936,7 +1936,7 @@ func _handle_unit_skill_command(
 		return false
 	_append_changed_unit_id(batch, active_unit.unit_id)
 	var applied := false
-	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant)
+	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
 	var repeat_attack_effect := _repeat_attack_resolver.get_repeat_attack_effect_def(effect_defs)
 	for target_unit_variant in target_units:
 		var target_unit := target_unit_variant as BattleUnitState
@@ -2066,7 +2066,8 @@ func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def: SkillDef) -> bool:
 	if active_unit == null or target_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return false
-	if active_unit.current_ap < int(skill_def.combat_profile.ap_cost):
+	var costs := _get_effective_skill_costs(active_unit, skill_def)
+	if active_unit.current_ap < int(costs.get("ap_cost", skill_def.combat_profile.ap_cost)):
 		return false
 	if not _is_unit_valid_for_effect(active_unit, target_unit, skill_def.combat_profile.target_team_filter):
 		return false
@@ -2734,8 +2735,12 @@ func _collect_hostile_units_for(unit_state: BattleUnitState) -> Array[BattleUnit
 	return hostile_units
 
 
-func _collect_unit_skill_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_unit_skill_effect_defs(skill_def, cast_variant)
+func _collect_unit_skill_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
+	return _skill_resolution_rules.collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
 
 
 func _handle_ground_skill_command(
@@ -2775,14 +2780,14 @@ func _handle_ground_skill_command(
 	var unit_result := _apply_ground_unit_effects(
 		active_unit,
 		skill_def,
-		_collect_ground_unit_effect_defs(skill_def, cast_variant),
+		_collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit),
 		effect_coords,
 		batch
 	)
 	var terrain_result := _apply_ground_terrain_effects(
 		active_unit,
 		skill_def,
-		_collect_ground_terrain_effect_defs(skill_def, cast_variant),
+		_collect_ground_terrain_effect_defs(skill_def, cast_variant, active_unit),
 		effect_coords,
 		batch
 	)
@@ -2887,16 +2892,28 @@ func _build_ground_effect_coords(
 		return _sort_coords(collected_target_coords.get("target_coords", []))
 	return _sort_coords(normalized_target_coords)
 
-func _collect_ground_unit_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_ground_unit_effect_defs(skill_def, cast_variant)
+func _collect_ground_unit_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
+	return _skill_resolution_rules.collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit)
 
 
-func _collect_ground_terrain_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_ground_terrain_effect_defs(skill_def, cast_variant)
+func _collect_ground_terrain_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
+	return _skill_resolution_rules.collect_ground_terrain_effect_defs(skill_def, cast_variant, active_unit)
 
 
-func _collect_ground_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_ground_effect_defs(skill_def, cast_variant)
+func _collect_ground_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
+	return _skill_resolution_rules.collect_ground_effect_defs(skill_def, cast_variant, active_unit)
 
 
 func _collect_ground_preview_unit_ids(
@@ -4249,17 +4266,20 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: Skill
 	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return "技能或目标无效。"
 	var combat_profile = skill_def.combat_profile
+	var costs := _get_effective_skill_costs(active_unit, skill_def)
 	var cooldown := int(active_unit.cooldowns.get(skill_def.skill_id, 0))
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
-	if active_unit.current_ap < int(combat_profile.ap_cost):
+	if active_unit.current_ap < int(costs.get("ap_cost", combat_profile.ap_cost)):
 		return "AP不足，无法施放该技能。"
-	if active_unit.current_mp < int(combat_profile.mp_cost):
+	if active_unit.current_mp < int(costs.get("mp_cost", combat_profile.mp_cost)):
 		return "法力不足，无法施放该技能。"
-	if active_unit.current_stamina < int(combat_profile.stamina_cost):
+	if active_unit.current_stamina < int(costs.get("stamina_cost", combat_profile.stamina_cost)):
 		return "体力不足，无法施放该技能。"
-	if active_unit.current_aura < int(combat_profile.aura_cost):
+	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
+	if _requires_melee_weapon(skill_def) and not _unit_has_melee_weapon(active_unit):
+		return "需要装备可近战攻击的武器，无法施放该技能。"
 	if _is_main_skill_locked_by_status(active_unit, skill_def):
 		return "厄命宣判压制了主技能，无法施放该技能。"
 	if _is_black_star_brand_skill(skill_def.skill_id):
@@ -4283,6 +4303,34 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: Skill
 	if is_unit_guard_locked(active_unit) and _skill_grants_guarding(skill_def):
 		return "黑星烙印封锁了格挡，无法施放该技能。"
 	return ""
+
+
+func _unit_has_melee_weapon(active_unit: BattleUnitState) -> bool:
+	return _get_weapon_attack_range(active_unit) > 0 \
+		and ProgressionDataUtils.to_string_name(active_unit.weapon_physical_damage_tag if active_unit != null else &"") != &""
+
+
+func _requires_melee_weapon(skill_def: SkillDef) -> bool:
+	if skill_def == null or skill_def.combat_profile == null or not _skill_has_tag(skill_def, &"melee"):
+		return false
+	for effect_def_variant in skill_def.combat_profile.effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if _effect_uses_weapon_physical_damage_tag(effect_def):
+			return true
+	for cast_variant in skill_def.combat_profile.cast_variants:
+		if cast_variant == null:
+			continue
+		for effect_def_variant in cast_variant.effect_defs:
+			var effect_def := effect_def_variant as CombatEffectDef
+			if _effect_uses_weapon_physical_damage_tag(effect_def):
+				return true
+	return false
+
+
+func _effect_uses_weapon_physical_damage_tag(effect_def: CombatEffectDef) -> bool:
+	return effect_def != null \
+		and effect_def.params != null \
+		and bool(effect_def.params.get("use_weapon_physical_damage_tag", false))
 
 
 func _get_skill_command_block_reason(
@@ -4350,14 +4398,22 @@ func _consume_skill_costs(
 				batch.log_lines.append(String(black_crown_seal_consume_result.get("message", "黑冠封印每战只能施放 1 次。")))
 			return false
 	var combat_profile = skill_def.combat_profile
-	active_unit.current_ap = maxi(active_unit.current_ap - int(combat_profile.ap_cost), 0)
-	active_unit.current_mp = maxi(active_unit.current_mp - int(combat_profile.mp_cost), 0)
-	active_unit.current_stamina = maxi(active_unit.current_stamina - int(combat_profile.stamina_cost), 0)
-	active_unit.current_aura = maxi(active_unit.current_aura - int(combat_profile.aura_cost), 0)
-	var cooldown := maxi(int(combat_profile.cooldown_tu), 0)
+	var costs := _get_effective_skill_costs(active_unit, skill_def)
+	active_unit.current_ap = maxi(active_unit.current_ap - int(costs.get("ap_cost", combat_profile.ap_cost)), 0)
+	active_unit.current_mp = maxi(active_unit.current_mp - int(costs.get("mp_cost", combat_profile.mp_cost)), 0)
+	active_unit.current_stamina = maxi(active_unit.current_stamina - int(costs.get("stamina_cost", combat_profile.stamina_cost)), 0)
+	active_unit.current_aura = maxi(active_unit.current_aura - int(costs.get("aura_cost", combat_profile.aura_cost)), 0)
+	var cooldown := maxi(int(costs.get("cooldown_tu", combat_profile.cooldown_tu)), 0)
 	if cooldown > 0:
 		active_unit.cooldowns[skill_def.skill_id] = cooldown
 	return true
+
+
+func _get_effective_skill_costs(active_unit: BattleUnitState, skill_def: SkillDef) -> Dictionary:
+	if skill_def == null or skill_def.combat_profile == null:
+		return {}
+	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
+	return skill_def.combat_profile.get_effective_resource_costs(skill_level)
 
 
 func _get_black_contract_push_variant_block_reason(
@@ -4579,6 +4635,8 @@ func _get_effective_skill_range(active_unit: BattleUnitState, skill_def: SkillDe
 
 func _resolve_base_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:
 	var configured_range := int(skill_def.combat_profile.range_value) if skill_def != null and skill_def.combat_profile != null else 0
+	if _requires_melee_weapon(skill_def):
+		return _get_weapon_attack_range(active_unit)
 	if skill_def != null \
 		and skill_def.combat_profile != null \
 		and skill_def.combat_profile.target_mode == &"unit" \

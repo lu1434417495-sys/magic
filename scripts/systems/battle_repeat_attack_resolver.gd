@@ -303,13 +303,9 @@ func _build_repeat_attack_stage_effects(
 	for effect_def in base_effects:
 		if effect_def == null:
 			continue
-		var stage_effect := effect_def.duplicate(true) as CombatEffectDef
+		var stage_effect := effect_def.duplicate_for_runtime()
 		if stage_effect == null:
 			continue
-		if stage_effect.params == null:
-			stage_effect.params = {}
-		else:
-			stage_effect.params = stage_effect.params.duplicate(true)
 		if stage_effect.effect_type == &"damage" and damage_multiplier_stage == "pre_resistance" and damage_multiplier > 1.0:
 			stage_effect.params["runtime_pre_resistance_damage_multiplier"] = damage_multiplier
 		staged_effects.append(stage_effect)

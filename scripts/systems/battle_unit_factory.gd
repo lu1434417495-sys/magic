@@ -12,6 +12,7 @@ const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_
 const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
 const STATUS_VAJRA_BODY: StringName = &"vajra_body"
 const VAJRA_BODY_NON_CORE_MAX_LEVEL := 9
+const DEFAULT_ENEMY_MELEE_DAMAGE_TAG: StringName = &"physical_slash"
 
 var _runtime_ref: WeakRef = null
 var _runtime: BattleUnitFactoryRuntime = null:
@@ -229,6 +230,8 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_enemy_shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, maxi(int(context.get("default_enemy_weapon_attack_range", 1)), 0))
+	unit_state.weapon_physical_damage_tag = ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_physical_damage_tag", DEFAULT_ENEMY_MELEE_DAMAGE_TAG))
 	unit_state.action_threshold = int(context.get("default_enemy_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
 	unit_state.current_hp = hp_max
 	unit_state.current_mp = mp_max

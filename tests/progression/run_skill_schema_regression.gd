@@ -110,9 +110,25 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	_assert_true(heavy_strike.tags.has(&"warrior"), "重击资源应保留 warrior 标签。")
 	_assert_true(heavy_strike.can_use_in_combat(), "重击资源应保留 combat_profile。")
 	if heavy_strike.combat_profile != null:
-		_assert_eq(int(heavy_strike.combat_profile.effect_defs.size()), 2, "重击资源应保留两条 effect_defs。")
-		_assert_eq(int(heavy_strike.combat_profile.ap_cost), 2, "重击资源应保留 2 点 AP 消耗。")
-		_assert_eq(int(heavy_strike.combat_profile.stamina_cost), 1, "重击资源应保留 1 点体力消耗。")
+		_assert_eq(int(heavy_strike.combat_profile.effect_defs.size()), 4, "重击资源应保留四条分级 effect_defs。")
+		_assert_eq(int(heavy_strike.combat_profile.ap_cost), 1, "重击资源应保留 1 点 AP 消耗。")
+		_assert_eq(int(heavy_strike.combat_profile.stamina_cost), 30, "重击资源应保留 30 点体力消耗。")
+		_assert_eq(int(heavy_strike.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 20, "重击 2 级起体力消耗应降为 20。")
+		_assert_eq(int(heavy_strike.combat_profile.cooldown_tu), 0, "重击资源不应配置冷却。")
+		_assert_eq(int(heavy_strike.combat_profile.attack_roll_bonus), -1, "重击所有等级都应保留 -1 攻击检定修正。")
+		var level_zero_damage = heavy_strike.combat_profile.effect_defs[0]
+		var level_one_damage = heavy_strike.combat_profile.effect_defs[1]
+		var level_three_damage = heavy_strike.combat_profile.effect_defs[2]
+		var armor_break_effect = heavy_strike.combat_profile.effect_defs[3]
+		_assert_eq(int(level_zero_damage.params.get("dice_sides", 0)), 4, "重击 0 级伤害骰应为 1d4。")
+		_assert_eq(int(level_zero_damage.max_skill_level), 0, "重击 0 级伤害效果应只在 0 级生效。")
+		_assert_eq(int(level_one_damage.params.get("dice_sides", 0)), 6, "重击 1-2 级伤害骰应为 1d6。")
+		_assert_eq(int(level_one_damage.min_skill_level), 1, "重击 1d6 伤害效果应从 1 级生效。")
+		_assert_eq(int(level_one_damage.max_skill_level), 2, "重击 1d6 伤害效果应在 2 级后停止生效。")
+		_assert_eq(int(level_three_damage.params.get("dice_sides", 0)), 8, "重击 3 级伤害骰应为 1d8。")
+		_assert_eq(int(level_three_damage.min_skill_level), 3, "重击 1d8 伤害效果应从 3 级生效。")
+		_assert_eq(armor_break_effect.status_id, &"armor_break", "重击满级效果应是 armor_break。")
+		_assert_eq(int(armor_break_effect.min_skill_level), 3, "重击 armor_break 应从 3 级生效。")
 	_assert_cast_variant_compat_shape(fossil_to_mud, "SkillContentRegistry")
 
 

@@ -29,9 +29,9 @@ func build_skill_resolution_policy(
 	var execution_cast_variant := unit_execution_cast_variant if routes_to_unit_targeting else command_cast_variant
 	var effect_defs: Array[CombatEffectDef] = []
 	if routes_to_unit_targeting:
-		effect_defs = collect_unit_skill_effect_defs(skill_def, unit_execution_cast_variant)
+		effect_defs = collect_unit_skill_effect_defs(skill_def, unit_execution_cast_variant, active_unit)
 	else:
-		effect_defs = collect_ground_unit_effect_defs(skill_def, ground_cast_variant)
+		effect_defs = collect_ground_unit_effect_defs(skill_def, ground_cast_variant, active_unit)
 	var uses_fate_attack := routes_to_unit_targeting and should_resolve_unit_skill_as_fate_attack(
 		active_unit,
 		target_unit,
@@ -169,44 +169,62 @@ func get_cast_variant_target_mode(skill_def: SkillDef, cast_variant: CombatCastV
 	return &""
 
 
-func collect_unit_skill_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
+func collect_unit_skill_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
 	var effect_defs: Array[CombatEffectDef] = []
+	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id if skill_def != null else &"")
 	if skill_def != null and skill_def.combat_profile != null:
 		for effect_def in skill_def.combat_profile.effect_defs:
-			if effect_def != null:
+			if effect_def != null and _is_effect_unlocked_for_skill_level(effect_def, skill_level, active_unit != null):
 				effect_defs.append(effect_def)
 	if cast_variant != null:
 		for effect_def in cast_variant.effect_defs:
-			if effect_def != null:
+			if effect_def != null and _is_effect_unlocked_for_skill_level(effect_def, skill_level, active_unit != null):
 				effect_defs.append(effect_def)
 	return effect_defs
 
 
-func collect_ground_unit_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
+func collect_ground_unit_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
 	var effect_defs: Array[CombatEffectDef] = []
-	for effect_def in collect_ground_effect_defs(skill_def, cast_variant):
+	for effect_def in collect_ground_effect_defs(skill_def, cast_variant, active_unit):
 		if is_unit_effect(effect_def):
 			effect_defs.append(effect_def)
 	return effect_defs
 
 
-func collect_ground_terrain_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
+func collect_ground_terrain_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
 	var effect_defs: Array[CombatEffectDef] = []
-	for effect_def in collect_ground_effect_defs(skill_def, cast_variant):
+	for effect_def in collect_ground_effect_defs(skill_def, cast_variant, active_unit):
 		if is_terrain_effect(effect_def):
 			effect_defs.append(effect_def)
 	return effect_defs
 
 
-func collect_ground_effect_defs(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> Array[CombatEffectDef]:
+func collect_ground_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array[CombatEffectDef]:
 	var effect_defs: Array[CombatEffectDef] = []
+	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id if skill_def != null else &"")
 	if skill_def != null and skill_def.combat_profile != null:
 		for effect_def in skill_def.combat_profile.effect_defs:
-			if effect_def != null:
+			if effect_def != null and _is_effect_unlocked_for_skill_level(effect_def, skill_level, active_unit != null):
 				effect_defs.append(effect_def)
 	if cast_variant != null:
 		for effect_def in cast_variant.effect_defs:
-			if effect_def != null:
+			if effect_def != null and _is_effect_unlocked_for_skill_level(effect_def, skill_level, active_unit != null):
 				effect_defs.append(effect_def)
 	return effect_defs
 
@@ -271,6 +289,22 @@ func _get_unit_skill_level(active_unit: BattleUnitState, skill_id: StringName) -
 	if active_unit == null or skill_id == &"":
 		return 0
 	return maxi(int(active_unit.known_skill_level_map.get(skill_id, 0)), 0)
+
+
+func _is_effect_unlocked_for_skill_level(
+	effect_def: CombatEffectDef,
+	skill_level: int,
+	should_filter: bool
+) -> bool:
+	if effect_def == null:
+		return false
+	if not should_filter:
+		return true
+	var min_level := maxi(int(effect_def.min_skill_level), 0)
+	var max_level := int(effect_def.max_skill_level)
+	if skill_level < min_level:
+		return false
+	return max_level < 0 or skill_level <= max_level
 
 
 func _build_implicit_ground_cast_variant(skill_def: SkillDef) -> CombatCastVariantDef:

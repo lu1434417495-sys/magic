@@ -26,7 +26,6 @@ const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
 const STATUS_GUARDING: StringName = &"guarding"
 const STATUS_VAJRA_BODY: StringName = &"vajra_body"
 const STATUS_MARKED: StringName = &"marked"
-const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
 const BONUS_CONDITION_TARGET_LOW_HP: StringName = &"target_low_hp"
 const MIN_DAMAGE_FLOOR := 0
@@ -558,8 +557,6 @@ func _build_offense_multiplier(source_unit: BattleUnitState, target_unit: Battle
 		var attack_up_strength := _get_status_strength(source_unit, STATUS_ATTACK_UP)
 		multiplier *= 1.0 + 0.10 * float(attack_up_strength)
 	if source_unit != null and source_unit.has_status_effect(STATUS_ARCHER_PRE_AIM):
-		multiplier *= 1.15
-	if target_unit != null and target_unit.has_status_effect(STATUS_ARMOR_BREAK):
 		multiplier *= 1.15
 	if target_unit != null and target_unit.has_status_effect(STATUS_MARKED):
 		multiplier *= 1.10

@@ -51,7 +51,7 @@ func build_skill_score_input(
 	score_input.target_coords = _copy_target_coords(preview)
 	score_input.target_count = score_input.target_unit_ids.size()
 	_populate_hit_metrics(score_input, context, effect_defs)
-	_populate_resource_cost_metrics(score_input, skill_def)
+	_populate_resource_cost_metrics(score_input, skill_def, context)
 	_populate_position_metrics(score_input, context, metadata)
 	score_input.total_score = _resolve_action_base_score(score_input.action_kind, metadata) \
 		+ score_input.hit_payoff_score \
@@ -178,19 +178,32 @@ func _resolve_estimated_hit_rate_percent(preview) -> int:
 	return 100
 
 
-func _populate_resource_cost_metrics(score_input: BattleAiScoreInput, skill_def: SkillDef) -> void:
+func _populate_resource_cost_metrics(score_input: BattleAiScoreInput, skill_def: SkillDef, context) -> void:
 	if score_input == null or skill_def == null or skill_def.combat_profile == null:
 		return
-	score_input.ap_cost = maxi(int(skill_def.combat_profile.ap_cost), 0)
-	score_input.mp_cost = maxi(int(skill_def.combat_profile.mp_cost), 0)
-	score_input.stamina_cost = maxi(int(skill_def.combat_profile.stamina_cost), 0)
-	score_input.aura_cost = maxi(int(skill_def.combat_profile.aura_cost), 0)
-	score_input.cooldown_tu = maxi(int(skill_def.combat_profile.cooldown_tu), 0)
+	var skill_level := _get_context_skill_level(context, skill_def.skill_id)
+	var costs := skill_def.combat_profile.get_effective_resource_costs(skill_level)
+	score_input.ap_cost = maxi(int(costs.get("ap_cost", skill_def.combat_profile.ap_cost)), 0)
+	score_input.mp_cost = maxi(int(costs.get("mp_cost", skill_def.combat_profile.mp_cost)), 0)
+	score_input.stamina_cost = maxi(int(costs.get("stamina_cost", skill_def.combat_profile.stamina_cost)), 0)
+	score_input.aura_cost = maxi(int(costs.get("aura_cost", skill_def.combat_profile.aura_cost)), 0)
+	score_input.cooldown_tu = maxi(int(costs.get("cooldown_tu", skill_def.combat_profile.cooldown_tu)), 0)
 	score_input.resource_cost_score = score_input.ap_cost * _score_profile.ap_cost_weight \
 		+ score_input.mp_cost * _score_profile.mp_cost_weight \
 		+ score_input.stamina_cost * _score_profile.stamina_cost_weight \
 		+ score_input.aura_cost * _score_profile.aura_cost_weight \
 		+ score_input.cooldown_tu * _score_profile.cooldown_weight
+
+
+func _get_context_skill_level(context, skill_id: StringName) -> int:
+	if context == null or skill_id == &"":
+		return 0
+	var unit_state = context.get("unit_state")
+	if unit_state == null:
+		return 0
+	if unit_state.known_skill_level_map.has(skill_id):
+		return int(unit_state.known_skill_level_map.get(skill_id, 0))
+	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
 
 
 func _populate_position_metrics(score_input: BattleAiScoreInput, context, metadata: Dictionary) -> void:

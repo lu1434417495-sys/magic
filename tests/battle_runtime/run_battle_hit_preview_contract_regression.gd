@@ -116,7 +116,7 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 		[WARRIOR_HEAVY_STRIKE_SKILL_ID],
 		3
 	)
-	attacker.current_stamina = 2
+	attacker.current_stamina = 30
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	var target := _build_unit(
 		&"heavy_strike_target",
@@ -226,16 +226,18 @@ func _build_unit(
 	unit.current_hp = 40
 	unit.current_mp = 4
 	unit.current_ap = current_ap
-	unit.current_stamina = 4
+	unit.current_stamina = 30
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 40)
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
-	unit.attribute_snapshot.set_value(&"stamina_max", 4)
+	unit.attribute_snapshot.set_value(&"stamina_max", 30)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 1)
+	unit.weapon_physical_damage_tag = &"physical_slash"
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1

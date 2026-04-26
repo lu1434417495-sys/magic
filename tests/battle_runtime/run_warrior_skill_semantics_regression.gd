@@ -24,6 +24,7 @@ func _run() -> void:
 	_test_guard_applies_only_guarding_status()
 	_test_guard_reduces_incoming_damage()
 	_test_war_cry_increases_ally_damage()
+	_test_heavy_strike_level_scaling_data_applies()
 	_test_jump_slash_repositions_before_landing_burst()
 	_test_execution_cleave_deals_more_damage_to_low_hp_targets()
 	_test_taunt_redirects_ai_target()
@@ -194,6 +195,34 @@ func _test_war_cry_increases_ally_damage() -> void:
 	var baseline_damage := _measure_buffed_ally_strike_damage(false)
 	var buffed_damage := _measure_buffed_ally_strike_damage(true)
 	_assert_true(buffed_damage > baseline_damage, "战吼后的友军输出应高于未受鼓舞时。 baseline=%d buffed=%d" % [baseline_damage, buffed_damage])
+
+
+func _test_heavy_strike_level_scaling_data_applies() -> void:
+	var runtime := _build_runtime()
+	var registry := ProgressionContentRegistry.new()
+	var skill_def = registry.get_skill_defs().get(&"warrior_heavy_strike")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "重击技能配置应可加载。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var level_zero := _build_heavy_strike_user(&"heavy_level_zero", 0)
+	var level_zero_effects := runtime._collect_unit_skill_effect_defs(skill_def, null, level_zero)
+	_assert_eq(level_zero_effects.size(), 1, "0级重击应只启用 1 条伤害效果。")
+	_assert_eq(int(level_zero_effects[0].params.get("dice_sides", 0)), 4, "0级重击伤害应为 1d4。")
+	_assert_eq(int(skill_def.combat_profile.get_effective_resource_costs(0).get("stamina_cost", 0)), 30, "0级重击体力消耗应为 30。")
+
+	var level_one := _build_heavy_strike_user(&"heavy_level_one", 1)
+	var level_one_effects := runtime._collect_unit_skill_effect_defs(skill_def, null, level_one)
+	_assert_eq(level_one_effects.size(), 1, "1级重击应只启用 1 条伤害效果。")
+	_assert_eq(int(level_one_effects[0].params.get("dice_sides", 0)), 6, "1级重击伤害应为 1d6。")
+
+	var level_three := _build_heavy_strike_user(&"heavy_level_three", 3)
+	var level_three_effects := runtime._collect_unit_skill_effect_defs(skill_def, null, level_three)
+	_assert_eq(level_three_effects.size(), 2, "3级重击应启用伤害和破甲效果。")
+	_assert_eq(int(level_three_effects[0].params.get("dice_sides", 0)), 8, "3级重击伤害应为 1d8。")
+	_assert_eq(level_three_effects[1].status_id, &"armor_break", "3级重击应启用 armor_break。")
+	_assert_eq(int(skill_def.combat_profile.attack_roll_bonus), -1, "重击所有等级应共享 -1 命中检定。")
+	_assert_eq(int(skill_def.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 20, "2级重击体力消耗应降为 20。")
 
 
 func _test_jump_slash_repositions_before_landing_burst() -> void:
@@ -563,6 +592,14 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	return unit
+
+
+func _build_heavy_strike_user(unit_id: StringName, skill_level: int) -> BattleUnitState:
+	var unit := _build_unit(unit_id, Vector2i(0, 0), 1)
+	unit.current_stamina = 30
+	unit.known_active_skill_ids = [&"warrior_heavy_strike"]
+	unit.known_skill_level_map = {&"warrior_heavy_strike": skill_level}
 	return unit
 
 

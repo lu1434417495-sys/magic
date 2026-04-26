@@ -70,6 +70,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_hit_resolver_boundary_natural_rules_are_explicit()
+	_test_armor_break_lowers_target_ac_without_damage_vulnerability()
 	_test_timed_terrain_processing_accepts_dictionary_keys()
 	_test_start_battle_accepts_explicit_narrow_assault_profile()
 	_test_start_battle_accepts_explicit_holdout_push_profile()
@@ -140,6 +141,36 @@ func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 	_assert_eq(int(hard_check.get("display_required_roll", 0)), 20, "高 required roll 预览应稳定显示为 20+。")
 	_assert_eq(int(hard_check.get("hit_rate_percent", 0)), 5, "高 required roll 在天然 20 语义下应只保留 5% 命中。")
 	_assert_true(String(hard_check.get("preview_text", "")).contains("仅天然 20"), "高 required roll 预览应显式提示天然 20 语义。")
+
+
+func _test_armor_break_lowers_target_ac_without_damage_vulnerability() -> void:
+	var hit_resolver := BattleHitResolver.new()
+	var damage_resolver := BattleDamageResolver.new()
+	var attacker := _build_unit(&"armor_break_attacker", Vector2i.ZERO, 1)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 4)
+	var target := _build_enemy_unit(&"armor_break_target", Vector2i(1, 0))
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 16)
+
+	var baseline_check := hit_resolver.build_skill_attack_check(attacker, target, null)
+	var armor_break_effect := CombatEffectDef.new()
+	armor_break_effect.effect_type = &"status"
+	armor_break_effect.status_id = &"armor_break"
+	armor_break_effect.power = 1
+	armor_break_effect.duration_tu = 90
+	damage_resolver.resolve_effects(attacker, target, [armor_break_effect])
+	var broken_check := hit_resolver.build_skill_attack_check(attacker, target, null)
+	_assert_eq(int(broken_check.get("target_armor_class", 0)), int(baseline_check.get("target_armor_class", 0)) - 2, "armor_break power 1 应把有效 AC 降低 2。")
+	_assert_eq(int(broken_check.get("hit_rate_percent", 0)), int(baseline_check.get("hit_rate_percent", 0)) + 10, "armor_break 降低 AC 后应提高 10 个百分点命中率。")
+
+	var plain_target := _build_enemy_unit(&"plain_damage_target", Vector2i(1, 0))
+	var broken_target := _build_enemy_unit(&"broken_damage_target", Vector2i(1, 0))
+	damage_resolver.resolve_effects(attacker, broken_target, [armor_break_effect])
+	var damage_effect := CombatEffectDef.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = 10
+	var plain_result := damage_resolver.resolve_effects(attacker, plain_target, [damage_effect])
+	var broken_result := damage_resolver.resolve_effects(attacker, broken_target, [damage_effect])
+	_assert_eq(int(broken_result.get("damage", 0)), int(plain_result.get("damage", 0)), "armor_break 不应再提供承伤易伤倍率。")
 
 
 func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:

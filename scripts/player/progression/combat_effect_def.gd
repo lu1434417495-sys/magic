@@ -11,6 +11,10 @@ extends Resource
 @export var tick_effect_type: StringName = &""
 ## 字段说明：在编辑器中暴露强度配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var power := 0
+## 字段说明：效果生效所需的最低技能等级；0 表示技能学会后的初始等级即可生效。
+@export var min_skill_level := 0
+## 字段说明：效果生效的最高技能等级；-1 表示没有上限。
+@export var max_skill_level := -1
 ## 字段说明：在编辑器中暴露伤害倍率百分比配置，便于定义相对基准伤害而非固定强度。
 @export var damage_ratio_percent := 100
 ## 字段说明：在编辑器中暴露伤害标签配置，便于命中后选择伤害分类、减伤和日志语义。
@@ -43,3 +47,14 @@ extends Resource
 @export var trigger_event: StringName = &""
 ## 字段说明：在编辑器中暴露参数配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var params: Dictionary = {}
+
+
+func duplicate_for_runtime() -> CombatEffectDef:
+	var copy := duplicate(true) as CombatEffectDef
+	if copy == null:
+		return null
+	if copy.params == null:
+		copy.params = {}
+	else:
+		copy.params = copy.params.duplicate(true)
+	return copy

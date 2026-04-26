@@ -15,6 +15,7 @@ const BEAST_ATTRIBUTE_DICE_COUNT := 5
 const BEAST_ATTRIBUTE_DICE_SIDES := 3
 const BEAST_ATTRIBUTE_DICE_OFFSET := -1
 const BEAST_ATTRIBUTE_DICE_FLOOR := 4
+const DEFAULT_ENEMY_MELEE_DAMAGE_TAG: StringName = &"physical_slash"
 
 var _wild_encounter_rosters: Dictionary = {}
 var _enemy_templates: Dictionary = {}
@@ -340,6 +341,7 @@ func _build_units_from_template(
 		unit_state.body_size = maxi(int(template.body_size), 1)
 		unit_state.refresh_footprint()
 		unit_state.action_threshold = int(template.action_threshold)
+		unit_state.weapon_physical_damage_tag = _resolve_enemy_weapon_physical_damage_tag(template)
 		unit_state.attribute_snapshot = _build_enemy_snapshot_from_template(
 			template,
 			encounter_anchor,
@@ -396,7 +398,15 @@ func _build_enemy_snapshot_from_template(
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(stats.get("shield_ac_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(stats.get("dodge_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(stats.get("deflection_bonus", 0)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, maxi(int(stats.get("weapon_attack_range", 0)), 0))
 	return snapshot
+
+
+func _resolve_enemy_weapon_physical_damage_tag(template) -> StringName:
+	if template == null:
+		return &""
+	var stats: Dictionary = template.attribute_overrides
+	return ProgressionDataUtils.to_string_name(stats.get("weapon_physical_damage_tag", ""))
 
 
 func _resolve_enemy_base_attributes(
@@ -484,6 +494,7 @@ func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build
 		unit_state.current_stamina = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)
 		unit_state.current_ap = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS)
 		unit_state.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
+		unit_state.weapon_physical_damage_tag = DEFAULT_ENEMY_MELEE_DAMAGE_TAG
 		unit_state.action_threshold = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_ACTION_THRESHOLD
 		unit_state.known_active_skill_ids = default_skill_ids.duplicate()
 		for skill_id in unit_state.known_active_skill_ids:
@@ -504,6 +515,7 @@ func _build_enemy_snapshot(index: int):
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, 0)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, 0)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, 0)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 1)
 	return snapshot
 
 

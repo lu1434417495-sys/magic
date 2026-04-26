@@ -10,7 +10,6 @@ const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle_event_batch.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
@@ -294,10 +293,10 @@ func _apply_charge_path_step_aoe_effects(
 	var total_healing = 0
 	var total_kill_count = 0
 	var target_filter: StringName = _runtime.resolve_effect_target_filter(skill_def, path_step_aoe_effect)
-	var stage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	var stage_effect = path_step_aoe_effect.duplicate_for_runtime()
+	if stage_effect == null:
+		return {"triggered": false, "hit_count": 0}
 	stage_effect.effect_type = &"damage"
-	stage_effect.power = int(path_step_aoe_effect.power)
-	stage_effect.damage_tag = path_step_aoe_effect.damage_tag
 
 	for target_unit in _runtime.collect_units_in_coords(effect_coords):
 		if not _runtime.is_unit_valid_for_effect(active_unit, target_unit, target_filter):

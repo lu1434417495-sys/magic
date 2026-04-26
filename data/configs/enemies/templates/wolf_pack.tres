@@ -26,4 +26,6 @@ attribute_overrides = {
 "attack_bonus": 5,
 "armor_class": 13,
 "armor_ac_bonus": 0,
+"weapon_attack_range": 1,
+"weapon_physical_damage_tag": &"physical_pierce",
 }

@@ -36,6 +36,8 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var attack_roll_bonus := 0
 ## 字段说明：在编辑器中暴露斗气消耗配置，便于定义文档中的 aura 资源技能。
 @export var aura_cost := 0
+## 字段说明：按技能等级覆盖消耗或冷却，键为最低生效等级，值可包含 ap_cost / mp_cost / stamina_cost / aura_cost / cooldown_tu。
+@export var level_overrides: Dictionary = {}
 ## 字段说明：在编辑器中暴露影响区域原点模式配置，用于补充 line / cone / self 等范围语义。
 @export var area_origin_mode: StringName = &"target"
 ## 字段说明：在编辑器中暴露影响区域方向模式配置，用于补充 line / cone 等朝向语义。
@@ -74,3 +76,41 @@ func get_unlocked_cast_variants(skill_level: int) -> Array[CombatCastVariantDef]
 			continue
 		unlocked_variants.append(cast_variant)
 	return unlocked_variants
+
+
+func get_effective_resource_costs(skill_level: int) -> Dictionary:
+	var costs := {
+		"ap_cost": int(ap_cost),
+		"mp_cost": int(mp_cost),
+		"stamina_cost": int(stamina_cost),
+		"aura_cost": int(aura_cost),
+		"cooldown_tu": int(cooldown_tu),
+	}
+	var override := get_level_override(skill_level)
+	for key in costs.keys():
+		if override.has(key):
+			costs[key] = int(override.get(key, costs[key]))
+	return costs
+
+
+func get_level_override(skill_level: int) -> Dictionary:
+	var selected_level := -1
+	var selected_override: Dictionary = {}
+	for level_key in level_overrides.keys():
+		var override_level := _parse_override_level(level_key)
+		if override_level < 0 or override_level > skill_level or override_level <= selected_level:
+			continue
+		var override_data = level_overrides.get(level_key)
+		if override_data is Dictionary:
+			selected_level = override_level
+			selected_override = (override_data as Dictionary)
+	return selected_override
+
+
+func _parse_override_level(level_key) -> int:
+	if level_key is int:
+		return int(level_key)
+	var level_text := String(level_key)
+	if not level_text.is_valid_int():
+		return -1
+	return int(level_text)

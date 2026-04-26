@@ -196,6 +196,20 @@ func _append_combat_profile_validation_errors(
 		errors.append("Skill %s combat_profile costs must be >= 0." % String(skill_id))
 	if not _is_valid_tu_value(int(combat_profile.cooldown_tu)):
 		errors.append("Skill %s combat_profile cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), TU_GRANULARITY])
+	for override_level_key in combat_profile.level_overrides.keys():
+		var override_data = combat_profile.level_overrides.get(override_level_key)
+		if override_data is not Dictionary:
+			errors.append("Skill %s combat_profile level override %s must be a Dictionary." % [String(skill_id), String(override_level_key)])
+			continue
+		var override_level := combat_profile._parse_override_level(override_level_key)
+		if override_level < 0:
+			errors.append("Skill %s combat_profile level override %s must use a non-negative level." % [String(skill_id), String(override_level_key)])
+		var override_dict := override_data as Dictionary
+		for cost_key in ["ap_cost", "mp_cost", "stamina_cost", "aura_cost"]:
+			if override_dict.has(cost_key) and int(override_dict.get(cost_key, 0)) < 0:
+				errors.append("Skill %s combat_profile level override %s.%s must be >= 0." % [String(skill_id), String(override_level_key), String(cost_key)])
+		if override_dict.has("cooldown_tu") and not _is_valid_tu_value(int(override_dict.get("cooldown_tu", 0))):
+			errors.append("Skill %s combat_profile level override %s.cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), String(override_level_key), TU_GRANULARITY])
 	if combat_profile.min_target_count <= 0:
 		errors.append("Skill %s combat_profile min_target_count must be >= 1." % String(skill_id))
 	if combat_profile.max_target_count < combat_profile.min_target_count:
@@ -271,6 +285,10 @@ func _append_effect_validation_errors(
 	if effect_def.effect_type == &"":
 		errors.append("Skill %s has an effect without effect_type in %s." % [String(skill_id), context_label])
 		return
+	if effect_def.min_skill_level < 0:
+		errors.append("Skill %s effect %s min_skill_level must be >= 0." % [String(skill_id), context_label])
+	if effect_def.max_skill_level >= 0 and effect_def.max_skill_level < effect_def.min_skill_level:
+		errors.append("Skill %s effect %s max_skill_level must be >= min_skill_level or -1." % [String(skill_id), context_label])
 	if not _is_valid_tu_value(int(effect_def.duration_tu)):
 		errors.append(
 			"Skill %s effect %s duration_tu must be 0 or a multiple of %d." % [
