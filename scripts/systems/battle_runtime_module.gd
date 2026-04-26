@@ -4654,9 +4654,9 @@ func _is_weapon_range_skill(skill_def: SkillDef) -> bool:
 
 
 func _get_weapon_attack_range(active_unit: BattleUnitState) -> int:
-	if active_unit == null or active_unit.attribute_snapshot == null:
+	if active_unit == null:
 		return 0
-	return maxi(int(active_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE)), 0)
+	return active_unit.get_weapon_attack_range()
 
 
 func _skill_has_tag(skill_def: SkillDef, expected_tag: StringName) -> bool:

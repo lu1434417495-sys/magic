@@ -301,19 +301,87 @@ func get_member_attribute_snapshot(member_id: StringName) -> AttributeSnapshot:
 	return _build_attribute_service(member_state).get_snapshot()
 
 
-func get_member_weapon_physical_damage_tag(member_id: StringName) -> StringName:
+func get_member_weapon_projection(member_id: StringName) -> Dictionary:
 	var member_state: PartyMemberState = get_member_state(member_id)
 	if member_state == null or member_state.equipment_state == null:
-		return &""
+		return {}
 	if not (member_state.equipment_state is Object and member_state.equipment_state.has_method("get_equipped_item_id")):
-		return &""
+		return {}
 	var weapon_item_id := ProgressionDataUtils.to_string_name(member_state.equipment_state.get_equipped_item_id(&"main_hand"))
 	if weapon_item_id == &"":
-		return &""
-	var item_def = _item_defs.get(weapon_item_id)
-	if item_def != null and item_def.has_method("get_weapon_physical_damage_tag"):
-		return ProgressionDataUtils.to_string_name(item_def.call("get_weapon_physical_damage_tag"))
-	return &""
+		return {}
+	var item_def: ItemDef = _item_defs.get(weapon_item_id) as ItemDef
+	if item_def == null or not item_def.is_weapon():
+		return {}
+	return _build_weapon_projection_from_item_def(item_def)
+
+
+func get_member_weapon_physical_damage_tag(member_id: StringName) -> StringName:
+	return ProgressionDataUtils.to_string_name(get_member_weapon_projection(member_id).get("weapon_physical_damage_tag", ""))
+
+
+func _build_weapon_projection_from_item_def(item_def: ItemDef) -> Dictionary:
+	if item_def == null or not item_def.is_weapon():
+		return {}
+	var profile = item_def.get("weapon_profile")
+	if profile == null:
+		return {}
+	var one_handed_dice := _weapon_dice_to_dict(profile.get("one_handed_dice"))
+	var two_handed_dice := _weapon_dice_to_dict(profile.get("two_handed_dice"))
+	var properties := _weapon_profile_properties(profile)
+	return {
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": String(item_def.item_id),
+		"weapon_profile_type_id": String(ProgressionDataUtils.to_string_name(profile.get("weapon_type_id"))),
+		"weapon_current_grip": String(_resolve_weapon_current_grip(item_def, one_handed_dice, two_handed_dice)),
+		"weapon_attack_range": maxi(int(profile.get("attack_range")), 0),
+		"weapon_one_handed_dice": one_handed_dice,
+		"weapon_two_handed_dice": two_handed_dice,
+		"weapon_is_versatile": properties.has(&"versatile"),
+		"weapon_physical_damage_tag": String(item_def.get_weapon_physical_damage_tag()),
+	}
+
+
+func _resolve_weapon_current_grip(item_def: ItemDef, one_handed_dice: Dictionary, two_handed_dice: Dictionary) -> StringName:
+	if item_def == null:
+		return &"none"
+	var occupied_slots := item_def.get_final_occupied_slot_ids(&"main_hand")
+	if occupied_slots.has(&"off_hand"):
+		return &"two_handed"
+	if one_handed_dice.is_empty() and not two_handed_dice.is_empty():
+		return &"two_handed"
+	if not one_handed_dice.is_empty():
+		return &"one_handed"
+	return &"none"
+
+
+func _weapon_profile_properties(profile) -> Array[StringName]:
+	var result: Array[StringName] = []
+	var raw_properties: Array = []
+	if profile != null and profile.has_method("get_properties"):
+		raw_properties = profile.call("get_properties")
+	elif profile != null:
+		raw_properties = profile.get("properties")
+	for raw_property in raw_properties:
+		var property_id := ProgressionDataUtils.to_string_name(raw_property)
+		if property_id == &"" or result.has(property_id):
+			continue
+		result.append(property_id)
+	return result
+
+
+func _weapon_dice_to_dict(dice_resource) -> Dictionary:
+	if dice_resource == null:
+		return {}
+	var dice_count := int(dice_resource.get("dice_count"))
+	var dice_sides := int(dice_resource.get("dice_sides"))
+	if dice_count <= 0 or dice_sides <= 0:
+		return {}
+	return {
+		"dice_count": dice_count,
+		"dice_sides": dice_sides,
+		"flat_bonus": int(dice_resource.get("flat_bonus")),
+	}
 
 
 func learn_skill(member_id: StringName, skill_id: StringName) -> bool:

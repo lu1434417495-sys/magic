@@ -388,9 +388,9 @@ func _is_weapon_range_skill(skill_def) -> bool:
 
 
 func _get_weapon_attack_range(unit_state: BattleUnitState) -> int:
-	if unit_state == null or unit_state.attribute_snapshot == null:
+	if unit_state == null:
 		return 0
-	return maxi(int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE)), 0)
+	return unit_state.get_weapon_attack_range()
 
 
 func _requires_melee_weapon(skill_def) -> bool:

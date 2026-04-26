@@ -1364,7 +1364,7 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 
 	var state := _build_skill_test_state(Vector2i(3, 1))
 	var warrior := _build_unit(&"weapon_range_user", Vector2i(0, 0), 2)
-	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 1)
+	warrior.set_natural_weapon_projection(&"test_blade", &"physical_slash", 1)
 	warrior.known_active_skill_ids = [skill.skill_id]
 	warrior.known_skill_level_map = {skill.skill_id: 1}
 	var enemy := _build_enemy_unit(&"weapon_range_target", Vector2i(2, 0))
@@ -1392,7 +1392,7 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 	)
 	_assert_eq(warrior.current_ap, 2, "武器攻击范围外的技能不应扣除 AP。")
 
-	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 2)
+	warrior.set_natural_weapon_projection(&"test_blade", &"physical_slash", 2)
 	var allowed_batch := runtime.issue_command(command)
 	_assert_true(allowed_batch.changed_unit_ids.has(warrior.unit_id), "武器攻击范围提高到 2 后，同一目标应允许结算。")
 	_assert_eq(warrior.current_ap, 1, "武器攻击范围内的技能应正常扣除 AP。")
@@ -1414,7 +1414,7 @@ func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 	}
 	for unit_id in expected_tags.keys():
 		var source := _build_unit(unit_id, Vector2i.ZERO, 1)
-		source.weapon_physical_damage_tag = expected_tags.get(unit_id)
+		source.set_natural_weapon_projection(&"test_weapon", expected_tags.get(unit_id), 1)
 		var target := _build_enemy_unit(StringName("%s_target" % String(unit_id)), Vector2i(1, 0))
 		var result: Dictionary = resolver.resolve_effects(source, target, [effect])
 		var events: Array = result.get("damage_events", [])

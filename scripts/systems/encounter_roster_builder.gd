@@ -341,7 +341,7 @@ func _build_units_from_template(
 		unit_state.body_size = maxi(int(template.body_size), 1)
 		unit_state.refresh_footprint()
 		unit_state.action_threshold = int(template.action_threshold)
-		unit_state.weapon_physical_damage_tag = _resolve_enemy_weapon_physical_damage_tag(template)
+		_apply_enemy_weapon_projection(unit_state, template)
 		unit_state.attribute_snapshot = _build_enemy_snapshot_from_template(
 			template,
 			encounter_anchor,
@@ -407,6 +407,24 @@ func _resolve_enemy_weapon_physical_damage_tag(template) -> StringName:
 		return &""
 	var stats: Dictionary = template.attribute_overrides
 	return ProgressionDataUtils.to_string_name(stats.get("weapon_physical_damage_tag", ""))
+
+
+func _resolve_enemy_weapon_attack_range(template) -> int:
+	if template == null:
+		return 0
+	var stats: Dictionary = template.attribute_overrides
+	return maxi(int(stats.get("weapon_attack_range", 0)), 0)
+
+
+func _apply_enemy_weapon_projection(unit_state: BattleUnitState, template) -> void:
+	if unit_state == null:
+		return
+	var attack_range := _resolve_enemy_weapon_attack_range(template)
+	var damage_tag := _resolve_enemy_weapon_physical_damage_tag(template)
+	if attack_range <= 0 and damage_tag == &"":
+		unit_state.clear_weapon_projection()
+		return
+	unit_state.set_natural_weapon_projection(&"natural_weapon", damage_tag, attack_range)
 
 
 func _resolve_enemy_base_attributes(
@@ -494,7 +512,7 @@ func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build
 		unit_state.current_stamina = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)
 		unit_state.current_ap = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS)
 		unit_state.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
-		unit_state.weapon_physical_damage_tag = DEFAULT_ENEMY_MELEE_DAMAGE_TAG
+		unit_state.set_natural_weapon_projection(&"natural_weapon", DEFAULT_ENEMY_MELEE_DAMAGE_TAG, 1)
 		unit_state.action_threshold = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_ACTION_THRESHOLD
 		unit_state.known_active_skill_ids = default_skill_ids.duplicate()
 		for skill_id in unit_state.known_active_skill_ids:

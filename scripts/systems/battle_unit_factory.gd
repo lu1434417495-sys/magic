@@ -70,7 +70,7 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 
 	unit_state.body_size = maxi(int(member_state.body_size), 1)
 	unit_state.attribute_snapshot = snapshot
-	unit_state.weapon_physical_damage_tag = _resolve_member_weapon_physical_damage_tag(unit_state.source_member_id)
+	_apply_member_weapon_projection(unit_state, unit_state.source_member_id)
 	unit_state.current_hp = clampi(unit_state.current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
 	unit_state.current_mp = clampi(unit_state.current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
 	unit_state.current_stamina = clampi(
@@ -173,7 +173,7 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	unit_state.refresh_footprint()
 	var snapshot := _build_member_attribute_snapshot(member_state, context)
 	unit_state.attribute_snapshot = snapshot
-	unit_state.weapon_physical_damage_tag = _resolve_member_weapon_physical_damage_tag(member_id)
+	_apply_member_weapon_projection(unit_state, member_id)
 	var hp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1)
 	var mp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0)
 	var stamina_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
@@ -230,8 +230,14 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_enemy_shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, maxi(int(context.get("default_enemy_weapon_attack_range", 1)), 0))
-	unit_state.weapon_physical_damage_tag = ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_physical_damage_tag", DEFAULT_ENEMY_MELEE_DAMAGE_TAG))
+	var enemy_weapon_attack_range := maxi(int(context.get("default_enemy_weapon_attack_range", 1)), 0)
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, enemy_weapon_attack_range)
+	_apply_enemy_natural_weapon_projection(
+		unit_state,
+		ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_profile_type_id", "natural_weapon")),
+		ProgressionDataUtils.to_string_name(context.get("default_enemy_weapon_physical_damage_tag", DEFAULT_ENEMY_MELEE_DAMAGE_TAG)),
+		enemy_weapon_attack_range
+	)
 	unit_state.action_threshold = int(context.get("default_enemy_action_threshold", BattleUnitState.DEFAULT_ACTION_THRESHOLD))
 	unit_state.current_hp = hp_max
 	unit_state.current_mp = mp_max
@@ -357,6 +363,45 @@ func _resolve_member_weapon_physical_damage_tag(member_id: StringName) -> String
 	if character_gateway == null or not character_gateway.has_method("get_member_weapon_physical_damage_tag"):
 		return &""
 	return ProgressionDataUtils.to_string_name(character_gateway.call("get_member_weapon_physical_damage_tag", member_id))
+
+
+func _apply_member_weapon_projection(unit_state: BattleUnitState, member_id: StringName) -> void:
+	if unit_state == null:
+		return
+	if member_id == &"" or _runtime == null:
+		unit_state.clear_weapon_projection()
+		return
+	var character_gateway: Object = _runtime.get_character_gateway()
+	if character_gateway == null:
+		unit_state.clear_weapon_projection()
+		return
+	if character_gateway.has_method("get_member_weapon_projection"):
+		var projection = character_gateway.call("get_member_weapon_projection", member_id)
+		unit_state.apply_weapon_projection(projection if projection is Dictionary else {})
+		return
+	unit_state.apply_weapon_projection({
+		"weapon_profile_kind": String(BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED),
+		"weapon_current_grip": String(BattleUnitState.WEAPON_GRIP_ONE_HANDED),
+		"weapon_physical_damage_tag": String(_resolve_member_weapon_physical_damage_tag(member_id)),
+	})
+
+
+func _apply_enemy_natural_weapon_projection(
+	unit_state: BattleUnitState,
+	profile_type_id: StringName,
+	damage_tag: StringName,
+	attack_range: int
+) -> void:
+	if unit_state == null:
+		return
+	if attack_range <= 0 and damage_tag == &"":
+		unit_state.clear_weapon_projection()
+		return
+	unit_state.set_natural_weapon_projection(
+		profile_type_id if profile_type_id != &"" else &"natural_weapon",
+		damage_tag,
+		attack_range
+	)
 
 
 func _resolve_action_threshold_from_snapshot(

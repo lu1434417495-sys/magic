@@ -31,6 +31,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_battle_unit_state_serialization_exposes_aura()
 	_test_battle_unit_state_serialization_exposes_shield()
+	_test_battle_unit_state_serialization_exposes_weapon_projection()
 	_test_damage_resolver_reports_hp_damage_after_shield_absorption()
 	_test_environmental_damage_helpers_report_shield_absorption()
 	_test_damage_resolver_uses_mitigation_tier_for_damage_type_defense()
@@ -331,6 +332,65 @@ func _test_battle_unit_state_serialization_exposes_shield() -> void:
 	_assert_eq(restored.shield_duration if restored != null else -2, 60, "BattleUnitState.from_dict() 应恢复 shield_duration。")
 	_assert_eq(String(restored.shield_family if restored != null else &""), "holy_barrier", "BattleUnitState.from_dict() 应恢复 shield_family。")
 	_assert_eq(String(restored.shield_source_skill_id if restored != null else &""), "priest_guardian_barrier", "BattleUnitState.from_dict() 应恢复 shield_source_skill_id。")
+
+
+func _test_battle_unit_state_serialization_exposes_weapon_projection() -> void:
+	var no_weapon := BATTLE_UNIT_STATE_SCRIPT.new()
+	no_weapon.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 9)
+	var no_weapon_payload := no_weapon.to_dict()
+	var restored_no_weapon = BATTLE_UNIT_STATE_SCRIPT.from_dict(no_weapon_payload) as BattleUnitState
+	_assert_eq(String(no_weapon_payload.get("weapon_profile_kind", "")), "none", "默认 BattleUnitState 应显式表达无武器。")
+	_assert_eq(int(no_weapon_payload.get("weapon_attack_range", -1)), 0, "无武器不应从 attribute_snapshot.weapon_attack_range 回填攻击范围。")
+	_assert_eq(restored_no_weapon.weapon_attack_range if restored_no_weapon != null else -1, 0, "无武器 round-trip 后攻击范围仍应为 0。")
+
+	var unarmed := BATTLE_UNIT_STATE_SCRIPT.new()
+	unarmed.set_unarmed_weapon_projection()
+	var unarmed_payload := unarmed.to_dict()
+	_assert_eq(String(unarmed_payload.get("weapon_profile_kind", "")), "unarmed", "空手投影应能通过 kind 表达。")
+	_assert_eq(String(unarmed_payload.get("weapon_profile_type_id", "")), "unarmed", "空手投影应保留 type id。")
+
+	var natural := BATTLE_UNIT_STATE_SCRIPT.new()
+	natural.set_natural_weapon_projection(
+		&"wolf_bite",
+		&"physical_pierce",
+		1,
+		{"dice_count": 1, "dice_sides": 4, "flat_bonus": 0}
+	)
+	var natural_payload := natural.to_dict()
+	_assert_eq(String(natural_payload.get("weapon_profile_kind", "")), "natural", "天生武器投影应能通过 kind 表达。")
+	_assert_eq(String(natural_payload.get("weapon_profile_type_id", "")), "wolf_bite", "天生武器应保留 profile type id。")
+
+	var equipped := BATTLE_UNIT_STATE_SCRIPT.new()
+	equipped.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "training_longsword",
+		"weapon_profile_type_id": "longsword",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 2,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 10, "flat_bonus": 0},
+		"weapon_is_versatile": true,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
+	var payload := equipped.to_dict()
+	var restored = BATTLE_UNIT_STATE_SCRIPT.from_dict(payload) as BattleUnitState
+	var one_handed_dice: Dictionary = payload.get("weapon_one_handed_dice", {})
+	var two_handed_dice: Dictionary = payload.get("weapon_two_handed_dice", {})
+	_assert_eq(String(payload.get("weapon_profile_kind", "")), "equipped", "装备武器投影应进入序列化 payload。")
+	_assert_eq(String(payload.get("weapon_item_id", "")), "training_longsword", "装备武器 item id 应进入序列化 payload。")
+	_assert_eq(String(payload.get("weapon_profile_type_id", "")), "longsword", "weapon profile type id 应进入序列化 payload。")
+	_assert_eq(String(payload.get("weapon_current_grip", "")), "two_handed", "当前握法应进入序列化 payload。")
+	_assert_eq(int(payload.get("weapon_attack_range", -1)), 2, "weapon_attack_range 应进入序列化 payload。")
+	_assert_eq(int(one_handed_dice.get("dice_sides", -1)), 8, "一手骰应进入序列化 payload。")
+	_assert_eq(int(two_handed_dice.get("dice_sides", -1)), 10, "双手骰应进入序列化 payload。")
+	_assert_true(bool(payload.get("weapon_is_versatile", false)), "versatile 标记应进入序列化 payload。")
+	_assert_true(restored != null, "BattleUnitState.from_dict() 应能恢复武器投影字段。")
+	_assert_eq(String(restored.weapon_profile_kind if restored != null else &""), "equipped", "round-trip 后应恢复武器投影 kind。")
+	_assert_eq(String(restored.weapon_profile_type_id if restored != null else &""), "longsword", "round-trip 后应恢复 weapon profile type id。")
+	_assert_eq(String(restored.weapon_current_grip if restored != null else &""), "two_handed", "round-trip 后应恢复当前握法。")
+	_assert_eq(restored.weapon_attack_range if restored != null else -1, 2, "round-trip 后应恢复 weapon_attack_range。")
+	_assert_eq(int(restored.weapon_two_handed_dice.get("dice_sides", -1)) if restored != null else -1, 10, "round-trip 后应恢复双手骰。")
+	_assert_eq(String(restored.weapon_physical_damage_tag if restored != null else &""), "physical_slash", "round-trip 后应恢复武器伤害类型。")
 
 
 func _test_damage_resolver_reports_hp_damage_after_shield_absorption() -> void:

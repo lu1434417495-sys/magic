@@ -11,6 +11,13 @@ const AttributeSnapshot = preload("res://scripts/player/progression/attribute_sn
 const BattleStatusEffectState = preload("res://scripts/systems/battle_status_effect_state.gd")
 const DEFAULT_MOVE_POINTS_PER_TURN := 2
 const DEFAULT_ACTION_THRESHOLD := 120
+const WEAPON_PROFILE_KIND_NONE: StringName = &"none"
+const WEAPON_PROFILE_KIND_UNARMED: StringName = &"unarmed"
+const WEAPON_PROFILE_KIND_NATURAL: StringName = &"natural"
+const WEAPON_PROFILE_KIND_EQUIPPED: StringName = &"equipped"
+const WEAPON_GRIP_NONE: StringName = &"none"
+const WEAPON_GRIP_ONE_HANDED: StringName = &"one_handed"
+const WEAPON_GRIP_TWO_HANDED: StringName = &"two_handed"
 
 ## 字段说明：记录单位唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var unit_id: StringName = &""
@@ -80,6 +87,22 @@ var known_active_skill_ids: Array[StringName] = []
 var known_skill_level_map: Dictionary = {}
 ## 字段说明：记录单位移动标签，供战斗网格规则按地形动态修正通行性与移动消耗。
 var movement_tags: Array[StringName] = []
+## 字段说明：记录武器投影来源，区分无武器、空手、天生武器和装备武器。
+var weapon_profile_kind: StringName = WEAPON_PROFILE_KIND_NONE
+## 字段说明：记录当前装备武器的物品标识；空手、天生武器或无武器时保持为空。
+var weapon_item_id: StringName = &""
+## 字段说明：记录当前 weapon profile 的类型标识，例如 shortsword / greatsword / unarmed。
+var weapon_profile_type_id: StringName = &""
+## 字段说明：记录当前武器使用的握法，供后续根据一手骰 / 双手骰选择伤害模板。
+var weapon_current_grip: StringName = WEAPON_GRIP_NONE
+## 字段说明：记录当前武器攻击范围，不再依赖 attribute snapshot 中的旧 weapon_attack_range 字段。
+var weapon_attack_range := 0
+## 字段说明：记录当前武器的一手伤害骰投影，格式为 dice_count / dice_sides / flat_bonus。
+var weapon_one_handed_dice: Dictionary = {}
+## 字段说明：记录当前武器的双手伤害骰投影，格式为 dice_count / dice_sides / flat_bonus。
+var weapon_two_handed_dice: Dictionary = {}
+## 字段说明：记录当前武器是否具备 versatile 属性，用于后续根据握法选择骰面。
+var weapon_is_versatile := false
 ## 字段说明：记录当前主手武器的唯一物理伤害类型，供武器近战技能在结算时实时覆盖伤害标签。
 var weapon_physical_damage_tag: StringName = &""
 ## 字段说明：缓存冷却表字典，集中保存可按键查询的运行时数据。
@@ -149,6 +172,73 @@ func normalize_shield_state() -> void:
 		clear_shield()
 
 
+func clear_weapon_projection() -> void:
+	weapon_profile_kind = WEAPON_PROFILE_KIND_NONE
+	weapon_item_id = &""
+	weapon_profile_type_id = &""
+	weapon_current_grip = WEAPON_GRIP_NONE
+	weapon_attack_range = 0
+	weapon_one_handed_dice = {}
+	weapon_two_handed_dice = {}
+	weapon_is_versatile = false
+	weapon_physical_damage_tag = &""
+
+
+func set_unarmed_weapon_projection(
+	damage_tag: StringName = &"physical_blunt",
+	dice: Dictionary = {"dice_count": 1, "dice_sides": 1, "flat_bonus": 0},
+	attack_range: int = 1
+) -> void:
+	apply_weapon_projection({
+		"weapon_profile_kind": String(WEAPON_PROFILE_KIND_UNARMED),
+		"weapon_profile_type_id": "unarmed",
+		"weapon_current_grip": String(WEAPON_GRIP_ONE_HANDED),
+		"weapon_attack_range": attack_range,
+		"weapon_one_handed_dice": dice,
+		"weapon_physical_damage_tag": String(damage_tag),
+	})
+
+
+func set_natural_weapon_projection(
+	profile_type_id: StringName,
+	damage_tag: StringName,
+	attack_range: int,
+	dice: Dictionary = {}
+) -> void:
+	apply_weapon_projection({
+		"weapon_profile_kind": String(WEAPON_PROFILE_KIND_NATURAL),
+		"weapon_profile_type_id": String(profile_type_id),
+		"weapon_current_grip": String(WEAPON_GRIP_ONE_HANDED if attack_range > 0 else WEAPON_GRIP_NONE),
+		"weapon_attack_range": attack_range,
+		"weapon_one_handed_dice": dice,
+		"weapon_physical_damage_tag": String(damage_tag),
+	})
+
+
+func apply_weapon_projection(projection: Dictionary) -> void:
+	if projection.is_empty():
+		clear_weapon_projection()
+		return
+	weapon_profile_kind = _normalize_weapon_profile_kind(projection.get("weapon_profile_kind", WEAPON_PROFILE_KIND_NONE))
+	weapon_item_id = ProgressionDataUtils.to_string_name(projection.get("weapon_item_id", ""))
+	weapon_profile_type_id = ProgressionDataUtils.to_string_name(projection.get("weapon_profile_type_id", ""))
+	weapon_current_grip = _normalize_weapon_grip(projection.get("weapon_current_grip", WEAPON_GRIP_NONE))
+	weapon_attack_range = maxi(int(projection.get("weapon_attack_range", 0)), 0)
+	weapon_one_handed_dice = _normalize_weapon_dice(projection.get("weapon_one_handed_dice", {}))
+	weapon_two_handed_dice = _normalize_weapon_dice(projection.get("weapon_two_handed_dice", {}))
+	weapon_is_versatile = bool(projection.get("weapon_is_versatile", false))
+	weapon_physical_damage_tag = ProgressionDataUtils.to_string_name(projection.get("weapon_physical_damage_tag", ""))
+	if weapon_profile_kind == WEAPON_PROFILE_KIND_NONE:
+		clear_weapon_projection()
+		return
+	if weapon_attack_range <= 0:
+		weapon_current_grip = WEAPON_GRIP_NONE
+
+
+func get_weapon_attack_range() -> int:
+	return maxi(int(weapon_attack_range), 0)
+
+
 func get_status_effect(status_id: StringName):
 	var normalized := ProgressionDataUtils.to_string_name(status_id)
 	if normalized == &"" or not status_effects.has(normalized):
@@ -184,6 +274,7 @@ static func get_footprint_size_for_body_size(size_value: int) -> Vector2i:
 func to_dict() -> Dictionary:
 	refresh_footprint()
 	normalize_shield_state()
+	apply_weapon_projection(_build_current_weapon_projection_payload())
 	var status_payloads: Dictionary = {}
 	for status_id_str in ProgressionDataUtils.sorted_string_keys(status_effects):
 		var status_id := StringName(status_id_str)
@@ -227,6 +318,14 @@ func to_dict() -> Dictionary:
 		"known_active_skill_ids": _string_name_array_to_strings(known_active_skill_ids),
 		"known_skill_level_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_level_map),
 		"movement_tags": _string_name_array_to_strings(movement_tags),
+		"weapon_profile_kind": String(weapon_profile_kind),
+		"weapon_item_id": String(weapon_item_id),
+		"weapon_profile_type_id": String(weapon_profile_type_id),
+		"weapon_current_grip": String(weapon_current_grip),
+		"weapon_attack_range": weapon_attack_range,
+		"weapon_one_handed_dice": weapon_one_handed_dice.duplicate(true),
+		"weapon_two_handed_dice": weapon_two_handed_dice.duplicate(true),
+		"weapon_is_versatile": weapon_is_versatile,
 		"weapon_physical_damage_tag": String(weapon_physical_damage_tag),
 		"cooldowns": cooldowns.duplicate(true),
 		"last_turn_tu": last_turn_tu,
@@ -275,7 +374,17 @@ static func from_dict(data: Dictionary):
 	unit_state.known_active_skill_ids = _strings_to_string_name_array(data.get("known_active_skill_ids", []))
 	unit_state.known_skill_level_map = ProgressionDataUtils.to_string_name_int_map(data.get("known_skill_level_map", {}))
 	unit_state.movement_tags = _strings_to_string_name_array(data.get("movement_tags", []))
-	unit_state.weapon_physical_damage_tag = ProgressionDataUtils.to_string_name(data.get("weapon_physical_damage_tag", ""))
+	unit_state.apply_weapon_projection({
+		"weapon_profile_kind": data.get("weapon_profile_kind", WEAPON_PROFILE_KIND_NONE),
+		"weapon_item_id": data.get("weapon_item_id", ""),
+		"weapon_profile_type_id": data.get("weapon_profile_type_id", ""),
+		"weapon_current_grip": data.get("weapon_current_grip", WEAPON_GRIP_NONE),
+		"weapon_attack_range": data.get("weapon_attack_range", 0),
+		"weapon_one_handed_dice": data.get("weapon_one_handed_dice", {}),
+		"weapon_two_handed_dice": data.get("weapon_two_handed_dice", {}),
+		"weapon_is_versatile": data.get("weapon_is_versatile", false),
+		"weapon_physical_damage_tag": data.get("weapon_physical_damage_tag", ""),
+	})
 	unit_state.cooldowns = data.get("cooldowns", {}).duplicate(true)
 	unit_state.last_turn_tu = int(data.get("last_turn_tu", -1))
 	unit_state.status_effects = _status_effects_from_dict(data.get("status_effects", {}))
@@ -304,6 +413,53 @@ static func _status_effects_from_dict(data: Variant) -> Dictionary:
 			continue
 		results[effect_state.status_id] = effect_state
 	return results
+
+
+func _build_current_weapon_projection_payload() -> Dictionary:
+	return {
+		"weapon_profile_kind": weapon_profile_kind,
+		"weapon_item_id": weapon_item_id,
+		"weapon_profile_type_id": weapon_profile_type_id,
+		"weapon_current_grip": weapon_current_grip,
+		"weapon_attack_range": weapon_attack_range,
+		"weapon_one_handed_dice": weapon_one_handed_dice,
+		"weapon_two_handed_dice": weapon_two_handed_dice,
+		"weapon_is_versatile": weapon_is_versatile,
+		"weapon_physical_damage_tag": weapon_physical_damage_tag,
+	}
+
+
+static func _normalize_weapon_profile_kind(value: Variant) -> StringName:
+	var normalized := ProgressionDataUtils.to_string_name(value)
+	match normalized:
+		WEAPON_PROFILE_KIND_UNARMED, WEAPON_PROFILE_KIND_NATURAL, WEAPON_PROFILE_KIND_EQUIPPED:
+			return normalized
+		_:
+			return WEAPON_PROFILE_KIND_NONE
+
+
+static func _normalize_weapon_grip(value: Variant) -> StringName:
+	var normalized := ProgressionDataUtils.to_string_name(value)
+	match normalized:
+		WEAPON_GRIP_ONE_HANDED, WEAPON_GRIP_TWO_HANDED:
+			return normalized
+		_:
+			return WEAPON_GRIP_NONE
+
+
+static func _normalize_weapon_dice(value: Variant) -> Dictionary:
+	if value is not Dictionary:
+		return {}
+	var dice_data := value as Dictionary
+	var dice_count := int(dice_data.get("dice_count", 0))
+	var dice_sides := int(dice_data.get("dice_sides", 0))
+	if dice_count <= 0 or dice_sides <= 0:
+		return {}
+	return {
+		"dice_count": dice_count,
+		"dice_sides": dice_sides,
+		"flat_bonus": int(dice_data.get("flat_bonus", 0)),
+	}
 
 
 static func _string_name_array_to_strings(values: Array[StringName]) -> Array[String]:

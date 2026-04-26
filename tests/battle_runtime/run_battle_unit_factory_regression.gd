@@ -26,6 +26,7 @@ class FakeCharacterGateway:
 	var party_state = null
 	var member_state = null
 	var attribute_snapshot = null
+	var weapon_projection: Dictionary = {}
 
 	func get_party_state():
 		return party_state
@@ -39,6 +40,11 @@ class FakeCharacterGateway:
 		if member_state != null and member_state.member_id == member_id:
 			return attribute_snapshot
 		return null
+
+	func get_member_weapon_projection(member_id: StringName) -> Dictionary:
+		if member_state != null and member_state.member_id == member_id:
+			return weapon_projection.duplicate(true)
+		return {}
 
 
 class FakeTerrainGenerator:
@@ -143,6 +149,15 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	var gateway := FakeCharacterGateway.new()
 	gateway.member_state = _make_member_state(&"hero")
 	gateway.attribute_snapshot = _make_attribute_snapshot()
+	gateway.weapon_projection = {
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "factory_blade",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 2,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_physical_damage_tag": "physical_pierce",
+	}
 
 	var runtime := FakeRuntime.new()
 	runtime._character_gateway = gateway
@@ -173,6 +188,11 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_eq(unit.current_aura, 6, "刷新桥接应按属性快照上限回写 aura。")
 	_assert_eq(unit.current_ap, 9, "刷新桥接应按属性快照回写 action points。")
 	_assert_eq(unit.action_threshold, 30, "刷新桥接应按属性快照回写 action_threshold。")
+	_assert_eq(String(unit.weapon_profile_kind), "equipped", "刷新桥接应从角色网关回写武器投影 kind。")
+	_assert_eq(String(unit.weapon_profile_type_id), "shortsword", "刷新桥接应从角色网关回写 weapon profile type id。")
+	_assert_eq(unit.weapon_attack_range, 2, "刷新桥接应从角色网关回写 weapon_attack_range。")
+	_assert_eq(int(unit.weapon_one_handed_dice.get("dice_sides", 0)), 6, "刷新桥接应从角色网关回写一手骰。")
+	_assert_eq(String(unit.weapon_physical_damage_tag), "physical_pierce", "刷新桥接应从角色网关回写武器伤害类型。")
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "刷新桥接应从成长进度重建可用主动技能。")
 	_assert_eq(int(unit.known_skill_level_map.get(&"warrior_heavy_strike", 0)), 2, "刷新桥接应从成长进度重建技能等级。")
 

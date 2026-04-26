@@ -1030,7 +1030,7 @@ func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
 	)
 	archer.current_stamina = 20
 	archer.attribute_snapshot.set_value(&"stamina_max", 20)
-	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 4)
+	archer.set_natural_weapon_projection(&"test_bow", &"physical_pierce", 4)
 	archer.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
 	var enemy_a := _build_repeat_attack_unit(
 		&"hybrid_enemy_a",
@@ -1106,8 +1106,7 @@ func _build_repeat_attack_unit(
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 5)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 1)
-	unit.weapon_physical_damage_tag = &"physical_slash"
+	unit.set_natural_weapon_projection(&"test_blade", &"physical_slash", 1)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
