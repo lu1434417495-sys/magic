@@ -303,24 +303,26 @@ func get_member_attribute_snapshot(member_id: StringName) -> AttributeSnapshot:
 
 func get_member_weapon_projection(member_id: StringName) -> Dictionary:
 	var member_state: PartyMemberState = get_member_state(member_id)
-	if member_state == null or member_state.equipment_state == null:
+	if member_state == null:
 		return {}
+	if member_state.equipment_state == null:
+		return _build_unarmed_weapon_projection()
 	if not (member_state.equipment_state is Object and member_state.equipment_state.has_method("get_equipped_item_id")):
-		return {}
+		return _build_unarmed_weapon_projection()
 	var weapon_item_id := ProgressionDataUtils.to_string_name(member_state.equipment_state.get_equipped_item_id(&"main_hand"))
 	if weapon_item_id == &"":
-		return {}
+		return _build_unarmed_weapon_projection()
 	var item_def: ItemDef = _item_defs.get(weapon_item_id) as ItemDef
 	if item_def == null or not item_def.is_weapon():
 		return {}
-	return _build_weapon_projection_from_item_def(item_def)
+	return _build_weapon_projection_from_item_def(item_def, member_state.equipment_state)
 
 
 func get_member_weapon_physical_damage_tag(member_id: StringName) -> StringName:
 	return ProgressionDataUtils.to_string_name(get_member_weapon_projection(member_id).get("weapon_physical_damage_tag", ""))
 
 
-func _build_weapon_projection_from_item_def(item_def: ItemDef) -> Dictionary:
+func _build_weapon_projection_from_item_def(item_def: ItemDef, equipment_state) -> Dictionary:
 	if item_def == null or not item_def.is_weapon():
 		return {}
 	var profile = item_def.get("weapon_profile")
@@ -329,30 +331,84 @@ func _build_weapon_projection_from_item_def(item_def: ItemDef) -> Dictionary:
 	var one_handed_dice := _weapon_dice_to_dict(profile.get("one_handed_dice"))
 	var two_handed_dice := _weapon_dice_to_dict(profile.get("two_handed_dice"))
 	var properties := _weapon_profile_properties(profile)
+	var is_versatile := properties.has(&"versatile")
+	var uses_two_hands := _resolve_weapon_uses_two_hands(
+		item_def,
+		equipment_state,
+		one_handed_dice,
+		two_handed_dice,
+		is_versatile
+	)
 	return {
 		"weapon_profile_kind": "equipped",
 		"weapon_item_id": String(item_def.item_id),
 		"weapon_profile_type_id": String(ProgressionDataUtils.to_string_name(profile.get("weapon_type_id"))),
-		"weapon_current_grip": String(_resolve_weapon_current_grip(item_def, one_handed_dice, two_handed_dice)),
+		"weapon_current_grip": String(_resolve_weapon_current_grip(one_handed_dice, two_handed_dice, uses_two_hands)),
 		"weapon_attack_range": maxi(int(profile.get("attack_range")), 0),
 		"weapon_one_handed_dice": one_handed_dice,
 		"weapon_two_handed_dice": two_handed_dice,
-		"weapon_is_versatile": properties.has(&"versatile"),
+		"weapon_is_versatile": is_versatile,
+		"weapon_uses_two_hands": uses_two_hands,
 		"weapon_physical_damage_tag": String(item_def.get_weapon_physical_damage_tag()),
 	}
 
 
-func _resolve_weapon_current_grip(item_def: ItemDef, one_handed_dice: Dictionary, two_handed_dice: Dictionary) -> StringName:
+func _build_unarmed_weapon_projection() -> Dictionary:
+	return {
+		"weapon_profile_kind": "unarmed",
+		"weapon_item_id": "",
+		"weapon_profile_type_id": "unarmed",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0},
+		"weapon_two_handed_dice": {},
+		"weapon_is_versatile": false,
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_blunt",
+	}
+
+
+func _resolve_weapon_uses_two_hands(
+	item_def: ItemDef,
+	equipment_state,
+	one_handed_dice: Dictionary,
+	two_handed_dice: Dictionary,
+	is_versatile: bool
+) -> bool:
 	if item_def == null:
-		return &"none"
+		return false
 	var occupied_slots := item_def.get_final_occupied_slot_ids(&"main_hand")
 	if occupied_slots.has(&"off_hand"):
-		return &"two_handed"
+		return true
 	if one_handed_dice.is_empty() and not two_handed_dice.is_empty():
+		return true
+	if is_versatile and not two_handed_dice.is_empty():
+		return _is_off_hand_free_for_versatile(equipment_state)
+	return false
+
+
+func _resolve_weapon_current_grip(
+	one_handed_dice: Dictionary,
+	two_handed_dice: Dictionary,
+	uses_two_hands: bool
+) -> StringName:
+	if uses_two_hands:
 		return &"two_handed"
 	if not one_handed_dice.is_empty():
 		return &"one_handed"
+	if not two_handed_dice.is_empty():
+		return &"two_handed"
 	return &"none"
+
+
+func _is_off_hand_free_for_versatile(equipment_state) -> bool:
+	if equipment_state == null or not (equipment_state is Object):
+		return true
+	if equipment_state.has_method("get_entry_slot_for_slot"):
+		return ProgressionDataUtils.to_string_name(equipment_state.call("get_entry_slot_for_slot", &"off_hand")) == &""
+	if equipment_state.has_method("get_equipped_item_id"):
+		return ProgressionDataUtils.to_string_name(equipment_state.call("get_equipped_item_id", &"off_hand")) == &""
+	return true
 
 
 func _weapon_profile_properties(profile) -> Array[StringName]:

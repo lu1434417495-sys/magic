@@ -346,8 +346,11 @@ func _test_battle_unit_state_serialization_exposes_weapon_projection() -> void:
 	var unarmed := BATTLE_UNIT_STATE_SCRIPT.new()
 	unarmed.set_unarmed_weapon_projection()
 	var unarmed_payload := unarmed.to_dict()
+	var unarmed_dice: Dictionary = unarmed_payload.get("weapon_one_handed_dice", {})
 	_assert_eq(String(unarmed_payload.get("weapon_profile_kind", "")), "unarmed", "空手投影应能通过 kind 表达。")
 	_assert_eq(String(unarmed_payload.get("weapon_profile_type_id", "")), "unarmed", "空手投影应保留 type id。")
+	_assert_eq(int(unarmed_dice.get("dice_sides", -1)), 4, "空手投影应提供 1D4 伤害骰。")
+	_assert_true(not bool(unarmed_payload.get("weapon_uses_two_hands", true)), "空手投影不应标记双手握法。")
 
 	var natural := BATTLE_UNIT_STATE_SCRIPT.new()
 	natural.set_natural_weapon_projection(
@@ -370,6 +373,7 @@ func _test_battle_unit_state_serialization_exposes_weapon_projection() -> void:
 		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
 		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 10, "flat_bonus": 0},
 		"weapon_is_versatile": true,
+		"weapon_uses_two_hands": true,
 		"weapon_physical_damage_tag": "physical_slash",
 	})
 	var payload := equipped.to_dict()
@@ -384,10 +388,12 @@ func _test_battle_unit_state_serialization_exposes_weapon_projection() -> void:
 	_assert_eq(int(one_handed_dice.get("dice_sides", -1)), 8, "一手骰应进入序列化 payload。")
 	_assert_eq(int(two_handed_dice.get("dice_sides", -1)), 10, "双手骰应进入序列化 payload。")
 	_assert_true(bool(payload.get("weapon_is_versatile", false)), "versatile 标记应进入序列化 payload。")
+	_assert_true(bool(payload.get("weapon_uses_two_hands", false)), "当前双手握法应进入序列化 payload。")
 	_assert_true(restored != null, "BattleUnitState.from_dict() 应能恢复武器投影字段。")
 	_assert_eq(String(restored.weapon_profile_kind if restored != null else &""), "equipped", "round-trip 后应恢复武器投影 kind。")
 	_assert_eq(String(restored.weapon_profile_type_id if restored != null else &""), "longsword", "round-trip 后应恢复 weapon profile type id。")
 	_assert_eq(String(restored.weapon_current_grip if restored != null else &""), "two_handed", "round-trip 后应恢复当前握法。")
+	_assert_true(restored.weapon_uses_two_hands if restored != null else false, "round-trip 后应恢复双手握法布尔值。")
 	_assert_eq(restored.weapon_attack_range if restored != null else -1, 2, "round-trip 后应恢复 weapon_attack_range。")
 	_assert_eq(int(restored.weapon_two_handed_dice.get("dice_sides", -1)) if restored != null else -1, 10, "round-trip 后应恢复双手骰。")
 	_assert_eq(String(restored.weapon_physical_damage_tag if restored != null else &""), "physical_slash", "round-trip 后应恢复武器伤害类型。")

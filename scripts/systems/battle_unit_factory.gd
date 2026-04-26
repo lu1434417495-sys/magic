@@ -70,7 +70,7 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 
 	unit_state.body_size = maxi(int(member_state.body_size), 1)
 	unit_state.attribute_snapshot = snapshot
-	_apply_member_weapon_projection(unit_state, unit_state.source_member_id)
+	refresh_weapon_projection(unit_state)
 	unit_state.current_hp = clampi(unit_state.current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
 	unit_state.current_mp = clampi(unit_state.current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
 	unit_state.current_stamina = clampi(
@@ -108,6 +108,12 @@ func refresh_known_skills(unit_state: BattleUnitState) -> void:
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
 	_sync_passive_battle_statuses(unit_state, member_state.progression)
+
+
+func refresh_weapon_projection(unit_state: BattleUnitState) -> void:
+	if unit_state == null:
+		return
+	_apply_member_weapon_projection(unit_state, unit_state.source_member_id)
 
 
 func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
@@ -382,6 +388,7 @@ func _apply_member_weapon_projection(unit_state: BattleUnitState, member_id: Str
 	unit_state.apply_weapon_projection({
 		"weapon_profile_kind": String(BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED),
 		"weapon_current_grip": String(BattleUnitState.WEAPON_GRIP_ONE_HANDED),
+		"weapon_uses_two_hands": false,
 		"weapon_physical_damage_tag": String(_resolve_member_weapon_physical_damage_tag(member_id)),
 	})
 

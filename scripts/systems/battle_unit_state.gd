@@ -103,6 +103,8 @@ var weapon_one_handed_dice: Dictionary = {}
 var weapon_two_handed_dice: Dictionary = {}
 ## 字段说明：记录当前武器是否具备 versatile 属性，用于后续根据握法选择骰面。
 var weapon_is_versatile := false
+## 字段说明：记录当前武器投影是否正在按双手握法生效，后续伤害结算只需读取这个布尔值选骰。
+var weapon_uses_two_hands := false
 ## 字段说明：记录当前主手武器的唯一物理伤害类型，供武器近战技能在结算时实时覆盖伤害标签。
 var weapon_physical_damage_tag: StringName = &""
 ## 字段说明：缓存冷却表字典，集中保存可按键查询的运行时数据。
@@ -181,12 +183,13 @@ func clear_weapon_projection() -> void:
 	weapon_one_handed_dice = {}
 	weapon_two_handed_dice = {}
 	weapon_is_versatile = false
+	weapon_uses_two_hands = false
 	weapon_physical_damage_tag = &""
 
 
 func set_unarmed_weapon_projection(
 	damage_tag: StringName = &"physical_blunt",
-	dice: Dictionary = {"dice_count": 1, "dice_sides": 1, "flat_bonus": 0},
+	dice: Dictionary = {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0},
 	attack_range: int = 1
 ) -> void:
 	apply_weapon_projection({
@@ -195,6 +198,7 @@ func set_unarmed_weapon_projection(
 		"weapon_current_grip": String(WEAPON_GRIP_ONE_HANDED),
 		"weapon_attack_range": attack_range,
 		"weapon_one_handed_dice": dice,
+		"weapon_uses_two_hands": false,
 		"weapon_physical_damage_tag": String(damage_tag),
 	})
 
@@ -211,6 +215,7 @@ func set_natural_weapon_projection(
 		"weapon_current_grip": String(WEAPON_GRIP_ONE_HANDED if attack_range > 0 else WEAPON_GRIP_NONE),
 		"weapon_attack_range": attack_range,
 		"weapon_one_handed_dice": dice,
+		"weapon_uses_two_hands": false,
 		"weapon_physical_damage_tag": String(damage_tag),
 	})
 
@@ -227,12 +232,18 @@ func apply_weapon_projection(projection: Dictionary) -> void:
 	weapon_one_handed_dice = _normalize_weapon_dice(projection.get("weapon_one_handed_dice", {}))
 	weapon_two_handed_dice = _normalize_weapon_dice(projection.get("weapon_two_handed_dice", {}))
 	weapon_is_versatile = bool(projection.get("weapon_is_versatile", false))
+	weapon_uses_two_hands = bool(projection.get("weapon_uses_two_hands", weapon_current_grip == WEAPON_GRIP_TWO_HANDED))
+	if weapon_uses_two_hands:
+		weapon_current_grip = WEAPON_GRIP_TWO_HANDED
+	elif projection.has("weapon_uses_two_hands") and weapon_current_grip == WEAPON_GRIP_TWO_HANDED:
+		weapon_current_grip = WEAPON_GRIP_ONE_HANDED if not weapon_one_handed_dice.is_empty() else WEAPON_GRIP_NONE
 	weapon_physical_damage_tag = ProgressionDataUtils.to_string_name(projection.get("weapon_physical_damage_tag", ""))
 	if weapon_profile_kind == WEAPON_PROFILE_KIND_NONE:
 		clear_weapon_projection()
 		return
 	if weapon_attack_range <= 0:
 		weapon_current_grip = WEAPON_GRIP_NONE
+		weapon_uses_two_hands = false
 
 
 func get_weapon_attack_range() -> int:
@@ -326,6 +337,7 @@ func to_dict() -> Dictionary:
 		"weapon_one_handed_dice": weapon_one_handed_dice.duplicate(true),
 		"weapon_two_handed_dice": weapon_two_handed_dice.duplicate(true),
 		"weapon_is_versatile": weapon_is_versatile,
+		"weapon_uses_two_hands": weapon_uses_two_hands,
 		"weapon_physical_damage_tag": String(weapon_physical_damage_tag),
 		"cooldowns": cooldowns.duplicate(true),
 		"last_turn_tu": last_turn_tu,
@@ -383,6 +395,10 @@ static func from_dict(data: Dictionary):
 		"weapon_one_handed_dice": data.get("weapon_one_handed_dice", {}),
 		"weapon_two_handed_dice": data.get("weapon_two_handed_dice", {}),
 		"weapon_is_versatile": data.get("weapon_is_versatile", false),
+		"weapon_uses_two_hands": data.get(
+			"weapon_uses_two_hands",
+			ProgressionDataUtils.to_string_name(data.get("weapon_current_grip", WEAPON_GRIP_NONE)) == WEAPON_GRIP_TWO_HANDED
+		),
 		"weapon_physical_damage_tag": data.get("weapon_physical_damage_tag", ""),
 	})
 	unit_state.cooldowns = data.get("cooldowns", {}).duplicate(true)
@@ -425,6 +441,7 @@ func _build_current_weapon_projection_payload() -> Dictionary:
 		"weapon_one_handed_dice": weapon_one_handed_dice,
 		"weapon_two_handed_dice": weapon_two_handed_dice,
 		"weapon_is_versatile": weapon_is_versatile,
+		"weapon_uses_two_hands": weapon_uses_two_hands,
 		"weapon_physical_damage_tag": weapon_physical_damage_tag,
 	}
 

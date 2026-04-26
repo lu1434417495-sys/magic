@@ -10,12 +10,18 @@ const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module
 const BattleUnitFactory = preload("res://scripts/systems/battle_unit_factory.gd")
 const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle_unit_factory_runtime.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/character_management_module.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
+const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
+const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
+const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/item_def.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const WEAPON_DAMAGE_DICE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
+const WEAPON_PROFILE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
 var _failures: Array[String] = []
 
@@ -86,6 +92,7 @@ func _run() -> void:
 	_test_attribute_service_exposes_default_character_action_threshold()
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
+	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
 	_test_battle_unit_factory_no_longer_builds_manual_fallback_terrain()
 	if _failures.is_empty():
@@ -204,6 +211,86 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "known skills 刷新也应走同一 runtime bridge。")
 
 
+func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> void:
+	var progression_registry := PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
+	var item_defs := ITEM_CONTENT_REGISTRY_SCRIPT.new().get_item_defs().duplicate()
+	item_defs[&"training_longsword"] = _make_weapon_item_def(
+		&"training_longsword",
+		&"longsword",
+		&"physical_slash",
+		1,
+		_make_weapon_dice(1, 8, 0),
+		_make_weapon_dice(1, 10, 0),
+		[&"versatile"]
+	)
+
+	var party_state := _make_party_state([&"hero"])
+	var member_state = party_state.get_member_state(&"hero")
+	var character_gateway := CHARACTER_MANAGEMENT_MODULE_SCRIPT.new()
+	character_gateway.setup(
+		party_state,
+		progression_registry.get_skill_defs(),
+		progression_registry.get_profession_defs(),
+		{},
+		item_defs
+	)
+	var runtime := FakeRuntime.new()
+	runtime._character_gateway = character_gateway
+	runtime._skill_defs = progression_registry.get_skill_defs()
+	var factory := BattleUnitFactory.new()
+	factory.setup(runtime)
+
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	var unarmed = _build_single_ally_unit(factory, party_state, "空手")
+	if unarmed != null:
+		_assert_eq(String(unarmed.weapon_profile_kind), "unarmed", "空手玩家单位应投影为空手武器 kind。")
+		_assert_eq(String(unarmed.weapon_profile_type_id), "unarmed", "空手玩家单位应投影 unarmed profile type。")
+		_assert_eq(_weapon_dice_signature(unarmed.weapon_one_handed_dice), [1, 4, 0], "空手玩家单位应投影 1D4 伤害骰。")
+		_assert_eq(String(unarmed.weapon_physical_damage_tag), "physical_blunt", "空手玩家单位应投影钝击 tag。")
+		_assert_eq(unarmed.weapon_attack_range, 1, "空手玩家单位应投影 1 格攻击范围。")
+		_assert_true(not unarmed.weapon_uses_two_hands, "空手玩家单位不应标记双手握法。")
+
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]))
+	var one_handed = _build_single_ally_unit(factory, party_state, "单手武器")
+	if one_handed != null:
+		_assert_eq(String(one_handed.weapon_profile_kind), "equipped", "单手武器玩家单位应投影装备武器 kind。")
+		_assert_eq(String(one_handed.weapon_item_id), "bronze_sword", "单手武器玩家单位应投影当前主手 item id。")
+		_assert_eq(String(one_handed.weapon_profile_type_id), "shortsword", "单手武器玩家单位应投影 shortsword profile。")
+		_assert_eq(_weapon_dice_signature(one_handed.weapon_one_handed_dice), [1, 6, 0], "单手武器玩家单位应投影 1D6 一手骰。")
+		_assert_true(one_handed.weapon_two_handed_dice.is_empty(), "单手武器玩家单位不应投影双手骰。")
+		_assert_eq(String(one_handed.weapon_physical_damage_tag), "physical_pierce", "单手武器玩家单位应投影穿刺 tag。")
+		_assert_eq(one_handed.weapon_attack_range, 1, "单手武器玩家单位应投影 profile range。")
+		_assert_true(not one_handed.weapon_uses_two_hands, "单手武器玩家单位不应标记双手握法。")
+
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand", &"off_hand"]))
+	var two_handed = _build_single_ally_unit(factory, party_state, "双手武器")
+	if two_handed != null:
+		_assert_eq(String(two_handed.weapon_profile_type_id), "greatsword", "双手武器玩家单位应投影 greatsword profile。")
+		_assert_true(two_handed.weapon_one_handed_dice.is_empty(), "双手武器玩家单位不应投影一手骰。")
+		_assert_eq(_weapon_dice_signature(two_handed.weapon_two_handed_dice), [2, 6, 0], "双手武器玩家单位应投影 2D6 双手骰。")
+		_assert_eq(String(two_handed.weapon_physical_damage_tag), "physical_slash", "双手武器玩家单位应投影挥砍 tag。")
+		_assert_true(two_handed.weapon_uses_two_hands, "双手武器玩家单位应标记双手握法。")
+		_assert_eq(String(two_handed.weapon_current_grip), "two_handed", "双手武器玩家单位当前握法应为 two_handed。")
+
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"training_longsword", _slot_ids([&"main_hand"]))
+	var versatile = _build_single_ally_unit(factory, party_state, "两用武器空副手")
+	if versatile != null:
+		_assert_true(versatile.weapon_is_versatile, "两用武器玩家单位应保留 versatile 标记。")
+		_assert_eq(_weapon_dice_signature(versatile.weapon_one_handed_dice), [1, 8, 0], "两用武器玩家单位应保留一手骰。")
+		_assert_eq(_weapon_dice_signature(versatile.weapon_two_handed_dice), [1, 10, 0], "两用武器玩家单位应保留双手骰。")
+		_assert_true(versatile.weapon_uses_two_hands, "两用武器空副手时应动态使用双手握法。")
+		_assert_eq(String(versatile.weapon_current_grip), "two_handed", "两用武器空副手时当前握法应为 two_handed。")
+
+		member_state.equipment_state.set_equipped_entry(&"off_hand", &"training_shield", _slot_ids([&"off_hand"]))
+		factory.refresh_weapon_projection(versatile)
+		_assert_true(not versatile.weapon_uses_two_hands, "两用武器副手被占用后重新投影应改为单手握法。")
+		_assert_eq(String(versatile.weapon_current_grip), "one_handed", "两用武器副手被占用后当前握法应为 one_handed。")
+		_assert_eq(_weapon_dice_signature(versatile.weapon_two_handed_dice), [1, 10, 0], "两用武器重新投影仍应保留双手骰供后续切换。")
+
+
 func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> void:
 	var factory := BattleUnitFactory.new()
 	var encounter_anchor := ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
@@ -243,6 +330,68 @@ func _test_battle_unit_factory_no_longer_builds_manual_fallback_terrain() -> voi
 		not terrain_generator.last_context.has("battle_map_size"),
 		"BattleUnitFactory 不应再把 legacy map_size 升级成 battle_map_size。"
 	)
+
+
+func _build_single_ally_unit(factory: BattleUnitFactory, party_state: PartyState, label: String):
+	var units: Array = factory.build_ally_units(party_state, {})
+	_assert_eq(units.size(), 1, "%s 场景应构建 1 个友方单位。" % label)
+	if units.is_empty():
+		return null
+	return units[0]
+
+
+func _make_weapon_item_def(
+	item_id: StringName,
+	weapon_type_id: StringName,
+	damage_tag: StringName,
+	attack_range: int,
+	one_handed_dice,
+	two_handed_dice,
+	properties: Array[StringName]
+):
+	var item_def: ItemDef = ITEM_DEF_SCRIPT.new()
+	item_def.item_id = item_id
+	item_def.item_category = ITEM_DEF_SCRIPT.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ITEM_DEF_SCRIPT.EQUIPMENT_TYPE_WEAPON
+	item_def.equipment_slot_ids = ["main_hand"]
+	item_def.is_stackable = false
+	item_def.max_stack = 1
+	item_def.tags = [&"melee"]
+	var profile = WEAPON_PROFILE_DEF_SCRIPT.new()
+	profile.weapon_type_id = weapon_type_id
+	profile.training_group = &"martial"
+	profile.range_type = &"melee"
+	profile.family = &"sword"
+	profile.damage_tag = damage_tag
+	profile.attack_range = attack_range
+	profile.one_handed_dice = one_handed_dice
+	profile.two_handed_dice = two_handed_dice
+	profile.properties_mode = WEAPON_PROFILE_DEF_SCRIPT.PropertyMergeMode.REPLACE
+	profile.properties = properties
+	item_def.weapon_profile = profile
+	return item_def
+
+
+func _make_weapon_dice(dice_count: int, dice_sides: int, flat_bonus: int):
+	var dice = WEAPON_DAMAGE_DICE_DEF_SCRIPT.new()
+	dice.dice_count = dice_count
+	dice.dice_sides = dice_sides
+	dice.flat_bonus = flat_bonus
+	return dice
+
+
+func _weapon_dice_signature(dice: Dictionary) -> Array:
+	if dice.is_empty():
+		return []
+	return [
+		int(dice.get("dice_count", 0)),
+		int(dice.get("dice_sides", 0)),
+		int(dice.get("flat_bonus", 0)),
+	]
+
+
+func _slot_ids(values: Array) -> Array[StringName]:
+	return ProgressionDataUtils.to_string_name_array(values)
 
 
 func _make_party_state(member_ids: Array[StringName]) -> PartyState:
