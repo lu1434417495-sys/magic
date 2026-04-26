@@ -204,6 +204,43 @@ func take_equipment_instance_by_item(item_id: StringName):
 	return null
 
 
+## 将已有装备实例按共享背包容量规则存入仓库。
+## 该接口保留实例 payload；与 add_item() 不同，不会重新生成装备实例。
+func add_equipment_instance(instance) -> Dictionary:
+	var warehouse_state = _ensure_warehouse_state()
+	_compact_state(warehouse_state)
+	var used_slots_before: int = get_used_slots()
+	var item_id := ProgressionDataUtils.to_string_name(instance.item_id if instance != null else &"")
+	var item_def = get_item_def(item_id)
+	var result := {
+		"item_id": String(item_id),
+		"requested_quantity": 1,
+		"added_quantity": 0,
+		"remaining_quantity": 1,
+		"used_slots_before": used_slots_before,
+		"used_slots_after": used_slots_before,
+		"free_slots_after": maxi(get_total_capacity() - used_slots_before, 0),
+		"is_over_capacity": used_slots_before > get_total_capacity(),
+		"item_found": item_def != null,
+		"is_equipment": item_def != null and item_def.is_equipment(),
+	}
+	if instance == null or item_id == &"" or item_def == null or not item_def.is_equipment():
+		return result
+	if get_total_capacity() - used_slots_before <= 0:
+		return result
+	if instance.instance_id == &"":
+		instance.instance_id = EQUIPMENT_INSTANCE_STATE_SCRIPT.generate_id()
+	warehouse_state.equipment_instances.append(instance)
+	_compact_state(warehouse_state)
+	var used_slots_after: int = get_used_slots()
+	result["added_quantity"] = 1
+	result["remaining_quantity"] = 0
+	result["used_slots_after"] = used_slots_after
+	result["free_slots_after"] = maxi(get_total_capacity() - used_slots_after, 0)
+	result["is_over_capacity"] = used_slots_after > get_total_capacity()
+	return result
+
+
 ## 将装备实例直接存入仓库，不检查容量。调用方须在存入前通过预览确认有空余格位。
 func deposit_equipment_instance(instance) -> void:
 	if instance == null:

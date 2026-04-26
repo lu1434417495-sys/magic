@@ -1769,8 +1769,8 @@ func _commit_random_equipment_loot_entry(loot_entry_data: Dictionary) -> Diction
 		if rolled_instance_variant == null:
 			continue
 		var rolled_item_id := ProgressionDataUtils.to_string_name(rolled_instance_variant.item_id)
-		var rolled_item_def = _game_session.get_item_defs().get(rolled_item_id)
-		if rolled_item_def == null:
+		var add_result: Dictionary = _party_warehouse_service.add_equipment_instance(rolled_instance_variant)
+		if not bool(add_result.get("item_found", false)):
 			return {
 				"ok": false,
 				"error_code": "battle_loot_item_missing_def",
@@ -1778,7 +1778,7 @@ func _commit_random_equipment_loot_entry(loot_entry_data: Dictionary) -> Diction
 				"committed_item_count": 0,
 				"overflow_entries": [],
 			}
-		if not rolled_item_def.is_equipment():
+		if not bool(add_result.get("is_equipment", false)):
 			return {
 				"ok": false,
 				"error_code": "battle_loot_random_equipment_invalid_item",
@@ -1786,10 +1786,9 @@ func _commit_random_equipment_loot_entry(loot_entry_data: Dictionary) -> Diction
 				"committed_item_count": 0,
 				"overflow_entries": [],
 			}
-		if _party_warehouse_service.get_free_slots() <= 0:
+		if int(add_result.get("remaining_quantity", 0)) > 0:
 			overflow_quantity += 1
 			continue
-		_party_warehouse_service.deposit_equipment_instance(rolled_instance_variant)
 		committed_item_count += 1
 	var overflow_entries: Array[Dictionary] = []
 	if overflow_quantity > 0:
@@ -1853,7 +1852,8 @@ func _commit_equipment_instance_loot_entry(loot_entry_data: Dictionary) -> Dicti
 			"committed_item_count": 0,
 			"overflow_entries": [],
 		}
-	if _party_warehouse_service.get_free_slots() <= 0:
+	var add_result: Dictionary = _party_warehouse_service.add_equipment_instance(equipment_instance)
+	if int(add_result.get("remaining_quantity", 0)) > 0:
 		return {
 			"ok": true,
 			"error_code": "",
@@ -1861,7 +1861,6 @@ func _commit_equipment_instance_loot_entry(loot_entry_data: Dictionary) -> Dicti
 			"committed_item_count": 0,
 			"overflow_entries": [_build_battle_overflow_entry(loot_entry_data, 1)],
 		}
-	_party_warehouse_service.deposit_equipment_instance(equipment_instance)
 	return {
 		"ok": true,
 		"error_code": "",

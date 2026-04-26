@@ -181,6 +181,21 @@ func _test_warehouse_service_rules() -> void:
 	_assert_eq(int(refill_add.get("added_quantity", 0)), 1, "超容状态下只能补已有未满堆栈，不能新增堆栈。")
 	_assert_true(over_capacity_service.is_over_capacity(), "补已有堆栈后若仍超容，状态应保持超容。")
 
+	var equipment_instance_party := _build_party_with_members([
+		_build_member_state(&"gear_porter", "装备搬运员", 1),
+	])
+	var equipment_instance_service := PartyWarehouseService.new()
+	equipment_instance_service.setup(equipment_instance_party, item_defs)
+	var mace_instance := EquipmentInstanceState.create(&"watchman_mace")
+	var instance_add_result: Dictionary = equipment_instance_service.add_equipment_instance(mace_instance)
+	_assert_eq(int(instance_add_result.get("added_quantity", 0)), 1, "装备实例容量接口应能写入已有实例。")
+	_assert_eq(int(instance_add_result.get("remaining_quantity", 0)), 0, "装备实例容量接口成功时不应返回剩余数量。")
+	_assert_eq(equipment_instance_service.count_item(&"watchman_mace"), 1, "装备实例容量接口应保留实例 item_id。")
+	var blocked_instance_result: Dictionary = equipment_instance_service.add_equipment_instance(EquipmentInstanceState.create(&"watchman_mace"))
+	_assert_eq(int(blocked_instance_result.get("added_quantity", -1)), 0, "背包满时装备实例容量接口不应写入。")
+	_assert_eq(int(blocked_instance_result.get("remaining_quantity", 0)), 1, "背包满时装备实例容量接口应返回未放入数量。")
+	_assert_eq(equipment_instance_service.count_item(&"watchman_mace"), 1, "背包满时装备实例不应被静默写入。")
+
 
 func _test_party_backpack_view_binding_is_battle_local() -> void:
 	var item_defs: Dictionary = _game_session.get_item_defs()

@@ -55,6 +55,7 @@ func _run() -> void:
 	_test_world_spawn_explicitly_maps_south_wilds_to_mist_hollow()
 	_test_game_runtime_facade_battle_requires_confirm_before_tu_advances()
 	_test_game_runtime_facade_commit_battle_loot_records_overflow_entries()
+	_test_game_runtime_facade_commit_battle_loot_partially_fills_existing_stack()
 	_test_game_runtime_facade_single_victory_removes_encounter()
 	_test_game_runtime_facade_can_start_second_battle_after_first_victory()
 	_test_game_runtime_facade_settlement_victory_downgrades_encounter()
@@ -706,6 +707,36 @@ func _test_game_runtime_facade_commit_battle_loot_records_overflow_entries() -> 
 		_assert_eq(int(overflow_entry.get("quantity", 0)), 2, "overflow entry 应保留未装下的数量。")
 	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 1, "battle loot overflow 不应影响原有仓库物品。")
 	_assert_eq(warehouse_service.count_item(&"beast_hide"), 0, "battle loot overflow 不应静默写入 beast_hide。")
+	_cleanup_test_session(game_session)
+
+
+func _test_game_runtime_facade_commit_battle_loot_partially_fills_existing_stack() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	_force_party_storage_capacity(facade.get_party_state(), 1)
+	facade.get_party_state().warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
+
+	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	var prefill_result: Dictionary = warehouse_service.add_item(&"beast_hide", 29)
+	_assert_eq(int(prefill_result.get("added_quantity", 0)), 29, "partial loot 回归前置：应能预置一个未满兽皮堆。")
+
+	var resolution_result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
+	resolution_result.winner_faction_id = &"player"
+	resolution_result.set_loot_entries([_build_formal_beast_hide_loot_entry(4)])
+
+	var commit_result: Dictionary = facade._commit_battle_loot_to_shared_warehouse(resolution_result)
+	_assert_true(bool(commit_result.get("ok", false)), "battle loot commit 部分放入时仍应成功完成。")
+	_assert_eq(int(commit_result.get("committed_item_count", -1)), 1, "已有堆差 1 个满包时应只放入能补堆的 1 个。")
+	_assert_eq(int(commit_result.get("overflow_entry_count", 0)), 1, "部分放入后剩余未装下物品应生成 overflow entry。")
+	if resolution_result.overflow_entries.size() > 0 and resolution_result.overflow_entries[0] is Dictionary:
+		var overflow_entry: Dictionary = resolution_result.overflow_entries[0]
+		_assert_eq(String(overflow_entry.get("item_id", "")), "beast_hide", "部分放入 overflow entry 应保留原始掉落物品。")
+		_assert_eq(int(overflow_entry.get("quantity", 0)), 3, "部分放入 overflow entry 应记录剩余未装下数量。")
+	_assert_eq(warehouse_service.count_item(&"beast_hide"), 30, "部分放入后共享仓库应补满已有兽皮堆。")
 	_cleanup_test_session(game_session)
 
 

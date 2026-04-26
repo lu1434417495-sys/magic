@@ -45,6 +45,8 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_per_kill_loot_uses_killer_luck_and_commits_fixed_item()
 	_test_per_kill_random_equipment_without_player_killer_uses_neutral_luck()
+	_test_per_kill_random_equipment_overflow_is_lost_in_settlement_commit()
+	_test_per_kill_attack_equipment_is_not_implicit_loot()
 	if _failures.is_empty():
 		print("Battle loot drop luck regression: PASS")
 		quit(0)
@@ -151,6 +153,61 @@ func _test_per_kill_random_equipment_without_player_killer_uses_neutral_luck() -
 	_cleanup_test_session(game_session)
 
 
+func _test_per_kill_random_equipment_overflow_is_lost_in_settlement_commit() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	var party_state = facade.get_party_state()
+	_reset_party_warehouse(party_state)
+	_ensure_capacity(party_state, 1)
+	facade._party_warehouse_service.setup(party_state, game_session.get_item_defs())
+	facade._party_warehouse_service.add_item(&"bronze_sword", 1)
+	facade._character_management.set_party_state(party_state)
+
+	var drop_service := _SpyEquipmentDropService.new()
+	_inject_drop_services(facade, drop_service)
+	facade._battle_runtime._enemy_templates[&"overflow_loot_wolf"] = _build_enemy_template_with_random_equipment_only(&"overflow_loot_wolf")
+
+	var defeated_enemy = _build_defeated_enemy_unit(&"overflow_enemy", &"overflow_loot_wolf", "满包掉落荒狼")
+	facade._battle_runtime._collect_defeated_unit_loot(defeated_enemy, null)
+
+	var resolution_result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
+	resolution_result.winner_faction_id = &"player"
+	resolution_result.set_loot_entries(facade._battle_runtime._active_loot_entries)
+	var commit_result: Dictionary = facade._commit_battle_loot_to_shared_warehouse(resolution_result)
+
+	_assert_true(bool(commit_result.get("ok", false)), "随机装备掉落遇到满包时仍应以丢失方式完成结算。")
+	_assert_eq(int(commit_result.get("committed_item_count", -1)), 0, "随机装备掉落满包时不应写入新装备实例。")
+	_assert_eq(int(commit_result.get("overflow_entry_count", 0)), 1, "随机装备掉落满包时应记录 overflow entry。")
+	_assert_eq(resolution_result.overflow_entries.size(), 1, "随机装备掉落满包时应写入 BattleResolutionResult overflow_entries。")
+	if resolution_result.overflow_entries.size() > 0 and resolution_result.overflow_entries[0] is Dictionary:
+		var overflow_entry: Dictionary = resolution_result.overflow_entries[0]
+		_assert_eq(String(overflow_entry.get("item_id", "")), "bronze_sword", "随机装备 overflow entry 应保留掉落装备 item_id。")
+		_assert_eq(int(overflow_entry.get("quantity", 0)), 1, "随机装备 overflow entry 应记录丢失件数。")
+	_assert_eq(party_state.warehouse_state.equipment_instances.size(), 1, "随机装备满包丢失时只应保留原有占位装备。")
+	_cleanup_test_session(game_session)
+
+
+func _test_per_kill_attack_equipment_is_not_implicit_loot() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	facade._battle_runtime._enemy_templates[&"attack_equipment_only_enemy"] = _build_enemy_template_with_attack_equipment_only(&"attack_equipment_only_enemy")
+
+	var defeated_enemy = _build_defeated_enemy_unit(&"attack_equipment_enemy", &"attack_equipment_only_enemy", "持钉锤敌人")
+	facade._battle_runtime._collect_defeated_unit_loot(defeated_enemy, null)
+
+	_assert_true(
+		facade._battle_runtime._active_loot_entries.is_empty(),
+		"敌人死亡不应因为 attack_equipment_item_id 自动掉落攻击装备；per-kill 掉落只读取 drop_entries。"
+	)
+	_cleanup_test_session(game_session)
+
+
 func _create_test_session():
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
@@ -185,12 +242,13 @@ func _reset_party_warehouse(party_state) -> void:
 func _ensure_capacity(party_state, storage_space: int) -> void:
 	if party_state == null:
 		return
+	var first_member_assigned := false
 	for member_variant in party_state.member_states.values():
 		var member_state = member_variant
 		if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 			continue
-		member_state.progression.unit_base_attributes.custom_stats[&"storage_space"] = maxi(storage_space, 0)
-		return
+		member_state.progression.unit_base_attributes.custom_stats[&"storage_space"] = maxi(storage_space, 0) if not first_member_assigned else 0
+		first_member_assigned = true
 
 
 func _set_member_luck(member_state, hidden_luck_at_birth: int, faith_luck_bonus: int) -> void:
@@ -244,6 +302,16 @@ func _build_enemy_template_with_random_equipment_only(template_id: StringName):
 			"quantity": 1,
 		},
 	]
+	template.drop_entries = drop_entries
+	return template
+
+
+func _build_enemy_template_with_attack_equipment_only(template_id: StringName):
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = template_id
+	template.display_name = "持钉锤敌人"
+	template.attack_equipment_item_id = &"watchman_mace"
+	var drop_entries: Array[Dictionary] = []
 	template.drop_entries = drop_entries
 	return template
 
