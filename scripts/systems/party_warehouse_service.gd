@@ -16,11 +16,20 @@ const STORAGE_SPACE_ATTRIBUTE_ID: StringName = &"storage_space"
 var _party_state = PARTY_STATE_SCRIPT.new()
 ## 字段说明：缓存物品定义集合字典，集中保存可按键查询的运行时数据。
 var _item_defs: Dictionary = {}
+## 字段说明：可选的队伍共享背包 view 覆盖；用于战斗局部背包状态，不直接改写 PartyState.warehouse_state。
+var _party_backpack_view = null
 
 
 func setup(party_state, item_defs: Dictionary = {}) -> void:
 	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
 	_item_defs = item_defs if item_defs != null else {}
+	_party_backpack_view = null
+
+
+func setup_party_backpack_view(party_state, party_backpack_view, item_defs: Dictionary = {}) -> void:
+	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
+	_item_defs = item_defs if item_defs != null else {}
+	_party_backpack_view = party_backpack_view if party_backpack_view != null else WAREHOUSE_STATE_SCRIPT.new()
 
 
 func get_total_capacity() -> int:
@@ -227,14 +236,17 @@ func _run_batch_swap_transaction(
 	var baseline_state = _get_warehouse_state().duplicate_state()
 	if _party_state == null:
 		_party_state = PARTY_STATE_SCRIPT.new()
-	var original_state = _party_state.warehouse_state
+	var original_state = _party_backpack_view if _party_backpack_view != null else _party_state.warehouse_state
 
-	_party_state.warehouse_state = baseline_state
+	_set_transaction_warehouse_state(baseline_state)
 	var result: Dictionary = _execute_batch_swap(items_to_withdraw, items_to_deposit)
 	if bool(result.get("allowed", false)) and commit_on_success:
+		if _party_backpack_view != null:
+			_copy_warehouse_state(baseline_state, original_state)
+			_party_backpack_view = original_state
 		return result
 
-	_party_state.warehouse_state = original_state
+	_set_transaction_warehouse_state(original_state)
 	return result
 
 
@@ -320,6 +332,8 @@ func _process_add(item_id: StringName, quantity: int, mutate: bool) -> Dictionar
 
 
 func _ensure_warehouse_state():
+	if _party_backpack_view != null:
+		return _party_backpack_view
 	if _party_state == null:
 		_party_state = PARTY_STATE_SCRIPT.new()
 	if _party_state.warehouse_state == null:
@@ -328,11 +342,33 @@ func _ensure_warehouse_state():
 
 
 func _get_warehouse_state():
+	if _party_backpack_view != null:
+		return _party_backpack_view
 	if _party_state == null:
 		return WAREHOUSE_STATE_SCRIPT.new()
 	if _party_state.warehouse_state == null:
 		return WAREHOUSE_STATE_SCRIPT.new()
 	return _party_state.warehouse_state
+
+
+func _set_transaction_warehouse_state(warehouse_state) -> void:
+	if _party_backpack_view != null:
+		_party_backpack_view = warehouse_state
+		return
+	if _party_state == null:
+		_party_state = PARTY_STATE_SCRIPT.new()
+	_party_state.warehouse_state = warehouse_state
+
+
+func _copy_warehouse_state(source_state, target_state) -> void:
+	if source_state == null or target_state == null:
+		return
+	target_state.stacks = []
+	target_state.equipment_instances = []
+	for stack in source_state.get_non_empty_stacks():
+		target_state.stacks.append(stack.duplicate_state())
+	for inst in source_state.get_non_empty_instances():
+		target_state.equipment_instances.append(EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(inst.to_dict()))
 
 
 func _compact_state(warehouse_state) -> void:

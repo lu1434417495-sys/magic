@@ -20,6 +20,8 @@ const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const WAREHOUSE_STACK_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const WEAPON_DAMAGE_DICE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
 const WEAPON_PROFILE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
@@ -91,6 +93,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_attribute_service_exposes_default_character_action_threshold()
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
+	_test_runtime_start_battle_clones_party_backpack_view()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
@@ -153,6 +156,42 @@ func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party
 				ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
 				"友方单位应从角色属性读取默认 action_threshold。"
 			)
+
+
+func _test_runtime_start_battle_clones_party_backpack_view() -> void:
+	var registry := PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
+	var party_state := _make_party_state([&"hero"])
+	party_state.warehouse_state.stacks = [_make_stack(&"healing_herb", 2)]
+	party_state.warehouse_state.equipment_instances = [EQUIPMENT_INSTANCE_STATE_SCRIPT.create(&"bronze_sword")]
+	var gateway := FakeCharacterGateway.new()
+	gateway.party_state = party_state
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(gateway, registry.get_skill_defs(), {}, {})
+
+	var encounter_anchor := ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
+	encounter_anchor.entity_id = &"backpack_view_smoke"
+	encounter_anchor.display_name = "背包 view 测试"
+	encounter_anchor.world_coord = Vector2i(8, 2)
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.region_tag = &"north_wilds"
+
+	var state = runtime.start_battle(encounter_anchor, 1902, {
+		"battle_map_size": Vector2i(7, 7),
+	})
+	_assert_true(state != null and not state.is_empty(), "战斗开始应能创建 battle state 以承载队伍共享背包 view。")
+	if state == null or state.is_empty():
+		return
+
+	var battle_backpack_view = state.get_party_backpack_view()
+	_assert_true(battle_backpack_view != party_state.warehouse_state, "battle-local 队伍共享背包 view 不应直接引用 PartyState.warehouse_state。")
+	_assert_eq(_backpack_stack_signature(battle_backpack_view), ["healing_herb:2"], "battle-local 队伍共享背包 view 应复制开战前普通堆叠。")
+	_assert_eq(_backpack_instance_signature(battle_backpack_view), ["bronze_sword"], "battle-local 队伍共享背包 view 应复制开战前装备实例。")
+
+	battle_backpack_view.stacks[0].quantity = 7
+	battle_backpack_view.equipment_instances.clear()
+	_assert_eq(_backpack_stack_signature(party_state.warehouse_state), ["healing_herb:2"], "修改 battle-local 堆叠不应回写 PartyState 仓库。")
+	_assert_eq(_backpack_instance_signature(party_state.warehouse_state), ["bronze_sword"], "修改 battle-local 装备实例不应回写 PartyState 仓库。")
 
 
 func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> void:
@@ -405,6 +444,32 @@ func _weapon_dice_signature(dice: Dictionary) -> Array:
 
 func _slot_ids(values: Array) -> Array[StringName]:
 	return ProgressionDataUtils.to_string_name_array(values)
+
+
+func _make_stack(item_id: StringName, quantity: int):
+	var stack = WAREHOUSE_STACK_STATE_SCRIPT.new()
+	stack.item_id = item_id
+	stack.quantity = quantity
+	return stack
+
+
+func _backpack_stack_signature(backpack_state) -> Array[String]:
+	var result: Array[String] = []
+	if backpack_state == null:
+		return result
+	for stack in backpack_state.get_non_empty_stacks():
+		result.append("%s:%d" % [String(stack.item_id), int(stack.quantity)])
+	return result
+
+
+func _backpack_instance_signature(backpack_state) -> Array[String]:
+	var result: Array[String] = []
+	if backpack_state == null:
+		return result
+	for instance in backpack_state.get_non_empty_instances():
+		result.append(String(instance.item_id))
+	result.sort()
+	return result
 
 
 func _make_party_state(member_ids: Array[StringName]) -> PartyState:

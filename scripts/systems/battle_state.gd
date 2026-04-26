@@ -7,6 +7,7 @@ extends RefCounted
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
+const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const MIN_ADJACENT_ENEMIES_FOR_ATTACK_DISADVANTAGE := 2
 const LOW_HP_ATTACK_DISADVANTAGE_PERCENT := 30
@@ -63,6 +64,8 @@ var winner_faction_id: StringName = &""
 var log_entries: Array[String] = []
 ## 字段说明：保存结构化战报条目，供 headless 快照、剧情订阅与 UI 解释层读取稳定字段。
 var report_entries: Array[Dictionary] = []
+## 字段说明：记录战斗局部的队伍共享背包 view，复用 WarehouseState 结构但不直接指向 PartyState.warehouse_state。
+var party_backpack_view = WAREHOUSE_STATE_SCRIPT.new()
 ## 字段说明：缓存晋升队列字典，集中保存可按键查询的运行时数据。
 var promotion_queue: Array[Dictionary] = []
 ## 字段说明：记录模态状态，会参与运行时状态流转、系统协作和存档恢复。
@@ -123,6 +126,19 @@ func is_attack_disadvantage(attacker: BattleUnitState, defender: BattleUnitState
 
 func is_empty() -> bool:
 	return battle_id == &"" and cells.is_empty() and units.is_empty() and ally_unit_ids.is_empty() and enemy_unit_ids.is_empty()
+
+
+func get_party_backpack_view():
+	if party_backpack_view == null:
+		party_backpack_view = WAREHOUSE_STATE_SCRIPT.new()
+	return party_backpack_view
+
+
+func set_party_backpack_view(backpack_state) -> void:
+	if backpack_state != null and backpack_state.has_method("duplicate_state"):
+		party_backpack_view = backpack_state.duplicate_state()
+	else:
+		party_backpack_view = WAREHOUSE_STATE_SCRIPT.new()
 
 
 func mark_runtime_edges_dirty() -> void:

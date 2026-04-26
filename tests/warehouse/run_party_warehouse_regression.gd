@@ -57,6 +57,7 @@ func _initialize() -> void:
 func _run() -> void:
 	await _ensure_game_session()
 	await _test_warehouse_service_rules()
+	await _test_party_backpack_view_binding_is_battle_local()
 	await _test_inventory_entries_include_equipment_instances()
 	await _test_weapon_profile_equipment_instances_stack_round_trip()
 	await _test_batch_swap_commit_is_atomic()
@@ -179,6 +180,33 @@ func _test_warehouse_service_rules() -> void:
 	)
 	_assert_eq(int(refill_add.get("added_quantity", 0)), 1, "超容状态下只能补已有未满堆栈，不能新增堆栈。")
 	_assert_true(over_capacity_service.is_over_capacity(), "补已有堆栈后若仍超容，状态应保持超容。")
+
+
+func _test_party_backpack_view_binding_is_battle_local() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 3),
+	])
+	var party_service := PartyWarehouseService.new()
+	party_service.setup(party, item_defs)
+	party_service.add_item(&"healing_herb", 2)
+
+	var battle_backpack_view: WarehouseState = party.warehouse_state.duplicate_state()
+	var battle_service := PartyWarehouseService.new()
+	battle_service.setup_party_backpack_view(party, battle_backpack_view, item_defs)
+	battle_service.add_item(&"healing_herb", 3)
+	battle_service.add_item(&"bronze_sword", 1)
+
+	_assert_eq(battle_service.count_item(&"healing_herb"), 5, "battle-local 队伍共享背包 view 应能独立增加堆叠数量。")
+	_assert_eq(party_service.count_item(&"healing_herb"), 2, "battle-local 队伍共享背包 view 不应直接修改 PartyState 仓库数量。")
+	_assert_eq(battle_service.count_item(&"bronze_sword"), 1, "battle-local 队伍共享背包 view 应能独立保存装备实例。")
+	_assert_eq(party_service.count_item(&"bronze_sword"), 0, "battle-local 装备实例不应直接写入 PartyState 仓库。")
+
+	var swap_result := battle_service.commit_batch_swap([&"bronze_sword"], [&"iron_greatsword"])
+	_assert_true(bool(swap_result.get("allowed", false)), "battle-local 队伍共享背包 view 应支持原子换入换出。")
+	_assert_eq(battle_service.count_item(&"bronze_sword"), 0, "battle-local 原子换出后旧装备实例应离开 view。")
+	_assert_eq(battle_service.count_item(&"iron_greatsword"), 1, "battle-local 原子换入后新装备实例应进入 view。")
+	_assert_eq(party_service.count_item(&"iron_greatsword"), 0, "battle-local 原子换入不应直接写入 PartyState 仓库。")
 
 
 func _test_party_state_requires_current_schema() -> void:

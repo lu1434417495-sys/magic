@@ -575,6 +575,7 @@ HeadlessGameTestSession
   - `RecipeContentRegistry` 负责扫描 / 校验 `RecipeDef`，供据点 forge 流读取。
   - `EquipmentDropService` 负责把调用方已 clamp 的 `drop_luck` 映射为正式装备稀有度；当前不持有掉落表内容，也不二次 clamp。
   - 战斗内随机装备掉落现在由 `BattleRuntimeModule` 在敌人死亡瞬间调用 `EquipmentDropService` 预 roll，`GameRuntimeFacade` 只负责把已解析好的 `equipment_instance` 写入共享仓库。
+  - `PartyWarehouseService.setup_party_backpack_view()` 可把同一套堆叠 / 装备实例规则绑定到 battle-local 队伍共享背包 view；该 view 复用 `WarehouseState` 结构，但语义上不是据点共享仓库，也不直接改写 `PartyState.warehouse_state`。
   - `preview_add_item` / `add_item` / `remove_item`。
   - 处理仓库与装备槽位之间的基础装备 / 卸装事务。
   - 维护 weapon profile 静态配置与装备槽位流转；`ItemDef.get_attribute_modifiers()` 不再把 `weapon_profile.attack_range` 注入属性快照，战斗射程只通过 `CharacterManagementModule.get_member_weapon_projection()` 给 `BattleUnitFactory` 生成单位武器投影。
@@ -836,6 +837,7 @@ HeadlessGameTestSession
   - `BattleUnitFactory` 构建 / 刷新友军单位时从角色 attribute snapshot 读取 `action_threshold` 写入 `BattleUnitState.action_threshold`；正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
   - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足 `requires_weapon`，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前近战武器伤害类型的近战技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
+  - `BattleState.party_backpack_view` 是开战时从 `PartyState.warehouse_state` 复制出的 battle-local 队伍共享背包 view；战斗内后续背包 / 换装命令必须只改这份 view，不直接访问据点共享仓库或直接 mutate party 背包状态。当前仍不扩 battle save payload，战斗中存档继续依赖现有 save lock 不支持。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。

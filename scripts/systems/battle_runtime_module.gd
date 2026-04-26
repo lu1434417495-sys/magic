@@ -233,7 +233,7 @@ func start_battle(
 	context: Dictionary = {}
 ) -> BattleState:
 	_ensure_sidecars_ready()
-	var party_state = _character_gateway.get_party_state() if _character_gateway != null else null
+	var party_state = _character_gateway.get_party_state() if _character_gateway != null and _character_gateway.has_method("get_party_state") else null
 	var ally_units: Array = _unit_factory.build_ally_units(party_state, context)
 	if ally_units.is_empty():
 		ally_units = _unit_factory.build_ally_units(null, context)
@@ -264,6 +264,7 @@ func start_battle(
 		_state = BATTLE_STATE_SCRIPT.new()
 		_state.battle_id = ProgressionDataUtils.to_string_name("%s_%d" % [String(encounter_anchor.entity_id), seed])
 		_state.seed = seed
+		_state.set_party_backpack_view(_get_party_backpack_state(party_state))
 		_state.map_size = terrain_data.get("map_size", Vector2i.ZERO)
 		_state.world_coord = context.get("world_coord", encounter_anchor.world_coord if encounter_anchor != null else Vector2i.ZERO)
 		_state.encounter_anchor_id = ProgressionDataUtils.to_string_name(encounter_anchor.entity_id if encounter_anchor != null else "")
@@ -654,6 +655,15 @@ func _ensure_sidecars_ready() -> void:
 	_unit_factory.setup(self)
 	_charge_resolver.setup(self)
 	_repeat_attack_resolver.setup(self)
+
+
+func _get_party_backpack_state(party_state):
+	if party_state == null or not (party_state is Object):
+		return null
+	var backpack_state = party_state.get("warehouse_state")
+	if backpack_state != null and backpack_state.has_method("duplicate_state"):
+		return backpack_state
+	return null
 
 
 func is_battle_active() -> bool:
