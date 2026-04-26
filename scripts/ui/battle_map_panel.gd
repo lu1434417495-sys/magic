@@ -6,6 +6,7 @@ class_name BattleMapPanel
 extends Control
 
 const BattleState = preload("res://scripts/systems/battle_state.gd")
+const BattleCommand = preload("res://scripts/systems/battle_command.gd")
 const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
@@ -18,6 +19,10 @@ signal battle_cell_right_clicked(coord: Vector2i)
 signal battle_cell_hovered(coord: Vector2i)
 ## 信号说明：当战斗技能槽位被选中时发出的信号，供外层同步当前选择结果。
 signal battle_skill_slot_selected(index: int)
+## 信号说明：当战斗换装面板请求装备实例时发出的信号，供测试或外层观测当前 UI 指令意图。
+signal battle_equipment_equip_requested(slot_id: StringName, item_id: StringName, instance_id: StringName)
+## 信号说明：当战斗换装面板请求卸下装备时发出的信号，供测试或外层观测当前 UI 指令意图。
+signal battle_equipment_unequip_requested(slot_id: StringName, instance_id: StringName)
 ## 信号说明：当 battle 首帧准备状态变化时发出的信号，供外层切图遮罩同步黑屏与进度条。
 signal battle_loading_state_changed(is_loading: bool, progress_value: float)
 
@@ -49,6 +54,9 @@ const MIN_BATTLE_LOADING_DURATION_SECONDS := 0.35
 const MAX_BATTLE_RENDER_READY_FRAMES := 12
 const HUD_PANEL_CONTENT_MARGIN := 10
 const BATTLE_BACKGROUND_COLOR := Color.BLACK
+const BATTLE_EQUIPMENT_EMPTY_TEXT := "战中队伍共享背包暂无可装备实例。"
+const BATTLE_EQUIPMENT_SOURCE_HINT := "来源：战斗局部队伍共享背包（不是据点共享仓库）。"
+const BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT := "战斗换装入口尚未连接运行时。"
 
 ## 字段说明：记录战斗界面适配，作为界面刷新、输入处理和窗口联动的重要依据。
 var _hud_adapter := BattleHudAdapter.new()
@@ -70,6 +78,28 @@ var _battle_loading_progress := 0.0
 var _battle_reveal_started_at_msec := 0
 ## 字段说明：缓存首次进入 battle 时待应用的展示参数，确保黑屏先出图后再执行重型面板刷新。
 var _pending_show_battle_payload: Dictionary = {}
+## 字段说明：缓存 battle-local 装备 / 背包 HUD snapshot，供战斗换装面板只读展示与命令构造使用。
+var _battle_equipment_snapshot: Dictionary = {}
+## 字段说明：记录战斗换装命令后的可读反馈，失败时不改 UI 选择状态。
+var _battle_equipment_feedback_text := ""
+## 字段说明：记录当前选中的 battle-local 背包装备实例。
+var _selected_backpack_instance_id: StringName = &""
+## 字段说明：记录当前选中的装备入口槽位。
+var _selected_backpack_slot_id: StringName = &""
+## 字段说明：战斗换装入口按钮，动态挂到单位卡片内以避免扩展场景节点。
+var _battle_equipment_button: Button = null
+## 字段说明：战斗换装遮罩根节点。
+var _battle_equipment_overlay: Control = null
+var _battle_equipment_title_label: Label = null
+var _battle_equipment_meta_label: Label = null
+var _battle_equipment_summary_label: Label = null
+var _battle_equipment_status_label: Label = null
+var _battle_equipment_slot_list: VBoxContainer = null
+var _battle_equipment_backpack_list: ItemList = null
+var _battle_equipment_details_label: Label = null
+var _battle_equipment_slot_selector: OptionButton = null
+var _battle_equipment_equip_button: Button = null
+var _battle_equipment_close_button: Button = null
 
 ## 字段说明：缓存地图框架节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var map_frame: PanelContainer = %MapFrame
@@ -130,6 +160,7 @@ func _ready() -> void:
 	_ensure_battle_board()
 	map_viewport_container.gui_input.connect(_on_map_viewport_container_gui_input)
 	_apply_static_skin()
+	_ensure_battle_equipment_ui()
 	_set_placeholder_state()
 	_update_battle_loading_state(false, 0.0)
 	_resize_map_viewport()
@@ -138,6 +169,17 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_resize_map_viewport()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _battle_equipment_overlay == null or not _battle_equipment_overlay.visible:
+		return
+	if event.is_action_pressed("ui_cancel"):
+		_close_battle_equipment_panel()
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey or event is InputEventMouseButton:
+		get_viewport().set_input_as_handled()
 
 
 func is_loading_battle() -> bool:
@@ -378,6 +420,7 @@ func _build_selected_skill_target_hit_badges(
 func hide_battle() -> void:
 	_cancel_battle_reveal()
 	_pending_show_battle_payload.clear()
+	_close_battle_equipment_panel()
 	_set_placeholder_state()
 	visible = false
 	if _battle_board != null:
@@ -618,6 +661,10 @@ func _apply_static_skin() -> void:
 
 
 func _set_placeholder_state() -> void:
+	_battle_equipment_snapshot.clear()
+	_battle_equipment_feedback_text = ""
+	_selected_backpack_instance_id = &""
+	_selected_backpack_slot_id = &""
 	header_title_label.text = "战斗地图"
 	header_subtitle_label.text = "等待战斗开始"
 	round_label.text = "TU --\nREADY 0"
@@ -635,9 +682,12 @@ func _set_placeholder_state() -> void:
 	_rebuild_fate_badges([])
 	tile_label.text = "地格 (--, --)  ·  无  ·  高度 0  ·  占位 无"
 	_rebuild_skill_grid([])
+	_refresh_battle_equipment_ui()
 
 
 func _apply_snapshot(snapshot: Dictionary) -> void:
+	var equipment_snapshot_variant = snapshot.get("equipment_panel", {})
+	_battle_equipment_snapshot = (equipment_snapshot_variant as Dictionary).duplicate(true) if equipment_snapshot_variant is Dictionary else {}
 	header_title_label.text = String(snapshot.get("header_title", "战斗地图"))
 	header_subtitle_label.text = String(snapshot.get("header_subtitle", ""))
 	round_label.text = String(snapshot.get("round_badge", "TU --\nREADY 0"))
@@ -650,6 +700,7 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	skill_subtitle_label.tooltip_text = preview_tooltip_text
 	_rebuild_fate_badges(snapshot.get("selected_skill_fate_badges", []))
 	tile_label.text = String(snapshot.get("tile_text", ""))
+	_refresh_battle_equipment_ui()
 
 
 func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
@@ -689,6 +740,628 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		"行动",
 		Color(0.98, 0.8, 0.34, 1.0)
 	)
+
+
+func _ensure_battle_equipment_ui() -> void:
+	if _battle_equipment_overlay != null:
+		return
+
+	var info_column := unit_role_label.get_parent() as VBoxContainer
+	if info_column != null:
+		_battle_equipment_button = Button.new()
+		_battle_equipment_button.name = "BattleEquipmentButton"
+		_battle_equipment_button.text = "战中背包"
+		_battle_equipment_button.custom_minimum_size = Vector2(0, 30)
+		_battle_equipment_button.tooltip_text = "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。"
+		_battle_equipment_button.focus_mode = Control.FOCUS_NONE
+		_battle_equipment_button.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+		_apply_button_skin(_battle_equipment_button, true, true)
+		_battle_equipment_button.pressed.connect(_open_battle_equipment_panel)
+		info_column.add_child(_battle_equipment_button)
+
+	var hud_root := get_node_or_null("HudRoot") as Control
+	if hud_root == null:
+		hud_root = self
+	_battle_equipment_overlay = Control.new()
+	_battle_equipment_overlay.name = "BattleEquipmentOverlay"
+	_battle_equipment_overlay.visible = false
+	_battle_equipment_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_battle_equipment_overlay.z_index = 1024
+	_set_control_full_rect(_battle_equipment_overlay)
+	hud_root.add_child(_battle_equipment_overlay)
+
+	var shade := ColorRect.new()
+	shade.name = "BattleEquipmentShade"
+	shade.color = Color(0.03, 0.015, 0.01, 0.76)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_set_control_full_rect(shade)
+	_battle_equipment_overlay.add_child(shade)
+
+	var center := CenterContainer.new()
+	center.name = "BattleEquipmentCenter"
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_set_control_full_rect(center)
+	_battle_equipment_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.name = "BattleEquipmentPanel"
+	panel.custom_minimum_size = Vector2(820, 520)
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	panel.add_theme_stylebox_override(
+		"panel",
+		_build_panel_style(HUD_PANEL_BG_ALT, HUD_PANEL_EDGE, 18, 2, Color(0.0, 0.0, 0.0, 0.48), 14)
+	)
+	center.add_child(panel)
+
+	var content := VBoxContainer.new()
+	content.name = "BattleEquipmentContent"
+	content.add_theme_constant_override("separation", 10)
+	panel.add_child(content)
+
+	var header := HBoxContainer.new()
+	header.name = "BattleEquipmentHeader"
+	header.add_theme_constant_override("separation", 12)
+	content.add_child(header)
+
+	var title_stack := VBoxContainer.new()
+	title_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_stack.add_theme_constant_override("separation", 3)
+	header.add_child(title_stack)
+
+	_battle_equipment_title_label = Label.new()
+	_battle_equipment_title_label.name = "BattleEquipmentTitleLabel"
+	_style_header_label(_battle_equipment_title_label, 22, HUD_TEXT_PRIMARY)
+	title_stack.add_child(_battle_equipment_title_label)
+
+	_battle_equipment_meta_label = Label.new()
+	_battle_equipment_meta_label.name = "BattleEquipmentMetaLabel"
+	_battle_equipment_meta_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_style_header_label(_battle_equipment_meta_label, 12, HUD_TEXT_SECONDARY)
+	title_stack.add_child(_battle_equipment_meta_label)
+
+	_battle_equipment_close_button = Button.new()
+	_battle_equipment_close_button.name = "BattleEquipmentCloseButton"
+	_battle_equipment_close_button.text = "关闭"
+	_battle_equipment_close_button.custom_minimum_size = Vector2(82, 30)
+	_apply_button_skin(_battle_equipment_close_button, true)
+	_battle_equipment_close_button.pressed.connect(_close_battle_equipment_panel)
+	header.add_child(_battle_equipment_close_button)
+
+	_battle_equipment_summary_label = Label.new()
+	_battle_equipment_summary_label.name = "BattleEquipmentSummaryLabel"
+	_battle_equipment_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_style_header_label(_battle_equipment_summary_label, 13, HUD_TEXT_SECONDARY)
+	content.add_child(_battle_equipment_summary_label)
+
+	var body := HBoxContainer.new()
+	body.name = "BattleEquipmentBody"
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 12)
+	content.add_child(body)
+
+	var slots_panel := _create_equipment_section_panel("BattleEquipmentSlotsPanel")
+	slots_panel.custom_minimum_size = Vector2(305, 0)
+	body.add_child(slots_panel)
+	var slots_layout := _create_equipment_section_layout(slots_panel)
+	slots_layout.add_child(_create_equipment_section_title("当前行动单位装备"))
+	var slots_scroll := ScrollContainer.new()
+	slots_scroll.name = "BattleEquipmentSlotsScroll"
+	slots_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	slots_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	slots_layout.add_child(slots_scroll)
+	_battle_equipment_slot_list = VBoxContainer.new()
+	_battle_equipment_slot_list.name = "BattleEquipmentSlotList"
+	_battle_equipment_slot_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battle_equipment_slot_list.add_theme_constant_override("separation", 6)
+	slots_scroll.add_child(_battle_equipment_slot_list)
+
+	var backpack_panel := _create_equipment_section_panel("BattleEquipmentBackpackPanel")
+	backpack_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(backpack_panel)
+	var backpack_layout := _create_equipment_section_layout(backpack_panel)
+	backpack_layout.add_child(_create_equipment_section_title("队伍共享背包（战斗局部）"))
+
+	_battle_equipment_backpack_list = ItemList.new()
+	_battle_equipment_backpack_list.name = "BattleEquipmentBackpackList"
+	_battle_equipment_backpack_list.custom_minimum_size = Vector2(420, 180)
+	_battle_equipment_backpack_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battle_equipment_backpack_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_battle_equipment_backpack_list.allow_reselect = true
+	_battle_equipment_backpack_list.fixed_icon_size = Vector2i(0, 0)
+	_battle_equipment_backpack_list.item_selected.connect(_on_battle_equipment_backpack_selected)
+	backpack_layout.add_child(_battle_equipment_backpack_list)
+
+	_battle_equipment_details_label = Label.new()
+	_battle_equipment_details_label.name = "BattleEquipmentDetailsLabel"
+	_battle_equipment_details_label.custom_minimum_size = Vector2(0, 86)
+	_battle_equipment_details_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_battle_equipment_details_label.add_theme_font_size_override("font_size", 12)
+	_battle_equipment_details_label.add_theme_color_override("font_color", HUD_TEXT_SECONDARY)
+	backpack_layout.add_child(_battle_equipment_details_label)
+
+	var command_row := HBoxContainer.new()
+	command_row.name = "BattleEquipmentCommandRow"
+	command_row.add_theme_constant_override("separation", 8)
+	backpack_layout.add_child(command_row)
+
+	_battle_equipment_slot_selector = OptionButton.new()
+	_battle_equipment_slot_selector.name = "BattleEquipmentSlotSelector"
+	_battle_equipment_slot_selector.custom_minimum_size = Vector2(150, 30)
+	_battle_equipment_slot_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_battle_equipment_slot_selector.item_selected.connect(_on_battle_equipment_slot_selected)
+	command_row.add_child(_battle_equipment_slot_selector)
+
+	_battle_equipment_equip_button = Button.new()
+	_battle_equipment_equip_button.name = "BattleEquipmentEquipButton"
+	_battle_equipment_equip_button.text = "装备"
+	_battle_equipment_equip_button.custom_minimum_size = Vector2(92, 30)
+	_apply_button_skin(_battle_equipment_equip_button, true, true)
+	_battle_equipment_equip_button.pressed.connect(_on_battle_equipment_equip_pressed)
+	command_row.add_child(_battle_equipment_equip_button)
+
+	_battle_equipment_status_label = Label.new()
+	_battle_equipment_status_label.name = "BattleEquipmentStatusLabel"
+	_battle_equipment_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_style_header_label(_battle_equipment_status_label, 12, HUD_TEXT_SECONDARY)
+	content.add_child(_battle_equipment_status_label)
+
+
+func _set_control_full_rect(control: Control) -> void:
+	control.layout_mode = 1
+	control.anchors_preset = PRESET_FULL_RECT
+	control.anchor_left = 0.0
+	control.anchor_top = 0.0
+	control.anchor_right = 1.0
+	control.anchor_bottom = 1.0
+	control.offset_left = 0.0
+	control.offset_top = 0.0
+	control.offset_right = 0.0
+	control.offset_bottom = 0.0
+	control.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	control.grow_vertical = Control.GROW_DIRECTION_BOTH
+
+
+func _create_equipment_section_panel(section_name: String) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = section_name
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override(
+		"panel",
+		_build_panel_style(Color(0.1, 0.04, 0.025, 0.9), HUD_PANEL_EDGE_SOFT, 10, 1, Color(0.0, 0.0, 0.0, 0.22), 10)
+	)
+	return panel
+
+
+func _create_equipment_section_layout(panel: PanelContainer) -> VBoxContainer:
+	var layout := VBoxContainer.new()
+	layout.name = "%sLayout" % panel.name
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 7)
+	panel.add_child(layout)
+	return layout
+
+
+func _create_equipment_section_title(title: String) -> Label:
+	var label := Label.new()
+	label.text = title
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+	return label
+
+
+func _open_battle_equipment_panel() -> void:
+	if _battle_equipment_overlay == null:
+		return
+	if _battle_equipment_snapshot.is_empty():
+		return
+	_battle_equipment_feedback_text = ""
+	_battle_equipment_overlay.visible = true
+	_refresh_battle_equipment_ui()
+
+
+func _close_battle_equipment_panel() -> void:
+	if _battle_equipment_overlay == null:
+		return
+	_battle_equipment_overlay.visible = false
+
+
+func _refresh_battle_equipment_ui() -> void:
+	if _battle_equipment_button != null:
+		var has_snapshot := not _battle_equipment_snapshot.is_empty()
+		_battle_equipment_button.disabled = not has_snapshot
+		_battle_equipment_button.tooltip_text = "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。" if has_snapshot else "等待战斗数据。"
+	if _battle_equipment_overlay == null or not _battle_equipment_overlay.visible:
+		return
+
+	var disabled_reason := _get_battle_equipment_panel_disabled_reason()
+	_battle_equipment_title_label.text = String(_battle_equipment_snapshot.get("title", "队伍共享背包（战斗局部）"))
+	_battle_equipment_meta_label.text = String(_battle_equipment_snapshot.get("meta", "战中不展示或访问据点共享仓库入口。"))
+	_battle_equipment_summary_label.text = String(_battle_equipment_snapshot.get("summary_text", ""))
+	if not _battle_equipment_feedback_text.is_empty():
+		_battle_equipment_status_label.text = _battle_equipment_feedback_text
+	elif not disabled_reason.is_empty():
+		_battle_equipment_status_label.text = disabled_reason
+	else:
+		_battle_equipment_status_label.text = "选择队伍共享背包中的装备实例，装备到当前行动单位。"
+	_rebuild_battle_equipment_slot_rows()
+	_rebuild_battle_equipment_backpack_list()
+	_refresh_battle_equipment_backpack_details()
+
+
+func _get_battle_equipment_panel_disabled_reason() -> String:
+	if _battle_equipment_snapshot.is_empty():
+		return "战斗装备数据尚未就绪。"
+	if bool(_battle_equipment_snapshot.get("can_change_equipment", false)):
+		return ""
+	return String(_battle_equipment_snapshot.get("disabled_reason", "当前不能换装。"))
+
+
+func _rebuild_battle_equipment_slot_rows() -> void:
+	if _battle_equipment_slot_list == null:
+		return
+	_clear_container(_battle_equipment_slot_list)
+	var slots_variant: Variant = _battle_equipment_snapshot.get("slots", [])
+	var slots: Array = slots_variant if slots_variant is Array else []
+	if slots.is_empty():
+		var empty_label := Label.new()
+		empty_label.text = "当前行动单位暂无 battle-local 装备视图。"
+		empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty_label.add_theme_color_override("font_color", HUD_TEXT_MUTED)
+		_battle_equipment_slot_list.add_child(empty_label)
+		return
+	for slot_variant in slots:
+		if slot_variant is Dictionary:
+			_battle_equipment_slot_list.add_child(_create_battle_equipment_slot_row(slot_variant))
+
+
+func _create_battle_equipment_slot_row(slot: Dictionary) -> Control:
+	var row := PanelContainer.new()
+	row.name = "BattleEquipmentSlotRow"
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_stylebox_override(
+		"panel",
+		_build_panel_style(Color(0.14, 0.06, 0.035, 0.92), Color(0.34, 0.22, 0.13, 0.82), 8, 1)
+	)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	row.add_child(margin)
+
+	var layout := HBoxContainer.new()
+	layout.add_theme_constant_override("separation", 8)
+	margin.add_child(layout)
+
+	var text_stack := VBoxContainer.new()
+	text_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text_stack.add_theme_constant_override("separation", 2)
+	layout.add_child(text_stack)
+
+	var title := Label.new()
+	title.text = "%s：%s" % [
+		String(slot.get("slot_label", "槽位")),
+		String(slot.get("item_display_name", "空")),
+	]
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_size_override("font_size", 12)
+	title.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+	text_stack.add_child(title)
+
+	var detail := Label.new()
+	var detail_lines: Array[String] = []
+	var instance_id := String(slot.get("instance_id", ""))
+	if instance_id.is_empty():
+		detail_lines.append("未装备")
+	else:
+		detail_lines.append("实例 %s" % instance_id)
+	var occupied_labels := _to_string_array(slot.get("occupied_slot_labels", []))
+	if not occupied_labels.is_empty():
+		detail_lines.append("占用 %s" % "、".join(PackedStringArray(occupied_labels)))
+	var disabled_reason := String(slot.get("disabled_reason", ""))
+	if not disabled_reason.is_empty():
+		detail_lines.append(disabled_reason)
+	detail.text = "  |  ".join(PackedStringArray(detail_lines))
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.add_theme_font_size_override("font_size", 11)
+	detail.add_theme_color_override("font_color", HUD_TEXT_MUTED)
+	text_stack.add_child(detail)
+
+	var button := Button.new()
+	button.text = "卸下"
+	button.custom_minimum_size = Vector2(62, 28)
+	_apply_button_skin(button, true)
+	var panel_disabled_reason := _get_battle_equipment_panel_disabled_reason()
+	var can_unequip := panel_disabled_reason.is_empty() \
+		and bool(slot.get("can_unequip", false)) \
+		and not instance_id.is_empty()
+	button.disabled = not can_unequip
+	button.tooltip_text = "" if can_unequip else _resolve_unequip_disabled_reason(slot, panel_disabled_reason)
+	button.pressed.connect(_on_battle_equipment_unequip_pressed.bind(
+		StringName(slot.get("entry_slot_id", slot.get("slot_id", ""))),
+		StringName(instance_id)
+	))
+	layout.add_child(button)
+	return row
+
+
+func _resolve_unequip_disabled_reason(slot: Dictionary, panel_disabled_reason: String) -> String:
+	if not panel_disabled_reason.is_empty():
+		return panel_disabled_reason
+	var disabled_reason := String(slot.get("disabled_reason", ""))
+	if not disabled_reason.is_empty():
+		return disabled_reason
+	if String(slot.get("instance_id", "")).is_empty():
+		return "该槽位没有可卸下的装备。"
+	return "只能从装备入口槽卸下。"
+
+
+func _rebuild_battle_equipment_backpack_list() -> void:
+	if _battle_equipment_backpack_list == null:
+		return
+	var previous_selection := _selected_backpack_instance_id
+	_battle_equipment_backpack_list.clear()
+	var entries_variant: Variant = _battle_equipment_snapshot.get("backpack_entries", [])
+	var entries: Array = entries_variant if entries_variant is Array else []
+	if entries.is_empty():
+		_battle_equipment_backpack_list.add_item(BATTLE_EQUIPMENT_EMPTY_TEXT)
+		_battle_equipment_backpack_list.set_item_disabled(0, true)
+		_selected_backpack_instance_id = &""
+		_selected_backpack_slot_id = &""
+		return
+	var selected_index := -1
+	var first_index := -1
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		var item_status := "可装备" if bool(entry.get("can_equip", false)) else "不可用"
+		var item_index := _battle_equipment_backpack_list.add_item("%s  ·  %s" % [
+			String(entry.get("display_name", entry.get("item_id", ""))),
+			item_status,
+		])
+		_battle_equipment_backpack_list.set_item_metadata(item_index, entry.duplicate(true))
+		_battle_equipment_backpack_list.set_item_tooltip_enabled(item_index, true)
+		_battle_equipment_backpack_list.set_item_tooltip(item_index, _build_backpack_entry_tooltip(entry))
+		if first_index < 0:
+			first_index = item_index
+		if StringName(entry.get("instance_id", "")) == previous_selection:
+			selected_index = item_index
+	if selected_index < 0:
+		selected_index = first_index
+	if selected_index >= 0:
+		_battle_equipment_backpack_list.select(selected_index)
+		var selected_entry := _get_backpack_entry_at_index(selected_index)
+		_selected_backpack_instance_id = StringName(selected_entry.get("instance_id", ""))
+		_sync_selected_backpack_slot(selected_entry)
+
+
+func _build_backpack_entry_tooltip(entry: Dictionary) -> String:
+	var lines: Array[String] = [
+		String(entry.get("display_name", entry.get("item_id", ""))),
+		"实例：%s" % String(entry.get("instance_id", "")),
+		BATTLE_EQUIPMENT_SOURCE_HINT,
+	]
+	var allowed_labels := _to_string_array(entry.get("allowed_slot_labels", []))
+	if not allowed_labels.is_empty():
+		lines.append("可装备槽位：%s" % "、".join(PackedStringArray(allowed_labels)))
+	var disabled_reason := String(entry.get("disabled_reason", ""))
+	if not disabled_reason.is_empty():
+		lines.append("不可用：%s" % disabled_reason)
+	return "\n".join(PackedStringArray(lines))
+
+
+func _on_battle_equipment_backpack_selected(index: int) -> void:
+	var entry := _get_backpack_entry_at_index(index)
+	if entry.is_empty():
+		_selected_backpack_instance_id = &""
+		_selected_backpack_slot_id = &""
+	else:
+		_selected_backpack_instance_id = StringName(entry.get("instance_id", ""))
+		_sync_selected_backpack_slot(entry)
+	_refresh_battle_equipment_backpack_details()
+
+
+func _on_battle_equipment_slot_selected(index: int) -> void:
+	if _battle_equipment_slot_selector == null or index < 0:
+		return
+	_selected_backpack_slot_id = StringName(_battle_equipment_slot_selector.get_item_metadata(index))
+	_refresh_battle_equipment_backpack_details()
+
+
+func _refresh_battle_equipment_backpack_details() -> void:
+	if _battle_equipment_details_label == null or _battle_equipment_slot_selector == null or _battle_equipment_equip_button == null:
+		return
+	var entry := _get_selected_backpack_entry()
+	_battle_equipment_slot_selector.clear()
+	if entry.is_empty():
+		_battle_equipment_details_label.text = BATTLE_EQUIPMENT_EMPTY_TEXT + "\n" + BATTLE_EQUIPMENT_SOURCE_HINT
+		_battle_equipment_slot_selector.disabled = true
+		_battle_equipment_equip_button.disabled = true
+		_battle_equipment_equip_button.tooltip_text = "请选择战斗局部队伍共享背包中的装备实例。"
+		return
+
+	_sync_selected_backpack_slot(entry)
+	var allowed_slot_ids := _to_string_array(entry.get("allowed_slot_ids", []))
+	var allowed_slot_labels := _to_string_array(entry.get("allowed_slot_labels", []))
+	var selected_index := -1
+	for index in range(allowed_slot_ids.size()):
+		var slot_id := allowed_slot_ids[index]
+		var slot_label := allowed_slot_labels[index] if index < allowed_slot_labels.size() else slot_id
+		_battle_equipment_slot_selector.add_item(slot_label)
+		_battle_equipment_slot_selector.set_item_metadata(index, StringName(slot_id))
+		if StringName(slot_id) == _selected_backpack_slot_id:
+			selected_index = index
+	if selected_index >= 0:
+		_battle_equipment_slot_selector.select(selected_index)
+	_battle_equipment_slot_selector.disabled = allowed_slot_ids.is_empty()
+
+	var detail_lines: Array[String] = [
+		"%s  |  物品 %s  |  实例 %s" % [
+			String(entry.get("display_name", entry.get("item_id", ""))),
+			String(entry.get("item_id", "")),
+			String(entry.get("instance_id", "")),
+		],
+		"可装备槽位：%s" % ("、".join(PackedStringArray(allowed_slot_labels)) if not allowed_slot_labels.is_empty() else "无"),
+		String(entry.get("description", "暂无说明。")),
+		BATTLE_EQUIPMENT_SOURCE_HINT,
+	]
+	var disabled_reason := _get_equip_disabled_reason(entry)
+	if not disabled_reason.is_empty():
+		detail_lines.append("不可用：%s" % disabled_reason)
+	_battle_equipment_details_label.text = "\n".join(PackedStringArray(detail_lines))
+	_battle_equipment_equip_button.disabled = not disabled_reason.is_empty()
+	_battle_equipment_equip_button.tooltip_text = disabled_reason
+
+
+func _sync_selected_backpack_slot(entry: Dictionary) -> void:
+	var allowed_slot_ids := _to_string_array(entry.get("allowed_slot_ids", []))
+	if allowed_slot_ids.is_empty():
+		_selected_backpack_slot_id = &""
+		return
+	if _selected_backpack_slot_id != &"" and allowed_slot_ids.has(String(_selected_backpack_slot_id)):
+		return
+	var default_slot := String(entry.get("default_slot_id", ""))
+	_selected_backpack_slot_id = StringName(default_slot if allowed_slot_ids.has(default_slot) else allowed_slot_ids[0])
+
+
+func _get_equip_disabled_reason(entry: Dictionary) -> String:
+	var panel_disabled_reason := _get_battle_equipment_panel_disabled_reason()
+	if not panel_disabled_reason.is_empty():
+		return panel_disabled_reason
+	var entry_disabled_reason := String(entry.get("disabled_reason", ""))
+	if not entry_disabled_reason.is_empty():
+		return entry_disabled_reason
+	if not bool(entry.get("can_equip", false)):
+		return "该实例当前不能装备。"
+	if _selected_backpack_slot_id == &"":
+		return "请选择装备槽位。"
+	return ""
+
+
+func _get_selected_backpack_entry() -> Dictionary:
+	if _battle_equipment_backpack_list == null:
+		return {}
+	var selected_items := _battle_equipment_backpack_list.get_selected_items()
+	if selected_items.is_empty():
+		return {}
+	return _get_backpack_entry_at_index(selected_items[0])
+
+
+func _get_backpack_entry_at_index(index: int) -> Dictionary:
+	if _battle_equipment_backpack_list == null or index < 0 or index >= _battle_equipment_backpack_list.item_count:
+		return {}
+	var metadata = _battle_equipment_backpack_list.get_item_metadata(index)
+	return (metadata as Dictionary).duplicate(true) if metadata is Dictionary else {}
+
+
+func _on_battle_equipment_equip_pressed() -> void:
+	var entry := _get_selected_backpack_entry()
+	if entry.is_empty():
+		_set_battle_equipment_feedback("请选择战斗局部队伍共享背包中的装备实例。")
+		return
+	var disabled_reason := _get_equip_disabled_reason(entry)
+	if not disabled_reason.is_empty():
+		_set_battle_equipment_feedback(disabled_reason)
+		return
+	var active_unit_id := StringName(_battle_equipment_snapshot.get("active_unit_id", ""))
+	if active_unit_id == &"":
+		_set_battle_equipment_feedback("当前没有可换装单位。")
+		return
+	var item_id := StringName(entry.get("item_id", ""))
+	var instance_id := StringName(entry.get("instance_id", ""))
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.unit_id = active_unit_id
+	command.target_unit_id = active_unit_id
+	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_EQUIP
+	command.equipment_slot_id = _selected_backpack_slot_id
+	command.equipment_item_id = item_id
+	command.equipment_instance_id = instance_id
+	battle_equipment_equip_requested.emit(_selected_backpack_slot_id, item_id, instance_id)
+	_submit_battle_equipment_command(command)
+
+
+func _on_battle_equipment_unequip_pressed(slot_id: StringName, instance_id: StringName) -> void:
+	var panel_disabled_reason := _get_battle_equipment_panel_disabled_reason()
+	if not panel_disabled_reason.is_empty():
+		_set_battle_equipment_feedback(panel_disabled_reason)
+		return
+	var active_unit_id := StringName(_battle_equipment_snapshot.get("active_unit_id", ""))
+	if active_unit_id == &"":
+		_set_battle_equipment_feedback("当前没有可换装单位。")
+		return
+	if slot_id == &"" or instance_id == &"":
+		_set_battle_equipment_feedback("该槽位没有可卸下的装备。")
+		return
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.unit_id = active_unit_id
+	command.target_unit_id = active_unit_id
+	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_UNEQUIP
+	command.equipment_slot_id = slot_id
+	command.equipment_instance_id = instance_id
+	battle_equipment_unequip_requested.emit(slot_id, instance_id)
+	_submit_battle_equipment_command(command)
+
+
+func _submit_battle_equipment_command(command: BattleCommand) -> void:
+	var host := _find_battle_runtime_host()
+	if host == null:
+		_set_battle_equipment_feedback(BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT)
+		return
+	var runtime = _read_object_property(host, "_runtime")
+	if runtime == null or not (runtime is Object) or not runtime.has_method("issue_battle_command"):
+		_set_battle_equipment_feedback(BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT)
+		return
+	var refresh_mode := String(runtime.call("issue_battle_command", command))
+	if refresh_mode.is_empty():
+		refresh_mode = "full"
+	var status_text := "换装命令已提交。"
+	if runtime.has_method("get_status_text"):
+		var runtime_status := String(runtime.call("get_status_text"))
+		if not runtime_status.is_empty():
+			status_text = runtime_status
+	_battle_equipment_feedback_text = status_text
+	if host.has_method("_render_from_runtime"):
+		host.call("_render_from_runtime", true, {"battle_refresh_mode": refresh_mode})
+	else:
+		_refresh_battle_equipment_ui()
+
+
+func _find_battle_runtime_host() -> Node:
+	var node := get_parent()
+	while node != null:
+		var runtime = _read_object_property(node, "_runtime")
+		if runtime != null and runtime is Object and runtime.has_method("issue_battle_command"):
+			return node
+		node = node.get_parent()
+	return null
+
+
+func _read_object_property(object: Object, property_name: String) -> Variant:
+	if object == null:
+		return null
+	for property in object.get_property_list():
+		if String(property.get("name", "")) == property_name:
+			return object.get(property_name)
+	return null
+
+
+func _set_battle_equipment_feedback(message: String) -> void:
+	_battle_equipment_feedback_text = message
+	_refresh_battle_equipment_ui()
+
+
+func _to_string_array(value) -> Array[String]:
+	var result: Array[String] = []
+	if value is Array:
+		for item in value:
+			result.append(String(item))
+	return result
 
 
 func _set_progress_bar_values(

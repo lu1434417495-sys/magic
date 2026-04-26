@@ -1001,8 +1001,8 @@ HeadlessGameTestSession
   - 当前 battle HUD 展示态。
   - 当前 TileMap board 的渲染结果、镜头位置、缩放和平移状态。
 - 主要职责：
-  - `BattleMapPanel` 负责 HUD 容器、技能槽、viewport 事件转发、战斗首帧加载状态与黑底子视口；鼠标悬停战斗格时会转发 hover 坐标给 `WorldMapSystem`，由场景适配层按当前技能合法目标做只读 HUD overlay 预览，并把命中率浮标文本传给棋盘目标高亮层显示在目标上方；内置移动复位 / 变体切换 / 清技能 / 结算按钮已下线，完整战斗日志滚动窗现在由根层共享的 `RuntimeLogDock` 承接。
-  - `BattleHudAdapter` 把 `BattleState` 转成 HUD snapshot，并复用 `BattleSkillResolutionRules` 产出技能 fate / variant 相关预览；技能伤害预览复用 `BattleDamagePreviewRangeService` 输出 `伤害 X-Y` / `伤害 X` 的非暴击基础范围。当前 focus/queue/resource snapshot 会同时暴露 `AP` 与 `行动`（`move_current/move_max`）两套资源，但不再生成旧 hint / command / battle-log 文本字段。
+  - `BattleMapPanel` 负责 HUD 容器、技能槽、battle-local 队伍共享背包换装 overlay、viewport 事件转发、战斗首帧加载状态与黑底子视口；鼠标悬停战斗格时会转发 hover 坐标给 `WorldMapSystem`，由场景适配层按当前技能合法目标做只读 HUD overlay 预览，并把命中率浮标文本传给棋盘目标高亮层显示在目标上方；内置移动复位 / 变体切换 / 清技能 / 结算按钮已下线，完整战斗日志滚动窗现在由根层共享的 `RuntimeLogDock` 承接。
+  - `BattleHudAdapter` 把 `BattleState` 转成 HUD snapshot，并复用 `BattleSkillResolutionRules` 产出技能 fate / variant 相关预览；技能伤害预览复用 `BattleDamagePreviewRangeService` 输出 `伤害 X-Y` / `伤害 X` 的非暴击基础范围；战斗换装面板只从 `BattleUnitState.equipment_view` 与 `BattleState.party_backpack_view` 生成 battle-local 装备 / 背包 snapshot，不读取据点共享仓库入口。当前 focus/queue/resource snapshot 会同时暴露 `AP` 与 `行动`（`move_current/move_max`）两套资源，但不再生成旧 hint / command / battle-log 文本字段。
   - `BattleBoardRenderProfile` 是 `terrain_profile_id -> render_profile_id -> asset_dir/source spec` 与棋盘视觉协议的唯一 owner；它持有 `visual_height_step`、`tile_half_size`、`surface_pick_shape`、`camera_margin`、unit / prop anchor bias，以及 TileSet source 的 `atlas_region_size`、`board_tile_size`、`visual_origin` / `texture_origin`、`layer_role`。
   - 逻辑 `current_height` 不等于视觉 `visual_height_step`：`current_height` 是 battle rules / grid / AI 读取的格子高度，`visual_height_step` 只是 render profile/source spec 决定的像素层距；战斗规则层不拥有也不反推视觉层距。
   - `BattleBoard2D` 负责 viewport 坐标、滚轮缩放、中键拖拽、键盘平移、hover 格检测和 focus，并从 `BattleBoardRenderProfile` 读取点击面、视觉高度与镜头边界；键盘平移入口由 `WorldMapSystem -> BattleMapPanel.pan_battle_camera() -> BattleBoard2D.pan_viewport_direction()` 串接。

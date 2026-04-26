@@ -13,6 +13,7 @@ const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_res
 const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle_skill_resolution_rules.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_range_service.gd")
 const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/fate_attack_formula.gd")
+const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
@@ -21,6 +22,7 @@ const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/un
 const QUEUE_ENTRY_LIMIT := 7
 const SKILL_GRID_SIZE := 20
 const TARGET_SELECTION_MULTI_UNIT := &"multi_unit"
+const CHANGE_EQUIPMENT_AP_COST := 2
 
 ## 字段说明：按键缓存队列就绪查找表，便于在较多对象中快速定位目标并减少重复遍历。
 var _queue_ready_lookup: Dictionary = {}
@@ -118,6 +120,7 @@ func build_snapshot(
 		"selected_skill_target_count": selected_target_count,
 		"selected_skill_confirm_ready": bool(selection_info.get("confirm_ready", false)),
 		"selected_skill_auto_cast_ready": bool(selection_info.get("auto_cast_ready", false)),
+		"equipment_panel": _build_equipment_panel_snapshot(battle_state, active_unit),
 	}
 
 
@@ -416,6 +419,182 @@ func _build_skill_slots(active_unit: BattleUnitState, selected_skill_id: StringN
 			"is_empty": true,
 		})
 	return skill_slots
+
+
+func _build_equipment_panel_snapshot(battle_state: BattleState, active_unit: BattleUnitState) -> Dictionary:
+	var snapshot := {
+		"title": "队伍共享背包（战斗局部）",
+		"meta": "仅显示本场战斗复制出的队伍共享背包；据点共享仓库入口战中不可用。",
+		"active_unit_id": "",
+		"active_unit_name": "无当前行动单位",
+		"ap_cost": CHANGE_EQUIPMENT_AP_COST,
+		"can_change_equipment": false,
+		"disabled_reason": "当前没有可换装单位。",
+		"slots": [],
+		"backpack_entries": [],
+		"summary_text": "battle-local view 尚未就绪。",
+	}
+	if battle_state == null:
+		return snapshot
+	if active_unit != null:
+		snapshot["active_unit_id"] = String(active_unit.unit_id)
+		snapshot["active_unit_name"] = _format_unit_name(active_unit, "当前行动单位")
+
+	var disabled_reason := _get_change_equipment_disabled_reason(battle_state, active_unit)
+	snapshot["can_change_equipment"] = disabled_reason.is_empty()
+	snapshot["disabled_reason"] = disabled_reason
+	snapshot["slots"] = _build_equipment_slot_entries(active_unit)
+	snapshot["backpack_entries"] = _build_backpack_equipment_entries(battle_state, disabled_reason)
+	snapshot["summary_text"] = "当前行动单位：%s  |  换装消耗 %d AP  |  背包装备实例 %d 件" % [
+		String(snapshot.get("active_unit_name", "无")),
+		CHANGE_EQUIPMENT_AP_COST,
+		(snapshot.get("backpack_entries", []) as Array).size(),
+	]
+	return snapshot
+
+
+func _get_change_equipment_disabled_reason(battle_state: BattleState, active_unit: BattleUnitState) -> String:
+	if battle_state == null:
+		return "战斗状态不可用。"
+	if active_unit == null:
+		return "当前没有可换装单位。"
+	if battle_state.active_unit_id != active_unit.unit_id:
+		return "只能为当前行动单位自己换装。"
+	if battle_state.phase != &"unit_acting":
+		return "当前阶段不能换装。"
+	if battle_state.modal_state != &"":
+		return "当前有待处理的战斗流程，暂时无法换装。"
+	if active_unit.control_mode != &"manual":
+		return "当前行动单位不是手动控制，不能换装。"
+	if active_unit.current_ap < CHANGE_EQUIPMENT_AP_COST:
+		return "AP不足，换装需要 %d 点 AP。" % CHANGE_EQUIPMENT_AP_COST
+	return ""
+
+
+func _build_equipment_slot_entries(active_unit: BattleUnitState) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	var item_defs := _get_item_defs()
+	var equipment_view = active_unit.get_equipment_view() if active_unit != null else null
+	for slot_id in EQUIPMENT_RULES_SCRIPT.get_all_slot_ids():
+		var slot_entry := {
+			"slot_id": String(slot_id),
+			"slot_label": EQUIPMENT_RULES_SCRIPT.get_slot_label(slot_id),
+			"is_filled": false,
+			"is_entry_slot": false,
+			"entry_slot_id": "",
+			"item_id": "",
+			"item_display_name": "空",
+			"instance_id": "",
+			"occupied_slot_ids": [],
+			"occupied_slot_labels": [],
+			"can_unequip": false,
+			"disabled_reason": "",
+		}
+		if equipment_view == null or not (equipment_view is Object and equipment_view.has_method("get_equipped_item_id")):
+			entries.append(slot_entry)
+			continue
+		var item_id := ProgressionDataUtils.to_string_name(equipment_view.get_equipped_item_id(slot_id))
+		var entry_slot_id := ProgressionDataUtils.to_string_name(equipment_view.get_entry_slot_for_slot(slot_id))
+		if item_id == &"" or entry_slot_id == &"":
+			entries.append(slot_entry)
+			continue
+		var occupied_slot_ids: Array[StringName] = equipment_view.get_occupied_slot_ids_for_entry(entry_slot_id)
+		slot_entry["is_filled"] = true
+		slot_entry["is_entry_slot"] = entry_slot_id == slot_id
+		slot_entry["entry_slot_id"] = String(entry_slot_id)
+		slot_entry["item_id"] = String(item_id)
+		slot_entry["item_display_name"] = _get_item_display_name(item_defs, item_id)
+		slot_entry["instance_id"] = String(ProgressionDataUtils.to_string_name(equipment_view.get_equipped_instance_id(slot_id)))
+		slot_entry["occupied_slot_ids"] = _stringify_string_name_array(occupied_slot_ids)
+		slot_entry["occupied_slot_labels"] = _build_slot_labels(occupied_slot_ids)
+		slot_entry["can_unequip"] = entry_slot_id == slot_id
+		if entry_slot_id != slot_id:
+			slot_entry["disabled_reason"] = "该槽位由 %s 占用，请从入口槽卸下。" % EQUIPMENT_RULES_SCRIPT.get_slot_label(entry_slot_id)
+		entries.append(slot_entry)
+	return entries
+
+
+func _build_backpack_equipment_entries(battle_state: BattleState, disabled_reason: String) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	var item_defs := _get_item_defs()
+	var backpack_view = battle_state.get_party_backpack_view() if battle_state != null else null
+	if backpack_view == null or not (backpack_view is Object and backpack_view.has_method("get_non_empty_instances")):
+		return entries
+	for instance in backpack_view.get_non_empty_instances():
+		if instance == null:
+			continue
+		var item_id := ProgressionDataUtils.to_string_name(instance.item_id)
+		var instance_id := ProgressionDataUtils.to_string_name(instance.instance_id)
+		var item_def = item_defs.get(item_id)
+		var allowed_slot_ids: Array[StringName] = []
+		var entry_disabled_reason := disabled_reason
+		if item_def == null:
+			if entry_disabled_reason.is_empty():
+				entry_disabled_reason = "找不到装备定义：%s。" % String(item_id)
+		elif not item_def.is_equipment():
+			if entry_disabled_reason.is_empty():
+				entry_disabled_reason = "%s 不是可装备物品。" % _get_item_display_name(item_defs, item_id)
+		else:
+			allowed_slot_ids = item_def.get_equipment_slot_ids()
+			if allowed_slot_ids.is_empty() and entry_disabled_reason.is_empty():
+				entry_disabled_reason = "%s 当前没有可用装备槽。" % _get_item_display_name(item_defs, item_id)
+		var default_slot := allowed_slot_ids[0] if not allowed_slot_ids.is_empty() else &""
+		entries.append({
+			"instance_id": String(instance_id),
+			"item_id": String(item_id),
+			"display_name": _get_item_display_name(item_defs, item_id),
+			"description": _get_item_description(item_def),
+			"icon": _get_item_icon(item_def),
+			"allowed_slot_ids": _stringify_string_name_array(allowed_slot_ids),
+			"allowed_slot_labels": _build_slot_labels(allowed_slot_ids),
+			"default_slot_id": String(default_slot),
+			"occupied_slot_ids_by_default": _stringify_string_name_array(_get_final_occupied_slot_ids(item_def, default_slot)),
+			"can_equip": entry_disabled_reason.is_empty(),
+			"disabled_reason": entry_disabled_reason,
+		})
+	return entries
+
+
+func _get_final_occupied_slot_ids(item_def, entry_slot_id: StringName) -> Array[StringName]:
+	if item_def == null or entry_slot_id == &"" or not item_def.has_method("get_final_occupied_slot_ids"):
+		return []
+	return item_def.get_final_occupied_slot_ids(entry_slot_id)
+
+
+func _get_item_defs() -> Dictionary:
+	var session = _get_game_session()
+	return session.call("get_item_defs") if session != null and session.has_method("get_item_defs") else {}
+
+
+func _get_item_display_name(item_defs: Dictionary, item_id: StringName) -> String:
+	var item_def = item_defs.get(item_id)
+	if item_def != null and not String(item_def.display_name).is_empty():
+		return String(item_def.display_name)
+	return String(item_id)
+
+
+func _get_item_description(item_def) -> String:
+	if item_def != null and not String(item_def.description).is_empty():
+		return String(item_def.description)
+	return "暂无说明。"
+
+
+func _get_item_icon(item_def) -> String:
+	return String(item_def.icon) if item_def != null else ""
+
+
+func _build_slot_labels(slot_ids: Array[StringName]) -> Array[String]:
+	var labels: Array[String] = []
+	for slot_id in slot_ids:
+		labels.append(EQUIPMENT_RULES_SCRIPT.get_slot_label(slot_id))
+	return labels
+
+
+func _stringify_string_name_array(values: Array[StringName]) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(String(value))
+	return result
 
 
 func _build_skill_slot_state(active_unit: BattleUnitState, skill_def, skill_id: StringName) -> Dictionary:
