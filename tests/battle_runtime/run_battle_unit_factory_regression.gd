@@ -6,6 +6,7 @@ extends SceneTree
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
 const BattleUnitFactory = preload("res://scripts/systems/battle_unit_factory.gd")
 const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle_unit_factory_runtime.gd")
@@ -13,6 +14,7 @@ const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_stat
 const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/character_management_module.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
 const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/item_def.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
@@ -104,6 +106,8 @@ func _run() -> void:
 	_test_attribute_service_exposes_default_character_action_threshold()
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_runtime_start_battle_clones_party_backpack_view()
+	_test_battle_local_views_write_back_to_party_state()
+	_test_battle_local_writeback_rejects_instance_conflicts()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh()
@@ -225,6 +229,88 @@ func _test_runtime_start_battle_clones_party_backpack_view() -> void:
 		"equipped_bronze_001",
 		"修改单位 battle-local equipment view 不应回写 PartyMemberState.equipment_state。"
 	)
+
+
+func _test_battle_local_views_write_back_to_party_state() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var member_state = party_state.get_member_state(&"hero")
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"party_sword_001")
+	party_state.warehouse_state.stacks = [_make_stack(&"healing_herb", 2)]
+	party_state.warehouse_state.equipment_instances = [_make_equipment_instance(&"iron_greatsword", &"backpack_greatsword_001")]
+
+	var battle_state := BATTLE_STATE_SCRIPT.new()
+	battle_state.phase = &"battle_ended"
+	battle_state.set_party_backpack_view(party_state.warehouse_state)
+	var unit_state := BATTLE_UNIT_STATE_SCRIPT.new()
+	unit_state.unit_id = &"hero"
+	unit_state.source_member_id = &"hero"
+	unit_state.faction_id = &"player"
+	unit_state.set_equipment_view(member_state.equipment_state)
+	battle_state.units[unit_state.unit_id] = unit_state
+	battle_state.ally_unit_ids.append(unit_state.unit_id)
+
+	var battle_backpack = battle_state.get_party_backpack_view()
+	battle_backpack.stacks[0].quantity = 5
+	battle_backpack.equipment_instances = [_make_equipment_instance(&"bronze_sword", &"party_sword_001")]
+	unit_state.get_equipment_view().set_equipped_entry(
+		&"main_hand",
+		&"iron_greatsword",
+		_slot_ids([&"main_hand", &"off_hand"]),
+		&"backpack_greatsword_001"
+	)
+
+	_assert_eq(String(member_state.equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "提交前 battle-local 换装不应直接改 PartyMemberState。")
+	_assert_eq(_backpack_stack_signature(party_state.warehouse_state), ["healing_herb:2"], "提交前 battle-local 背包数量不应直接改 PartyState。")
+	_assert_eq(_backpack_instance_id_signature(party_state.warehouse_state), ["backpack_greatsword_001"], "提交前 battle-local 背包实例不应直接改 PartyState。")
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade._party_state = party_state
+	var commit_result: Dictionary = facade._commit_battle_local_views_to_party_state(battle_state, party_state)
+	_assert_true(bool(commit_result.get("ok", false)), "battle end writeback 应成功提交 battle-local 装备与背包 view。")
+
+	var committed_party = facade._party_state
+	var committed_member = committed_party.get_member_state(&"hero")
+	_assert_eq(String(committed_member.equipment_state.get_equipped_item_id(&"main_hand")), "iron_greatsword", "writeback 后主手应使用 battle-local 装备。")
+	_assert_eq(String(committed_member.equipment_state.get_equipped_item_id(&"off_hand")), "iron_greatsword", "writeback 后副手应被双手武器占用。")
+	_assert_eq(String(committed_member.equipment_state.get_equipped_instance_id(&"main_hand")), "backpack_greatsword_001", "writeback 后应保留战中换装实例 ID。")
+	_assert_eq(_backpack_stack_signature(committed_party.warehouse_state), ["healing_herb:5"], "writeback 后应提交 battle-local 背包堆叠。")
+	_assert_eq(_backpack_instance_id_signature(committed_party.warehouse_state), ["party_sword_001"], "writeback 后应提交 battle-local 背包装备实例。")
+
+	var restored_party = PARTY_STATE_SCRIPT.from_dict(committed_party.to_dict())
+	_assert_true(restored_party != null, "battle-local writeback 后 PartyState 应能 round-trip。")
+	if restored_party != null:
+		var restored_member = restored_party.get_member_state(&"hero")
+		_assert_eq(String(restored_member.equipment_state.get_equipped_instance_id(&"main_hand")), "backpack_greatsword_001", "round-trip 后应保留写回的装备实例 ID。")
+		_assert_eq(_backpack_instance_id_signature(restored_party.warehouse_state), ["party_sword_001"], "round-trip 后应保留写回的背包实例 ID。")
+
+
+func _test_battle_local_writeback_rejects_instance_conflicts() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var member_state = party_state.get_member_state(&"hero")
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"party_sword_001")
+	party_state.warehouse_state.equipment_instances = [_make_equipment_instance(&"iron_greatsword", &"shared_conflict_001")]
+
+	var battle_state := BATTLE_STATE_SCRIPT.new()
+	battle_state.phase = &"battle_ended"
+	battle_state.set_party_backpack_view(party_state.warehouse_state)
+	var unit_state := BATTLE_UNIT_STATE_SCRIPT.new()
+	unit_state.unit_id = &"hero"
+	unit_state.source_member_id = &"hero"
+	unit_state.faction_id = &"player"
+	unit_state.set_equipment_view(member_state.equipment_state)
+	unit_state.get_equipment_view().set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand"]), &"shared_conflict_001")
+	battle_state.units[unit_state.unit_id] = unit_state
+	battle_state.ally_unit_ids.append(unit_state.unit_id)
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade._party_state = party_state
+	var commit_result: Dictionary = facade._commit_battle_local_views_to_party_state(battle_state, party_state)
+	_assert_true(not bool(commit_result.get("ok", true)), "重复实例 ID 应按 battle-local writeback 内部错误拒绝。")
+	_assert_eq(String(commit_result.get("error_code", "")), "battle_local_writeback_instance_conflict", "重复实例 ID 应暴露稳定内部错误码。")
+	_assert_eq(String(member_state.equipment_state.get_equipped_instance_id(&"main_hand")), "party_sword_001", "writeback 失败不应修改 PartyMemberState 装备。")
+	_assert_eq(_backpack_instance_id_signature(party_state.warehouse_state), ["shared_conflict_001"], "writeback 失败不应修改 PartyState 背包。")
 
 
 func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> void:
@@ -554,6 +640,12 @@ func _make_stack(item_id: StringName, quantity: int):
 	return stack
 
 
+func _make_equipment_instance(item_id: StringName, instance_id: StringName):
+	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.create(item_id)
+	instance.instance_id = instance_id
+	return instance
+
+
 func _backpack_stack_signature(backpack_state) -> Array[String]:
 	var result: Array[String] = []
 	if backpack_state == null:
@@ -573,6 +665,16 @@ func _backpack_instance_signature(backpack_state) -> Array[String]:
 	return result
 
 
+func _backpack_instance_id_signature(backpack_state) -> Array[String]:
+	var result: Array[String] = []
+	if backpack_state == null:
+		return result
+	for instance in backpack_state.get_non_empty_instances():
+		result.append(String(instance.instance_id))
+	result.sort()
+	return result
+
+
 func _make_party_state(member_ids: Array[StringName]) -> PartyState:
 	var party_state := PARTY_STATE_SCRIPT.new()
 	for member_id in member_ids:
@@ -581,6 +683,8 @@ func _make_party_state(member_ids: Array[StringName]) -> PartyState:
 		party_state.active_member_ids.append(member_id)
 		if party_state.leader_member_id == &"":
 			party_state.leader_member_id = member_id
+		if party_state.main_character_member_id == &"":
+			party_state.main_character_member_id = member_id
 	return party_state
 
 
@@ -595,6 +699,7 @@ func _make_member_state(member_id: StringName) -> PartyMemberState:
 	member_state.progression.unit_id = member_id
 	member_state.progression.display_name = member_state.display_name
 	member_state.progression.character_level = 1
+	member_state.progression.unit_base_attributes.set_attribute_value(&"storage_space", 8)
 	var skill_progress := UNIT_SKILL_PROGRESS_SCRIPT.new()
 	skill_progress.skill_id = &"warrior_heavy_strike"
 	skill_progress.is_learned = true

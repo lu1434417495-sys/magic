@@ -16,6 +16,7 @@ const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
+const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const PARTY_ITEM_USE_SERVICE_SCRIPT = preload("res://scripts/systems/party_item_use_service.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
@@ -1192,6 +1193,10 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 	var guidance_unlocks: Array[StringName] = []
 	var misfortune_guidance_unlocks: Array[StringName] = []
 	var low_luck_event_result: Dictionary = {}
+	var battle_local_writeback_result := _commit_battle_local_views_to_party_state(_battle_state, _party_state)
+	if not bool(battle_local_writeback_result.get("ok", false)):
+		_report_battle_local_writeback_error(battle_local_writeback_result, battle_summary, winner_faction_id)
+		return
 	if _low_luck_event_service != null:
 		low_luck_event_result = _low_luck_event_service.handle_battle_resolution(_battle_state, battle_resolution_result)
 		_merge_low_luck_battle_result_into_resolution(battle_resolution_result, low_luck_event_result)
@@ -1342,6 +1347,224 @@ func resolve_low_luck_settlement_event_rewards(context: Dictionary) -> Dictionar
 	if _character_management != null:
 		_party_state = _character_management.get_party_state()
 	return event_result
+
+
+func _commit_battle_local_views_to_party_state(battle_state: BattleState, party_state) -> Dictionary:
+	if battle_state == null:
+		return _build_battle_local_writeback_failure("battle_local_writeback_missing_battle_state")
+	if party_state == null or not (party_state is Object and party_state.has_method("to_dict")):
+		return _build_battle_local_writeback_failure("battle_local_writeback_missing_party_state")
+
+	var candidate_party = _clone_party_state_for_battle_writeback(party_state)
+	if candidate_party == null:
+		return _build_battle_local_writeback_failure("battle_local_writeback_invalid_party_state")
+
+	var backpack_view = battle_state.get_party_backpack_view()
+	if backpack_view == null or not (backpack_view is Object and backpack_view.has_method("duplicate_state")):
+		return _build_battle_local_writeback_failure("battle_local_writeback_invalid_backpack_view")
+	candidate_party.warehouse_state = backpack_view.duplicate_state()
+	if candidate_party.warehouse_state == null:
+		return _build_battle_local_writeback_failure("battle_local_writeback_invalid_backpack_view")
+
+	var committed_member_ids: Dictionary = {}
+	for ally_unit_id in battle_state.ally_unit_ids:
+		var unit_state := battle_state.units.get(ally_unit_id) as BattleUnitState
+		if unit_state == null:
+			return _build_battle_local_writeback_failure("battle_local_writeback_missing_ally_unit", {
+				"unit_id": String(ally_unit_id),
+			})
+		var member_id := ProgressionDataUtils.to_string_name(unit_state.source_member_id)
+		if member_id == &"":
+			continue
+		if committed_member_ids.has(member_id):
+			return _build_battle_local_writeback_failure("battle_local_writeback_duplicate_member_unit", {
+				"member_id": String(member_id),
+			})
+		var member_state = candidate_party.get_member_state(member_id)
+		if member_state == null:
+			return _build_battle_local_writeback_failure("battle_local_writeback_member_not_found", {
+				"member_id": String(member_id),
+				"unit_id": String(unit_state.unit_id),
+			})
+		if not bool(unit_state.equipment_view_initialized):
+			return _build_battle_local_writeback_failure("battle_local_writeback_uninitialized_equipment_view", {
+				"member_id": String(member_id),
+				"unit_id": String(unit_state.unit_id),
+			})
+		var equipment_view = unit_state.equipment_view
+		if equipment_view == null or not (equipment_view is Object and equipment_view.has_method("duplicate_state")):
+			return _build_battle_local_writeback_failure("battle_local_writeback_invalid_equipment_view", {
+				"member_id": String(member_id),
+				"unit_id": String(unit_state.unit_id),
+			})
+		var equipment_copy = equipment_view.duplicate_state()
+		if equipment_copy == null:
+			return _build_battle_local_writeback_failure("battle_local_writeback_invalid_equipment_view", {
+				"member_id": String(member_id),
+				"unit_id": String(unit_state.unit_id),
+			})
+		member_state.equipment_state = equipment_copy
+		committed_member_ids[member_id] = true
+
+	var validation_result := _validate_battle_local_candidate_party_state(candidate_party)
+	if not bool(validation_result.get("ok", false)):
+		return validation_result
+
+	_party_state = candidate_party
+	_sync_runtime_party_services_after_battle_local_writeback()
+	return {
+		"ok": true,
+		"error_code": "",
+		"committed_member_count": committed_member_ids.size(),
+		"used_slots": int(validation_result.get("used_slots", 0)),
+		"capacity": int(validation_result.get("capacity", 0)),
+	}
+
+
+func _clone_party_state_for_battle_writeback(party_state):
+	if party_state == null or not (party_state is Object and party_state.has_method("to_dict")):
+		return null
+	var party_payload: Variant = party_state.to_dict()
+	if party_payload is not Dictionary:
+		return null
+	return PARTY_STATE_SCRIPT.from_dict(party_payload)
+
+
+func _validate_battle_local_candidate_party_state(candidate_party) -> Dictionary:
+	if candidate_party == null or candidate_party.warehouse_state == null:
+		return _build_battle_local_writeback_failure("battle_local_writeback_invalid_candidate_party")
+	var instance_owner_by_id: Dictionary = {}
+	for instance in candidate_party.warehouse_state.get_non_empty_instances():
+		var instance_id := ProgressionDataUtils.to_string_name(instance.instance_id)
+		var item_id := ProgressionDataUtils.to_string_name(instance.item_id)
+		var register_result := _register_battle_local_instance_owner(
+			instance_owner_by_id,
+			instance_id,
+			item_id,
+			"backpack"
+		)
+		if not bool(register_result.get("ok", false)):
+			return register_result
+
+	for member_id_str in ProgressionDataUtils.sorted_string_keys(candidate_party.member_states):
+		var member_id := StringName(member_id_str)
+		var member_state = candidate_party.get_member_state(member_id)
+		if member_state == null:
+			continue
+		var equipment_state = member_state.equipment_state
+		if equipment_state == null or not (equipment_state is Object and equipment_state.has_method("get_entry_slot_ids")):
+			return _build_battle_local_writeback_failure("battle_local_writeback_invalid_equipment_state", {
+				"member_id": String(member_id),
+			})
+		for entry_slot_id in equipment_state.get_entry_slot_ids():
+			var item_id := ProgressionDataUtils.to_string_name(equipment_state.get_equipped_item_id(entry_slot_id))
+			if item_id == &"":
+				return _build_battle_local_writeback_failure("battle_local_writeback_invalid_equipment_entry", {
+					"member_id": String(member_id),
+					"entry_slot_id": String(entry_slot_id),
+				})
+			var instance_id := ProgressionDataUtils.to_string_name(equipment_state.get_equipped_instance_id(entry_slot_id))
+			if instance_id == &"":
+				continue
+			var register_result := _register_battle_local_instance_owner(
+				instance_owner_by_id,
+				instance_id,
+				item_id,
+				"equipment:%s:%s" % [String(member_id), String(entry_slot_id)]
+			)
+			if not bool(register_result.get("ok", false)):
+				return register_result
+
+	var capacity_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
+	var item_defs: Dictionary = _game_session.get_item_defs() if _game_session != null else {}
+	capacity_service.setup(candidate_party, item_defs)
+	var used_slots := int(capacity_service.get_used_slots())
+	var capacity := int(capacity_service.get_total_capacity())
+	if used_slots > capacity:
+		return _build_battle_local_writeback_failure("battle_local_writeback_capacity_mismatch", {
+			"used_slots": used_slots,
+			"capacity": capacity,
+		})
+	return {
+		"ok": true,
+		"error_code": "",
+		"used_slots": used_slots,
+		"capacity": capacity,
+	}
+
+
+func _register_battle_local_instance_owner(
+	instance_owner_by_id: Dictionary,
+	instance_id: StringName,
+	item_id: StringName,
+	owner_label: String
+) -> Dictionary:
+	if instance_id == &"":
+		return {"ok": true, "error_code": ""}
+	var instance_key := String(instance_id)
+	if instance_owner_by_id.has(instance_key):
+		var previous_owner: Dictionary = instance_owner_by_id.get(instance_key, {})
+		return _build_battle_local_writeback_failure("battle_local_writeback_instance_conflict", {
+			"instance_id": instance_key,
+			"item_id": String(item_id),
+			"owner": owner_label,
+			"previous_owner": String(previous_owner.get("owner", "")),
+			"previous_item_id": String(previous_owner.get("item_id", "")),
+		})
+	instance_owner_by_id[instance_key] = {
+		"owner": owner_label,
+		"item_id": String(item_id),
+	}
+	return {"ok": true, "error_code": ""}
+
+
+func _sync_runtime_party_services_after_battle_local_writeback() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs() if _game_session != null else {}
+	if _character_management != null:
+		_character_management.set_party_state(_party_state)
+	if _party_warehouse_service != null:
+		_party_warehouse_service.setup(_party_state, item_defs)
+	if _party_item_use_service != null:
+		_party_item_use_service.setup(
+			_party_state,
+			item_defs,
+			_game_session.get_skill_defs() if _game_session != null else {},
+			_party_warehouse_service,
+			_character_management
+		)
+	if _party_equipment_service != null:
+		_party_equipment_service.setup(_party_state, item_defs, _party_warehouse_service)
+
+
+func _build_battle_local_writeback_failure(error_code: String, details: Dictionary = {}) -> Dictionary:
+	return {
+		"ok": false,
+		"error_code": error_code,
+		"details": details.duplicate(true),
+	}
+
+
+func _report_battle_local_writeback_error(
+	writeback_result: Dictionary,
+	battle_summary: Dictionary,
+	winner_faction_id: String
+) -> void:
+	var error_code := String(writeback_result.get("error_code", "battle_local_writeback_failed"))
+	var details: Dictionary = writeback_result.get("details", {}).duplicate(true) if writeback_result.get("details", {}) is Dictionary else {}
+	push_error("Battle-local party writeback failed: %s %s" % [error_code, JSON.stringify(details)])
+	_update_status("战斗结算发生内部错误：battle-local 队伍状态写回失败（%s）。" % error_code)
+	_log_runtime_event(
+		"error",
+		"battle",
+		"battle.local_writeback_failed",
+		_current_status_message,
+		{
+			"battle": battle_summary,
+			"winner_faction_id": winner_faction_id,
+			"error_code": error_code,
+			"details": details,
+		}
+	)
 
 
 func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictionary:
