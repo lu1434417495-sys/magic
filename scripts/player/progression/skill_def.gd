@@ -19,6 +19,8 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var skill_type: StringName = &"active"
 ## 字段说明：在编辑器中暴露最大等级参数，用于限制该对象可达到的上限并控制成长或容量边界。
 @export var max_level := 1
+## 字段说明：非核心状态下的有效等级上限；0 表示不低于 max_level 另行限制。
+@export var non_core_max_level := 0
 ## 字段说明：在编辑器中暴露熟练度曲线配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var mastery_curve: PackedInt32Array = PackedInt32Array()
 ## 字段说明：在编辑器中暴露标签集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

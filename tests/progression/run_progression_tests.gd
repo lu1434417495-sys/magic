@@ -41,6 +41,7 @@ func _run() -> void:
 	_test_seed_growth_achievement_events_unlock_via_real_progression_actions()
 	_test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap()
 	_test_core_max_skill_queues_attribute_progress_once()
+	_test_non_core_skill_max_level_cap_lifts_when_core()
 	_test_attribute_growth_progress_round_trip_persists()
 	_test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement()
 	_test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core()
@@ -441,6 +442,29 @@ func _test_core_max_skill_queues_attribute_progress_once() -> void:
 
 	manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
 	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 60, "确认奖励后应写入技能配置的 60 点敏捷进度。")
+
+
+func _test_non_core_skill_max_level_cap_lifts_when_core() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"test_core_lift"
+	skill_def.display_name = "test_core_lift"
+	skill_def.icon_id = &"test_core_lift"
+	skill_def.max_level = 5
+	skill_def.non_core_max_level = 3
+	skill_def.mastery_curve = PackedInt32Array([1, 1, 1, 1, 1])
+
+	var service := ProgressionService.new()
+	service.setup(progress, {skill_def.skill_id: skill_def}, {})
+	_assert_true(service.learn_skill(skill_def.skill_id), "测试技能应能学习。")
+	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
+	var skill_progress = progress.get_skill_progress(skill_def.skill_id)
+	_assert_eq(int(skill_progress.skill_level), 3, "非核心技能应被 non_core_max_level 限制在 3 级。")
+
+	_assert_true(service.set_skill_core(skill_def.skill_id, true), "测试技能应能锁定为核心。")
+	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
+	_assert_eq(int(skill_progress.skill_level), 5, "锁定为核心后应允许提升到 max_level 5。")
 
 
 func _test_attribute_growth_progress_round_trip_persists() -> void:

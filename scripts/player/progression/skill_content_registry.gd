@@ -122,6 +122,10 @@ func _append_skill_validation_errors(
 		errors.append("Skill %s is missing icon_id." % String(skill_id))
 	if skill_def.max_level <= 0:
 		errors.append("Skill %s must have max_level >= 1." % String(skill_id))
+	if skill_def.non_core_max_level < 0:
+		errors.append("Skill %s non_core_max_level must be >= 0." % String(skill_id))
+	if skill_def.non_core_max_level > skill_def.max_level:
+		errors.append("Skill %s non_core_max_level must be <= max_level." % String(skill_id))
 	if skill_def.mastery_curve.size() != skill_def.max_level:
 		errors.append(
 			"Skill %s mastery_curve size must match max_level." % String(skill_id)

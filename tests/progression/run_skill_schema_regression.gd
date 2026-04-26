@@ -106,7 +106,9 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	_assert_eq(String(heavy_strike.resource_path), OFFICIAL_HEAVY_STRIKE_PATH, "重击应来自正式 skill resource。")
 	_assert_eq(heavy_strike.display_name, "重击", "重击资源应保留展示名。")
 	_assert_eq(heavy_strike.icon_id, &"warrior_heavy_strike", "重击资源应保留稳定 icon_id。")
-	_assert_eq(int(heavy_strike.max_level), 3, "重击资源应保留 3 级上限。")
+	_assert_eq(int(heavy_strike.max_level), 5, "重击资源应保留 5 级绝对上限。")
+	_assert_eq(int(heavy_strike.non_core_max_level), 3, "重击未锁定核心时应最多提升到 3 级。")
+	_assert_eq(Array(heavy_strike.mastery_curve), [100, 250, 550, 1000, 1600], "重击熟练度曲线应匹配当前设计。")
 	_assert_true(heavy_strike.tags.has(&"warrior"), "重击资源应保留 warrior 标签。")
 	_assert_true(heavy_strike.can_use_in_combat(), "重击资源应保留 combat_profile。")
 	if heavy_strike.combat_profile != null:

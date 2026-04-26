@@ -1076,7 +1076,10 @@ func _resolve_random_start_skill_initial_level(skill_def: SkillDef) -> int:
 	if skill_def == null:
 		return 0
 	var mapped_level := int(RANDOM_START_SKILL_LEVEL_BY_TIER.get(_resolve_random_start_skill_tier(skill_def), 0))
-	return clampi(mapped_level, 0, maxi(skill_def.max_level, 0))
+	var max_initial_level := maxi(skill_def.max_level, 0)
+	if skill_def.non_core_max_level > 0:
+		max_initial_level = mini(max_initial_level, int(skill_def.non_core_max_level))
+	return clampi(mapped_level, 0, max_initial_level)
 
 
 func _resolve_random_start_skill_tier(skill_def: SkillDef) -> StringName:

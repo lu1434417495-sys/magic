@@ -350,6 +350,9 @@ func _get_effective_skill_max_level(skill_def: SkillDef, skill_progress) -> int:
 	if skill_def == null:
 		return 0
 	var absolute_max := maxi(int(skill_def.max_level), 0)
+	var configured_non_core_max := int(skill_def.non_core_max_level)
+	if configured_non_core_max > 0 and (skill_progress == null or not bool(skill_progress.is_core)):
+		return mini(absolute_max, configured_non_core_max)
 	if skill_def.skill_id == VAJRA_BODY_SKILL_ID and (skill_progress == null or not bool(skill_progress.is_core)):
 		return mini(absolute_max, VAJRA_BODY_NON_CORE_MAX_LEVEL)
 	return absolute_max
