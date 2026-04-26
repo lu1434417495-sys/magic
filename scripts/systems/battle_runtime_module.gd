@@ -149,6 +149,8 @@ const CHANGE_EQUIPMENT_AP_COST := 2
 var _character_gateway: Object = null
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
+## 字段说明：缓存物品定义集合字典，用于战斗内换装自动解析槽位联动。
+var _item_defs: Dictionary = {}
 ## 字段说明：缓存敌方模板集合字典，集中保存可按键查询的运行时数据。
 var _enemy_templates: Dictionary = {}
 ## 字段说明：缓存敌方 AI brain 集合字典，集中保存可按键查询的运行时数据。
@@ -211,10 +213,16 @@ func setup(
 	enemy_templates: Dictionary = {},
 	enemy_ai_brains: Dictionary = {},
 	encounter_builder: Object = null,
-	equipment_drop_service: Variant = null
+	equipment_drop_service: Variant = null,
+	item_defs: Dictionary = {}
 ) -> void:
 	_character_gateway = character_gateway
 	_skill_defs = skill_defs if skill_defs != null else {}
+	_item_defs = item_defs if item_defs != null else {}
+	if _item_defs.is_empty() and _character_gateway != null and _character_gateway.has_method("get_item_defs"):
+		var gateway_item_defs = _character_gateway.call("get_item_defs")
+		if gateway_item_defs is Dictionary:
+			_item_defs = gateway_item_defs
 	_enemy_templates = enemy_templates if enemy_templates != null else {}
 	_enemy_ai_brains = enemy_ai_brains if enemy_ai_brains != null else {}
 	_encounter_builder = encounter_builder if encounter_builder != null else ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
@@ -824,6 +832,10 @@ func get_skill_defs() -> Dictionary:
 	return _skill_defs
 
 
+func get_item_defs() -> Dictionary:
+	return _item_defs
+
+
 func get_min_battle_surface_height() -> int:
 	return MIN_BATTLE_SURFACE_HEIGHT
 
@@ -1184,6 +1196,7 @@ func dispose() -> void:
 	_ai_trace_enabled = false
 	_character_gateway = null
 	_skill_defs = {}
+	_item_defs = {}
 	_enemy_templates = {}
 	_enemy_ai_brains = {}
 	_encounter_builder = null
@@ -1429,11 +1442,18 @@ func _handle_move_command(active_unit: BattleUnitState, command: BattleCommand, 
 
 func _preview_change_equipment_command(active_unit: BattleUnitState, command: BattleCommand, preview: BattlePreview) -> void:
 	var validation := _validate_change_equipment_command(active_unit, command)
-	if bool(validation.get("allowed", false)):
-		preview.allowed = true
-		preview.log_lines.append(String(validation.get("message", "换装可执行。")))
-	else:
+	if not bool(validation.get("allowed", false)):
 		preview.log_lines.append(String(validation.get("message", "换装命令无效。")))
+		return
+
+	var equipment_view = active_unit.get_equipment_view().duplicate_state()
+	var backpack_view = _state.get_party_backpack_view().duplicate_state()
+	var apply_result := _apply_change_equipment_to_views(command, validation, equipment_view, backpack_view)
+	if bool(apply_result.get("allowed", false)):
+		preview.allowed = true
+		preview.log_lines.append(String(apply_result.get("message", "换装可执行。")))
+	else:
+		preview.log_lines.append(String(apply_result.get("message", "换装命令无效。")))
 
 
 func _handle_change_equipment_command(active_unit: BattleUnitState, command: BattleCommand, batch: BattleEventBatch) -> void:
@@ -1505,6 +1525,14 @@ func _validate_change_equipment_command(active_unit: BattleUnitState, command: B
 		if command_item_id != &"" and command_item_id != resolved_item_id:
 			return _with_change_equipment_error(result, "equipment_instance_item_mismatch", "装备实例与命令物品不一致。")
 		result["item_id"] = String(resolved_item_id)
+		var item_rule := _resolve_change_equipment_item_rule(resolved_item_id, slot_id, command)
+		if not bool(item_rule.get("allowed", false)):
+			return _with_change_equipment_error(
+				result,
+				String(item_rule.get("error_code", "item_not_equipment")),
+				String(item_rule.get("message", "装备实例不能放入该槽位。"))
+			)
+		result["occupied_slot_ids"] = item_rule.get("occupied_slot_ids", [])
 	else:
 		var entry_slot := ProgressionDataUtils.to_string_name(equipment_view.get_entry_slot_for_slot(slot_id))
 		if entry_slot == &"":
@@ -1515,6 +1543,7 @@ func _validate_change_equipment_command(active_unit: BattleUnitState, command: B
 			return _with_change_equipment_error(result, "equipment_instance_item_mismatch", "装备实例与当前槽位不一致。")
 		result["item_id"] = String(ProgressionDataUtils.to_string_name(equipment_view.get_equipped_item_id(slot_id)))
 		result["instance_id"] = String(equipped_instance_id)
+		result["occupied_slot_ids"] = _stringify_string_name_array(equipment_view.get_occupied_slot_ids_for_entry(entry_slot))
 
 	result["allowed"] = true
 	result["error_code"] = ""
@@ -1575,6 +1604,21 @@ func _apply_change_equipment_to_views(
 		backpack_view.equipment_instances.append(removed_instance)
 		result["item_id"] = String(ProgressionDataUtils.to_string_name(removed_instance.item_id))
 		result["instance_id"] = String(removed_instance_id)
+
+	var ownership_result := _validate_change_equipment_instance_ownership(equipment_view, backpack_view)
+	if not bool(ownership_result.get("allowed", false)):
+		return _with_change_equipment_error(
+			result,
+			String(ownership_result.get("error_code", "equipment_instance_write_failed")),
+			String(ownership_result.get("message", "装备实例写入失败。"))
+		)
+	var capacity_result := _validate_change_equipment_backpack_capacity(backpack_view)
+	if not bool(capacity_result.get("allowed", false)):
+		return _with_change_equipment_error(
+			result,
+			String(capacity_result.get("error_code", "backpack_capacity_exceeded")),
+			String(capacity_result.get("message", "战斗背包容量不足。"))
+		)
 
 	result["allowed"] = true
 	result["error_code"] = ""
@@ -1698,6 +1742,160 @@ func _resolve_change_equipment_occupied_slots(command: BattleCommand, slot_id: S
 	elif EQUIPMENT_RULES_SCRIPT.is_valid_slot(norm_slot) and not occupied_slots.has(norm_slot):
 		occupied_slots.insert(0, norm_slot)
 	return occupied_slots
+
+
+func _resolve_change_equipment_item_rule(item_id: StringName, slot_id: StringName, command: BattleCommand) -> Dictionary:
+	var norm_item := ProgressionDataUtils.to_string_name(item_id)
+	var norm_slot := ProgressionDataUtils.to_string_name(slot_id)
+	var fallback_occupied := _resolve_change_equipment_occupied_slots(command, norm_slot)
+	var result := {
+		"allowed": true,
+		"error_code": "",
+		"message": "",
+		"occupied_slot_ids": _stringify_string_name_array(fallback_occupied),
+	}
+	var item_def = _get_change_equipment_item_def(norm_item)
+	if item_def == null:
+		if _has_change_equipment_item_catalog():
+			result["allowed"] = false
+			result["error_code"] = "item_not_found"
+			result["message"] = "找不到装备定义：%s。" % String(norm_item)
+		return result
+	if not item_def.is_equipment():
+		result["allowed"] = false
+		result["error_code"] = "item_not_equipment"
+		result["message"] = "%s 不是可装备物品。" % String(norm_item)
+		return result
+	var allowed_slots: Array[StringName] = item_def.get_equipment_slot_ids()
+	if not allowed_slots.has(norm_slot):
+		result["allowed"] = false
+		result["error_code"] = "slot_not_allowed"
+		result["message"] = "%s 不能装备到 %s。" % [String(norm_item), EQUIPMENT_RULES_SCRIPT.get_slot_label(norm_slot)]
+		return result
+	var occupied_slots: Array[StringName] = item_def.get_final_occupied_slot_ids(norm_slot)
+	if occupied_slots.is_empty():
+		occupied_slots = [norm_slot]
+	elif not occupied_slots.has(norm_slot):
+		occupied_slots.insert(0, norm_slot)
+	result["occupied_slot_ids"] = _stringify_string_name_array(occupied_slots)
+	return result
+
+
+func _get_change_equipment_item_def(item_id: StringName):
+	var normalized := ProgressionDataUtils.to_string_name(item_id)
+	if normalized == &"" or _item_defs == null:
+		return null
+	if _item_defs.has(normalized):
+		return _item_defs.get(normalized)
+	return _item_defs.get(String(normalized))
+
+
+func _has_change_equipment_item_catalog() -> bool:
+	return _item_defs != null and not _item_defs.is_empty()
+
+
+func _validate_change_equipment_instance_ownership(equipment_view, backpack_view) -> Dictionary:
+	var owners: Dictionary = {}
+	if backpack_view == null or not (backpack_view is Object) or not backpack_view.has_method("get_non_empty_instances"):
+		return {
+			"allowed": false,
+			"error_code": "backpack_view_unavailable",
+			"message": "战斗内背包状态不可用。",
+		}
+	for instance in backpack_view.get_non_empty_instances():
+		var instance_id := ProgressionDataUtils.to_string_name(instance.instance_id if instance != null else &"")
+		var item_id := ProgressionDataUtils.to_string_name(instance.item_id if instance != null else &"")
+		var owner_result := _claim_change_equipment_instance_owner(owners, instance_id, item_id, "backpack")
+		if not bool(owner_result.get("allowed", false)):
+			return owner_result
+	if equipment_view == null or not (equipment_view is Object) or not equipment_view.has_method("get_entry_slot_ids"):
+		return {
+			"allowed": false,
+			"error_code": "equipment_view_unavailable",
+			"message": "战斗内装备状态不可用。",
+		}
+	for entry_slot_id in equipment_view.get_entry_slot_ids():
+		var item_id := ProgressionDataUtils.to_string_name(equipment_view.get_equipped_item_id(entry_slot_id))
+		var instance_id := ProgressionDataUtils.to_string_name(equipment_view.get_equipped_instance_id(entry_slot_id))
+		var owner_name := "equipment:%s" % String(entry_slot_id)
+		var owner_result := _claim_change_equipment_instance_owner(owners, instance_id, item_id, owner_name)
+		if not bool(owner_result.get("allowed", false)):
+			return owner_result
+	return {"allowed": true, "error_code": "", "message": ""}
+
+
+func _claim_change_equipment_instance_owner(
+	owners: Dictionary,
+	instance_id: StringName,
+	item_id: StringName,
+	owner_name: String
+) -> Dictionary:
+	if instance_id == &"" or item_id == &"":
+		return {
+			"allowed": false,
+			"error_code": "equipment_instance_write_failed",
+			"message": "装备实例写入失败：%s 存在空实例或空物品。" % owner_name,
+		}
+	if owners.has(instance_id):
+		return {
+			"allowed": false,
+			"error_code": "equipment_instance_duplicate_owner",
+			"message": "装备实例 %s 同时存在于多个位置。" % String(instance_id),
+		}
+	owners[instance_id] = {
+		"item_id": item_id,
+		"owner": owner_name,
+	}
+	return {"allowed": true, "error_code": "", "message": ""}
+
+
+func _validate_change_equipment_backpack_capacity(backpack_view) -> Dictionary:
+	var capacity := _get_change_equipment_backpack_capacity()
+	if capacity < 0:
+		return {"allowed": true, "error_code": "", "message": ""}
+	var used_slots := _get_change_equipment_backpack_used_slots(backpack_view)
+	if used_slots <= capacity:
+		return {"allowed": true, "error_code": "", "message": ""}
+	return {
+		"allowed": false,
+		"error_code": "backpack_capacity_exceeded",
+		"message": "战斗背包容量不足：需要 %d 格，当前容量 %d 格。" % [used_slots, capacity],
+	}
+
+
+func _get_change_equipment_backpack_capacity() -> int:
+	if _character_gateway == null or not _character_gateway.has_method("get_party_state"):
+		return -1
+	var party_state = _character_gateway.call("get_party_state")
+	if party_state == null or not (party_state is Object):
+		return -1
+	var total_capacity := 0
+	for member_state in party_state.member_states.values():
+		if member_state == null or member_state.progression == null:
+			continue
+		var unit_base_attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
+		if unit_base_attributes == null:
+			continue
+		total_capacity += maxi(unit_base_attributes.get_attribute_value(&"storage_space"), 0)
+	return maxi(total_capacity, 0)
+
+
+func _get_change_equipment_backpack_used_slots(backpack_view) -> int:
+	if backpack_view == null or not (backpack_view is Object):
+		return 0
+	var stack_count := 0
+	var instance_count := 0
+	if backpack_view.has_method("get_non_empty_stacks"):
+		stack_count = backpack_view.get_non_empty_stacks().size()
+	else:
+		var raw_stacks: Variant = backpack_view.get("stacks")
+		stack_count = raw_stacks.size() if raw_stacks is Array else 0
+	if backpack_view.has_method("get_non_empty_instances"):
+		instance_count = backpack_view.get_non_empty_instances().size()
+	else:
+		var raw_instances: Variant = backpack_view.get("equipment_instances")
+		instance_count = raw_instances.size() if raw_instances is Array else 0
+	return stack_count + instance_count
 
 
 func _find_backpack_equipment_instance_index(backpack_view, instance_id: StringName) -> int:

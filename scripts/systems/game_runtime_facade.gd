@@ -241,7 +241,8 @@ func setup(game_session) -> void:
 		_game_session.get_enemy_templates(),
 		_game_session.get_enemy_ai_brains(),
 		_encounter_roster_builder,
-		_equipment_drop_service
+		_equipment_drop_service,
+		_game_session.get_item_defs()
 	)
 	_misfortune_guidance_service.setup(_character_management, _battle_runtime)
 	_low_luck_event_service.setup(_character_management, _battle_runtime.get_fate_event_bus())

@@ -84,6 +84,10 @@ func get_party_state() -> PartyState:
 	return _party_state
 
 
+func get_item_defs() -> Dictionary:
+	return _item_defs
+
+
 func set_party_state(party_state: PartyState) -> void:
 	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
 	_party_warehouse_service.setup(_party_state, _item_defs)

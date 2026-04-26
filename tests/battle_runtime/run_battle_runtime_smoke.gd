@@ -19,13 +19,20 @@ const BattleTerrainEffectState = preload("res://scripts/systems/battle_terrain_e
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle_status_effect_state.gd")
+const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
+const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
+const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const CharacterProgressionDelta = preload("res://scripts/systems/character_progression_delta.gd")
+const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
@@ -82,6 +89,8 @@ func _run() -> void:
 	_test_move_command_executes_normally_on_stacked_columns()
 	_test_change_equipment_command_validates_target_ap_and_state_atomicity()
 	_test_change_equipment_command_all_slots_use_battle_local_views()
+	_test_change_equipment_transaction_auto_links_slots_and_rolls_back_capacity()
+	_test_change_equipment_transaction_updates_versatile_grip_from_offhand()
 	_test_runtime_reports_multistep_reachable_move_coords()
 	_test_spawn_anchor_prefers_better_local_mobility_over_corner_slot()
 	_test_spawn_anchor_rejects_water_start_cells()
@@ -541,6 +550,95 @@ func _test_change_equipment_command_all_slots_use_battle_local_views() -> void:
 		_assert_eq(unit.current_ap, 0, "卸装成功应消耗 2 AP：%s" % String(slot_id))
 		_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(slot_id)), "", "卸装成功应清空 battle-local 装备 view：%s" % String(slot_id))
 		_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [String(instance_id)], "卸装成功应把实例放回 battle-local 背包：%s" % String(slot_id))
+
+
+func _test_change_equipment_transaction_auto_links_slots_and_rolls_back_capacity() -> void:
+	var blocked_fixture := _build_equipment_transaction_fixture(1, 2)
+	var blocked_runtime: BattleRuntimeModule = blocked_fixture.get("runtime")
+	var blocked_state: BattleState = blocked_fixture.get("state")
+	var blocked_unit: BattleUnitState = blocked_fixture.get("unit")
+	var blocked_party: PartyState = blocked_fixture.get("party")
+	var blocked_command := _build_change_equipment_command(
+		blocked_unit.unit_id,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		&"main_hand",
+		&"greatsword_battle_001",
+		&"training_greatsword"
+	)
+	blocked_command.equipment_occupied_slot_ids = []
+
+	var blocked_preview := blocked_runtime.preview_command(blocked_command)
+	_assert_true(blocked_preview != null and not blocked_preview.allowed, "容量不足时双手武器自动联动预览应失败。")
+	var blocked_batch := blocked_runtime.issue_command(blocked_command)
+	_assert_true(
+		blocked_batch.report_entries.any(func(entry): return entry is Dictionary and String(entry.get("error_code", "")) == "backpack_capacity_exceeded"),
+		"容量不足时换装事务应返回稳定错误。 reports=%s" % str(blocked_batch.report_entries)
+	)
+	_assert_eq(blocked_unit.current_ap, 2, "容量不足回滚时不应扣 AP。")
+	_assert_eq(String(blocked_unit.get_equipment_view().get_equipped_instance_id(&"main_hand")), "longsword_battle_001", "容量不足回滚时主手实例应保持不变。")
+	_assert_eq(String(blocked_unit.get_equipment_view().get_equipped_instance_id(&"off_hand")), "shield_battle_001", "容量不足回滚时副手实例应保持不变。")
+	_assert_eq(_backpack_instance_id_signature(blocked_state.get_party_backpack_view()), ["greatsword_battle_001"], "容量不足回滚时背包实例应保持不变。")
+	_assert_eq(
+		String(blocked_party.get_member_state(&"swap_hero").equipment_state.get_equipped_instance_id(&"main_hand")),
+		"party_longsword_unchanged",
+		"战斗换装失败不应直接改 PartyMemberState 装备。"
+	)
+
+	var success_fixture := _build_equipment_transaction_fixture(3, 2)
+	var runtime: BattleRuntimeModule = success_fixture.get("runtime")
+	var state: BattleState = success_fixture.get("state")
+	var unit: BattleUnitState = success_fixture.get("unit")
+	var party: PartyState = success_fixture.get("party")
+	var command := _build_change_equipment_command(
+		unit.unit_id,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		&"main_hand",
+		&"greatsword_battle_001",
+		&"training_greatsword"
+	)
+	command.equipment_occupied_slot_ids = []
+
+	var preview := runtime.preview_command(command)
+	_assert_true(preview != null and preview.allowed, "容量足够时双手武器自动联动预览应通过。 log=%s" % str(preview.log_lines if preview != null else []))
+	var batch := runtime.issue_command(command)
+	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "双手武器自动联动成功后应记录单位变更。")
+	_assert_eq(unit.current_ap, 0, "双手武器自动卸下主副手应按一次命令收费。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_item_id(&"main_hand")), "training_greatsword", "双手武器应自动写入主手。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_item_id(&"off_hand")), "training_greatsword", "双手武器应自动占用副手。")
+	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), ["longsword_battle_001", "shield_battle_001"], "自动卸下的主副手装备应进入 battle-local 背包。")
+	_assert_eq(
+		String(party.get_member_state(&"swap_hero").equipment_state.get_equipped_instance_id(&"main_hand")),
+		"party_longsword_unchanged",
+		"战斗换装成功也不应直接改 PartyMemberState 装备。"
+	)
+
+
+func _test_change_equipment_transaction_updates_versatile_grip_from_offhand() -> void:
+	var fixture := _build_equipment_transaction_fixture(2, 2)
+	var runtime: BattleRuntimeModule = fixture.get("runtime")
+	var state: BattleState = fixture.get("state")
+	var unit: BattleUnitState = fixture.get("unit")
+	state.get_party_backpack_view().equipment_instances = [_make_equipment_instance(&"shield_battle_001", &"training_shield")]
+	unit.get_equipment_view().clear_entry_slot(&"off_hand")
+	unit.current_ap = 2
+	runtime._unit_factory.refresh_weapon_projection(unit)
+	_assert_true(unit.weapon_uses_two_hands, "versatile 主手在空副手时应投影为双手握法。")
+
+	var command := _build_change_equipment_command(
+		unit.unit_id,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		&"off_hand",
+		&"shield_battle_001",
+		&"training_shield"
+	)
+	command.equipment_occupied_slot_ids = []
+	var batch := runtime.issue_command(command)
+	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "副手盾牌换装成功后应记录单位变更。")
+	_assert_eq(unit.current_ap, 0, "副手盾牌切换 versatile 握法应按一次命令收费。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_item_id(&"main_hand")), "training_longsword", "装备副手盾牌不应卸下 versatile 主手。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_item_id(&"off_hand")), "training_shield", "副手盾牌应写入 battle-local 装备 view。")
+	_assert_true(not unit.weapon_uses_two_hands, "副手被盾牌占用后 versatile 武器应自动改为单手握法。")
+	_assert_eq(String(unit.weapon_current_grip), "one_handed", "副手被盾牌占用后 current_grip 应为 one_handed。")
 
 
 func _test_runtime_reports_multistep_reachable_move_coords() -> void:
@@ -2157,6 +2255,41 @@ func _build_change_equipment_fixture(
 	}
 
 
+func _build_equipment_transaction_fixture(storage_space: int, current_ap: int) -> Dictionary:
+	var item_defs := _build_transaction_item_defs()
+	var party := _build_equipment_transaction_party(&"swap_hero", storage_space)
+	var gateway := CharacterManagementModule.new()
+	gateway.setup(party, {}, {}, {}, item_defs)
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(gateway, {}, {}, {}, null, null, item_defs)
+	var state := _build_skill_test_state(Vector2i(3, 1))
+	state.battle_id = ProgressionDataUtils.to_string_name("equipment_transaction_%d_%d" % [storage_space, current_ap])
+	var unit := _build_unit(&"swap_hero", Vector2i(0, 0), current_ap)
+	unit.source_member_id = &"swap_hero"
+	unit.set_equipment_view(party.get_member_state(&"swap_hero").equipment_state)
+	unit.get_equipment_view().set_equipped_entry(&"main_hand", &"training_longsword", ProgressionDataUtils.to_string_name_array([&"main_hand"]), &"longsword_battle_001")
+	unit.get_equipment_view().set_equipped_entry(&"off_hand", &"training_shield", ProgressionDataUtils.to_string_name_array([&"off_hand"]), &"shield_battle_001")
+	runtime._unit_factory.refresh_weapon_projection(unit)
+	var enemy := _build_enemy_unit(&"swap_enemy", Vector2i(2, 0))
+	state.units = {
+		unit.unit_id: unit,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [unit.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = unit.unit_id
+	state.get_party_backpack_view().equipment_instances = [_make_equipment_instance(&"greatsword_battle_001", &"training_greatsword")]
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "换装事务测试单位应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "换装事务测试敌方应能成功放入战场。")
+	runtime._state = state
+	return {
+		"runtime": runtime,
+		"state": state,
+		"unit": unit,
+		"party": party,
+	}
+
+
 func _build_change_equipment_command(
 	unit_id: StringName,
 	operation: StringName,
@@ -2178,6 +2311,97 @@ func _build_change_equipment_command(
 	}
 	command.equipment_occupied_slot_ids = [slot_id]
 	return command
+
+
+func _build_equipment_transaction_party(member_id: StringName, storage_space: int) -> PartyState:
+	var party := PartyState.new()
+	var member := PartyMemberState.new()
+	member.member_id = member_id
+	member.display_name = "Swap Hero"
+	member.current_hp = 20
+	member.current_mp = 5
+	member.progression = UnitProgress.new()
+	member.progression.unit_id = member_id
+	member.progression.display_name = member.display_name
+	member.progression.unit_base_attributes.set_attribute_value(&"storage_space", storage_space)
+	member.equipment_state.set_equipped_entry(&"main_hand", &"training_longsword", ProgressionDataUtils.to_string_name_array([&"main_hand"]), &"party_longsword_unchanged")
+	party.set_member_state(member)
+	party.active_member_ids = [member_id]
+	party.leader_member_id = member_id
+	party.main_character_member_id = member_id
+	return party
+
+
+func _build_transaction_item_defs() -> Dictionary:
+	return {
+		&"training_greatsword": _make_transaction_weapon_item(
+			&"training_greatsword",
+			&"greatsword",
+			[&"two_handed"],
+			null,
+			_make_transaction_weapon_dice(2, 6, 0),
+			["main_hand", "off_hand"]
+		),
+		&"training_longsword": _make_transaction_weapon_item(
+			&"training_longsword",
+			&"longsword",
+			[&"versatile"],
+			_make_transaction_weapon_dice(1, 8, 0),
+			_make_transaction_weapon_dice(1, 10, 0),
+			[]
+		),
+		&"training_shield": _make_transaction_shield_item(&"training_shield"),
+	}
+
+
+func _make_transaction_weapon_item(
+	item_id: StringName,
+	weapon_type_id: StringName,
+	properties: Array[StringName],
+	one_handed_dice,
+	two_handed_dice,
+	occupied_slot_ids: Array[String]
+) -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = item_id
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	item_def.equipment_slot_ids = ["main_hand"]
+	item_def.occupied_slot_ids = occupied_slot_ids
+	item_def.is_stackable = false
+	item_def.max_stack = 1
+	var profile := WeaponProfileDef.new()
+	profile.weapon_type_id = weapon_type_id
+	profile.training_group = &"martial"
+	profile.range_type = &"melee"
+	profile.family = &"sword"
+	profile.damage_tag = ItemDef.DAMAGE_TAG_PHYSICAL_SLASH
+	profile.attack_range = 1
+	profile.one_handed_dice = one_handed_dice
+	profile.two_handed_dice = two_handed_dice
+	profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	profile.properties = properties
+	item_def.weapon_profile = profile
+	return item_def
+
+
+func _make_transaction_shield_item(item_id: StringName) -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = item_id
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.equipment_slot_ids = ["off_hand"]
+	item_def.is_stackable = false
+	item_def.max_stack = 1
+	return item_def
+
+
+func _make_transaction_weapon_dice(dice_count: int, dice_sides: int, flat_bonus: int):
+	var dice := WeaponDamageDiceDef.new()
+	dice.dice_count = dice_count
+	dice.dice_sides = dice_sides
+	dice.flat_bonus = flat_bonus
+	return dice
 
 
 func _make_equipment_instance(instance_id: StringName, item_id: StringName):
