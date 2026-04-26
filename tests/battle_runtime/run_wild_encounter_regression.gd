@@ -37,6 +37,8 @@ func _run() -> void:
 	_test_enemy_content_registry_loads_formal_seed_resource()
 	_test_enemy_content_registry_reports_missing_brain_reference()
 	_test_enemy_content_registry_reports_missing_roster_template_reference()
+	_test_formal_enemy_templates_do_not_use_legacy_weapon_attribute_overrides()
+	_test_enemy_template_validation_rejects_legacy_weapon_attribute_overrides()
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaults()
@@ -102,6 +104,53 @@ func _test_enemy_content_registry_reports_missing_roster_template_reference() ->
 		_errors_contain_fragment(validation_errors, "references missing template missing_template"),
 		"EnemyContentRegistry 应报告 roster 非法引用缺失 template 的配置错误。"
 	)
+
+
+func _test_formal_enemy_templates_do_not_use_legacy_weapon_attribute_overrides() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	for template_variant in game_session.get_enemy_templates().values():
+		var template = template_variant as ENEMY_TEMPLATE_DEF_SCRIPT
+		if template == null:
+			continue
+		_assert_true(
+			not _dictionary_has_key(template.attribute_overrides, &"weapon_attack_range"),
+			"正式敌人模板 %s 不应再写 attribute_overrides.weapon_attack_range。" % String(template.template_id)
+		)
+		_assert_true(
+			not _dictionary_has_key(template.attribute_overrides, &"weapon_physical_damage_tag"),
+			"正式敌人模板 %s 不应再写 attribute_overrides.weapon_physical_damage_tag。" % String(template.template_id)
+		)
+	game_session.free()
+
+
+func _test_enemy_template_validation_rejects_legacy_weapon_attribute_overrides() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = &"legacy_weapon_override_template"
+	template.display_name = "旧武器字段敌人"
+	template.brain_id = &"melee_aggressor"
+	template.attack_equipment_item_id = &"watchman_mace"
+	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+		template.base_attribute_overrides[attribute_id] = 8
+	template.attribute_overrides = {
+		"hp_max": 10,
+		"action_points": 1,
+		"attack_bonus": 4,
+		"armor_class": 10,
+		"weapon_attack_range": 2,
+		"weapon_physical_damage_tag": "physical_slash",
+	}
+
+	var validation_errors: Array[String] = template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
+	_assert_true(
+		_errors_contain_fragment(validation_errors, "must not declare attribute_overrides.weapon_attack_range"),
+		"敌人模板校验应拒绝旧 attribute_overrides.weapon_attack_range。"
+	)
+	_assert_true(
+		_errors_contain_fragment(validation_errors, "must not declare attribute_overrides.weapon_physical_damage_tag"),
+		"敌人模板校验应拒绝旧 attribute_overrides.weapon_physical_damage_tag。"
+	)
+	game_session.free()
 
 
 func _test_encounter_anchor_round_trip_preserves_growth_fields() -> void:
@@ -209,6 +258,9 @@ func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
 		_assert_eq(String(wolf_shaman.weapon_profile_kind), "equipped", "非 beast 模板应投影真实攻击装备。")
 		_assert_eq(String(wolf_shaman.weapon_item_id), "watchman_mace", "wolf_shaman 应携带配置的真实攻击装备。")
 		_assert_eq(String(wolf_shaman.weapon_profile_type_id), "mace", "watchman_mace 应投影 mace weapon profile。")
+		_assert_eq(_weapon_dice_signature(wolf_shaman.weapon_one_handed_dice), [1, 6, 0], "watchman_mace 应投影真实武器骰 1D6。")
+		_assert_true(wolf_shaman.weapon_two_handed_dice.is_empty(), "watchman_mace 不应投影双手骰。")
+		_assert_true(not wolf_shaman.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE), "非 beast 攻击装备射程不应写回 attribute_snapshot。")
 		_assert_eq(String(wolf_shaman.weapon_physical_damage_tag), "physical_blunt", "watchman_mace 应投影 blunt 伤害类型。")
 
 	var harrier = _build_single_template_unit(builder, game_session, &"mist_harrier")
@@ -216,6 +268,9 @@ func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
 		_assert_eq(String(harrier.weapon_profile_kind), "equipped", "mist_harrier 应投影真实攻击装备。")
 		_assert_eq(String(harrier.weapon_item_id), "militia_axe", "mist_harrier 应携带配置的真实攻击装备。")
 		_assert_eq(String(harrier.weapon_profile_type_id), "handaxe", "militia_axe 应投影 handaxe weapon profile。")
+		_assert_eq(_weapon_dice_signature(harrier.weapon_one_handed_dice), [1, 6, 0], "militia_axe 应投影真实武器骰 1D6。")
+		_assert_true(harrier.weapon_two_handed_dice.is_empty(), "militia_axe 不应投影双手骰。")
+		_assert_true(not harrier.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE), "非 beast 攻击装备射程不应写回 attribute_snapshot。")
 		_assert_eq(String(harrier.weapon_physical_damage_tag), "physical_slash", "militia_axe 应投影 slash 伤害类型。")
 
 	var shaman_anchor = _build_template_encounter_anchor(&"wolf_shaman_loot_projection", &"wolf_shaman")
@@ -1241,6 +1296,12 @@ func _errors_contain_fragment(errors: Array[String], fragment: String) -> bool:
 		if String(error_text).find(fragment) >= 0:
 			return true
 	return false
+
+
+func _dictionary_has_key(data: Dictionary, key: StringName) -> bool:
+	if data.has(key):
+		return true
+	return data.has(String(key))
 
 
 func _assert_true(condition: bool, message: String) -> void:
