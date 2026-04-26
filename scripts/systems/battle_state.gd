@@ -141,6 +141,21 @@ func set_party_backpack_view(backpack_state) -> void:
 		party_backpack_view = WAREHOUSE_STATE_SCRIPT.new()
 
 
+func get_unit_equipment_view(unit_id: StringName):
+	var unit_state := units.get(unit_id) as BattleUnitState
+	if unit_state == null:
+		return null
+	return unit_state.get_equipment_view()
+
+
+func set_unit_equipment_view(unit_id: StringName, equipment_state) -> bool:
+	var unit_state := units.get(unit_id) as BattleUnitState
+	if unit_state == null:
+		return false
+	unit_state.set_equipment_view(equipment_state)
+	return true
+
+
 func mark_runtime_edges_dirty() -> void:
 	runtime_edges_dirty = true
 

@@ -663,7 +663,7 @@ HeadlessGameTestSession
 - 真相源：
   - battle / settlement / headless 与 party/progression / quest state 之间的桥接规则。
 - 主要职责：
-  - 提供 `PartyMemberState`、attribute snapshot 与 progression 查询，作为 `BattleUnitFactory` 构建 / 刷新战斗单位时的角色侧桥接。
+  - 提供 `PartyMemberState`、attribute snapshot 与 progression 查询，作为 `BattleUnitFactory` 构建 / 刷新战斗单位时的角色侧桥接；战斗内刷新装备相关属性时必须接收 battle-local `equipment_view`，不能回读 `PartyMemberState.equipment_state`。
   - 记录成就事件。
   - 直接解锁一次性 achievement，并把无奖励的剧情门票稳定写进 `UnitProgress.achievement_progress`。
   - 生成与应用 `PendingCharacterReward`。
@@ -834,10 +834,10 @@ HeadlessGameTestSession
   - `BattleRatingSystem` 负责战斗评分统计、标签与结算奖励映射。
   - `BattleRuntimeModule` 负责把技能配置里的 `mastery_sources` 接到正式战斗事件：主动技能成功施放走 `battle`，`金刚不坏` 这类被动受击技能按 `heavy_hit_taken` / `max_damage_die_taken` / `elite_or_boss_damage_taken` 等条件即时写入角色成长，并通过 `BattleUnitFactory.refresh_known_skills()` 回灌当前战斗单位。
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
-  - `BattleUnitFactory` 构建 / 刷新友军单位时从角色 attribute snapshot 读取 `action_threshold` 写入 `BattleUnitState.action_threshold`；正式主角初始默认值为 `30 TU`。
+  - `BattleUnitFactory` 构建 / 刷新友军单位时先把 `PartyMemberState.equipment_state` 复制到 `BattleUnitState.equipment_view`，后续 attribute snapshot 与 weapon projection 刷新都以这份 battle-local 装备 view 为输入；`action_threshold` 仍写入 `BattleUnitState.action_threshold`，正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
-  - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足 `requires_weapon`，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前近战武器伤害类型的近战技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
-  - `BattleState.party_backpack_view` 是开战时从 `PartyState.warehouse_state` 复制出的 battle-local 队伍共享背包 view；战斗内后续背包 / 换装命令必须只改这份 view，不直接访问据点共享仓库或直接 mutate party 背包状态。当前仍不扩 battle save payload，战斗中存档继续依赖现有 save lock 不支持。
+  - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有 battle-local `equipment_view`、武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足 `requires_weapon`，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前近战武器伤害类型的近战技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
+  - `BattleState.party_backpack_view` 是开战时从 `PartyState.warehouse_state` 复制出的 battle-local 队伍共享背包 view；`BattleUnitState.equipment_view` 是每个友军开战时从 `PartyMemberState.equipment_state` 复制出的 battle-local 装备 view，并保留 `entry_slot -> EquipmentEntryState(item_id, occupied_slot_ids, instance_id)` 结构。战斗内后续背包 / 换装命令必须只改这两份 view，不直接访问据点共享仓库或直接 mutate party 背包 / 成员装备状态。当前仍不扩 battle save payload，战斗中存档继续依赖现有 save lock 不支持。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。

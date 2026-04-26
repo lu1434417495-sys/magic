@@ -15,6 +15,7 @@ const PROFESSION_ASSIGNMENT_SERVICE_SCRIPT = preload("res://scripts/systems/prof
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/skill_merge_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_growth_service.gd")
+const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/party_equipment_service.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
 const QUEST_PROGRESS_SERVICE_SCRIPT = preload("res://scripts/systems/quest_progress_service.gd")
@@ -301,21 +302,34 @@ func get_member_attribute_snapshot(member_id: StringName) -> AttributeSnapshot:
 	return _build_attribute_service(member_state).get_snapshot()
 
 
+func get_member_attribute_snapshot_for_equipment_view(member_id: StringName, equipment_view: Variant) -> AttributeSnapshot:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return ATTRIBUTE_SNAPSHOT_SCRIPT.new()
+	return _build_attribute_service(member_state, _normalize_equipment_view(equipment_view)).get_snapshot()
+
+
 func get_member_weapon_projection(member_id: StringName) -> Dictionary:
 	var member_state: PartyMemberState = get_member_state(member_id)
 	if member_state == null:
 		return {}
-	if member_state.equipment_state == null:
+	return get_member_weapon_projection_for_equipment_view(member_id, member_state.equipment_state)
+
+
+func get_member_weapon_projection_for_equipment_view(member_id: StringName, equipment_view: Variant) -> Dictionary:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null:
+		return {}
+	var resolved_equipment_view = _normalize_equipment_view(equipment_view)
+	if resolved_equipment_view == null:
 		return _build_unarmed_weapon_projection()
-	if not (member_state.equipment_state is Object and member_state.equipment_state.has_method("get_equipped_item_id")):
-		return _build_unarmed_weapon_projection()
-	var weapon_item_id := ProgressionDataUtils.to_string_name(member_state.equipment_state.get_equipped_item_id(&"main_hand"))
+	var weapon_item_id := ProgressionDataUtils.to_string_name(resolved_equipment_view.get_equipped_item_id(&"main_hand"))
 	if weapon_item_id == &"":
 		return _build_unarmed_weapon_projection()
 	var item_def: ItemDef = _item_defs.get(weapon_item_id) as ItemDef
 	if item_def == null or not item_def.is_weapon():
 		return {}
-	return _build_weapon_projection_from_item_def(item_def, member_state.equipment_state)
+	return _build_weapon_projection_from_item_def(item_def, resolved_equipment_view)
 
 
 func get_member_weapon_physical_damage_tag(member_id: StringName) -> StringName:
@@ -947,15 +961,27 @@ func _build_progression_service(progression_state) -> ProgressionService:
 	return progression_service
 
 
-func _build_attribute_service(member_state: PartyMemberState) -> AttributeService:
+func _build_attribute_service(member_state: PartyMemberState, equipment_state_override: Variant = null) -> AttributeService:
 	var attribute_service: AttributeService = ATTRIBUTE_SERVICE_SCRIPT.new()
+	var equipment_state_variant: Variant = equipment_state_override if equipment_state_override != null else member_state.equipment_state
 	attribute_service.setup(
 		member_state.progression,
 		_skill_defs,
 		_profession_defs,
-		_party_equipment_service.build_attribute_modifiers(member_state.equipment_state)
+		_party_equipment_service.build_attribute_modifiers(equipment_state_variant)
 	)
 	return attribute_service
+
+
+func _normalize_equipment_view(equipment_view: Variant):
+	if equipment_view != null \
+		and equipment_view is Object \
+		and equipment_view.has_method("get_equipped_item_id"):
+		return equipment_view
+	if equipment_view is Dictionary:
+		var restored = EQUIPMENT_STATE_SCRIPT.from_dict(equipment_view)
+		return restored if restored != null else EQUIPMENT_STATE_SCRIPT.new()
+	return EQUIPMENT_STATE_SCRIPT.new()
 
 
 func _grant_skill_mastery_internal(

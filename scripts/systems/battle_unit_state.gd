@@ -7,6 +7,7 @@ extends RefCounted
 
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
+const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
 const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle_status_effect_state.gd")
 const DEFAULT_MOVE_POINTS_PER_TURN := 2
@@ -49,6 +50,10 @@ var occupied_coords: Array[Vector2i] = []
 var is_alive := true
 ## 字段说明：缓存属性快照实例，会参与运行时状态流转、系统协作和存档恢复。
 var attribute_snapshot: AttributeSnapshot = AttributeSnapshot.new()
+## 字段说明：记录战斗局部装备 view，保留 entry slot、occupied slots 与装备实例 ID，不直接指向 PartyMemberState.equipment_state。
+var equipment_view = EQUIPMENT_STATE_SCRIPT.new()
+## 字段说明：标记 battle-local equipment view 是否已从角色状态或战斗 payload 初始化，避免刷新时覆盖战中换装后的空装备状态。
+var equipment_view_initialized := false
 ## 字段说明：记录当前生命值，会参与运行时状态流转、系统协作和存档恢复。
 var current_hp := 0
 ## 字段说明：记录当前法力值，会参与运行时状态流转、系统协作和存档恢复。
@@ -172,6 +177,26 @@ func normalize_shield_state() -> void:
 	current_shield_hp = clampi(current_shield_hp, 0, shield_max_hp)
 	if current_shield_hp <= 0:
 		clear_shield()
+
+
+func get_equipment_view():
+	if equipment_view == null or not (equipment_view is Object and equipment_view.has_method("get_equipped_item_id")):
+		equipment_view = EQUIPMENT_STATE_SCRIPT.new()
+	return equipment_view
+
+
+func set_equipment_view(source_equipment_state: Variant) -> void:
+	equipment_view_initialized = true
+	if source_equipment_state != null \
+		and source_equipment_state is Object \
+		and source_equipment_state.has_method("duplicate_state"):
+		equipment_view = source_equipment_state.duplicate_state()
+		return
+	if source_equipment_state is Dictionary:
+		var restored_equipment = EQUIPMENT_STATE_SCRIPT.from_dict(source_equipment_state)
+		equipment_view = restored_equipment if restored_equipment != null else EQUIPMENT_STATE_SCRIPT.new()
+		return
+	equipment_view = EQUIPMENT_STATE_SCRIPT.new()
 
 
 func clear_weapon_projection() -> void:
@@ -309,6 +334,7 @@ func to_dict() -> Dictionary:
 		"occupied_coords": occupied_coords.duplicate(),
 		"is_alive": is_alive,
 		"attribute_snapshot": attribute_snapshot.to_dict() if attribute_snapshot != null else {},
+		"equipment_view": get_equipment_view().to_dict(),
 		"current_hp": current_hp,
 		"current_mp": current_mp,
 		"current_stamina": current_stamina,
@@ -361,6 +387,8 @@ static func from_dict(data: Dictionary):
 	unit_state.body_size = maxi(int(data.get("body_size", 1)), 1)
 	unit_state.is_alive = bool(data.get("is_alive", true))
 	unit_state.attribute_snapshot = _attribute_snapshot_from_dict(data.get("attribute_snapshot", {}))
+	if data.has("equipment_view"):
+		unit_state.set_equipment_view(data.get("equipment_view", {}))
 	unit_state.current_hp = int(data.get("current_hp", 0))
 	unit_state.current_mp = int(data.get("current_mp", 0))
 	unit_state.current_stamina = int(data.get("current_stamina", 0))

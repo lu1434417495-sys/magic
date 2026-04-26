@@ -49,7 +49,17 @@ class FakeCharacterGateway:
 			return attribute_snapshot
 		return null
 
+	func get_member_attribute_snapshot_for_equipment_view(member_id: StringName, _equipment_view):
+		if member_state != null and member_state.member_id == member_id:
+			return attribute_snapshot
+		return null
+
 	func get_member_weapon_projection(member_id: StringName) -> Dictionary:
+		if member_state != null and member_state.member_id == member_id:
+			return weapon_projection.duplicate(true)
+		return {}
+
+	func get_member_weapon_projection_for_equipment_view(member_id: StringName, _equipment_view) -> Dictionary:
 		if member_state != null and member_state.member_id == member_id:
 			return weapon_projection.duplicate(true)
 		return {}
@@ -96,6 +106,7 @@ func _run() -> void:
 	_test_runtime_start_battle_clones_party_backpack_view()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
+	_test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh()
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
 	_test_battle_unit_factory_no_longer_builds_manual_fallback_terrain()
 	if _failures.is_empty():
@@ -161,6 +172,9 @@ func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party
 func _test_runtime_start_battle_clones_party_backpack_view() -> void:
 	var registry := PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
 	var party_state := _make_party_state([&"hero"])
+	var member_state = party_state.get_member_state(&"hero")
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"equipped_bronze_001")
 	party_state.warehouse_state.stacks = [_make_stack(&"healing_herb", 2)]
 	party_state.warehouse_state.equipment_instances = [EQUIPMENT_INSTANCE_STATE_SCRIPT.create(&"bronze_sword")]
 	var gateway := FakeCharacterGateway.new()
@@ -192,6 +206,25 @@ func _test_runtime_start_battle_clones_party_backpack_view() -> void:
 	battle_backpack_view.equipment_instances.clear()
 	_assert_eq(_backpack_stack_signature(party_state.warehouse_state), ["healing_herb:2"], "修改 battle-local 堆叠不应回写 PartyState 仓库。")
 	_assert_eq(_backpack_instance_signature(party_state.warehouse_state), ["bronze_sword"], "修改 battle-local 装备实例不应回写 PartyState 仓库。")
+
+	var unit = state.units.get(state.ally_unit_ids[0]) if not state.ally_unit_ids.is_empty() else null
+	_assert_true(unit != null, "战斗 state 应持有友方单位以承载 battle-local equipment view。")
+	if unit == null:
+		return
+	var equipment_view = state.get_unit_equipment_view(unit.unit_id)
+	_assert_true(equipment_view != null, "BattleState 应能读取单位 battle-local equipment view。")
+	_assert_true(equipment_view != member_state.equipment_state, "单位 battle-local equipment view 不应直接引用 PartyMemberState.equipment_state。")
+	_assert_eq(
+		String(equipment_view.get_equipped_instance_id(&"main_hand")),
+		"equipped_bronze_001",
+		"单位 battle-local equipment view 应保留装备实例 ID。"
+	)
+	equipment_view.clear_entry_slot(&"main_hand")
+	_assert_eq(
+		String(member_state.equipment_state.get_equipped_instance_id(&"main_hand")),
+		"equipped_bronze_001",
+		"修改单位 battle-local equipment view 不应回写 PartyMemberState.equipment_state。"
+	)
 
 
 func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> void:
@@ -327,11 +360,79 @@ func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> vo
 		_assert_true(versatile.weapon_uses_two_hands, "两用武器空副手时应动态使用双手握法。")
 		_assert_eq(String(versatile.weapon_current_grip), "two_handed", "两用武器空副手时当前握法应为 two_handed。")
 
-		member_state.equipment_state.set_equipped_entry(&"off_hand", &"training_shield", _slot_ids([&"off_hand"]))
+		versatile.get_equipment_view().set_equipped_entry(&"off_hand", &"training_shield", _slot_ids([&"off_hand"]))
 		factory.refresh_weapon_projection(versatile)
 		_assert_true(not versatile.weapon_uses_two_hands, "两用武器副手被占用后重新投影应改为单手握法。")
 		_assert_eq(String(versatile.weapon_current_grip), "one_handed", "两用武器副手被占用后当前握法应为 one_handed。")
 		_assert_eq(_weapon_dice_signature(versatile.weapon_two_handed_dice), [1, 10, 0], "两用武器重新投影仍应保留双手骰供后续切换。")
+
+
+func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() -> void:
+	var progression_registry := PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
+	var item_defs := ITEM_CONTENT_REGISTRY_SCRIPT.new().get_item_defs().duplicate()
+	var party_state := _make_party_state([&"hero"])
+	var member_state = party_state.get_member_state(&"hero")
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"battle_start_sword")
+
+	var character_gateway := CHARACTER_MANAGEMENT_MODULE_SCRIPT.new()
+	character_gateway.setup(
+		party_state,
+		progression_registry.get_skill_defs(),
+		progression_registry.get_profession_defs(),
+		{},
+		item_defs
+	)
+	var runtime := FakeRuntime.new()
+	runtime._character_gateway = character_gateway
+	runtime._skill_defs = progression_registry.get_skill_defs()
+	var factory := BattleUnitFactory.new()
+	factory.setup(runtime)
+
+	var unit = _build_single_ally_unit(factory, party_state, "battle-local 装备 view")
+	if unit == null:
+		return
+	_assert_true(unit.get_equipment_view() != member_state.equipment_state, "构建战斗单位时应复制装备 view，而不是引用 PartyMemberState。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"main_hand")), "battle_start_sword", "battle-local 装备 view 应保留开战装备实例 ID。")
+	_assert_eq(String(unit.weapon_item_id), "bronze_sword", "初始武器投影应来自 battle-local 装备 view。")
+
+	var armor_ac_before := int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS))
+	unit.get_equipment_view().set_equipped_entry(&"head", &"leather_cap", _slot_ids([&"head"]), &"battle_cap")
+	factory.refresh_battle_unit(unit)
+	_assert_eq(
+		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS)) - armor_ac_before,
+		1,
+		"刷新战斗单位属性快照应读取 battle-local 装备 view。"
+	)
+	_assert_eq(String(member_state.equipment_state.get_equipped_item_id(&"head")), "", "battle-local 装备 view 改头部装备不应写回 PartyMemberState。")
+
+	var payload: Dictionary = unit.to_dict()
+	var payload_equipment: Dictionary = payload.get("equipment_view", {})
+	var payload_slots: Dictionary = payload_equipment.get("equipped_slots", {})
+	var payload_main_hand: Dictionary = payload_slots.get("main_hand", {})
+	var restored = BATTLE_UNIT_STATE_SCRIPT.from_dict(payload) as BattleUnitState
+	_assert_eq(String(payload_main_hand.get("instance_id", "")), "battle_start_sword", "BattleUnitState payload 应保留装备实例 ID。")
+	_assert_eq(
+		String(restored.get_equipment_view().get_equipped_instance_id(&"main_hand")) if restored != null else "",
+		"battle_start_sword",
+		"BattleUnitState round-trip 应恢复 battle-local 装备实例 ID。"
+	)
+
+	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
+	member_state.equipment_state.set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand", &"off_hand"]), &"party_late_greatsword")
+	factory.refresh_battle_unit(unit)
+	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"main_hand")), "battle_start_sword", "刷新战斗单位不应从 PartyMemberState 重灌装备 view。")
+	_assert_eq(String(unit.weapon_item_id), "bronze_sword", "刷新武器投影应继续读取 battle-local 装备 view。")
+
+	unit.get_equipment_view().set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand", &"off_hand"]), &"battle_swap_greatsword")
+	factory.refresh_battle_unit(unit)
+	_assert_eq(String(unit.weapon_item_id), "iron_greatsword", "修改 battle-local 装备 view 后应能重新投影当前武器。")
+	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"main_hand")), "battle_swap_greatsword", "battle-local 换装后的实例 ID 应留在单位 view 内。")
+	_assert_eq(
+		String(member_state.equipment_state.get_equipped_instance_id(&"main_hand")),
+		"party_late_greatsword",
+		"修改 battle-local 装备 view 不应直改 PartyMemberState.equipment_state。"
+	)
 
 
 func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> void:

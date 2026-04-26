@@ -9,6 +9,7 @@ const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attr
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
+const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
 const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
 const STATUS_VAJRA_BODY: StringName = &"vajra_body"
 const VAJRA_BODY_NON_CORE_MAX_LEVEL := 9
@@ -64,7 +65,8 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 	var member_state = character_gateway.get_member_state(unit_state.source_member_id)
 	if member_state == null:
 		return
-	var snapshot = character_gateway.get_member_attribute_snapshot(unit_state.source_member_id)
+	var equipment_view = _ensure_unit_equipment_view(unit_state, member_state)
+	var snapshot = _build_member_attribute_snapshot(member_state, {}, equipment_view)
 	if snapshot == null:
 		snapshot = ATTRIBUTE_SNAPSHOT_SCRIPT.new()
 
@@ -113,7 +115,7 @@ func refresh_known_skills(unit_state: BattleUnitState) -> void:
 func refresh_weapon_projection(unit_state: BattleUnitState) -> void:
 	if unit_state == null:
 		return
-	_apply_member_weapon_projection(unit_state, unit_state.source_member_id)
+	_apply_member_weapon_projection(unit_state, unit_state.source_member_id, unit_state.get_equipment_view())
 
 
 func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
@@ -177,9 +179,10 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	unit_state.control_mode = member_state.control_mode if member_state != null and member_state.control_mode != &"" else &"manual"
 	unit_state.body_size = maxi(int(member_state.body_size), 1) if member_state != null else 1
 	unit_state.refresh_footprint()
-	var snapshot := _build_member_attribute_snapshot(member_state, context)
+	unit_state.set_equipment_view(_get_member_equipment_state(member_state))
+	var snapshot := _build_member_attribute_snapshot(member_state, context, unit_state.get_equipment_view())
 	unit_state.attribute_snapshot = snapshot
-	_apply_member_weapon_projection(unit_state, member_id)
+	_apply_member_weapon_projection(unit_state, member_id, unit_state.get_equipment_view())
 	var hp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1)
 	var mp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0)
 	var stamina_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
@@ -315,7 +318,7 @@ func _skill_def_from_runtime(skill_id: StringName) -> SkillDef:
 	return _runtime.get_skill_defs().get(skill_id) as SkillDef
 
 
-func _build_member_attribute_snapshot(member_state, context: Dictionary) -> AttributeSnapshot:
+func _build_member_attribute_snapshot(member_state, context: Dictionary, equipment_view: Variant = null) -> AttributeSnapshot:
 	var snapshot := ATTRIBUTE_SNAPSHOT_SCRIPT.new()
 	if member_state == null:
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, maxi(int(context.get("default_ally_hp", 24)), 1))
@@ -339,7 +342,14 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary) -> Attr
 		return snapshot
 
 	if _runtime != null and _runtime.get_character_gateway() != null:
-		var runtime_snapshot = _runtime.get_character_gateway().get_member_attribute_snapshot(member_state.member_id)
+		var character_gateway: Object = _runtime.get_character_gateway()
+		var runtime_snapshot = null
+		if character_gateway.has_method("get_member_attribute_snapshot_for_equipment_view"):
+			runtime_snapshot = character_gateway.call(
+				"get_member_attribute_snapshot_for_equipment_view",
+				member_state.member_id,
+				equipment_view
+			)
 		if runtime_snapshot != null:
 			return runtime_snapshot
 
@@ -364,16 +374,7 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary) -> Attr
 	return snapshot
 
 
-func _resolve_member_weapon_physical_damage_tag(member_id: StringName) -> StringName:
-	if member_id == &"" or _runtime == null:
-		return &""
-	var character_gateway: Object = _runtime.get_character_gateway()
-	if character_gateway == null or not character_gateway.has_method("get_member_weapon_physical_damage_tag"):
-		return &""
-	return ProgressionDataUtils.to_string_name(character_gateway.call("get_member_weapon_physical_damage_tag", member_id))
-
-
-func _apply_member_weapon_projection(unit_state: BattleUnitState, member_id: StringName) -> void:
+func _apply_member_weapon_projection(unit_state: BattleUnitState, member_id: StringName, equipment_view: Variant = null) -> void:
 	if unit_state == null:
 		return
 	if member_id == &"" or _runtime == null:
@@ -383,16 +384,30 @@ func _apply_member_weapon_projection(unit_state: BattleUnitState, member_id: Str
 	if character_gateway == null:
 		unit_state.clear_weapon_projection()
 		return
-	if character_gateway.has_method("get_member_weapon_projection"):
-		var projection = character_gateway.call("get_member_weapon_projection", member_id)
+	if character_gateway.has_method("get_member_weapon_projection_for_equipment_view"):
+		var projection = character_gateway.call("get_member_weapon_projection_for_equipment_view", member_id, equipment_view)
 		unit_state.apply_weapon_projection(projection if projection is Dictionary else {})
 		return
-	unit_state.apply_weapon_projection({
-		"weapon_profile_kind": String(BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED),
-		"weapon_current_grip": String(BattleUnitState.WEAPON_GRIP_ONE_HANDED),
-		"weapon_uses_two_hands": false,
-		"weapon_physical_damage_tag": String(_resolve_member_weapon_physical_damage_tag(member_id)),
-	})
+	unit_state.clear_weapon_projection()
+
+
+func _ensure_unit_equipment_view(unit_state: BattleUnitState, member_state):
+	if unit_state == null:
+		return EQUIPMENT_STATE_SCRIPT.new()
+	if not bool(unit_state.equipment_view_initialized):
+		unit_state.set_equipment_view(_get_member_equipment_state(member_state))
+	return unit_state.get_equipment_view()
+
+
+func _get_member_equipment_state(member_state):
+	if member_state == null:
+		return EQUIPMENT_STATE_SCRIPT.new()
+	var member_equipment = member_state.equipment_state
+	if member_equipment != null \
+		and member_equipment is Object \
+		and member_equipment.has_method("get_equipped_item_id"):
+		return member_equipment
+	return EQUIPMENT_STATE_SCRIPT.new()
 
 
 func _apply_enemy_natural_weapon_projection(
