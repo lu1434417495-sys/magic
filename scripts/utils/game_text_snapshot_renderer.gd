@@ -497,23 +497,54 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 			if report_entry_variant is not Dictionary:
 				continue
 			var report_entry: Dictionary = report_entry_variant
+			if String(report_entry.get("type", report_entry.get("entry_type", ""))) == "change_equipment":
+				lines.append(_build_change_equipment_report_line(report_entry))
+				continue
 			lines.append("report=%s | reason=%s | tags=%s | text=%s" % [
 				String(report_entry.get("entry_type", "")),
 				String(report_entry.get("reason_id", "")),
 				_format_array(report_entry.get("event_tags", [])),
 				String(report_entry.get("text", "")),
 			])
+	var party_backpack: Dictionary = battle.get("party_backpack", {})
+	if not party_backpack.is_empty():
+		lines.append("backpack_used_slots=%d | stacks=%d | equipment_instances=%d" % [
+			int(party_backpack.get("used_slots", 0)),
+			int(party_backpack.get("stack_count", 0)),
+			int(party_backpack.get("equipment_instance_count", 0)),
+		])
+		var stack_entries_variant = party_backpack.get("stacks", [])
+		if stack_entries_variant is Array:
+			for stack_entry_variant in stack_entries_variant:
+				if stack_entry_variant is not Dictionary:
+					continue
+				var stack_entry: Dictionary = stack_entry_variant
+				lines.append("backpack_stack=%s | qty=%d" % [
+					String(stack_entry.get("item_id", "")),
+					int(stack_entry.get("quantity", 0)),
+				])
+		var equipment_entries_variant = party_backpack.get("equipment_instances", [])
+		if equipment_entries_variant is Array:
+			for equipment_entry_variant in equipment_entries_variant:
+				if equipment_entry_variant is not Dictionary:
+					continue
+				var equipment_entry: Dictionary = equipment_entry_variant
+				lines.append("backpack_equipment=%s | %s" % [
+					String(equipment_entry.get("instance_id", "")),
+					String(equipment_entry.get("item_id", "")),
+				])
 	var units_variant = battle.get("units", [])
 	if units_variant is Array:
 		for unit_variant in units_variant:
 			if unit_variant is not Dictionary:
 				continue
 			var unit: Dictionary = unit_variant
-			lines.append("unit=%s | %s | %s | hp=%d mp=%d st=%d/%d au=%d/%d shield=%d/%d dur=%d ap=%d move=%d | alive=%s | coord=%s" % [
+			lines.append("unit=%s | %s | %s | hp=%d/%d mp=%d st=%d/%d au=%d/%d shield=%d/%d dur=%d ap=%d move=%d | alive=%s | coord=%s | equip=%s" % [
 				String(unit.get("unit_id", "")),
 				String(unit.get("display_name", "")),
 				String(unit.get("faction_id", "")),
 				int(unit.get("current_hp", 0)),
+				int(unit.get("hp_max", 0)),
 				int(unit.get("current_mp", 0)),
 				int(unit.get("current_stamina", 0)),
 				int(unit.get("stamina_max", 0)),
@@ -526,8 +557,30 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 				int(unit.get("current_move_points", 0)),
 				_format_bool(bool(unit.get("is_alive", false))),
 				_format_coord(unit.get("coord", {})),
+				_format_battle_equipment(unit.get("equipment", [])),
 			])
 	return lines
+
+
+static func _build_change_equipment_report_line(report_entry: Dictionary) -> String:
+	return "report=change_equipment | ok=%s | error=%s | op=%s | unit=%s | target=%s | slot=%s | item=%s | instance=%s | ap=%d>%d | hp=%d/%d>%d/%d | hp_clamped=%s | text=%s" % [
+		_format_bool(bool(report_entry.get("ok", false))),
+		String(report_entry.get("error_code", "")),
+		String(report_entry.get("operation", report_entry.get("reason_id", ""))),
+		String(report_entry.get("unit_id", "")),
+		String(report_entry.get("target_unit_id", "")),
+		String(report_entry.get("slot_id", "")),
+		String(report_entry.get("item_id", "")),
+		String(report_entry.get("instance_id", "")),
+		int(report_entry.get("ap_before", 0)),
+		int(report_entry.get("ap_after", report_entry.get("current_ap", 0))),
+		int(report_entry.get("hp_before", 0)),
+		int(report_entry.get("hp_max_before", 0)),
+		int(report_entry.get("hp_after", 0)),
+		int(report_entry.get("hp_max_after", 0)),
+		_format_bool(bool(report_entry.get("hp_clamped", false))),
+		String(report_entry.get("text", "")),
+	]
 
 
 static func _build_loot_lines(loot: Dictionary) -> Array[String]:
@@ -636,6 +689,29 @@ static func _format_equipment(entries_variant: Variant) -> String:
 			String(entry.get("slot_id", "")),
 			String(entry.get("item_id", "")),
 		])
+	return " ".join(PackedStringArray(parts))
+
+
+static func _format_battle_equipment(entries_variant: Variant) -> String:
+	if entries_variant is not Array:
+		return ""
+	var parts: Array[String] = []
+	for entry_variant in entries_variant:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		var instance_id := String(entry.get("instance_id", ""))
+		if instance_id.is_empty():
+			parts.append("%s:%s" % [
+				String(entry.get("slot_id", "")),
+				String(entry.get("item_id", "")),
+			])
+		else:
+			parts.append("%s:%s#%s" % [
+				String(entry.get("slot_id", "")),
+				String(entry.get("item_id", "")),
+				instance_id,
+			])
 	return " ".join(PackedStringArray(parts))
 
 

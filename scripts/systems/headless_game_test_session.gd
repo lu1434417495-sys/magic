@@ -5,8 +5,10 @@ extends RefCounted
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
+const PROGRESSION_DATA_UTILS_SCRIPT = preload("res://scripts/player/progression/progression_data_utils.gd")
 const WORLD_PRESET_REGISTRY_SCRIPT = preload("res://scripts/utils/world_preset_registry.gd")
 const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/game_text_snapshot_renderer.gd")
 const HEADLESS_SETTLEMENT_LOOT_PROFILE_ID: StringName = &"wolf_den"
@@ -219,6 +221,115 @@ func finish_active_battle(winner_faction_id: StringName) -> Dictionary:
 	return result
 
 
+func change_battle_equipment(
+	operation: StringName,
+	slot_id: StringName,
+	item_id: StringName = &"",
+	instance_id: StringName = &"",
+	options: Dictionary = {}
+) -> Dictionary:
+	if not has_world_loaded() or _runtime == null:
+		return {
+			"ok": false,
+			"message": "当前世界地图不可用。",
+		}
+	if not _runtime.is_battle_active():
+		return {
+			"ok": false,
+			"message": "当前没有进行中的战斗。",
+		}
+	var battle_state = _runtime.get_battle_state()
+	if battle_state == null or battle_state.is_empty():
+		return {
+			"ok": false,
+			"message": "当前战斗状态不可用。",
+		}
+	if String(battle_state.phase) != "unit_acting" or battle_state.active_unit_id == &"":
+		return {
+			"ok": false,
+			"message": "当前没有可手动操作的行动单位。",
+		}
+	if String(battle_state.modal_state) != "":
+		return {
+			"ok": false,
+			"message": "当前战斗流程阻止换装。",
+		}
+	var active_unit = battle_state.units.get(battle_state.active_unit_id)
+	if active_unit == null or not bool(active_unit.is_alive):
+		return {
+			"ok": false,
+			"message": "当前行动单位不可用。",
+		}
+	if String(active_unit.control_mode) != "manual":
+		return {
+			"ok": false,
+			"message": "当前行动单位不是手动单位。",
+		}
+	var battle_runtime = _runtime.get_battle_runtime()
+	if battle_runtime == null:
+		return {
+			"ok": false,
+			"message": "当前战斗运行时不可用。",
+		}
+
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_CHANGE_EQUIPMENT
+	command.unit_id = active_unit.unit_id
+	command.target_unit_id = PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(
+		options.get("target_unit_id", String(active_unit.unit_id))
+	)
+	command.equipment_operation = operation
+	command.equipment_slot_id = slot_id
+	command.equipment_item_id = item_id
+	command.equipment_instance_id = instance_id
+	if operation == BATTLE_COMMAND_SCRIPT.EQUIPMENT_OPERATION_EQUIP:
+		var resolved_instance := _resolve_battle_backpack_equipment_instance(
+			battle_state,
+			item_id,
+			instance_id
+		)
+		if not bool(resolved_instance.get("ok", false)):
+			return resolved_instance
+		command.equipment_instance_id = PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(resolved_instance.get("instance_id", ""))
+		command.equipment_item_id = PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(resolved_instance.get("item_id", ""))
+		command.equipment_instance = {
+			"instance_id": String(command.equipment_instance_id),
+			"item_id": String(command.equipment_item_id),
+		}
+	elif operation == BATTLE_COMMAND_SCRIPT.EQUIPMENT_OPERATION_UNEQUIP:
+		if command.equipment_instance_id != &"":
+			command.equipment_instance = {
+				"instance_id": String(command.equipment_instance_id),
+				"item_id": String(command.equipment_item_id),
+			}
+	else:
+		return {
+			"ok": false,
+			"message": "战斗换装操作只能是 equip 或 unequip。",
+		}
+
+	var batch = battle_runtime.issue_command(command)
+	if _runtime != null:
+		if _runtime.has_method("record_command_battle_batch"):
+			_runtime.record_command_battle_batch(batch)
+		if _runtime.has_method("refresh_battle_runtime_state"):
+			_runtime.refresh_battle_runtime_state()
+		if batch != null and batch.log_lines is Array and not batch.log_lines.is_empty():
+			_runtime.update_status(String(batch.log_lines[-1]))
+	await settle_frames(1)
+
+	var report := _find_last_change_equipment_report(batch.report_entries if batch != null else [])
+	if report.is_empty():
+		return {
+			"ok": false,
+			"message": "战斗换装命令未产生结果。",
+		}
+	return {
+		"ok": bool(report.get("ok", false)),
+		"message": String(report.get("text", "")),
+	}
+
+
 func build_snapshot() -> Dictionary:
 	var snapshot := {
 		"session": {
@@ -252,6 +363,7 @@ func build_snapshot() -> Dictionary:
 		var world_snapshot: Dictionary = _runtime.build_headless_snapshot()
 		for key in world_snapshot.keys():
 			snapshot[key] = world_snapshot[key]
+		_augment_battle_snapshot(snapshot)
 	return snapshot
 
 
@@ -378,3 +490,143 @@ func _prime_headless_battle_loot_if_needed(winner_faction_id: StringName) -> voi
 	if preview_loot_entries.is_empty():
 		return
 	battle_runtime._active_loot_entries = preview_loot_entries.duplicate(true)
+
+
+func _resolve_battle_backpack_equipment_instance(
+	battle_state,
+	item_id: StringName,
+	instance_id: StringName
+) -> Dictionary:
+	var normalized_item_id := PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(item_id)
+	var normalized_instance_id := PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(instance_id)
+	if normalized_item_id == &"" and normalized_instance_id == &"":
+		return {
+			"ok": false,
+			"message": "用法: battle equip <slot_id> <item_id> [instance_id=<instance_id>]",
+		}
+	var backpack_view = battle_state.get_party_backpack_view() if battle_state != null else null
+	if backpack_view == null:
+		return {
+			"ok": false,
+			"message": "战斗背包状态不可用。",
+		}
+	for instance in backpack_view.get_non_empty_instances():
+		if instance == null:
+			continue
+		var candidate_instance_id := PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(instance.instance_id)
+		var candidate_item_id := PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(instance.item_id)
+		if normalized_instance_id != &"" and candidate_instance_id != normalized_instance_id:
+			continue
+		if normalized_item_id != &"" and candidate_item_id != normalized_item_id:
+			continue
+		return {
+			"ok": true,
+			"instance_id": String(candidate_instance_id),
+			"item_id": String(candidate_item_id),
+		}
+	var label := String(normalized_instance_id) if normalized_instance_id != &"" else String(normalized_item_id)
+	return {
+		"ok": false,
+		"message": "战斗背包中找不到装备 %s。" % label,
+	}
+
+
+func _find_last_change_equipment_report(report_entries: Array) -> Dictionary:
+	for index in range(report_entries.size() - 1, -1, -1):
+		var report_variant = report_entries[index]
+		if report_variant is not Dictionary:
+			continue
+		var report: Dictionary = report_variant
+		if String(report.get("type", report.get("entry_type", ""))) == "change_equipment":
+			return report
+	return {}
+
+
+func _augment_battle_snapshot(snapshot: Dictionary) -> void:
+	var battle_snapshot_variant = snapshot.get("battle", {})
+	if battle_snapshot_variant is not Dictionary:
+		return
+	var battle_snapshot: Dictionary = battle_snapshot_variant
+	if not bool(battle_snapshot.get("active", false)):
+		return
+	var battle_state = _runtime.get_battle_state() if _runtime != null else null
+	if battle_state == null or battle_state.is_empty():
+		return
+	battle_snapshot["party_backpack"] = _build_battle_backpack_snapshot(battle_state.get_party_backpack_view())
+	var units_variant = battle_snapshot.get("units", [])
+	if units_variant is Array:
+		for unit_snapshot_variant in units_variant:
+			if unit_snapshot_variant is not Dictionary:
+				continue
+			var unit_snapshot: Dictionary = unit_snapshot_variant
+			var unit_id := PROGRESSION_DATA_UTILS_SCRIPT.to_string_name(unit_snapshot.get("unit_id", ""))
+			var unit_state = battle_state.units.get(unit_id)
+			if unit_state == null:
+				continue
+			var equipment_entries := _build_battle_equipment_entries(unit_state.get_equipment_view())
+			unit_snapshot["hp_max"] = _get_battle_unit_hp_max(unit_state)
+			unit_snapshot["equipment"] = equipment_entries
+			unit_snapshot["equipment_count"] = equipment_entries.size()
+	snapshot["battle"] = battle_snapshot
+
+
+func _build_battle_backpack_snapshot(backpack_view) -> Dictionary:
+	var stack_entries: Array[Dictionary] = []
+	var equipment_entries: Array[Dictionary] = []
+	if backpack_view != null:
+		for stack in backpack_view.get_non_empty_stacks():
+			if stack == null:
+				continue
+			stack_entries.append({
+				"item_id": String(stack.item_id),
+				"quantity": int(stack.quantity),
+			})
+		for instance in backpack_view.get_non_empty_instances():
+			if instance == null:
+				continue
+			equipment_entries.append({
+				"instance_id": String(instance.instance_id),
+				"item_id": String(instance.item_id),
+			})
+	equipment_entries.sort_custom(Callable(self, "_compare_battle_backpack_equipment_entries"))
+	return {
+		"stack_count": stack_entries.size(),
+		"equipment_instance_count": equipment_entries.size(),
+		"used_slots": stack_entries.size() + equipment_entries.size(),
+		"stacks": stack_entries,
+		"equipment_instances": equipment_entries,
+	}
+
+
+func _build_battle_equipment_entries(equipment_view) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	if equipment_view == null or not (equipment_view is Object and equipment_view.has_method("get_entry_slot_ids")):
+		return entries
+	for entry_slot_id in equipment_view.get_entry_slot_ids():
+		var entry = equipment_view.get_entry(entry_slot_id)
+		if entry == null:
+			continue
+		entries.append({
+			"slot_id": String(entry_slot_id),
+			"item_id": String(entry.item_id),
+			"instance_id": String(entry.instance_id),
+			"occupied_slot_ids": _string_name_array_to_string_array(entry.occupied_slot_ids),
+		})
+	return entries
+
+
+func _get_battle_unit_hp_max(unit_state) -> int:
+	if unit_state == null or unit_state.attribute_snapshot == null:
+		return 0
+	return maxi(int(unit_state.attribute_snapshot.get_value(&"hp_max")), 1)
+
+
+func _string_name_array_to_string_array(values: Array[StringName]) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(String(value))
+	return result
+
+
+func _compare_battle_backpack_equipment_entries(a: Dictionary, b: Dictionary) -> bool:
+	return String(a.get("instance_id", "")) < String(b.get("instance_id", ""))

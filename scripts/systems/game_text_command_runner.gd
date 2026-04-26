@@ -482,7 +482,7 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 	if tokens.size() < 2:
 		return {
 			"ok": false,
-			"message": "用法: battle start/confirm/tick/skill/variant/move/wait/inspect/finish ...",
+			"message": "用法: battle start/confirm/tick/skill/variant/move/equip/unequip/wait/inspect/finish ...",
 		}
 	match tokens[1]:
 		"start":
@@ -533,6 +533,41 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 				"ok": false,
 				"message": "用法: battle move <up|down|left|right> | battle move <x> <y>",
 			}
+		"equip":
+			if tokens.size() < 4:
+				return {
+					"ok": false,
+					"message": "用法: battle equip <slot_id> <item_id> [instance_id=<instance_id>]",
+				}
+			var equip_args := _parse_named_args(tokens, 4)
+			return await _session.change_battle_equipment(
+				&"equip",
+				StringName(tokens[2]),
+				StringName(tokens[3]),
+				StringName(String(equip_args.get("instance_id", ""))),
+				equip_args
+			)
+		"unequip":
+			if tokens.size() < 3:
+				return {
+					"ok": false,
+					"message": "用法: battle unequip <slot_id> [instance_id=<instance_id>]",
+				}
+			var unequip_args_start := 3
+			var unequip_instance_id := ""
+			if tokens.size() >= 4 and tokens[3].find("=") < 0:
+				unequip_instance_id = tokens[3]
+				unequip_args_start = 4
+			var unequip_args := _parse_named_args(tokens, unequip_args_start)
+			if unequip_instance_id.is_empty():
+				unequip_instance_id = String(unequip_args.get("instance_id", ""))
+			return await _session.change_battle_equipment(
+				&"unequip",
+				StringName(tokens[2]),
+				&"",
+				StringName(unequip_instance_id),
+				unequip_args
+			)
 		"wait":
 			return runtime.command_battle_wait_or_resolve()
 		"inspect":
