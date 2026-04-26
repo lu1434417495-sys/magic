@@ -6,7 +6,7 @@
 
 - 这份文档按“真相源 + 运行期职责 + 改动边界”切分当前仓库。
 - 它不是目录导览，而是给 agent / 开发者做装载决策用的：改一个需求时，应该一起读哪些文件，哪些不要顺手混进来。
-- 本次刷新基于当前仓库实际文件树与入口脚本，覆盖登录壳、世界预设与存档、世界/战斗双态 runtime、共享仓库与装备基础流转、角色成长/成就、战斗棋盘主链、敌方内容注册表、headless 文本指令链，以及现有自动化回归。
+- 本次刷新基于当前仓库实际文件树与入口脚本，覆盖登录壳、世界预设与存档、世界/战斗双态 runtime、队伍共享背包（历史 `warehouse` 命名）与装备基础流转、角色成长/成就、战斗棋盘主链、敌方内容注册表、headless 文本指令链，以及现有自动化回归。
 
 ## 读取范围
 
@@ -157,13 +157,13 @@ HeadlessGameTestSession
   - `WorldMapSystem` 主要承担场景节点接线、输入捕获、窗口信号回调与 UI 渲染同步，不再对外暴露 runtime 命令 / snapshot 透传接口。
 - `BattleMapPanel -> BattleBoard2D -> BattleBoardController` 仍是当前正式战斗展示主链。
 - `PartyState.pending_character_rewards` 是当前唯一正式奖励队列；旧 `pending_mastery_rewards` 兼容桥已移除。
-- 共享仓库现在是独立单元，不再只是队伍窗口的附属功能。
+- 队伍共享背包现在是独立单元，不再只是队伍窗口的附属功能；历史 `warehouse` 文件 / 服务名当前仍指队伍随身背包，不代表未来据点共享仓库。
 - `PartyEquipmentService` 已经是正式 bridge，不应再把“装备基础流转”误判为纯 UI 或纯仓库任务。
 - 敌方模板与 AI brain 已经是单独的内容单元，不应再塞进 battle runtime 文件里顺手改。
 - headless / text runtime 已经是正式辅助链路，不是临时测试脚本，也不是主启动链或正式玩家 UI。
 - 当前自动化覆盖已经扩展到：
   - 装备种子内容与装备 / 卸装回归
-  - 共享仓库规则
+  - 队伍共享背包规则
   - battle runtime smoke 与 battle board 渲染契约
   - progression / achievement / reward queue
   - text command headless 回归
@@ -403,7 +403,7 @@ HeadlessGameTestSession
   - `GameRuntimeSettlementCommandHandler` 创建缺失 settlement state 时也通过 `TrueRandomSeedService` 补 `shop_inventory_seed`，避免地图运行时新状态继续落固定 seed。
   - `SettlementShopService` 承载商店库存生成、买卖结算和 shop runtime state 刷新；商店库存 `seed` 由 `TrueRandomSeedService` 分配并随 shop state 持久化，不再用 settlement/shop/world_step 哈希派生；不要把商店定价和库存更新逻辑回塞到 `WorldMapSystem` 或 `SettlementWindow`。
   - `SettlementForgeService` 承载 `RecipeDef` 装载、设施标签校验以及通过 `PartyWarehouseService` 的原子扣料 / 入仓；不要把 forge 规则回塞到 `GameRuntimeSettlementCommandHandler` 或 `GameRuntimeFacade`。
-  - `GameRuntimeWarehouseHandler` 承载共享仓库窗口数据、默认目标成员解析和 `warehouse` 命令处理；仓库窗口状态、当前入口标签、默认目标成员和仓库持久化链路的运行时读写优先通过 `GameRuntimeFacade` 的显式 warehouse helper / state accessor 协调，不再直接散写 runtime 私有字段。
+  - `GameRuntimeWarehouseHandler` 承载队伍共享背包窗口数据、默认目标成员解析和历史 `warehouse` 命令处理；仓库窗口状态、当前入口标签、默认目标成员和队伍共享背包持久化链路的运行时读写优先通过 `GameRuntimeFacade` 的显式 warehouse helper / state accessor 协调，不再直接散写 runtime 私有字段。
   - `GameRuntimeFacade` 现在也持有“普通战 calamity 结算碎片”的 chapter 级持久化闸门：`BattleRuntimeModule` 只产出 raw `calamity_conversion` / fate fixed loot 条目，是否受本章普通战上限约束、以及上限计数落在 `PartyState.fate_run_flags` 的哪几个槽位，统一由 facade 在 battle loot commit 分流时裁切与记账；不要把 chapter cap 逻辑塞回 battle runtime 或仓库服务。
   - `GameRuntimePartyCommandHandler` 承载队伍管理窗口打开、成员选择、队长切换、编成提交，以及装备 / 卸装与队伍持久化回写；队伍窗口、当前选中成员和队伍持久化链路的运行时读写优先通过 `GameRuntimeFacade` 的显式 party helper / state accessor 协调，不再直接散写 runtime 私有字段。
   - `GameRuntimeRewardFlowHandler` 承载角色奖励确认、晋升选择、reward/promotion modal 编排与待领奖励呈现时机；奖励 modal 需要继续避让据点任务板 / 商店 / forge / 驿站等互斥窗口，相关运行时读写优先通过 `GameRuntimeFacade` 的显式 reward helper / state accessor 协调，不再直接散写 runtime 私有字段。
@@ -435,7 +435,7 @@ HeadlessGameTestSession
   - 改 headless snapshot 结构。
 - 不要把它当成：
   - 世界生成本体。
-  - 仓库规则本体。
+  - 队伍共享背包规则本体。
   - 战斗 renderer 本体。
 
 ### CU-07 世界地图渲染叶子单元
@@ -525,13 +525,18 @@ HeadlessGameTestSession
   - `scripts/systems/battle_grid_service.gd`
   - `scripts/systems/world_map_spawn_system.gd`
 
-### CU-10 共享仓库、物品定义与装备基础流转
+### CU-10 队伍共享背包、物品定义与装备基础流转
 
 - 文件：
+  - `scripts/player/equipment/equipment_requirement.gd`
   - `scripts/player/equipment/equipment_rules.gd`
   - `scripts/player/equipment/equipment_state.gd`
+  - `scripts/player/equipment/equipment_entry_state.gd`
   - `scripts/player/warehouse/item_def.gd`
   - `scripts/player/warehouse/item_content_registry.gd`
+  - `scripts/player/warehouse/weapon_profile_def.gd`
+  - `scripts/player/warehouse/weapon_damage_dice_def.gd`
+  - `scripts/player/warehouse/equipment_instance_state.gd`
   - `scripts/player/warehouse/recipe_def.gd`
   - `scripts/player/warehouse/recipe_content_registry.gd`
   - `scripts/player/warehouse/warehouse_state.gd`
@@ -563,18 +568,21 @@ HeadlessGameTestSession
 - 真相源：
   - 物品定义与 `item_id -> ItemDef`。
   - 配方定义与 `recipe_id -> RecipeDef`。
-  - 仓库堆栈状态。
+  - `PartyState.warehouse_state` 当前语义是队伍共享背包：队伍随身携带的普通堆栈与装备实例池，历史文件 / 服务名仍使用 `warehouse`，但它不是未来据点共享仓库。
+  - `WarehouseState.stacks` / `WarehouseState.equipment_instances` 分别是普通堆叠物与装备实例的运行时真相源；装备实例只保存 `item_id`、`instance_id`、稀有度等实例字段，不序列化静态 `weapon_profile` 资源。
   - 装备槽位状态与固定槽位规则。
-- 武器 `ItemDef.weapon_profile` 是武器运行时真相源；攻击范围、伤害类型、单双手骰、versatile 与当前握法会在开战时投影到 `BattleUnitState`，战斗内武器技能射程统一由 `BattleRangeService` 从该投影读取并叠加临时修正，不再从角色 attribute snapshot 的旧 `weapon_attack_range` 兜底读取。
+  - 武器 `ItemDef.weapon_profile` 是武器运行时真相源；攻击范围、伤害类型、单双手骰、versatile 与当前握法会在开战时投影到 `BattleUnitState`，战斗内武器技能射程统一由 `BattleRangeService` 从该投影读取并叠加临时修正，不再从角色 attribute snapshot 或旧 `ItemDef` 顶层武器字段兜底读取。
   - `EquipmentDropService` 当前持有装备掉落稀有度公式：`3d6 + drop_luck`。
   - 当前容量 / 已用 / 超容规则。
 - 主要职责：
-  - 按堆栈管理共享仓库。
+  - 按普通堆栈 + `equipment_instances` 管理队伍共享背包；据点入口当前只是通过 `party_warehouse` 服务打开同一份队伍随身背包，不代表据点拥有独立共享仓库状态。
+  - `party_warehouse` 是历史服务 / 窗口命名；当前运行时状态仍是队伍随身背包。
+  - 未来据点共享仓库必须新增独立 world / settlement 状态与服务入口；不能复用或直接改写 `PartyState.warehouse_state`，战斗中也不能访问据点共享仓库。
   - 用全队 `storage_space` 统计容量。
   - `ItemContentRegistry` 在注册阶段先扫描 `data/configs/items_templates`，再扫描 `data/configs/items`；当前武器模板只保留正式会用到的 BG3 子集（Shortsword / Greatsword / Handaxe / Mace），实例若声明 `base_item_id` 会沿模板链合并（标量空回退、tags/modifiers 合并去重、equipment_slot_ids 覆盖、weapon_profile 委托 `WeaponProfileDef` 合并、attribute_modifiers 深拷贝并把 source_id 重写为最终 item_id），合并产物才进入 `_item_defs`。模板自身不暴露给运行时；循环或缺失模板在校验阶段报错。
   - `RecipeContentRegistry` 负责扫描 / 校验 `RecipeDef`，供据点 forge 流读取。
   - `EquipmentDropService` 负责把调用方已 clamp 的 `drop_luck` 映射为正式装备稀有度；当前不持有掉落表内容，也不二次 clamp。
-  - 战斗内随机装备掉落现在由 `BattleRuntimeModule` 在敌人死亡瞬间调用 `EquipmentDropService` 预 roll，`GameRuntimeFacade` 只负责把已解析好的 `equipment_instance` 写入共享仓库。
+  - 战斗内随机装备掉落现在由 `BattleRuntimeModule` 在敌人死亡瞬间调用 `EquipmentDropService` 预 roll，`GameRuntimeFacade` 只负责把已解析好的 `equipment_instance` 写入队伍共享背包。
   - `PartyWarehouseService.setup_party_backpack_view()` 可把同一套堆叠 / 装备实例规则绑定到 battle-local 队伍共享背包 view；该 view 复用 `WarehouseState` 结构，但语义上不是据点共享仓库，也不直接改写 `PartyState.warehouse_state`。
   - `preview_add_item` / `add_item` / `remove_item`。
   - 处理仓库与装备槽位之间的基础装备 / 卸装事务。
@@ -788,6 +796,7 @@ HeadlessGameTestSession
   - `scripts/systems/battle_runtime_module.gd`
   - `scripts/systems/battle_session_facade.gd`
   - `scripts/systems/battle_resolution_result.gd`
+  - `scripts/systems/game_runtime_facade.gd`
   - `scripts/systems/fortune_service.gd`
   - `scripts/systems/misfortune_service.gd`
   - `scripts/systems/fortuna_guidance_service.gd`
@@ -819,6 +828,8 @@ HeadlessGameTestSession
 - 真相源：
   - 当前 `BattleState` 生命周期。
   - 当前 active unit / phase / modal。
+  - `BattleState.party_backpack_view` 与 `BattleUnitState.equipment_view` 作为战斗内换装 / 背包副本真相源；战斗结束后由 `GameRuntimeFacade` 回写 `PartyState.warehouse_state` 与成员装备状态。
+  - 战斗中不支持 save payload；`GameSession` 的 battle save lock 使 `save_game_state()` 只标记 dirty，`flush_game_state()` 在战斗解锁前返回 busy。
   - preview、event batch、battle rating 统计、战斗内技能熟练度条件触发与 post-battle reward 产出。
   - battle simulation 的 AI turn trace、全单位 battle metrics、profile override 与 report schema。
 - 主要职责：
@@ -837,7 +848,7 @@ HeadlessGameTestSession
   - `BattleUnitFactory` 构建 / 刷新友军单位时先把 `PartyMemberState.equipment_state` 复制到 `BattleUnitState.equipment_view`，后续 attribute snapshot 与 weapon projection 刷新都以这份 battle-local 装备 view 为输入；`action_threshold` 仍写入 `BattleUnitState.action_threshold`，正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
   - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有 battle-local `equipment_view`、武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足 `requires_weapon`，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前近战武器伤害类型的近战技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
-  - `BattleState.party_backpack_view` 是开战时从 `PartyState.warehouse_state` 复制出的 battle-local 队伍共享背包 view；`BattleUnitState.equipment_view` 是每个友军开战时从 `PartyMemberState.equipment_state` 复制出的 battle-local 装备 view，并保留 `entry_slot -> EquipmentEntryState(item_id, occupied_slot_ids, instance_id)` 结构。战斗内后续背包 / 换装命令必须只改这两份 view，不直接访问据点共享仓库或直接 mutate party 背包 / 成员装备状态；`BattleRuntimeModule` 的换装事务从 `ItemDef` 解析主手双手武器、副手装备与 versatile 握法联动，在副本 view 上完成容量与实例唯一所有权校验，成功后才提交并按一次命令扣 AP。当前仍不扩 battle save payload，战斗中存档继续依赖现有 save lock 不支持。
+  - `BattleState.party_backpack_view` 是开战时从 `PartyState.warehouse_state` 复制出的 battle-local 队伍共享背包 view；`BattleUnitState.equipment_view` 是每个友军开战时从 `PartyMemberState.equipment_state` 复制出的 battle-local 装备 view，并保留 `entry_slot -> EquipmentEntryState(item_id, occupied_slot_ids, instance_id)` 结构。战斗内后续背包 / 换装命令必须只改这两份 view，不直接访问据点共享仓库或直接 mutate party 背包 / 成员装备状态；`BattleRuntimeModule` 的 `TYPE_CHANGE_EQUIPMENT` 事务从 `ItemDef` 解析主手双手武器、副手装备与 versatile 握法联动，在副本 view 上完成容量与实例唯一所有权校验，成功后才提交并按一次命令扣 `2 AP`。当前仍不扩 battle save payload，战斗中存档继续依赖现有 save lock 不支持；`GameSession.save_game_state()` 在 lock 中只标记 dirty，`flush_game_state()` 返回 busy，解锁后再统一持久化。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。
@@ -860,6 +871,9 @@ HeadlessGameTestSession
   - `BattleRuntimeModule.start_battle()` 现在统一通过 `BattleUnitFactory` 构建友军 / 敌军 / terrain，并在实际摆放后通过 `BattleSpawnReachabilityService` 验证敌方出生点最终能抵达攻击玩家的位置；`CharacterManagementModule` 不再直接产出 `BattleUnitState`。
   - 若以后实现“近战命中驱动的装备耐久 / 装备损坏”，这里是命中触发点，但正式状态写回仍要经过 CU-10 / CU-11 / CU-12。
 - 邻接单元：
+  - CU-02
+  - CU-10
+  - CU-11
   - CU-12
   - CU-13
   - CU-14
@@ -867,11 +881,13 @@ HeadlessGameTestSession
   - CU-17
   - CU-18
   - CU-20
+  - CU-21
 - 适合任务：
   - 改指令生命周期。
   - 改地面技能流程。
   - 改战斗评分奖励。
   - 改 AI / 手动切换时序。
+  - 改战斗内换装事务、battle-local 背包 view 或战后回写。
 - 不要顺手带上：
   - 登录壳。
   - 共享仓库窗口。
@@ -896,6 +912,7 @@ HeadlessGameTestSession
   - `scripts/systems/fate_attack_formula.gd`
   - `scripts/systems/battle_damage_resolver.gd`
   - `scripts/systems/battle_damage_preview_range_service.gd`
+  - `scripts/player/progression/combat_effect_def.gd`
   - `scripts/systems/battle_status_semantic_table.gd`
   - `scripts/systems/battle_hit_resolver.gd`
   - `scripts/systems/battle_range_service.gd`
@@ -906,9 +923,14 @@ HeadlessGameTestSession
   - `scripts/systems/battle_ai_score_service.gd`
   - `scripts/systems/battle_ai_decision.gd`
   - `scripts/systems/battle_ai_service.gd`
+  - `scripts/player/warehouse/weapon_profile_def.gd`
+  - `scripts/player/warehouse/weapon_damage_dice_def.gd`
 - 真相源：
   - battle cells / columns / units / occupancy / height / terrain effect / edge feature / timeline。
   - per-unit 移动标签与地形基础规则的组合判定。
+  - `BattleUnitState` 的武器投影字段（`weapon_profile_kind`、`weapon_item_id`、`weapon_profile_type_id`、`weapon_attack_range`、一手 / 双手骰、versatile、当前握法、`weapon_physical_damage_tag`）是战斗规则层读取武器的真相源。
+  - 武器骰只从 `BattleUnitState` 的武器投影字段读取；旧 attribute snapshot 武器字段不是 fallback 输入。
+  - 单段 damage event 的 weapon dice / skill dice / high-total dice flags 与 reason 是骰子事件真相源；顶层 battle result 只做 OR 汇总。
 - 主要职责：
   - 提供 battle 纯规则层 API。
   - 处理 footprint、移动、墙边 / 高差 / 占位规则。
@@ -917,7 +939,9 @@ HeadlessGameTestSession
   - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
   - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
   - `BattleDamageResolver` 现已正式切到“攻击侧倍率一次聚合取整 -> `IMMUNE / HALF / NORMAL / DOUBLE` -> 固定值减伤 -> 护盾后吸收”的 M1 流水线；元素抗性不再是人物主属性派生值，完全免疫、减半与易伤一律通过状态参数 `mitigation_tier` 结算。`armor_break` 不再提供承伤易伤倍率，而是在 `BattleHitResolver` 中按 `power * 2` 降低目标有效 AC；`damage_reduction_up`、`guarding` 不再按旧百分比链解释。`black_star_brand_elite` 的“禁暴击 / 首次受击穿透部分格挡”也在这层消费，不要把这一击穿透逻辑回写到 skill resource。
-  - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 提供。
+  - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，且只有 `params.add_weapon_dice = true` 的 damage effect 才额外读取当前武器骰。`physical` damage 不会自动加武器骰，旧裸武器字段也没有 fallback。之后再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 或 `params.use_weapon_physical_damage_tag` 的当前武器投影提供。
+  - `BattleDamageResolver` 对暴击采用额外再掷一组 weapon dice / skill dice 的语义；`damage_dice_high_total_roll`、`skill_damage_dice_is_max`、`weapon_damage_dice_is_max` 及其 reason 都按每个 damage event 独立计算，没有对应骰组时必须为 false，不能因 `0 == 0` 触发。
+  - `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害骰，但不能满足 `requires_weapon`，也不参与武器熟练 / 武器精通。
   - `BattleDamagePreviewRangeService` 只负责纯预览的非暴击基础伤害范围：按 `power + add_weapon_dice 当前武器骰 + 技能骰 + dice_bonus` 汇总多段 damage effect；不调用 `BattleDamageResolver`，不消费 RNG，也不读取 target/status/shield/mastery/report。
   - `BattleDamageResolver` 现在还消费 `LowLuckRelicRules` 的 battle-local 遗物逻辑：逆命护符会把首次 `critical_fail` 降级为普通 miss 并施加 2 回合输出下降，黑星楔钉会在首击忽视部分 guard 后于未击杀时给自己挂 1 回合 exposed，血债披肩会在低血时减伤；这些 battle-local 首次触发锁不要散写到 skill / item resource。
 - `BattleFateAttackRules` 现在是 battle attack roll 语义的共享 helper，负责统一“命中线 / 封暴击状态 / d20 是否命中”的纯判定；`BattleDamageResolver` 与 `BattleHitResolver` 都必须复用它，避免 runtime 执行与 preview/AI 评分再次分叉。
@@ -1042,6 +1066,7 @@ HeadlessGameTestSession
   - `tests/battle_runtime/run_battle_unit_factory_regression.gd`
   - `tests/battle_runtime/run_battle_skill_protocol_regression.gd`
   - `tests/battle_runtime/run_battle_damage_preview_range_contract_regression.gd`
+  - `tests/battle_runtime/run_battle_weapon_dice_regression.gd`
   - `tests/battle_runtime/run_battle_ui_regression.gd`
   - `tests/battle_runtime/run_battle_loot_drop_luck_regression.gd`
   - `tests/battle_runtime/run_battle_6v40_headless_benchmark.gd`
@@ -1095,6 +1120,7 @@ HeadlessGameTestSession
   - `tests/text_runtime/run_submap_text_command_regression.gd`
   - `tests/text_runtime/run_text_save_load_regression.gd`
   - `tests/text_runtime/run_validation_text_surface_regression.gd`
+  - `tests/text_runtime/run_battle_equipment_text_command_regression.gd`
   - `tests/text_runtime/run_text_command_script.gd`
   - `tests/text_runtime/run_text_command_repl.gd`
   - `tests/text_runtime/scenarios/smoke_startup.txt`
@@ -1118,21 +1144,28 @@ HeadlessGameTestSession
 - 主要职责：
   - equipment：
     - 装备种子内容校验
-    - 装备 / 卸装与共享仓库联动
+    - 装备 / 卸装与队伍共享背包联动
     - 装备属性进入角色快照
     - `PartyState` round-trip 后保留装备状态
     - `EquipmentDropService` 的 3d6 掉落稀有度阈值与 `drop_luck` 极值边界
+    - `WeaponProfileDef` / `WeaponDamageDiceDef` 模板继承、装备实例 round-trip、旧裸武器字段无 fallback
   - warehouse：
     - 当前 schema 严格校验
     - 堆叠 / 容量 / 超容规则
     - save round-trip
-    - 队伍入口与据点入口打开共享仓库
+    - 队伍入口与据点入口当前打开同一份队伍共享背包；未来据点共享仓库应另建 world / settlement 状态
   - battle runtime smoke：
     - terrain effect 时序
     - 真堆叠列移动规则
     - 墙 / 高差阻挡
     - move command 扣行动点（`current_move_points`）且不误扣 AP，并完成占位更新
     - height delta 与 column cache 同步
+  - battle weapon dice：
+    - `params.add_weapon_dice` 显式加性公式
+    - physical damage 默认不自动加武器骰
+    - 暴击额外骰、weapon / skill / high-total dice event 语义
+    - versatile / 双手 / 空手 / 天生武器投影
+    - `params.requires_weapon` 只接受 equipped weapon，不接受 unarmed / natural weapon
   - battle spawn reachability：
     - `BattleSpawnReachabilityService` 脚本存在性
     - 深水完全隔断时敌方出生点判定 invalid 并返回可定位 details
@@ -1180,6 +1213,7 @@ HeadlessGameTestSession
   - text runtime：
     - `game new/load`
     - `world/party/settlement/warehouse/battle/reward/promotion/close/snapshot/expect`
+    - `battle equip` / `battle unequip` 的 battle-local 换装命令、`party_backpack` 快照与战后回写
     - headless snapshot 与文本快照稳定性
     - `validation` 结构化快照 / `[VALIDATION]` 文本分段，以及不依赖日志抓取的校验失败断言面
   - capture：
@@ -1214,15 +1248,21 @@ HeadlessGameTestSession
   - `scripts/enemies/actions/use_ground_skill_action.gd`
   - `scripts/enemies/actions/use_unit_skill_action.gd`
   - `scripts/enemies/actions/wait_action.gd`
+  - `scripts/systems/encounter_roster_builder.gd`
+  - `scripts/player/warehouse/item_def.gd`
+  - `scripts/player/warehouse/weapon_profile_def.gd`
+  - `scripts/player/warehouse/weapon_damage_dice_def.gd`
   - `data/configs/enemies/enemy_content_seed.tres`
   - `data/configs/enemies/brains/*.tres`
   - `data/configs/enemies/templates/*.tres`
   - `data/configs/enemies/rosters/*.tres`
+  - 改 `attack_equipment_item_id` 时按需读取 `data/configs/items/*.tres`
 - 真相源：
   - `enemy_template_id -> EnemyTemplateDef`
   - `brain_id -> EnemyAiBrainDef`
   - `encounter_profile_id -> WildEncounterRosterDef`
   - `EnemyTemplateDef.drop_entries` 作为敌方单位 per-kill 掉落配置真相源。
+  - `EnemyTemplateDef.attack_equipment_item_id` 作为非 `beast` 敌人的攻击装备真相源；它只用于战斗武器投影，不是死亡掉落真相源。
   - 各状态下的 action 顺序、目标选择与距离策略。
 - 主要职责：
   - 读取 `data/configs/enemies/enemy_content_seed.tres`，把正式 enemy template / AI brain / wild encounter roster 的资源清单装配进 registry。
@@ -1230,15 +1270,18 @@ HeadlessGameTestSession
   - 在 registry 阶段校验 template -> brain、template.drop_entries、roster stage -> template 等静态引用。
   - `EnemyTemplateDef` 同时承担“这个敌人怎么打”和“这个敌人死后掉什么”的静态作者职责；`WildEncounterRosterDef` 只负责回答“这一场会出现哪些敌人、各几只”。
   - `EnemyTemplateDef` 现在同时拥有敌方六维来源：非野兽模板必须显式提供 `base_attribute_overrides`，带 `beast` 标签的模板在 `EncounterRosterBuilder` 入场时按 deterministic `5D3-1` 生成六维，然后再叠加 `attribute_overrides` 写出正式战斗面板。
-  - `EnemyTemplateDef` 也持有敌方武器来源：非 `beast` 模板必须通过 `attack_equipment_item_id` 显式引用一个正式武器 `ItemDef`，模板入场时投影为 `BattleUnitState` 的 equipped weapon；该攻击装备只影响战斗投影，不自动进入死亡掉落。内容校验会报告非 `beast` 模板缺攻击装备；若运行时仍遇到缺失或无效攻击装备，战斗投影降级为 `unarmed`（1D4、`physical_blunt`、range 1）。
+  - `EnemyTemplateDef` 也持有敌方武器来源：非 `beast` 模板必须通过 `attack_equipment_item_id` 显式引用一个正式武器 `ItemDef.weapon_profile`，模板入场时投影为 `BattleUnitState` 的 equipped weapon；该攻击装备只影响战斗投影，不自动进入死亡掉落。内容校验会报告非 `beast` 模板缺攻击装备；若运行时仍遇到缺失或无效攻击装备，战斗投影降级为 `unarmed`（1D4、`physical_blunt`、range 1）。
+  - `EncounterRosterBuilder` 是敌方模板进入战斗单位构建前的 roster bridge；检查敌方攻击装备投影时要和 `EnemyTemplateDef` 一起读。
   - 带 `beast` 标签的模板默认投影 `natural_weapon`：`1D6`、`physical_blunt`、melee、range 1；模板可通过 `natural_weapon_damage_tag` 或 `bite/sting/horn`、`claw/tear`、`slam/charge/trample` 标签分别覆写为 pierce、slash、blunt。
   - `EnemyTemplateDef.attribute_overrides` 继续使用 `attack_bonus`、`armor_class` 与可选 AC 组件属性描述战斗面板；不要再写旧攻击 / 防御 / 命中 / 闪避属性，也不要再写 `weapon_attack_range` / `weapon_physical_damage_tag`。
+  - 敌方死亡掉落只读 `EnemyTemplateDef.drop_entries`；如果希望敌人持有的攻击装备可掉落，必须显式写进 `drop_entries` 或另起缴械 / 掉落规则，不允许把 `attack_equipment_item_id` 自动当作死亡掉落。
   - 定义近战压迫型、远程控制型等默认行为树形态。
   - 为 `BattleRuntimeModule / BattleAiService` 提供静态敌方内容。
   - `EnemyAiAction` 的 `nearest_enemy / lowest_hp_enemy` 等正式 target selector 只负责排序候选，不拥有独立的 taunt 语义真相源；battle 内强制目标一律从 `BattleAiContext` 读取。
   - `UseUnitSkillAction` 的 `distance_reference` 当前支持 `target_unit / enemy_frontline`；`UseGroundSkillAction` 当前支持 `target_coord / enemy_frontline`。不要再依赖 score service 默认距离带推断站位。
 - 邻接单元：
   - CU-02
+  - CU-10
   - CU-15
   - CU-16
   - CU-17
@@ -1249,7 +1292,7 @@ HeadlessGameTestSession
   - 改 target selector / distance 策略。
 - 不要顺手带上：
   - `scripts/ui/*`
-  - `scripts/player/warehouse/*`
+  - `scripts/player/warehouse/*` 的规则实现；只有校验或新增 `attack_equipment_item_id` 引用时才按需补 CU-10。
 
 ### CU-21 Headless runtime、文本命令与快照渲染
 
@@ -1259,11 +1302,13 @@ HeadlessGameTestSession
   - `scripts/systems/game_text_command_result.gd`
   - `scripts/utils/game_text_snapshot_renderer.gd`
   - `tests/text_runtime/*.gd`
+  - `tests/text_runtime/run_battle_equipment_text_command_regression.gd`
   - `tests/text_runtime/README.md`
 - 真相源：
   - headless 模式下的 session / world loaded / runtime snapshot 语义。
   - 文本命令域、参数格式、expect 断言语法。
   - 文本快照渲染格式。
+  - 自动化专用 battle-local 换装命令与快照格式。
 - 定位：
   - 开发 / 自动化辅助链路。
 - 主要职责：
@@ -1273,13 +1318,16 @@ HeadlessGameTestSession
   - 用 `GameTextSnapshotRenderer` 渲染稳定文本快照；当前快照已正式包含 `validation` 段与 `[VALIDATION]` 文本分段、`logs` 段与 `[LOG]` 文本分段、`game_over` 段与 `[GAME_OVER]` 文本分段，以及据点 `contract_board` / forge modal 的 `[CONTRACT_BOARD]` / `[FORGE]` 分段，供自动化 / agent / 人工排障读取结构化校验摘要、最近运行日志、主角死亡上下文与服务窗口状态。
   - 当前还覆盖 mounted submap 的确认进入、返回原坐标和 active map snapshot / 文本命令。
   - 当前文本命令域已包含最小 `quest accept/progress/complete` 调试接口；party 快照与文本快照会稳定暴露 `party.quests` / `[QUEST]` 分段，其中 quest state 至少区分 `active_quest_ids` / `claimable_quest_ids` / `completed_quest_ids`，并可验证 settlement / battle 自动 quest progress 结果。
+  - 当前文本命令域已包含自动化专用 `battle equip <slot_id> <item_id> [instance_id=...]` 与 `battle unequip <slot_id> [instance_id=...]`，统一生成 `TYPE_CHANGE_EQUIPMENT` 命令并验证 AP 不足、自身限制、背包容量、双手 / versatile 联动、HP clamp、battle-local view 与战后回写；这是 `BattleCommand.TYPE_CHANGE_EQUIPMENT` 的自动化表面，不拥有战斗换装规则，也不是正式玩家 UI。
   - 为回归、调试、agent 驱动提供非 UI 入口，但不参与正式启动链。
 - 邻接单元：
   - CU-02
   - CU-06
   - CU-10
   - CU-15
+  - CU-16
   - CU-19
+  - CU-20
 - 适合任务：
   - 新增 headless 指令域。
   - 改 snapshot schema。
@@ -1346,7 +1394,7 @@ HeadlessGameTestSession
 - 按需补：
   - 真正改成长规则时补 CU-12 / CU-14
 
-### 只改共享仓库规则、物品内容、装备基础流转、仓库窗口
+### 只改队伍共享背包规则、物品内容、装备基础流转、仓库窗口
 
 - 必带：
   - CU-10
@@ -1426,7 +1474,7 @@ HeadlessGameTestSession
   - CU-02
   - CU-11
 - 按需补：
-  - 仓库字段补 CU-10
+  - 队伍共享背包 / `warehouse_state` 字段补 CU-10
   - reward 归并逻辑补 CU-12
 
 ### 只改 headless 文本命令、快照、REPL 或脚本化回归
@@ -1487,7 +1535,7 @@ HeadlessGameTestSession
 ## 不推荐的切法
 
 - 不要把 `GameSession`、`GameRuntimeFacade`、`CharacterManagementModule`、`BattleRuntimeModule`、`BattleBoardController` 一次性全装，除非任务确实跨越“登录 -> 世界 -> 战斗 -> 战后成长 -> 存档 -> 文本测试”整条链。
-- 不要在只改共享仓库时把 `battle_runtime_module.gd`、`battle_board_2d.gd` 一起带上。
+- 不要在只改队伍共享背包时把 `battle_runtime_module.gd`、`battle_board_2d.gd` 一起带上。
 - 不要在只改 battle HUD / TileMap 时把 `progression_service.gd`、`party_warehouse_service.gd` 一起带上。
 - 不要在只改 achievement / reward queue 时默认把 `battle_board_controller.gd` 一起带上。
 - 不要把 `WorldMapSystem` 当成当前唯一运行时真相源；核心状态现在主要落在 `GameRuntimeFacade`，场景侧命令 / 读取边界则落在 `WorldMapRuntimeProxy`。
@@ -1504,7 +1552,7 @@ HeadlessGameTestSession
   - CU-07 世界地图渲染
   - CU-08 据点与人物信息窗口
   - CU-09 队伍管理 / 转职 / 角色奖励窗口
-  - CU-10 共享仓库 / 装备基础流转
+  - CU-10 队伍共享背包 / 装备基础流转
   - CU-14 progression 规则服务
   - CU-16 战斗规则层
   - CU-18 battle 展示主链

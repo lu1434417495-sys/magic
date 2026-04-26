@@ -669,26 +669,32 @@ v2 的平衡原则不是去偷偷把这些东西补回去，而是：
 
 ---
 
-## 七、UI 与可读性要求
+## 七、UI 与可读性要求 **[大部分已落地]**
 
-由于 v2 大幅提高了系统复杂度，UI 不再能只显示“劣势大成功”。
+由于 v2 大幅提高了系统复杂度，UI 不再能只显示”劣势大成功”。
 
-### 7.1 战斗前/悬浮提示必须显示
+### 7.1 战斗前/悬浮提示必须显示 **[已落地]**
+
+> 实现位置：`scripts/ui/battle_hud_adapter.gd`、`scripts/systems/battle_hit_resolver.gd::_format_fate_aware_attack_check_preview`。
 
 - 当前是否处于劣势
 - 当前 `crit_gate_die`
 - 当前大失败区间
 - 当前高位大成功区间（若 `crit_gate_die == d20`）
-- 当前是否吃到“命运的怜悯”
+- 当前是否吃到”命运的怜悯”
 
-### 7.2 战报必须解释
+### 7.2 战报必须解释 **[已落地]**
+
+> 实现位置：`scripts/systems/battle_report_formatter.gd`。
 
 - 为什么这个 20 只是普通命中
 - 为什么这个 2 直接是大失败
-- 这次大成功是“门骰命中”还是“高位威胁区命中”
+- 这次大成功是”门骰命中”还是”高位威胁区命中”
 - 这次攻击是否满足 Fortuna / Misfortune 相关触发条件
 
-### 7.3 CharacterInfoWindow
+### 7.3 CharacterInfoWindow **[已落地]**
+
+> 实现位置：`scripts/ui/character_info_window.gd`。
 
 显示角色级命运信息：
 
@@ -701,7 +707,9 @@ v2 的平衡原则不是去偷偷把这些东西补回去，而是：
 
 ---
 
-## 八、数据模型与持久化
+## 八、数据模型与持久化 **[已落地]**
+
+> 实现位置：`scripts/player/progression/unit_base_attributes.gd`、`scripts/systems/attribute_service.gd`、`scripts/player/progression/party_state.gd`。
 
 ### 8.1 `custom_stats` 新键
 
@@ -749,7 +757,9 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 九、运行链路
+## 九、运行链路 **[已落地]**
+
+> 实现位置：`scripts/systems/battle_runtime_module.gd`、`scripts/systems/battle_hit_resolver.gd`、`scripts/systems/fortune_service.gd`、`scripts/systems/misfortune_black_omen_service.gd`、`scripts/systems/equipment_drop_service.gd`、`scripts/systems/game_runtime_facade.gd`。
 
 ### 9.1 攻击结算
 
@@ -793,7 +803,9 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 十、测试计划
+## 十、测试计划 **[已落地]**
+
+> 已有 regression：`tests/progression/run_party_state_fate_regression.gd`、`run_fortune_service_regression.gd`、`run_fortuna_guidance_regression.gd`、`run_misfortune_guidance_regression.gd`、`run_low_luck_event_service_regression.gd`、`run_faith_service_regression.gd`，以及 `tests/battle_runtime/run_fate_calamity_drop_regression.gd`、`run_low_luck_relic_regression.gd`、`run_fate_low_luck_tactical_skills_regression.gd`。
 
 ### 10.1 progression / serialization
 
@@ -853,7 +865,7 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 十一、Public Interfaces
+## 十一、Public Interfaces **[已落地]**
 
 ### `PartyMemberState`
 - `get_hidden_luck_at_birth() -> int`
@@ -888,20 +900,20 @@ var calamity_by_member_id: Dictionary = {}
 
 ## 十二、实施顺序建议
 
-1. 先扩展 `custom_stats` 读取封装：
+1. 先扩展 `custom_stats` 读取封装： **[已落地]**
    - `get_hidden_luck_at_birth()`
    - `get_faith_luck_bonus()`
    - `get_effective_luck()`
    - `get_combat_luck_score()`
    - `get_drop_luck()`
-2. 新增 `fate_attack_formula.gd`，先只做公式与单测
-3. 在 `battle_state.gd` 中把“劣势”收窄到真正 Hardship 条件
-4. 把新版攻击流程接进 `battle_damage_resolver.gd`
-5. 接入 `critical_fail`、`critical_success_under_disadvantage` 事件
-6. 扩展 `equipment_drop_service.gd` 与 `EquipmentInstanceState.rarity`
-7. 先落 Fortuna 标记逻辑与 rank 1~5 空骨架
-8. 再落 Misfortune 的 `doom_marked / doom_authority / calamity`
-9. 最后补 low luck 专属事件池、黑市、固定制作池与 UI 解释层
+2. 新增 `fate_attack_formula.gd`，先只做公式与单测 **[已落地]**
+3. 在 `battle_state.gd` 中把”劣势”收窄到真正 Hardship 条件 **[已落地]**
+4. 把新版攻击流程接进 `battle_damage_resolver.gd` **[已落地]**
+5. 接入 `critical_fail`、`critical_success_under_disadvantage` 事件 **[已落地]**
+6. 扩展 `equipment_drop_service.gd` 与 `EquipmentInstanceState.rarity` **[已落地]**
+7. 先落 Fortuna 标记逻辑与 rank 1~5 空骨架 **[已落地]**
+8. 再落 Misfortune 的 `doom_marked / doom_authority / calamity` **[已落地]**
+9. 最后补 low luck 专属事件池、黑市、固定制作池与 UI 解释层 **[已落地]**（黑市 / 固定制作池仍为占位骨架）
 
 ---
 
@@ -915,7 +927,7 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 十三、两条路线总预算对照表（属性超高权重前提）
+## 十三、两条路线总预算对照表（属性超高权重前提） **[设计原则·非落地项]**
 
 > 本节用于明确：
 > - **高 luck + Fortuna** 与 **低 luck + Misfortune** 不要求“神恩包逐项对等”
@@ -1012,7 +1024,15 @@ v2 推荐采用以下总原则：
 
 ---
 
-## 十四、六大属性的 Breakpoint 设计
+## 十四、六大属性的 Breakpoint 设计 **[未落地]**
+
+> 实施缺口：全 repo `breakpoint / crowded_threshold / fumble_compression / wil_fumble` 关键字均未命中实际代码。
+> 影响范围：
+> - `fate_attack_formula.calc_fumble_low_end` 不读 WIL
+> - `battle_state.gd` 的 `MIN_ADJACENT_ENEMIES_FOR_ATTACK_DISADVANTAGE` 是硬常量 `2`，不读 AGI
+> - `BattleState.LOW_HP_ATTACK_DISADVANTAGE_PERCENT` 不读 CON
+> - `misfortune_service._calculate_calamity_cap` 只读独立 stat `calamity_capacity_bonus`，不从 CON 派生
+> - `CharacterInfoWindow` 没有"下一个 breakpoint" / "已达上限"的属性提示
 
 > 本节与前 13 节是同源设计：前文解决命运轴，本节解决属性轴。
 > 背景：v2 要求"每 1 点属性都非常值钱，并跨越关键 breakpoint"。
