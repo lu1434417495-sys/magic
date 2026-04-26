@@ -13,6 +13,7 @@ power = 0
 max_skill_level = 0
 damage_tag = &"physical_blunt"
 params = {
+"add_weapon_dice": true,
 "dice_count": 1,
 "dice_sides": 4,
 "requires_weapon": true,
@@ -27,6 +28,7 @@ min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"physical_blunt"
 params = {
+"add_weapon_dice": true,
 "dice_count": 1,
 "dice_sides": 6,
 "requires_weapon": true,
@@ -40,6 +42,7 @@ power = 0
 min_skill_level = 3
 damage_tag = &"physical_blunt"
 params = {
+"add_weapon_dice": true,
 "dice_count": 1,
 "dice_sides": 8,
 "requires_weapon": true,
@@ -73,7 +76,7 @@ script = ExtResource("1_skill")
 skill_id = &"warrior_heavy_strike"
 display_name = "重击"
 icon_id = &"warrior_heavy_strike"
-description = "基础近战技能。使用当前近战武器重击目标；所有等级攻击检定 -1。0级造成 1d4 伤害，1级造成 1d6 伤害，2级起体力消耗降为 20，3级造成 1d8 伤害并命中附加破甲。"
+description = "基础近战技能。使用当前近战武器重击目标；所有等级攻击检定 -1。0级追加 1d4 技能骰，1级追加 1d6 技能骰，2级起体力消耗降为 20，3级追加 1d8 技能骰并命中附加破甲。"
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)

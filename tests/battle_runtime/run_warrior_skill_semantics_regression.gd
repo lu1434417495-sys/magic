@@ -7,9 +7,21 @@ const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+
+
+class DeterministicHitMaxDamageResolver extends BattleDamageResolver:
+	func _roll_damage_die(dice_sides: int) -> int:
+		return maxi(dice_sides, 1)
+
+	func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state) -> int:
+		if battle_state != null:
+			battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
+		return clampi(10, mini(min_value, max_value), maxi(min_value, max_value))
+
 
 var _failures: Array[String] = []
 
@@ -402,6 +414,7 @@ func _test_aura_slash_requires_and_consumes_aura() -> void:
 
 func _measure_enemy_heavy_strike_damage(apply_guard: bool) -> int:
 	var runtime := _build_runtime()
+	runtime.configure_damage_resolver_for_tests(DeterministicHitMaxDamageResolver.new())
 	var state := _build_skill_test_state(Vector2i(5, 3))
 	var warrior := _build_unit(&"guard_target", Vector2i(1, 1), 2)
 	warrior.current_stamina = 3
@@ -453,6 +466,7 @@ func _measure_max_buffed_ally_strike_damage(apply_war_cry: bool) -> int:
 
 func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool, attempt_index: int) -> int:
 	var runtime := _build_runtime()
+	runtime.configure_damage_resolver_for_tests(DeterministicHitMaxDamageResolver.new())
 	var state := _build_skill_test_state(Vector2i(5, 4))
 	var buffer := _build_unit(StringName("war_cry_user_%d" % attempt_index), Vector2i(1, 1), 2)
 	buffer.current_stamina = 3

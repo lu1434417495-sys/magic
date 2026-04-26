@@ -99,7 +99,10 @@ func resolve_attack_effects(
 		_dispatch_attack_resolution_events(source_unit, target_unit, attack_metadata, attack_context)
 		return failed_result
 
-	var resolved_result := _build_attack_metadata_result(resolve_effects(source_unit, target_unit, effect_defs), attack_metadata)
+	var resolved_result := _build_attack_metadata_result(
+		resolve_effects(source_unit, target_unit, effect_defs, attack_metadata),
+		attack_metadata
+	)
 	_attach_attack_report_entry(resolved_result, source_unit, target_unit)
 	_dispatch_attack_resolution_events(source_unit, target_unit, attack_metadata, attack_context)
 	return resolved_result
@@ -108,7 +111,8 @@ func resolve_attack_effects(
 func resolve_effects(
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
-	effect_defs: Array
+	effect_defs: Array,
+	damage_context: Dictionary = {}
 ) -> Dictionary:
 	if source_unit == null or target_unit == null:
 		return _build_empty_result()
@@ -130,7 +134,7 @@ func resolve_effects(
 			continue
 		match effect_def.effect_type:
 			&"damage":
-				var damage_outcome := _resolve_damage_outcome(source_unit, target_unit, effect_def)
+				var damage_outcome := _resolve_damage_outcome(source_unit, target_unit, effect_def, damage_context)
 				var damage_result := _apply_damage_to_target(target_unit, damage_outcome)
 				var hp_damage := int(damage_result.get("damage", 0))
 				total_damage += hp_damage
@@ -460,11 +464,26 @@ func _get_effective_luck(unit_state: BattleUnitState) -> int:
 	)
 
 
-func _resolve_damage_outcome(source_unit: BattleUnitState, target_unit: BattleUnitState, effect_def) -> Dictionary:
+func _resolve_damage_outcome(
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	effect_def,
+	damage_context: Dictionary = {}
+) -> Dictionary:
 	var damage_roll := _roll_damage_dice(effect_def)
+	var weapon_roll := _roll_weapon_dice(source_unit, effect_def)
+	var critical_hit := bool(damage_context.get("critical_hit", false))
+	var critical_damage_roll := {}
+	var critical_weapon_roll := {}
+	if critical_hit and not damage_roll.is_empty():
+		critical_damage_roll = _roll_damage_dice(effect_def, false, "critical_extra_damage_dice")
+	if critical_hit and not weapon_roll.is_empty():
+		critical_weapon_roll = _roll_weapon_dice(source_unit, effect_def, false, "critical_extra_weapon_damage_dice")
 	var base_damage := maxi(int(effect_def.power) if effect_def != null else 0, 0)
-	if not damage_roll.is_empty():
-		base_damage += int(damage_roll.get("damage_dice_total", 0)) + int(damage_roll.get("damage_dice_bonus", 0))
+	base_damage += _get_roll_total_with_bonus(weapon_roll, "weapon_damage_dice")
+	base_damage += _get_roll_total_with_bonus(damage_roll, "damage_dice")
+	base_damage += _get_roll_total(critical_weapon_roll, "critical_extra_weapon_damage_dice")
+	base_damage += _get_roll_total(critical_damage_roll, "critical_extra_damage_dice")
 	var offense_multiplier := _build_offense_multiplier(source_unit, target_unit, effect_def)
 	var rolled_damage := maxi(int(round(float(base_damage) * offense_multiplier)), 0)
 	var damage_tag := _resolve_damage_tag(source_unit, effect_def)
@@ -497,6 +516,8 @@ func _resolve_damage_outcome(source_unit: BattleUnitState, target_unit: BattleUn
 		"mitigation_tier": mitigation_tier,
 		"mitigation_sources": mitigation_tier_result.get("sources", []),
 		"base_damage": base_damage,
+		"critical_hit": critical_hit,
+		"add_weapon_dice": _should_add_weapon_dice(effect_def),
 		"damage_dice_count": int(damage_roll.get("damage_dice_count", 0)),
 		"damage_dice_sides": int(damage_roll.get("damage_dice_sides", 0)),
 		"damage_dice_rolls": damage_roll.get("damage_dice_rolls", []),
@@ -504,6 +525,23 @@ func _resolve_damage_outcome(source_unit: BattleUnitState, target_unit: BattleUn
 		"damage_dice_bonus": int(damage_roll.get("damage_dice_bonus", 0)),
 		"damage_dice_max_total": int(damage_roll.get("damage_dice_max_total", 0)),
 		"damage_dice_is_max": bool(damage_roll.get("damage_dice_is_max", false)),
+		"weapon_damage_dice_count": int(weapon_roll.get("weapon_damage_dice_count", 0)),
+		"weapon_damage_dice_sides": int(weapon_roll.get("weapon_damage_dice_sides", 0)),
+		"weapon_damage_dice_rolls": weapon_roll.get("weapon_damage_dice_rolls", []),
+		"weapon_damage_dice_total": int(weapon_roll.get("weapon_damage_dice_total", 0)),
+		"weapon_damage_dice_bonus": int(weapon_roll.get("weapon_damage_dice_bonus", 0)),
+		"weapon_damage_dice_max_total": int(weapon_roll.get("weapon_damage_dice_max_total", 0)),
+		"weapon_damage_dice_is_max": bool(weapon_roll.get("weapon_damage_dice_is_max", false)),
+		"critical_extra_damage_dice_count": int(critical_damage_roll.get("critical_extra_damage_dice_count", 0)),
+		"critical_extra_damage_dice_sides": int(critical_damage_roll.get("critical_extra_damage_dice_sides", 0)),
+		"critical_extra_damage_dice_rolls": critical_damage_roll.get("critical_extra_damage_dice_rolls", []),
+		"critical_extra_damage_dice_total": int(critical_damage_roll.get("critical_extra_damage_dice_total", 0)),
+		"critical_extra_damage_dice_max_total": int(critical_damage_roll.get("critical_extra_damage_dice_max_total", 0)),
+		"critical_extra_weapon_damage_dice_count": int(critical_weapon_roll.get("critical_extra_weapon_damage_dice_count", 0)),
+		"critical_extra_weapon_damage_dice_sides": int(critical_weapon_roll.get("critical_extra_weapon_damage_dice_sides", 0)),
+		"critical_extra_weapon_damage_dice_rolls": critical_weapon_roll.get("critical_extra_weapon_damage_dice_rolls", []),
+		"critical_extra_weapon_damage_dice_total": int(critical_weapon_roll.get("critical_extra_weapon_damage_dice_total", 0)),
+		"critical_extra_weapon_damage_dice_max_total": int(critical_weapon_roll.get("critical_extra_weapon_damage_dice_max_total", 0)),
 		"offense_multiplier": offense_multiplier,
 		"rolled_damage": rolled_damage,
 		"tier_adjusted_damage": tier_adjusted_damage,
@@ -523,30 +561,79 @@ func _resolve_damage_outcome(source_unit: BattleUnitState, target_unit: BattleUn
 	}
 
 
-func _roll_damage_dice(effect_def) -> Dictionary:
+func _roll_damage_dice(effect_def, include_bonus: bool = true, field_prefix: String = "damage_dice") -> Dictionary:
 	if effect_def == null or effect_def.params == null:
 		return {}
 	var dice_count := maxi(int(effect_def.params.get("dice_count", effect_def.params.get("damage_dice_count", 0))), 0)
 	var dice_sides := maxi(int(effect_def.params.get("dice_sides", effect_def.params.get("damage_dice_sides", 0))), 0)
-	if dice_count <= 0 or dice_sides <= 0:
+	var dice_bonus := int(effect_def.params.get("dice_bonus", effect_def.params.get("damage_dice_bonus", 0))) if include_bonus else 0
+	return _roll_dice_pool(dice_count, dice_sides, dice_bonus, field_prefix)
+
+
+func _roll_weapon_dice(
+	source_unit: BattleUnitState,
+	effect_def,
+	include_bonus: bool = true,
+	field_prefix: String = "weapon_damage_dice"
+) -> Dictionary:
+	if not _should_add_weapon_dice(effect_def):
+		return {}
+	var dice := _get_current_weapon_damage_dice(source_unit)
+	if dice.is_empty():
+		return {}
+	var dice_count := maxi(int(dice.get("dice_count", 0)), 0)
+	var dice_sides := maxi(int(dice.get("dice_sides", 0)), 0)
+	var dice_bonus := int(dice.get("flat_bonus", 0)) if include_bonus else 0
+	return _roll_dice_pool(dice_count, dice_sides, dice_bonus, field_prefix)
+
+
+func _roll_dice_pool(dice_count: int, dice_sides: int, dice_bonus: int, field_prefix: String) -> Dictionary:
+	if dice_count <= 0 or dice_sides <= 0 or field_prefix.is_empty():
 		return {}
 	var rolls: Array[int] = []
 	var dice_total := 0
 	for _roll_index in range(dice_count):
-		var roll := int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(1, dice_sides))
+		var roll := _roll_damage_die(dice_sides)
 		rolls.append(roll)
 		dice_total += roll
-	var dice_bonus := int(effect_def.params.get("dice_bonus", effect_def.params.get("damage_dice_bonus", 0)))
 	var max_total := dice_count * dice_sides
-	return {
-		"damage_dice_count": dice_count,
-		"damage_dice_sides": dice_sides,
-		"damage_dice_rolls": rolls,
-		"damage_dice_total": dice_total,
-		"damage_dice_bonus": dice_bonus,
-		"damage_dice_max_total": max_total,
-		"damage_dice_is_max": dice_total == max_total,
-	}
+	var result := {}
+	result["%s_count" % field_prefix] = dice_count
+	result["%s_sides" % field_prefix] = dice_sides
+	result["%s_rolls" % field_prefix] = rolls
+	result["%s_total" % field_prefix] = dice_total
+	result["%s_bonus" % field_prefix] = dice_bonus
+	result["%s_max_total" % field_prefix] = max_total
+	result["%s_is_max" % field_prefix] = dice_total == max_total
+	return result
+
+
+func _roll_damage_die(dice_sides: int) -> int:
+	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(1, maxi(dice_sides, 1)))
+
+
+func _should_add_weapon_dice(effect_def) -> bool:
+	if effect_def == null or effect_def.params == null:
+		return false
+	return bool(effect_def.params.get("add_weapon_dice", false))
+
+
+func _get_current_weapon_damage_dice(unit_state: BattleUnitState) -> Dictionary:
+	if unit_state == null:
+		return {}
+	if unit_state.weapon_uses_two_hands:
+		return unit_state.weapon_two_handed_dice
+	return unit_state.weapon_one_handed_dice
+
+
+func _get_roll_total_with_bonus(roll_data: Dictionary, field_prefix: String) -> int:
+	return _get_roll_total(roll_data, field_prefix) + int(roll_data.get("%s_bonus" % field_prefix, 0))
+
+
+func _get_roll_total(roll_data: Dictionary, field_prefix: String) -> int:
+	if roll_data == null or roll_data.is_empty() or field_prefix.is_empty():
+		return 0
+	return int(roll_data.get("%s_total" % field_prefix, 0))
 
 
 func _build_offense_multiplier(source_unit: BattleUnitState, target_unit: BattleUnitState, effect_def) -> float:
