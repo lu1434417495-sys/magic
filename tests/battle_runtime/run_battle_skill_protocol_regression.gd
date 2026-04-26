@@ -1103,17 +1103,14 @@ func _test_preview_reports_shield_absorption_and_break() -> void:
 	_assert_true(preview != null and preview.allowed, "护盾吸收预览回归前置：preview_command 应允许目标。")
 	if preview != null:
 		_assert_true(
-			preview.log_lines.any(func(line): return String(line).contains("造成 4 点 HP 伤害")),
-			"preview 应显式提示护盾吸收后的实际 HP 伤害。 log=%s" % [str(preview.log_lines)]
+			preview.log_lines.any(func(line): return String(line) == "伤害 10"),
+			"preview 应只提示非暴击基础伤害范围，不结算护盾后的 HP 伤害。 log=%s" % [str(preview.log_lines)]
 		)
 		_assert_true(
-			preview.log_lines.any(func(line): return String(line).contains("护盾会先吸收 6 点伤害")),
-			"preview 应显式提示护盾先吸收的伤害值。 log=%s" % [str(preview.log_lines)]
+			not preview.log_lines.any(func(line): return String(line).contains("护盾会") or String(line).contains("吸收") or String(line).contains("击碎")),
+			"preview 不应结算或提示 shield 吸收/破裂。 log=%s" % [str(preview.log_lines)]
 		)
-		_assert_true(
-			preview.log_lines.any(func(line): return String(line).contains("护盾会被击碎")),
-			"preview 应显式提示护盾破裂。 log=%s" % [str(preview.log_lines)]
-		)
+		_assert_eq(enemy.current_shield_hp, 6, "preview 不应改变目标护盾值。")
 
 	_cleanup_test_session(game_session)
 
@@ -1252,8 +1249,12 @@ func _test_runtime_preview_and_logs_include_mitigation_sources() -> void:
 	_assert_true(preview != null and preview.allowed, "减伤来源预览回归前置：preview_command 应允许目标。")
 	if preview != null:
 		_assert_true(
-			preview.log_lines.any(func(line): return String(line).contains("magic_shield") and String(line).contains("伤害减半")),
-			"preview 应提示造成减半的状态来源。 log=%s" % [str(preview.log_lines)]
+			preview.log_lines.any(func(line): return String(line) == "伤害 10"),
+			"preview 应只提示非暴击基础伤害，不结算 mitigation_tier 状态。 log=%s" % [str(preview.log_lines)]
+		)
+		_assert_true(
+			not preview.log_lines.any(func(line): return String(line).contains("magic_shield") or String(line).contains("伤害减半")),
+			"preview 不应提示 status mitigation 来源。 log=%s" % [str(preview.log_lines)]
 		)
 
 	_cleanup_test_session(preview_session)

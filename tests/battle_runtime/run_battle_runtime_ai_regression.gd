@@ -21,10 +21,21 @@ const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/us
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
 var _failures: Array[String] = []
+
+
+class TrapDamageResolver:
+	extends BattleDamageResolver
+
+	var resolve_effects_calls := 0
+
+	func resolve_effects(source_unit, target_unit, effect_defs: Array, damage_context: Dictionary = {}) -> Dictionary:
+		resolve_effects_calls += 1
+		return super.resolve_effects(source_unit, target_unit, effect_defs, damage_context)
 
 
 func _initialize() -> void:
@@ -385,6 +396,8 @@ func _test_ai_ground_skill_generates_legal_command() -> void:
 
 func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
 	var runtime = _build_runtime_with_enemy_content()
+	var trap_damage_resolver := TrapDamageResolver.new()
+	runtime.configure_damage_resolver_for_tests(trap_damage_resolver)
 	var state = _build_flat_state(Vector2i(7, 5))
 	runtime._state = state
 	var harrier = _build_ai_unit(
@@ -429,6 +442,11 @@ func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
 	if score_input == null:
 		return
 	_assert_true(score_input.hit_payoff_score > 0, "ground skill score input 应暴露正向命中收益。")
+	_assert_eq(
+		int(trap_damage_resolver.resolve_effects_calls),
+		0,
+		"AI 评分不应通过 BattleDamageResolver.resolve_effects() 偷取随机伤害结果。"
+	)
 	_assert_true(score_input.target_count >= 2, "ground skill score input 应暴露目标数量。")
 	_assert_eq(score_input.ap_cost, 2, "ground skill score input 应暴露 AP 消耗。")
 	_assert_eq(score_input.stamina_cost, 2, "ground skill score input 应暴露 ST 消耗。")

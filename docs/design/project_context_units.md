@@ -807,6 +807,7 @@ HeadlessGameTestSession
   - `scripts/utils/true_random_seed_service.gd`
   - `scripts/systems/battle_command.gd`
   - `scripts/systems/battle_preview.gd`
+  - `scripts/systems/battle_damage_preview_range_service.gd`
   - `scripts/systems/battle_event_batch.gd`
   - `scripts/systems/battle_sim_runner.gd`
   - `scripts/systems/battle_sim_report_builder.gd`
@@ -823,6 +824,7 @@ HeadlessGameTestSession
   - 开战、推进时间轴、接手 AI / manual command。
   - 战斗时间轴的行动进度按 `tu_per_tick` 固定累加到 `BattleUnitState.action_progress`；实际入队阈值必须由每个 `BattleUnitState.action_threshold` 持有，`BattleTimelineState` 不再保存全局行动阈值。
   - 预览与执行移动、单体技能、地面技能、charge、terrain effect。
+  - 单体技能 preview 只用 `BattleDamagePreviewRangeService` 暴露非暴击基础伤害范围，不再通过 `BattleDamageResolver.resolve_effects()` 模拟目标承伤、护盾或状态减伤。
   - `BattleRuntimeModule.issue_command()` 现在是 `TYPE_SKILL` 的唯一正式 `preview-first` 门禁；无论来自玩家、AI、facade 还是测试，只要命令真正落到 runtime，都先复用 `preview_command()` 的技能合法性口径。
   - `BattleChargeResolver` 负责冲锋路径推演、受阻停步、碰撞推挤、陷阱触发与路径 AOE。
   - `BattleRepeatAttackResolver` 负责 `repeat_attack_until_fail` 的逐段执行、资源消耗与日志归并，并把命中判定委托给 `BattleHitResolver`。
@@ -891,6 +893,7 @@ HeadlessGameTestSession
   - `scripts/systems/battle_fate_attack_rules.gd`
   - `scripts/systems/fate_attack_formula.gd`
   - `scripts/systems/battle_damage_resolver.gd`
+  - `scripts/systems/battle_damage_preview_range_service.gd`
   - `scripts/systems/battle_status_semantic_table.gd`
   - `scripts/systems/battle_hit_resolver.gd`
   - `scripts/systems/battle_range_service.gd`
@@ -913,6 +916,7 @@ HeadlessGameTestSession
   - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
   - `BattleDamageResolver` 现已正式切到“攻击侧倍率一次聚合取整 -> `IMMUNE / HALF / NORMAL / DOUBLE` -> 固定值减伤 -> 护盾后吸收”的 M1 流水线；元素抗性不再是人物主属性派生值，完全免疫、减半与易伤一律通过状态参数 `mitigation_tier` 结算。`armor_break` 不再提供承伤易伤倍率，而是在 `BattleHitResolver` 中按 `power * 2` 降低目标有效 AC；`damage_reduction_up`、`guarding` 不再按旧百分比链解释。`black_star_brand_elite` 的“禁暴击 / 首次受击穿透部分格挡”也在这层消费，不要把这一击穿透逻辑回写到 skill resource。
   - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 提供。
+  - `BattleDamagePreviewRangeService` 只负责纯预览的非暴击基础伤害范围：按 `power + add_weapon_dice 当前武器骰 + 技能骰 + dice_bonus` 汇总多段 damage effect；不调用 `BattleDamageResolver`，不消费 RNG，也不读取 target/status/shield/mastery/report。
   - `BattleDamageResolver` 现在还消费 `LowLuckRelicRules` 的 battle-local 遗物逻辑：逆命护符会把首次 `critical_fail` 降级为普通 miss 并施加 2 回合输出下降，黑星楔钉会在首击忽视部分 guard 后于未击杀时给自己挂 1 回合 exposed，血债披肩会在低血时减伤；这些 battle-local 首次触发锁不要散写到 skill / item resource。
 - `BattleFateAttackRules` 现在是 battle attack roll 语义的共享 helper，负责统一“命中线 / 封暴击状态 / d20 是否命中”的纯判定；`BattleDamageResolver` 与 `BattleHitResolver` 都必须复用它，避免 runtime 执行与 preview/AI 评分再次分叉。
 - `BattleDamageResolver` 现在还持有 battle-local `BattleFateEventBus`，并在攻击结算后派发只读 fate payload（如 `critical_fail / critical_success_under_disadvantage / ordinary_miss / hardship_survival`）；`FortuneService` 已通过该 payload 订阅 Fortuna 标记逻辑，后续 Faith / 剧情系统继续沿用这条 bus，而不是拿运行时对象直接改命运属性。
@@ -996,7 +1000,7 @@ HeadlessGameTestSession
   - 当前 TileMap board 的渲染结果、镜头位置、缩放和平移状态。
 - 主要职责：
   - `BattleMapPanel` 负责 HUD 容器、技能槽、viewport 事件转发、战斗首帧加载状态与黑底子视口；鼠标悬停战斗格时会转发 hover 坐标给 `WorldMapSystem`，由场景适配层按当前技能合法目标做只读 HUD overlay 预览，并把命中率浮标文本传给棋盘目标高亮层显示在目标上方；内置移动复位 / 变体切换 / 清技能 / 结算按钮已下线，完整战斗日志滚动窗现在由根层共享的 `RuntimeLogDock` 承接。
-  - `BattleHudAdapter` 把 `BattleState` 转成 HUD snapshot，并复用 `BattleSkillResolutionRules` 产出技能 fate / variant 相关预览；当前 focus/queue/resource snapshot 会同时暴露 `AP` 与 `行动`（`move_current/move_max`）两套资源，但不再生成旧 hint / command / battle-log 文本字段。
+  - `BattleHudAdapter` 把 `BattleState` 转成 HUD snapshot，并复用 `BattleSkillResolutionRules` 产出技能 fate / variant 相关预览；技能伤害预览复用 `BattleDamagePreviewRangeService` 输出 `伤害 X-Y` / `伤害 X` 的非暴击基础范围。当前 focus/queue/resource snapshot 会同时暴露 `AP` 与 `行动`（`move_current/move_max`）两套资源，但不再生成旧 hint / command / battle-log 文本字段。
   - `BattleBoardRenderProfile` 是 `terrain_profile_id -> render_profile_id -> asset_dir/source spec` 与棋盘视觉协议的唯一 owner；它持有 `visual_height_step`、`tile_half_size`、`surface_pick_shape`、`camera_margin`、unit / prop anchor bias，以及 TileSet source 的 `atlas_region_size`、`board_tile_size`、`visual_origin` / `texture_origin`、`layer_role`。
   - 逻辑 `current_height` 不等于视觉 `visual_height_step`：`current_height` 是 battle rules / grid / AI 读取的格子高度，`visual_height_step` 只是 render profile/source spec 决定的像素层距；战斗规则层不拥有也不反推视觉层距。
   - `BattleBoard2D` 负责 viewport 坐标、滚轮缩放、中键拖拽、键盘平移、hover 格检测和 focus，并从 `BattleBoardRenderProfile` 读取点击面、视觉高度与镜头边界；键盘平移入口由 `WorldMapSystem -> BattleMapPanel.pan_battle_camera() -> BattleBoard2D.pan_viewport_direction()` 串接。
@@ -1035,6 +1039,7 @@ HeadlessGameTestSession
   - `tests/battle_runtime/run_battle_state_disadvantage_regression.gd`
   - `tests/battle_runtime/run_battle_unit_factory_regression.gd`
   - `tests/battle_runtime/run_battle_skill_protocol_regression.gd`
+  - `tests/battle_runtime/run_battle_damage_preview_range_contract_regression.gd`
   - `tests/battle_runtime/run_battle_ui_regression.gd`
   - `tests/battle_runtime/run_battle_loot_drop_luck_regression.gd`
   - `tests/battle_runtime/run_battle_6v40_headless_benchmark.gd`

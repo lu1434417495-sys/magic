@@ -2,6 +2,7 @@ extends SceneTree
 
 const BattleCommand = preload("res://scripts/systems/battle_command.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
 const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
@@ -16,6 +17,16 @@ const ACTION_TITHE_VARIANT_ID: StringName = &"action_tithe"
 const WARRIOR_HEAVY_STRIKE_SKILL_ID: StringName = &"warrior_heavy_strike"
 
 var _failures: Array[String] = []
+
+
+class TrapDamageResolver:
+	extends BattleDamageResolver
+
+	var resolve_effects_calls := 0
+
+	func resolve_effects(source_unit: BattleUnitState, target_unit: BattleUnitState, effect_defs: Array, damage_context: Dictionary = {}) -> Dictionary:
+		resolve_effects_calls += 1
+		return super.resolve_effects(source_unit, target_unit, effect_defs, damage_context)
 
 
 class MockGameSession:
@@ -107,6 +118,8 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 	var game_session := await _install_mock_game_session(skill_defs)
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, skill_defs, {}, {}, null)
+	var trap_damage_resolver := TrapDamageResolver.new()
+	runtime.configure_damage_resolver_for_tests(trap_damage_resolver)
 	var state := _build_state(&"preview_contract_single_hit")
 	var attacker := _build_unit(
 		&"heavy_strike_user",
@@ -138,9 +151,25 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 		WARRIOR_HEAVY_STRIKE_SKILL_ID,
 		target
 	))
-	_assert_true(preview != null and not preview.hit_preview.is_empty(), "重击 runtime preview 应暴露命中摘要。")
+	_assert_true(
+		preview != null and not preview.hit_preview.is_empty(),
+		"重击 runtime preview 应暴露命中摘要。 preview=%s log=%s" % [
+			str(preview.hit_preview if preview != null else {}),
+			str(preview.log_lines if preview != null else []),
+		]
+	)
 	var hit_preview_text := String(preview.hit_preview.get("summary_text", "")) if preview != null else ""
 	_assert_true(hit_preview_text.contains("预计命中率") and hit_preview_text.contains("需 "), "重击 runtime preview 应包含命中率与 required roll。")
+	_assert_eq(
+		int(trap_damage_resolver.resolve_effects_calls),
+		0,
+		"runtime preview 不应通过 BattleDamageResolver.resolve_effects() 偷取伤害结果。"
+	)
+	_assert_eq(
+		String(preview.damage_preview.get("summary_text", "")) if preview != null else "",
+		"伤害 2-10",
+		"runtime preview 应暴露非暴击基础伤害范围。"
+	)
 
 	var adapter := BattleHudAdapter.new()
 	var snapshot := adapter.build_snapshot(
@@ -164,6 +193,12 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 		"HUD snapshot 应保留普通单段技能的阶段命中率。"
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "HUD 副标题应显示普通单段命中摘要。")
+	_assert_eq(
+		String(snapshot.get("selected_skill_damage_preview_text", "")),
+		"伤害 2-10",
+		"HUD snapshot 应暴露非暴击基础伤害范围文案。"
+	)
+	_assert_true(String(snapshot.get("skill_subtitle", "")).contains("伤害 2-10"), "HUD 副标题应显示基础伤害范围。")
 
 	runtime.dispose()
 	game_session.queue_free()
@@ -236,7 +271,16 @@ func _build_unit(
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
-	unit.set_natural_weapon_projection(&"test_blade", &"physical_slash", 1)
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "hit_preview_test_blade",
+		"weapon_profile_type_id": "test_blade",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1

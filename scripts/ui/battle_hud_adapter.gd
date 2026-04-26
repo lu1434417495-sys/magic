@@ -8,6 +8,7 @@ extends RefCounted
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
+const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_damage_preview_range_service.gd")
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
 const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle_skill_resolution_rules.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_range_service.gd")
@@ -62,6 +63,15 @@ func build_snapshot(
 		selected_skill_target_unit_ids,
 		selected_skill_variant_id
 	)
+	var damage_preview := _build_selected_skill_damage_preview(
+		battle_state,
+		active_unit,
+		selected_coord,
+		selected_skill_id,
+		selected_skill_target_coords,
+		selected_skill_target_unit_ids,
+		selected_skill_variant_id
+	)
 	var fate_preview := _build_selected_skill_fate_preview(
 		battle_state,
 		active_unit,
@@ -71,7 +81,7 @@ func build_snapshot(
 		selected_skill_target_unit_ids,
 		selected_skill_variant_id
 	)
-	var preview_tooltip_text := _build_selected_skill_preview_tooltip(hit_preview, fate_preview)
+	var preview_tooltip_text := _build_selected_skill_preview_tooltip(hit_preview, fate_preview, damage_preview)
 
 	return {
 		"header_title": "战斗地图",
@@ -88,13 +98,17 @@ func build_snapshot(
 			selected_target_count,
 			selected_skill_required_coord_count,
 			selection_info,
-			hit_preview
+			hit_preview,
+			damage_preview
 		),
 		"skill_slots": _build_skill_slots(active_unit, selected_skill_id),
 		"tile_text": _build_tile_text(selected_coord, selected_cell, selected_unit),
 		"selected_skill_hit_preview_text": String(hit_preview.get("summary_text", "")),
 		"selected_skill_hit_badge_text": _build_selected_skill_hit_badge_text(hit_preview),
 		"selected_skill_hit_stage_rates": (hit_preview.get("stage_hit_rates", []) as Array).duplicate(true),
+		"selected_skill_damage_preview_text": String(damage_preview.get("summary_text", "")),
+		"selected_skill_damage_min": int(damage_preview.get("min_damage", 0)),
+		"selected_skill_damage_max": int(damage_preview.get("max_damage", 0)),
 		"selected_skill_fate_preview_text": String(fate_preview.get("summary_text", "")),
 		"selected_skill_fate_badges": (fate_preview.get("badges", []) as Array).duplicate(true),
 		"selected_skill_preview_tooltip_text": preview_tooltip_text,
@@ -316,7 +330,8 @@ func _build_skill_subtitle(
 	selected_count: int,
 	required_count: int,
 	selection_info: Dictionary,
-	hit_preview: Dictionary = {}
+	hit_preview: Dictionary = {},
+	damage_preview: Dictionary = {}
 ) -> String:
 	if active_unit == null:
 		return "无可行动单位"
@@ -348,11 +363,17 @@ func _build_skill_subtitle(
 			selected_count,
 			max_target_count,
 		]
+	var preview_parts: PackedStringArray = []
 	var hit_preview_text := String(hit_preview.get("summary_text", ""))
 	if not hit_preview_text.is_empty():
+		preview_parts.append(hit_preview_text)
+	var damage_preview_text := String(damage_preview.get("summary_text", ""))
+	if not damage_preview_text.is_empty():
+		preview_parts.append(damage_preview_text)
+	if not preview_parts.is_empty():
 		return "当前技能 %s  ·  %s" % [
 			_build_skill_title(selected_skill_name, selected_skill_variant_name),
-			hit_preview_text,
+			"  ·  ".join(preview_parts),
 		]
 	if required_count <= 1:
 		return "当前技能 %s  ·  左键选择目标格释放" % _build_skill_title(selected_skill_name, selected_skill_variant_name)
@@ -635,6 +656,47 @@ func _build_selected_skill_hit_preview(
 	)
 
 
+func _build_selected_skill_damage_preview(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	selected_coord: Vector2i,
+	selected_skill_id: StringName,
+	selected_skill_target_coords: Array[Vector2i],
+	selected_skill_target_unit_ids: Array[StringName],
+	selected_skill_variant_id: StringName
+) -> Dictionary:
+	if battle_state == null or active_unit == null or selected_skill_id == &"":
+		return {}
+	var skill_def = _get_skill_defs().get(selected_skill_id)
+	if skill_def == null or skill_def.combat_profile == null:
+		return {}
+	var target_unit := _resolve_selected_skill_preview_target_unit(
+		battle_state,
+		active_unit,
+		selected_coord,
+		selected_skill_target_coords,
+		selected_skill_target_unit_ids,
+		skill_def
+	)
+	if target_unit == null:
+		return {}
+	var resolution_policy := _skill_resolution_rules.build_skill_resolution_policy(
+		skill_def,
+		active_unit,
+		selected_skill_variant_id,
+		selected_skill_target_unit_ids,
+		target_unit
+	)
+	var effect_defs: Array[CombatEffectDef] = []
+	var effect_defs_variant = resolution_policy.get("effect_defs", [])
+	if effect_defs_variant is Array:
+		for effect_def_variant in effect_defs_variant:
+			var effect_def := effect_def_variant as CombatEffectDef
+			if effect_def != null:
+				effect_defs.append(effect_def)
+	return BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT.build_skill_damage_preview(active_unit, effect_defs)
+
+
 func _build_selected_skill_fate_preview(
 	battle_state: BattleState,
 	active_unit: BattleUnitState,
@@ -812,11 +874,14 @@ func _build_fate_preview_summary_text(badges: Array[Dictionary]) -> String:
 	return "  ·  ".join(parts)
 
 
-func _build_selected_skill_preview_tooltip(hit_preview: Dictionary, fate_preview: Dictionary) -> String:
+func _build_selected_skill_preview_tooltip(hit_preview: Dictionary, fate_preview: Dictionary, damage_preview: Dictionary = {}) -> String:
 	var sections: PackedStringArray = []
 	var hit_preview_text := String(hit_preview.get("summary_text", ""))
 	if not hit_preview_text.is_empty():
 		sections.append(hit_preview_text)
+	var damage_preview_text := String(damage_preview.get("summary_text", ""))
+	if not damage_preview_text.is_empty():
+		sections.append(damage_preview_text)
 	var fate_tooltip_text := String(fate_preview.get("tooltip_text", ""))
 	if not fate_tooltip_text.is_empty():
 		sections.append(fate_tooltip_text)

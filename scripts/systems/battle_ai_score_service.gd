@@ -3,19 +3,18 @@ extends RefCounted
 
 const BATTLE_AI_SCORE_INPUT_SCRIPT = preload("res://scripts/systems/battle_ai_score_input.gd")
 const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle_ai_score_profile.gd")
+const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_damage_preview_range_service.gd")
 const BattleAiScoreInput = preload("res://scripts/systems/battle_ai_score_input.gd")
 const BattleAiScoreProfile = preload("res://scripts/systems/battle_ai_score_profile.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
+const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
-var _damage_resolver: BattleDamageResolver = null
 var _score_profile: BattleAiScoreProfile = BATTLE_AI_SCORE_PROFILE_SCRIPT.new()
 
 
-func setup(damage_resolver: BattleDamageResolver = null) -> void:
-	if damage_resolver != null:
-		_damage_resolver = damage_resolver
+func setup(_damage_resolver = null) -> void:
+	pass
 
 
 func set_profile(profile: BattleAiScoreProfile) -> void:
@@ -122,38 +121,93 @@ func _populate_hit_metrics(score_input: BattleAiScoreInput, context, effect_defs
 	if score_input == null:
 		return
 	score_input.estimated_hit_rate_percent = _resolve_estimated_hit_rate_percent(score_input.preview)
-	if context == null or context.state == null or context.unit_state == null or _damage_resolver == null:
+	if context == null or context.state == null or context.unit_state == null:
 		return
+	var damage_preview := BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT.build_skill_damage_preview(context.unit_state, effect_defs)
+	var estimated_damage := _estimate_damage_from_preview(damage_preview)
+	var estimated_healing := _estimate_healing(effect_defs)
+	var estimated_status_count := _estimate_status_count(effect_defs)
+	var estimated_terrain_effect_count := _estimate_terrain_effect_count(effect_defs)
+	var estimated_height_delta := _estimate_height_delta(effect_defs)
 	for target_unit_id in score_input.target_unit_ids:
 		var target_unit := context.state.units.get(target_unit_id) as BattleUnitState
 		if target_unit == null:
 			continue
-		var simulated_target: BattleUnitState = BattleUnitState.from_dict(target_unit.to_dict())
-		if simulated_target == null:
-			continue
-		var result := _damage_resolver.resolve_effects(context.unit_state, simulated_target, effect_defs)
-		var damage := int(result.get("damage", 0))
-		var healing := int(result.get("healing", 0))
-		var status_count := (result.get("status_effect_ids", []) as Array).size()
-		var terrain_effect_count := (result.get("terrain_effect_ids", []) as Array).size()
-		var height_delta := absi(int(result.get("height_delta", 0)))
-		score_input.estimated_damage += damage
-		score_input.estimated_healing += healing
-		score_input.estimated_status_count += status_count
-		score_input.estimated_terrain_effect_count += terrain_effect_count
-		score_input.estimated_height_delta += height_delta
+		score_input.estimated_damage += estimated_damage
+		score_input.estimated_healing += estimated_healing
+		score_input.estimated_status_count += estimated_status_count
+		score_input.estimated_terrain_effect_count += estimated_terrain_effect_count
+		score_input.estimated_height_delta += estimated_height_delta
 		if target_unit.faction_id == context.unit_state.faction_id:
-			score_input.hit_payoff_score += healing * _score_profile.heal_weight
-			score_input.hit_payoff_score -= damage * _score_profile.damage_weight
+			score_input.hit_payoff_score += estimated_healing * _score_profile.heal_weight
+			score_input.hit_payoff_score -= estimated_damage * _score_profile.damage_weight
 		else:
-			score_input.hit_payoff_score += damage * _score_profile.damage_weight
-			score_input.hit_payoff_score -= healing * _score_profile.heal_weight
-		score_input.hit_payoff_score += status_count * _score_profile.status_weight
-		score_input.hit_payoff_score += terrain_effect_count * _score_profile.terrain_weight
-		score_input.hit_payoff_score += height_delta * _score_profile.height_weight
+			score_input.hit_payoff_score += estimated_damage * _score_profile.damage_weight
+			score_input.hit_payoff_score -= estimated_healing * _score_profile.heal_weight
+		score_input.hit_payoff_score += estimated_status_count * _score_profile.status_weight
+		score_input.hit_payoff_score += estimated_terrain_effect_count * _score_profile.terrain_weight
+		score_input.hit_payoff_score += estimated_height_delta * _score_profile.height_weight
 	score_input.hit_payoff_score = int(round(
 		float(score_input.hit_payoff_score) * float(score_input.estimated_hit_rate_percent) / 100.0
 	))
+
+
+func _estimate_damage_from_preview(damage_preview: Dictionary) -> int:
+	if damage_preview.is_empty() or not bool(damage_preview.get("has_damage", false)):
+		return 0
+	return maxi(int(round(
+		(float(damage_preview.get("min_damage", 0)) + float(damage_preview.get("max_damage", 0))) / 2.0
+	)), 0)
+
+
+func _estimate_healing(effect_defs: Array) -> int:
+	var total := 0
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def == null or effect_def.effect_type != &"heal":
+			continue
+		total += maxi(int(effect_def.power), 1)
+	return total
+
+
+func _estimate_status_count(effect_defs: Array) -> int:
+	var status_ids: Dictionary = {}
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def == null:
+			continue
+		if effect_def.effect_type != &"status" and effect_def.effect_type != &"apply_status":
+			continue
+		if effect_def.status_id == &"":
+			continue
+		status_ids[effect_def.status_id] = true
+	return status_ids.size()
+
+
+func _estimate_terrain_effect_count(effect_defs: Array) -> int:
+	var terrain_effect_ids: Dictionary = {}
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def == null:
+			continue
+		if effect_def.effect_type != &"terrain" and effect_def.effect_type != &"terrain_effect":
+			continue
+		if effect_def.terrain_effect_id == &"":
+			continue
+		terrain_effect_ids[effect_def.terrain_effect_id] = true
+	return terrain_effect_ids.size()
+
+
+func _estimate_height_delta(effect_defs: Array) -> int:
+	var total := 0
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def == null:
+			continue
+		if effect_def.effect_type != &"height" and effect_def.effect_type != &"height_delta":
+			continue
+		total += absi(int(effect_def.height_delta))
+	return total
 
 
 func _resolve_estimated_hit_rate_percent(preview) -> int:

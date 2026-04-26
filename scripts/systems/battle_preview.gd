@@ -19,3 +19,5 @@ var resolved_anchor_coord: Vector2i = Vector2i(-1, -1)
 var move_cost := 0
 ## 字段说明：保存当前技能的命中预览摘要，便于 HUD、snapshot 与测试复用同一套解析结果。
 var hit_preview: Dictionary = {}
+## 字段说明：保存当前技能的非暴击基础伤害范围预览；只来自武器骰、技能骰、dice_bonus 与 power，不走正式伤害结算。
+var damage_preview: Dictionary = {}

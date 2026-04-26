@@ -14,6 +14,7 @@ const BATTLE_TERRAIN_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
 const BATTLE_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battle_terrain_generator.gd")
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_damage_resolver.gd")
+const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_damage_preview_range_service.gd")
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
 const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle_status_semantic_table.gd")
 const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle_ai_service.gd")
@@ -1499,6 +1500,7 @@ func _preview_unit_skill_command(
 	if preview.allowed:
 		var target_units := validation.get("target_units", []) as Array
 		preview.hit_preview = _build_unit_skill_hit_preview(active_unit, target_units, skill_def, cast_variant)
+		preview.damage_preview = _build_unit_skill_damage_preview(active_unit, skill_def, cast_variant)
 		var skill_label := _format_skill_variant_label(skill_def, cast_variant)
 		if target_units.size() == 1:
 			var target_unit := target_units[0] as BattleUnitState
@@ -1506,8 +1508,7 @@ func _preview_unit_skill_command(
 				preview.log_lines.append("%s 可对 %s 使用 %s。" % [active_unit.display_name, target_unit.display_name, skill_label])
 				if not preview.hit_preview.is_empty():
 					preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
-				for preview_line in _build_unit_skill_resolution_preview_lines(active_unit, target_unit, skill_def, cast_variant):
-					preview.log_lines.append(preview_line)
+				_append_damage_preview_line(preview)
 				return
 		preview.log_lines.append("%s 可对 %d 个单位使用 %s。" % [
 			active_unit.display_name,
@@ -1516,6 +1517,7 @@ func _preview_unit_skill_command(
 		])
 		if not preview.hit_preview.is_empty():
 			preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
+		_append_damage_preview_line(preview)
 		return
 	preview.log_lines.append(String(validation.get("message", "技能或目标无效。")))
 
@@ -1608,6 +1610,26 @@ func _build_unit_skill_hit_preview(
 			_skill_resolution_rules.is_force_hit_no_crit_skill(skill_def)
 		)
 	return _hit_resolver.build_repeat_attack_preview(_state, active_unit, target_unit, skill_def, repeat_attack_effect)
+
+
+func _build_unit_skill_damage_preview(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef
+) -> Dictionary:
+	if active_unit == null or skill_def == null:
+		return {}
+	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
+	return BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT.build_skill_damage_preview(active_unit, effect_defs)
+
+
+func _append_damage_preview_line(preview: BattlePreview) -> void:
+	if preview == null or preview.damage_preview.is_empty():
+		return
+	var damage_preview_text := String(preview.damage_preview.get("summary_text", ""))
+	if damage_preview_text.is_empty():
+		return
+	preview.log_lines.append(damage_preview_text)
 
 
 func summarize_damage_result(result: Dictionary) -> Dictionary:
@@ -1821,80 +1843,10 @@ func _build_unit_skill_resolution_preview_lines(
 	var lines: Array[String] = []
 	if active_unit == null or target_unit == null or skill_def == null:
 		return lines
-	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
-	if effect_defs.is_empty():
-		return lines
-	if _repeat_attack_resolver.get_repeat_attack_effect_def(effect_defs) != null:
-		return lines
-	var simulated_source := BattleUnitState.from_dict(active_unit.to_dict()) as BattleUnitState
-	var simulated_target := BattleUnitState.from_dict(target_unit.to_dict()) as BattleUnitState
-	if simulated_source == null or simulated_target == null:
-		return lines
-	var simulated_result := _damage_resolver.resolve_effects(simulated_source, simulated_target, effect_defs)
-	var summary := summarize_damage_result(simulated_result)
-	if bool(summary.get("has_damage_event", false)):
-		var damage := int(summary.get("damage", 0))
-		var shield_absorbed := int(summary.get("shield_absorbed", 0))
-		var fixed_mitigation_total := int(summary.get("fixed_mitigation_total", 0))
-		if damage > 0:
-			if bool(summary.get("any_double", false)):
-				var double_source_text := _format_damage_source_labels(summary.get("double_source_labels", []))
-				if double_source_text.is_empty():
-					lines.append("预计命中 %s 后会触发易伤，并造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
-				else:
-					lines.append("预计命中 %s 后因 %s 触发易伤，并造成 %d 点 HP 伤害。" % [
-						target_unit.display_name,
-						double_source_text,
-						damage,
-					])
-			elif bool(summary.get("any_half", false)):
-				var half_source_text := _format_damage_source_labels(summary.get("half_source_labels", []))
-				if half_source_text.is_empty():
-					lines.append("预计命中 %s 后伤害减半，并造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
-				else:
-					lines.append("预计命中 %s 后因 %s 伤害减半，并造成 %d 点 HP 伤害。" % [
-						target_unit.display_name,
-						half_source_text,
-						damage,
-					])
-			else:
-				lines.append("预计命中 %s 后造成 %d 点 HP 伤害。" % [target_unit.display_name, damage])
-			if fixed_mitigation_total > 0:
-				var fixed_source_text := String(summary.get("fixed_mitigation_source_text", ""))
-				if fixed_source_text.is_empty():
-					fixed_source_text = String(summary.get("absorb_reason_text", "防护"))
-				lines.append("预计 %s 的 %s 会吸收 %d 点伤害。" % [
-					target_unit.display_name,
-					fixed_source_text,
-					fixed_mitigation_total,
-				])
-			if shield_absorbed > 0:
-				lines.append("预计 %s 的护盾会先吸收 %d 点伤害。" % [target_unit.display_name, shield_absorbed])
-		else:
-			if bool(summary.get("any_immune", false)):
-				var immune_source_text := _format_damage_source_labels(summary.get("immune_source_labels", []))
-				if immune_source_text.is_empty():
-					lines.append("预计命中 %s，但其免疫该伤害。" % target_unit.display_name)
-				else:
-					lines.append("预计命中 %s，但其因 %s 免疫该伤害。" % [
-						target_unit.display_name,
-						immune_source_text,
-					])
-			elif shield_absorbed > 0:
-				lines.append("预计命中 %s，但会被护盾吸收 %d 点伤害。" % [
-					target_unit.display_name,
-					shield_absorbed,
-				])
-			else:
-				lines.append("预计命中 %s，但会被 %s 完全吸收。" % [
-					target_unit.display_name,
-					String(summary.get("absorb_reason_text", "防护")),
-				])
-		if bool(summary.get("shield_broken", false)):
-			lines.append("预计 %s 的护盾会被击碎。" % target_unit.display_name)
-	var healing := int(summary.get("healing", 0))
-	if healing > 0:
-		lines.append("预计为 %s 恢复 %d 点生命。" % [target_unit.display_name, healing])
+	var damage_preview := _build_unit_skill_damage_preview(active_unit, skill_def, cast_variant)
+	var damage_preview_text := String(damage_preview.get("summary_text", ""))
+	if not damage_preview_text.is_empty():
+		lines.append(damage_preview_text)
 	return lines
 
 

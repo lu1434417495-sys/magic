@@ -1030,7 +1030,16 @@ func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
 	)
 	archer.current_stamina = 20
 	archer.attribute_snapshot.set_value(&"stamina_max", 20)
-	archer.set_natural_weapon_projection(&"test_bow", &"physical_pierce", 4)
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ui_test_bow",
+		"weapon_profile_type_id": "test_bow",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 4,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
 	archer.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
 	var enemy_a := _build_repeat_attack_unit(
 		&"hybrid_enemy_a",
@@ -1106,7 +1115,16 @@ func _build_repeat_attack_unit(
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 5)
-	unit.set_natural_weapon_projection(&"test_blade", &"physical_slash", 1)
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ui_test_blade",
+		"weapon_profile_type_id": "test_blade",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
