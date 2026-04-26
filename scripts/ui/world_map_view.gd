@@ -18,6 +18,8 @@ signal cell_right_clicked(coord: Vector2i)
 @export var cell_background_texture: Texture2D
 ## 字段说明：在编辑器中暴露玩家纹理配置，用来控制界面的贴图外观、地图绘制效果或图标资源来源。
 @export var player_texture: Texture2D
+## 字段说明：在编辑器中暴露村级据点纹理配置，用来控制村庄据点在世界地图上的贴图表现。
+@export var village_settlement_texture: Texture2D
 ## 字段说明：在编辑器中暴露玩家贴图绘制尺寸，便于控制世界地图上的角色显示比例。
 @export_range(16, 256, 1) var player_texture_draw_size := 128
 ## 字段说明：在编辑器中暴露格子背景裁切量参数，便于直接调整尺寸、范围、间距或视图表现。
@@ -194,7 +196,7 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 			color = color.darkened(0.45)
 			color.a = 0.85
 
-		draw_rect(rect, color)
+		_draw_settlement_body(rect, settlement.get("tier", 0), color)
 		draw_rect(rect, Color(0.05, 0.08, 0.14, 0.95), false, 2.0)
 
 		if not can_draw_labels:
@@ -203,6 +205,15 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 		var label: String = settlement.get("display_name", "据点")
 		var label_pos := rect.position + Vector2(8, min(24, rect.size.y - 6))
 		draw_string(font, label_pos, label, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 12.0, font_size, Color.WHITE)
+
+
+func _draw_settlement_body(rect: Rect2, tier: int, color: Color) -> void:
+	if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.VILLAGE and village_settlement_texture != null:
+		draw_texture_rect(village_settlement_texture, rect, false, Color(1.0, 1.0, 1.0, color.a))
+		if color != village_tier_color:
+			draw_rect(rect, Color(0.0, 0.0, 0.0, 0.35))
+		return
+	draw_rect(rect, color)
 
 
 func _draw_mobile_entities(camera_origin: Vector2, visible_rect: Rect2i) -> void:
