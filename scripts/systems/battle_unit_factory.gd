@@ -118,6 +118,22 @@ func refresh_weapon_projection(unit_state: BattleUnitState) -> void:
 	_apply_member_weapon_projection(unit_state, unit_state.source_member_id, unit_state.get_equipment_view())
 
 
+func refresh_equipment_projection(unit_state: BattleUnitState) -> void:
+	if unit_state == null or unit_state.source_member_id == &"" or _runtime == null:
+		return
+	var character_gateway: Object = _runtime.get_character_gateway()
+	if character_gateway == null:
+		return
+	var member_state = character_gateway.get_member_state(unit_state.source_member_id)
+	if member_state == null:
+		return
+	var snapshot = _build_member_attribute_snapshot(member_state, {}, unit_state.get_equipment_view())
+	if snapshot == null:
+		snapshot = ATTRIBUTE_SNAPSHOT_SCRIPT.new()
+	unit_state.attribute_snapshot = snapshot
+	refresh_weapon_projection(unit_state)
+
+
 func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
 	if context.has("enemy_units"):
 		var explicit_enemy_units: Variant = context.get("enemy_units", [])

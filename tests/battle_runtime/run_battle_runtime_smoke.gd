@@ -23,6 +23,7 @@ const CharacterManagementModule = preload("res://scripts/systems/character_manag
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
+const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
@@ -91,6 +92,7 @@ func _run() -> void:
 	_test_change_equipment_command_all_slots_use_battle_local_views()
 	_test_change_equipment_transaction_auto_links_slots_and_rolls_back_capacity()
 	_test_change_equipment_transaction_updates_versatile_grip_from_offhand()
+	_test_change_equipment_rebuilds_snapshot_clamps_hp_and_reports()
 	_test_runtime_reports_multistep_reachable_move_coords()
 	_test_spawn_anchor_prefers_better_local_mobility_over_corner_slot()
 	_test_spawn_anchor_rejects_water_start_cells()
@@ -528,6 +530,8 @@ func _test_change_equipment_command_all_slots_use_battle_local_views() -> void:
 			"换装成功后应输出结构化战报条目：%s reports=%s" % [String(slot_id), str(batch.report_entries)]
 		)
 		_assert_eq(unit.current_ap, 0, "换装成功应消耗 2 AP：%s" % String(slot_id))
+		_assert_eq(String(state.phase), "timeline_running", "换装后 AP 归零应立刻结束当前单位行动：%s" % String(slot_id))
+		_assert_eq(String(state.active_unit_id), "", "换装后 AP 归零应清空当前行动单位：%s" % String(slot_id))
 		_assert_eq(
 			String(unit.get_equipment_view().get_equipped_instance_id(slot_id)),
 			String(instance_id),
@@ -639,6 +643,95 @@ func _test_change_equipment_transaction_updates_versatile_grip_from_offhand() ->
 	_assert_eq(String(unit.get_equipment_view().get_equipped_item_id(&"off_hand")), "training_shield", "副手盾牌应写入 battle-local 装备 view。")
 	_assert_true(not unit.weapon_uses_two_hands, "副手被盾牌占用后 versatile 武器应自动改为单手握法。")
 	_assert_eq(String(unit.weapon_current_grip), "one_handed", "副手被盾牌占用后 current_grip 应为 one_handed。")
+
+
+func _test_change_equipment_rebuilds_snapshot_clamps_hp_and_reports() -> void:
+	var item_defs := _build_transaction_item_defs()
+	item_defs[&"training_vital_armor"] = _make_transaction_hp_armor_item(&"training_vital_armor", 6)
+	var party := _build_equipment_transaction_party(&"hp_swap_hero", 3)
+	var gateway := CharacterManagementModule.new()
+	gateway.setup(party, {}, {}, {}, item_defs)
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(gateway, {}, {}, {}, null, null, item_defs)
+	var state := _build_skill_test_state(Vector2i(3, 1))
+	state.battle_id = &"change_equipment_hp_projection"
+	var unit := _build_unit(&"hp_swap_hero", Vector2i(0, 0), 4)
+	unit.source_member_id = &"hp_swap_hero"
+	unit.set_equipment_view(party.get_member_state(&"hp_swap_hero").equipment_state)
+	runtime._unit_factory.refresh_equipment_projection(unit)
+	unit.current_hp = 54
+	var enemy := _build_enemy_unit(&"hp_swap_enemy", Vector2i(2, 0))
+	state.units = {
+		unit.unit_id: unit,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [unit.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = unit.unit_id
+	state.get_party_backpack_view().equipment_instances = [_make_equipment_instance(&"vital_armor_battle_001", &"training_vital_armor")]
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "HP 换装测试单位应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "HP 换装测试敌方应能成功放入战场。")
+	runtime._state = state
+
+	var base_hp_max := int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX))
+	var equip_command := _build_change_equipment_command(
+		unit.unit_id,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		&"body",
+		&"vital_armor_battle_001",
+		&"training_vital_armor"
+	)
+	var equip_batch := runtime.issue_command(equip_command)
+	_assert_eq(
+		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)),
+		base_hp_max + 6,
+		"换装成功后应按 battle-local 装备 view 重建 attribute_snapshot。"
+	)
+	_assert_eq(unit.current_hp, 54, "HP 上限上升时 current_hp 不应比例缩放或治疗。")
+	_assert_eq(unit.current_ap, 2, "换装应统一消耗 2 AP。")
+	_assert_eq(String(state.phase), "unit_acting", "换装后仍有 AP 时不应结束当前单位行动。")
+	var equip_report: Dictionary = _find_change_equipment_report(equip_batch.report_entries)
+	_assert_true(not equip_report.is_empty(), "换装成功应进入 battle report。 reports=%s" % str(equip_batch.report_entries))
+	_assert_true(
+		not _find_change_equipment_report(state.report_entries).is_empty(),
+		"换装成功应进入 BattleState.report_entries 供 UI / headless 读取。 reports=%s" % str(state.report_entries)
+	)
+	_assert_eq(String(equip_report.get("entry_type", "")), "change_equipment", "换装 report 应暴露 entry_type。")
+	_assert_eq(int(equip_report.get("hp_before", 0)), 54, "换装 report 应记录换装前 HP。")
+	_assert_eq(int(equip_report.get("hp_after", 0)), 54, "换装 report 应记录换装后 HP。")
+	_assert_eq(int(equip_report.get("hp_max_after", 0)), base_hp_max + 6, "换装 report 应记录换装后 HP 上限。")
+	_assert_eq(int(equip_report.get("ap_before", 0)), 4, "换装 report 应记录换装前 AP。")
+	_assert_eq(int(equip_report.get("ap_after", 0)), 2, "换装 report 应记录换装后 AP。")
+	_assert_true(
+		state.log_entries.any(func(line): return String(line).contains("换装")),
+		"换装成功应进入 battle log。 log=%s" % str(state.log_entries)
+	)
+
+	state.phase = &"unit_acting"
+	state.active_unit_id = unit.unit_id
+	unit.current_ap = 2
+	unit.current_hp = base_hp_max + 4
+	var unequip_command := _build_change_equipment_command(
+		unit.unit_id,
+		BattleCommand.EQUIPMENT_OPERATION_UNEQUIP,
+		&"body",
+		&"vital_armor_battle_001",
+		&"training_vital_armor"
+	)
+	var unequip_batch := runtime.issue_command(unequip_command)
+	_assert_eq(
+		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)),
+		base_hp_max,
+		"卸装成功后应按 battle-local 装备 view 重建 attribute_snapshot。"
+	)
+	_assert_eq(unit.current_hp, base_hp_max, "HP 上限下降且 current_hp 超过新上限时应 clamp。")
+	_assert_eq(unit.current_ap, 0, "卸装也应统一消耗 2 AP。")
+	_assert_eq(String(state.phase), "timeline_running", "换装后 current_ap <= 0 应立刻结束当前行动单位行动。")
+	_assert_eq(String(state.active_unit_id), "", "换装后 current_ap <= 0 应清空当前行动单位。")
+	var unequip_report: Dictionary = _find_change_equipment_report(unequip_batch.report_entries)
+	_assert_true(bool(unequip_report.get("hp_clamped", false)), "HP clamp 应写入换装 report。 report=%s" % str(unequip_report))
+	_assert_eq(int(unequip_report.get("hp_before", 0)), base_hp_max + 4, "卸装 report 应记录 clamp 前 HP。")
+	_assert_eq(int(unequip_report.get("hp_after", 0)), base_hp_max, "卸装 report 应记录 clamp 后 HP。")
 
 
 func _test_runtime_reports_multistep_reachable_move_coords() -> void:
@@ -2394,6 +2487,34 @@ func _make_transaction_shield_item(item_id: StringName) -> ItemDef:
 	item_def.is_stackable = false
 	item_def.max_stack = 1
 	return item_def
+
+
+func _make_transaction_hp_armor_item(item_id: StringName, hp_bonus: int) -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = item_id
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.equipment_slot_ids = ["body"]
+	item_def.is_stackable = false
+	item_def.max_stack = 1
+	var modifier := AttributeModifier.new()
+	modifier.attribute_id = ATTRIBUTE_SERVICE_SCRIPT.HP_MAX
+	modifier.mode = AttributeModifier.MODE_FLAT
+	modifier.value = hp_bonus
+	modifier.source_type = &"equipment"
+	modifier.source_id = item_id
+	item_def.attribute_modifiers = [modifier]
+	return item_def
+
+
+func _find_change_equipment_report(report_entries: Array) -> Dictionary:
+	for entry_variant in report_entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("type", "")) == "change_equipment":
+			return entry
+	return {}
 
 
 func _make_transaction_weapon_dice(dice_count: int, dice_sides: int, flat_bonus: int):

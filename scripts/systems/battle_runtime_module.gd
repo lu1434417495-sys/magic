@@ -1469,14 +1469,52 @@ func _handle_change_equipment_command(active_unit: BattleUnitState, command: Bat
 		_append_change_equipment_report(batch, active_unit, apply_result, false)
 		return
 
+	var ap_before := int(active_unit.current_ap)
 	active_unit.set_equipment_view(equipment_view)
 	_state.set_party_backpack_view(backpack_view)
-	if active_unit.source_member_id != &"" and _character_gateway != null:
-		_unit_factory.refresh_weapon_projection(active_unit)
+	_refresh_change_equipment_projection(active_unit, apply_result)
 	active_unit.current_ap = maxi(active_unit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0)
+	apply_result["ap_before"] = ap_before
+	apply_result["ap_after"] = int(active_unit.current_ap)
 	_record_action_issued(active_unit, BattleCommand.TYPE_CHANGE_EQUIPMENT)
 	batch.changed_unit_ids.append(active_unit.unit_id)
 	_append_change_equipment_report(batch, active_unit, apply_result, true)
+
+
+func _refresh_change_equipment_projection(active_unit: BattleUnitState, result: Dictionary) -> void:
+	if active_unit == null:
+		return
+	var hp_before := int(active_unit.current_hp)
+	var hp_max_before := _get_unit_hp_max(active_unit)
+	if active_unit.source_member_id != &"" and _character_gateway != null:
+		_unit_factory.refresh_equipment_projection(active_unit)
+	var hp_max_after := _get_unit_hp_max(active_unit)
+	var hp_clamped := false
+	if hp_max_after > 0 and hp_max_after < hp_max_before and active_unit.current_hp > hp_max_after:
+		active_unit.current_hp = hp_max_after
+		hp_clamped = true
+	if active_unit.current_hp < 0:
+		active_unit.current_hp = 0
+		hp_clamped = true
+	active_unit.is_alive = active_unit.current_hp > 0
+	result["hp_before"] = hp_before
+	result["hp_after"] = int(active_unit.current_hp)
+	result["hp_max_before"] = hp_max_before
+	result["hp_max_after"] = hp_max_after
+	result["hp_clamped"] = hp_clamped
+	result["weapon_profile_kind"] = String(active_unit.weapon_profile_kind)
+	result["weapon_item_id"] = String(active_unit.weapon_item_id)
+	result["weapon_profile_type_id"] = String(active_unit.weapon_profile_type_id)
+	result["weapon_current_grip"] = String(active_unit.weapon_current_grip)
+	result["weapon_attack_range"] = int(active_unit.weapon_attack_range)
+	result["weapon_uses_two_hands"] = bool(active_unit.weapon_uses_two_hands)
+	result["weapon_physical_damage_tag"] = String(active_unit.weapon_physical_damage_tag)
+
+
+func _get_unit_hp_max(unit_state: BattleUnitState) -> int:
+	if unit_state == null or unit_state.attribute_snapshot == null:
+		return 0
+	return maxi(int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 1)
 
 
 func _validate_change_equipment_command(active_unit: BattleUnitState, command: BattleCommand) -> Dictionary:
@@ -1662,9 +1700,12 @@ func _append_change_equipment_report(
 	success: bool
 ) -> void:
 	var report_entry := {
+		"entry_type": "change_equipment",
 		"type": "change_equipment",
 		"ok": success,
 		"error_code": "" if success else String(result.get("error_code", "change_equipment_failed")),
+		"reason_id": String(result.get("operation", "")),
+		"event_tags": ["equipment", "change_equipment"],
 		"unit_id": String(active_unit.unit_id) if active_unit != null else "",
 		"target_unit_id": String(result.get("target_unit_id", "")),
 		"operation": String(result.get("operation", "")),
@@ -1673,6 +1714,21 @@ func _append_change_equipment_report(
 		"item_id": String(result.get("item_id", "")),
 		"instance_id": String(result.get("instance_id", "")),
 		"ap_cost": CHANGE_EQUIPMENT_AP_COST if success else 0,
+		"ap_before": int(result.get("ap_before", 0)),
+		"ap_after": int(result.get("ap_after", active_unit.current_ap if active_unit != null else 0)),
+		"current_ap": int(active_unit.current_ap) if active_unit != null else 0,
+		"hp_before": int(result.get("hp_before", active_unit.current_hp if active_unit != null else 0)),
+		"hp_after": int(result.get("hp_after", active_unit.current_hp if active_unit != null else 0)),
+		"hp_max_before": int(result.get("hp_max_before", _get_unit_hp_max(active_unit))),
+		"hp_max_after": int(result.get("hp_max_after", _get_unit_hp_max(active_unit))),
+		"hp_clamped": bool(result.get("hp_clamped", false)),
+		"weapon_profile_kind": String(result.get("weapon_profile_kind", active_unit.weapon_profile_kind if active_unit != null else "")),
+		"weapon_item_id": String(result.get("weapon_item_id", active_unit.weapon_item_id if active_unit != null else "")),
+		"weapon_profile_type_id": String(result.get("weapon_profile_type_id", active_unit.weapon_profile_type_id if active_unit != null else "")),
+		"weapon_current_grip": String(result.get("weapon_current_grip", active_unit.weapon_current_grip if active_unit != null else "")),
+		"weapon_attack_range": int(result.get("weapon_attack_range", active_unit.weapon_attack_range if active_unit != null else 0)),
+		"weapon_uses_two_hands": bool(result.get("weapon_uses_two_hands", active_unit.weapon_uses_two_hands if active_unit != null else false)),
+		"weapon_physical_damage_tag": String(result.get("weapon_physical_damage_tag", active_unit.weapon_physical_damage_tag if active_unit != null else "")),
 		"text": String(result.get("message", "换装命令无效。")),
 	}
 	_append_report_entry_to_batch(batch, report_entry)
