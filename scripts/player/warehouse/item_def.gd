@@ -64,10 +64,8 @@ const DAMAGE_TAG_PHYSICAL_BLUNT: StringName = &"physical_blunt"
 @export var equip_requirement: Resource = null
 ## 字段说明：装备大类标识，用于候选过滤与文案显示，不参与核心规则判定。
 @export var equipment_type_id: StringName = &""
-## 字段说明：武器装备后的攻击范围；武器技能射程从该值读取，不再从技能资源单独配置。
-@export_range(0, 99, 1) var weapon_attack_range := 0
-## 字段说明：近战武器造成的唯一物理伤害类型；武器近战技能会在战斗中实时读取该值覆盖技能默认伤害类型。
-@export var weapon_physical_damage_tag: StringName = &""
+## 字段说明：武器运行时配置真相源；必须引用 WeaponProfileDef，攻击范围、伤害类型与后续武器骰配置均从该资源读取。
+@export var weapon_profile: Resource = null
 
 
 func get_effective_max_stack() -> int:
@@ -144,8 +142,18 @@ func is_weapon() -> bool:
 	return get_equipment_type_id_normalized() == EQUIPMENT_TYPE_WEAPON
 
 
+func get_weapon_attack_range() -> int:
+	var profile := _get_weapon_profile_resource()
+	if not is_weapon() or profile == null:
+		return 0
+	return maxi(int(profile.get("attack_range")), 0)
+
+
 func get_weapon_physical_damage_tag() -> StringName:
-	var normalized := ProgressionDataUtils.to_string_name(weapon_physical_damage_tag)
+	var profile := _get_weapon_profile_resource()
+	if not is_weapon() or profile == null:
+		return &""
+	var normalized := ProgressionDataUtils.to_string_name(profile.get("damage_tag"))
 	if is_weapon() and get_valid_weapon_physical_damage_tags().has(normalized):
 		return normalized
 	return &""
@@ -165,7 +173,8 @@ func is_skill_book() -> bool:
 
 func get_attribute_modifiers() -> Array[AttributeModifier]:
 	var modifiers: Array[AttributeModifier] = attribute_modifiers.duplicate()
-	if is_weapon() and weapon_attack_range > 0:
+	var weapon_attack_range := get_weapon_attack_range()
+	if weapon_attack_range > 0:
 		var range_modifier := AttributeModifier.new()
 		range_modifier.attribute_id = &"weapon_attack_range"
 		range_modifier.mode = AttributeModifier.MODE_FLAT
@@ -212,3 +221,7 @@ func _normalize_string_name_list(values: Array) -> Array[StringName]:
 			continue
 		normalized_values.append(normalized_value)
 	return normalized_values
+
+
+func _get_weapon_profile_resource() -> Resource:
+	return weapon_profile

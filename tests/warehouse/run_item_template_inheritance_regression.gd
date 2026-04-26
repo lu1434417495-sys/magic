@@ -3,15 +3,16 @@ extends SceneTree
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
 const WEAPON_INSTANCE_EXPECTATIONS := {
 	&"bronze_sword": {
 		"base_item_id": &"weapon_sword_one_handed_base",
 		"tags": [&"weapon", &"melee", &"one_handed", &"sword", &"weapon_class_sword"],
-		"weapon_physical_damage_tag": &"physical_slash",
+		"damage_tag": &"physical_slash",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": [],
-		"weapon_attack_range": 1,
+		"attack_range": 1,
 		"modifier_count": 2,
 		"base_price": 120,
 		"buy_price": 0,
@@ -20,10 +21,10 @@ const WEAPON_INSTANCE_EXPECTATIONS := {
 	&"iron_greatsword": {
 		"base_item_id": &"weapon_greatsword_two_handed_base",
 		"tags": [&"weapon", &"melee", &"two_handed", &"greatsword", &"weapon_class_sword"],
-		"weapon_physical_damage_tag": &"physical_slash",
+		"damage_tag": &"physical_slash",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": ["main_hand", "off_hand"],
-		"weapon_attack_range": 1,
+		"attack_range": 1,
 		"modifier_count": 1,
 		"base_price": 240,
 		"buy_price": 0,
@@ -32,10 +33,10 @@ const WEAPON_INSTANCE_EXPECTATIONS := {
 	&"militia_axe": {
 		"base_item_id": &"weapon_axe_one_handed_base",
 		"tags": [&"weapon", &"melee", &"one_handed", &"axe", &"weapon_class_axe"],
-		"weapon_physical_damage_tag": &"physical_slash",
+		"damage_tag": &"physical_slash",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": [],
-		"weapon_attack_range": 1,
+		"attack_range": 1,
 		"modifier_count": 2,
 		"base_price": 135,
 		"buy_price": 145,
@@ -44,10 +45,10 @@ const WEAPON_INSTANCE_EXPECTATIONS := {
 	&"scout_dagger": {
 		"base_item_id": &"weapon_dagger_one_handed_base",
 		"tags": [&"weapon", &"melee", &"one_handed", &"dagger", &"weapon_class_dagger"],
-		"weapon_physical_damage_tag": &"physical_pierce",
+		"damage_tag": &"physical_pierce",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": [],
-		"weapon_attack_range": 1,
+		"attack_range": 1,
 		"modifier_count": 2,
 		"base_price": 120,
 		"buy_price": 130,
@@ -56,10 +57,10 @@ const WEAPON_INSTANCE_EXPECTATIONS := {
 	&"watchman_mace": {
 		"base_item_id": &"weapon_mace_one_handed_base",
 		"tags": [&"weapon", &"melee", &"one_handed", &"mace", &"weapon_class_mace"],
-		"weapon_physical_damage_tag": &"physical_blunt",
+		"damage_tag": &"physical_blunt",
 		"equipment_slot_ids": ["main_hand"],
 		"occupied_slot_ids": [],
-		"weapon_attack_range": 1,
+		"attack_range": 1,
 		"modifier_count": 2,
 		"base_price": 165,
 		"buy_price": 175,
@@ -91,7 +92,9 @@ func _run() -> void:
 	_test_attribute_modifier_source_id_rewritten()
 	_test_templates_excluded_from_item_defs()
 	_test_standalone_item_without_template_unchanged()
+	_test_item_def_exposes_only_weapon_profile_runtime_source()
 	_test_scalar_fallback()
+	_test_weapon_profile_merge_delegates_property_rules()
 	_test_item_category_inherits_from_template()
 	_test_item_category_normalized_helper()
 	_test_string_name_array_merge_dedup_order()
@@ -128,8 +131,8 @@ func _test_weapon_instances_resolve_against_templates() -> void:
 			continue
 		_assert_eq(item_def.base_item_id, &"", "合并后 %s 的 base_item_id 应被清空。" % String(item_id))
 		_assert_eq(item_def.get_tags(), expectation["tags"], "%s 合并后 tags 应与原始一致。" % String(item_id))
-		_assert_eq(String(item_def.weapon_physical_damage_tag), String(expectation["weapon_physical_damage_tag"]), "%s 合并后 damage_tag 应来自模板。" % String(item_id))
-		_assert_eq(int(item_def.weapon_attack_range), int(expectation["weapon_attack_range"]), "%s 合并后 attack_range 应来自模板。" % String(item_id))
+		_assert_eq(String(item_def.get_weapon_physical_damage_tag()), String(expectation["damage_tag"]), "%s 合并后 damage_tag 应来自 weapon_profile 模板。" % String(item_id))
+		_assert_eq(int(item_def.get_weapon_attack_range()), int(expectation["attack_range"]), "%s 合并后 attack_range 应来自 weapon_profile 模板。" % String(item_id))
 		_assert_eq(String(item_def.equipment_type_id), "weapon", "%s 合并后 equipment_type_id 应为 weapon。" % String(item_id))
 		_assert_eq(String(item_def.item_category), "equipment", "%s 合并后 item_category 应为 equipment。" % String(item_id))
 		_assert_eq(item_def.icon, "res://icon.svg", "%s 合并后 icon 应来自模板。" % String(item_id))
@@ -172,6 +175,17 @@ func _test_standalone_item_without_template_unchanged() -> void:
 	_assert_true(standalone.is_stackable, "未引用模板的消耗品应保持可堆叠属性。")
 
 
+func _test_item_def_exposes_only_weapon_profile_runtime_source() -> void:
+	var property_names: Dictionary = {}
+	for property_data in ItemDef.new().get_property_list():
+		if property_data is not Dictionary:
+			continue
+		property_names[String((property_data as Dictionary).get("name", ""))] = true
+	_assert_true(property_names.has("weapon_profile"), "ItemDef 应暴露 weapon_profile 作为武器运行时真相源。")
+	_assert_true(not property_names.has("weapon_attack_range"), "ItemDef 不应继续暴露旧 weapon_attack_range 字段。")
+	_assert_true(not property_names.has("weapon_physical_damage_tag"), "ItemDef 不应继续暴露旧 weapon_physical_damage_tag 字段。")
+
+
 func _test_scalar_fallback() -> void:
 	var template := ItemDef.new()
 	template.item_id = &"_fixture_template"
@@ -180,35 +194,60 @@ func _test_scalar_fallback() -> void:
 	template.icon = "res://template_icon.svg"
 	template.item_category = &"equipment"
 	template.equipment_type_id = &"weapon"
-	template.weapon_attack_range = 3
-	template.weapon_physical_damage_tag = &"physical_slash"
+	template.set("weapon_profile", _build_weapon_profile(3, &"physical_slash"))
 	template.base_price = 50
 	template.buy_price = 60
 
 	var instance := ItemDef.new()
 	instance.item_id = &"_fixture_instance"
 	instance.display_name = ""
-	instance.weapon_attack_range = 0
 	instance.buy_price = 0
 
 	var merged: ItemDef = ItemContentRegistry.merge_with_template(template, instance)
 	_assert_eq(merged.item_id, &"_fixture_instance", "合并应使用 instance.item_id，永不继承模板 item_id。")
 	_assert_eq(merged.display_name, "TemplateName", "instance 空字符串字段应回退模板。")
 	_assert_eq(merged.icon, "res://template_icon.svg", "instance 空 icon 应回退模板。")
-	_assert_eq(int(merged.weapon_attack_range), 3, "instance 0 数值字段应回退模板。")
+	_assert_eq(int(merged.get_weapon_attack_range()), 3, "instance 未设 weapon_profile.attack_range 时应回退模板。")
 	_assert_eq(int(merged.buy_price), 60, "instance 0 buy_price 应回退模板。")
 	_assert_eq(int(merged.base_price), 50, "instance 未设 base_price 应回退模板。")
-	_assert_eq(String(merged.weapon_physical_damage_tag), "physical_slash", "instance 空 damage_tag 应回退模板。")
+	_assert_eq(String(merged.get_weapon_physical_damage_tag()), "physical_slash", "instance 未设 weapon_profile.damage_tag 时应回退模板。")
 
 	var override_instance := ItemDef.new()
 	override_instance.item_id = &"_fixture_override"
 	override_instance.display_name = "OverrideName"
-	override_instance.weapon_attack_range = 5
+	override_instance.set("weapon_profile", _build_weapon_profile(5, &"physical_pierce"))
 	override_instance.buy_price = 999
 	var override_merged: ItemDef = ItemContentRegistry.merge_with_template(template, override_instance)
 	_assert_eq(override_merged.display_name, "OverrideName", "instance 非空字符串应覆盖模板。")
-	_assert_eq(int(override_merged.weapon_attack_range), 5, "instance 非零数值应覆盖模板。")
+	_assert_eq(int(override_merged.get_weapon_attack_range()), 5, "instance weapon_profile.attack_range 应覆盖模板。")
+	_assert_eq(String(override_merged.get_weapon_physical_damage_tag()), "physical_pierce", "instance weapon_profile.damage_tag 应覆盖模板。")
 	_assert_eq(int(override_merged.buy_price), 999, "instance 显式 buy_price 应覆盖模板。")
+
+
+func _test_weapon_profile_merge_delegates_property_rules() -> void:
+	var template := ItemDef.new()
+	template.item_id = &"_fixture_profile_template"
+	template.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	template.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	var template_profile := _build_weapon_profile(2, &"physical_slash")
+	template_profile.properties = [&"versatile"]
+	template.set("weapon_profile", template_profile)
+
+	var instance := ItemDef.new()
+	instance.item_id = &"_fixture_profile_instance"
+	var instance_profile := WeaponProfileDef.new()
+	instance_profile.damage_tag = &"physical_blunt"
+	instance_profile.properties_mode = WeaponProfileDef.PropertyMergeMode.ADD
+	instance_profile.properties = [&"shield_breaker", &"versatile"]
+	instance.set("weapon_profile", instance_profile)
+
+	var merged: ItemDef = ItemContentRegistry.merge_with_template(template, instance)
+	_assert_eq(int(merged.get_weapon_attack_range()), 2, "weapon_profile.attack_range 应由 WeaponProfileDef 的继承哨兵处理。")
+	_assert_eq(String(merged.get_weapon_physical_damage_tag()), "physical_blunt", "weapon_profile.damage_tag 应由 WeaponProfileDef 覆盖。")
+	var merged_profile := merged.get("weapon_profile") as WeaponProfileDef
+	_assert_true(merged_profile != null, "合并后应保留 weapon_profile。")
+	if merged_profile != null:
+		_assert_eq(merged_profile.get_properties(), [&"versatile", &"shield_breaker"], "weapon_profile.properties 应由 WeaponProfileDef merge mode 处理。")
 
 
 func _test_item_category_inherits_from_template() -> void:
@@ -219,8 +258,7 @@ func _test_item_category_inherits_from_template() -> void:
 	template.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
 	template.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
 	template.equipment_slot_ids = ["main_hand"]
-	template.weapon_attack_range = 1
-	template.weapon_physical_damage_tag = ItemDef.DAMAGE_TAG_PHYSICAL_SLASH
+	template.set("weapon_profile", _build_weapon_profile(1, ItemDef.DAMAGE_TAG_PHYSICAL_SLASH))
 	template.tags = [&"weapon", &"melee"]
 	template.icon = "res://template_icon.svg"
 
@@ -379,6 +417,13 @@ func _array_to_string_list(values: Array) -> Array:
 	for value in values:
 		result.append(String(value))
 	return result
+
+
+func _build_weapon_profile(attack_range: int, damage_tag: StringName) -> WeaponProfileDef:
+	var profile := WeaponProfileDef.new()
+	profile.attack_range = attack_range
+	profile.damage_tag = damage_tag
+	return profile
 
 
 func _assert_true(condition: bool, message: String) -> void:

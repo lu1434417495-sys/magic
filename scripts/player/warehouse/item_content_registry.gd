@@ -11,6 +11,7 @@ const ITEM_TEMPLATE_DIRECTORY := "res://data/configs/items_templates"
 const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/item_def.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const ATTRIBUTE_MODIFIER_SCRIPT = preload("res://scripts/player/progression/attribute_modifier.gd")
+const WEAPON_PROFILE_SCRIPT = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
 ## 字段说明：缓存物品定义集合字典，集中保存可按键查询的运行时数据。
 var _item_defs: Dictionary = {}
@@ -191,11 +192,24 @@ func _register_item_resource(resource_path: String) -> void:
 				"Equipment item %s must declare equipment_type_id as weapon, armor, or accessory." % String(item_def.item_id)
 			)
 			return
-		if item_def.is_weapon() and item_tags.has(&"melee") and item_def.get_weapon_physical_damage_tag() == &"":
-			_validation_errors.append(
-				"Melee weapon item %s must declare one valid weapon_physical_damage_tag." % String(item_def.item_id)
-			)
-			return
+		if item_def.is_weapon():
+			var weapon_profile = item_def.get("weapon_profile")
+			if weapon_profile == null:
+				_validation_errors.append("Weapon item %s must declare weapon_profile." % String(item_def.item_id))
+				return
+			if _get_weapon_profile(item_def) == null:
+				_validation_errors.append("Weapon item %s must declare weapon_profile as WeaponProfileDef." % String(item_def.item_id))
+				return
+			if item_tags.has(&"melee") and item_def.get_weapon_attack_range() <= 0:
+				_validation_errors.append(
+					"Melee weapon item %s must declare weapon_profile.attack_range >= 1." % String(item_def.item_id)
+				)
+				return
+			if item_tags.has(&"melee") and item_def.get_weapon_physical_damage_tag() == &"":
+				_validation_errors.append(
+					"Melee weapon item %s must declare one valid weapon_profile.damage_tag." % String(item_def.item_id)
+				)
+				return
 
 		if not item_def.occupied_slot_ids.is_empty():
 			if item_def.equipment_slot_ids.size() != 1:
@@ -265,6 +279,7 @@ static func resolve_with_template_chain(
 ##   2) bool 与默认非零数值（is_stackable/sellable/max_stack）：无法区分"未填"和"显式填了默认值"，instance 始终覆盖。
 ##   3) 数组：tags / crafting_groups / quest_groups / attribute_modifiers 为可加成数组，模板与 instance 合并去重；
 ##      equipment_slot_ids / occupied_slot_ids 为结构性数组，instance 非空覆盖、空回退模板（不能合并以免出现重复槽位）。
+## weapon_profile 是武器运行时真相源；合并只委托 WeaponProfileDef，不在 ItemDef 上保留裸字段规则。
 ## attribute_modifiers 在合并时深拷贝并把 source_id 重写为最终 item_id，避免多个实例共享 source 导致结算覆盖。
 static func merge_with_template(template: ItemDef, instance: ItemDef) -> ItemDef:
 	var merged: ItemDef = ITEM_DEF_SCRIPT.new()
@@ -276,14 +291,13 @@ static func merge_with_template(template: ItemDef, instance: ItemDef) -> ItemDef
 	merged.description = instance.description if instance.description != "" else template.description
 	merged.icon = instance.icon if instance.icon != "" else template.icon
 	merged.equipment_type_id = instance.equipment_type_id if instance.equipment_type_id != &"" else template.equipment_type_id
-	merged.weapon_physical_damage_tag = instance.weapon_physical_damage_tag if instance.weapon_physical_damage_tag != &"" else template.weapon_physical_damage_tag
+	merged.set("weapon_profile", WEAPON_PROFILE_SCRIPT.merge(_get_weapon_profile(template), _get_weapon_profile(instance)))
 	merged.granted_skill_id = instance.granted_skill_id if instance.granted_skill_id != &"" else template.granted_skill_id
 	merged.item_category = instance.item_category if instance.item_category != &"" else template.item_category
 
 	merged.base_price = int(instance.base_price) if int(instance.base_price) != 0 else int(template.base_price)
 	merged.buy_price = int(instance.buy_price) if int(instance.buy_price) != 0 else int(template.buy_price)
 	merged.sell_price = int(instance.sell_price) if int(instance.sell_price) != 0 else int(template.sell_price)
-	merged.weapon_attack_range = int(instance.weapon_attack_range) if int(instance.weapon_attack_range) != 0 else int(template.weapon_attack_range)
 
 	# 默认非空字段：is_stackable(true) / sellable(true) / max_stack(99)。
 	# 这些字段的默认值本身有业务含义，无法区分"未填"与"显式填默认"，所以始终使用 instance 值，模板不参与。
@@ -328,6 +342,17 @@ static func _duplicate_string_array(source_values: Array) -> Array[String]:
 	for value in source_values:
 		copied.append(String(value))
 	return copied
+
+
+static func _get_weapon_profile(item_def: ItemDef):
+	if item_def == null:
+		return null
+	var profile = item_def.get("weapon_profile")
+	if profile == null:
+		return null
+	if profile is Object and profile.get_script() == WEAPON_PROFILE_SCRIPT:
+		return profile
+	return null
 
 
 static func _merge_attribute_modifiers(template_mods: Array, instance_mods: Array, final_item_id: StringName) -> Array[AttributeModifier]:

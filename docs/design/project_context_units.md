@@ -564,7 +564,7 @@ HeadlessGameTestSession
   - 配方定义与 `recipe_id -> RecipeDef`。
   - 仓库堆栈状态。
   - 装备槽位状态与固定槽位规则。
-  - 武器 `ItemDef.weapon_attack_range` 是武器攻击范围真相源；战斗内武器技能射程从装备进入角色 attribute snapshot 后读取，不应在技能资源里另配攻击距离。
+- 武器 `ItemDef.weapon_profile` 是武器运行时真相源；攻击范围由 `weapon_profile.attack_range` 进入角色 attribute snapshot 后供战斗内武器技能射程读取，不应在技能资源里另配攻击距离。
   - `EquipmentDropService` 当前持有装备掉落稀有度公式：`3d6 + drop_luck`。
   - 当前容量 / 已用 / 超容规则。
 - 主要职责：
@@ -831,7 +831,7 @@ HeadlessGameTestSession
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
   - `BattleUnitFactory` 构建 / 刷新友军单位时从角色 attribute snapshot 读取 `action_threshold` 写入 `BattleUnitState.action_threshold`；正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
-  - 武器技能射程由 `BattleRuntimeModule` / selection / HUD 从 `BattleUnitState.attribute_snapshot.weapon_attack_range` 读取；需要当前近战武器伤害类型的近战技能必须同时具备 `weapon_attack_range > 0` 与 `weapon_physical_damage_tag`，不再从技能资源或 1 格保底推断可施放距离；弓类旧夹具无该属性时暂时回退技能配置，正式武器内容应补 `ItemDef.weapon_attack_range`。
+  - 武器技能射程由 `BattleRuntimeModule` / selection / HUD 从 `BattleUnitState.attribute_snapshot.weapon_attack_range` 读取；需要当前近战武器伤害类型的近战技能必须同时具备战斗单位 `weapon_attack_range > 0` 与 `weapon_physical_damage_tag`，不再从技能资源或 1 格保底推断可施放距离；正式武器内容应补 `ItemDef.weapon_profile.attack_range` 与 `weapon_profile.damage_tag`。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。

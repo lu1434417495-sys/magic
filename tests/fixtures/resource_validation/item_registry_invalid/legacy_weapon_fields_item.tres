@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "legacy_weapon_fields_item"
+display_name = "Legacy Weapon Fields Item"
+description = "Fixture proving old weapon fields are not compatibility fallbacks."
+icon = "res://icon.svg"
+is_stackable = false
+max_stack = 1
+item_category = "equipment"
+tags = Array[StringName](["weapon", "melee"])
+equipment_slot_ids = Array[String](["main_hand"])
+equipment_type_id = "weapon"
+weapon_attack_range = 1
+weapon_physical_damage_tag = &"physical_slash"
