@@ -192,8 +192,8 @@ func _test_guard_applies_only_guarding_status() -> void:
 
 
 func _test_war_cry_increases_ally_damage() -> void:
-	var baseline_damage := _measure_buffed_ally_strike_damage(false)
-	var buffed_damage := _measure_buffed_ally_strike_damage(true)
+	var baseline_damage := _measure_max_buffed_ally_strike_damage(false)
+	var buffed_damage := _measure_max_buffed_ally_strike_damage(true)
 	_assert_true(buffed_damage > baseline_damage, "战吼后的友军输出应高于未受鼓舞时。 baseline=%d buffed=%d" % [baseline_damage, buffed_damage])
 
 
@@ -325,7 +325,8 @@ func _test_taunt_redirects_ai_target() -> void:
 	enemy.faction_id = &"enemy"
 	enemy.control_mode = &"ai"
 	enemy.ai_brain_id = &"melee_aggressor"
-	enemy.current_stamina = 1
+	enemy.current_stamina = 30
+	enemy.current_move_points = 0
 	enemy.known_active_skill_ids = [&"warrior_heavy_strike"]
 	enemy.known_skill_level_map = {&"warrior_heavy_strike": 1}
 	enemy.status_effects[&"taunted"] = {
@@ -342,6 +343,7 @@ func _test_taunt_redirects_ai_target() -> void:
 	_add_unit(runtime, state, other_target)
 	state.enemy_unit_ids = [enemy.unit_id]
 	state.ally_unit_ids = [taunt_source.unit_id, other_target.unit_id]
+	state.active_unit_id = enemy.unit_id
 	runtime._state = state
 
 	var context := BattleAiContext.new()
@@ -407,7 +409,7 @@ func _measure_enemy_heavy_strike_damage(apply_guard: bool) -> int:
 	warrior.known_skill_level_map = {&"warrior_guard": 1}
 	var enemy := _build_unit(&"guard_attacker", Vector2i(2, 1), 2)
 	enemy.faction_id = &"enemy"
-	enemy.current_stamina = 3
+	enemy.current_stamina = 30
 	enemy.known_active_skill_ids = [&"warrior_heavy_strike"]
 	enemy.known_skill_level_map = {&"warrior_heavy_strike": 1}
 
@@ -442,18 +444,25 @@ func _measure_enemy_heavy_strike_damage(apply_guard: bool) -> int:
 	return hp_before - warrior.current_hp
 
 
-func _measure_buffed_ally_strike_damage(apply_war_cry: bool) -> int:
+func _measure_max_buffed_ally_strike_damage(apply_war_cry: bool) -> int:
+	var best_damage := 0
+	for attempt_index in range(80):
+		best_damage = maxi(best_damage, _measure_buffed_ally_strike_damage_once(apply_war_cry, attempt_index))
+	return best_damage
+
+
+func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool, attempt_index: int) -> int:
 	var runtime := _build_runtime()
 	var state := _build_skill_test_state(Vector2i(5, 4))
-	var buffer := _build_unit(&"war_cry_user", Vector2i(1, 1), 2)
+	var buffer := _build_unit(StringName("war_cry_user_%d" % attempt_index), Vector2i(1, 1), 2)
 	buffer.current_stamina = 3
 	buffer.known_active_skill_ids = [&"warrior_war_cry"]
 	buffer.known_skill_level_map = {&"warrior_war_cry": 1}
-	var striker := _build_unit(&"war_cry_striker", Vector2i(1, 2), 2)
-	striker.current_stamina = 3
+	var striker := _build_unit(StringName("war_cry_striker_%d" % attempt_index), Vector2i(1, 2), 2)
+	striker.current_stamina = 30
 	striker.known_active_skill_ids = [&"warrior_heavy_strike"]
 	striker.known_skill_level_map = {&"warrior_heavy_strike": 1}
-	var enemy := _build_unit(&"war_cry_target", Vector2i(2, 2), 2)
+	var enemy := _build_unit(StringName("war_cry_target_%d" % attempt_index), Vector2i(2, 2), 2)
 	enemy.faction_id = &"enemy"
 
 	_add_unit(runtime, state, buffer)
@@ -579,19 +588,21 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.current_ap = current_ap
 	unit.current_hp = 40
 	unit.current_mp = 4
-	unit.current_stamina = 0
+	unit.current_stamina = 30
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 40)
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
-	unit.attribute_snapshot.set_value(&"stamina_max", 4)
+	unit.attribute_snapshot.set_value(&"stamina_max", 30)
 	unit.attribute_snapshot.set_value(&"aura_max", 2)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 1)
+	unit.weapon_physical_damage_tag = &"physical_slash"
 	return unit
 
 

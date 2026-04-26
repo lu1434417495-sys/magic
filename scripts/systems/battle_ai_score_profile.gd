@@ -9,7 +9,7 @@ extends Resource
 @export var target_count_weight := 40
 @export var ap_cost_weight := 25
 @export var mp_cost_weight := 15
-@export var stamina_cost_weight := 20
+@export var stamina_cost_weight := 2
 @export var aura_cost_weight := 35
 @export var cooldown_weight := 8
 @export var movement_cost_weight := 18
