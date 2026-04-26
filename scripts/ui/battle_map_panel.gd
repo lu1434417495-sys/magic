@@ -14,6 +14,8 @@ const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
 signal battle_cell_clicked(coord: Vector2i)
 ## 信号说明：当战斗格子被右键点击时发出的信号，供外层执行二级交互、取消或上下文操作。
 signal battle_cell_right_clicked(coord: Vector2i)
+## 信号说明：当战斗格子被鼠标悬停时发出的信号，供外层刷新技能目标命中预览。
+signal battle_cell_hovered(coord: Vector2i)
 ## 信号说明：当战斗技能槽位被选中时发出的信号，供外层同步当前选择结果。
 signal battle_skill_slot_selected(index: int)
 ## 信号说明：当 battle 首帧准备状态变化时发出的信号，供外层切图遮罩同步黑屏与进度条。
@@ -320,6 +322,13 @@ func _refresh_internal(
 			selected_skill_target_selection_mode = &"movement"
 		var selected_skill_target_min_count := int(snapshot.get("selected_skill_target_min_count", 1))
 		var selected_skill_target_max_count := int(snapshot.get("selected_skill_target_max_count", 1))
+		var selected_skill_target_hit_badges := _build_selected_skill_target_hit_badges(
+			selected_coord,
+			selected_skill_id,
+			selected_skill_target_coords,
+			selected_skill_valid_target_coords,
+			snapshot
+		)
 		if redraw_board:
 			_battle_board.configure(
 				battle_state,
@@ -328,7 +337,8 @@ func _refresh_internal(
 				selected_skill_valid_target_coords,
 				selected_skill_target_selection_mode,
 				selected_skill_target_min_count,
-				selected_skill_target_max_count
+				selected_skill_target_max_count,
+				selected_skill_target_hit_badges
 			)
 		else:
 			_battle_board.update_selection(
@@ -337,11 +347,32 @@ func _refresh_internal(
 				selected_skill_valid_target_coords,
 				selected_skill_target_selection_mode,
 				selected_skill_target_min_count,
-				selected_skill_target_max_count
+				selected_skill_target_max_count,
+				selected_skill_target_hit_badges
 			)
 		_request_map_viewport_update()
 	if redraw_board:
 		_resize_map_viewport()
+
+
+func _build_selected_skill_target_hit_badges(
+	selected_coord: Vector2i,
+	selected_skill_id: StringName,
+	selected_skill_target_coords: Array[Vector2i],
+	selected_skill_valid_target_coords: Array[Vector2i],
+	snapshot: Dictionary
+) -> Dictionary:
+	var badges := {}
+	if selected_skill_id == &"":
+		return badges
+	var badge_text := String(snapshot.get("selected_skill_hit_badge_text", ""))
+	if badge_text.is_empty():
+		return badges
+	var can_show_on_selected := selected_skill_valid_target_coords.has(selected_coord) \
+		or selected_skill_target_coords.has(selected_coord)
+	if can_show_on_selected:
+		badges[selected_coord] = badge_text
+	return badges
 
 
 func hide_battle() -> void:
@@ -461,6 +492,10 @@ func _on_battle_board_cell_right_clicked(coord: Vector2i) -> void:
 	battle_cell_right_clicked.emit(coord)
 
 
+func _on_battle_board_cell_hovered(coord: Vector2i) -> void:
+	battle_cell_hovered.emit(coord)
+
+
 func _on_map_viewport_container_gui_input(event: InputEvent) -> void:
 	if _battle_board == null:
 		return
@@ -525,6 +560,7 @@ func _ensure_battle_board() -> void:
 	_map_subviewport.add_child(_battle_board)
 	_battle_board.battle_cell_clicked.connect(_on_battle_board_cell_clicked)
 	_battle_board.battle_cell_right_clicked.connect(_on_battle_board_cell_right_clicked)
+	_battle_board.battle_cell_hovered.connect(_on_battle_board_cell_hovered)
 
 
 func _resize_map_viewport() -> void:

@@ -120,6 +120,7 @@ func _ready() -> void:
 	world_map_view.cell_right_clicked.connect(_on_world_map_cell_right_clicked)
 	battle_map_panel.battle_cell_clicked.connect(_on_battle_cell_clicked)
 	battle_map_panel.battle_cell_right_clicked.connect(_on_battle_cell_right_clicked)
+	battle_map_panel.battle_cell_hovered.connect(_on_battle_cell_hovered)
 	battle_map_panel.battle_skill_slot_selected.connect(_on_battle_skill_slot_selected)
 
 	world_map_view.configure(
@@ -593,6 +594,28 @@ func _on_battle_cell_right_clicked(coord: Vector2i) -> void:
 		_runtime_proxy.command_battle_clear_skill()
 		return
 	_runtime_proxy.inspect_battle_cell(coord)
+
+
+func _on_battle_cell_hovered(coord: Vector2i) -> void:
+	if _runtime == null or not _runtime_proxy.is_battle_active():
+		return
+	var selected_skill_id = _runtime_proxy.get_selected_battle_skill_id()
+	if selected_skill_id == &"" or battle_map_panel.is_loading_battle():
+		return
+	var valid_target_coords = _runtime_proxy.get_battle_overlay_target_coords()
+	var selected_coord = coord if valid_target_coords.has(coord) else _runtime_proxy.get_battle_selected_coord()
+	battle_map_panel.refresh_overlay(
+		_runtime_proxy.get_battle_state(),
+		selected_coord,
+		selected_skill_id,
+		_runtime_proxy.get_selected_battle_skill_name(),
+		_runtime_proxy.get_selected_battle_skill_variant_name(),
+		_runtime_proxy.get_selected_battle_skill_target_coords(),
+		valid_target_coords,
+		_runtime_proxy.get_selected_battle_skill_required_coord_count(),
+		_runtime_proxy.get_selected_battle_skill_target_unit_ids(),
+		_runtime_proxy.get_selected_battle_skill_variant_id()
+	)
 
 
 func _on_battle_skill_slot_selected(index: int) -> void:

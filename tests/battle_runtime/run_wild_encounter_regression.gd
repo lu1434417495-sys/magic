@@ -47,6 +47,7 @@ func _run() -> void:
 	_test_wild_encounter_growth_respects_suppression_window()
 	_test_game_runtime_facade_move_advances_world_step()
 	_test_test_preset_uses_same_battle_terrain_profile_as_small_preset()
+	_test_main_world_wilds_use_canyon_battle_terrain_profile()
 	_test_formal_wolf_den_battle_prefers_close_in_over_wait_when_far()
 	_test_world_spawn_explicitly_maps_south_wilds_to_mist_hollow()
 	_test_game_runtime_facade_battle_requires_confirm_before_tu_advances()
@@ -429,6 +430,36 @@ func _test_test_preset_uses_same_battle_terrain_profile_as_small_preset() -> voi
 
 	_cleanup_test_session(test_session)
 	_cleanup_test_session(small_session)
+
+
+func _test_main_world_wilds_use_canyon_battle_terrain_profile() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	for region_tag in [&"north_wilds", &"south_wilds"]:
+		var encounter_anchor = _find_encounter_anchor_by_region_tag(game_session.get_world_data(), region_tag)
+		_assert_true(encounter_anchor != null, "正式主世界应至少包含 %s 野外遭遇。" % String(region_tag))
+		if encounter_anchor == null:
+			continue
+		var battle_context: Dictionary = facade._build_battle_start_context(encounter_anchor)
+		_assert_eq(
+			String(battle_context.get("battle_terrain_profile", "")),
+			"canyon",
+			"正式主世界 %s 野外遭遇应走 canyon battle terrain profile，确保战斗棋盘使用 20px 视觉层距。" % String(region_tag)
+		)
+		var battle_state = facade._battle_runtime.start_battle(encounter_anchor, 1203, battle_context)
+		_assert_true(battle_state != null and not battle_state.is_empty(), "正式主世界 %s 野外遭遇应能创建战斗状态。" % String(region_tag))
+		if battle_state != null and not battle_state.is_empty():
+			_assert_eq(
+				String(battle_state.terrain_profile_id),
+				"canyon",
+				"正式主世界 %s 野外遭遇进入战斗后应保留 canyon terrain_profile_id。" % String(region_tag)
+			)
+
+	_cleanup_test_session(game_session)
 
 
 func _test_formal_wolf_den_battle_prefers_close_in_over_wait_when_far() -> void:

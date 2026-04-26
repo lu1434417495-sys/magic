@@ -13,10 +13,9 @@ const BATTLE_EDGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_edge_se
 const BattleEdgeService = preload("res://scripts/systems/battle_edge_service.gd")
 const BattleBoardProp = preload("res://scripts/ui/battle_board_prop.gd")
 const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
+const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
 const BATTLE_BOARD_PROP_SCENE = preload("res://scenes/common/battle_board_prop.tscn")
 
-const TILE_SIZE := Vector2i(64, 32)
-const HEIGHT_STEP := 16.0
 const MAX_HEIGHT_LAYERS := 9
 const TOP_LAYER_Z_BASE := 0
 const LAYER_Z_STRIDE := 10
@@ -25,9 +24,10 @@ const EDGE_DROP_SOUTH_LAYER_Z_OFFSET := -3
 const WALL_EAST_LAYER_Z_OFFSET := -2
 const WALL_SOUTH_LAYER_Z_OFFSET := -1
 const OVERLAY_LAYER_Z_OFFSET := 6
-const MARKER_LAYER_Z_BASE := 1000
-const PROP_LAYER_Z := 1100
-const UNIT_LAYER_Z := 1200
+const MARKER_LAYER_Z_OFFSET := OVERLAY_LAYER_Z_OFFSET + 1
+const DYNAMIC_LAYER_Z_OFFSET := MARKER_LAYER_Z_OFFSET + 1
+const PROP_LAYER_Z := 0
+const UNIT_LAYER_Z := 0
 const TARGET_HIGHLIGHT_LAYER_Z := 1300
 const UNIT_GLYPH_LABEL_SIZE := Vector2(28.0, 28.0)
 const UNIT_HEALTH_BAR_SIZE := Vector2(56.0, 14.0)
@@ -38,60 +38,6 @@ const UNIT_HEALTH_BAR_HIGH_COLOR := Color(0.3, 0.86, 0.42, 0.96)
 const UNIT_HEALTH_BAR_MID_COLOR := Color(0.9, 0.76, 0.24, 0.96)
 const UNIT_HEALTH_BAR_LOW_COLOR := Color(0.9, 0.28, 0.22, 0.96)
 const HP_MAX_ATTRIBUTE_ID := &"hp_max"
-const PROFILE_DEFAULT := &"default"
-const PROFILE_CANYON := &"canyon"
-const SHARED_TILE_DIR := "res://assets/main/battle/terrain/canyon"
-const TEXTURED_TOP_LAND_FILES := [
-	"top_land_01.png",
-	"top_land_02.png",
-	"top_land_03.png",
-]
-const TEXTURED_TOP_WATER_FILES := [
-	"top_water_01.png",
-	"top_water_02.png",
-	"top_water_03.png",
-]
-const TEXTURED_TOP_MUD_FILES := [
-	"top_mud_01.png",
-	"top_mud_02.png",
-	"top_mud_03.png",
-]
-const TEXTURED_OVERLAY_SCRUB_FILES := [
-	"overlay_scrub_01.png",
-	"overlay_scrub_02.png",
-	"overlay_scrub_03.png",
-]
-const TEXTURED_OVERLAY_RUBBLE_FILES := [
-	"overlay_rubble_01.png",
-	"overlay_rubble_02.png",
-	"overlay_rubble_03.png",
-]
-const TEXTURED_EDGE_DROP_EAST_FILES := [
-	"cliff_east_01.png",
-	"cliff_east_02.png",
-	"cliff_east_03.png",
-]
-const TEXTURED_EDGE_DROP_SOUTH_FILES := [
-	"cliff_south_01.png",
-	"cliff_south_02.png",
-	"cliff_south_03.png",
-]
-const TEXTURED_WALL_EAST_FILES := [
-	"wall_east_01.png",
-	"wall_east_02.png",
-	"wall_east_03.png",
-]
-const TEXTURED_WALL_SOUTH_FILES := [
-	"wall_south_01.png",
-	"wall_south_02.png",
-	"wall_south_03.png",
-]
-const TEXTURED_SELECTED_FILES := [
-	"marker_selected.png",
-]
-const TEXTURED_PREVIEW_FILES := [
-	"marker_preview.png",
-]
 const ACTIVE_SELECTED_MARKER_COLOR := Color(0.0, 0.0, 1.0, 1.0)
 const MOVE_REACHABLE_MARKER_COLOR_DARK := Color(0.14, 0.37, 0.5, 1.0)
 const MOVE_REACHABLE_MARKER_COLOR_LIGHT := Color(0.46, 0.72, 0.84, 1.0)
@@ -99,6 +45,11 @@ const VALID_TARGET_HIGHLIGHT_COLOR := Color(0.92, 0.12, 0.08, 0.42)
 const LOCKED_TARGET_HIGHLIGHT_COLOR := Color(0.96, 0.82, 0.28, 0.54)
 const CONFIRM_READY_TARGET_HIGHLIGHT_COLOR := Color(0.28, 0.8, 0.5, 0.5)
 const CONFIRM_READY_FOCUS_HALO_COLOR := Color(0.98, 0.9, 0.34, 0.35)
+const HIT_BADGE_SIZE := Vector2(82.0, 26.0)
+const HIT_BADGE_OFFSET := Vector2(-41.0, -76.0)
+const HIT_BADGE_BG_COLOR := Color(0.08, 0.04, 0.02, 0.9)
+const HIT_BADGE_EDGE_COLOR := Color(1.0, 0.84, 0.42, 0.95)
+const HIT_BADGE_TEXT_COLOR := Color(1.0, 0.95, 0.82, 1.0)
 
 const TERRAIN_LAND := &"land"
 const TERRAIN_FOREST := &"forest"
@@ -152,6 +103,8 @@ var _tile_set: TileSet = null
 var _source_ids: Dictionary = {}
 ## 字段说明：记录瓦片配置档唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _tile_profile_id: StringName = &""
+## 字段说明：缓存当前渲染 profile，统一提供视觉高度、TileSet 规格、素材目录与 anchor 偏移。
+var _render_profile: BattleBoardRenderProfile = null
 ## 字段说明：缓存纹理缓存字典，集中保存可按键查询的运行时数据。
 var _texture_cache: Dictionary = {}
 ## 字段说明：缓存按贴图目录构建好的 TileSet 与 source id 映射，避免切换战场主题时重复构建 atlas。
@@ -173,6 +126,8 @@ var _target_selection_mode: StringName = &"single_unit"
 var _target_min_count := 1
 ## 字段说明：保存当前技能最大目标数量，供确认态高亮判断使用。
 var _target_max_count := 1
+## 字段说明：保存当前目标格上方的命中率浮标文本，key 为战斗格坐标。
+var _target_hit_badges: Dictionary = {}
 
 
 func bind_layers(
@@ -200,7 +155,7 @@ func bind_layers(
 	_unit_layer = unit_layer
 	_target_highlight_layer = target_highlight_layer
 
-	_ensure_tileset(PROFILE_DEFAULT)
+	_ensure_tileset(BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT)
 	_apply_tileset_to_layers()
 	_apply_layer_offsets()
 	_apply_layer_draw_order()
@@ -212,7 +167,8 @@ func configure(
 	preview_target_coords: Array[Vector2i] = [],
 	target_selection_mode: StringName = &"single_unit",
 	min_target_count: int = 1,
-	max_target_count: int = 1
+	max_target_count: int = 1,
+	target_hit_badges: Dictionary = {}
 ) -> void:
 	_battle_state = battle_state
 	_selected_coord = selected_coord
@@ -220,6 +176,7 @@ func configure(
 	_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
 	_target_min_count = maxi(min_target_count, 1)
 	_target_max_count = maxi(max_target_count, _target_min_count)
+	_set_target_hit_badges(target_hit_badges)
 	_refresh_tileset_profile()
 	_redraw()
 
@@ -230,7 +187,8 @@ func update_markers(
 	valid_target_coords: Array[Vector2i] = [],
 	target_selection_mode: StringName = &"single_unit",
 	min_target_count: int = 1,
-	max_target_count: int = 1
+	max_target_count: int = 1,
+	target_hit_badges: Dictionary = {}
 ) -> void:
 	_selected_coord = selected_coord
 	_preview_target_coords = preview_target_coords.duplicate()
@@ -238,6 +196,7 @@ func update_markers(
 	_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
 	_target_min_count = maxi(min_target_count, 1)
 	_target_max_count = maxi(max_target_count, _target_min_count)
+	_set_target_hit_badges(target_hit_badges)
 	_draw_marker_layer()
 	_draw_target_highlights()
 
@@ -247,6 +206,7 @@ func clear() -> void:
 	_selected_coord = Vector2i(-1, -1)
 	_preview_target_coords.clear()
 	_valid_target_coords.clear()
+	_target_hit_badges.clear()
 	_clear_tile_layers()
 	_clear_dynamic_nodes()
 
@@ -257,6 +217,7 @@ func _refresh_tileset_profile() -> void:
 		return
 	_ensure_tileset(desired_profile)
 	_apply_tileset_to_layers()
+	_apply_layer_offsets()
 
 
 func has_layers_bound() -> bool:
@@ -447,7 +408,7 @@ func _create_unit_token(unit_state: BattleUnitState) -> Node2D:
 	var render_depth := _get_unit_render_depth(unit_state)
 	var token := Node2D.new()
 	token.name = String(unit_state.unit_id)
-	token.position = anchor + Vector2(0.0, -8.0)
+	token.position = anchor + _get_unit_anchor_bias()
 	token.z_index = render_depth
 	token.set_meta("sort_anchor_y", anchor.y)
 	token.set_meta("sort_depth", render_depth)
@@ -695,6 +656,79 @@ func _draw_target_highlights() -> void:
 		if confirm_halo != null:
 			confirm_halo.name = "ConfirmReady_%d_%d" % [confirm_focus_coord.x, confirm_focus_coord.y]
 			_target_highlight_layer.add_child(confirm_halo)
+	_draw_target_hit_badges()
+
+
+func _set_target_hit_badges(target_hit_badges: Dictionary) -> void:
+	_target_hit_badges.clear()
+	for coord_variant in target_hit_badges.keys():
+		if coord_variant is not Vector2i:
+			continue
+		var coord: Vector2i = coord_variant
+		var badge_text := String(target_hit_badges.get(coord_variant, ""))
+		if badge_text.is_empty():
+			continue
+		_target_hit_badges[coord] = badge_text
+
+
+func _draw_target_hit_badges() -> void:
+	if _target_highlight_layer == null or _target_hit_badges.is_empty():
+		return
+	for coord_variant in _target_hit_badges.keys():
+		if coord_variant is not Vector2i:
+			continue
+		var coord: Vector2i = coord_variant
+		if not _is_cell_inside_battle(coord):
+			continue
+		var badge := _create_target_hit_badge(coord, String(_target_hit_badges.get(coord, "")))
+		if badge == null:
+			continue
+		badge.name = "HitBadge_%d_%d" % [coord.x, coord.y]
+		_target_highlight_layer.add_child(badge)
+
+
+func _create_target_hit_badge(target_coord: Vector2i, badge_text: String) -> Control:
+	if badge_text.is_empty() or not _is_cell_inside_battle(target_coord):
+		return null
+	var badge := PanelContainer.new()
+	badge.position = _get_cell_anchor_position(target_coord, _get_cell_height_index(target_coord)) + HIT_BADGE_OFFSET
+	badge.custom_minimum_size = HIT_BADGE_SIZE
+	badge.size = HIT_BADGE_SIZE
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_theme_stylebox_override("panel", _build_hit_badge_style())
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 3)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 3)
+	badge.add_child(margin)
+
+	var label := Label.new()
+	label.text = badge_text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", HIT_BADGE_TEXT_COLOR)
+	margin.add_child(label)
+	return badge
+
+
+func _build_hit_badge_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = HIT_BADGE_BG_COLOR
+	style.border_color = HIT_BADGE_EDGE_COLOR
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.corner_radius_top_left = 5
+	style.corner_radius_top_right = 5
+	style.corner_radius_bottom_right = 5
+	style.corner_radius_bottom_left = 5
+	return style
 
 
 func _resolve_multi_unit_confirm_focus_coord() -> Vector2i:
@@ -851,34 +885,35 @@ func _apply_tileset_to_layers() -> void:
 
 
 func _apply_layer_offsets() -> void:
+	var height_step := _get_visual_height_step()
 	for index in range(_top_layers.size()):
 		var top_layer := _top_layers[index]
 		if top_layer != null:
-			top_layer.position = Vector2(0.0, -float(index) * HEIGHT_STEP)
+			top_layer.position = Vector2(0.0, -float(index) * height_step)
 	for index in range(_edge_drop_east_layers.size()):
 		var east_layer := _edge_drop_east_layers[index]
 		if east_layer != null:
-			east_layer.position = Vector2(0.0, -float(index + 1) * HEIGHT_STEP)
+			east_layer.position = Vector2(0.0, -float(index + 1) * height_step)
 	for index in range(_edge_drop_south_layers.size()):
 		var south_layer := _edge_drop_south_layers[index]
 		if south_layer != null:
-			south_layer.position = Vector2(0.0, -float(index + 1) * HEIGHT_STEP)
+			south_layer.position = Vector2(0.0, -float(index + 1) * height_step)
 	for index in range(_wall_east_layers.size()):
 		var wall_east_layer := _wall_east_layers[index]
 		if wall_east_layer != null:
-			wall_east_layer.position = Vector2(0.0, -float(index) * HEIGHT_STEP)
+			wall_east_layer.position = Vector2(0.0, -float(index) * height_step)
 	for index in range(_wall_south_layers.size()):
 		var wall_south_layer := _wall_south_layers[index]
 		if wall_south_layer != null:
-			wall_south_layer.position = Vector2(0.0, -float(index) * HEIGHT_STEP)
+			wall_south_layer.position = Vector2(0.0, -float(index) * height_step)
 	for index in range(_overlay_layers.size()):
 		var overlay_layer := _overlay_layers[index]
 		if overlay_layer != null:
-			overlay_layer.position = Vector2(0.0, -float(index) * HEIGHT_STEP)
+			overlay_layer.position = Vector2(0.0, -float(index) * height_step)
 	for index in range(_marker_layers.size()):
 		var marker_layer := _marker_layers[index]
 		if marker_layer != null:
-			marker_layer.position = Vector2(0.0, -float(index) * HEIGHT_STEP)
+			marker_layer.position = Vector2(0.0, -float(index) * height_step)
 
 
 func _apply_layer_draw_order() -> void:
@@ -911,7 +946,7 @@ func _apply_layer_draw_order() -> void:
 	for index in range(_marker_layers.size()):
 		var marker_layer := _marker_layers[index]
 		if marker_layer != null:
-			marker_layer.z_index = MARKER_LAYER_Z_BASE + index
+			marker_layer.z_index = TOP_LAYER_Z_BASE + index * LAYER_Z_STRIDE + MARKER_LAYER_Z_OFFSET
 	if _prop_layer != null:
 		_prop_layer.z_index = PROP_LAYER_Z
 	if _unit_layer != null:
@@ -926,12 +961,14 @@ func _create_prop_node(cell_state: BattleCellState, prop_id: StringName, stack_i
 	if prop_node == null:
 		return null
 
-	var anchor := _get_cell_anchor_position(cell_state.coord, int(cell_state.current_height))
-	var ground_anchor_y := anchor.y
+	var height_value := clampi(int(cell_state.current_height), 0, MAX_HEIGHT_LAYERS - 1)
+	var anchor := _get_cell_anchor_position(cell_state.coord, height_value)
+	var render_depth := _get_cell_render_depth(cell_state.coord, height_value)
 	prop_node.name = "%s_%d_%d_%d" % [String(prop_id), cell_state.coord.x, cell_state.coord.y, stack_index]
 	prop_node.position = anchor + _get_prop_offset(prop_id, cell_state.coord, stack_index)
-	prop_node.z_index = int(round(ground_anchor_y))
-	prop_node.set_meta("sort_anchor_y", ground_anchor_y)
+	prop_node.z_index = render_depth
+	prop_node.set_meta("sort_anchor_y", anchor.y)
+	prop_node.set_meta("sort_depth", render_depth)
 	prop_node.set_meta("board_coord", cell_state.coord)
 	prop_node.set_meta("prop_id", prop_id)
 	prop_node.configure(
@@ -962,22 +999,16 @@ func _collect_prop_ids_for_cell(cell_state: BattleCellState) -> Array[StringName
 
 func _get_prop_offset(prop_id: StringName, coord: Vector2i, stack_index: int) -> Vector2:
 	var side_sign := 1.0 if _get_variant_index(coord, 2, stack_index + 1) == 0 else -1.0
-	match prop_id:
-		BattleBoardPropCatalog.PROP_TENT:
-			return Vector2(side_sign * 11.0, 0.0)
-		BattleBoardPropCatalog.PROP_TORCH:
-			return Vector2(side_sign * 14.0, -2.0)
-		BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER:
-			return Vector2(0.0, -4.0)
-		_:
-			return Vector2(0.0, -2.0)
+	if _render_profile == null:
+		_render_profile = BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id)
+	return _render_profile.get_prop_anchor_bias(prop_id, side_sign)
 
 
 func _get_cell_anchor_position(coord: Vector2i, height_value: int) -> Vector2:
 	if _input_layer == null:
 		return Vector2.ZERO
 	var anchor := _get_cell_plane_position(coord)
-	anchor.y -= float(clampi(height_value, 0, MAX_HEIGHT_LAYERS - 1)) * HEIGHT_STEP
+	anchor.y -= float(clampi(height_value, 0, MAX_HEIGHT_LAYERS - 1)) * _get_visual_height_step()
 	return anchor
 
 
@@ -990,7 +1021,9 @@ func _get_cell_plane_position(coord: Vector2i) -> Vector2:
 func _get_cell_render_depth(coord: Vector2i, height_value: int) -> int:
 	var plane_position := _get_cell_plane_position(coord)
 	var clamped_height := clampi(height_value, 0, MAX_HEIGHT_LAYERS - 1)
-	return int(round(plane_position.y + float(clamped_height) * HEIGHT_STEP))
+	var height_step := maxf(_get_visual_height_step(), 1.0)
+	var plane_depth := plane_position.y / height_step * float(LAYER_Z_STRIDE)
+	return int(round(plane_depth + float(clamped_height) * float(LAYER_Z_STRIDE) + float(DYNAMIC_LAYER_Z_OFFSET)))
 
 
 func _get_cell_height_index(coord: Vector2i) -> int:
@@ -1003,49 +1036,41 @@ func _get_cell_height_index(coord: Vector2i) -> int:
 
 
 func _ensure_tileset(profile_id: StringName) -> void:
-	var cache_key := _resolve_tile_cache_key(profile_id)
-	if _tile_set != null and _tile_profile_id == profile_id:
+	var render_profile := BattleBoardRenderProfile.for_terrain_profile_id(profile_id)
+	var cache_key := render_profile.get_cache_key()
+	if _tile_set != null and _tile_profile_id == render_profile.terrain_profile_id:
+		_render_profile = render_profile
 		return
 	if _tileset_cache.has(cache_key):
 		var cached_profile: Variant = _tileset_cache.get(cache_key, {})
 		if cached_profile is Dictionary:
-			_tile_profile_id = profile_id
+			_tile_profile_id = render_profile.terrain_profile_id
+			_render_profile = render_profile
 			_tile_set = cached_profile.get("tile_set", null) as TileSet
 			_source_ids = (cached_profile.get("source_ids", {}) as Dictionary).duplicate(true)
 			return
 
-	_tile_profile_id = profile_id
+	_tile_profile_id = render_profile.terrain_profile_id
+	_render_profile = render_profile
 	_tile_set = null
 	_source_ids.clear()
 	_tile_set = TileSet.new()
-	_tile_set.tile_size = TILE_SIZE
+	_tile_set.tile_size = render_profile.board_tile_size
 	_tile_set.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
 	_tile_set.tile_layout = TileSet.TILE_LAYOUT_DIAMOND_DOWN
 	_tile_set.tile_offset_axis = TileSet.TILE_OFFSET_AXIS_HORIZONTAL
-	_register_profile_textures(profile_id)
+	_register_profile_textures(render_profile)
 	_tileset_cache[cache_key] = {
 		"tile_set": _tile_set,
 		"source_ids": _source_ids.duplicate(true),
 	}
 
 
-func _register_profile_textures(profile_id: StringName) -> void:
-	var tile_dir := _resolve_tile_dir(profile_id)
-	var source_specs := [
-		{"key": SOURCE_LAND, "files": TEXTURED_TOP_LAND_FILES},
-		{"key": SOURCE_WATER, "files": TEXTURED_TOP_WATER_FILES},
-		{"key": SOURCE_MUD, "files": TEXTURED_TOP_MUD_FILES},
-		{"key": SOURCE_EDGE_DROP_EAST, "files": TEXTURED_EDGE_DROP_EAST_FILES},
-		{"key": SOURCE_EDGE_DROP_SOUTH, "files": TEXTURED_EDGE_DROP_SOUTH_FILES},
-		{"key": SOURCE_WALL_EAST, "files": TEXTURED_WALL_EAST_FILES},
-		{"key": SOURCE_WALL_SOUTH, "files": TEXTURED_WALL_SOUTH_FILES},
-		{"key": SOURCE_SCRUB, "files": TEXTURED_OVERLAY_SCRUB_FILES},
-		{"key": SOURCE_RUBBLE, "files": TEXTURED_OVERLAY_RUBBLE_FILES},
-		{"key": SOURCE_SELECTED, "files": TEXTURED_SELECTED_FILES},
-		{"key": SOURCE_PREVIEW, "files": TEXTURED_PREVIEW_FILES},
-	]
-
-	for source_spec in source_specs:
+func _register_profile_textures(render_profile: BattleBoardRenderProfile) -> void:
+	if render_profile == null:
+		render_profile = BattleBoardRenderProfile.for_terrain_profile_id(BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT)
+	var tile_dir := render_profile.asset_dir
+	for source_spec in render_profile.get_source_specs():
 		var file_names := source_spec.get("files", []) as Array
 		var textures: Array = []
 		for file_name_variant in file_names:
@@ -1055,53 +1080,58 @@ func _register_profile_textures(profile_id: StringName) -> void:
 				push_error("BattleBoardController 缺少地形贴图：%s/%s" % [tile_dir, file_name])
 				continue
 			textures.append(texture)
-		_register_source_variants(StringName(source_spec.get("key", "")), textures)
-	_register_source_variants(SOURCE_ACTIVE_SELECTED, [_build_active_selected_marker_texture(tile_dir)])
-	_register_source_variants(SOURCE_MOVE_REACHABLE, [_build_move_reachable_marker_texture(tile_dir)])
+		if textures.is_empty() and bool(source_spec.get("allow_generated_fallback", true)):
+			var fallback_texture := _build_missing_source_texture(StringName(source_spec.get("key", &"")), source_spec)
+			if fallback_texture != null:
+				textures.append(fallback_texture)
+		_register_source_variants(StringName(source_spec.get("key", "")), textures, source_spec)
+	var generated_marker_spec := _build_generated_marker_source_spec(render_profile)
+	_register_source_variants(
+		SOURCE_ACTIVE_SELECTED,
+		[_build_active_selected_marker_texture(render_profile)],
+		generated_marker_spec
+	)
+	_register_source_variants(
+		SOURCE_MOVE_REACHABLE,
+		[_build_move_reachable_marker_texture(render_profile)],
+		generated_marker_spec
+	)
 
 
-func _resolve_tile_dir(profile_id: StringName) -> String:
-	match profile_id:
-		PROFILE_DEFAULT, PROFILE_CANYON:
-			return SHARED_TILE_DIR
-		_:
-			return SHARED_TILE_DIR
-
-
-func _resolve_tile_cache_key(profile_id: StringName) -> StringName:
-	return StringName(_resolve_tile_dir(profile_id))
-
-
-func _add_atlas_source(texture: Texture2D) -> int:
+func _add_atlas_source(texture: Texture2D, source_spec: Dictionary) -> int:
 	var source := TileSetAtlasSource.new()
 	source.texture = texture
-	source.texture_region_size = TILE_SIZE
+	source.texture_region_size = source_spec.get("atlas_region_size", _get_board_tile_size())
 	source.use_texture_padding = false
 	source.create_tile(Vector2i.ZERO, Vector2i.ONE)
+	var tile_data := source.get_tile_data(Vector2i.ZERO, 0)
+	if tile_data != null:
+		tile_data.texture_origin = source_spec.get("visual_origin", source_spec.get("texture_origin", Vector2i.ZERO))
 	return _tile_set.add_source(source)
 
 
-func _register_source_variants(source_key: StringName, textures: Array) -> void:
+func _register_source_variants(source_key: StringName, textures: Array, source_spec: Dictionary) -> void:
 	var source_ids: Array[int] = []
 	for texture_variant in textures:
 		var texture := texture_variant as Texture2D
 		if texture == null:
 			continue
-		source_ids.append(_add_atlas_source(texture))
+		source_ids.append(_add_atlas_source(texture, source_spec))
 	_source_ids[source_key] = source_ids
 
 
-func _build_active_selected_marker_texture(tile_dir: String) -> Texture2D:
-	var cache_key := "__generated_active_selected__%s" % tile_dir
+func _build_active_selected_marker_texture(render_profile: BattleBoardRenderProfile) -> Texture2D:
+	var tile_dir := render_profile.asset_dir
+	var cache_key := "__generated_active_selected__%s" % render_profile.get_cache_key()
 	if _texture_cache.has(cache_key):
 		return _texture_cache.get(cache_key) as Texture2D
 
 	# Active-unit highlighting should read as a solid tile-cover, not a translucent frame.
-	var base_texture := _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_TOP_LAND_FILES[0]])
+	var base_texture := _load_texture_from_png("%s/%s" % [tile_dir, render_profile.get_primary_land_file()])
 	if base_texture == null:
-		base_texture = _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_SELECTED_FILES[0]])
+		base_texture = _load_texture_from_png("%s/%s" % [tile_dir, render_profile.get_selected_marker_file()])
 	if base_texture == null:
-		return null
+		return _build_diamond_texture(ACTIVE_SELECTED_MARKER_COLOR, 1.0, render_profile.board_tile_size)
 
 	var image := base_texture.get_image()
 	if image == null or image.is_empty():
@@ -1129,16 +1159,17 @@ func _build_active_selected_marker_texture(tile_dir: String) -> Texture2D:
 	return generated_texture
 
 
-func _build_move_reachable_marker_texture(tile_dir: String) -> Texture2D:
-	var cache_key := "__generated_move_reachable__%s" % tile_dir
+func _build_move_reachable_marker_texture(render_profile: BattleBoardRenderProfile) -> Texture2D:
+	var tile_dir := render_profile.asset_dir
+	var cache_key := "__generated_move_reachable__%s" % render_profile.get_cache_key()
 	if _texture_cache.has(cache_key):
 		return _texture_cache.get(cache_key) as Texture2D
 
-	var base_texture := _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_TOP_LAND_FILES[0]])
+	var base_texture := _load_texture_from_png("%s/%s" % [tile_dir, render_profile.get_primary_land_file()])
 	if base_texture == null:
-		base_texture = _load_texture_from_png("%s/%s" % [tile_dir, TEXTURED_SELECTED_FILES[0]])
+		base_texture = _load_texture_from_png("%s/%s" % [tile_dir, render_profile.get_selected_marker_file()])
 	if base_texture == null:
-		return null
+		return _build_diamond_texture(MOVE_REACHABLE_MARKER_COLOR_LIGHT, 0.42, render_profile.board_tile_size)
 
 	var image := base_texture.get_image()
 	if image == null or image.is_empty():
@@ -1171,15 +1202,91 @@ func _load_texture_from_png(path: String) -> Texture2D:
 	if _texture_cache.has(path):
 		return _texture_cache.get(path) as Texture2D
 
-	var texture := ResourceLoader.load(path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE) as Texture2D
+	var texture: Texture2D = null
+	if FileAccess.file_exists("%s.import" % path):
+		texture = ResourceLoader.load(path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE) as Texture2D
+	if texture == null and FileAccess.file_exists(path):
+		var image := Image.new()
+		var error := image.load_png_from_buffer(FileAccess.get_file_as_bytes(path))
+		if error == OK:
+			texture = ImageTexture.create_from_image(image)
+	if texture == null:
+		texture = ResourceLoader.load(path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE) as Texture2D
 	_texture_cache[path] = texture
 	return texture
 
 
+func _build_missing_source_texture(source_key: StringName, source_spec: Dictionary) -> Texture2D:
+	var color := Color(0.5, 0.42, 0.32, 0.9)
+	match source_key:
+		SOURCE_WATER:
+			color = Color(0.24, 0.47, 0.66, 0.86)
+		SOURCE_MUD:
+			color = Color(0.43, 0.31, 0.18, 0.88)
+		SOURCE_EDGE_DROP_EAST, SOURCE_EDGE_DROP_SOUTH, SOURCE_WALL_EAST, SOURCE_WALL_SOUTH:
+			color = Color(0.31, 0.25, 0.2, 0.92)
+		SOURCE_SCRUB:
+			color = Color(0.22, 0.45, 0.24, 0.68)
+		SOURCE_RUBBLE:
+			color = Color(0.42, 0.39, 0.34, 0.72)
+		SOURCE_SELECTED:
+			color = Color(0.98, 0.92, 0.42, 0.42)
+		SOURCE_PREVIEW:
+			color = Color(0.88, 0.82, 0.36, 0.34)
+		_:
+			color = Color(0.5, 0.42, 0.32, 0.9)
+	var tile_size: Vector2i = source_spec.get("board_tile_size", _get_board_tile_size())
+	return _build_diamond_texture(color, color.a, tile_size)
+
+
+func _build_generated_marker_source_spec(render_profile: BattleBoardRenderProfile) -> Dictionary:
+	return {
+		"key": SOURCE_ACTIVE_SELECTED,
+		"files": [],
+		"atlas_region_size": render_profile.board_tile_size,
+		"board_tile_size": render_profile.board_tile_size,
+		"texture_origin": Vector2i.ZERO,
+		"visual_origin": Vector2i.ZERO,
+		"layer_role": BattleBoardRenderProfile.LAYER_ROLE_MARKER,
+	}
+
+
+func _build_diamond_texture(color: Color, alpha: float, tile_size: Vector2i) -> Texture2D:
+	var safe_tile_size := Vector2i(maxi(tile_size.x, 2), maxi(tile_size.y, 2))
+	var image := Image.create(safe_tile_size.x, safe_tile_size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	var center := Vector2(float(safe_tile_size.x - 1) * 0.5, float(safe_tile_size.y - 1) * 0.5)
+	var half_size := Vector2(maxf(float(safe_tile_size.x) * 0.5, 1.0), maxf(float(safe_tile_size.y) * 0.5, 1.0))
+	for y in range(safe_tile_size.y):
+		for x in range(safe_tile_size.x):
+			var delta := Vector2(float(x), float(y)) - center
+			if absf(delta.x) / half_size.x + absf(delta.y) / half_size.y <= 1.0:
+				image.set_pixel(x, y, Color(color.r, color.g, color.b, alpha))
+	return ImageTexture.create_from_image(image)
+
+
+func _get_visual_height_step() -> float:
+	if _render_profile == null:
+		_render_profile = BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id)
+	return _render_profile.visual_height_step
+
+
+func _get_unit_anchor_bias() -> Vector2:
+	if _render_profile == null:
+		_render_profile = BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id)
+	return _render_profile.unit_anchor_bias
+
+
+func _get_board_tile_size() -> Vector2i:
+	if _render_profile == null:
+		_render_profile = BattleBoardRenderProfile.for_terrain_profile_id(_tile_profile_id)
+	return _render_profile.board_tile_size
+
+
 func _resolve_tile_profile_id() -> StringName:
 	if _battle_state == null:
-		return PROFILE_DEFAULT
-	return PROFILE_CANYON if _battle_state.terrain_profile_id == PROFILE_CANYON else PROFILE_DEFAULT
+		return BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT
+	return BattleBoardRenderProfile.normalize_terrain_profile_id(_battle_state.terrain_profile_id)
 
 
 func _get_source_id(source_key: StringName, coord: Vector2i = INVALID_VARIANT_COORD, salt: int = 0) -> int:

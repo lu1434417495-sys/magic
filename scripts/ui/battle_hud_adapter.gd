@@ -92,6 +92,7 @@ func build_snapshot(
 		"skill_slots": _build_skill_slots(active_unit, selected_skill_id),
 		"tile_text": _build_tile_text(selected_coord, selected_cell, selected_unit),
 		"selected_skill_hit_preview_text": String(hit_preview.get("summary_text", "")),
+		"selected_skill_hit_badge_text": _build_selected_skill_hit_badge_text(hit_preview),
 		"selected_skill_hit_stage_rates": (hit_preview.get("stage_hit_rates", []) as Array).duplicate(true),
 		"selected_skill_fate_preview_text": String(fate_preview.get("summary_text", "")),
 		"selected_skill_fate_badges": (fate_preview.get("badges", []) as Array).duplicate(true),
@@ -397,10 +398,11 @@ func _build_skill_slots(active_unit: BattleUnitState, selected_skill_id: StringN
 
 func _build_skill_slot_state(active_unit: BattleUnitState, skill_def, skill_id: StringName) -> Dictionary:
 	var combat_profile = skill_def.combat_profile if skill_def != null else null
-	var ap_cost := int(combat_profile.ap_cost) if combat_profile != null else 0
-	var mp_cost := int(combat_profile.mp_cost) if combat_profile != null else 0
-	var stamina_cost := int(combat_profile.stamina_cost) if combat_profile != null else 0
-	var aura_cost := int(combat_profile.aura_cost) if combat_profile != null else 0
+	var costs := _get_effective_skill_costs(active_unit, skill_def)
+	var ap_cost := int(costs.get("ap_cost", combat_profile.ap_cost if combat_profile != null else 0))
+	var mp_cost := int(costs.get("mp_cost", combat_profile.mp_cost if combat_profile != null else 0))
+	var stamina_cost := int(costs.get("stamina_cost", combat_profile.stamina_cost if combat_profile != null else 0))
+	var aura_cost := int(costs.get("aura_cost", combat_profile.aura_cost if combat_profile != null else 0))
 	var cooldown := int(active_unit.cooldowns.get(skill_id, 0)) if active_unit != null else 0
 	if cooldown > 0:
 		return {
@@ -820,6 +822,21 @@ func _build_selected_skill_preview_tooltip(hit_preview: Dictionary, fate_preview
 	return "\n\n".join(sections)
 
 
+func _build_selected_skill_hit_badge_text(hit_preview: Dictionary) -> String:
+	if hit_preview.is_empty():
+		return ""
+	var success_rate := int(hit_preview.get("success_rate_percent", -1))
+	if success_rate < 0:
+		success_rate = int(hit_preview.get("hit_rate_percent", -1))
+	if success_rate < 0:
+		var stage_rates := hit_preview.get("stage_hit_rates", []) as Array
+		if not stage_rates.is_empty():
+			success_rate = int(stage_rates[0])
+	if success_rate < 0:
+		return ""
+	return "命中 %d%%" % clampi(success_rate, 0, 100)
+
+
 func _get_hidden_luck_at_birth(unit_state: BattleUnitState) -> int:
 	if unit_state == null or unit_state.attribute_snapshot == null:
 		return 0
@@ -882,18 +899,34 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> St
 	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return "技能或目标无效。"
 	var combat_profile = skill_def.combat_profile
+	var costs := _get_effective_skill_costs(active_unit, skill_def)
 	var cooldown := int(active_unit.cooldowns.get(skill_def.skill_id, 0))
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
-	if active_unit.current_ap < int(combat_profile.ap_cost):
+	if active_unit.current_ap < int(costs.get("ap_cost", combat_profile.ap_cost)):
 		return "AP不足，无法施放该技能。"
-	if active_unit.current_mp < int(combat_profile.mp_cost):
+	if active_unit.current_mp < int(costs.get("mp_cost", combat_profile.mp_cost)):
 		return "法力不足，无法施放该技能。"
-	if active_unit.current_stamina < int(combat_profile.stamina_cost):
+	if active_unit.current_stamina < int(costs.get("stamina_cost", combat_profile.stamina_cost)):
 		return "体力不足，无法施放该技能。"
-	if active_unit.current_aura < int(combat_profile.aura_cost):
+	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
 	return ""
+
+
+func _get_effective_skill_costs(active_unit: BattleUnitState, skill_def) -> Dictionary:
+	if skill_def == null or skill_def.combat_profile == null:
+		return {}
+	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
+	return skill_def.combat_profile.get_effective_resource_costs(skill_level)
+
+
+func _get_unit_skill_level(active_unit: BattleUnitState, skill_id: StringName) -> int:
+	if active_unit == null or skill_id == &"":
+		return 0
+	if active_unit.known_skill_level_map.has(skill_id):
+		return int(active_unit.known_skill_level_map.get(skill_id, 0))
+	return 1 if active_unit.known_active_skill_ids.has(skill_id) else 0
 
 
 func _skill_target_filter_matches_unit(

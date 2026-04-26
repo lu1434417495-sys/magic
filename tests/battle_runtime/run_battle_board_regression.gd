@@ -11,6 +11,7 @@ const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleEdgeFeatureState = preload("res://scripts/systems/battle_edge_feature_state.gd")
 const BattleEdgeService = preload("res://scripts/systems/battle_edge_service.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
+const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
 const BattleTerrainGenerator = preload("res://scripts/systems/battle_terrain_generator.gd")
@@ -69,9 +70,15 @@ func _run() -> void:
 	await _test_default_generation_respects_global_min_height()
 	await _test_default_water_height_normalization_is_component_local()
 	await _test_generated_spawn_coords_never_use_water_tiles()
+	await _test_render_profile_chain_and_source_specs_have_stable_fallbacks()
+	await _test_canyon_face_source_specs_use_tall_region()
+	await _test_canyon_two_layer_visual_separation_uses_20_step()
+	await _test_canyon_layer_offsets_follow_render_profile_after_bind()
 	await _test_battle_board_contracts()
 	await _test_raised_top_surface_click_maps_to_visual_cell()
+	await _test_visual_pick_prefers_visible_higher_top_when_surfaces_overlap()
 	await _test_board_initial_camera_fills_ultrawide_width()
+	await _test_board_content_bounds_follow_render_profile_for_viewport_sizes()
 	await _test_east_face_assets_anchor_to_neighbor_side()
 	await _test_south_face_assets_anchor_to_neighbor_side()
 	await _test_edge_feature_authoring_roundtrips()
@@ -83,6 +90,7 @@ func _run() -> void:
 	await _test_skill_valid_target_highlight_renders_above_units()
 	await _test_unit_tokens_render_hp_bars_with_numeric_labels()
 	await _test_unit_render_depth_uses_positive_height_bias()
+	await _test_dynamic_depth_interleaves_with_high_cliff_faces()
 	await _test_large_unit_footprint_respects_edge_barriers()
 	await _test_large_unit_partial_edge_barriers_block_all_directions()
 	await _test_large_unit_partial_height_barriers_block_all_directions()
@@ -422,6 +430,168 @@ func _test_generated_spawn_coords_never_use_water_tiles() -> void:
 		)
 
 
+func _test_render_profile_chain_and_source_specs_have_stable_fallbacks() -> void:
+	var terrain_ids := [
+		&"default",
+		&"canyon",
+		&"narrow_assault",
+		&"holdout_push",
+		&"unknown_fixture_profile",
+	]
+	for terrain_id in terrain_ids:
+		var profile := BattleBoardRenderProfile.for_terrain_profile_id(terrain_id)
+		_assert_true(profile != null, "[profile] terrain profile 应始终能解析到 battle board render profile：%s" % String(terrain_id))
+		if profile == null:
+			continue
+		_assert_true(
+			profile.render_profile_id != &"",
+			"[profile] terrain profile -> render profile 解析链应保留稳定 render_profile_id：%s" % String(terrain_id)
+		)
+		_assert_true(
+			not profile.asset_dir.is_empty(),
+			"[profile] render profile 应提供稳定 asset_dir fallback：%s" % String(terrain_id)
+		)
+		_assert_eq(
+			profile.asset_dir,
+			BattleBoardRenderProfile.DEFAULT_ASSET_DIR,
+			"[profile] 所有 terrain profile 应解析到统一的 canyon 资产目录：%s" % String(terrain_id)
+		)
+		_assert_eq(
+			profile.visual_height_step,
+			BattleBoardRenderProfile.DEFAULT_VISUAL_HEIGHT_STEP,
+			"[profile] 所有 terrain profile 应使用统一的 20px 视觉高度步长：%s" % String(terrain_id)
+		)
+		_assert_eq(
+			profile.board_tile_size,
+			Vector2i(64, 32),
+			"[profile] render profile 应显式持有棋盘 tile 尺寸。"
+		)
+		_assert_eq(
+			profile.tile_half_size,
+			Vector2(32.0, 16.0),
+			"[pick] render profile 应显式持有点击面半尺寸。"
+		)
+		_assert_true(
+			profile.surface_pick_shape == &"diamond",
+			"[pick] render profile 应显式持有 surface_pick_shape。"
+		)
+		_assert_true(
+			profile.camera_margin.y >= 72.0,
+			"[profile] render profile 应显式持有相机边界 margin。"
+		)
+
+		var specs := profile.get_source_specs()
+		_assert_true(not specs.is_empty(), "[source] render profile 应以 source spec 表驱动 TileSet 注册：%s" % String(terrain_id))
+		for source_spec in specs:
+			_assert_true(source_spec.has("atlas_region_size"), "[source] source spec 应包含 atlas_region_size。")
+			_assert_true(source_spec.has("board_tile_size"), "[source] source spec 应包含 board_tile_size。")
+			_assert_true(
+				source_spec.has("texture_origin") or source_spec.has("visual_origin"),
+				"[source] source spec 应包含 texture_origin 或等价 visual_origin。"
+			)
+			_assert_true(source_spec.has("layer_role"), "[source] source spec 应包含 layer_role。")
+
+
+func _test_canyon_face_source_specs_use_tall_region() -> void:
+	var profile := BattleBoardRenderProfile.for_terrain_profile_id(&"canyon")
+	_assert_eq(profile.render_profile_id, BattleBoardRenderProfile.RENDER_PROFILE_CANYON_ISO64, "canyon 应解析到统一的 canyon iso64 render profile。")
+	_assert_eq(profile.asset_dir, BattleBoardRenderProfile.DEFAULT_ASSET_DIR, "canyon render profile 应指向统一 canyon 资产目录。")
+	for source_spec in profile.get_source_specs():
+		var files := source_spec.get("files", []) as Array
+		_assert_true(not files.is_empty(), "[source] source spec 应显式列出贴图文件：%s" % String(source_spec.get("key", &"")))
+		for file_name_variant in files:
+			var path := "%s/%s" % [profile.asset_dir, String(file_name_variant)]
+			_assert_true(FileAccess.file_exists(path), "[source] source 贴图必须存在：%s" % path)
+	var face_keys := [
+		BattleBoardRenderProfile.SOURCE_EDGE_DROP_EAST,
+		BattleBoardRenderProfile.SOURCE_EDGE_DROP_SOUTH,
+		BattleBoardRenderProfile.SOURCE_WALL_EAST,
+		BattleBoardRenderProfile.SOURCE_WALL_SOUTH,
+	]
+	for source_key in face_keys:
+		var spec := _find_source_spec(profile, source_key)
+		_assert_true(not spec.is_empty(), "[source] 应包含 cliff/wall source spec：%s" % String(source_key))
+		if spec.is_empty():
+			continue
+		var atlas_region_size: Vector2i = spec.get("atlas_region_size", Vector2i.ZERO)
+		_assert_eq(
+			atlas_region_size,
+			BattleBoardRenderProfile.DEFAULT_FACE_REGION_SIZE,
+			"[source] cliff/wall source 应使用 64×36 face region（20px 崖面 + 8px 上下切角）：%s" % String(source_key)
+		)
+
+
+func _test_canyon_two_layer_visual_separation_uses_20_step() -> void:
+	var state := BattleState.new()
+	state.battle_id = &"canyon_two_layer_visual_separation"
+	state.seed = TEST_SEED
+	state.map_size = Vector2i(2, 1)
+	state.world_coord = TEST_WORLD_COORD
+	state.terrain_profile_id = &"canyon"
+	state.cells = {
+		Vector2i(0, 0): _build_cell(Vector2i(0, 0), 2),
+		Vector2i(1, 0): _build_cell(Vector2i(1, 0), 0),
+	}
+	state.units = {}
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+	var board := await _instantiate_board(state)
+	var plane_anchor := (board.get_node("InputLayer") as TileMapLayer).map_to_local(Vector2i(0, 0))
+	var raised_anchor: Vector2 = board._get_coord_anchor(Vector2i(0, 0))
+	var two_layer_separation := plane_anchor.y - raised_anchor.y
+	_assert_approx(
+		two_layer_separation,
+		BattleBoardRenderProfile.DEFAULT_VISUAL_HEIGHT_STEP * 2.0,
+		0.01,
+		"[profile] canyon 两层高地视觉分离应由 render profile 的 20px visual_height_step 驱动。"
+	)
+
+	board.queue_free()
+	await process_frame
+
+
+func _test_canyon_layer_offsets_follow_render_profile_after_bind() -> void:
+	var state := BattleState.new()
+	state.battle_id = &"canyon_layer_offsets_after_bind"
+	state.seed = TEST_SEED
+	state.map_size = Vector2i(2, 1)
+	state.world_coord = TEST_WORLD_COORD
+	state.terrain_profile_id = &"canyon"
+	state.cells = {
+		Vector2i(0, 0): _build_cell(Vector2i(0, 0), 2),
+		Vector2i(1, 0): _build_cell(Vector2i(1, 0), 0),
+	}
+	state.units = {}
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+	var board := await _instantiate_board(state)
+	var profile := BattleBoardRenderProfile.for_terrain_profile_id(&"canyon")
+
+	_assert_approx(
+		(board.get_node("TopH2") as TileMapLayer).position.y,
+		-profile.visual_height_step * 2.0,
+		0.01,
+		"[profile] bind_layers 后 TopH2 偏移应按 20px visual_height_step 应用。"
+	)
+	_assert_approx(
+		(board.get_node("EdgeDropEastH2") as TileMapLayer).position.y,
+		-profile.visual_height_step * 2.0,
+		0.01,
+		"[profile] bind_layers 后 EdgeDropEastH2 偏移应按 20px visual_height_step 应用。"
+	)
+	_assert_approx(
+		(board.get_node("MarkerH2") as TileMapLayer).position.y,
+		-profile.visual_height_step * 2.0,
+		0.01,
+		"[profile] bind_layers 后 MarkerH2 偏移应按 20px visual_height_step 应用。"
+	)
+
+	board.queue_free()
+	await process_frame
+
+
 func _test_battle_board_contracts() -> void:
 	var layout := _build_canyon_layout(TEST_SEED)
 	var board_a := await _instantiate_board(_build_state(layout))
@@ -466,8 +636,46 @@ func _test_raised_top_surface_click_maps_to_visual_cell() -> void:
 	_assert_eq(
 		mapped_coord,
 		raised_coord,
-		"抬高顶面的视觉中心点击应命中对应高地格，而不是回落到底层平面格。"
+		"[pick] 抬高顶面的视觉中心点击应命中对应高地格，而不是回落到底层平面格。"
 	)
+
+	board.queue_free()
+	await process_frame
+
+
+func _test_visual_pick_prefers_visible_higher_top_when_surfaces_overlap() -> void:
+	var state := BattleState.new()
+	state.battle_id = &"raised_top_surface_overlap_pick"
+	state.seed = TEST_SEED
+	state.map_size = Vector2i(3, 3)
+	state.world_coord = TEST_WORLD_COORD
+	state.terrain_profile_id = &"canyon"
+	state.cells = {}
+	for y in range(3):
+		for x in range(3):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y), 0)
+	var raised_coord := Vector2i(1, 1)
+	var lower_coord := Vector2i(1, 0)
+	_set_cell_height(state, raised_coord, 1)
+	state.units = {}
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+
+	var board := await _instantiate_board(state)
+	var raised_anchor: Vector2 = board._get_coord_anchor(raised_coord)
+	var lower_anchor: Vector2 = board._get_coord_anchor(lower_coord)
+	var overlap_point := _find_top_surface_overlap_point(board, raised_anchor, lower_anchor)
+	_assert_true(
+		overlap_point != Vector2.INF,
+		"[pick] 测试夹具应找到高地顶面与低地顶面视觉重叠的点击点。"
+	)
+	if overlap_point != Vector2.INF:
+		_assert_eq(
+			board._pick_visual_surface_coord(overlap_point),
+			raised_coord,
+			"[pick] 高低地顶面重叠处应稳定命中更高的可见顶面，而不是低地平面。"
+		)
 
 	board.queue_free()
 	await process_frame
@@ -494,6 +702,32 @@ func _test_board_initial_camera_fills_ultrawide_width() -> void:
 	)
 	board.queue_free()
 	await process_frame
+
+
+func _test_board_content_bounds_follow_render_profile_for_viewport_sizes() -> void:
+	var layout := _build_canyon_layout(TEST_SEED)
+	for viewport_size in [VIEWPORT_SIZE, ULTRAWIDE_VIEWPORT_SIZE]:
+		var state := _build_state(layout)
+		var board := await _instantiate_board(state, [], [], viewport_size)
+		var actual_bounds: Rect2 = board.get("_content_bounds")
+		var expected_bounds := _compute_expected_profile_content_bounds(board, state)
+		_assert_rect_approx(
+			actual_bounds,
+			expected_bounds,
+			0.01,
+			"content bounds 应在视口 %s 下按当前 render profile 的视觉高度和 margin 计算。" % str(viewport_size)
+		)
+
+		board.position += viewport_size * 4.0
+		board._clamp_camera_position()
+		_assert_camera_edges_cover_viewport(board, viewport_size, "正向拖拽边界")
+
+		board.position -= viewport_size * 8.0
+		board._clamp_camera_position()
+		_assert_camera_edges_cover_viewport(board, viewport_size, "反向拖拽边界")
+
+		board.queue_free()
+		await process_frame
 
 
 func _test_east_face_assets_anchor_to_neighbor_side() -> void:
@@ -723,34 +957,39 @@ func _test_board_layer_draw_order_is_explicit() -> void:
 	var wall_south_h5 := board.get_node("WallSouthH5") as TileMapLayer
 	var overlay_h5 := board.get_node("OverlayH5") as TileMapLayer
 	var marker_h0 := board.get_node("MarkerH0") as TileMapLayer
-	_assert_true(not board.y_sort_enabled, "BattleBoard2D 根节点不应对全部子层启用 y_sort，否则会破坏地形显式层级。")
+	var marker_h5 := board.get_node("MarkerH5") as TileMapLayer
+	_assert_true(not board.y_sort_enabled, "[depth] BattleBoard2D 根节点不应对全部子层启用 y_sort，否则会破坏地形显式层级。")
 	_assert_true(
 		top_h4 != null and east_h5 != null and top_h4.z_index < east_h5.z_index,
-		"EdgeDropEastH5 仍应绘制在低一层 TopH4 之上，避免被下层内容压住。"
+		"[depth] EdgeDropEastH5 仍应绘制在低一层 TopH4 之上，避免被下层内容压住。"
 	)
 	_assert_true(
 		east_h5 != null and south_h5 != null and east_h5.z_index < south_h5.z_index,
-		"同高度下 EdgeDropSouthH5 应明确绘制在 EdgeDropEastH5 之上，不能共享相同 z_index。"
+		"[depth] 同高度下 EdgeDropSouthH5 应明确绘制在 EdgeDropEastH5 之上，不能共享相同 z_index。"
 	)
 	_assert_true(
 		south_h5 != null and wall_east_h5 != null and south_h5.z_index < wall_east_h5.z_index,
-		"WallEastH5 应继续绘制在 south drop face layer 之上。"
+		"[depth] WallEastH5 应继续绘制在 south drop face layer 之上。"
 	)
 	_assert_true(
 		wall_east_h5 != null and wall_south_h5 != null and wall_east_h5.z_index < wall_south_h5.z_index,
-		"同高度下 WallSouthH5 应明确绘制在 WallEastH5 之上。"
+		"[depth] 同高度下 WallSouthH5 应明确绘制在 WallEastH5 之上。"
 	)
 	_assert_true(
 		wall_south_h5 != null and top_h5 != null and wall_south_h5.z_index < top_h5.z_index,
-		"同高度发生重叠时，land 顶面 TopH5 应绘制在 wall/edge layer 之上。"
+		"[depth] 同高度发生重叠时，land 顶面 TopH5 应绘制在 wall/edge layer 之上。"
 	)
 	_assert_true(
 		top_h5 != null and overlay_h5 != null and top_h5.z_index < overlay_h5.z_index,
-		"OverlayH5 应继续绘制在 TopH5 之上。"
+		"[depth] OverlayH5 应继续绘制在 TopH5 之上。"
 	)
 	_assert_true(
-		overlay_h5 != null and marker_h0 != null and overlay_h5.z_index < marker_h0.z_index,
-		"MarkerH0 应继续绘制在 terrain/overlay 之上。"
+		overlay_h5 != null and marker_h5 != null and overlay_h5.z_index < marker_h5.z_index,
+		"[depth] MarkerH5 应继续绘制在同高度 terrain/overlay 之上。"
+	)
+	_assert_true(
+		marker_h0 != null and top_h5 != null and marker_h0.z_index < top_h5.z_index,
+		"[depth] 低地 MarkerH0 不应越过高地 TopH5，避免低地 marker 穿出高崖前景。"
 	)
 
 	board.queue_free()
@@ -922,16 +1161,83 @@ func _test_unit_render_depth_uses_positive_height_bias() -> void:
 		var high_depth := int(high_node.get_meta("sort_depth", high_node.z_index))
 		_assert_true(
 			high_anchor_y < low_anchor_y,
-			"高地单位的屏幕锚点 y 应更小，确保测试夹具覆盖旧 bug 场景。"
+			"[depth] 高地单位的屏幕锚点 y 应更小，确保测试夹具覆盖旧 bug 场景。"
 		)
 		_assert_true(
 			high_depth > low_depth,
-			"高地单位的渲染深度应大于同对角线低地单位，不能再直接使用扣过高度的屏幕 y。"
+			"[depth] 高地单位的渲染深度应大于同对角线低地单位，不能再直接使用扣过高度的屏幕 y。"
 		)
 		_assert_eq(
 			high_node.z_index,
 			high_depth,
-			"高地单位 z_index 应直接使用正向高度偏置后的 render depth。"
+			"[depth] 高地单位 z_index 应直接使用正向高度偏置后的 render depth。"
+		)
+
+	board.queue_free()
+	await process_frame
+
+
+func _test_dynamic_depth_interleaves_with_high_cliff_faces() -> void:
+	var state := BattleState.new()
+	state.battle_id = &"dynamic_depth_high_cliff_faces"
+	state.seed = TEST_SEED
+	state.map_size = Vector2i(2, 2)
+	state.world_coord = TEST_WORLD_COORD
+	state.terrain_profile_id = &"canyon"
+	state.cells = {
+		Vector2i(0, 0): _build_cell(Vector2i(0, 0), 5),
+		Vector2i(1, 0): _build_cell(Vector2i(1, 0), 0),
+		Vector2i(0, 1): _build_cell(Vector2i(0, 1), 0),
+		Vector2i(1, 1): _build_cell(Vector2i(1, 1), 0),
+	}
+	var high_cell := state.cells.get(Vector2i(0, 0)) as BattleCellState
+	_assert_true(high_cell != null, "高崖动态深度夹具应创建高地 cell。")
+	if high_cell == null:
+		return
+	high_cell.prop_ids.append(BattleBoardPropCatalog.PROP_TORCH)
+	high_cell.set_edge_feature(Vector2i.RIGHT, BattleEdgeFeatureState.make_wall())
+	high_cell.set_edge_feature(Vector2i.DOWN, BattleEdgeFeatureState.make_wall())
+	state.units = {}
+	state.ally_unit_ids = []
+	state.enemy_unit_ids = []
+
+	var low_unit := _build_unit(&"low_cliff_unit", "低地", &"player")
+	var high_unit := _build_unit(&"high_cliff_unit", "高地", &"player")
+	state.units[low_unit.unit_id] = low_unit
+	state.units[high_unit.unit_id] = high_unit
+	state.ally_unit_ids.append(low_unit.unit_id)
+	state.ally_unit_ids.append(high_unit.unit_id)
+	_grid_service.place_unit(state, low_unit, Vector2i(1, 0), true)
+	_grid_service.place_unit(state, high_unit, Vector2i(0, 0), true)
+	state.active_unit_id = high_unit.unit_id
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+
+	var board := await _instantiate_board(state)
+	var unit_layer := board.get_node("UnitLayer") as Node2D
+	var prop_layer := board.get_node("PropLayer") as Node2D
+	var high_wall_layer := board.get_node("WallEastH5") as TileMapLayer
+	var low_node := unit_layer.get_node_or_null("low_cliff_unit") as Node2D
+	var high_node := unit_layer.get_node_or_null("high_cliff_unit") as Node2D
+	var high_prop := prop_layer.get_node_or_null("torch_0_0_0") as Node2D
+	_assert_true(low_node != null and high_node != null and high_prop != null, "高崖动态深度夹具应渲染低地单位、高地单位和高地 prop。")
+	_assert_true(high_wall_layer != null, "高崖动态深度夹具应渲染 H5 wall layer。")
+	if low_node != null and high_node != null and high_prop != null and high_wall_layer != null:
+		_assert_true(
+			low_node.z_index < high_wall_layer.z_index,
+			"[depth] 低地单位 z-depth 应低于高崖前景 wall face，不能穿出高崖。"
+		)
+		_assert_true(
+			high_node.z_index > high_wall_layer.z_index,
+			"[depth] 同一高地顶面的单位 z-depth 应高于 wall face，不能被同顶面墙面压住。"
+		)
+		_assert_true(
+			high_prop.z_index > high_wall_layer.z_index,
+			"[depth] 同一高地顶面的 prop z-depth 应高于 wall face，不能落回旧平面排序。"
+		)
+		_assert_eq(
+			int(high_prop.get_meta("sort_depth", high_prop.z_index)),
+			high_prop.z_index,
+			"[depth] prop 应记录并使用与单位一致的显式 sort_depth。"
 		)
 
 	board.queue_free()
@@ -1284,6 +1590,14 @@ func _capture_layout_signature(layout: Dictionary) -> Array[String]:
 
 func _capture_board_signature(board: BattleBoard2D) -> Array[String]:
 	var lines: Array[String] = []
+	var profile := board.get("_render_profile") as BattleBoardRenderProfile
+	if profile != null:
+		lines.append("render_profile|%s|%s|height_step=%.2f|asset_dir=%s" % [
+			String(profile.terrain_profile_id),
+			String(profile.render_profile_id),
+			profile.visual_height_step,
+			profile.asset_dir,
+		])
 	var layer_names: Array[String] = []
 	layer_names.append_array(_build_layer_names("TopH", 0, MAX_RENDER_HEIGHT))
 	layer_names.append_array(_build_layer_names("EdgeDropEastH", 1, MAX_RENDER_HEIGHT))
@@ -1328,6 +1642,40 @@ func _get_layer_cell_image(layer: TileMapLayer, coord: Vector2i) -> Image:
 	if atlas_source == null or atlas_source.texture == null:
 		return null
 	return atlas_source.texture.get_image()
+
+
+func _assert_layer_source_geometry(
+	layer: TileMapLayer,
+	coord: Vector2i,
+	expected_region_size: Vector2i,
+	expected_origin: Vector2i,
+	label: String
+) -> void:
+	_assert_true(layer != null, "[source] %s 应存在对应 TileMapLayer。" % label)
+	if layer == null or layer.tile_set == null:
+		return
+	var source_id := layer.get_cell_source_id(coord)
+	_assert_true(source_id >= 0, "[source] %s 应在测试坐标注册 source：%s" % [label, str(coord)])
+	if source_id < 0:
+		return
+	var atlas_source := layer.tile_set.get_source(source_id) as TileSetAtlasSource
+	_assert_true(atlas_source != null, "[source] %s source 应是 TileSetAtlasSource。" % label)
+	if atlas_source == null:
+		return
+	_assert_eq(atlas_source.texture_region_size, expected_region_size, "[source] %s source 应使用独立 atlas_region_size。" % label)
+	var tile_data := atlas_source.get_tile_data(Vector2i.ZERO, 0)
+	_assert_true(tile_data != null, "[source] %s source 应创建 atlas tile data。" % label)
+	if tile_data != null:
+		_assert_eq(tile_data.texture_origin, expected_origin, "[source] %s source 应应用独立 visual_origin。" % label)
+
+
+func _find_source_spec(profile: BattleBoardRenderProfile, source_key: StringName) -> Dictionary:
+	if profile == null:
+		return {}
+	for source_spec in profile.get_source_specs():
+		if StringName(source_spec.get("key", &"")) == source_key:
+			return source_spec
+	return {}
 
 
 func _load_png_image(path: String) -> Image:
@@ -1435,6 +1783,68 @@ func _get_expected_edge_render_coord(origin_coord: Vector2i, direction: Vector2i
 	return origin_coord
 
 
+func _find_top_surface_overlap_point(board: BattleBoard2D, first_anchor: Vector2, second_anchor: Vector2) -> Vector2:
+	var search_rect := Rect2(first_anchor, Vector2.ZERO).expand(second_anchor).grow(40.0)
+	for y in range(int(floor(search_rect.position.y)), int(ceil(search_rect.end.y)) + 1):
+		for x in range(int(floor(search_rect.position.x)), int(ceil(search_rect.end.x)) + 1):
+			var point := Vector2(float(x), float(y))
+			if board._point_hits_cell_top_surface(point, first_anchor) and board._point_hits_cell_top_surface(point, second_anchor):
+				return point
+	return Vector2.INF
+
+
+func _compute_expected_profile_content_bounds(board: BattleBoard2D, state: BattleState) -> Rect2:
+	var profile := board.get("_render_profile") as BattleBoardRenderProfile
+	var input_layer := board.get_node("InputLayer") as TileMapLayer
+	if profile == null or input_layer == null or state == null:
+		return Rect2()
+	var has_bounds := false
+	var bounds := Rect2()
+	for cell_variant in state.cells.values():
+		var cell := cell_variant as BattleCellState
+		if cell == null:
+			continue
+		var anchor := input_layer.map_to_local(cell.coord)
+		anchor.y -= float(clampi(int(cell.current_height), 0, MAX_RENDER_HEIGHT)) * profile.visual_height_step
+		var cell_rect := Rect2(anchor - profile.tile_half_size, profile.tile_half_size * 2.0)
+		if not has_bounds:
+			bounds = cell_rect
+			has_bounds = true
+		else:
+			bounds = bounds.merge(cell_rect)
+	if not has_bounds:
+		return Rect2()
+	var margin := profile.content_bounds_margin
+	return bounds.grow_individual(margin.x, margin.y, margin.z, margin.w)
+
+
+func _assert_camera_edges_cover_viewport(board: BattleBoard2D, viewport_size: Vector2, label: String) -> void:
+	var profile := board.get("_render_profile") as BattleBoardRenderProfile
+	var content_bounds: Rect2 = board.get("_content_bounds")
+	var zoom := board.scale.x
+	var left_edge := board.position.x + content_bounds.position.x * zoom
+	var right_edge := board.position.x + (content_bounds.position.x + content_bounds.size.x) * zoom
+	var top_edge := board.position.y + content_bounds.position.y * zoom
+	var bottom_edge := board.position.y + (content_bounds.position.y + content_bounds.size.y) * zoom
+	var margin := profile.camera_margin if profile != null else Vector2.ZERO
+	_assert_true(
+		left_edge <= margin.x + 1.0,
+		"%s 后左边缘不应露出超过 render profile margin 的空白。" % label
+	)
+	_assert_true(
+		right_edge >= viewport_size.x - margin.x - 1.0,
+		"%s 后右边缘不应露出超过 render profile margin 的空白。" % label
+	)
+	_assert_true(
+		top_edge <= margin.y + 1.0,
+		"%s 后上边缘不应露出超过 render profile margin 的空白。" % label
+	)
+	_assert_true(
+		bottom_edge >= viewport_size.y - margin.y - 1.0,
+		"%s 后下边缘不应露出超过 render profile margin 的空白。" % label
+	)
+
+
 func _assert_tile_variant_variety(board: BattleBoard2D) -> void:
 	var top_layers := _get_board_layers(board, "TopH", 0, MAX_RENDER_HEIGHT)
 	var used_source_ids: Dictionary = {}
@@ -1497,11 +1907,11 @@ func _assert_prop_and_unit_sorting(board: BattleBoard2D) -> void:
 		var prop_id := StringName(String(child.get_meta("prop_id", "")))
 		if prop_counts.has(prop_id):
 			prop_counts[prop_id] = int(prop_counts.get(prop_id, 0)) + 1
-		var anchor_y := float(child.get_meta("sort_anchor_y", -1.0))
+		var sort_depth := int(child.get_meta("sort_depth", child.z_index))
 		_assert_eq(
 			int(child.z_index),
-			int(round(anchor_y)),
-			"prop 节点应按接地点 y 值排序：%s" % child.name
+			sort_depth,
+			"prop 节点应使用显式 render depth 排序：%s" % child.name
 		)
 	_assert_eq(
 		int(prop_counts.get(BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER, 0)),
@@ -1925,6 +2335,18 @@ func _assert_eq(actual, expected, message: String) -> void:
 
 func _assert_approx(actual: float, expected: float, tolerance: float, message: String) -> void:
 	if absf(actual - expected) > tolerance:
+		_failures.append(
+			"%s | actual=%s expected=%s tolerance=%s" % [
+				message,
+				str(actual),
+				str(expected),
+				str(tolerance),
+			]
+		)
+
+
+func _assert_rect_approx(actual: Rect2, expected: Rect2, tolerance: float, message: String) -> void:
+	if actual.position.distance_to(expected.position) > tolerance or actual.size.distance_to(expected.size) > tolerance:
 		_failures.append(
 			"%s | actual=%s expected=%s tolerance=%s" % [
 				message,

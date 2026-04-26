@@ -9,21 +9,20 @@ extends Node2D
 signal battle_cell_clicked(coord: Vector2i)
 ## 信号说明：当战斗格子被右键点击时发出的信号，供外层执行二级交互、取消或上下文操作。
 signal battle_cell_right_clicked(coord: Vector2i)
+## 信号说明：当鼠标悬停到新的战斗格子时发出的信号，供外层刷新只读预览信息。
+signal battle_cell_hovered(coord: Vector2i)
 
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
 const BattleBoardController = preload("res://scripts/ui/battle_board_controller.gd")
-const TILE_HALF_SIZE := Vector2(32.0, 16.0)
-const HEIGHT_STEP := 16.0
+const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
 const MAX_RENDER_HEIGHT := 8
 const DEFAULT_CAMERA_ZOOM := 2.0
 const MIN_CAMERA_ZOOM := 1.25
 const MAX_CAMERA_ZOOM := 4.0
 const CAMERA_ZOOM_STEP := 0.2
 const KEYBOARD_CAMERA_PAN_STEP := 96.0
-const CAMERA_EDGE_MARGIN_X := 0.0
-const CAMERA_EDGE_MARGIN_Y := 72.0
 const FOCUS_VIEWPORT_RATIO := Vector2(0.5, 0.44)
 
 ## 字段说明：缓存输入层节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
@@ -51,6 +50,8 @@ const FOCUS_VIEWPORT_RATIO := Vector2(0.5, 0.44)
 
 ## 字段说明：缓存控制器实例，作为界面刷新、输入处理和窗口联动的重要依据。
 var _controller: BattleBoardController = BattleBoardController.new()
+## 字段说明：缓存当前渲染 profile，统一提供棋盘点击面、视觉高度与镜头边距等展示规格。
+var _render_profile: BattleBoardRenderProfile = BattleBoardRenderProfile.for_terrain_profile_id(BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT)
 ## 字段说明：用于标记当前是否处于绑定状态，避免在不合适的时机重复触发流程，作为界面刷新、输入处理和窗口联动的重要依据。
 var _is_bound := false
 ## 字段说明：缓存待处理战斗状态实例，作为界面刷新、输入处理和窗口联动的重要依据。
@@ -67,6 +68,8 @@ var _pending_target_selection_mode: StringName = &"single_unit"
 var _pending_target_min_count := 1
 ## 字段说明：保存待处理的最大目标数量，供高亮表现层表达自动施放阈值。
 var _pending_target_max_count := 1
+## 字段说明：保存待处理的目标上方命中率浮标文本，key 为战斗格坐标。
+var _pending_target_hit_badges: Dictionary = {}
 ## 字段说明：记录视口尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
 var _viewport_size := Vector2.ZERO
 ## 字段说明：记录相机缩放，作为界面刷新、输入处理和窗口联动的重要依据。
@@ -85,6 +88,8 @@ var _has_manual_zoom_override := false
 var _is_panning := false
 ## 字段说明：记录上一次平移视口位置，作为界面刷新、输入处理和窗口联动的重要依据。
 var _last_pan_viewport_position := Vector2.ZERO
+## 字段说明：记录当前鼠标悬停的战斗格，避免鼠标移动时重复触发相同预览刷新。
+var _hovered_coord := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -102,15 +107,18 @@ func configure(
 	valid_target_coords: Array[Vector2i] = [],
 	target_selection_mode: StringName = &"single_unit",
 	min_target_count: int = 1,
-	max_target_count: int = 1
+	max_target_count: int = 1,
+	target_hit_badges: Dictionary = {}
 ) -> void:
 	_pending_battle_state = battle_state
+	_set_render_profile_for_state(battle_state)
 	_pending_selected_coord = selected_coord
 	_pending_preview_target_coords = preview_target_coords.duplicate()
 	_pending_valid_target_coords = valid_target_coords.duplicate()
 	_pending_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
 	_pending_target_min_count = maxi(min_target_count, 1)
 	_pending_target_max_count = maxi(max_target_count, _pending_target_min_count)
+	_pending_target_hit_badges = target_hit_badges.duplicate()
 	_apply_pending_configuration()
 	_fit_to_viewport(true)
 
@@ -121,7 +129,8 @@ func update_selection(
 	valid_target_coords: Array[Vector2i] = [],
 	target_selection_mode: StringName = &"single_unit",
 	min_target_count: int = 1,
-	max_target_count: int = 1
+	max_target_count: int = 1,
+	target_hit_badges: Dictionary = {}
 ) -> void:
 	_pending_selected_coord = selected_coord
 	_pending_preview_target_coords = preview_target_coords.duplicate()
@@ -129,6 +138,7 @@ func update_selection(
 	_pending_target_selection_mode = target_selection_mode if target_selection_mode != &"" else &"single_unit"
 	_pending_target_min_count = maxi(min_target_count, 1)
 	_pending_target_max_count = maxi(max_target_count, _pending_target_min_count)
+	_pending_target_hit_badges = target_hit_badges.duplicate()
 	_apply_pending_marker_update()
 
 
@@ -152,7 +162,7 @@ func is_viewport_panning() -> bool:
 
 func handle_viewport_mouse_motion(viewport_position: Vector2, button_mask: int) -> bool:
 	if not _is_panning:
-		return false
+		return _update_hovered_coord(viewport_position)
 	if (button_mask & MOUSE_BUTTON_MASK_MIDDLE) == 0:
 		_is_panning = false
 		return false
@@ -212,9 +222,11 @@ func handle_viewport_mouse_button(viewport_position: Vector2, button_index: int)
 
 func clear_board() -> void:
 	_pending_battle_state = null
+	_render_profile = BattleBoardRenderProfile.for_terrain_profile_id(BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT)
 	_pending_selected_coord = Vector2i(-1, -1)
 	_pending_preview_target_coords.clear()
 	_pending_valid_target_coords.clear()
+	_pending_target_hit_badges.clear()
 	_pending_target_selection_mode = &"single_unit"
 	_pending_target_min_count = 1
 	_pending_target_max_count = 1
@@ -224,6 +236,7 @@ func clear_board() -> void:
 	_has_manual_zoom_override = false
 	_camera_zoom = DEFAULT_CAMERA_ZOOM
 	_last_focus_coord = Vector2i(-9999, -9999)
+	_set_hovered_coord(Vector2i(-1, -1))
 	if _controller != null:
 		_controller.clear()
 	_fit_to_viewport()
@@ -261,7 +274,8 @@ func _apply_pending_configuration() -> void:
 		_pending_preview_target_coords,
 		_pending_target_selection_mode,
 		_pending_target_min_count,
-		_pending_target_max_count
+		_pending_target_max_count,
+		_pending_target_hit_badges
 	)
 	_controller.update_markers(
 		_pending_selected_coord,
@@ -269,7 +283,8 @@ func _apply_pending_configuration() -> void:
 		_pending_valid_target_coords,
 		_pending_target_selection_mode,
 		_pending_target_min_count,
-		_pending_target_max_count
+		_pending_target_max_count,
+		_pending_target_hit_badges
 	)
 	_refresh_content_bounds()
 	_fit_to_viewport()
@@ -284,8 +299,16 @@ func _apply_pending_marker_update() -> void:
 		_pending_valid_target_coords,
 		_pending_target_selection_mode,
 		_pending_target_min_count,
-		_pending_target_max_count
+		_pending_target_max_count,
+		_pending_target_hit_badges
 	)
+
+
+func _set_render_profile_for_state(battle_state: BattleState) -> void:
+	var terrain_profile_id := BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT
+	if battle_state != null:
+		terrain_profile_id = battle_state.terrain_profile_id
+	_render_profile = BattleBoardRenderProfile.for_terrain_profile_id(terrain_profile_id)
 
 
 func _viewport_position_to_board_coord(viewport_position: Vector2) -> Vector2i:
@@ -300,6 +323,20 @@ func _viewport_position_to_board_coord(viewport_position: Vector2) -> Vector2i:
 	if not _pending_battle_state.cells.has(coord):
 		return Vector2i(-1, -1)
 	return coord
+
+
+func _update_hovered_coord(viewport_position: Vector2) -> bool:
+	if _pending_battle_state == null:
+		return _set_hovered_coord(Vector2i(-1, -1))
+	return _set_hovered_coord(_viewport_position_to_board_coord(viewport_position))
+
+
+func _set_hovered_coord(coord: Vector2i) -> bool:
+	if coord == _hovered_coord:
+		return false
+	_hovered_coord = coord
+	battle_cell_hovered.emit(_hovered_coord)
+	return true
 
 
 func _pick_visual_surface_coord(board_local: Vector2) -> Vector2i:
@@ -330,10 +367,7 @@ func _pick_visual_surface_coord(board_local: Vector2) -> Vector2i:
 
 
 func _point_hits_cell_top_surface(point: Vector2, anchor: Vector2) -> bool:
-	var delta := point - anchor
-	var normalized_x := absf(delta.x) / maxf(TILE_HALF_SIZE.x, 1.0)
-	var normalized_y := absf(delta.y) / maxf(TILE_HALF_SIZE.y, 1.0)
-	return normalized_x + normalized_y <= 1.0
+	return _render_profile.point_hits_top_surface(point, anchor)
 
 
 func _build_visual_pick_sort_key(height_value: int, plane_anchor_y: float) -> float:
@@ -378,7 +412,8 @@ func _refresh_content_bounds() -> void:
 		if cell_state == null:
 			continue
 		var anchor := _get_coord_anchor(cell_state.coord)
-		var cell_rect := Rect2(anchor - TILE_HALF_SIZE, TILE_HALF_SIZE * 2.0)
+		var tile_half_size := _render_profile.tile_half_size
+		var cell_rect := Rect2(anchor - tile_half_size, tile_half_size * 2.0)
 		if not _has_content_bounds:
 			_content_bounds = cell_rect
 			_has_content_bounds = true
@@ -386,7 +421,13 @@ func _refresh_content_bounds() -> void:
 			_content_bounds = _content_bounds.merge(cell_rect)
 
 	if _has_content_bounds:
-		_content_bounds = _content_bounds.grow_individual(64.0, 72.0, 64.0, 120.0)
+		var bounds_margin := _render_profile.content_bounds_margin
+		_content_bounds = _content_bounds.grow_individual(
+			bounds_margin.x,
+			bounds_margin.y,
+			bounds_margin.z,
+			bounds_margin.w
+		)
 
 
 func _resolve_focus_coord() -> Vector2i:
@@ -413,7 +454,7 @@ func _get_coord_anchor(coord: Vector2i) -> Vector2:
 	if _pending_battle_state != null:
 		cell_state = _pending_battle_state.cells.get(coord) as BattleCellState
 	if cell_state != null:
-		anchor.y -= float(clampi(int(cell_state.current_height), 0, MAX_RENDER_HEIGHT)) * HEIGHT_STEP
+		anchor.y -= float(clampi(int(cell_state.current_height), 0, MAX_RENDER_HEIGHT)) * _render_profile.visual_height_step
 	return anchor
 
 
@@ -438,21 +479,21 @@ func _clamp_camera_position() -> void:
 		_content_bounds.position.x,
 		bounds_end.x,
 		_viewport_size.x,
-		CAMERA_EDGE_MARGIN_X
+		_render_profile.camera_margin.x
 	)
 	position.y = _clamp_camera_axis(
 		position.y,
 		_content_bounds.position.y,
 		bounds_end.y,
 		_viewport_size.y,
-		CAMERA_EDGE_MARGIN_Y
+		_render_profile.camera_margin.y
 	)
 
 
 func _compute_horizontal_fit_zoom() -> float:
 	if not _has_content_bounds:
 		return DEFAULT_CAMERA_ZOOM
-	var available_width := maxf(_viewport_size.x - CAMERA_EDGE_MARGIN_X * 2.0, 1.0)
+	var available_width := maxf(_viewport_size.x - _render_profile.camera_margin.x * 2.0, 1.0)
 	var content_width := maxf(_content_bounds.size.x, 1.0)
 	return clampf(available_width / content_width, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM)
 

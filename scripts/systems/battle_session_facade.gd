@@ -607,8 +607,12 @@ func resolve_battle_terrain_profile(encounter_anchor) -> StringName:
 	if encounter_anchor == null:
 		return &"default"
 	match String(encounter_anchor.region_tag).strip_edges().to_lower():
-		"canyon":
+		"canyon", "north_wilds", "south_wilds":
 			return &"canyon"
+		"narrow_assault":
+			return &"narrow_assault"
+		"holdout_push":
+			return &"holdout_push"
 		_:
 			return &"default"
 

@@ -47,6 +47,7 @@ func _run() -> void:
 	await _test_multi_unit_hud_copy_and_selection_state()
 	await _test_repeat_attack_hud_preview_matches_runtime_resolver()
 	await _test_single_hit_hud_preview_matches_runtime_resolver()
+	await _test_battle_panel_hover_target_surfaces_hit_preview()
 	await _test_repeat_attack_hud_preview_uses_fate_aware_success_rate()
 	await _test_skill_slot_surfaces_stamina_and_cooldown_blockers()
 	await _test_multi_unit_board_highlights_confirm_state()
@@ -205,7 +206,7 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 		3,
 		4
 	)
-	attacker.current_stamina = 2
+	attacker.current_stamina = 30
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	var defender := _build_repeat_attack_unit(
 		&"heavy_strike_ui_target",
@@ -258,6 +259,105 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "普通单段技能 HUD 副标题应显示 resolver 命中摘要。")
 
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
+	var skill_def := _get_repeat_attack_skill_def()
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "悬停命中预览前置：saint_blade_combo 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, game_session.skill_defs, {}, {}, null)
+	var state := _build_repeat_attack_state()
+	var attacker := _build_repeat_attack_unit(
+		&"hover_preview_user",
+		"悬停战士",
+		&"player",
+		Vector2i(1, 1),
+		[skill_def.skill_id],
+		3,
+		4
+	)
+	attacker.current_aura = 6
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	var defender := _build_repeat_attack_unit(
+		&"hover_preview_target",
+		"悬停木桩",
+		&"enemy",
+		Vector2i(2, 1),
+		[],
+		2,
+		0
+	)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 70)
+	_add_unit_to_runtime_state(runtime, state, attacker, false)
+	_add_unit_to_runtime_state(runtime, state, defender, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = attacker.unit_id
+	runtime._state = state
+
+	var panel := BattlePanelScene.instantiate() as BattleMapPanel
+	root.add_child(panel)
+	await process_frame
+	panel.size = VIEWPORT_SIZE
+	panel.refresh(
+		state,
+		attacker.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"",
+		[],
+		[defender.coord],
+		1,
+		[]
+	)
+	await process_frame
+	_assert_true(
+		not panel.skill_subtitle_label.text.contains("预计命中率"),
+		"技能刚选中且还未悬停目标时，不应错误展示当前行动单位的命中率。"
+	)
+	var initial_highlight_layer := panel._battle_board.get_node("TargetHighlightLayer") if panel._battle_board != null else null
+	_assert_true(
+		initial_highlight_layer != null and not _collect_node_names(initial_highlight_layer).has("HitBadge_%d_%d" % [defender.coord.x, defender.coord.y]),
+		"技能刚选中且还未悬停目标时，棋盘目标上方不应显示命中率浮标。"
+	)
+
+	panel.refresh_overlay(
+		state,
+		defender.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"",
+		[],
+		[defender.coord],
+		1,
+		[]
+	)
+	await process_frame
+	_assert_true(
+		panel.skill_subtitle_label.text.contains("预计命中率") and panel.skill_subtitle_label.text.contains("需 "),
+		"选中技能后悬停到合法目标时，BattleMapPanel 应在技能副标题展示命中率预览。"
+	)
+	var highlight_layer := panel._battle_board.get_node("TargetHighlightLayer") if panel._battle_board != null else null
+	var badge_name := "HitBadge_%d_%d" % [defender.coord.x, defender.coord.y]
+	var hit_badge := highlight_layer.get_node_or_null(badge_name) if highlight_layer != null else null
+	_assert_true(hit_badge != null, "选中技能后悬停到合法目标时，目标上方应显示命中率浮标。")
+	var hit_badge_label := _find_first_label(hit_badge)
+	_assert_true(
+		hit_badge_label != null and hit_badge_label.text.begins_with("命中 "),
+		"目标上方命中率浮标应显示简短命中百分比。"
+	)
+
+	panel.queue_free()
+	runtime.dispose()
 	game_session.queue_free()
 	await process_frame
 
@@ -880,9 +980,9 @@ func _build_fate_preview_state(
 		0
 	)
 	caster.current_hp = 10
-	caster.current_stamina = 4
+	caster.current_stamina = 30
 	caster.attribute_snapshot.set_value(&"hp_max", 40)
-	caster.attribute_snapshot.set_value(&"stamina_max", 4)
+	caster.attribute_snapshot.set_value(&"stamina_max", 30)
 	caster.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, hidden_luck_at_birth)
 	caster.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, faith_luck_bonus)
 
@@ -930,6 +1030,7 @@ func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
 	)
 	archer.current_stamina = 20
 	archer.attribute_snapshot.set_value(&"stamina_max", 20)
+	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 4)
 	archer.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
 	var enemy_a := _build_repeat_attack_unit(
 		&"hybrid_enemy_a",
@@ -990,13 +1091,13 @@ func _build_repeat_attack_unit(
 	unit.current_hp = 40
 	unit.current_mp = current_mp
 	unit.current_ap = current_ap
-	unit.current_stamina = 0
+	unit.current_stamina = 30
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 40)
 	unit.attribute_snapshot.set_value(&"mp_max", maxi(current_mp, 4))
-	unit.attribute_snapshot.set_value(&"stamina_max", 4)
+	unit.attribute_snapshot.set_value(&"stamina_max", 30)
 	unit.attribute_snapshot.set_value(&"aura_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
@@ -1005,6 +1106,8 @@ func _build_repeat_attack_unit(
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 5)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 1)
+	unit.weapon_physical_damage_tag = &"physical_slash"
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1

@@ -8,6 +8,7 @@ const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
 const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
 const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
+const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
 const BattleState = preload("res://scripts/systems/battle_state.gd")
 const BattleTerrainGenerator = preload("res://scripts/systems/battle_terrain_generator.gd")
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
@@ -184,6 +185,16 @@ func _save_headless_board_signature(board: BattleBoard2D) -> int:
 
 func _capture_board_signature(board: BattleBoard2D) -> Array[String]:
 	var lines: Array[String] = []
+	lines.append("signature_version|battle_board_canyon|3")
+	var profile := board.get("_render_profile") as BattleBoardRenderProfile
+	if profile != null:
+		lines.append("render_profile|%s|%s|height_step=%.2f|asset_dir=%s" % [
+			String(profile.terrain_profile_id),
+			String(profile.render_profile_id),
+			profile.visual_height_step,
+			profile.asset_dir,
+		])
+	lines.append(_capture_v2_summary(board))
 	var layer_names: Array[String] = []
 	layer_names.append_array(_build_layer_names("TopH", 0, BattleBoard2D.MAX_RENDER_HEIGHT))
 	layer_names.append_array(_build_layer_names("EdgeDropEastH", 1, BattleBoard2D.MAX_RENDER_HEIGHT))
@@ -216,6 +227,39 @@ func _capture_board_signature(board: BattleBoard2D) -> Array[String]:
 	for child in unit_layer.get_children():
 		lines.append("unit|%s|%d|%s" % [child.name, int(child.z_index), str(child.position)])
 	return lines
+
+
+func _capture_v2_summary(board: BattleBoard2D) -> String:
+	var min_top_height := 999999
+	var max_top_height := -999999
+	var top_cell_count := 0
+	var face_cell_count := 0
+	for height in range(0, BattleBoard2D.MAX_RENDER_HEIGHT + 1):
+		var top_layer := board.get_node_or_null("TopH%d" % height) as TileMapLayer
+		if top_layer != null:
+			var used_top_cells := top_layer.get_used_cells()
+			if not used_top_cells.is_empty():
+				min_top_height = mini(min_top_height, height)
+				max_top_height = maxi(max_top_height, height)
+				top_cell_count += used_top_cells.size()
+	for prefix in ["EdgeDropEastH", "EdgeDropSouthH", "WallEastH", "WallSouthH"]:
+		for height in range(0, BattleBoard2D.MAX_RENDER_HEIGHT + 1):
+			var face_layer := board.get_node_or_null("%s%d" % [prefix, height]) as TileMapLayer
+			if face_layer != null:
+				face_cell_count += face_layer.get_used_cells().size()
+	if min_top_height == 999999:
+		min_top_height = -1
+		max_top_height = -1
+	var prop_layer := board.get_node("PropLayer")
+	var unit_layer := board.get_node("UnitLayer")
+	return "v2_capture_summary|top_height_range=%d..%d|top_cells=%d|face_cells=%d|props=%d|units=%d" % [
+		min_top_height,
+		max_top_height,
+		top_cell_count,
+		face_cell_count,
+		prop_layer.get_child_count(),
+		unit_layer.get_child_count(),
+	]
 
 
 func _build_layer_names(prefix: String, start_height: int, max_height: int) -> Array[String]:

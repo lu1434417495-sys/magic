@@ -5,6 +5,7 @@ Add-Type -AssemblyName System.Drawing
 
 $Width = 64
 $Height = 32
+$FaceHeight = 36
 $OutputDir = Join-Path (Resolve-Path ".").Path "assets\main\battle\terrain\canyon"
 
 function New-Color([int]$a, [int]$r, [int]$g, [int]$b) {
@@ -23,8 +24,8 @@ function New-Random([int]$seed) {
 	return [System.Random]::new($seed)
 }
 
-function New-Canvas() {
-	$bitmap = [System.Drawing.Bitmap]::new($Width, $Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+function New-Canvas([int]$canvasWidth = $Width, [int]$canvasHeight = $Height) {
+	$bitmap = [System.Drawing.Bitmap]::new($canvasWidth, $canvasHeight, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
 	$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 	$graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 	$graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
@@ -315,14 +316,14 @@ function Draw-RubbleOverlay([string]$fileName, [int]$variant) {
 }
 
 function Draw-CliffSouth([string]$fileName, [int]$variant) {
-	$canvas = New-Canvas
+	$canvas = New-Canvas $Width $FaceHeight
 	$bitmap = $canvas[0]
 	$graphics = $canvas[1]
 	$poly = New-Points @(
 		(New-Point 32 0),
 		(New-Point 63 16),
-		(New-Point 63 31),
-		(New-Point 32 15)
+		(New-Point 63 35),
+		(New-Point 32 20)
 	)
 	$palette = @(
 		@((New-Color 255 170 126 84), (New-Color 255 72 47 31)),
@@ -335,16 +336,16 @@ function Draw-CliffSouth([string]$fileName, [int]$variant) {
 		$rand = New-Random (11500 + $variant * 53)
 		Add-StrataBands $graphics $poly $rand 4 (New-Color 112 220 192 150) (New-Color 82 98 66 46) 34 62
 		Add-Cracks $graphics $poly $rand 5 (New-Color 102 67 43 26)
-		Add-Grain $graphics $poly $rand 12 (New-Color 42 66 42 26) (New-Color 40 246 226 204)
+		Add-Grain $graphics $poly $rand 16 (New-Color 42 66 42 26) (New-Color 40 246 226 204)
 		Fill-Polygon $graphics (New-Points @(
 			(New-Point 44 7),
 			(New-Point 63 18),
-			(New-Point 63 31),
-			(New-Point 32 15)
+			(New-Point 63 35),
+			(New-Point 32 20)
 		)) (New-Color 70 34 22 18)
 		for ($chip = 0; $chip -lt 3; $chip++) {
 			$baseX = 39 + $chip * 6 + $rand.Next(-1, 2)
-			$baseY = 8 + $chip * 4 + $rand.Next(-1, 2)
+			$baseY = 9 + $chip * 5 + $rand.Next(-1, 2)
 			$chipPoly = New-Points @(
 				(New-Point $baseX $baseY),
 				(New-Point ($baseX + 3) ($baseY + 2)),
@@ -354,21 +355,21 @@ function Draw-CliffSouth([string]$fileName, [int]$variant) {
 		}
 	}
 	Draw-Line $graphics (New-Color 222 228 206 164) 1.2 33 1 62 16
-	Draw-Line $graphics (New-Color 180 65 40 26) 1.0 32 1 32 15
-	Draw-Line $graphics (New-Color 176 82 50 31) 1.0 63 17 63 30
-	Draw-Line $graphics (New-Color 198 50 31 20) 1.1 33 15 62 30
+	Draw-Line $graphics (New-Color 180 65 40 26) 1.0 32 1 32 20
+	Draw-Line $graphics (New-Color 176 82 50 31) 1.0 63 17 63 34
+	Draw-Line $graphics (New-Color 198 50 31 20) 1.1 33 20 62 34
 	Save-Canvas $bitmap $graphics $fileName
 }
 
 function Draw-WallEast([string]$fileName, [int]$variant) {
-	$canvas = New-Canvas
+	$canvas = New-Canvas $Width $FaceHeight
 	$bitmap = $canvas[0]
 	$graphics = $canvas[1]
 	$poly = New-Points @(
-		(New-Point 0 19),
-		(New-Point 32 4),
-		(New-Point 32 16),
-		(New-Point 0 31)
+		(New-Point 0 16),
+		(New-Point 32 0),
+		(New-Point 32 20),
+		(New-Point 0 35)
 	)
 	$palette = @(
 		@((New-Color 255 165 156 148), (New-Color 255 82 76 71)),
@@ -379,37 +380,37 @@ function Draw-WallEast([string]$fileName, [int]$variant) {
 	Fill-Gradient $graphics $poly $colors[0] $colors[1]
 	Use-Clip $graphics $poly {
 		$rand = New-Random (13600 + $variant * 41)
-		for ($course = 0; $course -lt 2; $course++) {
-			$y = 24 - $course * 5 + $rand.Next(-1, 2)
+		for ($course = 0; $course -lt 4; $course++) {
+			$y = 31 - $course * 5 + $rand.Next(-1, 2)
 			Draw-Line $graphics (New-Color 124 82 76 70) 1.0 1 $y 31 ($y - 15)
 		}
 		for ($joint = 0; $joint -lt 3; $joint++) {
 			$x = 8 + $joint * 7 + $rand.Next(-1, 2)
-			Draw-Line $graphics (New-Color 96 68 64 60) 1.0 $x 17 $x 29
+			Draw-Line $graphics (New-Color 96 68 64 60) 1.0 $x 15 $x 32
 		}
 		Fill-Polygon $graphics (New-Points @(
-			(New-Point 0 24),
-			(New-Point 12 18),
-			(New-Point 15 31),
-			(New-Point 0 31)
+			(New-Point 0 26),
+			(New-Point 13 20),
+			(New-Point 17 35),
+			(New-Point 0 35)
 		)) (New-Color 48 54 46 40)
 	}
-	Draw-Line $graphics (New-Color 222 218 210 188) 1.2 1 18 31 4
-	Draw-Line $graphics (New-Color 126 86 80 74) 1.0 1 30 31 16
-	Draw-Line $graphics (New-Color 110 74 70 64) 1.0 0 20 0 30
-	Draw-Line $graphics (New-Color 102 70 66 60) 1.0 32 5 32 15
+	Draw-Line $graphics (New-Color 222 218 210 188) 1.2 1 16 31 1
+	Draw-Line $graphics (New-Color 126 86 80 74) 1.0 1 34 31 20
+	Draw-Line $graphics (New-Color 110 74 70 64) 1.0 0 17 0 34
+	Draw-Line $graphics (New-Color 102 70 66 60) 1.0 32 1 32 19
 	Save-Canvas $bitmap $graphics $fileName
 }
 
 function Draw-WallSouth([string]$fileName, [int]$variant) {
-	$canvas = New-Canvas
+	$canvas = New-Canvas $Width $FaceHeight
 	$bitmap = $canvas[0]
 	$graphics = $canvas[1]
 	$poly = New-Points @(
-		(New-Point 32 4),
-		(New-Point 63 19),
-		(New-Point 63 31),
-		(New-Point 32 16)
+		(New-Point 32 0),
+		(New-Point 63 16),
+		(New-Point 63 35),
+		(New-Point 32 20)
 	)
 	$palette = @(
 		@((New-Color 255 156 148 140), (New-Color 255 74 68 64)),
@@ -420,37 +421,37 @@ function Draw-WallSouth([string]$fileName, [int]$variant) {
 	Fill-Gradient $graphics $poly $colors[0] $colors[1]
 	Use-Clip $graphics $poly {
 		$rand = New-Random (14200 + $variant * 47)
-		for ($course = 0; $course -lt 3; $course++) {
-			$y = 10 + $course * 6 + $rand.Next(-1, 2)
+		for ($course = 0; $course -lt 4; $course++) {
+			$y = 6 + $course * 6 + $rand.Next(-1, 2)
 			Draw-Line $graphics (New-Color 118 78 74 66) 1.0 33 $y 62 ($y + 15)
 		}
 		for ($joint = 0; $joint -lt 3; $joint++) {
 			$x = 40 + $joint * 7 + $rand.Next(-1, 2)
-			Draw-Line $graphics (New-Color 92 66 62 56) 1.0 $x 10 $x 27
+			Draw-Line $graphics (New-Color 92 66 62 56) 1.0 $x 8 $x 32
 		}
 		Fill-Polygon $graphics (New-Points @(
 			(New-Point 45 8),
 			(New-Point 63 17),
-			(New-Point 63 31),
-			(New-Point 32 16)
+			(New-Point 63 35),
+			(New-Point 32 20)
 		)) (New-Color 46 44 40 34)
 	}
-	Draw-Line $graphics (New-Color 214 210 202 182) 1.2 33 4 62 19
-	Draw-Line $graphics (New-Color 122 84 78 70) 1.0 33 16 62 30
-	Draw-Line $graphics (New-Color 106 72 68 62) 1.0 32 5 32 15
-	Draw-Line $graphics (New-Color 100 68 64 58) 1.0 63 20 63 30
+	Draw-Line $graphics (New-Color 214 210 202 182) 1.2 33 1 62 16
+	Draw-Line $graphics (New-Color 122 84 78 70) 1.0 33 20 62 34
+	Draw-Line $graphics (New-Color 106 72 68 62) 1.0 32 1 32 19
+	Draw-Line $graphics (New-Color 100 68 64 58) 1.0 63 17 63 34
 	Save-Canvas $bitmap $graphics $fileName
 }
 
 function Draw-CliffEast([string]$fileName, [int]$variant) {
-	$canvas = New-Canvas
+	$canvas = New-Canvas $Width $FaceHeight
 	$bitmap = $canvas[0]
 	$graphics = $canvas[1]
 	$poly = New-Points @(
 		(New-Point 0 16),
 		(New-Point 32 0),
-		(New-Point 32 15),
-		(New-Point 0 31)
+		(New-Point 32 20),
+		(New-Point 0 35)
 	)
 	$palette = @(
 		@((New-Color 255 179 132 87), (New-Color 255 79 51 33)),
@@ -463,16 +464,16 @@ function Draw-CliffEast([string]$fileName, [int]$variant) {
 		$rand = New-Random (12600 + $variant * 59)
 		Add-StrataBands $graphics $poly $rand 4 (New-Color 118 232 200 154) (New-Color 86 105 70 48) 2 30
 		Add-Cracks $graphics $poly $rand 4 (New-Color 102 70 46 28)
-		Add-Grain $graphics $poly $rand 12 (New-Color 38 70 45 28) (New-Color 42 248 230 208)
+		Add-Grain $graphics $poly $rand 16 (New-Color 38 70 45 28) (New-Color 42 248 230 208)
 		Fill-Polygon $graphics (New-Points @(
 			(New-Point 0 23),
 			(New-Point 19 14),
-			(New-Point 32 15),
-			(New-Point 0 31)
+			(New-Point 32 20),
+			(New-Point 0 35)
 		)) (New-Color 56 52 33 19)
 		for ($chip = 0; $chip -lt 3; $chip++) {
 			$baseX = 5 + $chip * 7 + $rand.Next(-1, 2)
-			$baseY = 22 - $chip * 4 + $rand.Next(-1, 2)
+			$baseY = 27 - $chip * 5 + $rand.Next(-1, 2)
 			$chipPoly = New-Points @(
 				(New-Point $baseX $baseY),
 				(New-Point ($baseX + 4) ($baseY - 2)),
@@ -482,9 +483,9 @@ function Draw-CliffEast([string]$fileName, [int]$variant) {
 		}
 	}
 	Draw-Line $graphics (New-Color 230 244 218 176) 1.2 1 16 31 1
-	Draw-Line $graphics (New-Color 188 71 43 27) 1.0 0 17 0 30
-	Draw-Line $graphics (New-Color 182 88 53 33) 1.0 32 1 32 15
-	Draw-Line $graphics (New-Color 208 56 34 22) 1.1 1 30 31 15
+	Draw-Line $graphics (New-Color 188 71 43 27) 1.0 0 17 0 34
+	Draw-Line $graphics (New-Color 182 88 53 33) 1.0 32 1 32 19
+	Draw-Line $graphics (New-Color 208 56 34 22) 1.1 1 34 31 20
 	Save-Canvas $bitmap $graphics $fileName
 }
 
