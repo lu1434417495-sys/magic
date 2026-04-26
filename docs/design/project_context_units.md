@@ -414,7 +414,7 @@ HeadlessGameTestSession
   - mounted submap 进入确认、battle start 确认、active map 切换、任意点击返回和 submap player coord 持久化，都属于这里的正式运行时主链。
   - 维护 headless 可消费的结构化 snapshot 与状态文本。
   - `WorldMapRuntimeProxy` 负责给 `WorldMapSystem` 提供唯一正式的命令 / 读取接口，并在命令执行后统一触发渲染回调。
-  - `WorldMapSystem` 负责场景树接线、输入捕获、窗口信号绑定，并把 runtime 状态渲染到 `WorldMapView` / `BattleMapPanel` / `RuntimeLogDock` / 各 modal；右侧日志框与地图视口的响应式布局也归这里维护，日志框宽度锁定、高度随窗口高度自适应，世界态会让 `MapViewport` 避让日志框，战斗态则恢复 `MapViewport` 全宽并让日志框覆盖在战斗地图上；世界态底部 `BottomActionBar` / `PartyButton` 只是打开队伍窗口的场景入口，真正命令仍走 `WorldMapRuntimeProxy.command_open_party()`；`RuntimeLogDock` 只负责自身九宫格纹理、边距、字体和日志内容呈现；据点侧现在正式包含 `SettlementWindow`、复用 `ShopWindow` shell 的 `contract_board` / `shop` / forge / `stagecoach` entry-list modal，`SubmapEntryWindow` 继续作为通用确认窗承接 submap 进入确认、battle start 确认与主角死亡后的返回标题入口；战斗键盘输入也归这里集中分流：方向键发战斗移动命令，WASD 只做战斗镜头平移，Enter 执行等待 / 结算，Space 复位 battle focus；场景层不再承担 `command_*` / snapshot 对外透传，并且需要在 `battle_loading` modal 下维持根层 `BattleLoadingOverlay` 可见。
+  - `WorldMapSystem` 负责场景树接线、输入捕获、窗口信号绑定，并把 runtime 状态渲染到 `WorldMapView` / `BattleMapPanel` / `RuntimeLogDock` / 各 modal；右侧日志框与地图视口的响应式布局也归这里维护，日志框宽度锁定、高度随窗口高度自适应，世界态会让 `MapViewport` 避让日志框，战斗态则恢复 `MapViewport` 全宽并让日志框覆盖在战斗地图上；世界态底部 `BottomActionBar` / `PartyButton` 只是打开队伍窗口的场景入口，真正命令仍走 `WorldMapRuntimeProxy.command_open_party()`；`RuntimeLogDock` 只负责自身九宫格纹理、边距、字体和日志内容呈现；据点侧现在正式包含 `SettlementWindow`、复用 `ShopWindow` shell 的 `contract_board` / `shop` / forge / `stagecoach` entry-list modal，`SubmapEntryWindow` 继续作为通用确认窗承接 submap 进入确认、battle start 确认与主角死亡后的返回标题入口；战斗键盘输入也归这里集中分流：方向键发战斗移动命令，WASD 只做战斗镜头平移，Enter 执行等待 / 结算，Space 复位 battle focus；战斗技能已选中时，`BattleMapPanel` 的 hover 格只用于刷新 HUD overlay 预览与目标上方命中率浮标，不写入 runtime 目标队列；场景层不再承担 `command_*` / snapshot 对外透传，并且需要在 `battle_loading` modal 下维持根层 `BattleLoadingOverlay` 可见。
 - 邻接单元：
   - CU-02
   - CU-04
@@ -721,7 +721,7 @@ HeadlessGameTestSession
 - 主要职责：
   - 定义 progression 语义，不直接执行业务流程。
   - `SkillContentRegistry` 负责扫描 `data/configs/skills/*.tres`，并报告 skill_id、嵌套战斗资源结构与基础 schema 相关的静态错误；warrior / archer / mage 正式技能 seed 现在都以这些 SkillDef 资源为真相源，`DesignSkillCatalog` 代码承载路径已全部下线。
-  - `CombatSkillDef` 的命中修正字段是 `attack_roll_bonus`；`CombatEffectDef` 不再持有攻击 / 防御属性缩放字段，伤害类型通过 `damage_tag` 表达，完全免疫、减半与易伤等承伤档位通过状态参数 `mitigation_tier` 表达，实际命中与伤害公式归 CU-16 执行。
+  - `CombatSkillDef` 的命中修正字段是 `attack_roll_bonus`，并可通过 `level_overrides` 按技能等级覆盖消耗 / 冷却；`CombatEffectDef` 可用 `min_skill_level` / `max_skill_level` 表达分级效果，不再持有攻击 / 防御属性缩放字段，伤害类型通过 `damage_tag` 表达，完全免疫、减半与易伤等承伤档位通过状态参数 `mitigation_tier` 表达，实际命中与伤害公式归 CU-16 执行。
   - `ProfessionContentRegistry` 负责扫描 `data/configs/professions/*.tres`，并报告 profession_id、技能/职业引用与 rank requirement 相关的静态错误。
   - `ProgressionContentRegistry` 负责聚合 skill/profession registry、补齐剩余未迁移的 code fallback（当前主要只剩 `charge`），并汇总 skill/profession registry 的静态校验结果。
   - Fortuna guidance 这类剧情门票 achievement 现在允许无奖励定义；正式效果由 rank gate 或剧情脚本消费，不强制进入 reward queue。
@@ -830,7 +830,7 @@ HeadlessGameTestSession
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
   - `BattleUnitFactory` 构建 / 刷新友军单位时从角色 attribute snapshot 读取 `action_threshold` 写入 `BattleUnitState.action_threshold`；正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
-  - 武器技能射程由 `BattleRuntimeModule` / selection / HUD 从 `BattleUnitState.attribute_snapshot.weapon_attack_range` 读取；近战武器技能没有该属性时只保留 1 格保底，弓类旧夹具无该属性时暂时回退技能配置，正式武器内容应补 `ItemDef.weapon_attack_range`。
+  - 武器技能射程由 `BattleRuntimeModule` / selection / HUD 从 `BattleUnitState.attribute_snapshot.weapon_attack_range` 读取；需要当前近战武器伤害类型的近战技能必须同时具备 `weapon_attack_range > 0` 与 `weapon_physical_damage_tag`，不再从技能资源或 1 格保底推断可施放距离；弓类旧夹具无该属性时暂时回退技能配置，正式武器内容应补 `ItemDef.weapon_attack_range`。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。
@@ -906,7 +906,7 @@ HeadlessGameTestSession
   - `BattleTerrainRules` 负责 `land / shallow_water / flowing_water / deep_water / mud / spike` 的基础通行与显示语义。
   - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
   - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
-  - `BattleDamageResolver` 现已正式切到“攻击侧倍率一次聚合取整 -> `IMMUNE / HALF / NORMAL / DOUBLE` -> 固定值减伤 -> 护盾后吸收”的 M1 流水线；元素抗性不再是人物主属性派生值，完全免疫、减半与易伤一律通过状态参数 `mitigation_tier` 结算。`damage_reduction_up`、`guarding` 不再按旧百分比链解释。`black_star_brand_elite` 的“禁暴击 / 首次受击穿透部分格挡”也在这层消费，不要把这一击穿透逻辑回写到 skill resource。
+  - `BattleDamageResolver` 现已正式切到“攻击侧倍率一次聚合取整 -> `IMMUNE / HALF / NORMAL / DOUBLE` -> 固定值减伤 -> 护盾后吸收”的 M1 流水线；元素抗性不再是人物主属性派生值，完全免疫、减半与易伤一律通过状态参数 `mitigation_tier` 结算。`armor_break` 不再提供承伤易伤倍率，而是在 `BattleHitResolver` 中按 `power * 2` 降低目标有效 AC；`damage_reduction_up`、`guarding` 不再按旧百分比链解释。`black_star_brand_elite` 的“禁暴击 / 首次受击穿透部分格挡”也在这层消费，不要把这一击穿透逻辑回写到 skill resource。
   - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 提供。
   - `BattleDamageResolver` 现在还消费 `LowLuckRelicRules` 的 battle-local 遗物逻辑：逆命护符会把首次 `critical_fail` 降级为普通 miss 并施加 2 回合输出下降，黑星楔钉会在首击忽视部分 guard 后于未击杀时给自己挂 1 回合 exposed，血债披肩会在低血时减伤；这些 battle-local 首次触发锁不要散写到 skill / item resource。
 - `BattleFateAttackRules` 现在是 battle attack roll 语义的共享 helper，负责统一“命中线 / 封暴击状态 / d20 是否命中”的纯判定；`BattleDamageResolver` 与 `BattleHitResolver` 都必须复用它，避免 runtime 执行与 preview/AI 评分再次分叉。
@@ -981,6 +981,7 @@ HeadlessGameTestSession
   - `scripts/ui/battle_hud_adapter.gd`
   - `scenes/ui/battle_board_2d.tscn`
   - `scripts/ui/battle_board_2d.gd`
+  - `scripts/ui/battle_board_render_profile.gd`
   - `scripts/ui/battle_board_controller.gd`
   - `scenes/common/battle_board_prop.tscn`
   - `scripts/ui/battle_board_prop.gd`
@@ -989,12 +990,14 @@ HeadlessGameTestSession
   - 当前 battle HUD 展示态。
   - 当前 TileMap board 的渲染结果、镜头位置、缩放和平移状态。
 - 主要职责：
-  - `BattleMapPanel` 负责 HUD 容器、技能槽、viewport 事件转发、战斗首帧加载状态与黑底子视口；内置移动复位 / 变体切换 / 清技能 / 结算按钮已下线，完整战斗日志滚动窗现在由根层共享的 `RuntimeLogDock` 承接。
+  - `BattleMapPanel` 负责 HUD 容器、技能槽、viewport 事件转发、战斗首帧加载状态与黑底子视口；鼠标悬停战斗格时会转发 hover 坐标给 `WorldMapSystem`，由场景适配层按当前技能合法目标做只读 HUD overlay 预览，并把命中率浮标文本传给棋盘目标高亮层显示在目标上方；内置移动复位 / 变体切换 / 清技能 / 结算按钮已下线，完整战斗日志滚动窗现在由根层共享的 `RuntimeLogDock` 承接。
   - `BattleHudAdapter` 把 `BattleState` 转成 HUD snapshot，并复用 `BattleSkillResolutionRules` 产出技能 fate / variant 相关预览；当前 focus/queue/resource snapshot 会同时暴露 `AP` 与 `行动`（`move_current/move_max`）两套资源，但不再生成旧 hint / command / battle-log 文本字段。
-  - `BattleBoard2D` 负责 viewport 坐标、滚轮缩放、中键拖拽、键盘平移和 focus；键盘平移入口由 `WorldMapSystem -> BattleMapPanel.pan_battle_camera() -> BattleBoard2D.pan_viewport_direction()` 串接。
-  - `BattleBoardController` 负责填充 TileMap layers、marker、prop、unit 排序。
+  - `BattleBoardRenderProfile` 是 `terrain_profile_id -> render_profile_id -> asset_dir/source spec` 与棋盘视觉协议的唯一 owner；它持有 `visual_height_step`、`tile_half_size`、`surface_pick_shape`、`camera_margin`、unit / prop anchor bias，以及 TileSet source 的 `atlas_region_size`、`board_tile_size`、`visual_origin` / `texture_origin`、`layer_role`。
+  - 逻辑 `current_height` 不等于视觉 `visual_height_step`：`current_height` 是 battle rules / grid / AI 读取的格子高度，`visual_height_step` 只是 render profile/source spec 决定的像素层距；战斗规则层不拥有也不反推视觉层距。
+  - `BattleBoard2D` 负责 viewport 坐标、滚轮缩放、中键拖拽、键盘平移、hover 格检测和 focus，并从 `BattleBoardRenderProfile` 读取点击面、视觉高度与镜头边界；键盘平移入口由 `WorldMapSystem -> BattleMapPanel.pan_battle_camera() -> BattleBoard2D.pan_viewport_direction()` 串接。
+  - `BattleBoardController` 负责填充 TileMap layers、marker、prop、unit 排序，并按 `BattleBoardRenderProfile` 的 source spec 表注册 TileSet source；source 可持有独立 `atlas_region_size` 与 `visual_origin`，用于 tall cliff / wall 这类高于棋盘 tile 的 source。
   - `BattleBoardProp` 负责 prop scene 的简易绘制。
-  - canyon PNG 缺失时，controller 会回退到程序生成 tile。
+  - 所有 terrain profile 共用 `canyon` 资产目录与 20px `visual_height_step`；source spec 允许生成占位 fallback 以便缺图时仍能跑通回归。cliff/wall face source 默认 atlas region 64×36（上 8 切角 + 20 崖面 + 下 8 切角），`visual_origin` 默认 (0,0)。
 - 邻接单元：
   - CU-06
   - CU-15
@@ -1144,6 +1147,8 @@ HeadlessGameTestSession
     - layer / cliff / prop / unit 排序契约
     - `InputLayer.local_to_map()` 点击映射
     - 同 state 渲染签名稳定
+    - `BattleBoardRenderProfile` 映射、source spec、`canyon` 资产完整性、face source 区域注册与视觉层距分离；`visual_height_step` 属于展示验收，不替代规则层 `current_height`
+    - 后续 terrain profile authoring：所有 profile 复用 `canyon` 资产 + 20px 层距，新美术契约（顶面尺寸 / atlas region / anchor bias）变化时再新增独立 source spec / render profile
   - progression：
     - achievement registry seed 校验
     - 建卡 reroll -> `hidden_luck_at_birth` 档位边界与溢出回退
@@ -1166,12 +1171,13 @@ HeadlessGameTestSession
     - headless snapshot 与文本快照稳定性
     - `validation` 结构化快照 / `[VALIDATION]` 文本分段，以及不依赖日志抓取的校验失败断言面
   - capture：
-    - 导出 `battle_board_canyon_capture.png` 做人工验收
+    - headless 下导出 `battle_board_canyon_capture.signature.txt` 做稳定签名检查，非 headless 下导出 `battle_board_canyon_capture.png` 做人工验收
   - world_map runtime：
     - `GameRuntimeSettlementCommandHandler` 的据点动作分发
     - canonical settlement result / quest progress / modal 路由
 - 说明：
   - `capture_canyon_battle_board.gd` 只是截图辅助，不是断言型回归。
+  - battle board v2 视觉改动的最小验收是 `run_battle_board_regression.gd`；若改 terrain 生成、高度列、edge feature、spawn 或可达性，再补 `run_battle_runtime_smoke.gd` / `run_battle_spawn_reachability_regression.gd`。
   - progression 测试现在是单 runner 脚本，不再走旧的 `helpers/` + `cases/` 目录。
 - 邻接单元：
   - CU-10
@@ -1419,10 +1425,6 @@ HeadlessGameTestSession
 
 ## 当前 sidecar / 兼容层 / 漂移点
 
-- `scripts/ui/battle_map_view.gd`
-  - 这个旧 battle renderer 已经从仓库移除；如果你只看到残留 `.uid` 或旧文档引用，可以直接忽略。
-- `scripts/systems/battle_map_generation_system.gd`
-  - 这个旧生成脚本也已从仓库移除；不要再把它当成默认 battle 入口。
 - `tests/progression/`
   - 旧 `helpers/` + `cases/` 目录已经移除；当前只保留单 runner 模式。
 - 结论：

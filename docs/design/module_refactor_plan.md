@@ -4,6 +4,14 @@
 > 范围：当前仓库 `scripts/` 运行时主链、相关 headless/regression，以及 `docs/design/project_context_units.md` 已声明的所有权边界
 > 说明：本文只保留当前仍有效的 todo。已完成、已失效或已被当前实现取代的旧项已移除。
 
+## 关联上下文单元
+
+- CU-06：世界/战斗运行时总编排与场景适配
+- CU-15：战斗运行时总编排
+- CU-16：战斗状态模型、边规则、伤害、AI 规则层
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文只记录仍有效的结构债务和建议执行顺序。
+
 ---
 
 ## 一、使用方式
@@ -162,13 +170,11 @@ fate 主线现在跨在两个 god-object 之间：
 
 以下条目已经在 `project_context_units.md` 标注为"可以直接忽略"，但仓库里仍有物理残留，每次仓库扫描都会出现"为什么这文件还在"的噪音：
 
-- 6 个孤儿 `.uid`（对应 .gd 已不存在）：
-  - `scripts/systems/battle_map_generation_system.gd.uid`
+- 4 个孤儿 `.uid`（对应 .gd 已不存在）：
   - `scripts/systems/battle_state_factory.gd.uid`
   - `scripts/systems/pending_mastery_reward.gd.uid`
   - `scripts/systems/pending_mastery_reward_entry.gd.uid`
   - `scripts/systems/settlement_window_system.gd.uid`
-  - `scripts/ui/battle_map_view.gd.uid`
 - 3 个未使用的场景目录：`scenes/enemies/`、`scenes/levels/`、`scenes/player/`
 - 4 个未使用的资源目录：`assets/audio/`、`assets/effects/`、`assets/fonts/`、`assets/sprites/`
 - `tests/tmp_overlay_check.gd`：60 行手撕 facade 私有字段的临时调试脚本，已经入库但没有 runner 入口
@@ -176,32 +182,14 @@ fate 主线现在跨在两个 god-object 之间：
 
 **建议方向**
 
-- 一次性清理：`git rm` 6 个孤儿 `.uid`、`tests/tmp_overlay_check.gd`、空目录占位文件；同步从 `project_context_units.md` 的"sidecar / 兼容层 / 漂移点"小节移除已不再存在的引用。
+- 一次性清理：`git rm` 剩余孤儿 `.uid`、`tests/tmp_overlay_check.gd`、空目录占位文件；同步从 `project_context_units.md` 的"sidecar / 兼容层 / 漂移点"小节移除已不再存在的引用。
 - 修正 `.gitignore` 里 fixture 例外（要么把 fixture 加回来，要么去掉例外行）。
-
-### S6 `project_context_units.md` 兼容表 R-ID 重复
-
-`docs/design/project_context_units.md:1440-1443` 的"已移除的兼容项"表格中：
-
-- `R08` 出现两次：
-  - 1440 行：旧 `physical_attack / magic_attack / ...` 战斗属性 schema
-  - 1442 行：旧仓库装备堆叠格式的显式拒绝兼容分支
-- `R09` 出现两次：
-  - 1441 行：旧命令日志 `context.after` 后态 alias
-  - 1443 行：旧 `PartyState` 缺字段补全与 `version` 下限归一
-
-**建议方向**
-
-- 把后两行重新编号为 `R19`、`R20`（沿用既有自增），保持 R-ID 全局唯一，避免后续以 ID 引用历史兼容项时歧义。
-
----
 
 ## 四、建议执行顺序
 
 ### Phase A — 一次性机械清理
 
 1. 执行 S5：清理孤儿 `.uid` / 空目录 / `tmp_overlay_check.gd` / `.gitignore` fixture 例外。
-2. 执行 S6：修正 `project_context_units.md` 的 R-ID 重复编号。
 
 ### Phase B — 收敛 fate 子系统
 
@@ -223,4 +211,4 @@ fate 主线现在跨在两个 god-object 之间：
   - `BattleHitResolver` 被 damage_resolver 绕开（S1）
   - `GameRuntimeFacade` 字段数从约 50 涨到 67（S2）
   - fate 服务散在 facade 与 runtime_module 之间，没有共同 owner（S3）
-- 其余条目（loot 常量重复、孤儿 `.uid`、R-ID 重复）属于一次性机械清理，可以单独成提交。
+- 其余条目（loot 常量重复、孤儿 `.uid`）属于一次性机械清理，可以单独成提交。

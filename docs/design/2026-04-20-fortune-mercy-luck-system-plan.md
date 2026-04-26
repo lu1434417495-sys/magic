@@ -3,6 +3,14 @@
 
 更新日期：`2026-04-20`
 
+## 关联上下文单元
+
+- CU-11：队伍与角色成长运行时数据模型
+- CU-15：战斗运行时总编排
+- CU-16：战斗状态模型、边规则、伤害、AI 规则层
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文记录 Fortuna / Misfortune / low luck 的系统设计与后续扩展口径。
+
 > 本文是在 v1《命运的怜悯 · 幸运值系统》基础上的重写版。
 > v2 的核心变化有三项：
 > 1. luck 不再只是“独立 crit 子系统”，而是正式介入命中主流程；
@@ -56,13 +64,13 @@
   - `fortune_marked`
   - `doom_marked`
   - `doom_authority`
-- 装备基础设施完整（`equipment_instance_state.gd`、`equipment_rules.gd`、`equipment_state.gd`），但仍**没有 rarity tier、drop table、drop service 与掉落触发流程**
-- `battle_damage_resolver.gd` 承载伤害结算；`battle_runtime_module.gd` 承载战斗流程；命中/crit/fumble 新版公式都应在此接入
-- Faith v1 方案已定义统一的 `FaithDeityDef / FaithRankDef / FaithService` 管线，v2 仍复用，不新增第三套奖励框架
+- 装备基础设施完整（`equipment_instance_state.gd`、`equipment_rules.gd`、`equipment_state.gd`），战斗掉落也已从 `EnemyTemplateDef.drop_entries` 接入到 `BattleRuntimeModule -> BattleResolutionResult.loot_entries`；随机装备按击杀者 `drop_luck` 即时 roll 成 `equipment_instance`
+- `battle_damage_resolver.gd` 承载伤害结算和 fate attack metadata；`battle_hit_resolver.gd` 承载普通命中检定与 fate-aware 预览；`battle_runtime_module.gd` 承载战斗流程、fate sidecar setup 与战斗内临时状态
+- Faith 系统已落地统一的 `FaithDeityDef / FaithRankDef / FaithService` 管线，Fortuna / Misfortune 阶位内容均复用这条奖励框架
 - `AttributeService.apply_permanent_attribute_change()` 已支持写入 `custom_stats`，可继续承载神恩型永久成长
 - `main_character_member_id` 已落地，但 v2 不再把命运系统限定为“主角唯一拥有”；它主要承担：
   - 建卡 reroll 输入
-  - 默认掉落承担者 fallback
+- 掉落幸运当前不再使用整场默认承担者；battle loot 按击杀者逐次读取 `PartyMemberState -> UnitBaseAttributes.get_drop_luck()`
 - 建卡 reroll 计数器与 `hidden_luck_at_birth` 烘焙逻辑仍由 `CharacterCreationService` 负责
 
 ---
@@ -109,12 +117,13 @@
 
 | 变量 | 含义 | 存储建议 |
 |---|---|---|
-| `party_drop_luck_source_member_id` | 当前随机掉落承担者 | `PartyState` |
-| `fate_run_flags` | 本周目命运神触发锁与事件锁 | `CampaignState` / `PartyState.meta_flags` |
+| `fate_run_flags` | 本周目命运神触发锁、chapter cap、battle resolution 边界记账 | `PartyState.fate_run_flags` |
+| `meta_flags` | low luck 剧情事件、固定奖励池等周目去重 | `PartyState.meta_flags` |
 
 > 说明：
 > - `fortune_marked` / `doom_marked` 是永久角色状态，应放 `custom_stats`
 > - “本周目是否已尝试过 Fortuna 标记事件” 这类状态是**周目运行期 flag**，不应放进 `custom_stats`
+> - 当前没有 `party_drop_luck_source_member_id`；随机装备掉落按击杀者 `drop_luck` 判定，而不是按队伍平均 luck 或整场承担者判定。
 
 ### 1.3 reroll 到出生 luck 的映射
 
@@ -289,13 +298,13 @@ func resolve_attack(attacker, defender) -> AttackResult:
 数量 roll × 稀有度 roll × 物品 roll
 ```
 
-### 3.2 随机掉落只读取一个承担者
+### 3.2 随机掉落按击杀者读取 luck
 
-为避免“全队平均 luck”或“全队最高 luck”把经济系统炸掉，随机掉落只读取一名承担者：
+为避免“全队平均 luck”或“全队最高 luck”把经济系统炸掉，随机装备掉落只读取本次击杀的击杀者：
 
-- `party_drop_luck_source_member_id`
-- 默认 fallback：`main_character_member_id`
-- 仅可在安全区 / 营地切换
+- `BattleRuntimeModule` 在敌方死亡时读取击杀者对应的 `PartyMemberState.get_drop_luck()`
+- 找不到玩家击杀者时按中性 `drop_luck = 0` 结算
+- 当前没有队伍级 `party_drop_luck_source_member_id`，也没有安全区切换承担者流程
 
 ### 3.3 掉落 luck 软封顶
 
@@ -683,12 +692,14 @@ const PROTECTED_CUSTOM_STAT_KEYS := [
 - 特殊剧情脚本白名单
 写入。
 
-### 8.3 `PartyState` 新增字段
+### 8.3 `PartyState` fate 字段
 
 ```gdscript
-var party_drop_luck_source_member_id: int = -1
 var fate_run_flags: Dictionary = {}
+var meta_flags: Dictionary = {}
 ```
+
+旧计划里的 `party_drop_luck_source_member_id` 已废弃，不进入 `PartyState` 存档；对应回归见 `tests/progression/run_party_state_fate_regression.gd`。
 
 ### 8.4 `BattleRuntime` 临时字段
 
@@ -740,10 +751,11 @@ var calamity_by_member_id: Dictionary = {}
 
 ### 9.4 掉落
 
-1. 结算战斗奖励时读取 `party_drop_luck_source_member_id`
-2. 取得 `drop_luck = clamp(effective_luck, -6, +5)`
-3. 随机掉落走 `EquipmentDropService`
-4. 固定材料（`calamity_shard` / `black_crown_core`）走 boss / elite 固定战利品逻辑
+1. 敌方单位死亡时，按 `BattleUnitState.enemy_template_id -> EnemyTemplateDef.drop_entries` 读取掉落定义。
+2. 固定材料直接累积进 `_active_loot_entries`。
+3. 随机装备按击杀者 `drop_luck = clamp(effective_luck, -6, +5)` 调用 `EquipmentDropService`，当场解析为 `equipment_instance` loot entry。
+4. `BattleResolutionResult.loot_entries` 只保存已经解析完成的 canonical loot；战后提交阶段不再重新 roll 稀有度。
+5. 固定材料（`calamity_shard` / `black_crown_core`）走 boss / elite / fate fixed loot 逻辑；普通战 calamity conversion 的 chapter cap 由 `GameRuntimeFacade` 在提交边界裁切。
 
 ---
 
@@ -802,7 +814,7 @@ var calamity_by_member_id: Dictionary = {}
 ### 10.5 drops
 
 - `effective_luck = +7` 时，随机掉落按 `drop_luck = +5` 计算
-- `party_drop_luck_source_member_id` 正确切换
+- per-kill 掉落按击杀者读取 `drop_luck`；缺少玩家击杀者时回退到中性 `drop_luck = 0`
 - 固定材料掉落不受 `drop_luck` 影响
 
 ---
@@ -817,8 +829,8 @@ var calamity_by_member_id: Dictionary = {}
 - `get_drop_luck() -> int`
 
 ### `PartyState`
-- `party_drop_luck_source_member_id: int`
 - `fate_run_flags: Dictionary`
+- `meta_flags: Dictionary`
 
 ### `UnitBaseAttributes.custom_stats` 新语义键
 - `hidden_luck_at_birth`
@@ -852,11 +864,10 @@ var calamity_by_member_id: Dictionary = {}
 3. 在 `battle_state.gd` 中把“劣势”收窄到真正 Hardship 条件
 4. 把新版攻击流程接进 `battle_damage_resolver.gd`
 5. 接入 `critical_fail`、`critical_success_under_disadvantage` 事件
-6. 补 `PartyState.party_drop_luck_source_member_id`
-7. 扩展 `equipment_drop_service.gd` 与 `EquipmentInstanceState.rarity`
-8. 先落 Fortuna 标记逻辑与 rank 1~5 空骨架
-9. 再落 Misfortune 的 `doom_marked / doom_authority / calamity`
-10. 最后补 low luck 专属事件池、黑市、固定制作池与 UI 解释层
+6. 扩展 `equipment_drop_service.gd` 与 `EquipmentInstanceState.rarity`
+7. 先落 Fortuna 标记逻辑与 rank 1~5 空骨架
+8. 再落 Misfortune 的 `doom_marked / doom_authority / calamity`
+9. 最后补 low luck 专属事件池、黑市、固定制作池与 UI 解释层
 
 ---
 

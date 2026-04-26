@@ -4,6 +4,14 @@
 > 定位：全量系统蓝图，不受当前代码可行性和改动量约束
 > 前置文档：`../discussions/dnd_weapon_system_initial_plan.md`、`skills_implementation_plan.md`、`player_growth_system_plan.md`
 
+## 关联上下文单元
+
+- CU-10：共享仓库、物品定义与装备基础流转
+- CU-14：progression 规则与属性服务
+- CU-16：战斗状态模型、边规则、伤害、AI 规则层
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文是长期规则蓝图，不代表当前代码已经完整采用 DND 3.5e 全量口径。
+
 ## 设计意图
 
 采用 DND 3.5e 规则作为战斗系统内核，核心目的是：

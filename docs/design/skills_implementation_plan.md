@@ -2,6 +2,14 @@
 
 更新日期：`2026-04-22`
 
+## 关联上下文单元
+
+- CU-13：progression 内容定义、条件模型、seed 内容
+- CU-15：战斗运行时总编排
+- CU-16：战斗状态模型、边规则、伤害、AI 规则层
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文记录战斗技能资源、命中模型、状态语义、范围计算与 AI 评分规格。
+
 ## 1. 文档目的
 
 本文件是战斗技能系统的**当前实现与后续扩展规格书**，覆盖：
@@ -14,12 +22,12 @@
 设计红线：
 
 - 技能定义以 `SkillDef -> CombatSkillDef -> CombatEffectDef` 为唯一真相源，不再另起平行系统
-- 战斗执行以 `BattleRuntimeModule -> BattleHitResolver -> BattleDamageResolver -> BattleGridService` 链路为准
+- 战斗执行以 `BattleRuntimeModule` 为入口；普通命中预览与 repeat attack 检定走 `BattleHitResolver`，fate-aware 暴击 / 大失败 / 命中结果由 `BattleDamageResolver` 消费同一份 attack check 后结算
 - 命中结算走 **3.5e 风格 BAB + 降序 AC + d20**，不走 2E THAC0 口径（与 `docs/design/player_growth_system_plan.md` 的大等级压制设计同源）
 - 旧 `hit_rate / evasion` 属性名保留为运行时字段，由 `BattleHitResolver` 现场转换为 BAB/AC，不再做全链路重命名
 - 新技能内容统一走通用技能书，不绑定职业主动授予
 - `aura / 斗气` 是独立资源，与 `MP` / `Stamina` / `AP` 并列
-- 场景与运行时以 `scripts/systems/world_map_system.gd` 为主，`scripts/systems/game_runtime_facade.gd` 需保持同步
+- 场景与运行时边界以 `GameRuntimeFacade + WorldMapRuntimeProxy + WorldMapSystem` 三层为准；`WorldMapSystem` 负责场景接线与 UI 同步，不再是唯一运行时真相源
 
 ---
 
@@ -35,7 +43,7 @@
 | 施法变体 | `scripts/player/progression/combat_cast_variant_def.gd` | 稳定 |
 | 技能注册中心 | `scripts/player/progression/progression_content_registry.gd` | 稳定 |
 | 技能语义校验 | `scripts/player/progression/skill_content_registry.gd` | 已接入 `forced_move / charge` 等 effect 校验 |
-| 战斗命中 | `scripts/systems/battle_hit_resolver.gd` | 已落地 BAB+AC+d20 + 天然 1/20 + deterministic RNG |
+| 战斗命中 | `scripts/systems/battle_hit_resolver.gd` | 已落地 BAB+AC+d20 + 天然 1/20；随机数由 `TrueRandomSeedService` 分配，`attack_roll_nonce` 只记录消耗次数 |
 | 战斗主流程 | `scripts/systems/battle_runtime_module.gd` | 已接入资源校验 / 扣费 / CD 写入 / 命中路由 |
 | 伤害结算 | `scripts/systems/battle_damage_resolver.gd` | 稳定 |
 | 连段结算 | `scripts/systems/battle_repeat_attack_resolver.gd` | 已接入分阶段命中独立掷骰 |
@@ -53,7 +61,7 @@
 | --- | --- | --- |
 | `CombatSkillDef.hit_rate` → `attack_roll_bonus` | 保持 `hit_rate`，`BattleHitResolver` 现场换算 | 避免全仓技能资源大规模迁移 |
 | 属性 `HIT_RATE / EVASION` → `THAC0 / ARMOR_CLASS` | 仍为 `hit_rate / evasion` | 仅解析层换算为 BAB/AC，外层接口不改 |
-| `roll_disposition` 作为 `CombatSkillDef` 字段 | **未新增**；仅作为 `BattleHitResolver` 命中结果分类出现 | 优势/劣势双骰机制未动 |
+| `roll_disposition` 作为 `CombatSkillDef` 字段 | **未新增**；`BattleHitResolver` 仍用它表达普通命中分类 | fate-aware 攻击已有 `BattleState.is_attack_disadvantage()` + 双骰取低，但尚未做成技能字段 |
 | 2E THAC0 | **改为 3.5e BAB + 降序 AC** | 命中随等级差扩张，支持大等级碾压感 |
 | `SAVE_VERSION` 不升 | 实际未升 | 与旧存档兼容 |
 | Demo 15 警士技能 | 15 个里有 14 个落地，`warrior_shield_wall` 已删 | 当前通过 `warrior_guard` + `warrior_taunt` 覆盖防御姿态 |
@@ -144,7 +152,7 @@ flowchart TD
 | `active_unit_id` | 当前行动单位 |
 | `units: Dictionary[StringName, BattleUnitState]` | 单位索引 |
 | `timeline` | TU 推进状态 |
-| `attack_roll_nonce` | d20 掷骰游标，配合 `seed + battle_id` 做 deterministic RNG |
+| `attack_roll_nonce` | 攻击掷骰消耗计数；当前不再驱动随机序列，只用于记录 d20 / crit gate 等攻击骰消耗次数 |
 | `log_entries` | 日志行 |
 | `ally_unit_ids / enemy_unit_ids` | 按 faction 分组的单位列表 |
 | `winner_faction_id` | 胜方 faction |
@@ -192,28 +200,27 @@ resolution:
 - `cost_resource` 支持 `aura / mp / stamina / ap`，默认 `aura`
 - 预览用 `_resolve_repeat_attack_preview_stage_count()` 按当前资源推算最多可执行阶段
 
-### 4.3 deterministic RNG
+### 4.3 攻击掷骰随机源
 
-`_roll_battle_d20()` 的随机源：
+当前 `_roll_battle_d20()` 不再用 `battle_id + seed + attack_roll_nonce` 重建确定性序列。正式口径是：
 
 ```text
-seed_source = "<battle_id>:<seed>:<attack_roll_nonce>"
-rng.seed    = seed_source.hash()
-roll        = rng.randi_range(1, 20)
 attack_roll_nonce += 1
+roll = TrueRandomSeedService.randi_range(1, 20)
 ```
 
-- 保证 headless 回归下相同种子下 d20 序列稳定
-- 每次掷骰都会自增 `battle_state.attack_roll_nonce`，禁止跨回合共享
+- `BattleSessionFacade` 为每场战斗分配 battle map seed，但攻击骰本身逐次调用 `TrueRandomSeedService`。
+- `BattleHitResolver._roll_battle_d20()` 与 `BattleDamageResolver._roll_true_random_attack_range()` 都会递增 `battle_state.attack_roll_nonce`，该字段现在是消费计数，不是随机源。
+- 因此测试不应再断言相同 `seed + battle_id + nonce` 能复现完全相同的命中骰序。
 
 ### 4.4 优势 / 劣势（roll_disposition）
 
-当前 `roll_disposition` 仅作为命中结果的分类枚举：
+当前 `roll_disposition` 仍只是普通命中结果的分类枚举：
 
 - `threshold_hit` / `threshold_miss`
 - `natural_1_auto_miss` / `natural_20_auto_hit`
 
-双骰取高 / 取低的规则骨架**尚未接入**，`CombatSkillDef` 也没有 `roll_disposition` 配置字段。Phase 4 才会展开。
+`CombatSkillDef` 仍没有 `roll_disposition` 配置字段。fate-aware 攻击路径已经通过 `BattleState.is_attack_disadvantage()` 支持 disadvantage 双骰取低，并把结果写入 `attack_metadata.is_disadvantage`；但这不是通用技能字段，也没有 advantage 双骰取高的资源化入口。
 
 ---
 
@@ -435,7 +442,7 @@ total_score = action_base_score
 ### 9.4 Phase 6：Saving Throw / 暴击重构（长远）
 
 - 救援检定：受害方按属性对 effect 发起 d20 抵抗，未过则全额生效
-- 暴击重构：当前命中系统没有独立暴击逻辑，只有天然 20 自动命中。暴击伤害倍率落地需要新引 `crit_multiplier` 字段与结算分支
+- 暴击重构：fate-aware 攻击路径当前已有 `crit_gate_die`、高位大成功、低端大失败与 disadvantage 交互；但通用技能资源层仍没有独立 `crit_multiplier`、武器威胁范围或 saving throw。后续如果要做 D&D 式暴击倍率，应先收敛 `BattleHitResolver` 与 `BattleDamageResolver` 的命中真相源，再新增通用字段。
 
 Phase 6 目前**未启动**，不影响 Phase 0~3 内容继续迭代。
 
@@ -447,8 +454,8 @@ Phase 6 目前**未启动**，不影响 Phase 0~3 内容继续迭代。
 
 | 现有系统 | Phase 4 改动 | Phase 5+ 改动 |
 | --- | --- | --- |
-| `CombatSkillDef` | 新增 `roll_disposition` | 无 |
-| `BattleHitResolver` | 双骰取舍 | 情境表注入 `situational_attack_bonus` |
+| `CombatSkillDef` | 评估是否新增技能级 `roll_disposition`；当前 fate disadvantage 不通过此字段表达 | 无 |
+| `BattleHitResolver` | 与 `BattleDamageResolver` 收敛 fate-aware 命中 / 暴击入口；普通命中预览保持 BAB+AC+d20 | 情境表注入 `situational_attack_bonus` |
 | `BattlePreview` | `hit_preview.roll_disposition` | `hit_preview.situational_sources[]` |
 | `BattleGridService` | 无 | 新增 `get_cover_bonus()` / `get_height_bonus()` 接口 |
 | `BattleAiScoreService` | 0% 命中候选排除 | 将情境 bonus 纳入预期命中率 |
@@ -459,7 +466,7 @@ Phase 6 目前**未启动**，不影响 Phase 0~3 内容继续迭代。
 - `SaveSerializer` — 命中模型不升 `SAVE_VERSION`，存档兼容保持
 - `AttributeService.HIT_RATE / EVASION` — 保留原名，避免 ripple 全仓资源迁移
 - `HeadlessGameTestSession` — 新增 text command 域即可，不改核心结构
-- `WorldMapSystem` 主流程 — 技能扩展不应牵动 world map 的战斗启动链路
+- `GameRuntimeFacade / WorldMapRuntimeProxy / WorldMapSystem` 主流程 — 技能扩展不应牵动 world map 的战斗启动链路
 
 ### 10.3 资源 / 工具链对齐
 
@@ -480,7 +487,7 @@ Phase 6 目前**未启动**，不影响 Phase 0~3 内容继续迭代。
 - 强制位移（击退 / 拉拽 / 跳斩）正确更新坐标与占位
 - 击杀刷新行动只在条件满足时触发
 - 连段攻击逐段独立掷骰、阶段惩罚正确
-- deterministic RNG 保证相同 `seed + battle_id + nonce` 的稳定性
+- 攻击掷骰会递增 `attack_roll_nonce`，并通过 `TrueRandomSeedService` 取值；回归应验证结构化字段、边界结果与日志语义，不再验证 `seed + battle_id + nonce` 复现骰序
 
 ### 技能测试
 
@@ -512,7 +519,7 @@ Phase 6 目前**未启动**，不影响 Phase 0~3 内容继续迭代。
 当前战斗技能系统已经具备完整闭环：
 
 - **数据层** — `SkillDef / CombatSkillDef / CombatEffectDef / CastVariantDef` 覆盖所有内容需求，`damage_ratio_percent` 与 `forced_move_*` 填平了旧字段缺口
-- **执行层** — `BattleHitResolver` 接管 BAB + 降序 AC + d20 口径，deterministic RNG 让 headless 回归稳定
+- **执行层** — `BattleHitResolver` 负责 BAB + 降序 AC + d20 的普通检定与预览；fate-aware 攻击结果仍有一部分在 `BattleDamageResolver` 中结算，随机源统一调用 `TrueRandomSeedService`
 - **范围层** — `BattleGridService` 覆盖 `single / self / line / cone / radius / diamond / square / cross` 八种图案，方向由瞄点向量推算
 - **状态层** — `BattleStatusSemanticTable` 登记 20+ 状态模板，`refresh / add` 叠层与 `turn_start_damage` tick 已接入
 - **AI 层** — 候选打分统一到 `BattleAiScoreInput`，支持技能 / 移动 / 撤退 / 等待同平面比较
@@ -520,7 +527,7 @@ Phase 6 目前**未启动**，不影响 Phase 0~3 内容继续迭代。
 
 实施优先级：
 
-1. **Phase 4（近期）**：`roll_disposition` 优势/劣势双骰机制，配套 HUD 与回归
+1. **Phase 4（近期）**：收敛 fate-aware 命中真相源，并决定是否把 `roll_disposition` 做成通用技能字段
 2. **Phase 5（中期）**：高地 / 掩体 / 包夹 / 贴身远程惩罚等情境表
 3. **Phase 6（远期）**：Saving Throw、独立暴击倍率、跨阵营救援检定
 

@@ -2,6 +2,14 @@
 
 更新日期：`2026-04-13`
 
+## 关联上下文单元
+
+- CU-08：据点窗口与人物信息窗口
+- CU-13：progression 内容定义、条件模型、seed 内容
+- CU-16：战斗状态模型、边规则、伤害、AI 规则层
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文记录灰烬交界技能内容策划，不替代技能资源、奖励队列或战斗规则真相源。
+
 说明：
 - 本文档收敛 [ashen_intersection_world_map.md](D:/game/magic/docs/design/ashen_intersection_world_map.md) 中提到的 12 个黑魂风格技能。
 - 技能不直接照搬黑魂原作判定，而是按当前项目已存在的战棋技能体系重写。

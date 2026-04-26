@@ -2,6 +2,14 @@
 
 更新日期：`2026-04-15`
 
+## 关联上下文单元
+
+- CU-11：队伍与角色成长运行时数据模型
+- CU-12：CharacterManagement、成就记录、奖励归并桥
+- CU-14：progression 规则与属性服务
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文记录玩家成长、职业技能、成就与奖励归并的设计口径。
+
 关联文档：
 - [achievement_system_plan.md](archive/achievement_system_plan.md)
 - [battle_achievement_stats_plan.md](battle_achievement_stats_plan.md)

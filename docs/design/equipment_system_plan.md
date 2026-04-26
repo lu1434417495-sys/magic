@@ -2,6 +2,14 @@
 
 更新日期：`2026-04-14`
 
+## 关联上下文单元
+
+- CU-10：共享仓库、物品定义与装备基础流转
+- CU-11：队伍与角色成长运行时数据模型
+- CU-12：CharacterManagement、成就记录、奖励归并桥
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文记录装备系统的设计入口、阶段目标与后续扩展口径。
+
 ## 状态
 
 - 当前状态：`Draft / Consolidated`

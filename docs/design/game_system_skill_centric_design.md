@@ -2,6 +2,14 @@
 
 更新日期：`2026-04-23`
 
+## 关联上下文单元
+
+- CU-12：CharacterManagement、成就记录、奖励归并桥
+- CU-13：progression 内容定义、条件模型、seed 内容
+- CU-16：战斗状态模型、边规则、伤害、AI 规则层
+
+当前实现边界以 [`project_context_units.md`](project_context_units.md) 为准；本文记录以技能为玩法语义核心的系统总纲。
+
 关联文档：
 - `docs/design/project_context_units.md`
 - `docs/design/archive/architecture_mainline_roadmap.md`
