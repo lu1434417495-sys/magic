@@ -10,6 +10,7 @@ const ENEMY_CONTENT_SEED_SCRIPT = preload("res://scripts/enemies/enemy_content_s
 const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
 const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_template_def.gd")
 const WILD_ENCOUNTER_ROSTER_DEF_SCRIPT = preload("res://scripts/enemies/wild_encounter_roster_def.gd")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const EnemyContentSeed = preload("res://scripts/enemies/enemy_content_seed.gd")
 const EnemyAiBrainDef = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
 const EnemyTemplateDef = preload("res://scripts/enemies/enemy_template_def.gd")
@@ -241,12 +242,13 @@ func _collect_validation_errors() -> Array[String]:
 			continue
 		errors.append_array(brain.validate_schema())
 
+	var item_defs := _get_item_defs_for_validation()
 	for template_key in ProgressionDataUtils.sorted_string_keys(_enemy_templates):
 		var template_id := StringName(template_key)
 		var template := _enemy_templates.get(template_id) as EnemyTemplateDef
 		if template == null:
 			continue
-		errors.append_array(template.validate_schema(_enemy_ai_brains))
+		errors.append_array(template.validate_schema(_enemy_ai_brains, item_defs))
 
 	for roster_key in ProgressionDataUtils.sorted_string_keys(_wild_encounter_rosters):
 		var roster_id := StringName(roster_key)
@@ -256,3 +258,8 @@ func _collect_validation_errors() -> Array[String]:
 		errors.append_array(roster.validate_schema(_enemy_templates))
 
 	return errors
+
+
+func _get_item_defs_for_validation() -> Dictionary:
+	var item_registry := ItemContentRegistry.new()
+	return item_registry.get_item_defs()

@@ -2,11 +2,16 @@ class_name EnemyTemplateDef
 extends Resource
 
 const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
+const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const DROP_TYPE_ITEM: StringName = &"item"
 const DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
 const TAG_BEAST: StringName = &"beast"
+const NATURAL_WEAPON_PROFILE_TYPE_ID: StringName = &"natural_weapon"
+const NATURAL_WEAPON_DEFAULT_DAMAGE_TAG: StringName = &"physical_blunt"
+const NATURAL_WEAPON_DEFAULT_ATTACK_RANGE := 1
 
 @export var template_id: StringName = &""
 @export var display_name: String = ""
@@ -16,6 +21,8 @@ const TAG_BEAST: StringName = &"beast"
 @export var body_size := 1
 @export var action_threshold := BattleUnitState.DEFAULT_ACTION_THRESHOLD
 @export var tags: Array[StringName] = []
+@export var attack_equipment_item_id: StringName = &""
+@export var natural_weapon_damage_tag: StringName = &""
 @export var base_attribute_overrides: Dictionary = {}
 @export var skill_ids: Array[StringName] = []
 @export var skill_level_map: Dictionary = {}
@@ -44,6 +51,54 @@ func has_tag(tag: StringName) -> bool:
 	return tag != &"" and tags.has(tag)
 
 
+func get_attack_equipment_item_id() -> StringName:
+	return ProgressionDataUtils.to_string_name(attack_equipment_item_id)
+
+
+func get_weapon_projection(item_defs: Dictionary = {}) -> Dictionary:
+	if has_tag(TAG_BEAST):
+		return get_natural_weapon_projection()
+	return get_attack_equipment_projection(item_defs)
+
+
+func get_attack_equipment_projection(item_defs: Dictionary = {}) -> Dictionary:
+	var item_id := get_attack_equipment_item_id()
+	if item_id == &"":
+		return {}
+	var item_def: ItemDef = _resolve_attack_equipment_item_def(item_id, item_defs)
+	if item_def == null:
+		return {}
+	return _build_weapon_projection_from_item_def(item_def)
+
+
+func get_natural_weapon_projection() -> Dictionary:
+	if not has_tag(TAG_BEAST):
+		return {}
+	return {
+		"weapon_profile_kind": String(BattleUnitState.WEAPON_PROFILE_KIND_NATURAL),
+		"weapon_item_id": "",
+		"weapon_profile_type_id": String(NATURAL_WEAPON_PROFILE_TYPE_ID),
+		"weapon_current_grip": String(BattleUnitState.WEAPON_GRIP_ONE_HANDED),
+		"weapon_attack_range": NATURAL_WEAPON_DEFAULT_ATTACK_RANGE,
+		"weapon_one_handed_dice": _build_natural_weapon_dice(),
+		"weapon_two_handed_dice": {},
+		"weapon_is_versatile": false,
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": String(get_natural_weapon_damage_tag()),
+	}
+
+
+func get_natural_weapon_damage_tag() -> StringName:
+	var explicit_tag := ProgressionDataUtils.to_string_name(natural_weapon_damage_tag)
+	if explicit_tag != &"":
+		return explicit_tag
+	for template_tag in tags:
+		var mapped_tag := _natural_weapon_damage_tag_for_template_tag(template_tag)
+		if mapped_tag != &"":
+			return mapped_tag
+	return NATURAL_WEAPON_DEFAULT_DAMAGE_TAG
+
+
 func get_base_attribute_overrides() -> Dictionary:
 	var resolved: Dictionary = {}
 	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
@@ -56,7 +111,7 @@ func get_base_attribute_overrides() -> Dictionary:
 	return resolved
 
 
-func validate_schema(known_brains: Dictionary = {}) -> Array[String]:
+func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}) -> Array[String]:
 	var errors: Array[String] = []
 	if template_id == &"":
 		errors.append("Enemy template is missing template_id.")
@@ -85,11 +140,27 @@ func validate_schema(known_brains: Dictionary = {}) -> Array[String]:
 		errors.append("Enemy template %s action_threshold must be > 0." % String(template_id))
 	elif action_threshold % 5 != 0:
 		errors.append("Enemy template %s action_threshold must be a multiple of 5 TU." % String(template_id))
+	if _dictionary_has_key(attribute_overrides, &"weapon_attack_range"):
+		errors.append(
+			"Enemy template %s must not declare attribute_overrides.weapon_attack_range; use attack_equipment_item_id or beast natural weapon config." % String(template_id)
+		)
+	if _dictionary_has_key(attribute_overrides, &"weapon_physical_damage_tag"):
+		errors.append(
+			"Enemy template %s must not declare attribute_overrides.weapon_physical_damage_tag; use attack_equipment_item_id or beast natural weapon config." % String(template_id)
+		)
 	var explicit_base_attributes := get_base_attribute_overrides()
 	if has_tag(TAG_BEAST):
 		if not base_attribute_overrides.is_empty():
 			errors.append(
 				"Enemy template %s is tagged beast and should not define base_attribute_overrides." % String(template_id)
+			)
+		var explicit_natural_damage_tag := ProgressionDataUtils.to_string_name(natural_weapon_damage_tag)
+		if explicit_natural_damage_tag != &"" and not _is_valid_weapon_physical_damage_tag(explicit_natural_damage_tag):
+			errors.append(
+				"Enemy template %s natural_weapon_damage_tag %s is not supported." % [
+					String(template_id),
+					String(explicit_natural_damage_tag),
+				]
 			)
 	else:
 		for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
@@ -102,6 +173,7 @@ func validate_schema(known_brains: Dictionary = {}) -> Array[String]:
 				errors.append(
 					"Enemy template %s base attribute %s must be > 0." % [String(template_id), String(attribute_id)]
 				)
+		errors.append_array(_validate_attack_equipment(item_defs))
 	for entry_variant in drop_entries:
 		if entry_variant is not Dictionary:
 			errors.append("Enemy template %s contains a non-Dictionary drop entry." % String(template_id))
@@ -124,3 +196,165 @@ func validate_schema(known_brains: Dictionary = {}) -> Array[String]:
 		if quantity <= 0:
 			errors.append("Enemy template %s drop %s must have quantity >= 1." % [String(template_id), String(drop_id)])
 	return errors
+
+
+func _validate_attack_equipment(item_defs: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	var item_id := get_attack_equipment_item_id()
+	if item_id == &"":
+		errors.append(
+			"Enemy template %s must declare attack_equipment_item_id for non-beast attack equipment." % String(template_id)
+		)
+		return errors
+	var item_def: ItemDef = _resolve_attack_equipment_item_def(item_id, item_defs)
+	if item_def == null:
+		errors.append(
+			"Enemy template %s references missing attack_equipment_item_id %s." % [
+				String(template_id),
+				String(item_id),
+			]
+		)
+		return errors
+	if not item_def.is_weapon():
+		errors.append(
+			"Enemy template %s attack_equipment_item_id %s must reference a weapon equipment item." % [
+				String(template_id),
+				String(item_id),
+			]
+		)
+		return errors
+	if item_def.get_weapon_attack_range() <= 0:
+		errors.append(
+			"Enemy template %s attack_equipment_item_id %s must project weapon attack range >= 1." % [
+				String(template_id),
+				String(item_id),
+			]
+		)
+	if item_def.get_weapon_physical_damage_tag() == &"":
+		errors.append(
+			"Enemy template %s attack_equipment_item_id %s must project a weapon physical damage tag." % [
+				String(template_id),
+				String(item_id),
+			]
+		)
+	return errors
+
+
+func _resolve_attack_equipment_item_def(item_id: StringName, item_defs: Dictionary):
+	if item_defs != null and item_defs.has(item_id):
+		return item_defs.get(item_id) as ItemDef
+	var registry := ItemContentRegistry.new()
+	return registry.get_item_defs().get(item_id) as ItemDef
+
+
+func _build_weapon_projection_from_item_def(item_def: ItemDef) -> Dictionary:
+	if item_def == null or not item_def.is_weapon():
+		return {}
+	var profile = item_def.get("weapon_profile")
+	if profile == null:
+		return {}
+	var one_handed_dice := _weapon_dice_to_dict(profile.get("one_handed_dice"))
+	var two_handed_dice := _weapon_dice_to_dict(profile.get("two_handed_dice"))
+	var properties := _weapon_profile_properties(profile)
+	var is_versatile := properties.has(&"versatile")
+	var uses_two_hands := _resolve_weapon_uses_two_hands(item_def, one_handed_dice, two_handed_dice, is_versatile)
+	return {
+		"weapon_profile_kind": String(BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED),
+		"weapon_item_id": String(item_def.item_id),
+		"weapon_profile_type_id": String(ProgressionDataUtils.to_string_name(profile.get("weapon_type_id"))),
+		"weapon_current_grip": String(_resolve_weapon_current_grip(one_handed_dice, two_handed_dice, uses_two_hands)),
+		"weapon_attack_range": maxi(int(profile.get("attack_range")), 0),
+		"weapon_one_handed_dice": one_handed_dice,
+		"weapon_two_handed_dice": two_handed_dice,
+		"weapon_is_versatile": is_versatile,
+		"weapon_uses_two_hands": uses_two_hands,
+		"weapon_physical_damage_tag": String(item_def.get_weapon_physical_damage_tag()),
+	}
+
+
+func _resolve_weapon_uses_two_hands(
+	item_def: ItemDef,
+	one_handed_dice: Dictionary,
+	two_handed_dice: Dictionary,
+	is_versatile: bool
+) -> bool:
+	if item_def == null:
+		return false
+	if item_def.get_final_occupied_slot_ids(&"main_hand").has(&"off_hand"):
+		return true
+	if one_handed_dice.is_empty() and not two_handed_dice.is_empty():
+		return true
+	return is_versatile and not two_handed_dice.is_empty()
+
+
+func _resolve_weapon_current_grip(
+	one_handed_dice: Dictionary,
+	two_handed_dice: Dictionary,
+	uses_two_hands: bool
+) -> StringName:
+	if uses_two_hands:
+		return BattleUnitState.WEAPON_GRIP_TWO_HANDED
+	if not one_handed_dice.is_empty():
+		return BattleUnitState.WEAPON_GRIP_ONE_HANDED
+	if not two_handed_dice.is_empty():
+		return BattleUnitState.WEAPON_GRIP_TWO_HANDED
+	return BattleUnitState.WEAPON_GRIP_NONE
+
+
+func _weapon_profile_properties(profile) -> Array[StringName]:
+	var result: Array[StringName] = []
+	var raw_properties: Array = []
+	if profile != null and profile.has_method("get_properties"):
+		raw_properties = profile.call("get_properties")
+	elif profile != null:
+		raw_properties = profile.get("properties")
+	for raw_property in raw_properties:
+		var property_id := ProgressionDataUtils.to_string_name(raw_property)
+		if property_id == &"" or result.has(property_id):
+			continue
+		result.append(property_id)
+	return result
+
+
+func _weapon_dice_to_dict(dice_resource) -> Dictionary:
+	if dice_resource == null:
+		return {}
+	var dice_count := int(dice_resource.get("dice_count"))
+	var dice_sides := int(dice_resource.get("dice_sides"))
+	if dice_count <= 0 or dice_sides <= 0:
+		return {}
+	return {
+		"dice_count": dice_count,
+		"dice_sides": dice_sides,
+		"flat_bonus": int(dice_resource.get("flat_bonus")),
+	}
+
+
+func _build_natural_weapon_dice() -> Dictionary:
+	return {
+		"dice_count": 1,
+		"dice_sides": 6,
+		"flat_bonus": 0,
+	}
+
+
+func _natural_weapon_damage_tag_for_template_tag(tag: StringName) -> StringName:
+	match ProgressionDataUtils.to_string_name(tag):
+		&"bite", &"sting", &"horn":
+			return &"physical_pierce"
+		&"claw", &"tear":
+			return &"physical_slash"
+		&"slam", &"charge", &"trample":
+			return &"physical_blunt"
+		_:
+			return &""
+
+
+func _dictionary_has_key(data: Dictionary, key: StringName) -> bool:
+	return data.has(key) or data.has(String(key))
+
+
+func _is_valid_weapon_physical_damage_tag(damage_tag: StringName) -> bool:
+	return damage_tag == &"physical_slash" \
+		or damage_tag == &"physical_pierce" \
+		or damage_tag == &"physical_blunt"

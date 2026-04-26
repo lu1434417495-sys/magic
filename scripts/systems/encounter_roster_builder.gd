@@ -401,29 +401,14 @@ func _build_enemy_snapshot_from_template(
 	return snapshot
 
 
-func _resolve_enemy_weapon_physical_damage_tag(template) -> StringName:
-	if template == null:
-		return &""
-	var stats: Dictionary = template.attribute_overrides
-	return ProgressionDataUtils.to_string_name(stats.get("weapon_physical_damage_tag", ""))
-
-
-func _resolve_enemy_weapon_attack_range(template) -> int:
-	if template == null:
-		return 0
-	var stats: Dictionary = template.attribute_overrides
-	return maxi(int(stats.get("weapon_attack_range", 0)), 0)
-
-
 func _apply_enemy_weapon_projection(unit_state: BattleUnitState, template) -> void:
 	if unit_state == null:
 		return
-	var attack_range := _resolve_enemy_weapon_attack_range(template)
-	var damage_tag := _resolve_enemy_weapon_physical_damage_tag(template)
-	if attack_range <= 0 and damage_tag == &"":
+	var projection: Dictionary = template.get_weapon_projection() if template != null and template.has_method("get_weapon_projection") else {}
+	if projection.is_empty():
 		unit_state.clear_weapon_projection()
 		return
-	unit_state.set_natural_weapon_projection(&"natural_weapon", damage_tag, attack_range)
+	unit_state.apply_weapon_projection(projection)
 
 
 func _resolve_enemy_base_attributes(

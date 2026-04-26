@@ -10,6 +10,7 @@ brain_id = &"ranged_controller"
 initial_state_id = &"support"
 action_threshold = 45
 tags = Array[StringName]([&"wolf", &"shaman"])
+attack_equipment_item_id = &"watchman_mace"
 base_attribute_overrides = {
 "strength": 5,
 "agility": 6,

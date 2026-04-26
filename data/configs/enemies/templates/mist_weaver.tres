@@ -10,6 +10,7 @@ brain_id = &"healer_controller"
 initial_state_id = &"pressure"
 action_threshold = 45
 tags = Array[StringName]([&"mist", &"weaver"])
+attack_equipment_item_id = &"watchman_mace"
 base_attribute_overrides = {
 "strength": 4,
 "agility": 5,

@@ -9,7 +9,7 @@ display_name = "荒狼先锋"
 brain_id = &"frontline_bulwark"
 initial_state_id = &"engage"
 action_threshold = 50
-tags = Array[StringName]([&"beast", &"wolf"])
+tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 skill_ids = Array[StringName]([&"charge", &"warrior_shield_bash", &"warrior_taunt", &"warrior_guard"])
 attribute_overrides = {
 "hp_max": 42,

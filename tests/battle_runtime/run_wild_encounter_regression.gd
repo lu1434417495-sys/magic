@@ -39,6 +39,7 @@ func _run() -> void:
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaults()
+	_test_encounter_roster_builder_projects_enemy_weapon_sources()
 	_test_enemy_content_registry_registers_second_formal_roster()
 	_test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema()
 	_test_encounter_roster_builder_builds_mixed_mist_hollow_units()
@@ -179,6 +180,44 @@ func _test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaul
 			"正式狼系遭遇不应再把武器攻击范围写入 attribute_snapshot。"
 		)
 		_assert_eq(wolf_unit.weapon_attack_range, 1, "正式狼系遭遇应把武器攻击范围投影到 BattleUnitState。")
+	game_session.free()
+
+
+func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	builder.setup(game_session.get_wild_encounter_rosters(), game_session.get_enemy_templates())
+
+	var wolf_raider = _build_single_template_unit(builder, game_session, &"wolf_raider")
+	if wolf_raider != null:
+		_assert_eq(String(wolf_raider.weapon_profile_kind), "natural", "beast 模板应投影为天生武器。")
+		_assert_eq(String(wolf_raider.weapon_profile_type_id), "natural_weapon", "beast 模板应使用 natural_weapon profile。")
+		_assert_eq(wolf_raider.weapon_attack_range, 1, "beast natural weapon 默认射程应为 1。")
+		_assert_eq(_weapon_dice_signature(wolf_raider.weapon_one_handed_dice), [1, 6, 0], "beast natural weapon 默认伤害骰应为 1D6。")
+		_assert_eq(String(wolf_raider.weapon_physical_damage_tag), "physical_pierce", "bite 标签应把 wolf natural weapon 覆写为 pierce。")
+
+	var mist_beast = _build_single_template_unit(builder, game_session, &"mist_beast")
+	if mist_beast != null:
+		_assert_eq(String(mist_beast.weapon_profile_kind), "natural", "mist_beast 应投影为天生武器。")
+		_assert_eq(String(mist_beast.weapon_physical_damage_tag), "physical_blunt", "未覆写的 beast natural weapon 默认应为 blunt。")
+
+	var wolf_shaman = _build_single_template_unit(builder, game_session, &"wolf_shaman")
+	if wolf_shaman != null:
+		_assert_eq(String(wolf_shaman.weapon_profile_kind), "equipped", "非 beast 模板应投影真实攻击装备。")
+		_assert_eq(String(wolf_shaman.weapon_item_id), "watchman_mace", "wolf_shaman 应携带配置的真实攻击装备。")
+		_assert_eq(String(wolf_shaman.weapon_profile_type_id), "mace", "watchman_mace 应投影 mace weapon profile。")
+		_assert_eq(String(wolf_shaman.weapon_physical_damage_tag), "physical_blunt", "watchman_mace 应投影 blunt 伤害类型。")
+
+	var harrier = _build_single_template_unit(builder, game_session, &"mist_harrier")
+	if harrier != null:
+		_assert_eq(String(harrier.weapon_profile_kind), "equipped", "mist_harrier 应投影真实攻击装备。")
+		_assert_eq(String(harrier.weapon_item_id), "militia_axe", "mist_harrier 应携带配置的真实攻击装备。")
+		_assert_eq(String(harrier.weapon_profile_type_id), "handaxe", "militia_axe 应投影 handaxe weapon profile。")
+		_assert_eq(String(harrier.weapon_physical_damage_tag), "physical_slash", "militia_axe 应投影 slash 伤害类型。")
+
+	var shaman_anchor = _build_template_encounter_anchor(&"wolf_shaman_loot_projection", &"wolf_shaman")
+	var shaman_loot_entries: Array = builder.build_loot_entries(shaman_anchor, {})
+	_assert_true(shaman_loot_entries.is_empty(), "敌人攻击装备不应自动进入死亡掉落；掉落仍只看 drop_entries。")
 	game_session.free()
 
 
@@ -836,6 +875,44 @@ func _build_settlement_encounter_anchor(entity_id: StringName, coord: Vector2i):
 	encounter_anchor.growth_stage = 0
 	encounter_anchor.suppressed_until_step = 0
 	return encounter_anchor
+
+
+func _build_template_encounter_anchor(entity_id: StringName, template_id: StringName):
+	var encounter_anchor = ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
+	encounter_anchor.entity_id = entity_id
+	encounter_anchor.display_name = String(template_id)
+	encounter_anchor.world_coord = Vector2i(4, 4)
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.enemy_roster_template_id = template_id
+	encounter_anchor.region_tag = &"test_wilds"
+	encounter_anchor.vision_range = 2
+	return encounter_anchor
+
+
+func _build_single_template_unit(builder, game_session, template_id: StringName):
+	var encounter_anchor = _build_template_encounter_anchor(
+		StringName("%s_projection" % String(template_id)),
+		template_id
+	)
+	var enemy_units: Array = builder.build_enemy_units(encounter_anchor, {
+		"skill_defs": game_session.get_skill_defs(),
+		"enemy_templates": game_session.get_enemy_templates(),
+		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
+	})
+	_assert_true(not enemy_units.is_empty(), "%s 模板应能构建至少 1 个敌方单位。" % String(template_id))
+	if enemy_units.is_empty():
+		return null
+	return enemy_units[0]
+
+
+func _weapon_dice_signature(dice: Dictionary) -> Array:
+	if dice.is_empty():
+		return []
+	return [
+		int(dice.get("dice_count", 0)),
+		int(dice.get("dice_sides", 0)),
+		int(dice.get("flat_bonus", 0)),
+	]
 
 
 func _mark_active_battle_as_player_victory(facade) -> void:

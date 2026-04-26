@@ -9,7 +9,7 @@ display_name = "荒狼"
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 action_threshold = 35
-tags = Array[StringName]([&"beast", &"wolf"])
+tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 drop_entries = Array[Dictionary]([{
 "drop_id": &"wolf_hide",
@@ -25,6 +25,4 @@ attribute_overrides = {
 "attack_bonus": 4,
 "armor_class": 13,
 "armor_ac_bonus": 0,
-"weapon_attack_range": 1,
-"weapon_physical_damage_tag": &"physical_pierce",
 }
