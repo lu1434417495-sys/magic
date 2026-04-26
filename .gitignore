@@ -34,6 +34,7 @@ __pycache__/
 .tmp/
 .vscode/
 .claude/settings.local.json
+*.uid
 
 # Runtime save files; keep committed fixtures explicit
 data/saves/*
