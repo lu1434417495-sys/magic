@@ -601,8 +601,23 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.set_natural_weapon_projection(&"test_blade", &"physical_slash", 1)
+	_apply_test_equipped_weapon(unit)
 	return unit
+
+
+func _apply_test_equipped_weapon(unit: BattleUnitState, attack_range: int = 4) -> void:
+	if unit == null:
+		return
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "warrior_semantics_test_blade",
+		"weapon_profile_type_id": "test_blade",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": attack_range,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 
 
 func _build_heavy_strike_user(unit_id: StringName, skill_level: int) -> BattleUnitState:

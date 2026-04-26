@@ -1,6 +1,7 @@
 extends SceneTree
 
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
@@ -75,6 +76,7 @@ func _run() -> void:
 	_test_seed_skill_resources_scan_and_validate()
 	_test_progression_registry_keeps_skill_resource_and_compat_bridge()
 	_test_attribute_growth_progress_schema_validation()
+	_test_requires_weapon_param_schema_validation()
 	_test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs()
 
 	if _failures.is_empty():
@@ -123,11 +125,17 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		var level_three_damage = heavy_strike.combat_profile.effect_defs[2]
 		var armor_break_effect = heavy_strike.combat_profile.effect_defs[3]
 		_assert_eq(int(level_zero_damage.params.get("dice_sides", 0)), 4, "重击 0 级伤害骰应为 1d4。")
+		_assert_true(bool(level_zero_damage.params.get("requires_weapon", false)), "重击 0 级武器伤害标签效果必须显式要求装备武器。")
+		_assert_true(bool(level_zero_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 0 级应使用当前武器物理伤害标签。")
 		_assert_eq(int(level_zero_damage.max_skill_level), 0, "重击 0 级伤害效果应只在 0 级生效。")
 		_assert_eq(int(level_one_damage.params.get("dice_sides", 0)), 6, "重击 1-2 级伤害骰应为 1d6。")
+		_assert_true(bool(level_one_damage.params.get("requires_weapon", false)), "重击 1-2 级武器伤害标签效果必须显式要求装备武器。")
+		_assert_true(bool(level_one_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 1-2 级应使用当前武器物理伤害标签。")
 		_assert_eq(int(level_one_damage.min_skill_level), 1, "重击 1d6 伤害效果应从 1 级生效。")
 		_assert_eq(int(level_one_damage.max_skill_level), 2, "重击 1d6 伤害效果应在 2 级后停止生效。")
 		_assert_eq(int(level_three_damage.params.get("dice_sides", 0)), 8, "重击 3 级伤害骰应为 1d8。")
+		_assert_true(bool(level_three_damage.params.get("requires_weapon", false)), "重击 3 级武器伤害标签效果必须显式要求装备武器。")
+		_assert_true(bool(level_three_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 3 级应使用当前武器物理伤害标签。")
 		_assert_eq(int(level_three_damage.min_skill_level), 3, "重击 1d8 伤害效果应从 3 级生效。")
 		_assert_eq(armor_break_effect.status_id, &"armor_break", "重击满级效果应是 armor_break。")
 		_assert_eq(int(armor_break_effect.min_skill_level), 3, "重击 armor_break 应从 3 级生效。")
@@ -183,6 +191,56 @@ func _test_attribute_growth_progress_schema_validation() -> void:
 	_assert_true(
 		_has_error_containing(invalid_attribute_errors, "references invalid attribute hp_max"),
 		"属性进度配置只能引用六项基础属性。"
+	)
+
+
+func _test_requires_weapon_param_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var valid_effect := CombatEffectDef.new()
+	valid_effect.effect_type = &"damage"
+	valid_effect.params = {
+		"requires_weapon": true,
+		"use_weapon_physical_damage_tag": true,
+	}
+	var valid_errors: Array[String] = []
+	registry._append_effect_validation_errors(valid_errors, &"valid_requires_weapon_skill", valid_effect, "test_effect")
+	_assert_true(valid_errors.is_empty(), "requires_weapon=true 时允许 use_weapon_physical_damage_tag=true。")
+
+	var damage_tag_only_effect := CombatEffectDef.new()
+	damage_tag_only_effect.effect_type = &"damage"
+	damage_tag_only_effect.params = {
+		"use_weapon_physical_damage_tag": true,
+	}
+	var damage_tag_only_errors: Array[String] = []
+	registry._append_effect_validation_errors(damage_tag_only_errors, &"damage_tag_only_skill", damage_tag_only_effect, "test_effect")
+	_assert_true(
+		damage_tag_only_errors.is_empty(),
+		"use_weapon_physical_damage_tag=true 本身只表达伤害标签覆盖，不应被 schema 当成施展条件。"
+	)
+
+	var non_bool_effect := CombatEffectDef.new()
+	non_bool_effect.effect_type = &"damage"
+	non_bool_effect.params = {
+		"requires_weapon": "true",
+		"use_weapon_physical_damage_tag": true,
+	}
+	var non_bool_errors: Array[String] = []
+	registry._append_effect_validation_errors(non_bool_errors, &"invalid_requires_weapon_type_skill", non_bool_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(non_bool_errors, "params.requires_weapon must be a bool"),
+		"requires_weapon schema 应拒绝非 bool 值。"
+	)
+
+	var non_bool_damage_tag_effect := CombatEffectDef.new()
+	non_bool_damage_tag_effect.effect_type = &"damage"
+	non_bool_damage_tag_effect.params = {
+		"use_weapon_physical_damage_tag": "true",
+	}
+	var non_bool_damage_tag_errors: Array[String] = []
+	registry._append_effect_validation_errors(non_bool_damage_tag_errors, &"invalid_weapon_damage_tag_type_skill", non_bool_damage_tag_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(non_bool_damage_tag_errors, "params.use_weapon_physical_damage_tag must be a bool"),
+		"use_weapon_physical_damage_tag schema 应拒绝非 bool 值。"
 	)
 
 

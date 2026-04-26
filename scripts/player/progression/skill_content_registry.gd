@@ -319,6 +319,8 @@ func _append_effect_validation_errors(
 					TU_GRANULARITY,
 				]
 			)
+	if effect_def.params != null:
+		_append_weapon_param_validation_errors(errors, skill_id, effect_def, context_label)
 
 	match effect_def.effect_type:
 		&"status":
@@ -408,6 +410,30 @@ func _append_effect_validation_errors(
 						context_label,
 						]
 				)
+
+
+func _append_weapon_param_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	effect_def: CombatEffectDef,
+	context_label: String
+) -> void:
+	if effect_def.params.has("requires_weapon"):
+		if typeof(effect_def.params.get("requires_weapon")) != TYPE_BOOL:
+			errors.append(
+				"Skill %s effect %s params.requires_weapon must be a bool." % [
+					String(skill_id),
+					context_label,
+				]
+			)
+	if effect_def.params.has("use_weapon_physical_damage_tag"):
+		if typeof(effect_def.params.get("use_weapon_physical_damage_tag")) != TYPE_BOOL:
+			errors.append(
+				"Skill %s effect %s params.use_weapon_physical_damage_tag must be a bool." % [
+					String(skill_id),
+					context_label,
+				]
+			)
 
 
 func _is_valid_tu_value(value: int) -> bool:
