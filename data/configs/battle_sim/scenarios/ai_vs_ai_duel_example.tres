@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/systems/battle_sim_scenario_def.gd" id="1_scenario"]
-[ext_resource type="Script" path="res://scripts/systems/battle_sim_unit_spec.gd" id="2_unit"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/battle_sim_scenario_def.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/battle_sim_unit_spec.gd" id="2_unit"]
 
 [sub_resource type="Resource" id="Resource_player_vanguard"]
 script = ExtResource("2_unit")

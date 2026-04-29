@@ -1,9 +1,9 @@
 extends SceneTree
 
-const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle_sim_runner.gd")
-const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle_sim_scenario_def.gd")
-const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle_sim_unit_spec.gd")
-const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle_sim_profile_def.gd")
+const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
+const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
+const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_unit_spec.gd")
+const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
 
 var _failures: Array[String] = []
 
@@ -14,7 +14,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var runner = BATTLE_SIM_RUNNER_SCRIPT.new()
-	var report: Dictionary = runner.run_scenario(_build_scenario(), [_build_baseline_profile(), _build_pinning_shot_blocked_profile()])
+	var report: Dictionary = runner.run_scenario(_build_scenario(), [_build_baseline_profile(), _build_suppressive_fire_blocked_profile()])
 	_assert_true((report.get("profile_entries", []) as Array).size() == 2, "simulation report 应包含 baseline 与 patch 两组 profile 结果。")
 	_assert_true((report.get("comparisons", []) as Array).size() == 1, "两组 profile 应产出 1 组 comparison。")
 	_assert_true(String(report.get("output_files", {}).get("report_json", "")) != "", "simulation runner 应写出主 report json。")
@@ -37,16 +37,16 @@ func _run() -> void:
 		var baseline_skills: Dictionary = baseline_summary.get("skill_usage_totals", {})
 		var patched_skills: Dictionary = patched_summary.get("skill_usage_totals", {})
 		_assert_true(
-			int(baseline_skills.get("archer_pinning_shot", 0)) > 0,
-			"baseline profile 应允许 AI 使用 archer_pinning_shot。"
+			int(baseline_skills.get("archer_suppressive_fire", 0)) > 0,
+			"baseline profile 面对成线目标时应允许 AI 使用 archer_suppressive_fire。"
 		)
 		_assert_true(
-			int(patched_skills.get("archer_pinning_shot", 0)) == 0,
-			"高 stamina patch 后，AI 不应再使用 archer_pinning_shot。"
+			int(patched_skills.get("archer_suppressive_fire", 0)) == 0,
+			"高 stamina patch 后，AI 不应再使用 archer_suppressive_fire。"
 		)
 		_assert_true(
-			int(patched_skills.get("archer_suppressive_fire", 0)) > 0,
-			"点射被资源阻断后，AI 应回落到 archer_suppressive_fire。"
+			int(patched_skills.get("archer_pinning_shot", 0)) > 0,
+			"压制射击被资源阻断后，AI 应回落到 archer_pinning_shot。"
 		)
 	if _failures.is_empty():
 		print("Battle simulation regression: PASS")
@@ -133,13 +133,13 @@ func _build_baseline_profile():
 	return profile
 
 
-func _build_pinning_shot_blocked_profile():
+func _build_suppressive_fire_blocked_profile():
 	var profile = BATTLE_SIM_PROFILE_DEF_SCRIPT.new()
-	profile.profile_id = &"suppressive_only"
-	profile.display_name = "Suppressive Only"
+	profile.profile_id = &"pinning_only"
+	profile.display_name = "Pinning Only"
 	profile.override_patches = [{
 		"target_type": "skill",
-		"target_id": "archer_pinning_shot",
+		"target_id": "archer_suppressive_fire",
 		"path": "combat_profile.stamina_cost",
 		"value": 999,
 	}]

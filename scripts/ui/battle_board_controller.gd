@@ -5,12 +5,12 @@
 class_name BattleBoardController
 extends RefCounted
 
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
-const BattleEdgeFaceState = preload("res://scripts/systems/battle_edge_face_state.gd")
-const BATTLE_EDGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_edge_service.gd")
-const BattleEdgeService = preload("res://scripts/systems/battle_edge_service.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleEdgeFaceState = preload("res://scripts/systems/battle/core/battle_edge_face_state.gd")
+const BATTLE_EDGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_edge_service.gd")
+const BattleEdgeService = preload("res://scripts/systems/battle/terrain/battle_edge_service.gd")
 const BattleBoardProp = preload("res://scripts/ui/battle_board_prop.gd")
 const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
 const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")

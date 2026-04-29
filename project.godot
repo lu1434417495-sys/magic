@@ -17,7 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-GameSession="*res://scripts/systems/game_session.gd"
+GameSession="*res://scripts/systems/persistence/game_session.gd"
 
 [display]
 

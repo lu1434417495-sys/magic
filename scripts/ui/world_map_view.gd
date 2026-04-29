@@ -57,7 +57,7 @@ signal cell_right_clicked(coord: Vector2i)
 ## 字段说明：在编辑器中暴露未知 tier 兜底颜色配置，避免未识别层级退回硬编码。
 @export var fallback_tier_color: Color = Color(0.5, 0.5, 0.5, 1.0)
 
-const WORLD_MAP_FOG_SYSTEM_SCRIPT = preload("res://scripts/systems/world_map_fog_system.gd")
+const WORLD_MAP_FOG_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_fog_system.gd")
 const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.gd")
 
 ## 字段说明：记录网格系统，作为界面刷新、输入处理和窗口联动的重要依据。

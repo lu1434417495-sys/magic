@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="BattleSimProfileDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/systems/battle_sim_profile_def.gd" id="1_profile"]
-[ext_resource type="Script" path="res://scripts/systems/battle_ai_score_profile.gd" id="2_score"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/battle_sim_profile_def.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/systems/battle/ai/battle_ai_score_profile.gd" id="2_score"]
 
 [sub_resource type="Resource" id="Resource_score"]
 script = ExtResource("2_score")

@@ -12,9 +12,9 @@ signal battle_cell_right_clicked(coord: Vector2i)
 ## 信号说明：当鼠标悬停到新的战斗格子时发出的信号，供外层刷新只读预览信息。
 signal battle_cell_hovered(coord: Vector2i)
 
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleBoardController = preload("res://scripts/ui/battle_board_controller.gd")
 const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
 const MAX_RENDER_HEIGHT := 8

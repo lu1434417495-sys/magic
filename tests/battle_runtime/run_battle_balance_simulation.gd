@@ -1,8 +1,8 @@
 extends SceneTree
 
-const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle_sim_runner.gd")
-const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle_sim_scenario_def.gd")
-const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle_sim_profile_def.gd")
+const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
+const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
+const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
 
 
 func _initialize() -> void:

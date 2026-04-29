@@ -47,12 +47,12 @@
 
 系统主入口：
 
-- 场景定义：`res://scripts/systems/battle_sim_scenario_def.gd`
-- 单位定义：`res://scripts/systems/battle_sim_unit_spec.gd`
-- profile 定义：`res://scripts/systems/battle_sim_profile_def.gd`
-- patch 应用：`res://scripts/systems/battle_sim_override_applier.gd`
-- 汇总报表：`res://scripts/systems/battle_sim_report_builder.gd`
-- 批量执行器：`res://scripts/systems/battle_sim_runner.gd`
+- 场景定义：`res://scripts/systems/battle/sim/battle_sim_scenario_def.gd`
+- 单位定义：`res://scripts/systems/battle/sim/battle_sim_unit_spec.gd`
+- profile 定义：`res://scripts/systems/battle/sim/battle_sim_profile_def.gd`
+- patch 应用：`res://scripts/systems/battle/sim/battle_sim_override_applier.gd`
+- 汇总报表：`res://scripts/systems/battle/sim/battle_sim_report_builder.gd`
+- 批量执行器：`res://scripts/systems/battle/sim/battle_sim_runner.gd`
 - CLI 入口：`res://tests/battle_runtime/run_battle_balance_simulation.gd`
 - LLM 分析包导出：`tools/build_battle_sim_analysis_packet.py`
 - Repo 内分析 skill：`.codex/skills/battle-sim-analysis`

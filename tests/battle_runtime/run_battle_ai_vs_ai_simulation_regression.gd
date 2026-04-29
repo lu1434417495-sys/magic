@@ -1,6 +1,6 @@
 extends SceneTree
 
-const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle_sim_runner.gd")
+const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
 
 const AI_VS_AI_SCENARIO_PATH := "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres"
 const BASELINE_PROFILE_PATH := "res://data/configs/battle_sim/profiles/baseline.tres"

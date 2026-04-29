@@ -1,7 +1,7 @@
 extends SceneTree
 
-const BATTLE_SIM_REPORT_BUILDER_SCRIPT = preload("res://scripts/systems/battle_sim_report_builder.gd")
-const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle_sim_profile_def.gd")
+const BATTLE_SIM_REPORT_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_report_builder.gd")
+const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
 
 var _failures: Array[String] = []
 
