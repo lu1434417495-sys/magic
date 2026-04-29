@@ -3,21 +3,24 @@ extends SceneTree
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
 const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const BattleMapPanel = preload("res://scripts/ui/battle_map_panel.gd")
 const BattlePanelScene = preload("res://scenes/ui/battle_map_panel.tscn")
 const RuntimeLogDock = preload("res://scripts/ui/runtime_log_dock.gd")
 const RuntimeLogDockScene = preload("res://scenes/ui/runtime_log_dock.tscn")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const ULTRAWIDE_PANEL_SIZE := Vector2i(3857, 786)
@@ -34,9 +37,48 @@ class MockGameSession:
 	extends Node
 
 	var skill_defs: Dictionary = {}
+	var item_defs: Dictionary = {}
 
 	func get_skill_defs() -> Dictionary:
 		return skill_defs
+
+	func get_item_defs() -> Dictionary:
+		return item_defs
+
+
+class EquipmentPreviewResult:
+	extends RefCounted
+
+	var allowed := true
+	var log_lines: Array[String] = ["可装备。"]
+
+
+class CountingEquipmentPreviewCallback:
+	extends RefCounted
+
+	var call_count := 0
+	var commands: Array = []
+
+	func preview(command) -> EquipmentPreviewResult:
+		call_count += 1
+		commands.append(command)
+		return EquipmentPreviewResult.new()
+
+
+class BlockingEquipmentPreviewCallback:
+	extends RefCounted
+
+	var call_count := 0
+	var message := ""
+
+	func preview(_command) -> EquipmentPreviewResult:
+		call_count += 1
+		var result := EquipmentPreviewResult.new()
+		result.allowed = false
+		result.log_lines.clear()
+		if not message.is_empty():
+			result.log_lines.append(message)
+		return result
 
 
 func _initialize() -> void:
@@ -45,6 +87,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _test_multi_unit_hud_copy_and_selection_state()
+	_test_focus_resource_rows_hide_locked_mp_and_aura()
+	await _test_equipment_preview_cache_reuses_stable_snapshot_results()
+	await _test_equipment_preview_uses_default_failure_message_for_silent_preview()
 	await _test_repeat_attack_hud_preview_matches_runtime_resolver()
 	await _test_single_hit_hud_preview_matches_runtime_resolver()
 	await _test_battle_panel_hover_target_surfaces_hit_preview()
@@ -92,6 +137,163 @@ func _test_multi_unit_hud_copy_and_selection_state() -> void:
 	_assert_eq(int(snapshot.get("selected_skill_target_max_count", 0)), 3, "multi_unit 技能应暴露最大目标数量。")
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains("已满足最小数量"), "multi_unit HUD 副标题应提示确认态。")
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains("点击自己或空地确认"), "multi_unit HUD 副标题应说明确认路径。")
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_focus_resource_rows_hide_locked_mp_and_aura() -> void:
+	var adapter := BattleHudAdapter.new()
+	var state := _build_state()
+	var unit := state.units.get(&"ally_ui") as BattleUnitState
+	unit.current_stamina = 16
+	unit.current_mp = 5
+	unit.current_aura = 4
+	unit.attribute_snapshot.set_value(&"stamina_max", 18)
+	unit.attribute_snapshot.set_value(&"mp_max", 9)
+	unit.attribute_snapshot.set_value(&"aura_max", 7)
+
+	var locked_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var locked_focus := locked_snapshot.get("focus_unit", {}) as Dictionary
+	var locked_resources: Dictionary = locked_focus.get("resource_info", {})
+	var locked_hp := locked_resources.get("hp", {}) as Dictionary
+	var locked_stamina := locked_resources.get("stamina", {}) as Dictionary
+	var locked_mp := locked_resources.get("mp", {}) as Dictionary
+	var locked_aura := locked_resources.get("aura", {}) as Dictionary
+	_assert_true(bool(locked_hp.get("visible", false)), "HUD 应始终展示 HP 行。")
+	_assert_true(bool(locked_stamina.get("visible", false)), "HUD 应始终展示体力行。")
+	_assert_true(not bool(locked_mp.get("visible", true)), "未解锁 MP 时 HUD 不应展示 MP 行。")
+	_assert_true(not bool(locked_aura.get("visible", true)), "未解锁斗气时 HUD 不应展示斗气行。")
+
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
+	var unlocked_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var unlocked_focus := unlocked_snapshot.get("focus_unit", {}) as Dictionary
+	var unlocked_resources: Dictionary = unlocked_focus.get("resource_info", {})
+	var unlocked_mp := unlocked_resources.get("mp", {}) as Dictionary
+	var unlocked_aura := unlocked_resources.get("aura", {}) as Dictionary
+	_assert_true(bool(unlocked_mp.get("visible", false)), "解锁 MP 后 HUD 应展示 MP 行。")
+	_assert_true(bool(unlocked_aura.get("visible", false)), "解锁斗气后 HUD 应展示斗气行。")
+
+
+func _test_equipment_preview_cache_reuses_stable_snapshot_results() -> void:
+	var game_session := await _install_mock_game_session()
+	game_session.item_defs = ItemContentRegistry.new().get_item_defs()
+
+	var adapter := BattleHudAdapter.new()
+	var state := _build_state()
+	state.phase = &"unit_acting"
+	state.modal_state = &""
+	var active_unit := state.units.get(state.active_unit_id) as BattleUnitState
+	_assert_true(active_unit != null, "装备预览缓存回归前置：测试状态应存在当前行动单位。")
+	if active_unit == null:
+		game_session.queue_free()
+		await process_frame
+		return
+	active_unit.control_mode = &"manual"
+	active_unit.current_ap = 4
+
+	var backpack := WarehouseState.new()
+	backpack.equipment_instances = [
+		EquipmentInstanceState.create(&"bronze_sword", &"ui_cache_sword_001"),
+		EquipmentInstanceState.create(&"leather_cap", &"ui_cache_cap_001"),
+	]
+	state.set_party_backpack_view(backpack)
+
+	var preview_callback := CountingEquipmentPreviewCallback.new()
+	var callback := Callable(preview_callback, "preview")
+	var first_snapshot := adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	var first_panel := first_snapshot.get("equipment_panel", {}) as Dictionary
+	var first_entries := first_panel.get("backpack_entries", []) as Array
+	_assert_eq(first_entries.size(), 2, "装备预览缓存回归前置：HUD 应看到 2 件 battle-local 背包装备。")
+	_assert_eq(preview_callback.call_count, 2, "首次构建 HUD 时应对每件可装备实例执行一次 preview。")
+	for command in preview_callback.commands:
+		_assert_eq(command.command_type, BattleCommand.TYPE_CHANGE_EQUIPMENT, "HUD 装备 preview command 应使用换装命令类型。")
+		_assert_true(command.equipment_item_id != &"", "HUD 装备 preview command 应保留稳定 item_id。")
+		_assert_true(command.equipment_instance_id != &"", "HUD 装备 preview command 应保留稳定 instance_id。")
+		_assert_true(command.equipment_instance.is_empty(), "HUD 装备 preview command 不应携带半截 equipment_instance payload。")
+
+	adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	_assert_eq(preview_callback.call_count, 2, "同一装备状态连续构建 HUD 时应复用装备 preview cache。")
+
+	active_unit.current_ap = 3
+	adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	_assert_eq(preview_callback.call_count, 4, "当前行动单位 AP 变化后应让装备 preview cache 失效并重算。")
+
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_equipment_preview_uses_default_failure_message_for_silent_preview() -> void:
+	var game_session := await _install_mock_game_session()
+	game_session.item_defs = ItemContentRegistry.new().get_item_defs()
+
+	var state := _build_state()
+	state.phase = &"unit_acting"
+	state.modal_state = &""
+	var active_unit := state.units.get(state.active_unit_id) as BattleUnitState
+	if active_unit == null:
+		_assert_true(false, "装备失败文案回归前置：测试状态应存在当前行动单位。")
+		game_session.queue_free()
+		await process_frame
+		return
+	active_unit.control_mode = &"manual"
+	active_unit.current_ap = 4
+
+	var backpack := WarehouseState.new()
+	backpack.equipment_instances = [
+		EquipmentInstanceState.create(&"bronze_sword", &"ui_failure_sword_001"),
+	]
+	state.set_party_backpack_view(backpack)
+
+	var silent_callback := BlockingEquipmentPreviewCallback.new()
+	var silent_snapshot := BattleHudAdapter.new().build_snapshot(
+		state,
+		Vector2i(0, 0),
+		&"",
+		"",
+		"",
+		[],
+		0,
+		[],
+		&"",
+		Callable(silent_callback, "preview")
+	)
+	var silent_panel := silent_snapshot.get("equipment_panel", {}) as Dictionary
+	var silent_entries := silent_panel.get("backpack_entries", []) as Array
+	_assert_eq(silent_entries.size(), 1, "装备失败文案回归前置：HUD 应看到 1 件 battle-local 背包装备。")
+	if not silent_entries.is_empty() and silent_entries[0] is Dictionary:
+		var silent_entry := silent_entries[0] as Dictionary
+		_assert_true(not bool(silent_entry.get("can_equip", true)), "preview 拒绝但无日志时背包装备应禁用。")
+		_assert_eq(
+			String(silent_entry.get("disabled_reason", "")),
+			BattleHudAdapter.EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE,
+			"preview 拒绝且无日志时应统一使用装备预览默认失败文案。"
+		)
+
+	var explicit_callback := BlockingEquipmentPreviewCallback.new()
+	explicit_callback.message = "行动点不足，无法换装。"
+	var explicit_snapshot := BattleHudAdapter.new().build_snapshot(
+		state,
+		Vector2i(0, 0),
+		&"",
+		"",
+		"",
+		[],
+		0,
+		[],
+		&"",
+		Callable(explicit_callback, "preview")
+	)
+	var explicit_panel := explicit_snapshot.get("equipment_panel", {}) as Dictionary
+	var explicit_entries := explicit_panel.get("backpack_entries", []) as Array
+	if not explicit_entries.is_empty() and explicit_entries[0] is Dictionary:
+		var explicit_entry := explicit_entries[0] as Dictionary
+		_assert_eq(
+			String(explicit_entry.get("disabled_reason", "")),
+			"行动点不足，无法换装。",
+			"preview 提供明确失败文案时 HUD 应优先展示该文案。"
+		)
+
 	game_session.queue_free()
 	await process_frame
 

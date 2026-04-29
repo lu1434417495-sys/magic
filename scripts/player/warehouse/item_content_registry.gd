@@ -160,6 +160,12 @@ func _register_item_resource(resource_path: String) -> void:
 	if item_def.is_stackable and int(item_def.max_stack) <= 0:
 		_validation_errors.append("Item %s must have max_stack >= 1." % String(item_def.item_id))
 		return
+	if int(item_def.base_price) > 0 and item_def.sellable and int(item_def.buy_price) <= 0:
+		_validation_errors.append("Sellable item %s must declare explicit buy_price." % String(item_def.item_id))
+		return
+	if int(item_def.base_price) > 0 and item_def.sellable and int(item_def.sell_price) <= 0:
+		_validation_errors.append("Sellable item %s must declare explicit sell_price." % String(item_def.item_id))
+		return
 	if item_tags.has(&"material") and item_crafting_groups.is_empty():
 		_validation_errors.append(
 			"Material item %s must declare at least one crafting_group." % String(item_def.item_id)

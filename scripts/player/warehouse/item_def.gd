@@ -33,9 +33,9 @@ const DAMAGE_TAG_PHYSICAL_BLUNT: StringName = &"physical_blunt"
 @export var is_stackable := true
 ## 字段说明：在编辑器中暴露基础价格配置，便于据点商店、出售和价格计算统一读取。
 @export_range(0, 999999, 1) var base_price := 0
-## 字段说明：在编辑器中暴露基础购买价格配置；未填写时回退到 base_price，保持旧资源默认行为。
+## 字段说明：在编辑器中暴露基础购买价格配置；0 表示没有可用购买价。
 @export_range(0, 999999, 1) var buy_price := 0
-## 字段说明：在编辑器中暴露基础出售价格配置；未填写时回退到 base_price 的半价逻辑，保持旧资源默认行为。
+## 字段说明：在编辑器中暴露基础出售价格配置；0 表示没有可用出售价。
 @export_range(0, 999999, 1) var sell_price := 0
 ## 字段说明：在编辑器中暴露是否可出售配置，便于根据物品类型控制据点商店流转。
 @export var sellable := true
@@ -79,18 +79,14 @@ func get_base_price() -> int:
 
 
 func get_buy_price(price_multiplier: float = 1.0) -> int:
-	var resolved_buy_price := int(buy_price)
-	if resolved_buy_price <= 0:
-		resolved_buy_price = get_base_price()
+	var resolved_buy_price := maxi(int(buy_price), 0)
 	return maxi(int(round(float(resolved_buy_price) * maxf(price_multiplier, 0.0))), 0)
 
 
 func get_sell_price(price_multiplier: float = 0.5) -> int:
 	if not sellable:
 		return 0
-	var resolved_sell_price := int(sell_price)
-	if resolved_sell_price <= 0:
-		resolved_sell_price = int(round(float(get_base_price()) * 0.5))
+	var resolved_sell_price := maxi(int(sell_price), 0)
 	return maxi(int(round(float(resolved_sell_price) * (maxf(price_multiplier, 0.0) / 0.5))), 0)
 
 

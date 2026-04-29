@@ -5,17 +5,18 @@
 class_name BattleHudAdapter
 extends RefCounted
 
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle_grid_service.gd")
-const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_damage_preview_range_service.gd")
-const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_hit_resolver.gd")
-const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle_skill_resolution_rules.gd")
-const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle_range_service.gd")
-const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/fate_attack_formula.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
+const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
+const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
+const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_skill_resolution_rules.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
-const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
@@ -23,9 +24,12 @@ const QUEUE_ENTRY_LIMIT := 7
 const SKILL_GRID_SIZE := 20
 const TARGET_SELECTION_MULTI_UNIT := &"multi_unit"
 const CHANGE_EQUIPMENT_AP_COST := 2
+const EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE := "该实例当前不能装备。"
 
 ## 字段说明：按键缓存队列就绪查找表，便于在较多对象中快速定位目标并减少重复遍历。
 var _queue_ready_lookup: Dictionary = {}
+var _equipment_preview_cache_signature := ""
+var _equipment_preview_cache: Dictionary = {}
 var _grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
 var _hit_resolver = BATTLE_HIT_RESOLVER_SCRIPT.new()
 var _skill_resolution_rules = BATTLE_SKILL_RESOLUTION_RULES_SCRIPT.new()
@@ -40,7 +44,8 @@ func build_snapshot(
 	selected_skill_target_coords: Array[Vector2i] = [],
 	selected_skill_required_coord_count: int = 0,
 	selected_skill_target_unit_ids: Array[StringName] = [],
-	selected_skill_variant_id: StringName = &""
+	selected_skill_variant_id: StringName = &"",
+	change_equipment_preview_callback: Callable = Callable()
 ) -> Dictionary:
 	if battle_state == null:
 		return {}
@@ -120,7 +125,11 @@ func build_snapshot(
 		"selected_skill_target_count": selected_target_count,
 		"selected_skill_confirm_ready": bool(selection_info.get("confirm_ready", false)),
 		"selected_skill_auto_cast_ready": bool(selection_info.get("auto_cast_ready", false)),
-		"equipment_panel": _build_equipment_panel_snapshot(battle_state, active_unit),
+		"equipment_panel": _build_equipment_panel_snapshot(
+			battle_state,
+			active_unit,
+			change_equipment_preview_callback
+		),
 	}
 
 
@@ -225,6 +234,10 @@ func _build_focus_unit_snapshot(unit_state: BattleUnitState, battle_state: Battl
 			"hp_max": 1,
 			"mp_current": 0,
 			"mp_max": 1,
+			"stamina_current": 0,
+			"stamina_max": 1,
+			"aura_current": 0,
+			"aura_max": 1,
 			"ap_current": 0,
 			"ap_max": 1,
 			"move_current": 0,
@@ -234,6 +247,8 @@ func _build_focus_unit_snapshot(unit_state: BattleUnitState, battle_state: Battl
 	var portrait_data := _build_portrait_data(unit_state, battle_state)
 	var hp_max := _get_snapshot_value(unit_state, &"hp_max", maxi(unit_state.current_hp, 1))
 	var mp_max := _get_snapshot_value(unit_state, &"mp_max", maxi(unit_state.current_mp, 0))
+	var stamina_max := _get_snapshot_value(unit_state, &"stamina_max", maxi(unit_state.current_stamina, 0))
+	var aura_max := _get_snapshot_value(unit_state, &"aura_max", maxi(unit_state.current_aura, 0))
 	var ap_max := _get_snapshot_value(unit_state, &"action_points", maxi(unit_state.current_ap, 1))
 	var move_max := BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	return {
@@ -249,6 +264,10 @@ func _build_focus_unit_snapshot(unit_state: BattleUnitState, battle_state: Battl
 		"hp_max": maxi(hp_max, 1),
 		"mp_current": unit_state.current_mp,
 		"mp_max": maxi(mp_max, 1),
+		"stamina_current": unit_state.current_stamina,
+		"stamina_max": maxi(stamina_max, 1),
+		"aura_current": unit_state.current_aura,
+		"aura_max": maxi(aura_max, 1),
 		"ap_current": unit_state.current_ap,
 		"ap_max": maxi(ap_max, 1),
 		"move_current": int(unit_state.current_move_points),
@@ -275,38 +294,50 @@ func _build_resource_info(unit_state: BattleUnitState) -> Dictionary:
 			"max": maxi(hp_max, 1),
 			"ratio": _get_ratio(hp_current, hp_max),
 			"label": "HP",
+			"visible": true,
 		},
 		"mp": {
 			"current": mp_current,
 			"max": maxi(mp_max, 1),
 			"ratio": _get_ratio(mp_current, mp_max),
 			"label": "MP",
+			"visible": _is_resource_unlocked(unit_state, BattleUnitState.COMBAT_RESOURCE_MP),
 		},
 		"stamina": {
 			"current": stamina_current,
 			"max": maxi(stamina_max, 1),
 			"ratio": _get_ratio(stamina_current, stamina_max),
 			"label": "ST",
+			"visible": true,
 		},
 		"aura": {
 			"current": aura_current,
 			"max": maxi(aura_max, 1),
 			"ratio": _get_ratio(aura_current, aura_max),
 			"label": "AU",
+			"visible": _is_resource_unlocked(unit_state, BattleUnitState.COMBAT_RESOURCE_AURA),
 		},
 		"ap": {
 			"current": ap_current,
 			"max": maxi(ap_max, 1),
 			"ratio": _get_ratio(ap_current, ap_max),
 			"label": "AP",
+			"visible": true,
 		},
 		"move": {
 			"current": move_current,
 			"max": move_max,
 			"ratio": _get_ratio(move_current, move_max),
 			"label": "MOVE",
+			"visible": true,
 		},
 	}
+
+
+func _is_resource_unlocked(unit_state: BattleUnitState, resource_id: StringName) -> bool:
+	if unit_state == null:
+		return false
+	return unit_state.has_combat_resource_unlocked(resource_id)
 
 
 func _build_focus_role_text(unit_state: BattleUnitState, battle_state: BattleState) -> String:
@@ -421,7 +452,11 @@ func _build_skill_slots(active_unit: BattleUnitState, selected_skill_id: StringN
 	return skill_slots
 
 
-func _build_equipment_panel_snapshot(battle_state: BattleState, active_unit: BattleUnitState) -> Dictionary:
+func _build_equipment_panel_snapshot(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	change_equipment_preview_callback: Callable = Callable()
+) -> Dictionary:
 	var snapshot := {
 		"title": "队伍共享背包（战斗局部）",
 		"meta": "仅显示本场战斗复制出的队伍共享背包；据点共享仓库入口战中不可用。",
@@ -444,7 +479,12 @@ func _build_equipment_panel_snapshot(battle_state: BattleState, active_unit: Bat
 	snapshot["can_change_equipment"] = disabled_reason.is_empty()
 	snapshot["disabled_reason"] = disabled_reason
 	snapshot["slots"] = _build_equipment_slot_entries(active_unit)
-	snapshot["backpack_entries"] = _build_backpack_equipment_entries(battle_state, disabled_reason)
+	snapshot["backpack_entries"] = _build_backpack_equipment_entries(
+		battle_state,
+		active_unit,
+		disabled_reason,
+		change_equipment_preview_callback
+	)
 	snapshot["summary_text"] = "当前行动单位：%s  |  换装消耗 %d AP  |  背包装备实例 %d 件" % [
 		String(snapshot.get("active_unit_name", "无")),
 		CHANGE_EQUIPMENT_AP_COST,
@@ -514,12 +554,28 @@ func _build_equipment_slot_entries(active_unit: BattleUnitState) -> Array[Dictio
 	return entries
 
 
-func _build_backpack_equipment_entries(battle_state: BattleState, disabled_reason: String) -> Array[Dictionary]:
+func _build_backpack_equipment_entries(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	disabled_reason: String,
+	change_equipment_preview_callback: Callable = Callable()
+) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
 	var item_defs := _get_item_defs()
 	var backpack_view = battle_state.get_party_backpack_view() if battle_state != null else null
 	if backpack_view == null or not (backpack_view is Object and backpack_view.has_method("get_non_empty_instances")):
 		return entries
+	var preview_cache_signature := ""
+	if change_equipment_preview_callback.is_valid():
+		preview_cache_signature = _build_equipment_preview_cache_signature(
+			battle_state,
+			active_unit,
+			backpack_view,
+			change_equipment_preview_callback
+		)
+		_sync_equipment_preview_cache_signature(preview_cache_signature)
+	else:
+		_clear_equipment_preview_cache()
 	for instance in backpack_view.get_non_empty_instances():
 		if instance == null:
 			continue
@@ -539,6 +595,20 @@ func _build_backpack_equipment_entries(battle_state: BattleState, disabled_reaso
 			if allowed_slot_ids.is_empty() and entry_disabled_reason.is_empty():
 				entry_disabled_reason = "%s 当前没有可用装备槽。" % _get_item_display_name(item_defs, item_id)
 		var default_slot := allowed_slot_ids[0] if not allowed_slot_ids.is_empty() else &""
+		if entry_disabled_reason.is_empty() and change_equipment_preview_callback.is_valid():
+			var preview_rule := _preview_backpack_equipment_entry_change(
+				active_unit,
+				item_id,
+				instance_id,
+				allowed_slot_ids,
+				change_equipment_preview_callback,
+				preview_cache_signature
+			)
+			if not preview_rule.is_empty():
+				if bool(preview_rule.get("allowed", false)):
+					default_slot = ProgressionDataUtils.to_string_name(preview_rule.get("slot_id", default_slot))
+				else:
+					entry_disabled_reason = _resolve_equipment_preview_failure_message(String(preview_rule.get("message", "")))
 		entries.append({
 			"instance_id": String(instance_id),
 			"item_id": String(item_id),
@@ -553,6 +623,226 @@ func _build_backpack_equipment_entries(battle_state: BattleState, disabled_reaso
 			"disabled_reason": entry_disabled_reason,
 		})
 	return entries
+
+
+func _preview_backpack_equipment_entry_change(
+	active_unit: BattleUnitState,
+	item_id: StringName,
+	instance_id: StringName,
+	allowed_slot_ids: Array[StringName],
+	change_equipment_preview_callback: Callable,
+	preview_cache_signature: String = ""
+) -> Dictionary:
+	if active_unit == null or active_unit.unit_id == &"" or not change_equipment_preview_callback.is_valid():
+		return {}
+	if allowed_slot_ids.is_empty():
+		return {}
+	var cache_key := _build_equipment_preview_cache_key(active_unit, item_id, instance_id, allowed_slot_ids)
+	if not preview_cache_signature.is_empty() and _equipment_preview_cache.has(cache_key):
+		var cached_rule = _equipment_preview_cache.get(cache_key)
+		if cached_rule is Dictionary:
+			return (cached_rule as Dictionary).duplicate(true)
+	var first_failure := {
+		"allowed": false,
+		"slot_id": String(allowed_slot_ids[0]),
+		"message": "",
+	}
+	for slot_id in allowed_slot_ids:
+		var command := _build_change_equipment_preview_command(active_unit, item_id, instance_id, slot_id)
+		var preview = change_equipment_preview_callback.call(command)
+		if _is_battle_preview_allowed(preview):
+			var allowed_rule := {
+				"allowed": true,
+				"slot_id": String(slot_id),
+				"message": _get_battle_preview_message(preview),
+			}
+			_store_equipment_preview_rule(preview_cache_signature, cache_key, allowed_rule)
+			return allowed_rule
+		var preview_message := _get_battle_preview_message(preview)
+		if not preview_message.is_empty() and String(first_failure.get("message", "")).is_empty():
+			first_failure["message"] = preview_message
+	first_failure["message"] = _resolve_equipment_preview_failure_message(String(first_failure.get("message", "")))
+	_store_equipment_preview_rule(preview_cache_signature, cache_key, first_failure)
+	return first_failure
+
+
+func _resolve_equipment_preview_failure_message(message: String) -> String:
+	return message if not message.is_empty() else EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE
+
+
+func _sync_equipment_preview_cache_signature(signature: String) -> void:
+	if signature == _equipment_preview_cache_signature:
+		return
+	_equipment_preview_cache_signature = signature
+	_equipment_preview_cache.clear()
+
+
+func _clear_equipment_preview_cache() -> void:
+	_equipment_preview_cache_signature = ""
+	_equipment_preview_cache.clear()
+
+
+func _store_equipment_preview_rule(cache_signature: String, cache_key: String, rule: Dictionary) -> void:
+	if cache_signature.is_empty() or cache_key.is_empty():
+		return
+	_equipment_preview_cache[cache_key] = rule.duplicate(true)
+
+
+func _build_equipment_preview_cache_key(
+	active_unit: BattleUnitState,
+	item_id: StringName,
+	instance_id: StringName,
+	allowed_slot_ids: Array[StringName]
+) -> String:
+	var slot_parts := PackedStringArray()
+	for slot_id in allowed_slot_ids:
+		slot_parts.append(String(slot_id))
+	return "%s:%s:%s:%s" % [
+		String(active_unit.unit_id if active_unit != null else &""),
+		String(item_id),
+		String(instance_id),
+		",".join(slot_parts),
+	]
+
+
+func _build_equipment_preview_cache_signature(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	backpack_view,
+	change_equipment_preview_callback: Callable
+) -> String:
+	var parts := PackedStringArray()
+	parts.append(String(battle_state.battle_id if battle_state != null else &""))
+	parts.append(String(battle_state.phase if battle_state != null else &""))
+	parts.append(String(battle_state.modal_state if battle_state != null else &""))
+	parts.append(String(battle_state.active_unit_id if battle_state != null else &""))
+	parts.append(String(active_unit.unit_id if active_unit != null else &""))
+	parts.append(String(active_unit.source_member_id if active_unit != null else &""))
+	parts.append(String(active_unit.control_mode if active_unit != null else &""))
+	parts.append(str(active_unit.body_size if active_unit != null else 0))
+	parts.append(str(active_unit.current_ap if active_unit != null else 0))
+	parts.append(_build_party_member_requirement_signature(active_unit.source_member_id if active_unit != null else &""))
+	parts.append(_build_equipment_view_signature(active_unit.get_equipment_view() if active_unit != null else null))
+	parts.append(_build_backpack_view_signature(backpack_view))
+	parts.append(_build_callable_signature(change_equipment_preview_callback))
+	return "|".join(parts)
+
+
+func _build_party_member_requirement_signature(member_id: StringName) -> String:
+	if member_id == &"":
+		return "-"
+	var member_state = _get_party_member_state(member_id)
+	if member_state == null:
+		return "%s:-" % String(member_id)
+	var profession_parts := PackedStringArray()
+	var progression = member_state.progression
+	if progression != null:
+		var professions: Dictionary = progression.professions
+		for key in ProgressionDataUtils.sorted_string_keys(professions):
+			var profession = professions.get(ProgressionDataUtils.to_string_name(key))
+			if profession == null:
+				profession = professions.get(key)
+			if profession == null:
+				continue
+			profession_parts.append("%s:%d:%d:%d" % [
+				String(ProgressionDataUtils.to_string_name(profession.profession_id)),
+				int(profession.rank),
+				1 if bool(profession.is_active) else 0,
+				1 if bool(profession.is_hidden) else 0,
+			])
+	return "%s:%d:%s" % [
+		String(member_id),
+		int(member_state.body_size),
+		";".join(profession_parts),
+	]
+
+
+func _build_equipment_view_signature(equipment_view) -> String:
+	if equipment_view == null or not (equipment_view is Object and equipment_view.has_method("get_equipped_item_id")):
+		return "-"
+	var parts := PackedStringArray()
+	for slot_id in EQUIPMENT_RULES_SCRIPT.get_all_slot_ids():
+		var occupied_slot_ids: Array[StringName] = []
+		if equipment_view.has_method("get_occupied_slot_ids_for_entry"):
+			var entry_slot_id := ProgressionDataUtils.to_string_name(equipment_view.get_entry_slot_for_slot(slot_id))
+			if entry_slot_id != &"":
+				occupied_slot_ids = equipment_view.get_occupied_slot_ids_for_entry(entry_slot_id)
+		parts.append("%s:%s:%s:%s" % [
+			String(slot_id),
+			String(ProgressionDataUtils.to_string_name(equipment_view.get_equipped_item_id(slot_id))),
+			String(ProgressionDataUtils.to_string_name(equipment_view.get_equipped_instance_id(slot_id))),
+			_join_string_name_array(occupied_slot_ids),
+		])
+	return ";".join(parts)
+
+
+func _build_backpack_view_signature(backpack_view) -> String:
+	if backpack_view == null or not (backpack_view is Object and backpack_view.has_method("get_non_empty_instances")):
+		return "-"
+	var parts := PackedStringArray()
+	for instance in backpack_view.get_non_empty_instances():
+		if instance == null:
+			continue
+		parts.append("%s:%s:%d:%d:%s:%s" % [
+			String(ProgressionDataUtils.to_string_name(instance.instance_id)),
+			String(ProgressionDataUtils.to_string_name(instance.item_id)),
+			int(instance.rarity),
+			int(instance.current_durability),
+			str(float(instance.armor_wear_progress)),
+			str(float(instance.weapon_wear_progress)),
+		])
+	return ";".join(parts)
+
+
+func _build_callable_signature(callback: Callable) -> String:
+	if not callback.is_valid():
+		return ""
+	return "%d:%s:%d" % [
+		int(callback.get_object_id()),
+		String(callback.get_method()),
+		int(callback.hash()),
+	]
+
+
+func _join_string_name_array(values: Array[StringName]) -> String:
+	var parts := PackedStringArray()
+	for value in values:
+		parts.append(String(value))
+	return ",".join(parts)
+
+
+func _build_change_equipment_preview_command(
+	active_unit: BattleUnitState,
+	item_id: StringName,
+	instance_id: StringName,
+	slot_id: StringName
+) -> BattleCommand:
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.unit_id = active_unit.unit_id
+	command.target_unit_id = active_unit.unit_id
+	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_EQUIP
+	command.equipment_slot_id = slot_id
+	command.equipment_item_id = item_id
+	command.equipment_instance_id = instance_id
+	return command
+
+
+func _is_battle_preview_allowed(preview) -> bool:
+	if preview == null or not (preview is Object):
+		return false
+	return bool(preview.get("allowed"))
+
+
+func _get_battle_preview_message(preview) -> String:
+	if preview == null or not (preview is Object):
+		return ""
+	var log_lines_variant = preview.get("log_lines")
+	if log_lines_variant is Array:
+		var log_lines := log_lines_variant as Array
+		if not log_lines.is_empty():
+			return String(log_lines[-1])
+	return ""
 
 
 func _get_final_occupied_slot_ids(item_def, entry_slot_id: StringName) -> Array[StringName]:
@@ -1122,11 +1412,12 @@ func _build_skill_target_selection_info(
 	if skill_def == null or skill_def.combat_profile == null:
 		return default_info
 	var combat_profile = skill_def.combat_profile
+	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
 	var selection_mode := StringName(combat_profile.target_selection_mode)
 	if selection_mode == &"":
 		selection_mode = &"single_unit"
 	var min_target_count := maxi(int(combat_profile.min_target_count), 1)
-	var max_target_count := maxi(int(combat_profile.max_target_count), min_target_count)
+	var max_target_count := maxi(int(combat_profile.get_effective_max_target_count(skill_level)), min_target_count)
 	var is_multi_unit := selection_mode == TARGET_SELECTION_MULTI_UNIT
 	var confirm_ready := is_multi_unit and selected_count >= min_target_count and selected_count < max_target_count
 	var auto_cast_ready := is_multi_unit and selected_count >= max_target_count

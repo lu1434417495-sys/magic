@@ -1,18 +1,18 @@
 extends SceneTree
 
-const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const CharacterProgressionDelta = preload("res://scripts/systems/character_progression_delta.gd")
+const CharacterProgressionDelta = preload("res://scripts/systems/progression/character_progression_delta.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 
 
 class FixedRollDamageResolver extends BattleDamageResolver:

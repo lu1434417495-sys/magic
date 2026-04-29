@@ -72,8 +72,6 @@ static func from_dict(data: Dictionary) -> WarehouseState:
 	var instances_data: Variant = data.get("equipment_instances", [])
 	if instances_data is Array:
 		for inst_data in instances_data:
-			if inst_data is not Dictionary:
-				continue
 			var inst = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(inst_data)
 			if inst == null or inst.instance_id == &"" or inst.item_id == &"":
 				continue

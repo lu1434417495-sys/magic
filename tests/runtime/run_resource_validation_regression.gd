@@ -93,6 +93,7 @@ func _run() -> void:
 	_assert_domain_has_fragment(item_result, "Duplicate item_id registered: duplicate_item", "物品 validation runner 应覆盖重复 item_id。")
 	_assert_domain_has_fragment(item_result, "declares invalid slot phantom_slot", "物品 validation runner 应覆盖非法槽位引用。")
 	_assert_domain_has_fragment(item_result, "must declare weapon_profile", "物品 validation runner 应拒绝只声明旧武器裸字段的资源。")
+	_assert_domain_has_fragment(item_result, "must declare explicit buy_price", "物品 validation runner 应拒绝只声明 base_price 的可交易资源。")
 
 	_assert_domain_has_fragment(recipe_result, "is missing recipe_id", "配方 validation runner 应覆盖缺失 recipe_id。")
 	_assert_domain_has_fragment(recipe_result, "Duplicate recipe_id registered: duplicate_recipe", "配方 validation runner 应覆盖重复 recipe_id。")

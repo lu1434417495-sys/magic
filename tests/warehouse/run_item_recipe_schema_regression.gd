@@ -1,13 +1,13 @@
 extends SceneTree
 
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const RecipeDef = preload("res://scripts/player/warehouse/recipe_def.gd")
 const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const SettlementShopService = preload("res://scripts/systems/settlement_shop_service.gd")
+const SettlementShopService = preload("res://scripts/systems/settlement/settlement_shop_service.gd")
 
-const LEGACY_BRONZE_SWORD_PATH := "res://data/configs/items/bronze_sword.tres"
+const BRONZE_SWORD_PATH := "res://data/configs/items/bronze_sword.tres"
 const CONSUMABLE_SEED_IDS := [
 	&"healing_herb",
 	&"bandage_roll",
@@ -126,14 +126,19 @@ func _run() -> void:
 
 
 func _test_item_schema_defaults_and_accessors() -> void:
-	var legacy_bronze_sword: ItemDef = load(LEGACY_BRONZE_SWORD_PATH) as ItemDef
-	_assert_true(legacy_bronze_sword != null, "旧物品资源应能正常加载。")
-	if legacy_bronze_sword == null:
+	var bronze_sword: ItemDef = load(BRONZE_SWORD_PATH) as ItemDef
+	_assert_true(bronze_sword != null, "青铜短剑资源应能正常加载。")
+	if bronze_sword == null:
 		return
-	_assert_eq(int(legacy_bronze_sword.buy_price), 0, "旧物品资源默认 buy_price 应为 0。")
-	_assert_eq(int(legacy_bronze_sword.sell_price), 0, "旧物品资源默认 sell_price 应为 0。")
-	_assert_eq(legacy_bronze_sword.get_buy_price(), 120, "旧物品资源的默认购买价应继续回退到 base_price。")
-	_assert_eq(legacy_bronze_sword.get_sell_price(), 60, "旧物品资源的默认出售价应继续保持半价逻辑。")
+	_assert_eq(int(bronze_sword.buy_price), 120, "青铜短剑应显式声明 buy_price。")
+	_assert_eq(int(bronze_sword.sell_price), 60, "青铜短剑应显式声明 sell_price。")
+	_assert_eq(bronze_sword.get_buy_price(), 120, "显式购买价应作为 ItemDef 买价真相源。")
+	_assert_eq(bronze_sword.get_sell_price(), 60, "显式出售价应作为 ItemDef 卖价真相源。")
+
+	var missing_explicit_price := ItemDef.new()
+	missing_explicit_price.base_price = 120
+	_assert_eq(missing_explicit_price.get_buy_price(), 0, "未声明 buy_price 时不应再回退到 base_price。")
+	_assert_eq(missing_explicit_price.get_sell_price(), 0, "未声明 sell_price 时不应再回退到 base_price 半价。")
 
 	var item_def := ItemDef.new()
 	_assert_true(item_def.tags.is_empty(), "新建 ItemDef 的 tags 应默认为空。")
@@ -150,7 +155,7 @@ func _test_item_schema_defaults_and_accessors() -> void:
 	_assert_eq(item_def.get_buy_price(), 150, "显式 buy_price 应优先于 base_price。")
 	_assert_eq(item_def.get_buy_price(0.5), 75, "buy_price 应按商店倍率缩放。")
 	_assert_eq(item_def.get_sell_price(), 80, "显式 sell_price 应优先于 base_price。")
-	_assert_eq(item_def.get_sell_price(0.25), 40, "sell_price 应按商店倍率缩放并保持旧默认半价基线。")
+	_assert_eq(item_def.get_sell_price(0.25), 40, "sell_price 应按商店倍率缩放。")
 	_assert_eq(item_def.get_tags(), [&"forgeable", &"weapon"], "get_tags() 应返回规范化标签列表。")
 	_assert_eq(item_def.get_crafting_groups(), [&"forge", &"weapon"], "get_crafting_groups() 应返回规范化分组列表。")
 	_assert_eq(item_def.get_quest_groups(), [&"quest_reward", &"weapon_drop"], "get_quest_groups() 应返回规范化任务分组列表。")
@@ -231,18 +236,18 @@ func _test_quest_item_seed_coverage() -> void:
 
 
 func _test_shop_pricing_uses_item_accessors() -> void:
-	var legacy_bronze_sword: ItemDef = load(LEGACY_BRONZE_SWORD_PATH) as ItemDef
-	_assert_true(legacy_bronze_sword != null, "商店定价回归需要加载青铜短剑资源。")
-	if legacy_bronze_sword == null:
+	var bronze_sword: ItemDef = load(BRONZE_SWORD_PATH) as ItemDef
+	_assert_true(bronze_sword != null, "商店定价回归需要加载青铜短剑资源。")
+	if bronze_sword == null:
 		return
 
 	var warehouse_service := MockWarehouseService.new()
 	warehouse_service.set_inventory_entries([
 		{
 			"item_id": "bronze_sword",
-			"display_name": legacy_bronze_sword.display_name,
-			"description": legacy_bronze_sword.description,
-			"icon": legacy_bronze_sword.icon,
+			"display_name": bronze_sword.display_name,
+			"description": bronze_sword.description,
+			"icon": bronze_sword.icon,
 			"total_quantity": 2,
 		}
 	])
@@ -253,22 +258,22 @@ func _test_shop_pricing_uses_item_accessors() -> void:
 	}
 
 	var shop_service := SettlementShopService.new()
-	var legacy_window_data := shop_service.build_window_data(
+	var window_data := shop_service.build_window_data(
 		"service_local_trade",
 		settlement_record,
 		{"world_step": 0},
-		{&"bronze_sword": legacy_bronze_sword},
+		{&"bronze_sword": bronze_sword},
 		warehouse_service,
 		999
 	)
-	var legacy_buy_entry := _find_entry(legacy_window_data.get("buy_entries", []), "bronze_sword")
-	var legacy_sell_entry := _find_entry(legacy_window_data.get("sell_entries", []), "bronze_sword")
-	_assert_true(not legacy_buy_entry.is_empty(), "旧物品资源应出现在买入条目中。")
-	_assert_true(not legacy_sell_entry.is_empty(), "旧物品资源应出现在卖出条目中。")
-	_assert_eq(int(legacy_buy_entry.get("unit_price", -1)), 120, "商店买价应继续使用 ItemDef 默认购买价。")
-	_assert_eq(int(legacy_sell_entry.get("unit_price", -1)), 60, "商店卖价应继续使用 ItemDef 默认出售价。")
+	var buy_entry := _find_entry(window_data.get("buy_entries", []), "bronze_sword")
+	var sell_entry := _find_entry(window_data.get("sell_entries", []), "bronze_sword")
+	_assert_true(not buy_entry.is_empty(), "显式定价物品应出现在买入条目中。")
+	_assert_true(not sell_entry.is_empty(), "显式定价物品应出现在卖出条目中。")
+	_assert_eq(int(buy_entry.get("unit_price", -1)), 120, "商店买价应使用 ItemDef.buy_price。")
+	_assert_eq(int(sell_entry.get("unit_price", -1)), 60, "商店卖价应使用 ItemDef.sell_price。")
 
-	var custom_bronze_sword := legacy_bronze_sword.duplicate(true) as ItemDef
+	var custom_bronze_sword := bronze_sword.duplicate(true) as ItemDef
 	_assert_true(custom_bronze_sword != null, "ItemDef 复制后应仍然是 ItemDef。")
 	if custom_bronze_sword == null:
 		return

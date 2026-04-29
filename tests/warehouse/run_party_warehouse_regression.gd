@@ -4,7 +4,7 @@
 
 extends SceneTree
 
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
@@ -20,9 +20,10 @@ const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const PartyWarehouseService = preload("res://scripts/systems/party_warehouse_service.gd")
-const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
-const PartyItemUseService = preload("res://scripts/systems/party_item_use_service.gd")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
+const PartyItemUseService = preload("res://scripts/systems/inventory/party_item_use_service.gd")
+const SaveSerializer = preload("res://scripts/systems/persistence/save_serializer.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 const NEW_CONSUMABLE_ITEM_QUANTITIES := {
@@ -57,6 +58,7 @@ func _initialize() -> void:
 func _run() -> void:
 	await _ensure_game_session()
 	await _test_warehouse_service_rules()
+	await _test_world_level_equipment_instance_ids_are_incremental()
 	await _test_party_backpack_view_binding_is_battle_local()
 	await _test_inventory_entries_include_equipment_instances()
 	await _test_weapon_profile_equipment_instances_stack_round_trip()
@@ -195,6 +197,69 @@ func _test_warehouse_service_rules() -> void:
 	_assert_eq(int(blocked_instance_result.get("added_quantity", -1)), 0, "背包满时装备实例容量接口不应写入。")
 	_assert_eq(int(blocked_instance_result.get("remaining_quantity", 0)), 1, "背包满时装备实例容量接口应返回未放入数量。")
 	_assert_eq(equipment_instance_service.count_item(&"watchman_mace"), 1, "背包满时装备实例不应被静默写入。")
+
+
+func _test_world_level_equipment_instance_ids_are_incremental() -> void:
+	await _reset_session()
+	var create_error := int(_game_session.create_new_save(TEST_CONFIG_PATH, &"warehouse_world_ids", "装备实例 ID 测试"))
+	_assert_eq(create_error, OK, "创建 world-level 装备实例 ID 测试世界应成功。")
+	if create_error != OK:
+		return
+
+	var party := _build_party_with_members([
+		_build_member_state(&"gear_porter", "装备搬运员", 4),
+	])
+	party.active_member_ids = [&"gear_porter"]
+	party.leader_member_id = &"gear_porter"
+	party.main_character_member_id = &"gear_porter"
+	var seeded_instance := EquipmentInstanceState.create(&"watchman_mace", &"eq_000001")
+	party.warehouse_state.equipment_instances = [seeded_instance]
+	var persist_error := int(_game_session.set_party_state(party))
+	_assert_eq(persist_error, OK, "写入预置装备实例的 PartyState 应成功。")
+	if persist_error != OK:
+		return
+
+	var allocated_after_collision: StringName = _game_session.allocate_equipment_instance_id()
+	_assert_eq(String(allocated_after_collision), "eq_000002", "world-level 分配器应跳过已存在的装备实例 ID。")
+	_assert_eq(int(_game_session.get_world_data().get("next_equipment_instance_serial", 0)), 3, "跳过冲突后世界序列应推进到下一号。")
+
+	var invalid_world_data: Dictionary = _game_session.get_world_data().duplicate(true)
+	invalid_world_data.erase("next_equipment_instance_serial")
+	var invalid_world_error := SaveSerializer.new().get_equipment_instance_serial_validation_error(invalid_world_data)
+	_assert_true(
+		invalid_world_error.contains("missing required field 'next_equipment_instance_serial'"),
+		"缺少装备实例序列的 world_data 应暴露字段级存档损坏诊断。 error=%s" % invalid_world_error
+	)
+	_assert_eq(int(_game_session.get_world_data().get("next_equipment_instance_serial", 0)), 3, "诊断缺字段 world_data 时不应修改当前世界序列。")
+
+	party = _game_session.get_party_state()
+	party.warehouse_state.equipment_instances.clear()
+	persist_error = int(_game_session.set_party_state(party))
+	_assert_eq(persist_error, OK, "清空预置装备实例后写回 PartyState 应成功。")
+	if persist_error != OK:
+		return
+	party = _game_session.get_party_state()
+	_game_session.get_world_data()["next_equipment_instance_serial"] = 1
+	var service := PartyWarehouseService.new()
+	service.setup(party, _game_session.get_item_defs(), Callable(_game_session, "allocate_equipment_instance_id"))
+
+	var preview_result := service.preview_add_item(&"bronze_sword", 2)
+	_assert_eq(int(preview_result.get("added_quantity", 0)), 2, "装备入仓预览应能计算可加入数量。")
+	_assert_eq(int(_game_session.get_world_data().get("next_equipment_instance_serial", 0)), 1, "preview_add_item 不应消耗 world-level 装备实例序列。")
+
+	var add_result := service.add_item(&"bronze_sword", 2)
+	_assert_eq(int(add_result.get("added_quantity", 0)), 2, "装备正式入仓应写入两个实例。")
+	_assert_eq(_instance_id_signature(party), ["eq_000001", "eq_000002"], "装备正式入仓应按 world-level 递增 ID 写入。")
+	_assert_eq(int(_game_session.get_world_data().get("next_equipment_instance_serial", 0)), 3, "装备正式入仓后世界序列应推进。")
+
+	var batch_preview := service.preview_batch_swap([], [&"scout_charm"])
+	_assert_true(bool(batch_preview.get("allowed", false)), "批量换入预览应允许装备入仓。")
+	_assert_eq(int(_game_session.get_world_data().get("next_equipment_instance_serial", 0)), 3, "preview_batch_swap 不应消耗 world-level 装备实例序列。")
+
+	var batch_commit := service.commit_batch_swap([], [&"scout_charm"])
+	_assert_true(bool(batch_commit.get("allowed", false)), "批量换入提交应允许装备入仓。")
+	_assert_eq(_instance_id_signature(party), ["eq_000001", "eq_000002", "eq_000003"], "批量换入提交应继续使用同一 world-level 序列。")
+	_assert_eq(int(_game_session.get_world_data().get("next_equipment_instance_serial", 0)), 4, "批量换入提交后世界序列应推进。")
 
 
 func _test_party_backpack_view_binding_is_battle_local() -> void:
@@ -608,7 +673,7 @@ func _test_save_round_trip() -> void:
 		_build_stack(&"iron_ore", 12),
 	]
 	party_state.warehouse_state.equipment_instances = [
-		EquipmentInstanceState.create(&"bronze_sword"),
+		EquipmentInstanceState.create(&"bronze_sword", &"eq_roundtrip_bronze_sword"),
 	]
 
 	var persist_error := int(_game_session.set_party_state(party_state))
@@ -868,6 +933,18 @@ func _instance_signature(party_state: PartyState) -> Array[String]:
 		if instance == null:
 			continue
 		result.append(String(instance.item_id))
+	result.sort()
+	return result
+
+
+func _instance_id_signature(party_state: PartyState) -> Array[String]:
+	var result: Array[String] = []
+	if party_state == null or party_state.warehouse_state == null:
+		return result
+	for instance in party_state.warehouse_state.equipment_instances:
+		if instance == null:
+			continue
+		result.append(String(instance.instance_id))
 	result.sort()
 	return result
 

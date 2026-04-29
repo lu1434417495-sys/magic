@@ -5,8 +5,8 @@
 class_name BattleMapPanel
 extends Control
 
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
@@ -57,6 +57,10 @@ const BATTLE_BACKGROUND_COLOR := Color.BLACK
 const BATTLE_EQUIPMENT_EMPTY_TEXT := "战中队伍共享背包暂无可装备实例。"
 const BATTLE_EQUIPMENT_SOURCE_HINT := "来源：战斗局部队伍共享背包（不是据点共享仓库）。"
 const BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT := "战斗换装入口尚未连接运行时。"
+const AP_DOT_MAX_PIPS := 8
+const AP_DOT_SIZE := Vector2(10, 10)
+const AP_DOT_FILL_COLOR := Color(0.96, 0.78, 0.28, 1.0)
+const AP_DOT_EMPTY_COLOR := Color(0.96, 0.78, 0.28, 0.22)
 
 ## 字段说明：记录战斗界面适配，作为界面刷新、输入处理和窗口联动的重要依据。
 var _hud_adapter := BattleHudAdapter.new()
@@ -109,50 +113,58 @@ var _battle_equipment_close_button: Button = null
 @onready var top_bar: PanelContainer = %TopBar
 ## 字段说明：缓存底部面板节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var bottom_panel: PanelContainer = %BottomPanel
-## 字段说明：缓存头部标题标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存头部标题标签节点。
 @onready var header_title_label: Label = %HeaderTitleLabel
-## 字段说明：缓存头部副标题标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var header_subtitle_label: Label = %HeaderSubtitleLabel
-## 字段说明：缓存回合标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存回合徽标外层 chip。
+@onready var round_chip: PanelContainer = %RoundChip
+## 字段说明：缓存回合标签节点。
 @onready var round_label: Label = %RoundLabel
-## 字段说明：缓存模式数值标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存模式徽标外层 chip。
+@onready var mode_chip: PanelContainer = %ModeChip
+## 字段说明：缓存模式数值标签节点。
 @onready var mode_value_label: Label = %ModeValueLabel
-## 字段说明：缓存单位卡片节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存单位卡片节点。
 @onready var unit_card: PanelContainer = %UnitCard
-## 字段说明：缓存头像框架节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存头像框架节点。
 @onready var portrait_frame: PanelContainer = %PortraitFrame
-## 字段说明：缓存头像字形标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存头像字形标签节点。
 @onready var portrait_glyph_label: Label = %PortraitGlyphLabel
-## 字段说明：缓存头像键标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var portrait_key_label: Label = %PortraitKeyLabel
-## 字段说明：缓存单位名称标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存单位名称标签节点。
 @onready var unit_name_label: Label = %UnitNameLabel
-## 字段说明：缓存单位角色定位标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存单位角色定位标签节点。
 @onready var unit_role_label: Label = %UnitRoleLabel
-## 字段说明：缓存生命值条，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存生命值条。
 @onready var hp_bar: ProgressBar = %HpBar
-## 字段说明：缓存生命值数值标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存生命值数值标签节点。
 @onready var hp_value_label: Label = %HpValueLabel
-## 字段说明：缓存法力值条，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存体力值条（副资源，比 HP 略低，用 ProgressBar 表达连续池）。
+@onready var stamina_bar: ProgressBar = %StaminaBar
+## 字段说明：缓存体力值数值标签节点。
+@onready var stamina_value_label: Label = %StaminaValueLabel
+## 字段说明：缓存 MP 条；按 unlocked_combat_resource_ids 解锁后才可见。
 @onready var mp_bar: ProgressBar = %MpBar
-## 字段说明：缓存法力值数值标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存 MP 数值标签节点。
 @onready var mp_value_label: Label = %MpValueLabel
-## 字段说明：复用 legacy ApBar 节点显示移动用行动点，避免额外改动场景节点命名。
-@onready var ap_bar: ProgressBar = %ApBar
-## 字段说明：复用 legacy ApValueLabel 节点显示移动用行动点文案。
+## 字段说明：缓存斗气条；按 unlocked_combat_resource_ids 解锁后才可见。
+@onready var aura_bar: ProgressBar = %AuraBar
+## 字段说明：缓存斗气数值标签节点。
+@onready var aura_value_label: Label = %AuraValueLabel
+## 字段说明：AP 亮点行容器（替换原 ApBar），由 ApDotContainer 渲染圆点 + ApValueLabel 兜底数字。
+@onready var ap_dot_container: HBoxContainer = %ApDotContainer
+## 字段说明：AP 数值兜底标签：max ≤ AP_DOT_MAX_PIPS 时只显示 X/Y；超过时显示在 dots 之后形成 ● ● X/Y 形态。
 @onready var ap_value_label: Label = %ApValueLabel
-## 字段说明：缓存技能面板节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存战中背包按钮挂载槽位（场景预留），避免运行时把按钮塞进 InfoColumn 破坏视觉网格。
+@onready var equipment_button_slot: VBoxContainer = %EquipmentButtonSlot
+## 字段说明：缓存技能面板节点。
 @onready var skill_panel: PanelContainer = %SkillPanel
-## 字段说明：缓存技能标题标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var skill_title_label: Label = %SkillTitleLabel
-## 字段说明：缓存技能副标题标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存技能 header 行容器（同时承载 SkillSubtitleLabel 与 FateBadgeRow）。
+@onready var skill_header: HBoxContainer = %SkillHeader
+## 字段说明：缓存技能副标题标签节点。
 @onready var skill_subtitle_label: Label = %SkillSubtitleLabel
-## 字段说明：缓存命运概览徽标行节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存命运概览徽标行节点。
 @onready var fate_badge_row: HFlowContainer = %FateBadgeRow
-## 字段说明：缓存技能网格节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
+## 字段说明：缓存技能网格节点。
 @onready var skill_grid: GridContainer = %SkillGrid
-## 字段说明：缓存瓦片标签节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var tile_label: Label = %TileLabel
 
 
 func _ready() -> void:
@@ -355,7 +367,8 @@ func _refresh_internal(
 		selected_skill_target_coords,
 		selected_skill_required_coord_count,
 		selected_skill_target_unit_ids,
-		selected_skill_variant_id
+		selected_skill_variant_id,
+		_resolve_battle_command_preview_callable()
 	)
 	_apply_snapshot(snapshot)
 	if _battle_board != null:
@@ -640,24 +653,27 @@ func _apply_static_skin() -> void:
 
 	portrait_frame.add_theme_stylebox_override("panel", _build_panel_style(Color(0.3, 0.14, 0.08, 1.0), HUD_PANEL_EDGE, 18, 2))
 
-	_style_header_label(header_title_label, 24, HUD_TEXT_PRIMARY)
-	_style_header_label(header_subtitle_label, 15, HUD_TEXT_SECONDARY)
-	_style_header_label(round_label, 14, HUD_TEXT_PRIMARY)
-	_style_header_label(mode_value_label, 15, HUD_TEXT_PRIMARY)
-	_style_header_label(unit_name_label, 22, HUD_TEXT_PRIMARY)
-	_style_header_label(unit_role_label, 13, HUD_TEXT_SECONDARY)
-	_style_header_label(skill_title_label, 20, HUD_TEXT_PRIMARY)
+	_style_header_label(header_title_label, 20, HUD_TEXT_PRIMARY)
+	_style_header_label(round_label, 13, HUD_TEXT_PRIMARY)
+	_style_header_label(mode_value_label, 13, HUD_TEXT_PRIMARY)
+	_style_header_label(unit_name_label, 20, HUD_TEXT_PRIMARY)
+	_style_header_label(unit_role_label, 12, HUD_TEXT_SECONDARY)
 	_style_header_label(skill_subtitle_label, 13, HUD_TEXT_SECONDARY)
-	_style_header_label(tile_label, 12, HUD_TEXT_SECONDARY)
-	_style_header_label(portrait_glyph_label, 34, Color(1.0, 0.96, 0.9, 0.98))
-	_style_header_label(portrait_key_label, 11, HUD_TEXT_SECONDARY)
+	_style_header_label(portrait_glyph_label, 30, Color(1.0, 0.96, 0.9, 0.98))
 	_style_stat_label(hp_value_label)
+	_style_stat_label(stamina_value_label)
 	_style_stat_label(mp_value_label)
-	_style_stat_label(ap_value_label)
+	_style_stat_label(aura_value_label)
+	_style_ap_value_label(ap_value_label)
+	_style_ap_prefix_label()
+
+	_apply_chip_skin(round_chip, HUD_PANEL_EDGE_SOFT)
+	_apply_chip_skin(mode_chip, HUD_PANEL_EDGE_SOFT)
 
 	_apply_progress_bar_skin(hp_bar, Color(0.62, 0.86, 0.24, 1.0))
+	_apply_progress_bar_skin(stamina_bar, Color(0.92, 0.76, 0.32, 1.0))
 	_apply_progress_bar_skin(mp_bar, Color(0.32, 0.74, 0.96, 1.0))
-	_apply_progress_bar_skin(ap_bar, Color(0.96, 0.78, 0.28, 1.0))
+	_apply_progress_bar_skin(aura_bar, Color(0.88, 0.52, 0.96, 1.0))
 
 
 func _set_placeholder_state() -> void:
@@ -666,21 +682,23 @@ func _set_placeholder_state() -> void:
 	_selected_backpack_instance_id = &""
 	_selected_backpack_slot_id = &""
 	header_title_label.text = "战斗地图"
-	header_subtitle_label.text = "等待战斗开始"
-	round_label.text = "TU --\nREADY 0"
+	round_label.text = "TU -- · READY 0"
 	mode_value_label.text = "手动"
 	unit_name_label.text = "待命"
 	unit_role_label.text = "未选中单位"
 	portrait_glyph_label.text = "?"
-	portrait_key_label.text = "portrait://pending"
 	_set_progress_bar_values(hp_bar, hp_value_label, 0, 1, "HP")
+	_set_progress_bar_values(stamina_bar, stamina_value_label, 0, 1, "体力")
 	_set_progress_bar_values(mp_bar, mp_value_label, 0, 1, "MP")
-	_set_progress_bar_values(ap_bar, ap_value_label, 0, 2, "行动")
-	skill_title_label.text = "技能矩阵"
+	_set_progress_bar_values(aura_bar, aura_value_label, 0, 1, "斗气")
+	_rebuild_ap_dots(0, 2)
+	mp_bar.visible = false
+	mp_value_label.visible = false
+	aura_bar.visible = false
+	aura_value_label.visible = false
 	skill_subtitle_label.text = "等待战斗数据"
 	skill_subtitle_label.tooltip_text = ""
 	_rebuild_fate_badges([])
-	tile_label.text = "地格 (--, --)  ·  无  ·  高度 0  ·  占位 无"
 	_rebuild_skill_grid([])
 	_refresh_battle_equipment_ui()
 
@@ -689,17 +707,14 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	var equipment_snapshot_variant = snapshot.get("equipment_panel", {})
 	_battle_equipment_snapshot = (equipment_snapshot_variant as Dictionary).duplicate(true) if equipment_snapshot_variant is Dictionary else {}
 	header_title_label.text = String(snapshot.get("header_title", "战斗地图"))
-	header_subtitle_label.text = String(snapshot.get("header_subtitle", ""))
-	round_label.text = String(snapshot.get("round_badge", "TU --\nREADY 0"))
+	round_label.text = String(snapshot.get("round_badge", "TU --\nREADY 0")).replace("\n", " · ")
 	mode_value_label.text = String(snapshot.get("mode_text", "手动"))
 	_refresh_focus_unit_card(snapshot.get("focus_unit", {}))
 	_rebuild_skill_grid(snapshot.get("skill_slots", []))
-	skill_title_label.text = String(snapshot.get("skill_title", "技能矩阵"))
 	skill_subtitle_label.text = String(snapshot.get("skill_subtitle", ""))
 	var preview_tooltip_text := String(snapshot.get("selected_skill_preview_tooltip_text", ""))
 	skill_subtitle_label.tooltip_text = preview_tooltip_text
 	_rebuild_fate_badges(snapshot.get("selected_skill_fate_badges", []))
-	tile_label.text = String(snapshot.get("tile_text", ""))
 	_refresh_battle_equipment_ui()
 
 
@@ -712,9 +727,9 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		_build_panel_style(primary_color.darkened(0.16), edge_color, 18, 2, secondary_color)
 	)
 	portrait_glyph_label.text = String(focus_unit.get("glyph", "?"))
-	portrait_key_label.text = "portrait://%s" % String(focus_unit.get("portrait_key", "pending"))
 	unit_name_label.text = String(focus_unit.get("name", "待命"))
 	unit_role_label.text = String(focus_unit.get("role_text", "未选中单位"))
+	var resource_info := focus_unit.get("resource_info", {}) as Dictionary
 
 	_set_progress_bar_values(
 		hp_bar,
@@ -725,6 +740,14 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		Color(0.64, 0.9, 0.28, 1.0)
 	)
 	_set_progress_bar_values(
+		stamina_bar,
+		stamina_value_label,
+		int(focus_unit.get("stamina_current", _get_resource_current(resource_info, "stamina"))),
+		int(focus_unit.get("stamina_max", _get_resource_max(resource_info, "stamina"))),
+		"体力",
+		Color(0.92, 0.76, 0.32, 1.0)
+	)
+	_set_progress_bar_values(
 		mp_bar,
 		mp_value_label,
 		int(focus_unit.get("mp_current", 0)),
@@ -733,31 +756,108 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		Color(0.32, 0.78, 0.98, 1.0)
 	)
 	_set_progress_bar_values(
-		ap_bar,
-		ap_value_label,
-		int(focus_unit.get("move_current", focus_unit.get("ap_current", 0))),
-		int(focus_unit.get("move_max", focus_unit.get("ap_max", 2))),
-		"行动",
-		Color(0.98, 0.8, 0.34, 1.0)
+		aura_bar,
+		aura_value_label,
+		int(focus_unit.get("aura_current", _get_resource_current(resource_info, "aura"))),
+		int(focus_unit.get("aura_max", _get_resource_max(resource_info, "aura"))),
+		"斗气",
+		Color(0.88, 0.52, 0.96, 1.0)
 	)
+	_rebuild_ap_dots(
+		int(focus_unit.get("move_current", focus_unit.get("ap_current", 0))),
+		int(focus_unit.get("move_max", focus_unit.get("ap_max", 2)))
+	)
+	_set_resource_row_visible(mp_bar, mp_value_label, _is_resource_visible(resource_info, "mp"))
+	_set_resource_row_visible(aura_bar, aura_value_label, _is_resource_visible(resource_info, "aura"))
+
+
+func _get_resource_current(resource_info: Dictionary, resource_key: String) -> int:
+	var data = resource_info.get(resource_key, {})
+	return int(data.get("current", 0)) if data is Dictionary else 0
+
+
+func _get_resource_max(resource_info: Dictionary, resource_key: String) -> int:
+	var data = resource_info.get(resource_key, {})
+	return int(data.get("max", 1)) if data is Dictionary else 1
+
+
+func _is_resource_visible(resource_info: Dictionary, resource_key: String) -> bool:
+	var data = resource_info.get(resource_key, {})
+	return bool(data.get("visible", true)) if data is Dictionary else true
+
+
+func _apply_chip_skin(panel: PanelContainer, edge: Color) -> void:
+	if panel == null:
+		return
+	panel.add_theme_stylebox_override(
+		"panel",
+		_build_panel_style(Color(0.12, 0.05, 0.03, 0.9), edge, 8, 1)
+	)
+
+
+func _set_resource_row_visible(bar: ProgressBar, label: Label, is_visible: bool) -> void:
+	if bar != null:
+		bar.visible = is_visible
+	if label != null:
+		label.visible = is_visible
+
+
+func _style_ap_value_label(label: Label) -> void:
+	if label == null:
+		return
+	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+
+
+func _style_ap_prefix_label() -> void:
+	var prefix := ap_dot_container.get_parent().get_node_or_null("ApPrefixLabel") as Label
+	if prefix == null:
+		return
+	prefix.add_theme_font_size_override("font_size", 11)
+	prefix.add_theme_color_override("font_color", HUD_TEXT_SECONDARY)
+
+
+func _rebuild_ap_dots(current: int, max_value: int) -> void:
+	if ap_dot_container == null:
+		return
+	var safe_max := maxi(max_value, 0)
+	var safe_current := clampi(current, 0, safe_max)
+	for child in ap_dot_container.get_children():
+		ap_dot_container.remove_child(child)
+		child.queue_free()
+	if safe_max <= AP_DOT_MAX_PIPS:
+		for index in safe_max:
+			ap_dot_container.add_child(_create_ap_dot(index < safe_current))
+		ap_value_label.visible = false
+		ap_value_label.text = ""
+	else:
+		var visible_pips := mini(safe_current, AP_DOT_MAX_PIPS)
+		for index in visible_pips:
+			ap_dot_container.add_child(_create_ap_dot(true))
+		ap_value_label.visible = true
+		ap_value_label.text = "%d/%d" % [safe_current, safe_max]
+
+
+func _create_ap_dot(is_filled: bool) -> Control:
+	var dot := ColorRect.new()
+	dot.custom_minimum_size = AP_DOT_SIZE
+	dot.color = AP_DOT_FILL_COLOR if is_filled else AP_DOT_EMPTY_COLOR
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return dot
 
 
 func _ensure_battle_equipment_ui() -> void:
 	if _battle_equipment_overlay != null:
 		return
 
-	var info_column := unit_role_label.get_parent() as VBoxContainer
-	if info_column != null:
-		_battle_equipment_button = Button.new()
-		_battle_equipment_button.name = "BattleEquipmentButton"
-		_battle_equipment_button.text = "战中背包"
-		_battle_equipment_button.custom_minimum_size = Vector2(0, 30)
+	if _battle_equipment_button == null and equipment_button_slot != null:
+		_battle_equipment_button = equipment_button_slot.get_node_or_null("BattleEquipmentButton") as Button
+	if _battle_equipment_button != null:
 		_battle_equipment_button.tooltip_text = "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。"
-		_battle_equipment_button.focus_mode = Control.FOCUS_NONE
 		_battle_equipment_button.mouse_default_cursor_shape = CURSOR_POINTING_HAND
 		_apply_button_skin(_battle_equipment_button, true, true)
-		_battle_equipment_button.pressed.connect(_open_battle_equipment_panel)
-		info_column.add_child(_battle_equipment_button)
+		if not _battle_equipment_button.pressed.is_connected(_open_battle_equipment_panel):
+			_battle_equipment_button.pressed.connect(_open_battle_equipment_panel)
 
 	var hud_root := get_node_or_null("HudRoot") as Control
 	if hud_root == null:
@@ -1342,6 +1442,16 @@ func _find_battle_runtime_host() -> Node:
 	return null
 
 
+func _resolve_battle_command_preview_callable() -> Callable:
+	var host := _find_battle_runtime_host()
+	if host == null:
+		return Callable()
+	var runtime = _read_object_property(host, "_runtime")
+	if runtime != null and runtime is Object and runtime.has_method("preview_battle_command"):
+		return Callable(runtime, "preview_battle_command")
+	return Callable()
+
+
 func _read_object_property(object: Object, property_name: String) -> Variant:
 	if object == null:
 		return null
@@ -1427,7 +1537,7 @@ func _create_fate_badge(badge: Dictionary) -> Control:
 
 func _create_skill_slot(slot: Dictionary) -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(92, 84)
+	panel.custom_minimum_size = Vector2(88, 88)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.add_theme_stylebox_override("panel", _build_skill_slot_style(slot))
 	panel.tooltip_text = _build_skill_slot_tooltip(slot)
@@ -1449,41 +1559,34 @@ func _create_skill_slot(slot: Dictionary) -> Control:
 	var hotkey_label := Label.new()
 	hotkey_label.text = String(slot.get("hotkey", ""))
 	hotkey_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hotkey_label.add_theme_font_size_override("font_size", 10)
+	hotkey_label.add_theme_font_size_override("font_size", 11)
 	hotkey_label.add_theme_color_override("font_color", HUD_TEXT_SECONDARY)
 	hotkey_row.add_child(hotkey_label)
 
-	var footer_top_label := Label.new()
-	footer_top_label.text = "CD" if int(slot.get("cooldown", 0)) > 0 else ""
-	footer_top_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	footer_top_label.add_theme_font_size_override("font_size", 10)
-	footer_top_label.add_theme_color_override("font_color", HUD_TEXT_MUTED)
-	hotkey_row.add_child(footer_top_label)
+	var cd_value := int(slot.get("cooldown", 0))
+	var hotkey_corner_label := Label.new()
+	hotkey_corner_label.text = "CD %d" % cd_value if cd_value > 0 else ""
+	hotkey_corner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hotkey_corner_label.add_theme_font_size_override("font_size", 11)
+	hotkey_corner_label.add_theme_color_override("font_color", HUD_TEXT_MUTED)
+	hotkey_row.add_child(hotkey_corner_label)
 
 	var glyph_label := Label.new()
 	glyph_label.text = "--" if bool(slot.get("is_empty", false)) else String(slot.get("short_name", "--"))
 	glyph_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	glyph_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	glyph_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	glyph_label.add_theme_font_size_override("font_size", 22)
+	glyph_label.add_theme_font_size_override("font_size", 20)
 	glyph_label.add_theme_color_override(
 		"font_color",
 		HUD_TEXT_MUTED if bool(slot.get("is_empty", false)) else Color(1.0, 0.96, 0.9, 0.98)
 	)
 	layout.add_child(glyph_label)
 
-	var name_label := Label.new()
-	name_label.text = "" if bool(slot.get("is_empty", false)) else String(slot.get("display_name", ""))
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_label.add_theme_font_size_override("font_size", 11)
-	name_label.add_theme_color_override("font_color", HUD_TEXT_SECONDARY)
-	layout.add_child(name_label)
-
 	var footer_label := Label.new()
 	footer_label.text = "" if bool(slot.get("is_empty", false)) else String(slot.get("footer_text", ""))
 	footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	footer_label.add_theme_font_size_override("font_size", 10)
+	footer_label.add_theme_font_size_override("font_size", 11)
 	footer_label.add_theme_color_override("font_color", HUD_TEXT_MUTED)
 	layout.add_child(footer_label)
 

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const EquipmentDropService = preload("res://scripts/systems/equipment_drop_service.gd")
+const EquipmentDropService = preload("res://scripts/systems/inventory/equipment_drop_service.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
 var _failures: Array[String] = []

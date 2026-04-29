@@ -1,12 +1,14 @@
 extends SceneTree
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
+const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
 const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
 const VERSATILE_TEST_WEAPON_ID: StringName = &"wpndice_versatile_longsword"
 const OFFHAND_TEST_ITEM_ID: StringName = &"wpndice_offhand_focus"
+const RESTRICTED_TEST_HELM_ID: StringName = &"wpndice_restricted_helm"
 
 var _failures: Array[String] = []
 
@@ -28,12 +30,20 @@ func _run() -> void:
 	await _run_command(runner, "warehouse add iron_greatsword 1")
 	await _run_command(runner, "warehouse add %s 1" % String(VERSATILE_TEST_WEAPON_ID))
 	await _run_command(runner, "warehouse add %s 1" % String(OFFHAND_TEST_ITEM_ID))
+	await _run_command(runner, "warehouse add %s 1" % String(RESTRICTED_TEST_HELM_ID))
 	await _run_command(runner, "battle start settlement")
 	await _run_command(runner, "battle confirm")
 	await _advance_to_manual_battle_turn(runner)
 	var active_unit_state = _get_active_unit_state(runner)
 	var active_member_id := String(active_unit_state.source_member_id) if active_unit_state != null else ""
 	_assert_true(not active_member_id.is_empty(), "战斗换装回归前置：手动单位应关联队伍成员。")
+
+	_prime_active_unit_ap(runner, 2)
+	var requirement_result = await _run_command_expect_fail(
+		runner,
+		"battle equip head %s" % String(RESTRICTED_TEST_HELM_ID)
+	)
+	_assert_battle_equip_requirement_failure(requirement_result.snapshot, requirement_result.snapshot_text)
 
 	_prime_active_unit_ap(runner, 4)
 	var equip_result = await _run_command(runner, "battle equip head leather_cap")
@@ -139,6 +149,7 @@ func _install_battle_equipment_test_items(runner) -> void:
 	var item_defs: Dictionary = game_session.get_item_defs()
 	item_defs[VERSATILE_TEST_WEAPON_ID] = _build_versatile_test_weapon_def()
 	item_defs[OFFHAND_TEST_ITEM_ID] = _build_offhand_test_item_def()
+	item_defs[RESTRICTED_TEST_HELM_ID] = _build_restricted_test_helm_def()
 
 
 func _build_versatile_test_weapon_def() -> ItemDef:
@@ -172,6 +183,21 @@ func _build_offhand_test_item_def() -> ItemDef:
 	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ACCESSORY
 	item_def.equipment_slot_ids = ["off_hand"]
 	item_def.tags = [&"off_hand", &"focus", &"test"]
+	return item_def
+
+
+func _build_restricted_test_helm_def() -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = RESTRICTED_TEST_HELM_ID
+	item_def.display_name = "WPNDICE Restricted Helm"
+	item_def.is_stackable = false
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.equipment_slot_ids = ["head"]
+	item_def.tags = [&"head", &"armor", &"test"]
+	var requirement := EquipmentRequirement.new()
+	requirement.min_body_size = 99
+	item_def.equip_requirement = requirement
 	return item_def
 
 
@@ -217,6 +243,22 @@ func _assert_battle_equip_self_only_failure(snapshot: Dictionary, text_snapshot:
 	_assert_eq(int(report.get("current_ap", -1)), 2, "self-only 失败时不应扣 AP。")
 	_assert_eq(_count_battle_backpack_item(snapshot, "bronze_sword"), 1, "self-only 失败时装备实例应留在 battle-local 背包。")
 	_assert_true(text_snapshot.contains("只能为当前行动单位自己换装"), "文本快照应保留 self-only 失败文案。")
+
+
+func _assert_battle_equip_requirement_failure(snapshot: Dictionary, text_snapshot: String) -> void:
+	var report := _find_latest_change_equipment_report(snapshot)
+	_assert_true(not bool(report.get("ok", true)), "装备需求失败时 change_equipment report 应标记失败。")
+	_assert_eq(String(report.get("error_code", "")), "body_size_too_small", "装备需求失败应暴露稳定错误码。")
+	_assert_eq(int(report.get("current_ap", -1)), 2, "装备需求失败时不应扣 AP。")
+	_assert_eq(_count_battle_backpack_item(snapshot, String(RESTRICTED_TEST_HELM_ID)), 1, "装备需求失败时实例应留在 battle-local 背包。")
+	var hud_entry := _find_battle_hud_backpack_entry(snapshot, String(RESTRICTED_TEST_HELM_ID))
+	_assert_true(not hud_entry.is_empty(), "HUD 快照应包含需求受限装备。")
+	_assert_true(not bool(hud_entry.get("can_equip", true)), "HUD 应把需求不满足的装备标记为不可装备。")
+	_assert_true(
+		String(hud_entry.get("disabled_reason", "")).contains("体型过小"),
+		"HUD 禁用原因应来自 runtime preview。 entry=%s" % [str(hud_entry)]
+	)
+	_assert_true(text_snapshot.contains("error=body_size_too_small"), "文本快照应渲染装备需求失败原因。")
 
 
 func _assert_battle_unequip_backpack_full_failure(snapshot: Dictionary, text_snapshot: String) -> void:
@@ -350,6 +392,17 @@ func _find_battle_unit(battle_snapshot: Dictionary, unit_id: String) -> Dictiona
 		var unit: Dictionary = unit_variant
 		if String(unit.get("unit_id", "")) == unit_id:
 			return unit
+	return {}
+
+
+func _find_battle_hud_backpack_entry(snapshot: Dictionary, item_id: String) -> Dictionary:
+	var entries: Array = snapshot.get("battle", {}).get("hud", {}).get("equipment_panel", {}).get("backpack_entries", [])
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("item_id", "")) == item_id:
+			return entry
 	return {}
 
 

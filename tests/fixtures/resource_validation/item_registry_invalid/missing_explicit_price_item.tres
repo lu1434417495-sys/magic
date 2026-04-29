@@ -4,13 +4,9 @@
 
 [resource]
 script = ExtResource("1_item")
-item_id = "healing_herb"
-display_name = "治疗草"
-description = "常见的止血与缓痛草药，适合在共享仓库中成批存放。"
+item_id = "missing_explicit_price_item"
+display_name = "Missing Explicit Price Item"
+description = "Fixture proving base_price no longer supplies trade prices."
 icon = "res://icon.svg"
-is_stackable = true
-base_price = 12
-buy_price = 12
-sell_price = 6
+base_price = 120
 sellable = true
-max_stack = 20

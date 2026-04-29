@@ -4,17 +4,17 @@
 
 extends SceneTree
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleUnitFactory = preload("res://scripts/systems/battle_unit_factory.gd")
-const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle_unit_factory_runtime.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
-const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/character_management_module.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
+const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle/runtime/battle_unit_factory_runtime.gd")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/progression/character_management_module.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/item_def.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
@@ -107,11 +107,12 @@ func _run() -> void:
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_runtime_start_battle_clones_party_backpack_view()
 	_test_battle_local_views_write_back_to_party_state()
-	_test_battle_local_writeback_rejects_instance_conflicts()
+	_test_battle_local_writeback_detects_instance_conflict_invariant()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh()
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
+	_test_enemy_resource_sync_handles_missing_attribute_snapshot()
 	_test_battle_unit_factory_no_longer_builds_manual_fallback_terrain()
 	if _failures.is_empty():
 		print("Battle unit factory regression: PASS")
@@ -178,9 +179,14 @@ func _test_runtime_start_battle_clones_party_backpack_view() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var member_state = party_state.get_member_state(&"hero")
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"equipped_bronze_001")
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		_slot_ids([&"main_hand"]),
+		_make_equipment_instance(&"bronze_sword", &"equipped_bronze_001")
+	)
 	party_state.warehouse_state.stacks = [_make_stack(&"healing_herb", 2)]
-	party_state.warehouse_state.equipment_instances = [EQUIPMENT_INSTANCE_STATE_SCRIPT.create(&"bronze_sword")]
+	party_state.warehouse_state.equipment_instances = [EQUIPMENT_INSTANCE_STATE_SCRIPT.create(&"bronze_sword", &"backpack_bronze_001")]
 	var gateway := FakeCharacterGateway.new()
 	gateway.party_state = party_state
 
@@ -235,7 +241,12 @@ func _test_battle_local_views_write_back_to_party_state() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var member_state = party_state.get_member_state(&"hero")
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"party_sword_001")
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		_slot_ids([&"main_hand"]),
+		_make_equipment_instance(&"bronze_sword", &"party_sword_001")
+	)
 	party_state.warehouse_state.stacks = [_make_stack(&"healing_herb", 2)]
 	party_state.warehouse_state.equipment_instances = [_make_equipment_instance(&"iron_greatsword", &"backpack_greatsword_001")]
 
@@ -257,7 +268,7 @@ func _test_battle_local_views_write_back_to_party_state() -> void:
 		&"main_hand",
 		&"iron_greatsword",
 		_slot_ids([&"main_hand", &"off_hand"]),
-		&"backpack_greatsword_001"
+		_make_equipment_instance(&"iron_greatsword", &"backpack_greatsword_001")
 	)
 
 	_assert_eq(String(member_state.equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "提交前 battle-local 换装不应直接改 PartyMemberState。")
@@ -285,11 +296,16 @@ func _test_battle_local_views_write_back_to_party_state() -> void:
 		_assert_eq(_backpack_instance_id_signature(restored_party.warehouse_state), ["party_sword_001"], "round-trip 后应保留写回的背包实例 ID。")
 
 
-func _test_battle_local_writeback_rejects_instance_conflicts() -> void:
+func _test_battle_local_writeback_detects_instance_conflict_invariant() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var member_state = party_state.get_member_state(&"hero")
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"party_sword_001")
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		_slot_ids([&"main_hand"]),
+		_make_equipment_instance(&"bronze_sword", &"party_sword_001")
+	)
 	party_state.warehouse_state.equipment_instances = [_make_equipment_instance(&"iron_greatsword", &"shared_conflict_001")]
 
 	var battle_state := BATTLE_STATE_SCRIPT.new()
@@ -300,17 +316,22 @@ func _test_battle_local_writeback_rejects_instance_conflicts() -> void:
 	unit_state.source_member_id = &"hero"
 	unit_state.faction_id = &"player"
 	unit_state.set_equipment_view(member_state.equipment_state)
-	unit_state.get_equipment_view().set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand"]), &"shared_conflict_001")
+	unit_state.get_equipment_view().set_equipped_entry(
+		&"main_hand",
+		&"iron_greatsword",
+		_slot_ids([&"main_hand"]),
+		_make_equipment_instance(&"iron_greatsword", &"shared_conflict_001")
+	)
 	battle_state.units[unit_state.unit_id] = unit_state
 	battle_state.ally_unit_ids.append(unit_state.unit_id)
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade._party_state = party_state
 	var commit_result: Dictionary = facade._commit_battle_local_views_to_party_state(battle_state, party_state)
-	_assert_true(not bool(commit_result.get("ok", true)), "重复实例 ID 应按 battle-local writeback 内部错误拒绝。")
-	_assert_eq(String(commit_result.get("error_code", "")), "battle_local_writeback_instance_conflict", "重复实例 ID 应暴露稳定内部错误码。")
-	_assert_eq(String(member_state.equipment_state.get_equipped_instance_id(&"main_hand")), "party_sword_001", "writeback 失败不应修改 PartyMemberState 装备。")
-	_assert_eq(_backpack_instance_id_signature(party_state.warehouse_state), ["shared_conflict_001"], "writeback 失败不应修改 PartyState 背包。")
+	_assert_true(not bool(commit_result.get("ok", true)), "重复实例 ID 应被 battle-local writeback 内部不变量校验检测出来。")
+	_assert_eq(String(commit_result.get("error_code", "")), "battle_local_writeback_instance_conflict", "重复实例 ID 应暴露稳定内部不变量错误码。")
+	_assert_eq(String(member_state.equipment_state.get_equipped_instance_id(&"main_hand")), "party_sword_001", "writeback 不变量失败不应修改 PartyMemberState 装备。")
+	_assert_eq(_backpack_instance_id_signature(party_state.warehouse_state), ["shared_conflict_001"], "writeback 不变量失败不应修改 PartyState 背包。")
 
 
 func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> void:
@@ -363,7 +384,9 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_eq(int(unit.weapon_one_handed_dice.get("dice_sides", 0)), 6, "刷新桥接应从角色网关回写一手骰。")
 	_assert_eq(String(unit.weapon_physical_damage_tag), "physical_pierce", "刷新桥接应从角色网关回写武器伤害类型。")
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "刷新桥接应从成长进度重建可用主动技能。")
+	_assert_true(unit.known_active_skill_ids.has(&"basic_attack"), "刷新桥接应补入内建基础攻击。")
 	_assert_eq(int(unit.known_skill_level_map.get(&"warrior_heavy_strike", 0)), 2, "刷新桥接应从成长进度重建技能等级。")
+	_assert_eq(int(unit.known_skill_level_map.get(&"basic_attack", 0)), 1, "内建基础攻击应按 1 级进入战斗单位。")
 
 	unit.current_hp = 3
 	unit.known_active_skill_ids = []
@@ -371,6 +394,7 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	factory.refresh_known_skills(unit)
 	_assert_eq(unit.current_hp, 3, "仅刷新 known skills 时不应触碰运行时 HP。")
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "known skills 刷新也应走同一 runtime bridge。")
+	_assert_true(unit.known_active_skill_ids.has(&"basic_attack"), "known skills 刷新也应保留内建基础攻击。")
 
 
 func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> void:
@@ -413,7 +437,12 @@ func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> vo
 		_assert_true(not unarmed.weapon_uses_two_hands, "空手玩家单位不应标记双手握法。")
 
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]))
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		_slot_ids([&"main_hand"]),
+		_make_equipment_instance(&"bronze_sword", &"weapon_projection_bronze")
+	)
 	var one_handed = _build_single_ally_unit(factory, party_state, "单手武器")
 	if one_handed != null:
 		_assert_eq(String(one_handed.weapon_profile_kind), "equipped", "单手武器玩家单位应投影装备武器 kind。")
@@ -426,7 +455,12 @@ func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> vo
 		_assert_true(not one_handed.weapon_uses_two_hands, "单手武器玩家单位不应标记双手握法。")
 
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand", &"off_hand"]))
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"iron_greatsword",
+		_slot_ids([&"main_hand", &"off_hand"]),
+		_make_equipment_instance(&"iron_greatsword", &"weapon_projection_greatsword")
+	)
 	var two_handed = _build_single_ally_unit(factory, party_state, "双手武器")
 	if two_handed != null:
 		_assert_eq(String(two_handed.weapon_profile_type_id), "greatsword", "双手武器玩家单位应投影 greatsword profile。")
@@ -437,7 +471,12 @@ func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> vo
 		_assert_eq(String(two_handed.weapon_current_grip), "two_handed", "双手武器玩家单位当前握法应为 two_handed。")
 
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"training_longsword", _slot_ids([&"main_hand"]))
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"training_longsword",
+		_slot_ids([&"main_hand"]),
+		_make_equipment_instance(&"training_longsword", &"weapon_projection_longsword")
+	)
 	var versatile = _build_single_ally_unit(factory, party_state, "两用武器空副手")
 	if versatile != null:
 		_assert_true(versatile.weapon_is_versatile, "两用武器玩家单位应保留 versatile 标记。")
@@ -446,7 +485,12 @@ func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> vo
 		_assert_true(versatile.weapon_uses_two_hands, "两用武器空副手时应动态使用双手握法。")
 		_assert_eq(String(versatile.weapon_current_grip), "two_handed", "两用武器空副手时当前握法应为 two_handed。")
 
-		versatile.get_equipment_view().set_equipped_entry(&"off_hand", &"training_shield", _slot_ids([&"off_hand"]))
+		versatile.get_equipment_view().set_equipped_entry(
+			&"off_hand",
+			&"training_shield",
+			_slot_ids([&"off_hand"]),
+			_make_equipment_instance(&"training_shield", &"weapon_projection_shield")
+		)
 		factory.refresh_weapon_projection(versatile)
 		_assert_true(not versatile.weapon_uses_two_hands, "两用武器副手被占用后重新投影应改为单手握法。")
 		_assert_eq(String(versatile.weapon_current_grip), "one_handed", "两用武器副手被占用后当前握法应为 one_handed。")
@@ -459,7 +503,12 @@ func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() ->
 	var party_state := _make_party_state([&"hero"])
 	var member_state = party_state.get_member_state(&"hero")
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"bronze_sword", _slot_ids([&"main_hand"]), &"battle_start_sword")
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		_slot_ids([&"main_hand"]),
+		_make_equipment_instance(&"bronze_sword", &"battle_start_sword")
+	)
 
 	var character_gateway := CHARACTER_MANAGEMENT_MODULE_SCRIPT.new()
 	character_gateway.setup(
@@ -483,7 +532,12 @@ func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() ->
 	_assert_eq(String(unit.weapon_item_id), "bronze_sword", "初始武器投影应来自 battle-local 装备 view。")
 
 	var armor_ac_before := int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS))
-	unit.get_equipment_view().set_equipped_entry(&"head", &"leather_cap", _slot_ids([&"head"]), &"battle_cap")
+	unit.get_equipment_view().set_equipped_entry(
+		&"head",
+		&"leather_cap",
+		_slot_ids([&"head"]),
+		_make_equipment_instance(&"leather_cap", &"battle_cap")
+	)
 	factory.refresh_battle_unit(unit)
 	_assert_eq(
 		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS)) - armor_ac_before,
@@ -496,8 +550,9 @@ func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() ->
 	var payload_equipment: Dictionary = payload.get("equipment_view", {})
 	var payload_slots: Dictionary = payload_equipment.get("equipped_slots", {})
 	var payload_main_hand: Dictionary = payload_slots.get("main_hand", {})
+	var payload_main_instance: Dictionary = payload_main_hand.get("equipment_instance", {})
 	var restored = BATTLE_UNIT_STATE_SCRIPT.from_dict(payload) as BattleUnitState
-	_assert_eq(String(payload_main_hand.get("instance_id", "")), "battle_start_sword", "BattleUnitState payload 应保留装备实例 ID。")
+	_assert_eq(String(payload_main_instance.get("instance_id", "")), "battle_start_sword", "BattleUnitState payload 应通过 equipment_instance 保留装备实例 ID。")
 	_assert_eq(
 		String(restored.get_equipment_view().get_equipped_instance_id(&"main_hand")) if restored != null else "",
 		"battle_start_sword",
@@ -505,12 +560,22 @@ func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() ->
 	)
 
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	member_state.equipment_state.set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand", &"off_hand"]), &"party_late_greatsword")
+	member_state.equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"iron_greatsword",
+		_slot_ids([&"main_hand", &"off_hand"]),
+		_make_equipment_instance(&"iron_greatsword", &"party_late_greatsword")
+	)
 	factory.refresh_battle_unit(unit)
 	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"main_hand")), "battle_start_sword", "刷新战斗单位不应从 PartyMemberState 重灌装备 view。")
 	_assert_eq(String(unit.weapon_item_id), "bronze_sword", "刷新武器投影应继续读取 battle-local 装备 view。")
 
-	unit.get_equipment_view().set_equipped_entry(&"main_hand", &"iron_greatsword", _slot_ids([&"main_hand", &"off_hand"]), &"battle_swap_greatsword")
+	unit.get_equipment_view().set_equipped_entry(
+		&"main_hand",
+		&"iron_greatsword",
+		_slot_ids([&"main_hand", &"off_hand"]),
+		_make_equipment_instance(&"iron_greatsword", &"battle_swap_greatsword")
+	)
 	factory.refresh_battle_unit(unit)
 	_assert_eq(String(unit.weapon_item_id), "iron_greatsword", "修改 battle-local 装备 view 后应能重新投影当前武器。")
 	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"main_hand")), "battle_swap_greatsword", "battle-local 换装后的实例 ID 应留在单位 view 内。")
@@ -548,6 +613,26 @@ func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> voi
 	_assert_eq(_weapon_dice_signature(unit.weapon_one_handed_dice), [1, 4, 0], "fallback enemy 空手投影应使用 1D4。")
 	_assert_eq(String(unit.weapon_physical_damage_tag), "physical_blunt", "fallback enemy 空手投影应使用钝击。")
 	_assert_eq(unit.weapon_attack_range, 1, "fallback enemy 应把默认攻击范围投影到 BattleUnitState.weapon_attack_range。")
+
+
+func _test_enemy_resource_sync_handles_missing_attribute_snapshot() -> void:
+	var factory := BattleUnitFactory.new()
+	var unit = BATTLE_UNIT_STATE_SCRIPT.new()
+	unit.attribute_snapshot = null
+	unit.current_mp = 3
+	unit.current_aura = 2
+
+	factory._sync_enemy_unlocked_resources(unit)
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_HP), "缺属性快照时仍应保留默认 HP 资源。")
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA), "缺属性快照时仍应保留默认 stamina 资源。")
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP), "缺属性快照但 current_mp 大于 0 时应解锁 MP。")
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA), "缺属性快照但 current_aura 大于 0 时应解锁 aura。")
+
+	var empty_unit = BATTLE_UNIT_STATE_SCRIPT.new()
+	empty_unit.attribute_snapshot = null
+	factory._sync_enemy_unlocked_resources(empty_unit)
+	_assert_true(not empty_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP), "缺属性快照且 current_mp 为 0 时不应解锁 MP。")
+	_assert_true(not empty_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA), "缺属性快照且 current_aura 为 0 时不应解锁 aura。")
 
 
 func _test_battle_unit_factory_no_longer_builds_manual_fallback_terrain() -> void:
@@ -641,9 +726,7 @@ func _make_stack(item_id: StringName, quantity: int):
 
 
 func _make_equipment_instance(item_id: StringName, instance_id: StringName):
-	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.create(item_id)
-	instance.instance_id = instance_id
-	return instance
+	return EQUIPMENT_INSTANCE_STATE_SCRIPT.create(item_id, instance_id)
 
 
 func _backpack_stack_signature(backpack_state) -> Array[String]:

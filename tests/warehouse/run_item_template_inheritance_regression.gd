@@ -25,8 +25,8 @@ const WEAPON_INSTANCE_EXPECTATIONS := {
 		"properties": [&"finesse", &"light"],
 		"modifier_count": 2,
 		"base_price": 120,
-		"buy_price": 0,
-		"sell_price": 0,
+		"buy_price": 120,
+		"sell_price": 60,
 	},
 	&"iron_greatsword": {
 		"base_item_id": &"weapon_type_greatsword_base",
@@ -44,8 +44,8 @@ const WEAPON_INSTANCE_EXPECTATIONS := {
 		"properties": [&"two_handed"],
 		"modifier_count": 1,
 		"base_price": 240,
-		"buy_price": 0,
-		"sell_price": 0,
+		"buy_price": 240,
+		"sell_price": 120,
 	},
 	&"militia_axe": {
 		"base_item_id": &"weapon_type_handaxe_base",

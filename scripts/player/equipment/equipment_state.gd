@@ -24,6 +24,11 @@ func get_equipped_instance_id(slot_id: StringName) -> StringName:
 	return entry.instance_id if entry != null else &""
 
 
+func get_equipped_instance(slot_id: StringName):
+	var entry: Variant = get_entry_for_slot(slot_id)
+	return entry.get_equipment_instance() if entry != null and entry.has_method("get_equipment_instance") else null
+
+
 func get_entry(entry_slot_id: StringName):
 	var normalized := ProgressionDataUtils.to_string_name(entry_slot_id)
 	if not equipped_slots.has(normalized):
@@ -45,9 +50,9 @@ func get_occupied_slot_ids_for_entry(entry_slot_id: StringName) -> Array[StringN
 
 ## 写入一条装备条目（Phase 2 主写入接口）。
 ## entry_slot_id：入口槽；occupied_slot_ids：该装备实际占用的所有槽（含入口槽）。
-## instance_id：装备实例 ID，空字符串表示无实例。
+## equipment_instance_variant：完整装备实例或当前装备实例 payload。
 ## 传入空 item_id 等同于清除该入口槽。
-func set_equipped_entry(entry_slot_id: StringName, item_id: StringName, occupied: Array[StringName], instance_id: StringName = &"") -> bool:
+func set_equipped_entry(entry_slot_id: StringName, item_id: StringName, occupied: Array[StringName], equipment_instance_variant: Variant = null) -> bool:
 	var norm_entry := ProgressionDataUtils.to_string_name(entry_slot_id)
 	var norm_item := ProgressionDataUtils.to_string_name(item_id)
 	if not EQUIPMENT_RULES_SCRIPT.is_valid_slot(norm_entry):
@@ -56,9 +61,13 @@ func set_equipped_entry(entry_slot_id: StringName, item_id: StringName, occupied
 		clear_entry_slot(norm_entry)
 		return true
 
+	var equipment_instance = _normalize_equipment_instance_variant(equipment_instance_variant, norm_item)
+	if equipment_instance == null:
+		return false
+
 	var entry = EQUIPMENT_ENTRY_STATE_SCRIPT.new()
-	entry.item_id = norm_item
-	entry.instance_id = ProgressionDataUtils.to_string_name(instance_id)
+	if not entry.set_equipment_instance(equipment_instance):
+		return false
 	entry.occupied_slot_ids = _normalize_occupied_slot_ids(norm_entry, occupied)
 	_store_entry(norm_entry, entry)
 	return true
@@ -82,7 +91,7 @@ func clear_entry_slot(entry_slot_id: StringName) -> void:
 
 
 ## 弹出入口槽的装备条目并以 EquipmentInstanceState 返回；同时从 equipped_slots 中移除该条目。
-## 若无条目或 item_id 为空则返回 null。若存档无 instance_id，自动生成新 ID。
+## 若无条目或装备实例为空则返回 null。
 func pop_equipped_instance(entry_slot_id: StringName):
 	var norm_entry := ProgressionDataUtils.to_string_name(entry_slot_id)
 	var entry = get_entry(norm_entry)
@@ -91,11 +100,12 @@ func pop_equipped_instance(entry_slot_id: StringName):
 	if entry.item_id == &"":
 		clear_entry_slot(norm_entry)
 		return null
+	var inst = entry.get_equipment_instance()
+	if inst == null:
+		clear_entry_slot(norm_entry)
+		return null
 	clear_entry_slot(norm_entry)
 
-	var inst = EQUIPMENT_INSTANCE_STATE_SCRIPT.new()
-	inst.instance_id = entry.instance_id if entry.instance_id != &"" else EQUIPMENT_INSTANCE_STATE_SCRIPT.generate_id()
-	inst.item_id = entry.item_id
 	return inst
 
 
@@ -160,7 +170,7 @@ static func from_dict(data: Variant) -> EquipmentState:
 		if not EQUIPMENT_RULES_SCRIPT.is_valid_slot(slot_id):
 			continue
 
-		var entry = EQUIPMENT_ENTRY_STATE_SCRIPT.from_dict(slot_data.get(key), slot_id)
+		var entry = EQUIPMENT_ENTRY_STATE_SCRIPT.from_dict(slot_data.get(key))
 		if entry == null or entry.is_empty():
 			continue
 		state._store_entry(slot_id, entry)
@@ -171,7 +181,7 @@ static func from_dict(data: Variant) -> EquipmentState:
 func _normalize_entry_variant(entry_variant: Variant, entry_slot_id: StringName):
 	if entry_variant is Object and entry_variant.has_method("to_dict") and entry_variant.has_method("is_empty"):
 		return entry_variant
-	var entry = EQUIPMENT_ENTRY_STATE_SCRIPT.from_dict(entry_variant, entry_slot_id)
+	var entry = EQUIPMENT_ENTRY_STATE_SCRIPT.from_dict(entry_variant)
 	if entry == null or entry.is_empty():
 		equipped_slots.erase(entry_slot_id)
 		_rebuild_slot_lookup()
@@ -195,6 +205,24 @@ func _normalize_occupied_slot_ids(entry_slot_id: StringName, occupied: Array[Str
 	elif not validated.has(entry_slot_id):
 		validated.insert(0, entry_slot_id)
 	return validated
+
+
+func _normalize_equipment_instance_variant(equipment_instance_variant: Variant, item_id: StringName):
+	if equipment_instance_variant == null:
+		return null
+	var normalized_item := ProgressionDataUtils.to_string_name(item_id)
+	if equipment_instance_variant is Object and equipment_instance_variant.has_method("to_dict"):
+		var instance_payload: Variant = equipment_instance_variant.to_dict()
+		var normalized_instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(instance_payload)
+		if normalized_instance != null and normalized_instance.item_id == normalized_item:
+			return normalized_instance
+		return null
+	if equipment_instance_variant is Dictionary:
+		var dictionary_instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(equipment_instance_variant)
+		if dictionary_instance != null and dictionary_instance.item_id == normalized_item:
+			return dictionary_instance
+		return null
+	return null
 
 
 func _store_entry(entry_slot_id: StringName, entry) -> void:
