@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Godot Skill"
+  short_description: "Guide for designing combat skills in the Godot project"
+  default_prompt: "Help me design a new combat skill"
