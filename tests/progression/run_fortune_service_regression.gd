@@ -1,11 +1,11 @@
 extends SceneTree
 
-const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle_fate_event_bus.gd")
-const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
-const FortuneService = preload("res://scripts/systems/fortune_service.gd")
+const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
+const FortuneService = preload("res://scripts/systems/battle/fate/fortune_service.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const BattleFateEventBus = preload("res://scripts/systems/battle_fate_event_bus.gd")
+const BattleFateEventBus = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
 
 
 class StubRng:

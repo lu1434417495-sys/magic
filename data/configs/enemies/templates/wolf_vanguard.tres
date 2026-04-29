@@ -10,11 +10,18 @@ brain_id = &"frontline_bulwark"
 initial_state_id = &"engage"
 action_threshold = 50
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
+base_attribute_overrides = {
+"strength": 7,
+"agility": 5,
+"constitution": 8,
+"perception": 5,
+"intelligence": 3,
+"willpower": 6,
+}
 skill_ids = Array[StringName]([&"charge", &"warrior_shield_bash", &"warrior_taunt", &"warrior_guard"])
 attribute_overrides = {
 "hp_max": 42,
 "mp_max": 0,
-"stamina_max": 5,
 "action_points": 2,
 "attack_bonus": 5,
 "armor_class": 16,

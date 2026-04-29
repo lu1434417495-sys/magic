@@ -1,16 +1,52 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_0gtqq"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_0gkqf"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_agipl"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_xjn4j"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_te35c"]
 
-[sub_resource type="Resource" id="Resource_x72kc"]
+[sub_resource type="Resource" id="Resource_thrust_l0"]
 script = ExtResource("3_agipl")
 effect_type = &"damage"
-power = 12
+power = 0
+max_skill_level = 2
 damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_thrust_l3"]
+script = ExtResource("3_agipl")
+effect_type = &"damage"
+power = 0
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 4,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_thrust_l5"]
+script = ExtResource("3_agipl")
+effect_type = &"damage"
+power = 0
+min_skill_level = 5
+damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 6,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
 
 [sub_resource type="Resource" id="Resource_axx0l"]
 script = ExtResource("4_xjn4j")
@@ -20,17 +56,34 @@ range_value = 2
 area_pattern = &"line"
 area_value = 2
 ap_cost = 2
-stamina_cost = 1
+stamina_cost = 25
 cooldown_tu = 5
-effect_defs = Array[ExtResource("3_agipl")]([SubResource("Resource_x72kc")])
+attack_roll_bonus = 1
+level_overrides = {
+"2": {
+"stamina_cost": 20
+},
+"4": {
+"cooldown_tu": 0
+}
+}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_agipl")]([SubResource("Resource_thrust_l0"), SubResource("Resource_thrust_l3"), SubResource("Resource_thrust_l5")])
 
 [resource]
 script = ExtResource("5_te35c")
 skill_id = &"warrior_piercing_thrust"
 display_name = "穿刺"
 icon_id = &"warrior_piercing_thrust"
-description = "直线穿透的突刺技能。"
-max_level = 3
-mastery_curve = PackedInt32Array(24, 40, 62)
+description = "直线穿透的突刺技能，按当前武器攻击结算。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"strength": 60,
+"perception": 60
+}
 tags = Array[StringName]([&"warrior", &"melee", &"thrust"])
 combat_profile = SubResource("Resource_axx0l")

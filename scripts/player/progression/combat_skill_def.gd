@@ -38,6 +38,10 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var aura_cost := 0
 ## 字段说明：按技能等级覆盖消耗或冷却，键为最低生效等级，值可包含 ap_cost / mp_cost / stamina_cost / aura_cost / cooldown_tu。
 @export var level_overrides: Dictionary = {}
+## 字段说明：战斗熟练度触发模式；默认保留旧的技能伤害骰事件规则。
+@export var mastery_trigger_mode: StringName = &"skill_damage_dice_max"
+## 字段说明：战斗熟练度数值模式；默认按目标阶级逐个目标计入。
+@export var mastery_amount_mode: StringName = &"per_target_rank"
 ## 字段说明：在编辑器中暴露影响区域原点模式配置，用于补充 line / cone / self 等范围语义。
 @export var area_origin_mode: StringName = &"target"
 ## 字段说明：在编辑器中暴露影响区域方向模式配置，用于补充 line / cone 等朝向语义。
@@ -56,6 +60,10 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var effect_defs: Array[CombatEffectDef] = []
 ## 字段说明：在编辑器中暴露施放变体集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var cast_variants: Array[CombatCastVariantDef] = []
+## 字段说明：禁止使用的武器家族列表；如果当前武器家族在此列表中，则无法施放该技能。
+@export var excluded_weapon_families: Array[StringName] = []
+## 字段说明：禁止使用的武器类型ID列表；如果当前武器类型ID在此列表中，则无法施放该技能。
+@export var excluded_weapon_type_ids: Array[StringName] = []
 
 
 func get_cast_variant(variant_id: StringName) -> CombatCastVariantDef:
@@ -105,6 +113,34 @@ func get_level_override(skill_level: int) -> Dictionary:
 			selected_level = override_level
 			selected_override = (override_data as Dictionary)
 	return selected_override
+
+
+func get_effective_attack_roll_bonus(skill_level: int) -> int:
+	var override := get_level_override(skill_level)
+	if override.has("attack_roll_bonus"):
+		return int(override.get("attack_roll_bonus", attack_roll_bonus))
+	return attack_roll_bonus
+
+
+func get_effective_area_pattern(skill_level: int) -> StringName:
+	var override := get_level_override(skill_level)
+	if override.has("area_pattern"):
+		return ProgressionDataUtils.to_string_name(override.get("area_pattern", area_pattern))
+	return area_pattern
+
+
+func get_effective_area_value(skill_level: int) -> int:
+	var override := get_level_override(skill_level)
+	if override.has("area_value"):
+		return int(override.get("area_value", area_value))
+	return area_value
+
+
+func get_effective_max_target_count(skill_level: int) -> int:
+	var override := get_level_override(skill_level)
+	if override.has("max_target_count"):
+		return int(override.get("max_target_count", max_target_count))
+	return max_target_count
 
 
 func _parse_override_level(level_key) -> int:

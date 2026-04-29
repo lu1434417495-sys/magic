@@ -23,7 +23,6 @@ skill_ids = Array[StringName]([&"mage_temporal_rewind", &"mage_glacial_prison", 
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 14,
-"stamina_max": 0,
 "action_points": 2,
 "attack_bonus": 6,
 "armor_class": 12,

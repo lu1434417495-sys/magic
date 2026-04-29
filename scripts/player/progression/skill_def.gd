@@ -53,6 +53,8 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var attribute_growth_progress: Dictionary = {}
 ## 字段说明：在编辑器中暴露属性修正列表配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var attribute_modifiers: Array[AttributeModifier] = []
+## 字段说明：按技能等级显式写明的效果描述文本，便于 UI 根据当前等级直接展示。
+@export var level_descriptions: Dictionary = {}
 ## 字段说明：在编辑器中暴露战斗配置档配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var combat_profile: CombatSkillDef
 

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const FateAttackFormula = preload("res://scripts/systems/fate_attack_formula.gd")
+const FateAttackFormula = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
 
 
 class StubRng:

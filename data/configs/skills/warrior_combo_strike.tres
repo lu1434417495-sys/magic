@@ -9,21 +9,50 @@
 [sub_resource type="Resource" id="Resource_nnti8"]
 script = ExtResource("3_wa3jm")
 effect_type = &"damage"
-power = 10
+power = 0
 damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"requires_weapon": true,
+"use_weapon_physical_damage_tag": true
+}
 
 [sub_resource type="Resource" id="Resource_pc1q2"]
 script = ExtResource("3_wa3jm")
-effect_type = &"status"
-power = 1
-status_id = &"staggered"
-duration_tu = 60
+effect_type = &"repeat_attack_until_fail"
+params = {
+"same_target_only": true,
+"cost_resource": "stamina",
+"follow_up_fixed_cost": 5,
+"follow_up_damage_multiplier": 1,
+"follow_up_attack_penalty": 1,
+"exponential_penalty": true,
+"penalty_free_stages_by_level": {
+"1": 1,
+"3": 2,
+"5": 3
+},
+"stop_on_miss": true,
+"stop_on_target_down": true,
+"stop_on_insufficient_resource": true
+}
 
 [sub_resource type="Resource" id="Resource_8476s"]
 script = ExtResource("4_id5ew")
 skill_id = &"warrior_combo_strike"
-stamina_cost = 1
-cooldown_tu = 5
+ap_cost = 1
+stamina_cost = 30
+cooldown_tu = 0
+level_overrides = {
+"2": {
+"stamina_cost": 25
+},
+"4": {
+"stamina_cost": 20
+}
+}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
 effect_defs = Array[ExtResource("3_wa3jm")]([SubResource("Resource_nnti8"), SubResource("Resource_pc1q2")])
 
 [resource]
@@ -31,8 +60,14 @@ script = ExtResource("5_v7utl")
 skill_id = &"warrior_combo_strike"
 display_name = "连击"
 icon_id = &"warrior_combo_strike"
-description = "圣剑连斩的来源技能之一。"
+description = "圣剑连斩的来源技能之一。连续进行武器攻击，每段命中惩罚逐次指数提升。2级起初始体力消耗降至25，4级起降至20。熟练度增长：命中且暴击或武器骰最大值时获得基础熟练度；成功触发第5段连击起，每多一段额外获得翻倍熟练度奖励。满级核心后提供敏捷+50、力量+10的属性成长进度。"
 max_level = 5
-mastery_curve = PackedInt32Array(24, 40, 62, 90, 126)
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(200, 500, 1100, 2000, 3200)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"agility": 50,
+"strength": 10
+}
 tags = Array[StringName]([&"warrior", &"melee", &"combo"])
 combat_profile = SubResource("Resource_8476s")

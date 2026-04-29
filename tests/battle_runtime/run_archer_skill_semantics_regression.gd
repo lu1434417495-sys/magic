@@ -1,11 +1,11 @@
 extends SceneTree
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 
 var _failures: Array[String] = []

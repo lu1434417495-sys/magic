@@ -1,26 +1,79 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_bqivu"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_5320c"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_7k4xh"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_sc5i1"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_khg2g"]
 
-[sub_resource type="Resource" id="Resource_jyjl3"]
+[sub_resource type="Resource" id="Resource_execute_l0"]
 script = ExtResource("3_7k4xh")
 effect_type = &"damage"
-power = 16
-damage_tag = &"physical_slash"
+power = 8
+max_skill_level = 2
 damage_ratio_percent = 180
+damage_tag = &"physical_slash"
 bonus_condition = &"target_low_hp"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 6,
+"hp_ratio_threshold": 0.5,
+"requires_weapon": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_execute_l3"]
+script = ExtResource("3_7k4xh")
+effect_type = &"damage"
+power = 10
+min_skill_level = 3
+max_skill_level = 4
+damage_ratio_percent = 180
+damage_tag = &"physical_slash"
+bonus_condition = &"target_low_hp"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 8,
+"hp_ratio_threshold": 0.6,
+"requires_weapon": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_execute_l5"]
+script = ExtResource("3_7k4xh")
+effect_type = &"damage"
+power = 12
+min_skill_level = 5
+damage_ratio_percent = 220
+damage_tag = &"physical_slash"
+bonus_condition = &"target_low_hp"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 10,
+"hp_ratio_threshold": 0.6,
+"requires_weapon": true,
+"use_weapon_physical_damage_tag": true
+}
 
 [sub_resource type="Resource" id="Resource_r1utu"]
 script = ExtResource("4_sc5i1")
 skill_id = &"warrior_execution_cleave"
 ap_cost = 2
-stamina_cost = 2
+stamina_cost = 35
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_7k4xh")]([SubResource("Resource_jyjl3")])
+attack_roll_bonus = 1
+level_overrides = {
+"2": {
+"stamina_cost": 30
+},
+"4": {
+"cooldown_tu": 5
+}
+}
+mastery_trigger_mode = &"damage_dealt"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_7k4xh")]([SubResource("Resource_execute_l0"), SubResource("Resource_execute_l3"), SubResource("Resource_execute_l5")])
 
 [resource]
 script = ExtResource("5_khg2g")
@@ -28,7 +81,13 @@ skill_id = &"warrior_execution_cleave"
 display_name = "断头斩"
 icon_id = &"warrior_execution_cleave"
 description = "对低血目标有更高收益的斩杀技。"
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840)
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"strength": 120,
+"perception": 60
+}
 tags = Array[StringName]([&"warrior", &"melee", &"finisher"])
 combat_profile = SubResource("Resource_r1utu")

@@ -1,7 +1,7 @@
 class_name EnemyTemplateDef
 extends Resource
 
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
@@ -167,11 +167,17 @@ func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}) 
 			"Enemy template %s must not declare attribute_overrides.weapon_physical_damage_tag; use attack_equipment_item_id or beast natural weapon config." % String(template_id)
 		)
 	var explicit_base_attributes := get_base_attribute_overrides()
-	if has_tag(TAG_BEAST):
-		if not base_attribute_overrides.is_empty():
+	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
+		if not explicit_base_attributes.has(attribute_id):
 			errors.append(
-				"Enemy template %s is tagged beast and should not define base_attribute_overrides." % String(template_id)
+				"Enemy template %s is missing base attribute %s." % [String(template_id), String(attribute_id)]
 			)
+			continue
+		if int(explicit_base_attributes.get(attribute_id, 0)) <= 0:
+			errors.append(
+				"Enemy template %s base attribute %s must be > 0." % [String(template_id), String(attribute_id)]
+			)
+	if has_tag(TAG_BEAST):
 		var explicit_natural_damage_tag := ProgressionDataUtils.to_string_name(natural_weapon_damage_tag)
 		if explicit_natural_damage_tag != &"" and not _is_valid_weapon_physical_damage_tag(explicit_natural_damage_tag):
 			errors.append(
@@ -181,16 +187,6 @@ func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}) 
 				]
 			)
 	else:
-		for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
-			if not explicit_base_attributes.has(attribute_id):
-				errors.append(
-					"Enemy template %s is missing base attribute %s." % [String(template_id), String(attribute_id)]
-				)
-				continue
-			if int(explicit_base_attributes.get(attribute_id, 0)) <= 0:
-				errors.append(
-					"Enemy template %s base attribute %s must be > 0." % [String(template_id), String(attribute_id)]
-				)
 		errors.append_array(_validate_attack_equipment(item_defs))
 	for entry_variant in drop_entries:
 		if entry_variant is not Dictionary:

@@ -1,7 +1,7 @@
 extends SceneTree
 
-const BattleDamagePreviewRangeService = preload("res://scripts/systems/battle_damage_preview_range_service.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleDamagePreviewRangeService = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
 var _failures: Array[String] = []

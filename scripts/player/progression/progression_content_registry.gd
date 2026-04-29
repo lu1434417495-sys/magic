@@ -10,7 +10,7 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
 const PROFESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/profession_content_registry.gd")
-const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_growth_service.gd")
+const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
@@ -22,6 +22,7 @@ const VALID_SKILL_TYPES := {
 }
 const VALID_LEARN_SOURCES := {
 	&"book": true,
+	&"innate": true,
 	&"profession": true,
 }
 const VALID_UNLOCK_MODES := {
@@ -743,8 +744,8 @@ func _build_charge_combat_profile(skill_id: StringName) -> CombatSkillDef:
 			"3": 5,
 			"5": 6,
 		},
-		"collision_base_damage": 10,
-		"collision_size_gap_damage": 10,
+		"collision_base_damage": 0,
+		"collision_size_gap_damage": 0,
 	}
 
 	var cast_variant := _build_cast_variant(

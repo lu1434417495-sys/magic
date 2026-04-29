@@ -4,20 +4,20 @@
 
 extends SceneTree
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
-const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
-const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
-const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle_ai_context.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
-const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/encounter_roster_builder.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
+const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
+const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/world/encounter_roster_builder.gd")
 const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/enemy_content_registry.gd")
 const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_template_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world_time_system.gd")
-const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/wild_encounter_growth_system.gd")
+const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_time_system.gd")
+const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/world/wild_encounter_growth_system.gd")
 const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -48,7 +48,7 @@ func _run() -> void:
 	_test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema()
 	_test_encounter_roster_builder_builds_mixed_mist_hollow_units()
 	_test_wild_encounter_units_always_include_six_base_attributes()
-	_test_beast_wild_units_roll_deterministic_5d3_minus_1_base_attributes()
+	_test_enemy_template_base_attributes_drive_derived_stamina()
 	_test_wild_encounter_growth_respects_suppression_window()
 	_test_game_runtime_facade_move_advances_world_step()
 	_test_test_preset_uses_same_battle_terrain_profile_as_small_preset()
@@ -420,37 +420,64 @@ func _test_wild_encounter_units_always_include_six_base_attributes() -> void:
 	game_session.free()
 
 
-func _test_beast_wild_units_roll_deterministic_5d3_minus_1_base_attributes() -> void:
+func _test_enemy_template_base_attributes_drive_derived_stamina() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
 	builder.setup(game_session.get_wild_encounter_rosters(), game_session.get_enemy_templates())
 
-	var encounter_anchor = _build_settlement_encounter_anchor(&"wolf_den_beast_roll", Vector2i(4, 4))
-	encounter_anchor.growth_stage = 1
+	var wolf_template = game_session.get_enemy_templates().get(&"wolf_raider") as ENEMY_TEMPLATE_DEF_SCRIPT
+	var encounter_anchor = _build_template_encounter_anchor(&"wolf_raider_derived_stamina", &"wolf_raider")
 	var build_context := {
 		"battle_seed": 5119,
 		"skill_defs": game_session.get_skill_defs(),
 		"enemy_templates": game_session.get_enemy_templates(),
 		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
 	}
-	var first_units: Array = builder.build_enemy_units(encounter_anchor, build_context)
-	var second_units: Array = builder.build_enemy_units(encounter_anchor, build_context)
-	var first_wolf = _find_first_unit_with_brain(first_units, &"melee_aggressor")
-	var second_wolf = _find_first_unit_with_brain(second_units, &"melee_aggressor")
-	_assert_true(first_wolf != null and second_wolf != null, "beast 六维掷骰回归应能找到正式荒狼单位。")
-	if first_wolf != null and second_wolf != null:
-		for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
-			var first_value := int(first_wolf.attribute_snapshot.get_value(attribute_id))
-			var second_value := int(second_wolf.attribute_snapshot.get_value(attribute_id))
-			_assert_eq(
-				first_value,
-				second_value,
-				"同一 battle_seed 下 beast 六维应稳定复现 %s。" % String(attribute_id)
-			)
-			_assert_true(
-				first_value >= 4 and first_value <= 14,
-				"beast 六维 %s 应满足 5D3-1 的正式区间。" % String(attribute_id)
-			)
+	var units: Array = builder.build_enemy_units(encounter_anchor, build_context)
+	var wolf_unit = units[0] if not units.is_empty() else null
+	_assert_true(wolf_template != null and wolf_unit != null, "敌人模板派生体力回归应能构建 wolf_raider。")
+	if wolf_template != null and wolf_unit != null:
+		var expected_stamina := _expected_template_stamina_max(wolf_template)
+		_assert_eq(
+			int(wolf_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)),
+			expected_stamina,
+			"未显式覆盖 stamina_max 的敌人模板应按六维属性派生体力上限。"
+		)
+		_assert_eq(
+			int(wolf_unit.current_stamina),
+			expected_stamina,
+			"敌方单位初始 current_stamina 应来自派生后的 stamina_max。"
+		)
+
+	var override_template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	override_template.template_id = &"explicit_stamina_override"
+	override_template.display_name = "显式体力敌人"
+	override_template.brain_id = &"melee_aggressor"
+	override_template.initial_state_id = &"engage"
+	var override_tags: Array[StringName] = [&"beast", &"wolf", &"bite"]
+	override_template.tags = override_tags
+	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+		override_template.base_attribute_overrides[attribute_id] = 8
+	override_template.attribute_overrides = {
+		"stamina_max": 7,
+		"hp_max": 10,
+		"action_points": 1,
+	}
+	var override_anchor = _build_template_encounter_anchor(&"explicit_stamina_override_anchor", override_template.template_id)
+	var override_units: Array = builder.build_enemy_units(override_anchor, {
+		"skill_defs": game_session.get_skill_defs(),
+		"enemy_templates": {override_template.template_id: override_template},
+		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
+	})
+	var override_unit = override_units[0] if not override_units.is_empty() else null
+	_assert_true(override_unit != null, "显式 stamina_max 覆盖回归应能构建敌人单位。")
+	if override_unit != null:
+		_assert_eq(
+			int(override_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)),
+			7,
+			"模板显式声明 stamina_max 时应覆盖六维派生值。"
+		)
+		_assert_eq(int(override_unit.current_stamina), 7, "current_stamina 应跟随显式覆盖后的 stamina_max。")
 	game_session.free()
 
 
@@ -1302,6 +1329,16 @@ func _dictionary_has_key(data: Dictionary, key: StringName) -> bool:
 	if data.has(key):
 		return true
 	return data.has(String(key))
+
+
+func _expected_template_stamina_max(template) -> int:
+	if template == null:
+		return 0
+	var attributes: Dictionary = template.get_base_attribute_overrides()
+	return 24 \
+		+ 5 * int(attributes.get(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 0)) \
+		+ int(attributes.get(UNIT_BASE_ATTRIBUTES_SCRIPT.STRENGTH, 0)) \
+		+ int(attributes.get(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 0))
 
 
 func _assert_true(condition: bool, message: String) -> void:

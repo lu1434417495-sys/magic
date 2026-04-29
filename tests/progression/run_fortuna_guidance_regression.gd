@@ -1,17 +1,17 @@
 extends SceneTree
 
-const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle_fate_event_bus.gd")
-const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
-const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
-const FaithService = preload("res://scripts/systems/faith_service.gd")
-const FortunaGuidanceService = preload("res://scripts/systems/fortuna_guidance_service.gd")
-const FortuneService = preload("res://scripts/systems/fortune_service.gd")
+const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
+const FaithService = preload("res://scripts/systems/progression/faith_service.gd")
+const FortunaGuidanceService = preload("res://scripts/systems/battle/fate/fortuna_guidance_service.gd")
+const FortuneService = preload("res://scripts/systems/battle/fate/fortune_service.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const BattleFateEventBus = preload("res://scripts/systems/battle_fate_event_bus.gd")
+const BattleFateEventBus = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
 const BattleResolutionResult = BATTLE_RESOLUTION_RESULT_SCRIPT
 const BattleState = BATTLE_STATE_SCRIPT
 const BattleUnitState = BATTLE_UNIT_STATE_SCRIPT

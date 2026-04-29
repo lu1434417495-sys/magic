@@ -1,23 +1,24 @@
 extends SceneTree
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
-const BATTLE_EVENT_BATCH_SCRIPT = preload("res://scripts/systems/battle_event_batch.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
-const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_damage_resolver.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle_runtime_module.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BATTLE_EVENT_BATCH_SCRIPT = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -30,12 +31,14 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_battle_unit_state_serialization_exposes_aura()
+	_test_battle_unit_state_from_dict_rejects_missing_resource_schema()
 	_test_battle_unit_state_serialization_exposes_shield()
 	_test_battle_unit_state_serialization_exposes_weapon_projection()
 	_test_damage_resolver_reports_hp_damage_after_shield_absorption()
 	_test_environmental_damage_helpers_report_shield_absorption()
 	_test_damage_resolver_uses_mitigation_tier_for_damage_type_defense()
 	_test_damage_resolver_reports_mitigation_sources()
+	_test_damage_resolver_trigger_event_filters_conditional_effects()
 	_test_vajra_body_reduces_all_damage_tags_and_blocks_enemy_forced_move()
 	_test_damage_resolver_guarding_only_reduces_physical_damage()
 	_test_damage_resolver_damage_reduction_up_uses_fixed_value()
@@ -46,6 +49,7 @@ func _run() -> void:
 	_test_facade_shield_skill_writes_shield_and_does_not_decay_on_tu_tick()
 	_test_preview_reports_shield_absorption_and_break()
 	_test_runtime_logs_zero_hp_damage_when_shield_absorbs_everything()
+	_test_guard_incoming_physical_hit_mastery_writes_batch_after_damage_resolution()
 	_test_runtime_preview_and_logs_include_mitigation_sources()
 	_test_facade_clicking_active_unit_casts_self_skill()
 	_test_facade_multi_unit_selection_tracks_target_unit_ids()
@@ -55,6 +59,7 @@ func _run() -> void:
 	_test_facade_direct_skill_issue_keeps_queued_targets_after_runtime_rejection()
 	_test_facade_cooldown_skill_reduces_after_battle_tick()
 	_test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates()
+	_test_stamina_recovers_on_5tu_ticks_and_rest_doubles_progress()
 	if _failures.is_empty():
 		print("Battle skill protocol regression: PASS")
 		quit(0)
@@ -308,6 +313,18 @@ func _test_battle_unit_state_serialization_exposes_aura() -> void:
 	_assert_eq(restored.get_aura_max() if restored != null else -1, 5, "BattleUnitState.from_dict() 应恢复 aura_max。")
 
 
+func _test_battle_unit_state_from_dict_rejects_missing_resource_schema() -> void:
+	var unit := BATTLE_UNIT_STATE_SCRIPT.new()
+	unit.unit_id = &"missing_resource_schema_user"
+	var payload := unit.to_dict()
+	payload.erase("unlocked_combat_resource_ids")
+
+	_assert_true(
+		BATTLE_UNIT_STATE_SCRIPT.from_dict(payload) == null,
+		"缺少 unlocked_combat_resource_ids 的 BattleUnitState shape 应直接拒绝。"
+	)
+
+
 func _test_battle_unit_state_serialization_exposes_shield() -> void:
 	var unit := BATTLE_UNIT_STATE_SCRIPT.new()
 	unit.unit_id = &"shield_state_user"
@@ -538,7 +555,7 @@ func _test_damage_resolver_reports_mitigation_sources() -> void:
 	target.status_effects.clear()
 	target.status_effects[&"guarding"] = {
 		"status_id": &"guarding",
-		"power": 1,
+		"power": 4,
 		"duration": 60,
 	}
 	var physical_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
@@ -557,6 +574,54 @@ func _test_damage_resolver_reports_mitigation_sources() -> void:
 			_assert_eq(String(fixed_source.get("status_id", "")), "guarding", "fixed mitigation 来源应保留状态 id。")
 			_assert_eq(String(fixed_source.get("type", "")), "stance_reduction", "guarding 应以 stance_reduction 来源记录。")
 			_assert_eq(int(fixed_source.get("value", -1)), 4, "guarding 来源应记录实际固定减伤值。")
+
+
+func _test_damage_resolver_trigger_event_filters_conditional_effects() -> void:
+	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	var source := _build_manual_unit(&"trigger_source", "触发测试者", &"player", Vector2i.ZERO, [], 2, 0)
+	var normal_target := _build_manual_unit(&"trigger_normal_target", "普通目标", &"enemy", Vector2i(1, 0), [], 2, 0)
+	var critical_target := _build_manual_unit(&"trigger_critical_target", "大成功目标", &"enemy", Vector2i(1, 0), [], 2, 0)
+	var unsupported_target := _build_manual_unit(&"trigger_unsupported_target", "未知触发目标", &"enemy", Vector2i(1, 0), [], 2, 0)
+
+	var armor_break_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	armor_break_effect.effect_type = &"status"
+	armor_break_effect.status_id = &"armor_break"
+	armor_break_effect.power = 1
+	armor_break_effect.duration_tu = 90
+
+	var staggered_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	staggered_effect.effect_type = &"status"
+	staggered_effect.status_id = &"staggered"
+	staggered_effect.power = 1
+	staggered_effect.duration_tu = 60
+	staggered_effect.trigger_event = &"critical_hit"
+
+	var normal_result: Dictionary = resolver.resolve_effects(source, normal_target, [armor_break_effect, staggered_effect])
+	_assert_true(normal_target.has_status_effect(&"armor_break"), "无触发条件的状态仍应正常生效。")
+	_assert_true(not normal_target.has_status_effect(&"staggered"), "未大成功时 trigger_event=critical_hit 的状态不应生效。")
+	_assert_true(not (normal_result.get("status_effect_ids", []) as Array).has(&"staggered"), "未触发的状态不应写入 result.status_effect_ids。")
+
+	var critical_result: Dictionary = resolver.resolve_effects(
+		source,
+		critical_target,
+		[armor_break_effect, staggered_effect],
+		{"critical_hit": true}
+	)
+	_assert_true(critical_target.has_status_effect(&"armor_break"), "大成功时普通状态仍应生效。")
+	_assert_true(critical_target.has_status_effect(&"staggered"), "大成功时 trigger_event=critical_hit 的状态应生效。")
+	_assert_true((critical_result.get("status_effect_ids", []) as Array).has(&"staggered"), "触发后的状态应写入 result.status_effect_ids。")
+
+	var unsupported_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	unsupported_effect.effect_type = &"status"
+	unsupported_effect.status_id = &"unsupported_trigger_status"
+	unsupported_effect.power = 1
+	unsupported_effect.duration_tu = 30
+	unsupported_effect.trigger_event = &"ordinary_hit"
+
+	var unsupported_result: Dictionary = resolver.resolve_effects(source, unsupported_target, [unsupported_effect])
+	_assert_true(not unsupported_target.has_status_effect(&"unsupported_trigger_status"), "未知 trigger_event 的状态不应静默生效。")
+	_assert_true(not bool(unsupported_result.get("applied", true)), "未知 trigger_event 的效果不应把 result.applied 置为 true。")
+	_assert_true(not (unsupported_result.get("status_effect_ids", []) as Array).has(&"unsupported_trigger_status"), "未知 trigger_event 不应写入 result.status_effect_ids。")
 
 
 func _test_vajra_body_reduces_all_damage_tags_and_blocks_enemy_forced_move() -> void:
@@ -682,7 +747,7 @@ func _test_damage_resolver_guarding_only_reduces_physical_damage() -> void:
 	physical_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	physical_target.status_effects[&"guarding"] = {
 		"status_id": &"guarding",
-		"power": 1,
+		"power": 4,
 		"duration": 60,
 	}
 
@@ -692,7 +757,7 @@ func _test_damage_resolver_guarding_only_reduces_physical_damage() -> void:
 	magic_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	magic_target.status_effects[&"guarding"] = {
 		"status_id": &"guarding",
-		"power": 1,
+		"power": 4,
 		"duration": 60,
 	}
 
@@ -1182,6 +1247,83 @@ func _test_runtime_logs_zero_hp_damage_when_shield_absorbs_everything() -> void:
 		batch != null and batch.log_lines.any(func(line): return String(line).contains("护盾被击碎")),
 		"runtime log 应显式提示护盾被击碎。 log=%s" % [str(batch.log_lines if batch != null else [])]
 	)
+
+	_cleanup_test_session(game_session)
+
+
+func _test_guard_incoming_physical_hit_mastery_writes_batch_after_damage_resolution() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var skill_def := _build_test_damage_skill(
+		&"test_guard_training_hit",
+		"测试格挡训练打击",
+		6,
+		ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS,
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS,
+		&"physical_slash"
+	)
+	game_session.get_skill_defs()[skill_def.skill_id] = skill_def
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	var attacker: BattleUnitState = _build_manual_unit(
+		&"guard_training_attacker",
+		"格挡训练攻击者",
+		&"enemy",
+		Vector2i(0, 0),
+		[skill_def.skill_id],
+		2,
+		0
+	)
+	var defender: BattleUnitState = _build_manual_unit(
+		&"guard_training_defender",
+		"格挡训练目标",
+		&"player",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	var member_id: StringName = game_session.get_party_state().get_resolved_main_character_member_id()
+	var member_state = game_session.get_party_state().get_member_state(member_id)
+	var guard_progress = UNIT_SKILL_PROGRESS_SCRIPT.new()
+	guard_progress.skill_id = &"warrior_guard"
+	guard_progress.is_learned = true
+	guard_progress.skill_level = 1
+	member_state.progression.set_skill_progress(guard_progress)
+	defender.source_member_id = member_id
+	defender.current_shield_hp = 6
+	defender.shield_max_hp = 6
+	defender.shield_duration = 60
+	defender.shield_family = &"holy_barrier"
+	_set_test_status(defender, &"guarding", {}, 1)
+	_add_unit_to_state(facade, state, attacker, true)
+	_add_unit_to_state(facade, state, defender, false)
+	state.phase = &"unit_acting"
+	state.active_unit_id = attacker.unit_id
+	_apply_battle_state(facade, state)
+
+	var command := BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	command.unit_id = attacker.unit_id
+	command.skill_id = skill_def.skill_id
+	command.target_unit_id = defender.unit_id
+	command.target_coord = defender.coord
+	var batch = facade._battle_runtime.issue_command(command)
+
+	var updated_guard_progress = member_state.progression.get_skill_progress(&"warrior_guard")
+	_assert_eq(defender.current_hp, 30, "格挡受击熟练度入账不应打断本次护盾结算，目标 HP 不应下降。")
+	_assert_eq(defender.current_shield_hp, 1, "格挡固定减伤后，剩余 5 点物理伤害应由护盾吸收。")
+	_assert_eq(
+		int(updated_guard_progress.total_mastery_earned),
+		1,
+		"格挡应在承受敌方物理命中后获得 1 点熟练度。"
+	)
+	_assert_eq(batch.progression_deltas.size(), 1, "格挡受击熟练度应写入当前 battle batch。")
 
 	_cleanup_test_session(game_session)
 
@@ -1682,6 +1824,91 @@ func _test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates(
 	_assert_eq(int(runtime_state.timeline.current_tu) if runtime_state != null and runtime_state.timeline != null else -1, 5, "仅 TU 推进时 battle state 应正式增长 current_tu。")
 	_assert_eq(String(hud.get("round_badge", "")), "TU 5\nREADY 0", "HUD round_badge 应同步反映最新的 TU。")
 	_assert_eq(String(runtime_state.phase) if runtime_state != null else "", "timeline_running", "仅 TU 推进且未达到阈值时，不应误切换到 unit_acting。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_stamina_recovers_on_5tu_ticks_and_rest_doubles_progress() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 5
+	var ally: BattleUnitState = _build_manual_unit(
+		&"stamina_recovery_ally",
+		"体力恢复友军",
+		&"player",
+		Vector2i(0, 0),
+		[],
+		1,
+		0
+	)
+	ally.current_stamina = 10
+	ally.stamina_recovery_progress = 0
+	ally.action_threshold = 1000
+	ally.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 20)
+	ally.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 3)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"stamina_recovery_enemy",
+		"体力恢复敌人",
+		&"enemy",
+		Vector2i(2, 0),
+		[],
+		1,
+		0
+	)
+	enemy.action_threshold = 1000
+	_add_unit_to_state(facade, state, ally, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	_apply_battle_state(facade, state)
+
+	facade.advance(1.0)
+	_assert_eq(ally.current_stamina, 10, "第一个 5TU tick 只应累积 8 点体力恢复进度。")
+	_assert_eq(ally.stamina_recovery_progress, 8, "体质 3 的普通恢复进度应为 5+3。")
+	facade.advance(1.0)
+	_assert_eq(ally.current_stamina, 11, "第二个 5TU tick 应把 16 点进度转化为 1 点体力。")
+	_assert_eq(ally.stamina_recovery_progress, 6, "恢复体力后应保留 10 进制余数进度。")
+
+	state.phase = &"unit_acting"
+	state.active_unit_id = ally.unit_id
+	ally.current_ap = 1
+	ally.current_stamina = 10
+	ally.stamina_recovery_progress = 0
+	ally.has_taken_action_this_turn = false
+	ally.is_resting = false
+	var wait_command = BATTLE_COMMAND_SCRIPT.new()
+	wait_command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_WAIT
+	wait_command.unit_id = ally.unit_id
+	facade._battle_runtime.issue_command(wait_command)
+	_assert_true(ally.is_resting, "单位直接跳过行动后应进入休息状态。")
+
+	facade.advance(1.0)
+	_assert_eq(ally.current_stamina, 11, "休息状态下单个 5TU tick 应按翻倍进度恢复 1 点体力。")
+	_assert_eq(ally.stamina_recovery_progress, 6, "休息恢复应按 16 点进度转化并保留余数。")
+
+	state.timeline.ready_unit_ids.append(ally.unit_id)
+	facade.advance(0.0)
+	_assert_eq(String(state.active_unit_id), String(ally.unit_id), "休息单位再次进入行动窗口时应成为当前行动单位。")
+	_assert_true(ally.is_resting, "休息状态应持续到实际非等待行动，而不是在行动窗口开始时清除。")
+
+	facade._battle_runtime.issue_command(wait_command)
+	_assert_true(ally.is_resting, "连续等待不应打断休息状态。")
+
+	state.timeline.ready_unit_ids.append(ally.unit_id)
+	facade.advance(0.0)
+	var move_command = BATTLE_COMMAND_SCRIPT.new()
+	move_command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_MOVE
+	move_command.unit_id = ally.unit_id
+	move_command.target_coord = Vector2i(1, 0)
+	facade._battle_runtime.issue_command(move_command)
+	_assert_true(not ally.is_resting, "单位执行非等待行动后应清除休息状态。")
 
 	_cleanup_test_session(game_session)
 

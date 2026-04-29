@@ -7,8 +7,23 @@ extends RefCounted
 
 const SKILL_CONFIG_DIRECTORY := "res://data/configs/skills"
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_growth_service.gd")
+const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
 const TU_GRANULARITY := 5
+const VALID_MASTERY_TRIGGER_MODES := [
+	&"skill_damage_dice_max",
+	&"weapon_attack_quality",
+	&"damage_dealt",
+	&"status_applied",
+	&"effect_applied",
+	&"incoming_physical_hit",
+]
+const VALID_MASTERY_AMOUNT_MODES := [
+	&"per_target_rank",
+]
+const VALID_EFFECT_TRIGGER_EVENTS := [
+	&"",
+	&"critical_hit",
+]
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
@@ -192,6 +207,10 @@ func _append_combat_profile_validation_errors(
 		errors.append("Skill %s combat_profile is missing target_selection_mode." % String(skill_id))
 	if combat_profile.selection_order_mode == &"":
 		errors.append("Skill %s combat_profile is missing selection_order_mode." % String(skill_id))
+	if not VALID_MASTERY_TRIGGER_MODES.has(combat_profile.mastery_trigger_mode):
+		errors.append("Skill %s combat_profile uses unsupported mastery_trigger_mode %s." % [String(skill_id), String(combat_profile.mastery_trigger_mode)])
+	if not VALID_MASTERY_AMOUNT_MODES.has(combat_profile.mastery_amount_mode):
+		errors.append("Skill %s combat_profile uses unsupported mastery_amount_mode %s." % [String(skill_id), String(combat_profile.mastery_amount_mode)])
 	if combat_profile.range_value < 0:
 		errors.append("Skill %s combat_profile range_value must be >= 0." % String(skill_id))
 	if combat_profile.area_value < 0:
@@ -214,6 +233,10 @@ func _append_combat_profile_validation_errors(
 				errors.append("Skill %s combat_profile level override %s.%s must be >= 0." % [String(skill_id), String(override_level_key), String(cost_key)])
 		if override_dict.has("cooldown_tu") and not _is_valid_tu_value(int(override_dict.get("cooldown_tu", 0))):
 			errors.append("Skill %s combat_profile level override %s.cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), String(override_level_key), TU_GRANULARITY])
+		if override_dict.has("area_value") and int(override_dict.get("area_value", 0)) < 0:
+			errors.append("Skill %s combat_profile level override %s.area_value must be >= 0." % [String(skill_id), String(override_level_key)])
+		if override_dict.has("max_target_count") and int(override_dict.get("max_target_count", 0)) < 1:
+			errors.append("Skill %s combat_profile level override %s.max_target_count must be >= 1." % [String(skill_id), String(override_level_key)])
 	if combat_profile.min_target_count <= 0:
 		errors.append("Skill %s combat_profile min_target_count must be >= 1." % String(skill_id))
 	if combat_profile.max_target_count < combat_profile.min_target_count:
@@ -293,6 +316,14 @@ func _append_effect_validation_errors(
 		errors.append("Skill %s effect %s min_skill_level must be >= 0." % [String(skill_id), context_label])
 	if effect_def.max_skill_level >= 0 and effect_def.max_skill_level < effect_def.min_skill_level:
 		errors.append("Skill %s effect %s max_skill_level must be >= min_skill_level or -1." % [String(skill_id), context_label])
+	if not VALID_EFFECT_TRIGGER_EVENTS.has(effect_def.trigger_event):
+		errors.append(
+			"Skill %s effect %s uses unsupported trigger_event %s." % [
+				String(skill_id),
+				context_label,
+				String(effect_def.trigger_event),
+			]
+		)
 	if not _is_valid_tu_value(int(effect_def.duration_tu)):
 		errors.append(
 			"Skill %s effect %s duration_tu must be 0 or a multiple of %d." % [
@@ -430,6 +461,14 @@ func _append_weapon_param_validation_errors(
 		if typeof(effect_def.params.get("use_weapon_physical_damage_tag")) != TYPE_BOOL:
 			errors.append(
 				"Skill %s effect %s params.use_weapon_physical_damage_tag must be a bool." % [
+					String(skill_id),
+					context_label,
+				]
+			)
+	if effect_def.params.has("resolve_as_weapon_attack"):
+		if typeof(effect_def.params.get("resolve_as_weapon_attack")) != TYPE_BOOL:
+			errors.append(
+				"Skill %s effect %s params.resolve_as_weapon_attack must be a bool." % [
 					String(skill_id),
 					context_label,
 				]

@@ -11,6 +11,21 @@ const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/uni
 const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
 const ACHIEVEMENT_PROGRESS_STATE_SCRIPT = preload("res://scripts/player/progression/achievement_progress_state.gd")
 
+const COMBAT_RESOURCE_HP: StringName = &"hp"
+const COMBAT_RESOURCE_STAMINA: StringName = &"stamina"
+const COMBAT_RESOURCE_MP: StringName = &"mp"
+const COMBAT_RESOURCE_AURA: StringName = &"aura"
+const DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS: Array[StringName] = [
+	COMBAT_RESOURCE_HP,
+	COMBAT_RESOURCE_STAMINA,
+]
+const VALID_COMBAT_RESOURCE_IDS: Array[StringName] = [
+	COMBAT_RESOURCE_HP,
+	COMBAT_RESOURCE_STAMINA,
+	COMBAT_RESOURCE_MP,
+	COMBAT_RESOURCE_AURA,
+]
+
 ## 字段说明：记录版本，会参与成长规则判定、序列化和界面展示。
 var version := 1
 ## 字段说明：记录单位唯一标识，作为查表、序列化和跨系统引用时使用的主键。
@@ -41,6 +56,8 @@ var pending_profession_choices: Array[PendingProfessionChoice] = []
 var blocked_relearn_skill_ids: Array[StringName] = []
 ## 字段说明：按键缓存已合并技能来源映射表，便于在较多对象中快速定位目标并减少重复遍历。
 var merged_skill_source_map: Dictionary = {}
+## 字段说明：记录角色已正式解锁并可在战斗 HUD 展示的战斗资源。
+var unlocked_combat_resource_ids: Array[StringName] = DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS.duplicate()
 
 
 func set_skill_progress(skill_progress) -> void:
@@ -153,6 +170,26 @@ func get_merged_source_skill_ids_recursive(skill_id: StringName) -> Array[String
 	return ordered_results
 
 
+func sync_default_combat_resource_unlocks() -> void:
+	for resource_id in DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS:
+		unlock_combat_resource(resource_id)
+
+
+func has_combat_resource_unlocked(resource_id: StringName) -> bool:
+	return unlocked_combat_resource_ids.has(resource_id)
+
+
+func unlock_combat_resource(resource_id: StringName) -> bool:
+	if resource_id == &"":
+		return false
+	if not VALID_COMBAT_RESOURCE_IDS.has(resource_id):
+		return false
+	if unlocked_combat_resource_ids.has(resource_id):
+		return false
+	unlocked_combat_resource_ids.append(resource_id)
+	return true
+
+
 func _append_recursive_merge_source(
 	source_skill_id: StringName,
 	ordered_results: Array[StringName],
@@ -173,6 +210,7 @@ func _append_recursive_merge_source(
 
 func to_dict() -> Dictionary:
 	sync_active_core_skill_ids()
+	sync_default_combat_resource_unlocks()
 
 	var skills_data: Dictionary = {}
 	for key in ProgressionDataUtils.sorted_string_keys(skills):
@@ -216,10 +254,15 @@ func to_dict() -> Dictionary:
 		"pending_profession_choices": pending_choices_data,
 		"blocked_relearn_skill_ids": ProgressionDataUtils.string_name_array_to_string_array(blocked_relearn_skill_ids),
 		"merged_skill_source_map": ProgressionDataUtils.string_name_array_map_to_string_dict(merged_skill_source_map),
+		"unlocked_combat_resource_ids": ProgressionDataUtils.string_name_array_to_string_array(unlocked_combat_resource_ids),
 	}
 
 
 static func from_dict(data: Dictionary):
+	var unlocked_resources_variant: Variant = data.get("unlocked_combat_resource_ids", null)
+	if unlocked_resources_variant is not Array:
+		return null
+
 	var progress := UNIT_PROGRESS_SCRIPT.new()
 	progress.version = int(data.get("version", 1))
 	progress.unit_id = ProgressionDataUtils.to_string_name(data.get("unit_id", ""))
@@ -231,6 +274,10 @@ static func from_dict(data: Dictionary):
 	progress.attribute_growth_progress = ProgressionDataUtils.to_string_name_int_map(data.get("attribute_growth_progress", {}))
 	progress.blocked_relearn_skill_ids = ProgressionDataUtils.to_string_name_array(data.get("blocked_relearn_skill_ids", []))
 	progress.merged_skill_source_map = ProgressionDataUtils.to_string_name_array_map(data.get("merged_skill_source_map", {}))
+	progress.unlocked_combat_resource_ids = []
+	for resource_id in ProgressionDataUtils.to_string_name_array(unlocked_resources_variant):
+		progress.unlock_combat_resource(resource_id)
+	progress.sync_default_combat_resource_unlocks()
 
 	var skills_data: Variant = data.get("skills", {})
 	if skills_data is Dictionary:

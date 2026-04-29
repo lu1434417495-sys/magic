@@ -54,8 +54,26 @@ script = ExtResource("3_effect")
 effect_type = &"status"
 power = 1
 min_skill_level = 3
+max_skill_level = 3
 status_id = &"armor_break"
 duration_tu = 90
+
+[sub_resource type="Resource" id="Resource_heavy_armor_l4"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 4
+status_id = &"armor_break"
+duration_tu = 120
+
+[sub_resource type="Resource" id="Resource_heavy_stagger_l5"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 5
+status_id = &"staggered"
+duration_tu = 60
+trigger_event = &"critical_hit"
 
 [sub_resource type="Resource" id="Resource_lbg6c"]
 script = ExtResource("2_combat")
@@ -69,16 +87,21 @@ level_overrides = {
 "stamina_cost": 20
 }
 }
-effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_luwcv"), SubResource("Resource_mwbl7"), SubResource("Resource_7t5lc"), SubResource("Resource_eju8k")])
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_luwcv"), SubResource("Resource_mwbl7"), SubResource("Resource_7t5lc"), SubResource("Resource_eju8k"), SubResource("Resource_heavy_armor_l4"), SubResource("Resource_heavy_stagger_l5")])
 
 [resource]
 script = ExtResource("1_skill")
 skill_id = &"warrior_heavy_strike"
 display_name = "重击"
 icon_id = &"warrior_heavy_strike"
-description = "基础近战技能。使用当前近战武器重击目标；所有等级攻击检定 -1。0级追加 1d4 技能骰，1级追加 1d6 技能骰，2级起体力消耗降为 20，3级追加 1d8 技能骰并命中附加破甲。"
+description = "基础近战技能。使用当前近战武器重击目标；所有等级攻击检定 -1。0级追加 1d4 技能骰，1级追加 1d6 技能骰，2级起体力消耗降为 20，3级追加 1d8 技能骰并命中附加破甲，4级延长破甲时间，5级大成功时附加失衡。满级核心后提供力量+40、体质+20的属性成长进度。"
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"strength": 40,
+"constitution": 20
+}
 tags = Array[StringName]([&"warrior", &"melee", &"output"])
 combat_profile = SubResource("Resource_lbg6c")

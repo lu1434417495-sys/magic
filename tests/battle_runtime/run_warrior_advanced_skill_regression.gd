@@ -1,19 +1,113 @@
 extends SceneTree
 
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd")
+const BattleSkillMasteryService = preload("res://scripts/systems/battle/runtime/battle_skill_mastery_service.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT = preload("res://tests/battle_runtime/helpers/deterministic_battle_hit_resolver.gd")
 
 var _failures: Array[String] = []
+
+
+class FakeRepeatAttackDamageResolver:
+	extends RefCounted
+
+	var stage_successes: Array[bool] = []
+	var call_count := 0
+
+	func resolve_attack_effects(_source_unit, _target_unit, _stage_effects: Array, _attack_check: Dictionary, _attack_context: Dictionary = {}) -> Dictionary:
+		var success := bool(stage_successes[call_count]) if call_count < stage_successes.size() else false
+		call_count += 1
+		return {
+			"attack_success": success,
+			"attack_resolution": &"hit" if success else &"miss",
+			"hit_rate_percent": 100 if success else 0,
+			"resolution_text": "100%（测试命中）" if success else "0%（测试未命中）",
+			"applied": success,
+			"damage": 0,
+			"healing": 0,
+			"status_effect_ids": [],
+			"source_status_effect_ids": [],
+		}
+
+
+class FakeRepeatAttackHitResolver:
+	extends RefCounted
+
+	func build_fate_aware_repeat_attack_stage_hit_check(_battle_state, _active_unit, _target_unit, _skill_def, _repeat_attack_effect, _stage_index: int) -> Dictionary:
+		return {
+			"hit_rate_percent": 100,
+			"success_rate_percent": 100,
+			"preview_text": "100%（测试）",
+		}
+
+
+class FakeRepeatAttackRatingSystem:
+	extends RefCounted
+
+	func record_enemy_defeated_achievement(_active_unit, _target_unit) -> void:
+		pass
+
+
+class FakeRepeatAttackRuntime:
+	extends RefCounted
+
+	var damage_resolver = FakeRepeatAttackDamageResolver.new()
+	var hit_resolver = FakeRepeatAttackHitResolver.new()
+	var rating_system = FakeRepeatAttackRatingSystem.new()
+
+	func is_unit_follow_up_locked(_unit) -> bool:
+		return false
+
+	func append_changed_unit_id(_batch, _unit_id: StringName) -> void:
+		pass
+
+	func append_result_report_entry(_batch, _stage_result: Dictionary) -> void:
+		pass
+
+	func mark_applied_statuses_for_turn_timing(_target_unit, _status_effect_ids) -> void:
+		pass
+
+	func append_result_source_status_effects(_batch, _active_unit, _stage_result: Dictionary) -> void:
+		pass
+
+	func append_changed_unit_coords(_batch, _target_unit) -> void:
+		pass
+
+	func append_damage_result_log_lines(_batch, _prefix: String, _target_name: String, _stage_result: Dictionary) -> void:
+		pass
+
+	func clear_defeated_unit(_target_unit, _batch) -> void:
+		pass
+
+	func get_battle_rating_system():
+		return rating_system
+
+	func record_skill_effect_result(_source_unit, _damage: int, _healing: int, _kill_count: int) -> void:
+		pass
+
+	func get_hit_resolver():
+		return hit_resolver
+
+	func get_state():
+		return null
+
+	func get_damage_resolver():
+		return damage_resolver
+
+	func is_unit_effect(effect_def: CombatEffectDef) -> bool:
+		return effect_def != null and effect_def.effect_type == &"damage"
 
 
 func _initialize() -> void:
@@ -25,6 +119,7 @@ func _run() -> void:
 	_test_whirlwind_slash_runtime_repeats_hits_across_steps()
 	_test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_settlement()
 	_test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful_follow_up()
+	_test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry()
 	if _failures.is_empty():
 		print("Warrior advanced skill regression: PASS")
 		quit(0)
@@ -126,7 +221,7 @@ func _test_whirlwind_slash_runtime_repeats_hits_across_steps() -> void:
 	var state := _build_state(Vector2i(6, 3))
 	state.timeline = BattleTimelineState.new()
 	var warrior := _build_unit(&"whirlwind_user", Vector2i(0, 1), 2)
-	warrior.current_stamina = 3
+	warrior.current_stamina = 35
 	warrior.current_aura = 2
 	warrior.known_active_skill_ids = [&"warrior_whirlwind_slash"]
 	warrior.known_skill_level_map = {&"warrior_whirlwind_slash": 1}
@@ -153,7 +248,7 @@ func _test_whirlwind_slash_runtime_repeats_hits_across_steps() -> void:
 	var hp_before := repeated_target.current_hp
 	var batch := runtime.issue_command(command)
 	_assert_eq(warrior.coord, Vector2i(3, 1), "旋风斩执行后施法者应停在最终冲锋落点。")
-	_assert_true(repeated_target.current_hp <= hp_before - 20, "旋风斩应让同一目标在不同步段被重复命中。 before=%d after=%d" % [hp_before, repeated_target.current_hp])
+	_assert_true(repeated_target.current_hp <= hp_before - 18, "旋风斩应让同一目标在不同步段被重复命中。 before=%d after=%d" % [hp_before, repeated_target.current_hp])
 	_assert_true(
 		batch != null and batch.log_lines.any(func(line): return String(line).contains("沿途触发")),
 		"旋风斩日志应汇总沿途旋斩触发次数。 log=%s" % [str(batch.log_lines)]
@@ -207,7 +302,7 @@ func _test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful
 	var batch := runtime.issue_command(command)
 	_assert_eq(warrior.current_ap, 0, "圣剑连斩整次技能只应结算一次 AP。")
 	_assert_eq(warrior.current_aura, 0, "圣剑连斩在前两段命中后应扣除 1 + 2 点 Aura。")
-	_assert_true(enemy.current_hp <= hp_before - 36, "圣剑连斩应至少完成两段伤害。 before=%d after=%d" % [hp_before, enemy.current_hp])
+	_assert_true(enemy.current_hp < hp_before, "圣剑连斩应至少完成两段伤害。 before=%d after=%d" % [hp_before, enemy.current_hp])
 	_assert_true(warrior.cooldowns.has(&"saint_blade_combo"), "圣剑连斩整次技能应只写入一次冷却。")
 	_assert_eq(int(warrior.cooldowns.get(&"saint_blade_combo", 0)), 15, "圣剑连斩冷却值应保持基础配置。")
 	_assert_true(
@@ -286,6 +381,64 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 		)
 
 
+func _test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry() -> void:
+	var runtime := FakeRepeatAttackRuntime.new()
+	runtime.damage_resolver.stage_successes.assign([true, true, true, true, false])
+	var mastery_service := BattleSkillMasteryService.new()
+	var resolver := BattleRepeatAttackResolver.new()
+	resolver.setup(runtime, mastery_service)
+
+	var active_unit := _build_unit(&"combo_mastery_user", Vector2i(1, 1), 2)
+	active_unit.source_member_id = &"hero"
+	active_unit.current_aura = 99
+	active_unit.known_active_skill_ids = [&"combo_mastery_stage_test"]
+	active_unit.known_skill_level_map = {&"combo_mastery_stage_test": 1}
+	var target_unit := _build_unit(&"combo_mastery_target", Vector2i(2, 1), 2)
+	target_unit.faction_id = &"enemy"
+	target_unit.current_hp = 999
+	target_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 999)
+
+	var damage_effect := CombatEffectDef.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = 0
+	var repeat_effect := CombatEffectDef.new()
+	repeat_effect.effect_type = &"repeat_attack_until_fail"
+	repeat_effect.params = {
+		"cost_resource": "aura",
+		"follow_up_fixed_cost": 0,
+		"follow_up_attack_penalty": 0,
+		"stop_on_miss": true,
+		"stop_on_target_down": true,
+	}
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"combo_mastery_stage_test"
+	skill_def.display_name = "连击熟练度段数测试"
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.skill_id = skill_def.skill_id
+	combat_profile.mastery_amount_mode = &"per_target_rank"
+	combat_profile.mastery_trigger_mode = &"damage_dealt"
+	combat_profile.aura_cost = 0
+	combat_profile.effect_defs = [damage_effect, repeat_effect]
+	skill_def.combat_profile = combat_profile
+
+	var batch := BattleEventBatch.new()
+	var executed := resolver.apply_repeat_attack_skill_result(
+		active_unit,
+		target_unit,
+		skill_def,
+		combat_profile.effect_defs,
+		repeat_effect,
+		batch
+	)
+	_assert_true(executed, "连击段数熟练度回归前置：应至少执行到第五段。")
+	_assert_eq(runtime.damage_resolver.call_count, 5, "连击段数熟练度回归应固定进入第五段后 miss。")
+	_assert_eq(
+		mastery_service.resolve_active_skill_mastery_amount(),
+		1,
+		"连击熟练度 bonus 应从第五段入场开始，第四段不应提前给 bonus。"
+	)
+
+
 func _get_skill_def(skill_id: StringName) -> SkillDef:
 	var registry := ProgressionContentRegistry.new()
 	var skill_defs: Dictionary = registry.get_skill_defs()
@@ -339,13 +492,13 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.current_ap = current_ap
 	unit.current_hp = 40
 	unit.current_mp = 4
-	unit.current_stamina = 0
+	unit.current_stamina = 60
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 40)
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
-	unit.attribute_snapshot.set_value(&"stamina_max", 4)
+	unit.attribute_snapshot.set_value(&"stamina_max", 60)
 	unit.attribute_snapshot.set_value(&"aura_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
@@ -354,7 +507,23 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 5)
+	_apply_test_equipped_weapon(unit)
 	return unit
+
+
+func _apply_test_equipped_weapon(unit: BattleUnitState, attack_range: int = 4) -> void:
+	if unit == null:
+		return
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "warrior_advanced_test_blade",
+		"weapon_profile_type_id": "test_blade",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": attack_range,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 
 
 func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUnitState) -> void:

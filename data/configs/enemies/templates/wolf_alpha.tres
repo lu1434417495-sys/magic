@@ -10,11 +10,18 @@ brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 action_threshold = 30
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
+base_attribute_overrides = {
+"strength": 7,
+"agility": 8,
+"constitution": 6,
+"perception": 6,
+"intelligence": 4,
+"willpower": 5,
+}
 skill_ids = Array[StringName]([&"charge", &"warrior_guard_break"])
 attribute_overrides = {
 "hp_max": 34,
 "mp_max": 0,
-"stamina_max": 4,
 "action_points": 2,
 "attack_bonus": 6,
 "armor_class": 15,

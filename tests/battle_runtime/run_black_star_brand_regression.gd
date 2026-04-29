@@ -1,14 +1,14 @@
 extends SceneTree
 
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const BLACK_STAR_BRAND_SKILL_ID: StringName = &"black_star_brand"

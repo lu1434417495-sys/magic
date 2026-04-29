@@ -1,30 +1,75 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_q5gla"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_y8g81"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_mhiph"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_cughq"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_83vub"]
 
-[sub_resource type="Resource" id="Resource_w0g8u"]
+[sub_resource type="Resource" id="Resource_bash_damage_l0"]
 script = ExtResource("3_mhiph")
 effect_type = &"damage"
-power = 11
+power = 6
+max_skill_level = 2
 damage_tag = &"physical_blunt"
+params = {
+"dice_count": 1,
+"dice_sides": 4
+}
 
-[sub_resource type="Resource" id="Resource_cycsq"]
+[sub_resource type="Resource" id="Resource_bash_damage_l3"]
+script = ExtResource("3_mhiph")
+effect_type = &"damage"
+power = 8
+min_skill_level = 3
+damage_tag = &"physical_blunt"
+params = {
+"dice_count": 1,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l0"]
 script = ExtResource("3_mhiph")
 effect_type = &"status"
 power = 1
+max_skill_level = 2
 status_id = &"staggered"
 duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l3"]
+script = ExtResource("3_mhiph")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"staggered"
+duration_tu = 90
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l5"]
+script = ExtResource("3_mhiph")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+status_id = &"staggered"
+duration_tu = 90
+trigger_event = &"critical_hit"
 
 [sub_resource type="Resource" id="Resource_8hxbh"]
 script = ExtResource("4_cughq")
 skill_id = &"warrior_shield_bash"
-stamina_cost = 1
+ap_cost = 1
+stamina_cost = 25
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_mhiph")]([SubResource("Resource_w0g8u"), SubResource("Resource_cycsq")])
+attack_roll_bonus = 1
+level_overrides = {
+"2": {
+"stamina_cost": 20
+},
+"4": {
+"cooldown_tu": 5
+}
+}
+mastery_trigger_mode = &"status_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_mhiph")]([SubResource("Resource_bash_damage_l0"), SubResource("Resource_bash_damage_l3"), SubResource("Resource_bash_stagger_l0"), SubResource("Resource_bash_stagger_l3"), SubResource("Resource_bash_stagger_l5")])
 
 [resource]
 script = ExtResource("5_83vub")
@@ -32,7 +77,13 @@ skill_id = &"warrior_shield_bash"
 display_name = "盾击"
 icon_id = &"warrior_shield_bash"
 description = "近身控制技。"
-max_level = 3
-mastery_curve = PackedInt32Array(24, 40, 62)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"strength": 60,
+"constitution": 60
+}
 tags = Array[StringName]([&"warrior", &"melee", &"control", &"shield"])
 combat_profile = SubResource("Resource_8hxbh")

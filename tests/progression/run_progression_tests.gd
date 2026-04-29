@@ -7,21 +7,23 @@ extends SceneTree
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleUnitFactory = preload("res://scripts/systems/battle_unit_factory.gd")
-const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
-const GameSession = preload("res://scripts/systems/game_session.gd")
-const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/party_warehouse_service.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
+const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
+const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
 const PartyManagementWindowScene = preload("res://scenes/ui/party_management_window.tscn")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ProgressionService = preload("res://scripts/systems/progression_service.gd")
-const ProgressionSerialization = preload("res://scripts/systems/progression_serialization.gd")
+const ProgressionService = preload("res://scripts/systems/progression/progression_service.gd")
+const ProgressionSerialization = preload("res://scripts/systems/persistence/progression_serialization.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const WorldMapSystem = preload("res://scripts/systems/world_map_system.gd")
+const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
+const WorldMapSystem = preload("res://scripts/systems/game_runtime/world_map_system.gd")
 
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
 var _failures: Array[String] = []
@@ -39,10 +41,12 @@ func _run() -> void:
 	_test_random_start_skill_pool_excludes_composite_upgrade_skills()
 	_test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_status()
 	_test_seed_growth_achievement_events_unlock_via_real_progression_actions()
+	_test_stamina_max_uses_constitution_strength_and_agility_formula()
 	_test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap()
 	_test_core_max_skill_queues_attribute_progress_once()
 	_test_non_core_skill_max_level_cap_lifts_when_core()
 	_test_attribute_growth_progress_round_trip_persists()
+	_test_combat_resource_unlocks_follow_learned_skill_costs()
 	_test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement()
 	_test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core()
 	_test_achievement_progress_is_member_scoped_and_unlocks_once()
@@ -330,6 +334,20 @@ func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() 
 	)
 
 
+func _test_stamina_max_uses_constitution_strength_and_agility_formula() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 3)
+	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 4)
+	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 2)
+	var service := AttributeService.new()
+	service.setup(progress)
+	_assert_eq(
+		service.get_total_value(AttributeService.STAMINA_MAX),
+		45,
+		"体力上限应使用 24 + 5*体质 + 力量 + 敏捷。"
+	)
+
+
 func _test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var manager := CharacterManagementModule.new()
@@ -499,6 +517,34 @@ func _test_attribute_growth_progress_round_trip_persists() -> void:
 	)
 
 
+func _test_combat_resource_unlocks_follow_learned_skill_costs() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	var mp_skill := _make_test_combat_resource_skill(&"test_mp_spell", 3, 0)
+	var aura_skill := _make_test_combat_resource_skill(&"test_aura_slash", 0, 2)
+	var service := ProgressionService.new()
+	service.setup(progress, {
+		mp_skill.skill_id: mp_skill,
+		aura_skill.skill_id: aura_skill,
+	}, {})
+
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_HP), "角色初始应解锁 HP 资源。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_STAMINA), "角色初始应解锁体力资源。")
+	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP), "学习耗蓝技能前不应显示 MP 资源。")
+	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "学习耗斗气技能前不应显示斗气资源。")
+
+	_assert_true(service.learn_skill(mp_skill.skill_id), "测试耗蓝技能应能学习。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP), "学习耗蓝技能后应正式解锁 MP 资源。")
+	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "只学习耗蓝技能不应解锁斗气资源。")
+
+	_assert_true(service.learn_skill(aura_skill.skill_id), "测试耗斗气技能应能学习。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "学习耗斗气技能后应正式解锁斗气资源。")
+
+	var restored_progress = UnitProgress.from_dict(progress.to_dict())
+	_assert_true(restored_progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP), "MP 解锁状态应通过 UnitProgress 存档往返保留。")
+	_assert_true(restored_progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "斗气解锁状态应通过 UnitProgress 存档往返保留。")
+
+
 func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var achievement_defs := {
@@ -524,13 +570,19 @@ func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievem
 	_assert_true(manager.learn_skill(&"hero", &"charge"), "前置条件：hero 应能学会冲锋。")
 	_assert_true(manager.learn_skill(&"hero", &"warrior_combo_strike"), "前置条件：hero 应能学会连击。")
 	_assert_true(manager.learn_skill(&"hero", &"warrior_aura_slash"), "前置条件：hero 应能学会斗气斩。")
+	var source_combo_progress = progression.get_skill_progress(&"warrior_combo_strike")
+	var source_aura_progress = progression.get_skill_progress(&"warrior_aura_slash")
+	source_combo_progress.is_core = true
+	source_aura_progress.is_core = true
+	progression.set_skill_progress(source_combo_progress)
+	progression.set_skill_progress(source_aura_progress)
 	_assert_true(
-		manager.grant_battle_mastery(&"hero", &"warrior_combo_strike", 999).mastery_changes.size() > 0,
-		"连击应能通过真实熟练度成长提升到满级。"
+		manager.grant_battle_mastery(&"hero", &"warrior_combo_strike", 10000).mastery_changes.size() > 0,
+		"核心连击应能通过真实熟练度成长提升到满级。"
 	)
 	_assert_true(
-		manager.grant_battle_mastery(&"hero", &"warrior_aura_slash", 999).mastery_changes.size() > 0,
-		"斗气斩应能通过真实熟练度成长提升到满级。"
+		manager.grant_battle_mastery(&"hero", &"warrior_aura_slash", 10000).mastery_changes.size() > 0,
+		"核心斗气斩应能通过真实熟练度成长提升到满级。"
 	)
 	_assert_eq(int(progression.get_skill_progress(&"warrior_combo_strike").skill_level), 5, "连击应达到 5 级。")
 	_assert_eq(int(progression.get_skill_progress(&"warrior_aura_slash").skill_level), 5, "斗气斩应达到 5 级。")
@@ -1388,6 +1440,20 @@ func _make_test_growth_skill(
 	skill_def.mastery_curve = PackedInt32Array([1, 1, 1])
 	skill_def.growth_tier = growth_tier
 	skill_def.attribute_growth_progress = attribute_growth_progress.duplicate(true)
+	return skill_def
+
+
+func _make_test_combat_resource_skill(skill_id: StringName, mp_cost: int, aura_cost: int) -> SkillDef:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = String(skill_id)
+	skill_def.icon_id = skill_id
+	skill_def.skill_type = &"active"
+	skill_def.learn_source = &"book"
+	skill_def.combat_profile = CombatSkillDef.new()
+	skill_def.combat_profile.skill_id = skill_id
+	skill_def.combat_profile.mp_cost = mp_cost
+	skill_def.combat_profile.aura_cost = aura_cost
 	return skill_def
 
 

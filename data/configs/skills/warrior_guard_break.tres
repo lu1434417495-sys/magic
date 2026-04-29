@@ -1,39 +1,110 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_86v0x"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_ihqik"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_f4lqa"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_jh8g6"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_vl1fd"]
 
-[sub_resource type="Resource" id="Resource_2h1ng"]
+[sub_resource type="Resource" id="Resource_break_damage_l0"]
 script = ExtResource("3_f4lqa")
 effect_type = &"damage"
-power = 13
+power = 0
+max_skill_level = 2
 damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
 
-[sub_resource type="Resource" id="Resource_n7f4l"]
+[sub_resource type="Resource" id="Resource_break_damage_l3"]
+script = ExtResource("3_f4lqa")
+effect_type = &"damage"
+power = 0
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 4,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_break_damage_l5"]
+script = ExtResource("3_f4lqa")
+effect_type = &"damage"
+power = 0
+min_skill_level = 5
+damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 6,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_break_status_l0"]
 script = ExtResource("3_f4lqa")
 effect_type = &"status"
 power = 1
+max_skill_level = 2
 status_id = &"armor_break"
-duration_tu = 180
+duration_tu = 90
+
+[sub_resource type="Resource" id="Resource_break_status_l3"]
+script = ExtResource("3_f4lqa")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"armor_break"
+duration_tu = 120
+
+[sub_resource type="Resource" id="Resource_break_status_l5"]
+script = ExtResource("3_f4lqa")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+status_id = &"armor_break"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_xlwpv"]
 script = ExtResource("4_jh8g6")
 skill_id = &"warrior_guard_break"
 ap_cost = 2
-stamina_cost = 1
+stamina_cost = 30
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_f4lqa")]([SubResource("Resource_2h1ng"), SubResource("Resource_n7f4l")])
+attack_roll_bonus = 1
+level_overrides = {
+"2": {
+"stamina_cost": 25
+},
+"4": {
+"cooldown_tu": 5
+}
+}
+mastery_trigger_mode = &"status_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_f4lqa")]([SubResource("Resource_break_damage_l0"), SubResource("Resource_break_damage_l3"), SubResource("Resource_break_damage_l5"), SubResource("Resource_break_status_l0"), SubResource("Resource_break_status_l3"), SubResource("Resource_break_status_l5")])
 
 [resource]
 script = ExtResource("5_vl1fd")
 skill_id = &"warrior_guard_break"
 display_name = "裂甲斩"
 icon_id = &"warrior_guard_break"
-description = "用于撕开防御姿态的定点技能。"
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+description = "按武器攻击撕开目标护甲，高等级提高破甲强度。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"strength": 60,
+"perception": 60
+}
 tags = Array[StringName]([&"warrior", &"melee", &"breaker"])
 combat_profile = SubResource("Resource_xlwpv")

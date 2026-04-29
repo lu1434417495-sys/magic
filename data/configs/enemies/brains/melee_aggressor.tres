@@ -33,7 +33,7 @@ actions = Array[Resource]([SubResource("Action_engage_charge"), SubResource("Act
 [sub_resource type="Resource" id="Action_pressure_attack"]
 script = ExtResource("6_unit")
 action_id = &"wolf_basic_attack"
-skill_ids = Array[StringName]([&"warrior_heavy_strike"])
+skill_ids = Array[StringName]([&"warrior_heavy_strike", &"basic_attack"])
 target_selector = &"nearest_enemy"
 desired_min_distance = 1
 desired_max_distance = 1
@@ -54,7 +54,7 @@ actions = Array[Resource]([SubResource("Action_pressure_attack"), SubResource("A
 [sub_resource type="Resource" id="Action_support_attack"]
 script = ExtResource("6_unit")
 action_id = &"wolf_basic_attack_support"
-skill_ids = Array[StringName]([&"warrior_heavy_strike"])
+skill_ids = Array[StringName]([&"warrior_heavy_strike", &"basic_attack"])
 target_selector = &"nearest_enemy"
 desired_min_distance = 1
 desired_max_distance = 1

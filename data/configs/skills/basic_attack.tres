@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
+
+[sub_resource type="Resource" id="Resource_basic_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+power = 0
+damage_tag = &"physical_blunt"
+params = {
+"add_weapon_dice": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_basic_combat"]
+script = ExtResource("2_combat")
+skill_id = &"basic_attack"
+ap_cost = 1
+stamina_cost = 5
+attack_roll_bonus = 0
+level_overrides = {}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Resource_basic_damage")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"basic_attack"
+display_name = "攻击"
+icon_id = &"basic_attack"
+description = "基础攻击动作。使用当前武器、空手或天生武器的伤害骰与物理伤害类型。"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(1)
+tags = Array[StringName]([&"basic", &"melee", &"output"])
+learn_source = &"innate"
+combat_profile = SubResource("Resource_basic_combat")

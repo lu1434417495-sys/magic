@@ -1,8 +1,8 @@
 extends SceneTree
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 
 var _failures: Array[String] = []
 

@@ -1,12 +1,12 @@
 class_name EnemyAiAction
 extends Resource
 
-const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle_ai_decision.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
+const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
-const BattleAiDecision = preload("res://scripts/systems/battle_ai_decision.gd")
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleAiDecision = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
@@ -72,16 +72,17 @@ func _get_skill_cast_block_reason(context, skill_def: SkillDef) -> String:
 		return "技能或目标无效。"
 	var unit_state: BattleUnitState = context.unit_state
 	var combat_profile = skill_def.combat_profile
+	var costs := combat_profile.get_effective_resource_costs(_get_skill_level(unit_state, skill_def.skill_id))
 	var cooldown := int(unit_state.cooldowns.get(skill_def.skill_id, 0))
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
-	if unit_state.current_ap < int(combat_profile.ap_cost):
+	if unit_state.current_ap < int(costs.get("ap_cost", combat_profile.ap_cost)):
 		return "AP不足，无法施放该技能。"
-	if unit_state.current_mp < int(combat_profile.mp_cost):
+	if unit_state.current_mp < int(costs.get("mp_cost", combat_profile.mp_cost)):
 		return "法力不足，无法施放该技能。"
-	if unit_state.current_stamina < int(combat_profile.stamina_cost):
+	if unit_state.current_stamina < int(costs.get("stamina_cost", combat_profile.stamina_cost)):
 		return "体力不足，无法施放该技能。"
-	if unit_state.current_aura < int(combat_profile.aura_cost):
+	if unit_state.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
 	return ""
 

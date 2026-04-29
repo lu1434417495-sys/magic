@@ -1,10 +1,10 @@
 extends SceneTree
 
 const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
-const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const FaithDeityDef = preload("res://scripts/player/progression/faith_deity_def.gd")
 const FaithRankDef = preload("res://scripts/player/progression/faith_rank_def.gd")
-const FaithService = preload("res://scripts/systems/faith_service.gd")
+const FaithService = preload("res://scripts/systems/progression/faith_service.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")

@@ -93,10 +93,22 @@ func _run() -> void:
 func _test_seed_skill_resources_scan_and_validate() -> void:
 	var registry := SkillContentRegistry.new()
 	var skill_defs := registry.get_skill_defs()
+	var basic_attack := skill_defs.get(&"basic_attack") as SkillDef
 	var heavy_strike := skill_defs.get(&"warrior_heavy_strike") as SkillDef
+	var sweeping_slash := skill_defs.get(&"warrior_sweeping_slash") as SkillDef
 	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
 
 	_assert_true(registry.validate().is_empty(), "SkillContentRegistry 的正式技能资源当前不应报告校验错误。")
+	_assert_true(basic_attack != null, "SkillContentRegistry 应扫描到内建基础攻击资源。")
+	if basic_attack != null:
+		_assert_eq(basic_attack.display_name, "攻击", "基础攻击应保留展示名。")
+		_assert_true(basic_attack.tags.has(&"basic"), "基础攻击应带 basic 标签。")
+		_assert_true(basic_attack.can_use_in_combat(), "基础攻击应可在战斗中使用。")
+		if basic_attack.combat_profile != null and not basic_attack.combat_profile.effect_defs.is_empty():
+			var basic_damage = basic_attack.combat_profile.effect_defs[0]
+			_assert_true(bool(basic_damage.params.get("add_weapon_dice", false)), "基础攻击应使用当前武器/空手/天生武器骰。")
+			_assert_true(bool(basic_damage.params.get("use_weapon_physical_damage_tag", false)), "基础攻击应使用当前武器/空手/天生武器伤害类型。")
+			_assert_true(not bool(basic_damage.params.get("requires_weapon", false)), "基础攻击不应要求装备武器。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
@@ -114,7 +126,7 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	_assert_true(heavy_strike.tags.has(&"warrior"), "重击资源应保留 warrior 标签。")
 	_assert_true(heavy_strike.can_use_in_combat(), "重击资源应保留 combat_profile。")
 	if heavy_strike.combat_profile != null:
-		_assert_eq(int(heavy_strike.combat_profile.effect_defs.size()), 4, "重击资源应保留四条分级 effect_defs。")
+		_assert_eq(int(heavy_strike.combat_profile.effect_defs.size()), 6, "重击资源应保留六条分级 effect_defs。")
 		_assert_eq(int(heavy_strike.combat_profile.ap_cost), 1, "重击资源应保留 1 点 AP 消耗。")
 		_assert_eq(int(heavy_strike.combat_profile.stamina_cost), 30, "重击资源应保留 30 点体力消耗。")
 		_assert_eq(int(heavy_strike.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 20, "重击 2 级起体力消耗应降为 20。")
@@ -124,6 +136,8 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		var level_one_damage = heavy_strike.combat_profile.effect_defs[1]
 		var level_three_damage = heavy_strike.combat_profile.effect_defs[2]
 		var armor_break_effect = heavy_strike.combat_profile.effect_defs[3]
+		var level_four_armor_break_effect = heavy_strike.combat_profile.effect_defs[4]
+		var level_five_staggered_effect = heavy_strike.combat_profile.effect_defs[5]
 		_assert_eq(int(level_zero_damage.params.get("dice_sides", 0)), 4, "重击 0 级伤害骰应为 1d4。")
 		_assert_true(bool(level_zero_damage.params.get("requires_weapon", false)), "重击 0 级武器伤害标签效果必须显式要求装备武器。")
 		_assert_true(bool(level_zero_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 0 级应使用当前武器物理伤害标签。")
@@ -139,6 +153,38 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(level_three_damage.min_skill_level), 3, "重击 1d8 伤害效果应从 3 级生效。")
 		_assert_eq(armor_break_effect.status_id, &"armor_break", "重击满级效果应是 armor_break。")
 		_assert_eq(int(armor_break_effect.min_skill_level), 3, "重击 armor_break 应从 3 级生效。")
+		_assert_eq(int(armor_break_effect.max_skill_level), 3, "重击 3 级 armor_break 应只覆盖 3 级。")
+		_assert_eq(int(armor_break_effect.duration_tu), 90, "重击 3 级 armor_break 应持续 90 TU。")
+		_assert_eq(level_four_armor_break_effect.status_id, &"armor_break", "重击 4 级效果应继续是 armor_break。")
+		_assert_eq(int(level_four_armor_break_effect.min_skill_level), 4, "重击 4 级 armor_break 应从 4 级生效。")
+		_assert_eq(int(level_four_armor_break_effect.duration_tu), 120, "重击 4 级 armor_break 应延长到 120 TU。")
+		_assert_eq(level_five_staggered_effect.status_id, &"staggered", "重击 5 级应追加 staggered。")
+		_assert_eq(int(level_five_staggered_effect.min_skill_level), 5, "重击 staggered 应从 5 级生效。")
+		_assert_eq(int(level_five_staggered_effect.duration_tu), 60, "重击 5 级 staggered 应持续 60 TU。")
+		_assert_eq(level_five_staggered_effect.trigger_event, &"critical_hit", "重击 5 级 staggered 应只在大成功时触发。")
+	_assert_true(sweeping_slash != null, "横扫资源应成功转成 SkillDef。")
+	if sweeping_slash != null and sweeping_slash.combat_profile != null:
+		_assert_eq(int(sweeping_slash.max_level), 5, "横扫应使用 5 级上限。")
+		_assert_eq(int(sweeping_slash.non_core_max_level), 3, "横扫非核心上限应为 3。")
+		_assert_eq(Array(sweeping_slash.mastery_curve), [160, 400, 900, 1600, 2600], "横扫熟练度曲线应匹配 intermediate 设计。")
+		_assert_eq(sweeping_slash.combat_profile.area_pattern, &"front_arc", "横扫应使用 front_arc 相邻前弧范围。")
+		_assert_eq(int(sweeping_slash.combat_profile.area_value), 1, "横扫 front_arc 半径应为 1。")
+		_assert_eq(int(sweeping_slash.combat_profile.stamina_cost), 30, "横扫体力消耗应进入当前资源尺度。")
+		_assert_eq(int(sweeping_slash.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 25, "横扫 2 级起体力消耗应降为 25。")
+		_assert_eq(int(sweeping_slash.combat_profile.get_effective_resource_costs(4).get("cooldown_tu", 0)), 0, "横扫 4 级起应移除冷却。")
+		_assert_eq(sweeping_slash.combat_profile.mastery_trigger_mode, &"weapon_attack_quality", "横扫应使用武器攻击质量熟练度触发模式。")
+		_assert_eq(sweeping_slash.combat_profile.mastery_amount_mode, &"per_target_rank", "横扫应按每个目标阶级计算熟练度。")
+		_assert_eq(int(sweeping_slash.combat_profile.effect_defs.size()), 3, "横扫应按等级切分三条武器攻击效果。")
+		var sweeping_damage = sweeping_slash.combat_profile.effect_defs[0]
+		var sweeping_level_three_damage = sweeping_slash.combat_profile.effect_defs[1]
+		var sweeping_level_five_damage = sweeping_slash.combat_profile.effect_defs[2]
+		_assert_eq(int(sweeping_damage.power), 0, "横扫不应再配置固定技能伤害。")
+		_assert_true(bool(sweeping_damage.params.get("add_weapon_dice", false)), "横扫应使用当前武器骰。")
+		_assert_true(bool(sweeping_damage.params.get("requires_weapon", false)), "横扫应显式要求装备武器。")
+		_assert_true(bool(sweeping_damage.params.get("use_weapon_physical_damage_tag", false)), "横扫应使用当前武器物理伤害类型。")
+		_assert_true(bool(sweeping_damage.params.get("resolve_as_weapon_attack", false)), "横扫每个目标应按武器攻击命中结算。")
+		_assert_eq(int(sweeping_level_three_damage.params.get("dice_sides", 0)), 4, "横扫 3-4 级应追加 1d4 技能骰。")
+		_assert_eq(int(sweeping_level_five_damage.params.get("dice_sides", 0)), 6, "横扫 5 级应追加 1d6 技能骰。")
 	_assert_cast_variant_compat_shape(fossil_to_mud, "SkillContentRegistry")
 
 
@@ -200,11 +246,12 @@ func _test_requires_weapon_param_schema_validation() -> void:
 	valid_effect.effect_type = &"damage"
 	valid_effect.params = {
 		"requires_weapon": true,
+		"resolve_as_weapon_attack": true,
 		"use_weapon_physical_damage_tag": true,
 	}
 	var valid_errors: Array[String] = []
 	registry._append_effect_validation_errors(valid_errors, &"valid_requires_weapon_skill", valid_effect, "test_effect")
-	_assert_true(valid_errors.is_empty(), "requires_weapon=true 时允许 use_weapon_physical_damage_tag=true。")
+	_assert_true(valid_errors.is_empty(), "requires_weapon=true 时允许 use_weapon_physical_damage_tag=true 与 resolve_as_weapon_attack=true。")
 
 	var damage_tag_only_effect := CombatEffectDef.new()
 	damage_tag_only_effect.effect_type = &"damage"
@@ -241,6 +288,29 @@ func _test_requires_weapon_param_schema_validation() -> void:
 	_assert_true(
 		_has_error_containing(non_bool_damage_tag_errors, "params.use_weapon_physical_damage_tag must be a bool"),
 		"use_weapon_physical_damage_tag schema 应拒绝非 bool 值。"
+	)
+
+	var non_bool_weapon_attack_effect := CombatEffectDef.new()
+	non_bool_weapon_attack_effect.effect_type = &"damage"
+	non_bool_weapon_attack_effect.params = {
+		"resolve_as_weapon_attack": "true",
+	}
+	var non_bool_weapon_attack_errors: Array[String] = []
+	registry._append_effect_validation_errors(non_bool_weapon_attack_errors, &"invalid_weapon_attack_type_skill", non_bool_weapon_attack_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(non_bool_weapon_attack_errors, "params.resolve_as_weapon_attack must be a bool"),
+		"resolve_as_weapon_attack schema 应拒绝非 bool 值。"
+	)
+
+	var invalid_trigger_effect := CombatEffectDef.new()
+	invalid_trigger_effect.effect_type = &"status"
+	invalid_trigger_effect.status_id = &"staggered"
+	invalid_trigger_effect.trigger_event = &"ordinary_hit"
+	var invalid_trigger_errors: Array[String] = []
+	registry._append_effect_validation_errors(invalid_trigger_errors, &"invalid_trigger_skill", invalid_trigger_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(invalid_trigger_errors, "unsupported trigger_event"),
+		"trigger_event schema 应拒绝未支持的触发事件。"
 	)
 
 

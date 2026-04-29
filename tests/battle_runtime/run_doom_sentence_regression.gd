@@ -1,18 +1,18 @@
 extends SceneTree
 
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BATTLE_REPORT_FORMATTER_SCRIPT = preload("res://scripts/systems/battle_report_formatter.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle_status_effect_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BATTLE_REPORT_FORMATTER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_report_formatter.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime_battle_selection.gd")
+const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime/game_runtime_battle_selection.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const DOOM_SENTENCE_SKILL_ID: StringName = &"doom_sentence"

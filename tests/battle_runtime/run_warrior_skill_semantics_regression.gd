@@ -1,16 +1,16 @@
 extends SceneTree
 
-const BattleAiContext = preload("res://scripts/systems/battle_ai_context.gd")
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
+const BattleAiContext = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 
 
 class DeterministicHitMaxDamageResolver extends BattleDamageResolver:
@@ -55,7 +55,7 @@ func _test_true_dragon_slash_hits_multiple_units_in_line() -> void:
 	var runtime := _build_runtime()
 	var state := _build_skill_test_state(Vector2i(7, 3))
 	var warrior := _build_unit(&"warrior_line_user", Vector2i(0, 1), 3)
-	warrior.current_stamina = 3
+	warrior.current_stamina = 40
 	warrior.current_aura = 2
 	warrior.known_active_skill_ids = [&"warrior_true_dragon_slash"]
 	warrior.known_skill_level_map = {&"warrior_true_dragon_slash": 1}
@@ -133,7 +133,7 @@ func _run_shield_bash_until_staggered(max_attempts: int) -> Dictionary:
 		var runtime := _build_runtime()
 		var state := _build_skill_test_state(Vector2i(5, 3))
 		var warrior := _build_unit(StringName("warrior_shield_bash_user_%d" % attempt_index), Vector2i(1, 1), 2)
-		warrior.current_stamina = 3
+		warrior.current_stamina = 25
 		warrior.known_active_skill_ids = [&"warrior_shield_bash"]
 		warrior.known_skill_level_map = {&"warrior_shield_bash": 1}
 		warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
@@ -178,7 +178,7 @@ func _test_guard_applies_only_guarding_status() -> void:
 	var runtime := _build_runtime()
 	var state := _build_skill_test_state(Vector2i(4, 3))
 	var warrior := _build_unit(&"guard_status_user", Vector2i(1, 1), 2)
-	warrior.current_stamina = 3
+	warrior.current_stamina = 50
 	warrior.known_active_skill_ids = [&"warrior_guard"]
 	warrior.known_skill_level_map = {&"warrior_guard": 1}
 	var enemy := _build_unit(&"guard_status_enemy", Vector2i(2, 1), 2)
@@ -241,7 +241,7 @@ func _test_jump_slash_repositions_before_landing_burst() -> void:
 	var runtime := _build_runtime()
 	var state := _build_skill_test_state(Vector2i(6, 4))
 	var warrior := _build_unit(&"jump_slash_user", Vector2i(1, 1), 2)
-	warrior.current_stamina = 3
+	warrior.current_stamina = 35
 	warrior.known_active_skill_ids = [&"warrior_jump_slash"]
 	warrior.known_skill_level_map = {&"warrior_jump_slash": 1}
 	var enemy_a := _build_unit(&"jump_slash_target_a", Vector2i(3, 2), 2)
@@ -288,7 +288,7 @@ func _test_jump_slash_repositions_before_landing_burst() -> void:
 	var blocked_runtime := _build_runtime()
 	var blocked_state := _build_skill_test_state(Vector2i(5, 4))
 	var blocked_warrior := _build_unit(&"jump_slash_blocked_user", Vector2i(1, 1), 2)
-	blocked_warrior.current_stamina = 3
+	blocked_warrior.current_stamina = 35
 	blocked_warrior.known_active_skill_ids = [&"warrior_jump_slash"]
 	blocked_warrior.known_skill_level_map = {&"warrior_jump_slash": 1}
 	var landing_blocker := _build_unit(&"jump_slash_blocker", Vector2i(2, 1), 2)
@@ -417,7 +417,7 @@ func _measure_enemy_heavy_strike_damage(apply_guard: bool) -> int:
 	runtime.configure_damage_resolver_for_tests(DeterministicHitMaxDamageResolver.new())
 	var state := _build_skill_test_state(Vector2i(5, 3))
 	var warrior := _build_unit(&"guard_target", Vector2i(1, 1), 2)
-	warrior.current_stamina = 3
+	warrior.current_stamina = 50
 	warrior.known_active_skill_ids = [&"warrior_guard"]
 	warrior.known_skill_level_map = {&"warrior_guard": 1}
 	var enemy := _build_unit(&"guard_attacker", Vector2i(2, 1), 2)
@@ -469,7 +469,7 @@ func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool, attempt_index:
 	runtime.configure_damage_resolver_for_tests(DeterministicHitMaxDamageResolver.new())
 	var state := _build_skill_test_state(Vector2i(5, 4))
 	var buffer := _build_unit(StringName("war_cry_user_%d" % attempt_index), Vector2i(1, 1), 2)
-	buffer.current_stamina = 3
+	buffer.current_stamina = 25
 	buffer.known_active_skill_ids = [&"warrior_war_cry"]
 	buffer.known_skill_level_map = {&"warrior_war_cry": 1}
 	var striker := _build_unit(StringName("war_cry_striker_%d" % attempt_index), Vector2i(1, 2), 2)
@@ -516,7 +516,7 @@ func _measure_execution_cleave_damage(target_current_hp: int) -> int:
 		var runtime := _build_runtime()
 		var state := _build_skill_test_state(Vector2i(5, 3))
 		var warrior := _build_unit(StringName("execution_cleave_user_%d" % attempt_index), Vector2i(1, 1), 2)
-		warrior.current_stamina = 3
+		warrior.current_stamina = 35
 		warrior.known_active_skill_ids = [&"warrior_execution_cleave"]
 		warrior.known_skill_level_map = {&"warrior_execution_cleave": 1}
 		warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
@@ -602,13 +602,13 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.current_ap = current_ap
 	unit.current_hp = 40
 	unit.current_mp = 4
-	unit.current_stamina = 30
+	unit.current_stamina = 60
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 40)
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
-	unit.attribute_snapshot.set_value(&"stamina_max", 30)
+	unit.attribute_snapshot.set_value(&"stamina_max", 60)
 	unit.attribute_snapshot.set_value(&"aura_max", 2)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)

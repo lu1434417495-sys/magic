@@ -1,16 +1,51 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_itsgd"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2kina"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_3q1il"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_d6vy7"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_6fcrx"]
 
-[sub_resource type="Resource" id="Resource_8n2oj"]
+[sub_resource type="Resource" id="Resource_saint_damage_l0"]
 script = ExtResource("3_3q1il")
 effect_type = &"damage"
-power = 12
+power = 0
+max_skill_level = 2
 damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 6,
+"requires_weapon": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_saint_damage_l3"]
+script = ExtResource("3_3q1il")
+effect_type = &"damage"
+power = 0
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 8,
+"requires_weapon": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_saint_damage_l5"]
+script = ExtResource("3_3q1il")
+effect_type = &"damage"
+power = 0
+min_skill_level = 5
+damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 10,
+"requires_weapon": true,
+"use_weapon_physical_damage_tag": true
+}
 
 [sub_resource type="Resource" id="Resource_ndvel"]
 script = ExtResource("3_3q1il")
@@ -22,6 +57,11 @@ params = {
 "follow_up_cost_multiplier": 2,
 "follow_up_damage_multiplier": 2,
 "follow_up_attack_penalty": 2,
+"penalty_free_stages_by_level": {
+"1": 1,
+"3": 2,
+"5": 3
+},
 "same_target_only": true,
 "stop_on_insufficient_resource": true,
 "stop_on_miss": true,
@@ -34,16 +74,25 @@ skill_id = &"saint_blade_combo"
 ap_cost = 2
 cooldown_tu = 15
 aura_cost = 1
-effect_defs = Array[ExtResource("3_3q1il")]([SubResource("Resource_8n2oj"), SubResource("Resource_ndvel")])
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_3q1il")]([SubResource("Resource_saint_damage_l0"), SubResource("Resource_saint_damage_l3"), SubResource("Resource_saint_damage_l5"), SubResource("Resource_ndvel")])
 
 [resource]
 script = ExtResource("5_6fcrx")
 skill_id = &"saint_blade_combo"
 display_name = "圣剑连斩"
 icon_id = &"saint_blade_combo"
-description = "连击与斗气斩的复合升级技能。当前仅在定义层记录循环追击与非破坏式合并语义。"
-max_level = 3
-mastery_curve = PackedInt32Array(30, 50, 78)
+description = "连击与斗气斩的复合升级技能。当前记录循环追击与非破坏式合并语义。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(360, 900, 1980, 3600, 5760)
+growth_tier = &"ultimate"
+attribute_growth_progress = {
+"strength": 80,
+"agility": 80,
+"willpower": 80
+}
 tags = Array[StringName]([&"warrior", &"melee", &"combo", &"aura"])
 unlock_mode = &"composite_upgrade"
 knowledge_requirements = Array[StringName]([&"compania_family_legacy"])
@@ -53,5 +102,6 @@ skill_level_requirements = {
 }
 achievement_requirements = Array[StringName]([&"six_hit_combo"])
 upgrade_source_skill_ids = Array[StringName]([&"warrior_combo_strike", &"warrior_aura_slash"])
+retain_source_skills_on_unlock = true
 core_skill_transition_mode = &"replace_sources_with_result"
 combat_profile = SubResource("Resource_v8nna")

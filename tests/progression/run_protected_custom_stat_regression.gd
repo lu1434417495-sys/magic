@@ -1,8 +1,8 @@
 extends SceneTree
 
-const AttributeService = preload("res://scripts/systems/attribute_service.gd")
-const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
-const PartyWarehouseService = preload("res://scripts/systems/party_warehouse_service.gd")
+const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")

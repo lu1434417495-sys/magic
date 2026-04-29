@@ -13,7 +13,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_unit_base_attributes_luck_getters_cover_boundaries()
 	_test_party_member_state_luck_getters_delegate_and_stay_null_safe()
-	_test_from_dict_missing_luck_keys_fall_back_to_zero()
+	_test_from_dict_missing_progression_resource_schema_is_rejected()
 
 	if _failures.is_empty():
 		print("Luck getter regression: PASS")
@@ -108,7 +108,7 @@ func _test_party_member_state_luck_getters_delegate_and_stay_null_safe() -> void
 	)
 
 
-func _test_from_dict_missing_luck_keys_fall_back_to_zero() -> void:
+func _test_from_dict_missing_progression_resource_schema_is_rejected() -> void:
 	var attributes := UnitBaseAttributes.from_dict({
 		"strength": 3,
 		"custom_stats": {},
@@ -160,18 +160,7 @@ func _test_from_dict_missing_luck_keys_fall_back_to_zero() -> void:
 		"is_dead": false,
 		"body_size": 1,
 	})
-	_assert_true(member_state != null, "缺少 luck 键的旧成员存档 shape 应仍能恢复。")
-	if member_state == null:
-		return
-	_assert_member_luck_case(
-		"PartyMemberState.from_dict 缺少 luck 键",
-		member_state,
-		0,
-		0,
-		0,
-		0,
-		0
-	)
+	_assert_true(member_state == null, "缺少 unlocked_combat_resource_ids 的 UnitProgress shape 应直接拒绝。")
 
 
 func _build_attributes(hidden_luck_at_birth: int = 0, faith_luck_bonus: int = 0) -> UnitBaseAttributes:

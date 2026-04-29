@@ -1,35 +1,88 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_mubko"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_68aty"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ucqm2"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_5ibie"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8cuot"]
 
-[sub_resource type="Resource" id="Resource_pfacn"]
+[sub_resource type="Resource" id="Resource_sweep_l0"]
 script = ExtResource("3_ucqm2")
 effect_type = &"damage"
-power = 12
-damage_tag = &"physical_slash"
+power = 0
+max_skill_level = 2
+damage_tag = &"physical_blunt"
+params = {
+"add_weapon_dice": true,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_sweep_l3"]
+script = ExtResource("3_ucqm2")
+effect_type = &"damage"
+power = 0
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"physical_blunt"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 4,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_sweep_l5"]
+script = ExtResource("3_ucqm2")
+effect_type = &"damage"
+power = 0
+min_skill_level = 5
+damage_tag = &"physical_blunt"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 6,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
 
 [sub_resource type="Resource" id="Resource_qbvyj"]
 script = ExtResource("4_5ibie")
 skill_id = &"warrior_sweeping_slash"
 target_mode = &"ground"
-area_pattern = &"cone"
+area_pattern = &"front_arc"
 area_value = 1
 ap_cost = 2
-stamina_cost = 1
+stamina_cost = 30
 cooldown_tu = 5
-effect_defs = Array[ExtResource("3_ucqm2")]([SubResource("Resource_pfacn")])
+attack_roll_bonus = 0
+level_overrides = {
+"2": {
+"stamina_cost": 25
+},
+"4": {
+"cooldown_tu": 0
+}
+}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_ucqm2")]([SubResource("Resource_sweep_l0"), SubResource("Resource_sweep_l3"), SubResource("Resource_sweep_l5")])
 
 [resource]
 script = ExtResource("5_8cuot")
 skill_id = &"warrior_sweeping_slash"
 display_name = "横扫"
 icon_id = &"warrior_sweeping_slash"
-description = "前方范围横扫。"
-max_level = 3
-mastery_curve = PackedInt32Array(24, 40, 62)
+description = "横扫前方相邻弧线内的敌人，每个目标分别承受一次当前武器攻击。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"strength": 60,
+"agility": 60
+}
 tags = Array[StringName]([&"warrior", &"melee", &"aoe"])
 combat_profile = SubResource("Resource_qbvyj")

@@ -42,7 +42,7 @@ actions = Array[Resource]([SubResource("Action_engage_charge"), SubResource("Act
 [sub_resource type="Resource" id="Action_pressure_bash"]
 script = ExtResource("4_unit")
 action_id = &"vanguard_shield_bash"
-skill_ids = Array[StringName]([&"warrior_shield_bash"])
+skill_ids = Array[StringName]([&"warrior_shield_bash", &"basic_attack"])
 target_selector = &"nearest_enemy"
 desired_min_distance = 1
 desired_max_distance = 1

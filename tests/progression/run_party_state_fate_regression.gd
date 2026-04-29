@@ -12,7 +12,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_party_state_fate_fields_round_trip()
-	_test_party_state_from_dict_missing_fate_fields_falls_back_to_defaults()
+	_test_party_state_from_dict_missing_fate_fields_is_rejected()
 
 	if _failures.is_empty():
 		print("PartyState fate regression: PASS")
@@ -57,32 +57,27 @@ func _test_party_state_fate_fields_round_trip() -> void:
 	)
 
 
-func _test_party_state_from_dict_missing_fate_fields_falls_back_to_defaults() -> void:
-	var legacy_party_state = PartyState.from_dict({
-		"version": 3,
-		"gold": 180,
-		"leader_member_id": "hero",
-		"main_character_member_id": "hero",
-		"active_member_ids": ["hero"],
-		"reserve_member_ids": [],
-		"member_states": {
-			"hero": _build_party_member_state(&"hero", "Hero").to_dict(),
-		},
-		"pending_character_rewards": [],
-		"active_quests": [],
-		"claimable_quests": [],
-		"completed_quest_ids": [],
-		"warehouse_state": {"stacks": [], "equipment_instances": []},
-	})
-	_assert_true(legacy_party_state != null, "缺少 fate 字段的旧 PartyState shape 应能回退到默认值。")
-	if legacy_party_state == null:
-		return
+func _test_party_state_from_dict_missing_fate_fields_is_rejected() -> void:
+	var missing_fate_payload: Dictionary = _build_party_state().to_dict()
+	missing_fate_payload.erase("fate_run_flags")
+	_assert_true(
+		PartyState.from_dict(missing_fate_payload) == null,
+		"缺少 fate_run_flags 的 PartyState shape 应直接拒绝。"
+	)
 
-	_assert_true(legacy_party_state.get_fate_run_flags().is_empty(), "旧存档缺少 fate_run_flags 时应回退到空字典。")
+	var missing_meta_payload: Dictionary = _build_party_state().to_dict()
+	missing_meta_payload.erase("meta_flags")
+	_assert_true(
+		PartyState.from_dict(missing_meta_payload) == null,
+		"缺少 meta_flags 的 PartyState shape 应直接拒绝。"
+	)
 
-	var normalized_payload: Dictionary = legacy_party_state.to_dict()
-	_assert_true(not normalized_payload.has("party_drop_luck_source_member_id"), "回填后的 PartyState 再序列化时不应回写旧掉落承担者字段。")
-	_assert_true(normalized_payload.has("fate_run_flags"), "回填后的 PartyState 再序列化时应带上 fate_run_flags 字段。")
+	var invalid_fate_payload: Dictionary = _build_party_state().to_dict()
+	invalid_fate_payload["fate_run_flags"] = []
+	_assert_true(
+		PartyState.from_dict(invalid_fate_payload) == null,
+		"fate_run_flags 类型错误的 PartyState shape 应直接拒绝。"
+	)
 
 
 func _build_party_state() -> PartyState:

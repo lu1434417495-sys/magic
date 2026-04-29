@@ -23,7 +23,6 @@ skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot
 attribute_overrides = {
 "hp_max": 26,
 "mp_max": 0,
-"stamina_max": 4,
 "action_points": 2,
 "attack_bonus": 5,
 "armor_class": 13,

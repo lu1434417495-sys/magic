@@ -1,15 +1,37 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_5w33g"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_m4kj0"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_hefuc"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_k1cg4"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_wpb1n"]
 
-[sub_resource type="Resource" id="Resource_wkr88"]
+[sub_resource type="Resource" id="Resource_recovery_l0"]
 script = ExtResource("3_hefuc")
 effect_type = &"heal"
 power = 10
+max_skill_level = 1
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l2"]
+script = ExtResource("3_hefuc")
+effect_type = &"heal"
+power = 14
+min_skill_level = 2
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l3"]
+script = ExtResource("3_hefuc")
+effect_type = &"heal"
+power = 18
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l5"]
+script = ExtResource("3_hefuc")
+effect_type = &"heal"
+power = 24
+min_skill_level = 5
 effect_target_team_filter = &"ally"
 
 [sub_resource type="Resource" id="Resource_j1thy"]
@@ -17,10 +39,21 @@ script = ExtResource("4_k1cg4")
 skill_id = &"warrior_battle_recovery"
 target_team_filter = &"ally"
 range_value = 0
-stamina_cost = 1
-cooldown_tu = 10
+stamina_cost = 20
+cooldown_tu = 20
+attack_roll_bonus = 0
+level_overrides = {
+"2": {
+"cooldown_tu": 15
+},
+"4": {
+"cooldown_tu": 10
+}
+}
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
 target_selection_mode = &"self"
-effect_defs = Array[ExtResource("3_hefuc")]([SubResource("Resource_wkr88")])
+effect_defs = Array[ExtResource("3_hefuc")]([SubResource("Resource_recovery_l0"), SubResource("Resource_recovery_l2"), SubResource("Resource_recovery_l3"), SubResource("Resource_recovery_l5")])
 
 [resource]
 script = ExtResource("5_wpb1n")
@@ -28,7 +61,13 @@ skill_id = &"warrior_battle_recovery"
 display_name = "战斗回复"
 icon_id = &"warrior_battle_recovery"
 description = "稳定恢复自身生命。"
-max_level = 3
-mastery_curve = PackedInt32Array(24, 40, 62)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"constitution": 40,
+"willpower": 20
+}
 tags = Array[StringName]([&"warrior", &"melee", &"recovery"])
 combat_profile = SubResource("Resource_j1thy")

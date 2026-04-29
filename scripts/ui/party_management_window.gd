@@ -6,7 +6,8 @@ class_name PartyManagementWindow
 extends Control
 
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
 ## 信号说明：当界面请求队长变化时发出的信号，具体处理由外层系统或控制器负责。
 signal leader_change_requested(member_id: StringName)
@@ -500,6 +501,13 @@ func _build_skill_detail_lines(progression: UnitProgress) -> PackedStringArray:
 		lines.append("  熟练度：%d  总获得：%d" % [int(skill_progress.current_mastery), int(skill_progress.total_mastery_earned)])
 		if skill_def != null and not skill_def.description.is_empty():
 			lines.append("  说明：%s" % skill_def.description)
+		var current_level := int(skill_progress.skill_level)
+		var level_desc := skill_def.level_descriptions.get(str(current_level), "") as String
+		if not level_desc.is_empty():
+			lines.append("  当前效果：%s" % level_desc)
+		var preview_lines := _build_level_override_preview(skill_def, current_level)
+		for preview_line in preview_lines:
+			lines.append(preview_line)
 		if not skill_progress.merged_from_skill_ids.is_empty():
 			lines.append("  来源：%s" % _format_skill_id_list(skill_progress.merged_from_skill_ids))
 	if learned_count <= 0:
@@ -508,6 +516,35 @@ func _build_skill_detail_lines(progression: UnitProgress) -> PackedStringArray:
 		lines.insert(0, "已学技能：%d" % learned_count)
 	return lines
 
+
+func _build_level_override_preview(skill_def, skill_level: int) -> PackedStringArray:
+	var lines := PackedStringArray()
+	if skill_def == null or skill_def.combat_profile == null:
+		return lines
+	var overrides: Dictionary = skill_def.combat_profile.level_overrides
+	if overrides.is_empty():
+		return lines
+	var next_levels := PackedStringArray()
+	for level_key in overrides.keys():
+		var level := int(level_key)
+		if level > skill_level:
+			var data := overrides[level_key] as Dictionary
+			var parts := PackedStringArray()
+			for cost_key in ["ap_cost", "mp_cost", "stamina_cost", "aura_cost", "cooldown_tu"]:
+				if data.has(cost_key):
+					var label := ""
+					match cost_key:
+						"ap_cost": label = "AP"
+						"mp_cost": label = "MP"
+						"stamina_cost": label = "体力"
+						"aura_cost": label = "斗气"
+						"cooldown_tu": label = "冷却"
+					parts.append("%s→%d" % [label, int(data[cost_key])])
+			if not parts.is_empty():
+				next_levels.append("Lv.%d：%s" % [level, "，".join(parts)])
+	if not next_levels.is_empty():
+		lines.append("  升级预览：%s" % "；".join(next_levels))
+	return lines
 
 func _build_profession_detail_lines(progression: UnitProgress) -> PackedStringArray:
 	var lines := PackedStringArray()

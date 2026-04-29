@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_spin"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_spin"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_spin"]
+
+[sub_resource type="Resource" id="Resource_spin_damage"]
+script = ExtResource("3_spin")
+effect_type = &"damage"
+power = 0
+damage_tag = &"physical_slash"
+params = {
+"add_weapon_dice": true,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_spin_profile"]
+script = ExtResource("4_spin")
+skill_id = &"warrior_spin_slash"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 0
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 1
+stamina_cost = 50
+cooldown_tu = 0
+attack_roll_bonus = -2
+area_value_from_weapon_range = true
+level_overrides = {
+"1": {
+"attack_roll_bonus": -1
+},
+"3": {
+"attack_roll_bonus": 0
+},
+"5": {
+"attack_roll_bonus": 1
+},
+"7": {
+"attack_roll_bonus": 2
+}
+}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+excluded_weapon_families = Array[StringName]([&"spear", &"dagger"])
+effect_defs = Array[ExtResource("3_spin")]([SubResource("Resource_spin_damage")])
+
+[resource]
+script = ExtResource("5_spin")
+skill_id = &"warrior_spin_slash"
+display_name = "旋斩"
+icon_id = &"warrior_spin_slash"
+description = "原地旋转斩击周围敌人，范围与武器攻击范围一致。长枪类和匕首类武器无法使用。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(200, 500, 1100, 2000, 3200, 4700, 6500)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"strength": 60,
+"agility": 60
+}
+level_descriptions = {
+"0": "原地旋转斩击周围敌人，攻击检定-2，范围等于当前武器攻击范围",
+"1": "原地旋转斩击周围敌人，攻击检定-1，范围等于当前武器攻击范围",
+"2": "原地旋转斩击周围敌人，攻击检定-1，范围等于当前武器攻击范围",
+"3": "原地旋转斩击周围敌人，攻击检定0，范围等于当前武器攻击范围",
+"4": "原地旋转斩击周围敌人，攻击检定0，范围等于当前武器攻击范围",
+"5": "原地旋转斩击周围敌人，攻击检定+1，范围等于当前武器攻击范围",
+"6": "原地旋转斩击周围敌人，攻击检定+1，范围等于当前武器攻击范围",
+"7": "原地旋转斩击周围敌人，攻击检定+2，范围等于当前武器攻击范围"
+}
+tags = Array[StringName]([&"warrior", &"melee", &"aoe"])
+combat_profile = SubResource("Resource_spin_profile")

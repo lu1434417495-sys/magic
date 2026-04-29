@@ -9,7 +9,7 @@ const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
 const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
-const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/pending_character_reward.gd")
+const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const QUEST_STATE_SCRIPT = preload("res://scripts/player/progression/quest_state.gd")
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 const QuestState = QUEST_STATE_SCRIPT
@@ -413,10 +413,14 @@ static func from_dict(data: Dictionary):
 	var completed_quest_ids_variant: Variant = data.get("completed_quest_ids", null)
 	if completed_quest_ids_variant is not Array:
 		return null
-	var fate_run_flags_variant: Variant = data.get("fate_run_flags", {})
+	if not data.has("fate_run_flags"):
+		return null
+	var fate_run_flags_variant: Variant = data.get("fate_run_flags", null)
 	if fate_run_flags_variant is not Dictionary:
 		return null
-	var meta_flags_variant: Variant = data.get("meta_flags", {})
+	if not data.has("meta_flags"):
+		return null
+	var meta_flags_variant: Variant = data.get("meta_flags", null)
 	if meta_flags_variant is not Dictionary:
 		return null
 

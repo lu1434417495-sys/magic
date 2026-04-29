@@ -1,12 +1,12 @@
 extends SceneTree
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
-const BattleStatusSemanticTable = preload("res://scripts/systems/battle_status_semantic_table.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
 var _failures: Array[String] = []

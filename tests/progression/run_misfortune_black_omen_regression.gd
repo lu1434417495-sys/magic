@@ -1,8 +1,9 @@
 extends SceneTree
 
-const CharacterManagementModule = preload("res://scripts/systems/character_management_module.gd")
-const MisfortuneBlackOmenService = preload("res://scripts/systems/misfortune_black_omen_service.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
+const MisfortuneBlackOmenService = preload("res://scripts/systems/progression/misfortune_black_omen_service.gd")
 const EquipmentRules = preload("res://scripts/player/equipment/equipment_rules.gd")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
@@ -91,7 +92,8 @@ func _build_context_with_cursed_relic() -> Dictionary:
 		member_state.equipment_state.set_equipped_entry(
 			EquipmentRules.ACCESSORY_1,
 			cursed_relic.item_id,
-			[EquipmentRules.ACCESSORY_1]
+			[EquipmentRules.ACCESSORY_1],
+			EquipmentInstanceState.create(cursed_relic.item_id, &"eq_black_omen_cursed_relic")
 		)
 	return context
 

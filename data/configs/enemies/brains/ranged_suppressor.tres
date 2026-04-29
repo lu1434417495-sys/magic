@@ -22,7 +22,7 @@ distance_reference = &"target_coord"
 script = ExtResource("4_unit")
 action_id = &"harrier_pin_target"
 score_bucket_id = &"harrier_pressure"
-skill_ids = Array[StringName]([&"archer_pinning_shot"])
+skill_ids = Array[StringName]([&"archer_pinning_shot", &"basic_attack"])
 target_selector = &"lowest_hp_enemy"
 desired_min_distance = 4
 desired_max_distance = 5
@@ -59,7 +59,7 @@ actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Act
 [sub_resource type="Resource" id="Action_retreat_cover"]
 script = ExtResource("4_unit")
 action_id = &"harrier_cover_retreat"
-skill_ids = Array[StringName]([&"archer_pinning_shot"])
+skill_ids = Array[StringName]([&"archer_pinning_shot", &"basic_attack"])
 target_selector = &"nearest_enemy"
 desired_min_distance = 5
 desired_max_distance = 5

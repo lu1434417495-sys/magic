@@ -1,6 +1,5 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_j0fpq"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_657aj"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_l0y4u"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_h3ew0"]
@@ -21,13 +20,48 @@ params = {
 "skill_id": "warrior_whirlwind_slash"
 }
 
-[sub_resource type="Resource" id="Resource_ivcde"]
+[sub_resource type="Resource" id="Resource_path_l0"]
 script = ExtResource("3_l0y4u")
 effect_type = &"path_step_aoe"
-power = 10
+power = 8
+max_skill_level = 2
+damage_tag = &"physical_slash"
 params = {
 "allow_repeat_hits_across_steps": true,
 "apply_on_successful_step_only": true,
+"dice_count": 1,
+"dice_sides": 4,
+"step_radius": 1,
+"step_shape": "diamond"
+}
+
+[sub_resource type="Resource" id="Resource_path_l3"]
+script = ExtResource("3_l0y4u")
+effect_type = &"path_step_aoe"
+power = 10
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"physical_slash"
+params = {
+"allow_repeat_hits_across_steps": true,
+"apply_on_successful_step_only": true,
+"dice_count": 1,
+"dice_sides": 6,
+"step_radius": 1,
+"step_shape": "diamond"
+}
+
+[sub_resource type="Resource" id="Resource_path_l5"]
+script = ExtResource("3_l0y4u")
+effect_type = &"path_step_aoe"
+power = 12
+min_skill_level = 5
+damage_tag = &"physical_slash"
+params = {
+"allow_repeat_hits_across_steps": true,
+"apply_on_successful_step_only": true,
+"dice_count": 1,
+"dice_sides": 8,
 "step_radius": 1,
 "step_shape": "diamond"
 }
@@ -37,7 +71,7 @@ script = ExtResource("2_657aj")
 variant_id = &"whirlwind_charge"
 display_name = "旋风斩"
 description = "兼容期内仍沿用冲锋选点，但额外挂出路径 AOE 的定义语义。"
-effect_defs = Array[ExtResource("3_l0y4u")]([SubResource("Resource_hguor"), SubResource("Resource_ivcde")])
+effect_defs = Array[ExtResource("3_l0y4u")]([SubResource("Resource_hguor"), SubResource("Resource_path_l0"), SubResource("Resource_path_l3"), SubResource("Resource_path_l5")])
 
 [sub_resource type="Resource" id="Resource_qaif8"]
 script = ExtResource("4_h3ew0")
@@ -45,9 +79,20 @@ skill_id = &"warrior_whirlwind_slash"
 target_mode = &"ground"
 range_value = 6
 ap_cost = 2
-stamina_cost = 2
+stamina_cost = 35
 cooldown_tu = 15
 aura_cost = 1
+attack_roll_bonus = 1
+level_overrides = {
+"2": {
+"stamina_cost": 30
+},
+"4": {
+"cooldown_tu": 10
+}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
 cast_variants = Array[ExtResource("2_657aj")]([SubResource("Resource_xn254")])
 
 [resource]
@@ -56,8 +101,14 @@ skill_id = &"warrior_whirlwind_slash"
 display_name = "旋风斩"
 icon_id = &"warrior_whirlwind_slash"
 description = "冲锋与旋斩合并后的升级技能。"
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840)
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"strength": 90,
+"agility": 90
+}
 tags = Array[StringName]([&"warrior", &"melee", &"aoe", &"mobility"])
-learn_requirements = Array[StringName]([&"charge", &"warrior_combo_strike"])
+learn_requirements = Array[StringName]([&"charge", &"warrior_spin_slash"])
 combat_profile = SubResource("Resource_qaif8")

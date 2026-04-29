@@ -1,7 +1,7 @@
 extends SceneTree
 
-const AttributeService = preload("res://scripts/systems/attribute_service.gd")
-const CharacterCreationService = preload("res://scripts/systems/character_creation_service.gd")
+const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
+const CharacterCreationService = preload("res://scripts/systems/progression/character_creation_service.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
 

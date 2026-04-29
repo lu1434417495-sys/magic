@@ -1,33 +1,106 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_c11lj"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_dkvw7"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_i3bpm"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_hqefb"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_6n01g"]
 
-[sub_resource type="Resource" id="Resource_jwxlo"]
+[sub_resource type="Resource" id="Resource_taunt_l0"]
 script = ExtResource("3_i3bpm")
 effect_type = &"status"
 power = 1
+max_skill_level = 0
+status_id = &"taunted"
+duration_tu = 30
+
+[sub_resource type="Resource" id="Resource_taunt_l1"]
+script = ExtResource("3_i3bpm")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 1
+status_id = &"taunted"
+duration_tu = 45
+
+[sub_resource type="Resource" id="Resource_taunt_l2"]
+script = ExtResource("3_i3bpm")
+effect_type = &"status"
+power = 1
+min_skill_level = 2
+max_skill_level = 2
+status_id = &"taunted"
+duration_tu = 45
+
+[sub_resource type="Resource" id="Resource_taunt_l3"]
+script = ExtResource("3_i3bpm")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 3
+status_id = &"taunted"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_taunt_l4"]
+script = ExtResource("3_i3bpm")
+effect_type = &"status"
+power = 1
+min_skill_level = 4
+max_skill_level = 4
+status_id = &"taunted"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_taunt_l5"]
+script = ExtResource("3_i3bpm")
+effect_type = &"status"
+power = 1
+min_skill_level = 5
+max_skill_level = 5
 status_id = &"taunted"
 duration_tu = 90
 
 [sub_resource type="Resource" id="Resource_8rkps"]
 script = ExtResource("4_hqefb")
 skill_id = &"warrior_taunt"
-range_value = 3
-stamina_cost = 1
-cooldown_tu = 10
-effect_defs = Array[ExtResource("3_i3bpm")]([SubResource("Resource_jwxlo")])
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 1
+area_pattern = &"single"
+area_value = 0
+max_target_count = 1
+stamina_cost = 30
+cooldown_tu = 120
+attack_roll_bonus = 0
+level_overrides = {
+"5": {
+"area_pattern": "front_arc",
+"area_value": 1,
+"max_target_count": 3
+}
+}
+mastery_trigger_mode = &"status_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_i3bpm")]([SubResource("Resource_taunt_l0"), SubResource("Resource_taunt_l1"), SubResource("Resource_taunt_l2"), SubResource("Resource_taunt_l3"), SubResource("Resource_taunt_l4"), SubResource("Resource_taunt_l5")])
 
 [resource]
 script = ExtResource("5_6n01g")
 skill_id = &"warrior_taunt"
 display_name = "挑衅"
 icon_id = &"warrior_taunt"
-description = "迫使敌人优先关注自己。"
-max_level = 3
-mastery_curve = PackedInt32Array(24, 40, 62)
+description = "嘲讽目标，使其在攻击非来源单位时处于劣势。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"constitution": 30,
+"willpower": 30
+}
+level_descriptions = {
+"0": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续30TU",
+"1": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续45TU",
+"2": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续45TU",
+"3": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续60TU",
+"4": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续60TU",
+"5": "对身边相邻一格横向3格内的敌人嘲讽，使其攻击非来源单位时处于劣势，持续90TU"
+}
 tags = Array[StringName]([&"warrior", &"melee", &"control"])
 combat_profile = SubResource("Resource_8rkps")

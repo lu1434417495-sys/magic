@@ -7,15 +7,15 @@ extends SceneTree
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
 const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleEdgeFeatureState = preload("res://scripts/systems/battle_edge_feature_state.gd")
-const BattleEdgeService = preload("res://scripts/systems/battle_edge_service.gd")
-const BattleGridService = preload("res://scripts/systems/battle_grid_service.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/battle_edge_feature_state.gd")
+const BattleEdgeService = preload("res://scripts/systems/battle/terrain/battle_edge_service.gd")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
 const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTerrainRules = preload("res://scripts/systems/battle_terrain_rules.gd")
-const BattleTerrainGenerator = preload("res://scripts/systems/battle_terrain_generator.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
+const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/battle_terrain_generator.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const EDGE_DROP_EAST_TEXTURE_PATHS: Array[String] = [
 	"res://assets/main/battle/terrain/canyon/cliff_east_01.png",
 	"res://assets/main/battle/terrain/canyon/cliff_east_02.png",

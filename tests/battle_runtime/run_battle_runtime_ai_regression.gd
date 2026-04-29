@@ -1,17 +1,17 @@
 extends SceneTree
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle_runtime_module.gd")
-const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle_ai_context.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle_command.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
+const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
 const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
@@ -20,8 +20,8 @@ const USE_CHARGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_char
 const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle_damage_resolver.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -50,6 +50,7 @@ func _run() -> void:
 	_test_healer_template_resolves_stable_id()
 	_test_wolf_templates_spawn_with_positive_stamina_pool()
 	_test_enemy_template_does_not_resolve_display_name_alias()
+	_test_natural_weapon_melee_aggressor_falls_back_to_basic_attack()
 	_test_ai_charge_decision_logs_brain_state_action()
 	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
 	_test_charge_action_scores_with_resolved_stop_anchor()
@@ -143,6 +144,7 @@ func _test_enemy_template_resolves_stable_id() -> void:
 	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"melee_aggressor", "stable template id 应绑定 melee_aggressor brain。")
 	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"engage", "stable template id 应写入初始 AI 状态 engage。")
 	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"charge"), "wolf_pack 模板应为敌人注入冲锋技能。")
+	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"basic_attack"), "天生武器 wolf_pack 单位应自动获得基础攻击。")
 
 
 func _test_frontline_template_resolves_stable_id() -> void:
@@ -252,6 +254,33 @@ func _test_enemy_template_does_not_resolve_display_name_alias() -> void:
 		return
 	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
 	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id != &"melee_aggressor", "旧 display_name alias 不应再解析到正式 wolf_pack 模板。")
+
+
+func _test_natural_weapon_melee_aggressor_falls_back_to_basic_attack() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(3, 1))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"natural_basic_wolf",
+		"基础攻击荒狼",
+		&"hostile",
+		Vector2i(0, 0),
+		&"melee_aggressor",
+		&"pressure",
+		[&"warrior_heavy_strike", &"basic_attack"],
+		28,
+		2
+	)
+	wolf.set_natural_weapon_projection(&"natural_weapon", &"physical_pierce", 1, {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0})
+	var player = _build_manual_unit(&"basic_attack_target", "玩家", &"player", Vector2i(1, 0), [&"basic_attack"])
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。")
+	_assert_eq(decision.command.skill_id if decision != null and decision.command != null else &"", &"basic_attack", "重击被装备武器门槛阻断后，天生武器单位应回退到基础攻击。")
+	var preview = runtime.preview_command(decision.command if decision != null else null)
+	_assert_true(preview != null and preview.allowed, "天生武器基础攻击应通过 runtime preview。")
 
 
 func _test_ai_charge_decision_logs_brain_state_action() -> void:
@@ -555,6 +584,17 @@ func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
 		26,
 		2
 	)
+	wolf.current_stamina = 80
+	wolf.attribute_snapshot.set_value(&"stamina_max", 80)
+	wolf.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "score_test_blade",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 	var player = _build_manual_unit(&"low_hp_target", "残血玩家", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
 	player.current_hp = 5
 	_add_unit_to_state(runtime, state, wolf, true)
@@ -569,6 +609,7 @@ func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
 	heavy_command.target_unit_id = player.unit_id
 	heavy_command.target_coord = player.coord
 	var heavy_preview = runtime.preview_command(heavy_command)
+	_assert_true(heavy_preview != null and heavy_preview.allowed, "melee_aggressor 重击评分前置应满足 runtime preview。")
 	var heavy_score = ai_context.build_skill_score_input(
 		heavy_skill_def,
 		heavy_command,
@@ -585,6 +626,7 @@ func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
 	execute_command.target_unit_id = player.unit_id
 	execute_command.target_coord = player.coord
 	var execute_preview = runtime.preview_command(execute_command)
+	_assert_true(execute_preview != null and execute_preview.allowed, "melee_aggressor 斩杀评分前置应满足 runtime preview。")
 	var execute_score = ai_context.build_skill_score_input(
 		execute_skill_def,
 		execute_command,
@@ -1170,6 +1212,8 @@ func _test_frontline_bulwark_guards_when_low_hp() -> void:
 		12,
 		2
 	)
+	vanguard.current_stamina = 50
+	vanguard.attribute_snapshot.set_value(&"stamina_max", 50)
 	var player = _build_manual_unit(&"player_01", "玩家", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
 	_add_unit_to_state(runtime, state, vanguard, true)
 	_add_unit_to_state(runtime, state, player, false)

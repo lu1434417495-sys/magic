@@ -11,11 +11,18 @@ initial_state_id = &"pressure"
 enemy_count = 2
 action_threshold = 45
 tags = Array[StringName]([&"beast", &"mist"])
+base_attribute_overrides = {
+"strength": 5,
+"agility": 5,
+"constitution": 5,
+"perception": 6,
+"intelligence": 6,
+"willpower": 6,
+}
 skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 8,
-"stamina_max": 0,
 "action_points": 2,
 "attack_bonus": 6,
 "armor_class": 12,

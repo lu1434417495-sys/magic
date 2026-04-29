@@ -1,27 +1,28 @@
 extends SceneTree
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attribute_service.gd")
-const BATTLE_EVENT_BATCH_SCRIPT = preload("res://scripts/systems/battle_event_batch.gd")
-const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle_fate_event_bus.gd")
-const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle_resolution_result.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
-const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle_status_effect_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle_timeline_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle_unit_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle_cell_state.gd")
-const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/character_management_module.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BATTLE_EVENT_BATCH_SCRIPT = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
+const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/progression/character_management_module.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
-const GAME_RUNTIME_SETTLEMENT_COMMAND_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime_settlement_command_handler.gd")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const GAME_RUNTIME_SETTLEMENT_COMMAND_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_settlement_command_handler.gd")
 const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const LOW_LUCK_EVENT_SERVICE_SCRIPT = preload("res://scripts/systems/low_luck_event_service.gd")
-const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/low_luck_relic_rules.gd")
-const MISFORTUNE_BLACK_OMEN_SERVICE_SCRIPT = preload("res://scripts/systems/misfortune_black_omen_service.gd")
+const LOW_LUCK_EVENT_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/low_luck_event_service.gd")
+const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/fate/low_luck_relic_rules.gd")
+const MISFORTUNE_BLACK_OMEN_SERVICE_SCRIPT = preload("res://scripts/systems/progression/misfortune_black_omen_service.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle_damage_resolver.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle_runtime_module.gd")
+const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const PROGRESSION_DATA_UTILS_SCRIPT = preload("res://scripts/player/progression/progression_data_utils.gd")
 
 const BattleEventBatch = BATTLE_EVENT_BATCH_SCRIPT
@@ -35,6 +36,7 @@ const BattleCellState = BATTLE_CELL_STATE_SCRIPT
 const CharacterManagementModule = CHARACTER_MANAGEMENT_MODULE_SCRIPT
 const CombatEffectDef = COMBAT_EFFECT_DEF_SCRIPT
 const EquipmentRules = EQUIPMENT_RULES_SCRIPT
+const EquipmentInstanceState = EQUIPMENT_INSTANCE_STATE_SCRIPT
 const GameRuntimeSettlementCommandHandler = GAME_RUNTIME_SETTLEMENT_COMMAND_HANDLER_SCRIPT
 const ItemContentRegistry = ITEM_CONTENT_REGISTRY_SCRIPT
 const LowLuckEventService = LOW_LUCK_EVENT_SERVICE_SCRIPT
@@ -310,7 +312,11 @@ func _test_dead_road_lantern_reveals_hidden_paths_and_grants_black_omen_mark() -
 	member_state.equipment_state.set_equipped_entry(
 		EquipmentRules.ACCESSORY_1,
 		LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
-		_build_slot_array(EquipmentRules.ACCESSORY_1)
+		_build_slot_array(EquipmentRules.ACCESSORY_1),
+		EquipmentInstanceState.create(
+			LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
+			&"eq_dead_road_lantern_black_omen"
+		)
 	)
 	party_state.set_member_state(member_state)
 	var manager = CharacterManagementModule.new()
@@ -350,7 +356,15 @@ func _build_equipped_member_snapshot(item_defs: Dictionary, item_id: StringName)
 	member_state.progression.unit_id = HERO_ID
 	member_state.progression.display_name = "Hero"
 	var slot_id = EquipmentRules.ACCESSORY_2 if item_id == LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL else EquipmentRules.ACCESSORY_1
-	member_state.equipment_state.set_equipped_entry(slot_id, item_id, _build_slot_array(slot_id))
+	member_state.equipment_state.set_equipped_entry(
+		slot_id,
+		item_id,
+		_build_slot_array(slot_id),
+		EquipmentInstanceState.create(
+			item_id,
+			ProgressionDataUtils.to_string_name("eq_snapshot_%s" % String(item_id))
+		)
+	)
 	party_state.set_member_state(member_state)
 	var manager = CharacterManagementModule.new()
 	manager.setup(party_state, {}, {}, {}, item_defs)

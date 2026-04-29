@@ -1,6 +1,6 @@
 extends SceneTree
 
-const GameSession = preload("res://scripts/systems/game_session.gd")
+const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
 const ProfessionContentRegistry = preload("res://scripts/player/progression/profession_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 
