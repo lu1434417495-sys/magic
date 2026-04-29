@@ -1,10 +1,10 @@
 extends SceneTree
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd")
-const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime_battle_selection.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime/game_runtime_battle_selection.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 
 func _initialize() -> void:

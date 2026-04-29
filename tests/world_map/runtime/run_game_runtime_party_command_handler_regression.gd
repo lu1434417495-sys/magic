@@ -1,7 +1,7 @@
 extends SceneTree
 
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd")
-const GameRuntimePartyCommandHandler = preload("res://scripts/systems/game_runtime_party_command_handler.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const GameRuntimePartyCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_party_command_handler.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 

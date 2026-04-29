@@ -1,8 +1,8 @@
 extends SceneTree
 
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
-const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
+const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const RuntimeLogDock = preload("res://scripts/ui/runtime_log_dock.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"

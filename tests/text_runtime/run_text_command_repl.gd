@@ -2,7 +2,7 @@
 # It exists for local debugging, not as a shipping game entry.
 extends SceneTree
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
 
 
 func _initialize() -> void:

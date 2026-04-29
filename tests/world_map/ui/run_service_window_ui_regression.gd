@@ -1,15 +1,15 @@
 extends SceneTree
 
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd")
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const SETTLEMENT_WINDOW_SCENE = preload("res://scenes/ui/settlement_window.tscn")
 const SHOP_WINDOW_SCENE = preload("res://scenes/ui/shop_window.tscn")
 const STAGECOACH_WINDOW_SCENE = preload("res://scenes/ui/shop_window.tscn")
 const CHARACTER_INFO_WINDOW_SCENE = preload("res://scenes/ui/character_info_window.tscn")
 const MASTERY_REWARD_WINDOW_SCENE = preload("res://scenes/ui/mastery_reward_window.tscn")
 const SUBMAP_ENTRY_WINDOW_SCENE = preload("res://scenes/ui/submap_entry_window.tscn")
-const PendingCharacterReward = preload("res://scripts/systems/pending_character_reward.gd")
-const PendingCharacterRewardEntry = preload("res://scripts/systems/pending_character_reward_entry.gd")
+const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 

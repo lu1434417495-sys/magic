@@ -1,9 +1,9 @@
 extends SceneTree
 
-const SettlementForgeService = preload("res://scripts/systems/settlement_forge_service.gd")
-const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime_settlement_command_handler.gd")
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
-const PartyWarehouseService = preload("res://scripts/systems/party_warehouse_service.gd")
+const SettlementForgeService = preload("res://scripts/systems/settlement/settlement_forge_service.gd")
+const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_settlement_command_handler.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")

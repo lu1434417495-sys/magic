@@ -1,8 +1,9 @@
 extends SceneTree
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime_facade.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle_state.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
+const SAVE_SERIALIZER_SCRIPT = preload("res://scripts/systems/persistence/save_serializer.gd")
 
 const ASHEN_WORLD_CONFIG := "res://data/configs/world_map/ashen_intersection_world_map_config.tres"
 
@@ -14,6 +15,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_mounted_submap_serializer_contract()
 	_test_submap_return_blocks_while_battle_active()
 	_test_submap_return_blocks_while_modal_open()
 	_test_submap_entry_return_and_reload()
@@ -150,6 +152,61 @@ func _test_submap_entry_return_and_reload() -> void:
 	_cleanup(game_session)
 
 
+func _test_mounted_submap_serializer_contract() -> void:
+	var serializer = SAVE_SERIALIZER_SCRIPT.new()
+	var root_world_data := _build_minimal_world_data(101)
+	root_world_data["mounted_submaps"] = {
+		"ashen_ashlands": _build_mounted_submap_entry(false, {}),
+	}
+
+	var normalized_world_data := serializer.normalize_world_data(root_world_data)
+	var normalized_entry := _get_mounted_submap_entry(normalized_world_data, "ashen_ashlands")
+	_assert_true(not normalized_entry.is_empty(), "未生成子地图占位应能穿过 normalize_world_data。")
+	_assert_true(not bool(normalized_entry.get("is_generated", true)), "未生成子地图 normalize 后应保持 is_generated=false。")
+	_assert_true((normalized_entry.get("world_data", {}) as Dictionary).is_empty(), "未生成子地图 normalize 后应保持空 world_data。")
+
+	var serialized_world_data := serializer.serialize_world_data(normalized_world_data)
+	var serialized_entry := _get_mounted_submap_entry(serialized_world_data, "ashen_ashlands")
+	_assert_true(not serialized_entry.is_empty(), "未生成子地图占位应能穿过 serialize_world_data。")
+	_assert_true((serialized_entry.get("world_data", {}) as Dictionary).is_empty(), "未生成子地图 serialize 后应保持空 world_data。")
+
+	var generated_submap_world_data := _build_minimal_world_data(202)
+	var generated_root_world_data := _build_minimal_world_data(101)
+	generated_root_world_data["mounted_submaps"] = {
+		"ashen_ashlands": _build_mounted_submap_entry(true, generated_submap_world_data),
+	}
+	var serialized_generated_world_data := serializer.serialize_world_data(generated_root_world_data)
+	var serialized_generated_entry := _get_mounted_submap_entry(serialized_generated_world_data, "ashen_ashlands")
+	var serialized_generated_submap_world_data: Dictionary = serialized_generated_entry.get("world_data", {})
+	_assert_eq(
+		int(serialized_generated_submap_world_data.get("next_equipment_instance_serial", 0)),
+		1,
+		"已生成子地图应继续按完整 world_data 序列化。"
+	)
+
+	var generated_missing_serial := _build_minimal_world_data(303)
+	generated_missing_serial.erase("next_equipment_instance_serial")
+	var missing_serial_error := serializer.get_mounted_submap_world_data_validation_error(
+		"ashen_ashlands",
+		true,
+		generated_missing_serial
+	)
+	_assert_true(
+		missing_serial_error.contains("missing required field 'next_equipment_instance_serial'"),
+		"已生成子地图缺少装备实例序列仍应判为坏档。 error=%s" % missing_serial_error
+	)
+
+	var ungenerated_with_world_data_error := serializer.get_mounted_submap_world_data_validation_error(
+		"ashen_ashlands",
+		false,
+		_build_minimal_world_data(404)
+	)
+	_assert_true(
+		ungenerated_with_world_data_error.contains("ungenerated submap requires empty world_data"),
+		"未生成子地图不应携带非空 world_data，避免把不一致状态静默降级。 error=%s" % ungenerated_with_world_data_error
+	)
+
+
 func _create_ashen_runtime_context() -> Dictionary:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(ASHEN_WORLD_CONFIG))
@@ -185,6 +242,41 @@ func _enter_ashen_submap(facade) -> bool:
 	_assert_eq(facade.get_active_map_id(), "ashen_ashlands", "子地图 ID 应写入运行时。")
 	_assert_eq(facade.get_player_coord(), Vector2i(15, 15), "首次进入灰烬地图应落在子地图起点。")
 	return bool(confirm_result.get("ok", false))
+
+
+func _build_minimal_world_data(map_seed: int) -> Dictionary:
+	return {
+		"map_seed": map_seed,
+		"world_step": 0,
+		"next_equipment_instance_serial": 1,
+		"active_submap_id": "",
+		"submap_return_stack": [],
+		"settlements": [],
+		"world_events": [],
+		"encounter_anchors": [],
+		"mounted_submaps": {},
+	}
+
+
+func _build_mounted_submap_entry(is_generated: bool, world_data: Dictionary) -> Dictionary:
+	return {
+		"submap_id": "ashen_ashlands",
+		"display_name": "灰烬地图",
+		"generation_config_path": ASHEN_WORLD_CONFIG,
+		"return_hint_text": "点击任意地点返回原位置。",
+		"is_generated": is_generated,
+		"player_coord": Vector2i(-1, -1),
+		"world_data": world_data,
+	}
+
+
+func _get_mounted_submap_entry(world_data: Dictionary, submap_id: String) -> Dictionary:
+	var mounted_submaps_variant = world_data.get("mounted_submaps", {})
+	if mounted_submaps_variant is not Dictionary:
+		return {}
+	var mounted_submaps: Dictionary = mounted_submaps_variant
+	var entry_variant = mounted_submaps.get(submap_id, {})
+	return entry_variant if entry_variant is Dictionary else {}
 
 
 func _cleanup(game_session) -> void:

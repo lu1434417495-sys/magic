@@ -1,6 +1,6 @@
 extends SceneTree
 
-const WorldMapRuntimeProxy = preload("res://scripts/systems/world_map_runtime_proxy.gd")
+const WorldMapRuntimeProxy = preload("res://scripts/systems/game_runtime/world_map_runtime_proxy.gd")
 
 var _failures: Array[String] = []
 

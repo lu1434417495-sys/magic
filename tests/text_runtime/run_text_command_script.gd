@@ -2,7 +2,7 @@
 # Use it for automation and smoke checks, not as a player startup flow.
 extends SceneTree
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
 const DEFAULT_SCENARIO_PATH := "res://tests/text_runtime/scenarios/smoke_startup.txt"
 
 

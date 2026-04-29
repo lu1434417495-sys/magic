@@ -1,8 +1,8 @@
 extends SceneTree
 
-const HEADLESS_GAME_TEST_SESSION_SCRIPT = preload("res://scripts/systems/headless_game_test_session.gd")
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
+const HEADLESS_GAME_TEST_SESSION_SCRIPT = preload("res://scripts/systems/game_runtime/headless/headless_game_test_session.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 
 var _failures: Array[String] = []
 

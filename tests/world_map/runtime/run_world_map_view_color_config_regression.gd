@@ -1,6 +1,6 @@
 extends SceneTree
 
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 const SettlementConfig = preload("res://scripts/utils/settlement_config.gd")
 
@@ -89,8 +89,8 @@ func _test_world_map_scene_exposes_default_view_palette() -> void:
 		if village_texture != null:
 			_assert_eq(
 				village_texture.resource_path,
-				"res://assets/main/basic_map/village.png",
-				"world_map.tscn 的村级据点贴图应指向重命名后的 village.png。"
+				"res://assets/main/basic_map/village_dark.png",
+				"world_map.tscn 的村级据点贴图应指向暗黑风的 village_dark.png。"
 			)
 
 		var tier_to_property := {

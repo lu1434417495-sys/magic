@@ -1,6 +1,6 @@
 extends SceneTree
 
-const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/game_log_service.gd")
+const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/persistence/game_log_service.gd")
 
 var _failures: Array[String] = []
 

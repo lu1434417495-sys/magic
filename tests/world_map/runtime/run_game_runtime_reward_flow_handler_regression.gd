@@ -1,8 +1,8 @@
 extends SceneTree
 
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd")
-const GameRuntimeRewardFlowHandler = preload("res://scripts/systems/game_runtime_reward_flow_handler.gd")
-const PendingCharacterReward = preload("res://scripts/systems/pending_character_reward.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const GameRuntimeRewardFlowHandler = preload("res://scripts/systems/game_runtime/game_runtime_reward_flow_handler.gd")
+const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 
 var _failures: Array[String] = []

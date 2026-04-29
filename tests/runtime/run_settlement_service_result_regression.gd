@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement_service_result.gd")
+const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement/settlement_service_result.gd")
 
 var _failures: Array[String] = []
 

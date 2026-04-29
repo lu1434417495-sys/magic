@@ -6,8 +6,8 @@ const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_r
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/encounter_anchor_data.gd")
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_text_command_runner.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
 const BATTLE_LOOT_COMMIT_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_commit.txt"
 const BATTLE_LOOT_OVERFLOW_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_overflow.txt"
 

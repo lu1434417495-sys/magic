@@ -1,8 +1,8 @@
 extends SceneTree
 
-const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
-const BattleTerrainGenerator = preload("res://scripts/systems/battle_terrain_generator.gd")
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
+const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/battle_terrain_generator.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"

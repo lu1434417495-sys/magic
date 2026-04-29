@@ -1,7 +1,7 @@
 class_name RuntimeLogDock
 extends PanelContainer
 
-const BattleState = preload("res://scripts/systems/battle_state.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 
 const TEXT_PRIMARY := Color(0.92, 0.86, 0.74, 1.0)
 const TEXT_MUTED := Color(0.78, 0.68, 0.52, 0.9)

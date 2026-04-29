@@ -1,6 +1,6 @@
 extends SceneTree
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/game_session.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
@@ -367,6 +367,8 @@ func _test_party_state_from_dict_rejects_overlapping_quest_buckets() -> void:
 		"gold": 180,
 		"leader_member_id": "hero",
 		"main_character_member_id": "hero",
+		"fate_run_flags": {},
+		"meta_flags": {},
 		"active_member_ids": ["hero"],
 		"reserve_member_ids": [],
 		"member_states": {

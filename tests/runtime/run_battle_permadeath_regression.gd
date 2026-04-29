@@ -1,11 +1,11 @@
 extends SceneTree
 
-const GameSession = preload("res://scripts/systems/game_session.gd")
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime_facade.gd")
-const BattleResolutionResult = preload("res://scripts/systems/battle_resolution_result.gd")
-const BattleState = preload("res://scripts/systems/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle_unit_state.gd")
+const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
+const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
