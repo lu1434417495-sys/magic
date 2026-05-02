@@ -6,6 +6,7 @@ const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const EquipmentState = preload("res://scripts/player/equipment/equipment_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
@@ -189,6 +190,7 @@ func _build_ally_unit(unit_id: StringName, member_id: StringName, is_alive: bool
 	unit.is_alive = is_alive
 	unit.current_hp = current_hp
 	unit.current_mp = 0
+	unit.set_equipment_view(EquipmentState.new())
 	return unit
 
 

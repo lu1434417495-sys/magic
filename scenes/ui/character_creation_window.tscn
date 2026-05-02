@@ -1,23 +1,22 @@
-[gd_scene load_steps=3 format=3]
-; Scene purpose: Character creation modal, covering name entry and hidden-formula attribute reroll flow.
-; Review focus: verify external scripts, root-node ownership, phase visibility, and unique node names stay aligned.
-
+[gd_scene load_steps=2 format=3]
+; Scene purpose: Character creation modal with atmospheric styling — name entry, dice tumble animation, threshold-met row glow, scan-line indicator, and birth-luck tier readout.
+; Review focus: verify unique node names match @onready bindings, per-row PanelContainer wraps badge/name/value/threshold cells, and ScanContainer clip_contents stays enabled.
 
 [ext_resource type="Script" path="res://scripts/ui/character_creation_window.gd" id="1_ccw"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_ccw"]
-bg_color = Color(0.0823529, 0.109804, 0.188235, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.407843, 0.537255, 0.784314, 0.9)
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_outer"]
+bg_color = Color(0.05, 0.063, 0.117, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.78, 0.62, 0.3, 0.9)
 corner_radius_top_left = 22
 corner_radius_top_right = 22
 corner_radius_bottom_right = 22
 corner_radius_bottom_left = 22
-shadow_color = Color(0, 0, 0, 0.35)
-shadow_size = 18
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 28
 
 [node name="CharacterCreationWindow" type="Control"]
 visible = false
@@ -36,7 +35,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0196078, 0.027451, 0.0588235, 0.7)
+color = Color(0.015, 0.02, 0.04, 0.78)
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -48,35 +47,90 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(620, 560)
+custom_minimum_size = Vector2(660, 600)
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel_ccw")
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel_outer")
 
 [node name="Margin" type="MarginContainer" parent="CenterContainer/Panel"]
 layout_mode = 2
-theme_override_constants/margin_left = 28
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 28
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 26
 
 [node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="TitleLabel" type="Label" parent="CenterContainer/Panel/Margin/Content"]
+[node name="TitleRow" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 28
-horizontal_alignment = 1
+alignment = 1
+theme_override_constants/separation = 14
+
+[node name="TitleLineLeft" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/TitleRow"]
+custom_minimum_size = Vector2(72, 2)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.78, 0.62, 0.3, 0.85)
+
+[node name="TitleSigilLeft" type="Label" parent="CenterContainer/Panel/Margin/Content/TitleRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.78, 0.32, 1)
+theme_override_font_sizes/font_size = 22
+text = "◆"
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/TitleRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.86, 0.46, 1)
+theme_override_font_sizes/font_size = 30
 text = "建卡"
 
-[node name="RerollCountLabel" type="Label" parent="CenterContainer/Panel/Margin/Content"]
+[node name="TitleSigilRight" type="Label" parent="CenterContainer/Panel/Margin/Content/TitleRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.78, 0.32, 1)
+theme_override_font_sizes/font_size = 22
+text = "◆"
+
+[node name="TitleLineRight" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/TitleRow"]
+custom_minimum_size = Vector2(72, 2)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.78, 0.62, 0.3, 0.85)
+
+[node name="ScanContainer" type="Control" parent="CenterContainer/Panel/Margin/Content"]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(0, 3)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ScanLight" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/ScanContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(110, 3)
+layout_mode = 0
+offset_right = 110.0
+offset_bottom = 3.0
+color = Color(1.0, 0.78, 0.32, 0.55)
+
+[node name="StatusRow" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 24
+
+[node name="RerollCountLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/StatusRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 1)
 theme_override_font_sizes/font_size = 18
-horizontal_alignment = 1
 text = "Reroll 次数：0"
+
+[node name="LuckTierLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/StatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1.0, 0.85, 0.4, 1)
+theme_override_font_sizes/font_size = 18
+text = "出生运势 +2  ✦✦✦✦✦"
 
 [node name="NamePhase" type="VBoxContainer" parent="CenterContainer/Panel/Margin/Content"]
 unique_name_in_owner = true
@@ -85,9 +139,9 @@ theme_override_constants/separation = 12
 
 [node name="NameIntroLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/NamePhase"]
 layout_mode = 2
+autowrap_mode = 3
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 15
-autowrap_mode = 3
 text = "请输入主角姓名。留空则使用默认名称“主角”。"
 
 [node name="NameInput" type="LineEdit" parent="CenterContainer/Panel/Margin/Content/NamePhase"]
@@ -127,68 +181,60 @@ text = "角色名："
 
 [node name="AttributeHint" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase"]
 layout_mode = 2
+autowrap_mode = 3
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 14
-autowrap_mode = 3
 text = "每项属性范围 4-14。预期下限只能输入 4-14 的数字；4 表示不额外约束，若任一项下限 > 4，点击 Reroll 将连续重掷直到所有结果 ≥ 下限或按 Stop 停止。"
 
-[node name="AttributeGridHeader" type="GridContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase"]
+[node name="AttributeList" type="VBoxContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase"]
 layout_mode = 2
-columns = 4
-theme_override_constants/h_separation = 18
-theme_override_constants/v_separation = 6
+theme_override_constants/separation = 6
 
-[node name="HeaderName" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGridHeader"]
+[node name="StrengthRow" type="PanelContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 14
-text = "属性"
 
-[node name="HeaderValue" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGridHeader"]
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/StrengthRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 14
-text = "掷骰结果"
+theme_override_constants/separation = 12
 
-[node name="HeaderGeq" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGridHeader"]
+[node name="Badge" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/StrengthRow/HBox"]
+custom_minimum_size = Vector2(14, 14)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 14
-text = ""
+size_flags_vertical = 4
+color = Color(0.85, 0.35, 0.3, 1)
 
-[node name="HeaderThreshold" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGridHeader"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 14
-text = "预期下限"
-
-[node name="AttributeGrid" type="GridContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase"]
-layout_mode = 2
-columns = 4
-theme_override_constants/h_separation = 18
-theme_override_constants/v_separation = 8
-
-[node name="StrengthNameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/StrengthRow/HBox"]
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
 theme_override_font_sizes/font_size = 16
 text = "力量"
 
-[node name="StrengthValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/StrengthRow/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StrengthValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/StrengthRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 22
 text = "—"
+horizontal_alignment = 2
 
-[node name="StrengthGeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="GeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/StrengthRow/HBox"]
+custom_minimum_size = Vector2(20, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 16
 text = "≥"
+horizontal_alignment = 1
 
-[node name="StrengthThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="StrengthThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/StrengthRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 4.0
 max_value = 14.0
@@ -197,27 +243,51 @@ rounded = true
 allow_greater = false
 allow_lesser = false
 
-[node name="AgilityNameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="AgilityRow" type="PanelContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/AgilityRow"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Badge" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/AgilityRow/HBox"]
+custom_minimum_size = Vector2(14, 14)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.45, 0.82, 0.55, 1)
+
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/AgilityRow/HBox"]
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
 theme_override_font_sizes/font_size = 16
 text = "敏捷"
 
-[node name="AgilityValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/AgilityRow/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AgilityValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/AgilityRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 22
 text = "—"
+horizontal_alignment = 2
 
-[node name="AgilityGeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="GeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/AgilityRow/HBox"]
+custom_minimum_size = Vector2(20, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 16
 text = "≥"
+horizontal_alignment = 1
 
-[node name="AgilityThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="AgilityThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/AgilityRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 4.0
 max_value = 14.0
@@ -226,27 +296,51 @@ rounded = true
 allow_greater = false
 allow_lesser = false
 
-[node name="ConstitutionNameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="ConstitutionRow" type="PanelContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/ConstitutionRow"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Badge" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/ConstitutionRow/HBox"]
+custom_minimum_size = Vector2(14, 14)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.95, 0.6, 0.32, 1)
+
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/ConstitutionRow/HBox"]
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
 theme_override_font_sizes/font_size = 16
 text = "体质"
 
-[node name="ConstitutionValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/ConstitutionRow/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ConstitutionValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/ConstitutionRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 22
 text = "—"
+horizontal_alignment = 2
 
-[node name="ConstitutionGeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="GeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/ConstitutionRow/HBox"]
+custom_minimum_size = Vector2(20, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 16
 text = "≥"
+horizontal_alignment = 1
 
-[node name="ConstitutionThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="ConstitutionThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/ConstitutionRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 4.0
 max_value = 14.0
@@ -255,27 +349,51 @@ rounded = true
 allow_greater = false
 allow_lesser = false
 
-[node name="PerceptionNameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="PerceptionRow" type="PanelContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/PerceptionRow"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Badge" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/PerceptionRow/HBox"]
+custom_minimum_size = Vector2(14, 14)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.45, 0.72, 0.95, 1)
+
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/PerceptionRow/HBox"]
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
 theme_override_font_sizes/font_size = 16
 text = "感知"
 
-[node name="PerceptionValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/PerceptionRow/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PerceptionValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/PerceptionRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 22
 text = "—"
+horizontal_alignment = 2
 
-[node name="PerceptionGeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="GeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/PerceptionRow/HBox"]
+custom_minimum_size = Vector2(20, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 16
 text = "≥"
+horizontal_alignment = 1
 
-[node name="PerceptionThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="PerceptionThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/PerceptionRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 4.0
 max_value = 14.0
@@ -284,27 +402,51 @@ rounded = true
 allow_greater = false
 allow_lesser = false
 
-[node name="IntelligenceNameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="IntelligenceRow" type="PanelContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/IntelligenceRow"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Badge" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/IntelligenceRow/HBox"]
+custom_minimum_size = Vector2(14, 14)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.6, 0.5, 0.92, 1)
+
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/IntelligenceRow/HBox"]
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
 theme_override_font_sizes/font_size = 16
 text = "智力"
 
-[node name="IntelligenceValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/IntelligenceRow/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="IntelligenceValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/IntelligenceRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 22
 text = "—"
+horizontal_alignment = 2
 
-[node name="IntelligenceGeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="GeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/IntelligenceRow/HBox"]
+custom_minimum_size = Vector2(20, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 16
 text = "≥"
+horizontal_alignment = 1
 
-[node name="IntelligenceThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="IntelligenceThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/IntelligenceRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 4.0
 max_value = 14.0
@@ -313,27 +455,51 @@ rounded = true
 allow_greater = false
 allow_lesser = false
 
-[node name="WillpowerNameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="WillpowerRow" type="PanelContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/WillpowerRow"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Badge" type="ColorRect" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/WillpowerRow/HBox"]
+custom_minimum_size = Vector2(14, 14)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.95, 0.85, 0.42, 1)
+
+[node name="NameLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/WillpowerRow/HBox"]
+custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
 theme_override_font_sizes/font_size = 16
 text = "意志"
 
-[node name="WillpowerValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="Spacer" type="Control" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/WillpowerRow/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WillpowerValueLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/WillpowerRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.92, 1.0, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 22
 text = "—"
+horizontal_alignment = 2
 
-[node name="WillpowerGeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="GeqLabel" type="Label" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/WillpowerRow/HBox"]
+custom_minimum_size = Vector2(20, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 16
 text = "≥"
+horizontal_alignment = 1
 
-[node name="WillpowerThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeGrid"]
+[node name="WillpowerThresholdSpinBox" type="SpinBox" parent="CenterContainer/Panel/Margin/Content/AttributePhase/AttributeList/WillpowerRow/HBox"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 4.0
 max_value = 14.0

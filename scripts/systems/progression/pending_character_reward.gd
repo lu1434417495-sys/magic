@@ -28,7 +28,7 @@ var entries: Array[PendingCharacterRewardEntry] = []
 
 
 func is_empty() -> bool:
-	if member_id == &"" or entries.is_empty():
+	if reward_id == &"" or member_id == &"" or source_type == &"" or source_id == &"" or entries.is_empty():
 		return true
 	for entry in entries:
 		if entry != null and not entry.is_empty():
@@ -56,36 +56,64 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	var member_id := ProgressionDataUtils.to_string_name(data.get("member_id", ""))
-	if member_id == &"":
+	for field_name in [
+		"reward_id",
+		"member_id",
+		"member_name",
+		"source_type",
+		"source_id",
+		"source_label",
+		"summary_text",
+		"entries",
+	]:
+		if not data.has(field_name):
+			return null
+	var reward_id = _parse_string_name_field(data["reward_id"], false)
+	var member_id = _parse_string_name_field(data["member_id"], false)
+	var source_type = _parse_string_name_field(data["source_type"], false)
+	var source_id = _parse_string_name_field(data["source_id"], false)
+	if reward_id == null or member_id == null or source_type == null or source_id == null:
 		return null
-
-	var entries_variant: Variant = data.get("entries", [])
+	for text_field in ["member_name", "source_label", "summary_text"]:
+		if data[text_field] is not String:
+			return null
+	var entries_variant: Variant = data["entries"]
 	if entries_variant is not Array:
 		return null
+
 
 	var parsed_entries: Array[PendingCharacterRewardEntry] = []
 	for entry_data in entries_variant:
 		if entry_data is not Dictionary:
-			continue
+			return null
 		var parsed_entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_dict(entry_data)
 		if parsed_entry == null:
-			continue
+			return null
 		parsed_entries.append(parsed_entry)
 
 	if parsed_entries.is_empty():
 		return null
 
 	var reward = PENDING_CHARACTER_REWARD_SCRIPT.new()
-	reward.reward_id = ProgressionDataUtils.to_string_name(data.get("reward_id", ""))
+	reward.reward_id = reward_id
 	reward.member_id = member_id
-	reward.member_name = String(data.get("member_name", ""))
-	reward.source_type = ProgressionDataUtils.to_string_name(data.get("source_type", ""))
-	reward.source_id = ProgressionDataUtils.to_string_name(data.get("source_id", ""))
-	reward.source_label = String(data.get("source_label", ""))
-	reward.summary_text = String(data.get("summary_text", ""))
+	reward.member_name = String(data["member_name"])
+	reward.source_type = source_type
+	reward.source_id = source_id
+	reward.source_label = String(data["source_label"])
+	reward.summary_text = String(data["summary_text"])
 	reward.entries = parsed_entries
 	return reward
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"" and not allow_empty:
+		return null
+	return parsed_value
 
 
 static func from_variant(reward_variant):

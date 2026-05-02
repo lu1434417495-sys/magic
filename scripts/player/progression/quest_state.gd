@@ -8,6 +8,15 @@ const STATUS_ACTIVE: StringName = &"active"
 const STATUS_COMPLETED: StringName = &"completed"
 const STATUS_REWARDED: StringName = &"rewarded"
 const STATUS_FAILED: StringName = &"failed"
+const REQUIRED_SERIALIZED_FIELDS := [
+	"quest_id",
+	"status_id",
+	"objective_progress",
+	"accepted_at_world_step",
+	"completed_at_world_step",
+	"reward_claimed_at_world_step",
+	"last_progress_context",
+]
 
 var quest_id: StringName = &""
 var status_id: StringName = STATUS_INACTIVE
@@ -37,19 +46,19 @@ func get_objective_progress(objective_id: StringName) -> int:
 func record_objective_progress(
 	objective_id: StringName,
 	delta: int,
-	target_value: int = 1,
+	target_value: int = 0,
 	context: Dictionary = {}
 ) -> int:
-	if objective_id == &"" or delta <= 0 or not is_active():
+	if objective_id == &"" or delta <= 0 or target_value <= 0 or not is_active():
 		return get_objective_progress(objective_id)
-	var next_value := mini(get_objective_progress(objective_id) + delta, maxi(target_value, 1))
+	var next_value := mini(get_objective_progress(objective_id) + delta, target_value)
 	objective_progress[objective_id] = next_value
 	last_progress_context = context.duplicate(true)
 	return next_value
 
 
-func is_objective_complete(objective_id: StringName, target_value: int = 1) -> bool:
-	return get_objective_progress(objective_id) >= maxi(target_value, 1)
+func is_objective_complete(objective_id: StringName, target_value: int = 0) -> bool:
+	return objective_id != &"" and target_value > 0 and get_objective_progress(objective_id) >= target_value
 
 
 func has_completed_all_objectives(quest_def) -> bool:
@@ -60,7 +69,9 @@ func has_completed_all_objectives(quest_def) -> bool:
 			return false
 		var objective_data := objective_variant as Dictionary
 		var objective_id := ProgressionDataUtils.to_string_name(objective_data.get("objective_id", ""))
-		var target_value := int(objective_data.get("target_value", 1))
+		if not objective_data.has("target_value") or objective_data["target_value"] is not int:
+			return false
+		var target_value := int(objective_data["target_value"])
 		if objective_id == &"" or not is_objective_complete(objective_id, target_value):
 			return false
 	return true
@@ -101,22 +112,73 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
+static func from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
+	var payload := data as Dictionary
+	if not _has_exact_serialized_fields(payload):
+		return null
+	var objective_progress_variant: Variant = payload["objective_progress"]
+	var context_variant: Variant = payload["last_progress_context"]
+	if objective_progress_variant is not Dictionary:
+		return null
+	if context_variant is not Dictionary:
+		return null
+	var quest_id := _read_required_string_name(payload["quest_id"])
+	var status_id := _read_required_string_name(payload["status_id"])
+	if quest_id == &"" or not _is_valid_status_id(status_id):
+		return null
+	if (
+		payload["accepted_at_world_step"] is not int
+		or int(payload["accepted_at_world_step"]) < -1
+		or payload["completed_at_world_step"] is not int
+		or int(payload["completed_at_world_step"]) < -1
+		or payload["reward_claimed_at_world_step"] is not int
+		or int(payload["reward_claimed_at_world_step"]) < -1
+	):
+		return null
+	var objective_progress_values: Dictionary = {}
+	for objective_id_variant in (objective_progress_variant as Dictionary).keys():
+		var objective_id := _read_required_string_name(objective_id_variant)
+		if objective_id == &"":
+			return null
+		var progress_variant: Variant = (objective_progress_variant as Dictionary)[objective_id_variant]
+		if progress_variant is not int or int(progress_variant) < 0:
+			return null
+		objective_progress_values[objective_id] = int(progress_variant)
+
 	var state = QUEST_STATE_SCRIPT.new()
-	state.quest_id = ProgressionDataUtils.to_string_name(data.get("quest_id", ""))
-	state.status_id = _normalize_status_id(ProgressionDataUtils.to_string_name(data.get("status_id", STATUS_INACTIVE)))
-	state.objective_progress = ProgressionDataUtils.to_string_name_int_map(data.get("objective_progress", {}))
-	state.accepted_at_world_step = int(data.get("accepted_at_world_step", -1))
-	state.completed_at_world_step = int(data.get("completed_at_world_step", -1))
-	state.reward_claimed_at_world_step = int(data.get("reward_claimed_at_world_step", -1))
-	var context_variant: Variant = data.get("last_progress_context", {})
-	state.last_progress_context = context_variant.duplicate(true) if context_variant is Dictionary else {}
+	state.quest_id = quest_id
+	state.status_id = status_id
+	state.objective_progress = objective_progress_values
+	state.accepted_at_world_step = int(payload["accepted_at_world_step"])
+	state.completed_at_world_step = int(payload["completed_at_world_step"])
+	state.reward_claimed_at_world_step = int(payload["reward_claimed_at_world_step"])
+	state.last_progress_context = context_variant.duplicate(true)
 	return state
 
 
-static func _normalize_status_id(status_id: StringName) -> StringName:
+static func _has_exact_serialized_fields(payload: Dictionary) -> bool:
+	if payload.size() != REQUIRED_SERIALIZED_FIELDS.size():
+		return false
+	for field_name in REQUIRED_SERIALIZED_FIELDS:
+		if not payload.has(field_name):
+			return false
+	return true
+
+
+static func _read_required_string_name(value: Variant) -> StringName:
+	if value is not String and value is not StringName:
+		return &""
+	var text := String(value)
+	if text.strip_edges().is_empty():
+		return &""
+	return StringName(text)
+
+
+static func _is_valid_status_id(status_id: StringName) -> bool:
 	match status_id:
-		STATUS_ACTIVE, STATUS_COMPLETED, STATUS_REWARDED, STATUS_FAILED:
-			return status_id
+		STATUS_INACTIVE, STATUS_ACTIVE, STATUS_COMPLETED, STATUS_REWARDED, STATUS_FAILED:
+			return true
 		_:
-			return STATUS_INACTIVE
+			return false

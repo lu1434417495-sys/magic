@@ -9,6 +9,16 @@ const ACHIEVEMENT_DEF_SCRIPT = preload("res://scripts/player/progression/achieve
 const ACHIEVEMENT_REWARD_DEF_SCRIPT = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const AchievementRewardDef = ACHIEVEMENT_REWARD_DEF_SCRIPT
 
+const REQUIRED_SERIALIZED_FIELDS := [
+	"achievement_id",
+	"display_name",
+	"description",
+	"event_type",
+	"subject_id",
+	"threshold",
+	"rewards",
+]
+
 ## 字段说明：记录成就唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var achievement_id: StringName = &""
 ## 字段说明：用于界面展示的名称文本，主要服务于玩家阅读和调试观察，不直接参与数值判定。
@@ -55,20 +65,56 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
-	var achievement = ACHIEVEMENT_DEF_SCRIPT.new()
-	achievement.achievement_id = ProgressionDataUtils.to_string_name(data.get("achievement_id", ""))
-	achievement.display_name = String(data.get("display_name", ""))
-	achievement.description = String(data.get("description", ""))
-	achievement.event_type = ProgressionDataUtils.to_string_name(data.get("event_type", ""))
-	achievement.subject_id = ProgressionDataUtils.to_string_name(data.get("subject_id", ""))
-	achievement.threshold = int(data.get("threshold", 0))
+static func from_dict(data):
+	if data is not Dictionary:
+		return null
+	if not _has_exact_serialized_fields(data):
+		return null
+	var achievement_id = _parse_string_name_field(data["achievement_id"], false)
+	var event_type = _parse_string_name_field(data["event_type"], false)
+	var subject_id = _parse_string_name_field(data["subject_id"], true)
+	if achievement_id == null or event_type == null or subject_id == null:
+		return null
+	if data["display_name"] is not String or data["description"] is not String:
+		return null
+	var threshold_variant: Variant = data["threshold"]
+	if threshold_variant is not int or int(threshold_variant) <= 0:
+		return null
+	var rewards_variant: Variant = data["rewards"]
+	if rewards_variant is not Array:
+		return null
 
-	var rewards_variant: Variant = data.get("rewards", [])
-	if rewards_variant is Array:
-		for reward_data in rewards_variant:
-			if reward_data is not Dictionary:
-				continue
-			achievement.rewards.append(ACHIEVEMENT_REWARD_DEF_SCRIPT.from_dict(reward_data))
+	var achievement = ACHIEVEMENT_DEF_SCRIPT.new()
+	achievement.achievement_id = achievement_id
+	achievement.display_name = String(data["display_name"])
+	achievement.description = String(data["description"])
+	achievement.event_type = event_type
+	achievement.subject_id = subject_id
+	achievement.threshold = int(threshold_variant)
+
+	for reward_data in rewards_variant:
+		var reward = ACHIEVEMENT_REWARD_DEF_SCRIPT.from_dict(reward_data)
+		if reward == null:
+			return null
+		achievement.rewards.append(reward)
 
 	return achievement
+
+
+static func _has_exact_serialized_fields(payload: Dictionary) -> bool:
+	if payload.size() != REQUIRED_SERIALIZED_FIELDS.size():
+		return false
+	for field_name in REQUIRED_SERIALIZED_FIELDS:
+		if not payload.has(field_name):
+			return false
+	return true
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"" and not allow_empty:
+		return null
+	return parsed_value

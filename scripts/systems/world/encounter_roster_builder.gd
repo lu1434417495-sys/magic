@@ -13,6 +13,24 @@ const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/un
 const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const BASIC_ATTACK_SKILL_ID: StringName = &"basic_attack"
+const DROP_TYPE_ITEM: StringName = &"item"
+const DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
+
+const DROP_DEFINITION_REQUIRED_FIELDS := [
+	"drop_entry_id",
+	"drop_type",
+	"item_id",
+	"quantity",
+]
+const FORMAL_LOOT_ENTRY_REQUIRED_FIELDS := [
+	"drop_type",
+	"drop_source_kind",
+	"drop_source_id",
+	"drop_source_label",
+	"drop_entry_id",
+	"item_id",
+	"quantity",
+]
 
 var _wild_encounter_rosters: Dictionary = {}
 var _enemy_templates: Dictionary = {}
@@ -28,7 +46,7 @@ func build_enemy_units(encounter_anchor, source: Dictionary = {}):
 	var skill_defs: Dictionary = source if _looks_like_skill_def_dict(source) else build_context.get("skill_defs", {})
 	var enemy_templates: Dictionary = build_context.get("enemy_templates", {})
 	var enemy_ai_brains: Dictionary = build_context.get("enemy_ai_brains", {})
-	var encounter_roster = _resolve_wild_encounter_roster(encounter_anchor, build_context)
+	var encounter_roster = _resolve_wild_encounter_roster(encounter_anchor)
 	if encounter_roster != null:
 		return _build_profile_enemy_units(
 			encounter_anchor,
@@ -38,7 +56,7 @@ func build_enemy_units(encounter_anchor, source: Dictionary = {}):
 			enemy_ai_brains,
 			build_context
 		)
-	var template = _resolve_enemy_template(encounter_anchor, build_context, enemy_templates)
+	var template = _resolve_enemy_template(encounter_anchor, enemy_templates)
 	if template != null:
 		return _build_template_enemy_units(encounter_anchor, template, skill_defs, enemy_ai_brains, build_context)
 	return _build_fallback_enemy_units(encounter_anchor, skill_defs, build_context)
@@ -47,9 +65,9 @@ func build_enemy_units(encounter_anchor, source: Dictionary = {}):
 func build_loot_entries(encounter_anchor, source: Dictionary = {}) -> Array:
 	var build_context: Dictionary = source if not _looks_like_skill_def_dict(source) else {}
 	var enemy_templates: Dictionary = build_context.get("enemy_templates", _enemy_templates if _enemy_templates != null else {})
-	var encounter_roster = _resolve_wild_encounter_roster(encounter_anchor, build_context)
+	var encounter_roster = _resolve_wild_encounter_roster(encounter_anchor)
 	if encounter_roster == null:
-		var template = _resolve_enemy_template(encounter_anchor, build_context, enemy_templates)
+		var template = _resolve_enemy_template(encounter_anchor, enemy_templates)
 		if template == null:
 			return []
 		var enemy_count := maxi(int(build_context.get("enemy_unit_count", template.enemy_count)), 1)
@@ -71,13 +89,10 @@ func _looks_like_skill_def_dict(source: Dictionary) -> bool:
 	return false
 
 
-func _resolve_enemy_template(encounter_anchor, build_context: Dictionary, enemy_templates: Dictionary):
+func _resolve_enemy_template(encounter_anchor, enemy_templates: Dictionary):
 	if enemy_templates == null or enemy_templates.is_empty():
 		return null
 	var candidate_ids: Array[StringName] = []
-	var explicit_template_id := ProgressionDataUtils.to_string_name(build_context.get("monster_template_id", ""))
-	if explicit_template_id != &"":
-		candidate_ids.append(explicit_template_id)
 	if encounter_anchor != null and encounter_anchor.enemy_roster_template_id != &"":
 		candidate_ids.append(encounter_anchor.enemy_roster_template_id)
 	for candidate_id in candidate_ids:
@@ -86,13 +101,10 @@ func _resolve_enemy_template(encounter_anchor, build_context: Dictionary, enemy_
 	return null
 
 
-func _resolve_wild_encounter_roster(encounter_anchor, build_context: Dictionary):
+func _resolve_wild_encounter_roster(encounter_anchor):
 	if _wild_encounter_rosters == null or _wild_encounter_rosters.is_empty():
 		return null
 	var candidate_ids: Array[StringName] = []
-	var explicit_profile_id := ProgressionDataUtils.to_string_name(build_context.get("encounter_profile_id", ""))
-	if explicit_profile_id != &"":
-		candidate_ids.append(explicit_profile_id)
 	if encounter_anchor != null and encounter_anchor.encounter_profile_id != &"":
 		candidate_ids.append(encounter_anchor.encounter_profile_id)
 	for candidate_id in candidate_ids:
@@ -159,7 +171,9 @@ func _build_preview_loot_entries_from_template(
 		if formal_entry_variant is not Dictionary:
 			continue
 		var formal_entry := (formal_entry_variant as Dictionary).duplicate(true)
-		formal_entry["quantity"] = maxi(int(formal_entry.get("quantity", 0)), 0) * multiplier
+		if not formal_entry.has("quantity") or formal_entry["quantity"] is not int:
+			return []
+		formal_entry["quantity"] = int(formal_entry["quantity"]) * multiplier
 		multiplied_entries.append(formal_entry)
 	return multiplied_entries
 
@@ -171,53 +185,143 @@ func _build_formal_loot_entries(
 	drop_source_label: String
 ) -> Array:
 	var loot_entries: Array = []
+	var normalized_source_kind := _strict_string_name_value(drop_source_kind)
+	var normalized_source_id := _strict_string_name_value(drop_source_id)
+	var normalized_source_label := drop_source_label.strip_edges()
+	if normalized_source_kind == &"" or normalized_source_id == &"" or normalized_source_label.is_empty():
+		return loot_entries
 	if drop_entries_variant is not Array:
 		return loot_entries
 	for entry_variant in drop_entries_variant:
 		if entry_variant is not Dictionary:
-			continue
+			return []
 		var entry_data := entry_variant as Dictionary
-		var drop_id := ProgressionDataUtils.to_string_name(entry_data.get("drop_id", ""))
-		var drop_type := ProgressionDataUtils.to_string_name(entry_data.get("drop_type", ""))
-		var item_id := ProgressionDataUtils.to_string_name(entry_data.get("item_id", ""))
-		var quantity := maxi(int(entry_data.get("quantity", 0)), 0)
-		if drop_id == &"" or drop_type == &"" or item_id == &"" or quantity <= 0:
-			continue
+		var parsed_entry := _parse_drop_definition(entry_data)
+		if parsed_entry.is_empty():
+			return []
 		loot_entries.append({
-			"drop_type": String(drop_type),
-			"drop_source_kind": String(drop_source_kind),
-			"drop_source_id": String(drop_source_id),
-			"drop_source_label": drop_source_label,
-			"drop_entry_id": String(drop_id),
-			"item_id": String(item_id),
-			"quantity": quantity,
+			"drop_type": String(parsed_entry["drop_type"]),
+			"drop_source_kind": String(normalized_source_kind),
+			"drop_source_id": String(normalized_source_id),
+			"drop_source_label": normalized_source_label,
+			"drop_entry_id": String(parsed_entry["drop_entry_id"]),
+			"item_id": String(parsed_entry["item_id"]),
+			"quantity": int(parsed_entry["quantity"]),
 		})
 	return loot_entries
+
+
+func _parse_drop_definition(entry_data: Dictionary) -> Dictionary:
+	if entry_data.has("drop_id"):
+		return {}
+	if entry_data.size() != DROP_DEFINITION_REQUIRED_FIELDS.size():
+		return {}
+	for field_name in DROP_DEFINITION_REQUIRED_FIELDS:
+		if not entry_data.has(field_name):
+			return {}
+	var drop_entry_id := _strict_string_name_value(entry_data["drop_entry_id"])
+	var drop_type := _strict_string_name_value(entry_data["drop_type"])
+	var item_id := _strict_string_name_value(entry_data["item_id"])
+	if drop_entry_id == &"" or item_id == &"":
+		return {}
+	if drop_type != DROP_TYPE_ITEM and drop_type != DROP_TYPE_RANDOM_EQUIPMENT:
+		return {}
+	if entry_data["quantity"] is not int:
+		return {}
+	var quantity := int(entry_data["quantity"])
+	if quantity <= 0:
+		return {}
+	return {
+		"drop_entry_id": drop_entry_id,
+		"drop_type": drop_type,
+		"item_id": item_id,
+		"quantity": quantity,
+	}
+
+
+func _strict_string_name_value(value: Variant) -> StringName:
+	if value is StringName:
+		return value if value != &"" else &""
+	if value is String:
+		var text := (value as String).strip_edges()
+		if text.is_empty():
+			return &""
+		return StringName(text)
+	return &""
+
+
+func _strict_string_value(value: Variant) -> String:
+	if value is not String:
+		return ""
+	return (value as String).strip_edges()
 
 
 func _merge_preview_loot_entries(target_entries: Dictionary, ordered_keys: Array[String], preview_entries: Array) -> void:
 	for preview_entry_variant in preview_entries:
 		if preview_entry_variant is not Dictionary:
-			continue
+			target_entries.clear()
+			ordered_keys.clear()
+			return
 		var preview_entry := preview_entry_variant as Dictionary
-		var drop_type := ProgressionDataUtils.to_string_name(preview_entry.get("drop_type", ""))
-		var item_id := ProgressionDataUtils.to_string_name(preview_entry.get("item_id", ""))
-		var quantity := maxi(int(preview_entry.get("quantity", 0)), 0)
-		if drop_type == &"" or item_id == &"" or quantity <= 0:
-			continue
+		var parsed_entry := _parse_formal_loot_entry(preview_entry)
+		if parsed_entry.is_empty():
+			target_entries.clear()
+			ordered_keys.clear()
+			return
+		var drop_type := String(parsed_entry["drop_type"])
+		var item_id := String(parsed_entry["item_id"])
+		var quantity := int(parsed_entry["quantity"])
 		var entry_key := "%s|%s" % [String(drop_type), String(item_id)]
 		if not target_entries.has(entry_key):
-			target_entries[entry_key] = (preview_entry as Dictionary).duplicate(true)
+			target_entries[entry_key] = parsed_entry.duplicate(true)
 			target_entries[entry_key]["drop_entry_id"] = "%s_%s_%s" % [
-				String(ProgressionDataUtils.to_string_name(preview_entry.get("drop_source_kind", ""))),
-				String(ProgressionDataUtils.to_string_name(preview_entry.get("drop_source_id", ""))),
+				String(parsed_entry["drop_source_kind"]),
+				String(parsed_entry["drop_source_id"]),
 				String(item_id),
 			]
 			ordered_keys.append(entry_key)
 			continue
 		var merged_entry: Dictionary = target_entries.get(entry_key, {}) as Dictionary
-		merged_entry["quantity"] = int(merged_entry.get("quantity", 0)) + quantity
+		if not merged_entry.has("quantity") or merged_entry["quantity"] is not int:
+			target_entries.clear()
+			ordered_keys.clear()
+			return
+		merged_entry["quantity"] = int(merged_entry["quantity"]) + quantity
 		target_entries[entry_key] = merged_entry
+
+
+func _parse_formal_loot_entry(entry_data: Dictionary) -> Dictionary:
+	if entry_data.has("drop_id"):
+		return {}
+	if entry_data.size() != FORMAL_LOOT_ENTRY_REQUIRED_FIELDS.size():
+		return {}
+	for field_name in FORMAL_LOOT_ENTRY_REQUIRED_FIELDS:
+		if not entry_data.has(field_name):
+			return {}
+	var drop_type := _strict_string_name_value(entry_data["drop_type"])
+	var drop_source_kind := _strict_string_name_value(entry_data["drop_source_kind"])
+	var drop_source_id := _strict_string_name_value(entry_data["drop_source_id"])
+	var drop_source_label := _strict_string_value(entry_data["drop_source_label"])
+	var drop_entry_id := _strict_string_name_value(entry_data["drop_entry_id"])
+	var item_id := _strict_string_name_value(entry_data["item_id"])
+	if drop_type == &"" or drop_source_kind == &"" or drop_source_id == &"":
+		return {}
+	if drop_source_label.is_empty() or drop_entry_id == &"" or item_id == &"":
+		return {}
+	if entry_data["quantity"] is not int:
+		return {}
+	var quantity := int(entry_data["quantity"])
+	if quantity <= 0:
+		return {}
+	return {
+		"drop_type": String(drop_type),
+		"drop_source_kind": String(drop_source_kind),
+		"drop_source_id": String(drop_source_id),
+		"drop_source_label": drop_source_label,
+		"drop_entry_id": String(drop_entry_id),
+		"item_id": String(item_id),
+		"quantity": quantity,
+	}
 
 
 func _preview_entry_map_to_array(target_entries: Dictionary, ordered_keys: Array[String]) -> Array:
@@ -272,7 +376,7 @@ func _build_profile_enemy_units(
 		enemy_units.append_array(built_units)
 	if not enemy_units.is_empty():
 		return enemy_units
-	var template = _resolve_enemy_template(encounter_anchor, build_context, enemy_templates)
+	var template = _resolve_enemy_template(encounter_anchor, enemy_templates)
 	if template != null:
 		return _build_template_enemy_units(encounter_anchor, template, skill_defs, enemy_ai_brains, build_context)
 	return _build_fallback_enemy_units(encounter_anchor, skill_defs, build_context)
@@ -291,7 +395,6 @@ func _build_template_enemy_units(
 		fallback_display_name = template.display_name
 	elif encounter_anchor != null and not String(encounter_anchor.display_name).is_empty():
 		fallback_display_name = encounter_anchor.display_name
-	var display_name := String(build_context.get("monster_display_name", fallback_display_name))
 	return _build_units_from_template(
 		encounter_anchor,
 		template,
@@ -300,7 +403,7 @@ func _build_template_enemy_units(
 		build_context,
 		0,
 		enemy_count,
-		display_name,
+		fallback_display_name,
 		false
 	)
 
@@ -358,6 +461,7 @@ func _build_units_from_template(
 			var normalized_skill_id := StringName(String(skill_id))
 			var configured_level := int(template.skill_level_map.get(normalized_skill_id, 1))
 			unit_state.known_skill_level_map[normalized_skill_id] = maxi(configured_level, 1)
+		_sync_enemy_unlocked_resources(unit_state, skill_defs)
 		enemy_units.append(unit_state)
 	return enemy_units
 
@@ -443,6 +547,7 @@ func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build
 		1
 	)
 	var default_skill_ids: Array[StringName] = _pick_default_enemy_skill_ids(skill_defs)
+	var fallback_stamina_max := _resolve_basic_attack_stamina_cost(skill_defs)
 	for index in range(enemy_count):
 		var unit_state := BATTLE_UNIT_STATE_SCRIPT.new()
 		unit_state.unit_id = _build_enemy_unit_id(encounter_anchor, index)
@@ -454,7 +559,7 @@ func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build
 		unit_state.control_mode = &"ai"
 		unit_state.body_size = 1
 		unit_state.refresh_footprint()
-		unit_state.attribute_snapshot = _build_enemy_snapshot(index)
+		unit_state.attribute_snapshot = _build_enemy_snapshot(index, fallback_stamina_max)
 		unit_state.current_hp = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)
 		unit_state.current_mp = 0
 		unit_state.current_stamina = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)
@@ -466,15 +571,16 @@ func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build
 		_ensure_basic_attack_skill(unit_state, skill_defs)
 		for skill_id in unit_state.known_active_skill_ids:
 			unit_state.known_skill_level_map[skill_id] = 1
+		_sync_enemy_unlocked_resources(unit_state, skill_defs)
 		enemy_units.append(unit_state)
 	return enemy_units
 
 
-func _build_enemy_snapshot(index: int):
+func _build_enemy_snapshot(index: int, fallback_stamina_max: int = 0):
 	var snapshot = ATTRIBUTE_SNAPSHOT_SCRIPT.new()
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 26 + index * 6)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 0)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(fallback_stamina_max, 0))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 1)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 4 + index)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 12 + index)
@@ -523,3 +629,36 @@ func _ensure_basic_attack_skill(unit_state, skill_defs: Dictionary) -> void:
 		return
 	if not unit_state.known_active_skill_ids.has(BASIC_ATTACK_SKILL_ID):
 		unit_state.known_active_skill_ids.append(BASIC_ATTACK_SKILL_ID)
+
+
+func _resolve_basic_attack_stamina_cost(skill_defs: Dictionary) -> int:
+	var skill_def := skill_defs.get(BASIC_ATTACK_SKILL_ID) as SkillDef
+	if skill_def == null or skill_def.combat_profile == null:
+		return 0
+	var costs: Dictionary = skill_def.combat_profile.get_effective_resource_costs(1)
+	return maxi(int(costs.get("stamina_cost", skill_def.combat_profile.stamina_cost)), 0)
+
+
+func _sync_enemy_unlocked_resources(unit_state, skill_defs: Dictionary) -> void:
+	if unit_state == null:
+		return
+	unit_state.sync_default_combat_resource_unlocks()
+	var mp_max := 0
+	var aura_max := 0
+	if unit_state.attribute_snapshot != null:
+		mp_max = int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX))
+		aura_max = int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX))
+	if int(unit_state.current_mp) > 0 or mp_max > 0:
+		unit_state.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
+	if int(unit_state.current_aura) > 0 or aura_max > 0:
+		unit_state.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
+	for skill_id in unit_state.known_active_skill_ids:
+		var skill_def := skill_defs.get(skill_id) as SkillDef
+		if skill_def == null or skill_def.combat_profile == null:
+			continue
+		var skill_level := maxi(int(unit_state.known_skill_level_map.get(skill_id, 1)), 1)
+		var costs: Dictionary = skill_def.combat_profile.get_effective_resource_costs(skill_level)
+		if int(costs.get("mp_cost", 0)) > 0:
+			unit_state.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
+		if int(costs.get("aura_cost", 0)) > 0:
+			unit_state.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)

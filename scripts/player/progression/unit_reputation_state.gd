@@ -46,7 +46,39 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
+	for field_name in [
+		"morality",
+		"custom_states",
+	]:
+		if not data.has(field_name):
+			return null
+	var custom_states_variant: Variant = data["custom_states"]
+	if custom_states_variant is not Dictionary:
+		return null
+	if data["morality"] is not int:
+		return null
+	var parsed_custom_states = _parse_int_map(custom_states_variant)
+	if parsed_custom_states == null:
+		return null
+
 	var state := UNIT_REPUTATION_STATE_SCRIPT.new()
-	state.morality = int(data.get("morality", 0))
-	state.custom_states = ProgressionDataUtils.to_string_name_int_map(data.get("custom_states", {}))
+	state.morality = data["morality"]
+	state.custom_states = parsed_custom_states
 	return state
+
+
+static func _parse_int_map(values: Dictionary):
+	var parsed_values: Dictionary = {}
+	var seen_keys: Dictionary = {}
+	for raw_key in values.keys():
+		var key_type := typeof(raw_key)
+		if key_type != TYPE_STRING and key_type != TYPE_STRING_NAME:
+			return null
+		var parsed_key := ProgressionDataUtils.to_string_name(raw_key)
+		if parsed_key == &"" or seen_keys.has(parsed_key):
+			return null
+		if values[raw_key] is not int:
+			return null
+		seen_keys[parsed_key] = true
+		parsed_values[parsed_key] = int(values[raw_key])
+	return parsed_values

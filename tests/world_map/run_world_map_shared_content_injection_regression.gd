@@ -201,7 +201,7 @@ func _test_procedural_wild_spawn_region_tags_ignore_rule_order() -> void:
 	var south_rule = WILD_SPAWN_RULE_SCRIPT.new()
 	south_rule.region_tag = "south_wilds"
 	south_rule.monster_name = "南境雾兽"
-	south_rule.monster_template_id = &"mist_beast"
+	south_rule.enemy_roster_template_id = &"mist_beast"
 	south_rule.encounter_profile_id = &"mist_hollow"
 	south_rule.density_per_chunk = 1
 	south_rule.min_distance_to_settlement = 3
@@ -210,7 +210,7 @@ func _test_procedural_wild_spawn_region_tags_ignore_rule_order() -> void:
 	var north_rule = WILD_SPAWN_RULE_SCRIPT.new()
 	north_rule.region_tag = "north_wilds"
 	north_rule.monster_name = "北境狼群"
-	north_rule.monster_template_id = &"wolf_pack"
+	north_rule.enemy_roster_template_id = &"wolf_pack"
 	north_rule.density_per_chunk = 1
 	north_rule.min_distance_to_settlement = 3
 	north_rule.vision_range = 1
@@ -274,7 +274,7 @@ func _test_procedural_wild_spawn_density_can_be_configured() -> void:
 	var north_rule = WILD_SPAWN_RULE_SCRIPT.new()
 	north_rule.region_tag = "north_wilds"
 	north_rule.monster_name = "北境狼群"
-	north_rule.monster_template_id = &"wolf_pack"
+	north_rule.enemy_roster_template_id = &"wolf_pack"
 	north_rule.density_per_chunk = 1
 	north_rule.min_distance_to_settlement = 3
 	north_rule.vision_range = 1
@@ -282,7 +282,7 @@ func _test_procedural_wild_spawn_density_can_be_configured() -> void:
 	var south_rule = WILD_SPAWN_RULE_SCRIPT.new()
 	south_rule.region_tag = "south_wilds"
 	south_rule.monster_name = "南境雾兽"
-	south_rule.monster_template_id = &"mist_beast"
+	south_rule.enemy_roster_template_id = &"mist_beast"
 	south_rule.encounter_profile_id = &"mist_hollow"
 	south_rule.density_per_chunk = 1
 	south_rule.min_distance_to_settlement = 3

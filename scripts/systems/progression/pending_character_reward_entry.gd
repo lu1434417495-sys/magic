@@ -35,19 +35,42 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	var entry_type := ProgressionDataUtils.to_string_name(data.get("entry_type", ""))
-	var target_id := ProgressionDataUtils.to_string_name(data.get("target_id", ""))
-	var amount := int(data.get("amount", 0))
-	if entry_type == &"" or target_id == &"" or amount == 0:
+	for field_name in [
+		"entry_type",
+		"target_id",
+		"target_label",
+		"amount",
+		"reason_text",
+	]:
+		if not data.has(field_name):
+			return null
+	var entry_type = _parse_string_name_field(data["entry_type"], false)
+	var target_id = _parse_string_name_field(data["target_id"], false)
+	if entry_type == null or target_id == null:
+		return null
+	if data["target_label"] is not String or data["reason_text"] is not String:
+		return null
+	var amount_variant: Variant = data["amount"]
+	if amount_variant is not int or int(amount_variant) == 0:
 		return null
 
 	var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
 	entry.entry_type = entry_type
 	entry.target_id = target_id
-	entry.target_label = String(data.get("target_label", ""))
-	entry.amount = amount
-	entry.reason_text = String(data.get("reason_text", ""))
+	entry.target_label = String(data["target_label"])
+	entry.amount = int(amount_variant)
+	entry.reason_text = String(data["reason_text"])
 	return entry
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"" and not allow_empty:
+		return null
+	return parsed_value
 
 
 static func from_variant(entry_variant):

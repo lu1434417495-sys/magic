@@ -639,7 +639,7 @@ func _generate_encounter_anchors(settlements: Array[Dictionary], player_start_co
 					encounter_anchors.append(
 						_build_encounter_anchor(
 							StringName("wild_%d" % monster_index),
-							rule.monster_template_id,
+							rule.enemy_roster_template_id,
 							rule.monster_name,
 							spawn_coord,
 							rule.vision_range,
@@ -691,7 +691,7 @@ func _generate_procedural_encounter_anchors(settlement_cells: Array[Vector2i]) -
 				encounter_anchors.append(
 					_build_encounter_anchor(
 						StringName("wild_%d" % monster_index),
-						rule.monster_template_id,
+						rule.enemy_roster_template_id,
 						rule.monster_name,
 						spawn_coord,
 						rule.vision_range,
@@ -750,7 +750,7 @@ func _ensure_starting_wild_encounter(
 	encounter_anchors.append(
 		_build_encounter_anchor(
 			StringName("wild_%d" % (encounter_anchors.size() + 1)),
-			rule.monster_template_id,
+			rule.enemy_roster_template_id,
 			rule.monster_name,
 			spawn_coord,
 			rule.vision_range,
@@ -822,7 +822,7 @@ func _ensure_default_settlement_encounter(encounter_anchors: Array, settlement_c
 			return
 
 	for rule in _resolved_wild_spawn_rules:
-		if rule == null or rule.monster_template_id != &"wolf_pack":
+		if rule == null or rule.enemy_roster_template_id != &"wolf_pack":
 			continue
 		for chunk_coord in _build_default_settlement_candidate_chunks(rule):
 			var spawn_coord := _pick_monster_coord_for_chunk(
@@ -838,7 +838,7 @@ func _ensure_default_settlement_encounter(encounter_anchors: Array, settlement_c
 			encounter_anchors.append(
 				_build_encounter_anchor(
 					StringName("wild_settlement_%d" % (encounter_anchors.size() + 1)),
-					rule.monster_template_id,
+					rule.enemy_roster_template_id,
 					"荒狼巢穴",
 					spawn_coord,
 					maxi(int(rule.vision_range), 2),
@@ -859,7 +859,7 @@ func _build_default_settlement_candidate_chunks(rule: WildSpawnRule) -> Array[Ve
 	var midpoint_chunk_y: int = int(world_chunks.y / 2)
 	for chunk_y in range(world_chunks.y):
 		for chunk_x in range(world_chunks.x):
-			if rule != null and rule.monster_template_id == &"wolf_pack" and chunk_y >= midpoint_chunk_y:
+			if rule != null and rule.enemy_roster_template_id == &"wolf_pack" and chunk_y >= midpoint_chunk_y:
 				continue
 			candidate_chunks.append(Vector2i(chunk_x, chunk_y))
 	return candidate_chunks
@@ -1034,7 +1034,7 @@ func _resolve_settlement_display_name(settlement_config, template_id: String, in
 
 func _build_encounter_anchor(
 	entity_id: StringName,
-	monster_template_id: StringName,
+	enemy_roster_template_id: StringName,
 	display_name: String,
 	world_coord: Vector2i,
 	vision_range: int,
@@ -1048,7 +1048,7 @@ func _build_encounter_anchor(
 	encounter_anchor.display_name = display_name
 	encounter_anchor.world_coord = world_coord
 	encounter_anchor.faction_id = &"hostile"
-	encounter_anchor.enemy_roster_template_id = monster_template_id
+	encounter_anchor.enemy_roster_template_id = enemy_roster_template_id
 	encounter_anchor.region_tag = region_tag
 	encounter_anchor.vision_range = vision_range
 	encounter_anchor.is_cleared = false

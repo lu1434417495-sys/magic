@@ -124,12 +124,50 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary) -> UnitBaseAttributes:
+	for field_name in [
+		"strength",
+		"agility",
+		"constitution",
+		"perception",
+		"intelligence",
+		"willpower",
+		"custom_stats",
+	]:
+		if not data.has(field_name):
+			return null
+	var custom_stats_variant: Variant = data["custom_stats"]
+	if custom_stats_variant is not Dictionary:
+		return null
+	for attribute_id in BASE_ATTRIBUTE_IDS:
+		if data[String(attribute_id)] is not int:
+			return null
+	var parsed_custom_stats = _parse_int_map(custom_stats_variant)
+	if parsed_custom_stats == null:
+		return null
+
 	var attributes := UnitBaseAttributes.new()
-	attributes.strength = int(data.get("strength", 0))
-	attributes.agility = int(data.get("agility", 0))
-	attributes.constitution = int(data.get("constitution", 0))
-	attributes.perception = int(data.get("perception", 0))
-	attributes.intelligence = int(data.get("intelligence", 0))
-	attributes.willpower = int(data.get("willpower", 0))
-	attributes.custom_stats = ProgressionDataUtils.to_string_name_int_map(data.get("custom_stats", {}))
+	attributes.strength = int(data["strength"])
+	attributes.agility = int(data["agility"])
+	attributes.constitution = int(data["constitution"])
+	attributes.perception = int(data["perception"])
+	attributes.intelligence = int(data["intelligence"])
+	attributes.willpower = int(data["willpower"])
+	attributes.custom_stats = parsed_custom_stats
 	return attributes
+
+
+static func _parse_int_map(values: Dictionary):
+	var parsed_values: Dictionary = {}
+	var seen_keys: Dictionary = {}
+	for raw_key in values.keys():
+		var key_type := typeof(raw_key)
+		if key_type != TYPE_STRING and key_type != TYPE_STRING_NAME:
+			return null
+		var parsed_key := ProgressionDataUtils.to_string_name(raw_key)
+		if parsed_key == &"" or seen_keys.has(parsed_key):
+			return null
+		if values[raw_key] is not int:
+			return null
+		seen_keys[parsed_key] = true
+		parsed_values[parsed_key] = int(values[raw_key])
+	return parsed_values

@@ -9,6 +9,7 @@ const ProfessionContentRegistry = preload("res://scripts/player/progression/prof
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
+const WorldMapContentValidator = preload("res://scripts/utils/world_map_content_validator.gd")
 
 const SUPPORTED_QUEST_PROVIDER_IDS := {
 	&"service_contract_board": true,
@@ -116,6 +117,26 @@ func validate_enemy_seed(seed_resource_path: String) -> Dictionary:
 	var registry := EnemyContentRegistry.new()
 	registry.configure_seed_resource(seed_resource_path)
 	return _build_domain_result("enemy", seed_resource_path, registry.validate())
+
+
+func validate_world_presets(enemy_templates: Dictionary = {}, wild_encounter_rosters: Dictionary = {}) -> Dictionary:
+	var validator := WorldMapContentValidator.new()
+	return _build_domain_result("world", "world_presets", validator.validate_world_presets(enemy_templates, wild_encounter_rosters))
+
+
+func validate_world_generation_config(
+	label: String,
+	generation_config,
+	enemy_templates: Dictionary = {},
+	wild_encounter_rosters: Dictionary = {}
+) -> Dictionary:
+	var validator := WorldMapContentValidator.new()
+	return _build_domain_result("world", label, validator.validate_generation_config(
+		generation_config,
+		label,
+		enemy_templates,
+		wild_encounter_rosters
+	))
 
 
 func validate_quest_entries(

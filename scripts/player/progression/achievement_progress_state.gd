@@ -27,9 +27,32 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
+	for field_name in [
+		"achievement_id",
+		"current_value",
+		"is_unlocked",
+		"unlocked_at_unix_time",
+	]:
+		if not data.has(field_name):
+			return null
+	var achievement_id := ProgressionDataUtils.to_string_name(data["achievement_id"])
+	if achievement_id == &"":
+		return null
+	if typeof(data["achievement_id"]) != TYPE_STRING and typeof(data["achievement_id"]) != TYPE_STRING_NAME:
+		return null
+	var current_value_variant: Variant = data["current_value"]
+	if current_value_variant is not int or int(current_value_variant) < 0:
+		return null
+	var is_unlocked_variant: Variant = data["is_unlocked"]
+	if is_unlocked_variant is not bool:
+		return null
+	var unlocked_at_variant: Variant = data["unlocked_at_unix_time"]
+	if unlocked_at_variant is not int or int(unlocked_at_variant) < 0:
+		return null
+
 	var state = ACHIEVEMENT_PROGRESS_STATE_SCRIPT.new()
-	state.achievement_id = ProgressionDataUtils.to_string_name(data.get("achievement_id", ""))
-	state.current_value = int(data.get("current_value", 0))
-	state.is_unlocked = bool(data.get("is_unlocked", false))
-	state.unlocked_at_unix_time = int(data.get("unlocked_at_unix_time", 0))
+	state.achievement_id = achievement_id
+	state.current_value = int(current_value_variant)
+	state.is_unlocked = bool(is_unlocked_variant)
+	state.unlocked_at_unix_time = int(unlocked_at_variant)
 	return state

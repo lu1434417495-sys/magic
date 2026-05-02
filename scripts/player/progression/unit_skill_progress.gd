@@ -59,17 +59,78 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
+	for field_name in [
+		"skill_id",
+		"is_learned",
+		"skill_level",
+		"current_mastery",
+		"total_mastery_earned",
+		"is_core",
+		"assigned_profession_id",
+		"merged_from_skill_ids",
+		"mastery_from_training",
+		"mastery_from_battle",
+		"profession_granted_by",
+		"core_max_growth_claimed",
+	]:
+		if not data.has(field_name):
+			return null
+	var merged_from_skill_ids_variant: Variant = data["merged_from_skill_ids"]
+	if merged_from_skill_ids_variant is not Array:
+		return null
+	var skill_id = _parse_string_name_field(data["skill_id"], false)
+	if skill_id == null:
+		return null
+	for bool_field in ["is_learned", "is_core", "core_max_growth_claimed"]:
+		if data[bool_field] is not bool:
+			return null
+	for int_field in ["skill_level", "current_mastery", "total_mastery_earned", "mastery_from_training", "mastery_from_battle"]:
+		var int_value: Variant = data[int_field]
+		if int_value is not int or int(int_value) < 0:
+			return null
+	var assigned_profession_id = _parse_string_name_field(data["assigned_profession_id"], true)
+	if assigned_profession_id == null:
+		return null
+	var profession_granted_by = _parse_string_name_field(data["profession_granted_by"], true)
+	if profession_granted_by == null:
+		return null
+	var merged_from_skill_ids = _parse_unique_string_name_array(merged_from_skill_ids_variant)
+	if merged_from_skill_ids == null:
+		return null
+
 	var progress := UNIT_SKILL_PROGRESS_SCRIPT.new()
-	progress.skill_id = ProgressionDataUtils.to_string_name(data.get("skill_id", ""))
-	progress.is_learned = bool(data.get("is_learned", false))
-	progress.skill_level = int(data.get("skill_level", 0))
-	progress.current_mastery = int(data.get("current_mastery", 0))
-	progress.total_mastery_earned = int(data.get("total_mastery_earned", 0))
-	progress.is_core = bool(data.get("is_core", false))
-	progress.assigned_profession_id = ProgressionDataUtils.to_string_name(data.get("assigned_profession_id", ""))
-	progress.merged_from_skill_ids = ProgressionDataUtils.to_string_name_array(data.get("merged_from_skill_ids", []))
-	progress.mastery_from_training = int(data.get("mastery_from_training", 0))
-	progress.mastery_from_battle = int(data.get("mastery_from_battle", 0))
-	progress.profession_granted_by = ProgressionDataUtils.to_string_name(data.get("profession_granted_by", ""))
-	progress.core_max_growth_claimed = bool(data.get("core_max_growth_claimed", false))
+	progress.skill_id = skill_id
+	progress.is_learned = data["is_learned"]
+	progress.skill_level = int(data["skill_level"])
+	progress.current_mastery = int(data["current_mastery"])
+	progress.total_mastery_earned = int(data["total_mastery_earned"])
+	progress.is_core = data["is_core"]
+	progress.assigned_profession_id = assigned_profession_id
+	progress.merged_from_skill_ids = merged_from_skill_ids
+	progress.mastery_from_training = int(data["mastery_from_training"])
+	progress.mastery_from_battle = int(data["mastery_from_battle"])
+	progress.profession_granted_by = profession_granted_by
+	progress.core_max_growth_claimed = data["core_max_growth_claimed"]
 	return progress
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"" and not allow_empty:
+		return null
+	return parsed_value
+
+
+static func _parse_unique_string_name_array(values: Array):
+	var parsed_values: Array[StringName] = []
+	var seen_values: Dictionary = {}
+	for raw_value in values:
+		var parsed_value = _parse_string_name_field(raw_value, false)
+		if parsed_value == null or seen_values.has(parsed_value):
+			return null
+		seen_values[parsed_value] = true
+		parsed_values.append(parsed_value)
+	return parsed_values

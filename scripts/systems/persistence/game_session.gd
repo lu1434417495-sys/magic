@@ -22,7 +22,9 @@ const PROGRESSION_SERIALIZATION_SCRIPT = preload("res://scripts/systems/persiste
 const SAVE_SERIALIZER_SCRIPT = preload("res://scripts/systems/persistence/save_serializer.gd")
 const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/persistence/game_log_service.gd")
 const WORLD_PRESET_REGISTRY_SCRIPT = preload("res://scripts/utils/world_preset_registry.gd")
+const WORLD_MAP_CONTENT_VALIDATOR_SCRIPT = preload("res://scripts/utils/world_map_content_validator.gd")
 const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/character_creation_service.gd")
+const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/progression_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
@@ -31,7 +33,7 @@ const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
 const SAVE_VERSION := 5
 const SAVE_INDEX_VERSION := 1
 const MAX_ACTIVE_MEMBER_COUNT := 4
-const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "item", "recipe", "enemy"]
+const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "item", "recipe", "enemy", "world"]
 const RANDOM_START_SKILL_TIER_BASIC: StringName = &"basic"
 const RANDOM_START_SKILL_TIER_INTERMEDIATE: StringName = &"intermediate"
 const RANDOM_START_SKILL_TIER_ADVANCED: StringName = &"advanced"
@@ -105,6 +107,7 @@ var _wild_encounter_rosters: Dictionary = {}
 var _content_validation_snapshot: Dictionary = {}
 var _save_serializer = SAVE_SERIALIZER_SCRIPT.new()
 var _log_service = GAME_LOG_SERVICE_SCRIPT.new()
+var _world_content_validator = WORLD_MAP_CONTENT_VALIDATOR_SCRIPT.new()
 
 
 func _init() -> void:
@@ -225,7 +228,13 @@ func load_save(save_id: String) -> int:
 		})
 		return ERR_INVALID_DATA
 
-	var generation_config_path := String(payload.get("generation_config_path", save_meta.get("generation_config_path", "")))
+	if not payload.has("generation_config_path"):
+		_push_session_error("session.save.load.missing_generation_config", "Save slot %s is missing generation_config_path." % save_id, {
+			"save_id": save_id,
+			"save_path": save_path,
+		})
+		return ERR_INVALID_DATA
+	var generation_config_path := String(payload.get("generation_config_path", "")).strip_edges()
 	if generation_config_path.is_empty():
 		_push_session_error("session.save.load.missing_generation_config", "Save slot %s is missing generation_config_path." % save_id, {
 			"save_id": save_id,
@@ -745,9 +754,16 @@ func _load_save_index_entries() -> Array[Dictionary]:
 
 	var raw_entries: Array = []
 	if typeof(raw_payload) == TYPE_DICTIONARY:
-		raw_entries = raw_payload.get("saves", [])
-	elif typeof(raw_payload) == TYPE_ARRAY:
-		raw_entries = raw_payload
+		var raw_payload_dict: Dictionary = raw_payload
+		var index_version_variant: Variant = raw_payload_dict.get("version", null)
+		if not _is_save_index_json_integer_value(index_version_variant) \
+			or int(index_version_variant) != SAVE_INDEX_VERSION \
+			or typeof(raw_payload_dict.get("saves", null)) != TYPE_ARRAY:
+			var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
+			if not rebuilt_entries.is_empty():
+				_write_save_index(rebuilt_entries)
+			return rebuilt_entries
+		raw_entries = raw_payload_dict.get("saves", [])
 	else:
 		var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
 		if not rebuilt_entries.is_empty():
@@ -816,6 +832,10 @@ func _deserialize_save_index_entry(raw_entry: Dictionary) -> Dictionary:
 	return _save_serializer.deserialize_save_index_entry(raw_entry)
 
 
+func _is_save_index_json_integer_value(value: Variant) -> bool:
+	return _save_serializer.is_save_index_json_integer_value(value)
+
+
 func _encode_save_index_string(value: String) -> String:
 	if value.is_empty():
 		return ""
@@ -854,7 +874,7 @@ func _rebuild_save_index_entries_from_save_files() -> Array[Dictionary]:
 		if typeof(payload_variant) != TYPE_DICTIONARY:
 			continue
 		var payload: Dictionary = payload_variant
-		var save_meta := _extract_save_meta_from_payload(payload, file_name.trim_suffix(".dat"))
+		var save_meta := _extract_save_meta_from_payload(payload)
 		if save_meta.is_empty():
 			continue
 		rebuilt_by_id[String(save_meta.get("save_id", ""))] = save_meta
@@ -871,8 +891,8 @@ func _merge_save_index_entries(primary_entries: Array[Dictionary], fallback_entr
 	return _save_serializer.merge_save_index_entries(primary_entries, fallback_entries)
 
 
-func _extract_save_meta_from_payload(payload: Dictionary, fallback_save_id: String = "") -> Dictionary:
-	return _save_serializer.extract_save_meta_from_payload(payload, fallback_save_id)
+func _extract_save_meta_from_payload(payload: Dictionary) -> Dictionary:
+	return _save_serializer.extract_save_meta_from_payload(payload)
 
 
 func _upsert_save_meta(entries: Array[Dictionary], save_meta: Dictionary) -> Array[Dictionary]:
@@ -1067,7 +1087,7 @@ func _build_default_member_state(
 	warrior_progress.add_core_skill(starting_skill_id)
 	progression.set_profession_progress(warrior_progress)
 	_grant_random_starting_book_skill(progression)
-	progression.sync_active_core_skill_ids()
+	_refresh_starting_progression_runtime_state(progression)
 
 	member_state.progression = progression
 	return member_state
@@ -1105,6 +1125,14 @@ func _grant_random_starting_book_skill(progression) -> void:
 	skill_progress.current_mastery = 0
 	skill_progress.total_mastery_earned = 0
 	progression.set_skill_progress(skill_progress)
+
+
+func _refresh_starting_progression_runtime_state(progression) -> void:
+	if progression == null:
+		return
+	var progression_service = PROGRESSION_SERVICE_SCRIPT.new()
+	progression_service.setup(progression, _skill_defs, _profession_defs)
+	progression_service.refresh_runtime_state()
 
 
 func _is_random_start_book_skill_candidate(skill_def: SkillDef, progression) -> bool:
@@ -1265,6 +1293,7 @@ func _refresh_content_validation_snapshot() -> void:
 		"item": _build_content_validation_domain_snapshot(_item_content_registry),
 		"recipe": _build_content_validation_domain_snapshot(_recipe_content_registry),
 		"enemy": _build_content_validation_domain_snapshot(_enemy_content_registry),
+		"world": _build_world_content_validation_domain_snapshot(),
 	}
 	var error_count := 0
 	for domain_id in CONTENT_VALIDATION_DOMAIN_ORDER:
@@ -1281,6 +1310,18 @@ func _build_content_validation_domain_snapshot(registry) -> Dictionary:
 	var errors: Array[String] = []
 	if registry != null and registry.has_method("validate"):
 		for validation_error in registry.validate():
+			errors.append(String(validation_error))
+	return {
+		"ok": errors.is_empty(),
+		"error_count": errors.size(),
+		"errors": errors,
+	}
+
+
+func _build_world_content_validation_domain_snapshot() -> Dictionary:
+	var errors: Array[String] = []
+	if _world_content_validator != null and _world_content_validator.has_method("validate_world_presets"):
+		for validation_error in _world_content_validator.validate_world_presets(_enemy_templates, _wild_encounter_rosters):
 			errors.append(String(validation_error))
 	return {
 		"ok": errors.is_empty(),
@@ -1313,6 +1354,8 @@ func _report_content_validation_error(domain_id: String, validation_error: Strin
 			_push_session_error("session.content.recipe_validation_failed", "Recipe content error: %s" % validation_error)
 		"enemy":
 			_push_session_error("session.content.enemy_validation_failed", "Enemy content error: %s" % validation_error)
+		"world":
+			_push_session_error("session.content.world_validation_failed", "World content error: %s" % validation_error)
 
 
 func _log_session_info(event_id: String, message: String, context: Dictionary = {}) -> void:

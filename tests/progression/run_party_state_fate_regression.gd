@@ -13,6 +13,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_party_state_fate_fields_round_trip()
 	_test_party_state_from_dict_missing_fate_fields_is_rejected()
+	_test_party_state_from_dict_rejects_bad_fate_flag_schema()
 
 	if _failures.is_empty():
 		print("PartyState fate regression: PASS")
@@ -78,6 +79,27 @@ func _test_party_state_from_dict_missing_fate_fields_is_rejected() -> void:
 		PartyState.from_dict(invalid_fate_payload) == null,
 		"fate_run_flags 类型错误的 PartyState shape 应直接拒绝。"
 	)
+
+
+func _test_party_state_from_dict_rejects_bad_fate_flag_schema() -> void:
+	for field_name in ["fate_run_flags", "meta_flags"]:
+		for invalid_flags in [
+			{"": true},
+			{"chapter_gate": 1},
+			_build_duplicate_normalized_flag_payload(),
+		]:
+			var payload: Dictionary = _build_party_state().to_dict()
+			payload[field_name] = invalid_flags
+			_assert_true(
+				PartyState.from_dict(payload) == null,
+				"%s 内空 key、重复归一化 key 或非 bool value 应直接拒绝。" % field_name
+			)
+
+
+func _build_duplicate_normalized_flag_payload() -> Dictionary:
+	var flags: Dictionary = {"1": true}
+	flags[1] = false
+	return flags
 
 
 func _build_party_state() -> PartyState:

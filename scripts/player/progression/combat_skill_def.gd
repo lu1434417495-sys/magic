@@ -37,7 +37,9 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 ## 字段说明：在编辑器中暴露斗气消耗配置，便于定义文档中的 aura 资源技能。
 @export var aura_cost := 0
 ## 字段说明：按技能等级覆盖消耗或冷却，键为最低生效等级，值可包含 ap_cost / mp_cost / stamina_cost / aura_cost / cooldown_tu。
-@export var level_overrides: Dictionary = {}
+@export var level_overrides: Dictionary = {}:
+	set(value):
+		level_overrides = _normalize_level_overrides(value)
 ## 字段说明：战斗熟练度触发模式；默认保留旧的技能伤害骰事件规则。
 @export var mastery_trigger_mode: StringName = &"skill_damage_dice_max"
 ## 字段说明：战斗熟练度数值模式；默认按目标阶级逐个目标计入。
@@ -58,12 +60,16 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var selection_order_mode: StringName = &"stable"
 ## 字段说明：在编辑器中暴露效果定义集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var effect_defs: Array[CombatEffectDef] = []
+## 字段说明：被动技能的效果定义集合；仅在 skill_type 为 passive 时读取，用于战斗开始时或条件触发时的效果链。
+@export var passive_effect_defs: Array[CombatEffectDef] = []
 ## 字段说明：在编辑器中暴露施放变体集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var cast_variants: Array[CombatCastVariantDef] = []
 ## 字段说明：禁止使用的武器家族列表；如果当前武器家族在此列表中，则无法施放该技能。
 @export var excluded_weapon_families: Array[StringName] = []
 ## 字段说明：禁止使用的武器类型ID列表；如果当前武器类型ID在此列表中，则无法施放该技能。
 @export var excluded_weapon_type_ids: Array[StringName] = []
+## 字段说明：是否需要装备盾牌；为 true 时单位必须在 off_hand 槽位装备带有 shield 标签的物品才能施放该技能。
+@export var requires_equipped_shield: bool = false
 
 
 func get_cast_variant(variant_id: StringName) -> CombatCastVariantDef:
@@ -102,17 +108,32 @@ func get_effective_resource_costs(skill_level: int) -> Dictionary:
 
 
 func get_level_override(skill_level: int) -> Dictionary:
-	var selected_level := -1
-	var selected_override: Dictionary = {}
+	var eligible_overrides: Array[Dictionary] = []
 	for level_key in level_overrides.keys():
-		var override_level := _parse_override_level(level_key)
-		if override_level < 0 or override_level > skill_level or override_level <= selected_level:
+		if typeof(level_key) != TYPE_INT:
+			continue
+		var override_level := int(level_key)
+		if override_level < 0 or override_level > skill_level:
 			continue
 		var override_data = level_overrides.get(level_key)
-		if override_data is Dictionary:
-			selected_level = override_level
-			selected_override = (override_data as Dictionary)
-	return selected_override
+		if override_data is not Dictionary:
+			continue
+		eligible_overrides.append({
+			"level": override_level,
+			"data": override_data,
+		})
+	eligible_overrides.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("level", 0)) < int(b.get("level", 0))
+	)
+
+	var merged_override: Dictionary = {}
+	for override_entry in eligible_overrides:
+		var override_data = override_entry.get("data", {})
+		if override_data is not Dictionary:
+			continue
+		for key in (override_data as Dictionary).keys():
+			merged_override[key] = (override_data as Dictionary).get(key)
+	return merged_override
 
 
 func get_effective_attack_roll_bonus(skill_level: int) -> int:
@@ -144,9 +165,20 @@ func get_effective_max_target_count(skill_level: int) -> int:
 
 
 func _parse_override_level(level_key) -> int:
-	if level_key is int:
-		return int(level_key)
-	var level_text := String(level_key)
-	if not level_text.is_valid_int():
+	if typeof(level_key) != TYPE_INT:
 		return -1
-	return int(level_text)
+	return int(level_key)
+
+
+func _normalize_level_overrides(raw_overrides) -> Dictionary:
+	if raw_overrides is not Dictionary:
+		return {}
+	var normalized: Dictionary = {}
+	for level_key in (raw_overrides as Dictionary).keys():
+		var normalized_key = level_key
+		if typeof(level_key) == TYPE_FLOAT:
+			var level_float := float(level_key)
+			if is_equal_approx(level_float, floor(level_float)):
+				normalized_key = int(level_float)
+		normalized[normalized_key] = (raw_overrides as Dictionary).get(level_key)
+	return normalized

@@ -12,6 +12,14 @@ const TYPE_SKILL_UNLOCK: StringName = &"skill_unlock"
 const TYPE_SKILL_MASTERY: StringName = &"skill_mastery"
 const TYPE_ATTRIBUTE_DELTA: StringName = &"attribute_delta"
 
+const REQUIRED_SERIALIZED_FIELDS := [
+	"reward_type",
+	"target_id",
+	"target_label",
+	"amount",
+	"reason_text",
+]
+
 ## 字段说明：记录奖励对象类型，用于区分不同规则、资源类别或行为分支。
 var reward_type: StringName = &""
 ## 字段说明：记录目标唯一标识，作为查表、序列化和跨系统引用时使用的主键。
@@ -38,11 +46,44 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
+static func from_dict(data):
+	if data is not Dictionary:
+		return null
+	if not _has_exact_serialized_fields(data):
+		return null
+	var reward_type = _parse_string_name_field(data["reward_type"], false)
+	var target_id = _parse_string_name_field(data["target_id"], false)
+	if reward_type == null or target_id == null:
+		return null
+	if data["target_label"] is not String or data["reason_text"] is not String:
+		return null
+	var amount_variant: Variant = data["amount"]
+	if amount_variant is not int or int(amount_variant) == 0:
+		return null
+
 	var reward = ACHIEVEMENT_REWARD_DEF_SCRIPT.new()
-	reward.reward_type = ProgressionDataUtils.to_string_name(data.get("reward_type", ""))
-	reward.target_id = ProgressionDataUtils.to_string_name(data.get("target_id", ""))
-	reward.target_label = String(data.get("target_label", ""))
-	reward.amount = int(data.get("amount", 0))
-	reward.reason_text = String(data.get("reason_text", ""))
+	reward.reward_type = reward_type
+	reward.target_id = target_id
+	reward.target_label = String(data["target_label"])
+	reward.amount = int(amount_variant)
+	reward.reason_text = String(data["reason_text"])
 	return reward
+
+
+static func _has_exact_serialized_fields(payload: Dictionary) -> bool:
+	if payload.size() != REQUIRED_SERIALIZED_FIELDS.size():
+		return false
+	for field_name in REQUIRED_SERIALIZED_FIELDS:
+		if not payload.has(field_name):
+			return false
+	return true
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"" and not allow_empty:
+		return null
+	return parsed_value

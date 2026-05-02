@@ -8,6 +8,20 @@ extends RefCounted
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const ENCOUNTER_KIND_SINGLE: StringName = &"single"
 const ENCOUNTER_KIND_SETTLEMENT: StringName = &"settlement"
+const REQUIRED_SERIALIZED_FIELDS := [
+	"entity_id",
+	"display_name",
+	"world_coord",
+	"faction_id",
+	"enemy_roster_template_id",
+	"region_tag",
+	"vision_range",
+	"is_cleared",
+	"encounter_kind",
+	"encounter_profile_id",
+	"growth_stage",
+	"suppressed_until_step",
+]
 
 ## 字段说明：记录实体唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var entity_id: StringName = &""
@@ -52,20 +66,80 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
+static func from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
+	var payload := data as Dictionary
+	if not _has_exact_serialized_fields(payload):
+		return null
+
+	var entity_id_value = _parse_string_name_field(payload["entity_id"], false)
+	var faction_id_value = _parse_string_name_field(payload["faction_id"], false)
+	var enemy_roster_template_id_value = _parse_string_name_field(payload["enemy_roster_template_id"], true)
+	var region_tag_value = _parse_string_name_field(payload["region_tag"], true)
+	var encounter_kind_value = _parse_string_name_field(payload["encounter_kind"], false)
+	var encounter_profile_id_value = _parse_string_name_field(payload["encounter_profile_id"], true)
+	if (
+		entity_id_value == null
+		or faction_id_value == null
+		or enemy_roster_template_id_value == null
+		or region_tag_value == null
+		or encounter_kind_value == null
+		or encounter_profile_id_value == null
+	):
+		return null
+	if not _is_valid_encounter_kind(encounter_kind_value):
+		return null
+	if payload["display_name"] is not String:
+		return null
+	var display_name_value := String(payload["display_name"])
+	if display_name_value.strip_edges().is_empty():
+		return null
+	if payload["world_coord"] is not Vector2i:
+		return null
+	if payload["vision_range"] is not int or int(payload["vision_range"]) < 0:
+		return null
+	if payload["is_cleared"] is not bool:
+		return null
+	if payload["growth_stage"] is not int or int(payload["growth_stage"]) < 0:
+		return null
+	if payload["suppressed_until_step"] is not int or int(payload["suppressed_until_step"]) < 0:
+		return null
+
 	var encounter_anchor := ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
-	encounter_anchor.entity_id = ProgressionDataUtils.to_string_name(data.get("entity_id", ""))
-	encounter_anchor.display_name = String(data.get("display_name", ""))
-	encounter_anchor.world_coord = data.get("world_coord", Vector2i.ZERO)
-	encounter_anchor.faction_id = ProgressionDataUtils.to_string_name(data.get("faction_id", "hostile"))
-	encounter_anchor.enemy_roster_template_id = ProgressionDataUtils.to_string_name(data.get("enemy_roster_template_id", ""))
-	encounter_anchor.region_tag = ProgressionDataUtils.to_string_name(data.get("region_tag", ""))
-	encounter_anchor.vision_range = int(data.get("vision_range", 0))
-	encounter_anchor.is_cleared = bool(data.get("is_cleared", false))
-	encounter_anchor.encounter_kind = ProgressionDataUtils.to_string_name(
-		data.get("encounter_kind", String(ENCOUNTER_KIND_SINGLE))
-	)
-	encounter_anchor.encounter_profile_id = ProgressionDataUtils.to_string_name(data.get("encounter_profile_id", ""))
-	encounter_anchor.growth_stage = maxi(int(data.get("growth_stage", 0)), 0)
-	encounter_anchor.suppressed_until_step = maxi(int(data.get("suppressed_until_step", 0)), 0)
+	encounter_anchor.entity_id = entity_id_value
+	encounter_anchor.display_name = display_name_value
+	encounter_anchor.world_coord = payload["world_coord"]
+	encounter_anchor.faction_id = faction_id_value
+	encounter_anchor.enemy_roster_template_id = enemy_roster_template_id_value
+	encounter_anchor.region_tag = region_tag_value
+	encounter_anchor.vision_range = int(payload["vision_range"])
+	encounter_anchor.is_cleared = bool(payload["is_cleared"])
+	encounter_anchor.encounter_kind = encounter_kind_value
+	encounter_anchor.encounter_profile_id = encounter_profile_id_value
+	encounter_anchor.growth_stage = int(payload["growth_stage"])
+	encounter_anchor.suppressed_until_step = int(payload["suppressed_until_step"])
 	return encounter_anchor
+
+
+static func _has_exact_serialized_fields(payload: Dictionary) -> bool:
+	if payload.size() != REQUIRED_SERIALIZED_FIELDS.size():
+		return false
+	for field_name in REQUIRED_SERIALIZED_FIELDS:
+		if not payload.has(field_name):
+			return false
+	return true
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var text := String(value).strip_edges()
+	if text.is_empty() and not allow_empty:
+		return null
+	return StringName(text)
+
+
+static func _is_valid_encounter_kind(value: StringName) -> bool:
+	return value == ENCOUNTER_KIND_SINGLE or value == ENCOUNTER_KIND_SETTLEMENT

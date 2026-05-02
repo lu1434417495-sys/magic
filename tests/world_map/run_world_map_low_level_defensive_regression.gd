@@ -16,6 +16,7 @@ func _run() -> void:
 	_test_empty_occupant_state_objects_are_erased()
 	_test_grid_cell_surface_keeps_minimal_runtime_contract()
 	_test_visibility_rebuild_ignores_foreign_faction_sources()
+	_test_fog_reveal_export_load_keeps_revealed_cells()
 
 	if _failures.is_empty():
 		print("World map low-level defensive regression: PASS")
@@ -83,6 +84,34 @@ func _test_visibility_rebuild_ignores_foreign_faction_sources() -> void:
 	_assert_true(
 		not fog_system.is_visible(Vector2i(5, 5), "player"),
 		"foreign faction 的视野源不应污染当前阵营可见区。"
+	)
+
+
+func _test_fog_reveal_export_load_keeps_revealed_cells() -> void:
+	var fog_system = WORLD_MAP_FOG_SYSTEM_SCRIPT.new()
+	fog_system.setup(Vector2i(8, 8))
+
+	var revealed_coords := fog_system.reveal_diamond(Vector2i(3, 3), 1, "player")
+	_assert_true(revealed_coords.has(Vector2i(3, 3)), "迷雾揭示应返回中心格。")
+
+	var persisted_state := fog_system.export_persistent_state()
+	var restored_fog_system = WORLD_MAP_FOG_SYSTEM_SCRIPT.new()
+	restored_fog_system.setup(Vector2i(8, 8), persisted_state)
+
+	_assert_true(
+		restored_fog_system.is_explored(Vector2i(3, 3), "player"),
+		"持久化恢复后 paid reveal 中心格应保持已探索。"
+	)
+	_assert_true(
+		not restored_fog_system.is_visible(Vector2i(3, 3), "player"),
+		"持久化恢复不应把 paid reveal 误当作当前可见。"
+	)
+
+	var distant_source = VISION_SOURCE_DATA_SCRIPT.new("scout", Vector2i(7, 7), 0, "player")
+	restored_fog_system.rebuild_visibility_for_faction("player", [distant_source])
+	_assert_true(
+		restored_fog_system.is_explored(Vector2i(3, 3), "player"),
+		"后续可见性刷新不应清除已持久化的 paid reveal。"
 	)
 
 

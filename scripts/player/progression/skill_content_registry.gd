@@ -16,13 +16,45 @@ const VALID_MASTERY_TRIGGER_MODES := [
 	&"status_applied",
 	&"effect_applied",
 	&"incoming_physical_hit",
+	&"secondary_hit",
 ]
 const VALID_MASTERY_AMOUNT_MODES := [
 	&"per_target_rank",
+	&"per_cast_hp_ratio",
 ]
 const VALID_EFFECT_TRIGGER_EVENTS := [
 	&"",
 	&"critical_hit",
+	&"secondary_hit",
+]
+const VALID_TRIGGER_CONDITIONS := [
+	&"",
+	&"battle_start",
+	&"on_fatal_damage",
+]
+const VALID_EFFECT_TYPES := [
+	&"break_equipment_on_hit",
+	&"chain_damage",
+	&"charge",
+	&"cleanse_harmful",
+	&"damage",
+	&"erase_status",
+	&"forced_move",
+	&"heal",
+	&"heal_fatal",
+	&"height",
+	&"height_delta",
+	&"on_kill_gain_resources",
+	&"path_step_aoe",
+	&"repeat_attack_until_fail",
+	&"shield",
+	&"stamina_restore",
+	&"status",
+	&"apply_status",
+	&"terrain",
+	&"terrain_effect",
+	&"terrain_replace",
+	&"terrain_replace_to",
 ]
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -171,12 +203,19 @@ func _append_attribute_growth_validation_errors(
 
 	var progress_total := 0
 	for attribute_key in skill_def.attribute_growth_progress.keys():
+		if typeof(attribute_key) != TYPE_STRING or String(attribute_key).strip_edges().is_empty():
+			errors.append("Skill %s attribute_growth_progress key %s must be a non-empty String." % [String(skill_id), str(attribute_key)])
+			continue
 		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
-		var amount := int(skill_def.attribute_growth_progress.get(attribute_key, 0))
+		var amount_variant: Variant = skill_def.attribute_growth_progress.get(attribute_key, null)
+		if typeof(amount_variant) != TYPE_INT:
+			errors.append("Skill %s attribute_growth_progress for %s must be a positive int." % [String(skill_id), String(attribute_id)])
+			continue
+		var amount := int(amount_variant)
 		if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_attribute_id(attribute_id):
 			errors.append("Skill %s attribute_growth_progress references invalid attribute %s." % [String(skill_id), String(attribute_id)])
 		if amount <= 0:
-			errors.append("Skill %s attribute_growth_progress for %s must be > 0." % [String(skill_id), String(attribute_id)])
+			errors.append("Skill %s attribute_growth_progress for %s must be a positive int." % [String(skill_id), String(attribute_id)])
 		progress_total += amount
 
 	var expected_total := ATTRIBUTE_GROWTH_SERVICE_SCRIPT.get_tier_budget(skill_def.growth_tier)
@@ -220,11 +259,14 @@ func _append_combat_profile_validation_errors(
 	if not _is_valid_tu_value(int(combat_profile.cooldown_tu)):
 		errors.append("Skill %s combat_profile cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), TU_GRANULARITY])
 	for override_level_key in combat_profile.level_overrides.keys():
+		if typeof(override_level_key) != TYPE_INT:
+			errors.append("Skill %s combat_profile level override key %s must be an int." % [String(skill_id), str(override_level_key)])
+			continue
 		var override_data = combat_profile.level_overrides.get(override_level_key)
 		if override_data is not Dictionary:
 			errors.append("Skill %s combat_profile level override %s must be a Dictionary." % [String(skill_id), String(override_level_key)])
 			continue
-		var override_level := combat_profile._parse_override_level(override_level_key)
+		var override_level := int(override_level_key)
 		if override_level < 0:
 			errors.append("Skill %s combat_profile level override %s must use a non-negative level." % [String(skill_id), String(override_level_key)])
 		var override_dict := override_data as Dictionary
@@ -312,6 +354,14 @@ func _append_effect_validation_errors(
 	if effect_def.effect_type == &"":
 		errors.append("Skill %s has an effect without effect_type in %s." % [String(skill_id), context_label])
 		return
+	if not VALID_EFFECT_TYPES.has(effect_def.effect_type):
+		errors.append(
+			"Skill %s effect %s uses unsupported effect_type %s." % [
+				String(skill_id),
+				context_label,
+				String(effect_def.effect_type),
+			]
+		)
 	if effect_def.min_skill_level < 0:
 		errors.append("Skill %s effect %s min_skill_level must be >= 0." % [String(skill_id), context_label])
 	if effect_def.max_skill_level >= 0 and effect_def.max_skill_level < effect_def.min_skill_level:
@@ -322,6 +372,14 @@ func _append_effect_validation_errors(
 				String(skill_id),
 				context_label,
 				String(effect_def.trigger_event),
+			]
+		)
+	if not VALID_TRIGGER_CONDITIONS.has(effect_def.trigger_condition):
+		errors.append(
+			"Skill %s effect %s uses unsupported trigger_condition %s." % [
+				String(skill_id),
+				context_label,
+				String(effect_def.trigger_condition),
 			]
 		)
 	if not _is_valid_tu_value(int(effect_def.duration_tu)):
@@ -340,21 +398,46 @@ func _append_effect_validation_errors(
 				TU_GRANULARITY,
 			]
 		)
-	if effect_def.params != null and effect_def.params.has("duration_tu"):
-		var params_duration_tu := int(effect_def.params.get("duration_tu", 0))
-		if not _is_valid_tu_value(params_duration_tu):
+	if effect_def.params != null:
+		var unsupported_param_aliases := {
+			"damage_dice_count": "dice_count",
+			"damage_dice_sides": "dice_sides",
+			"damage_dice_bonus": "dice_bonus",
+			"tag": "damage_tag",
+			"bypass_tag": "dr_bypass_tag",
+			"low_hp_ratio": "hp_ratio_threshold",
+		}
+		for legacy_param in unsupported_param_aliases.keys():
+			if effect_def.params.has(legacy_param):
+				errors.append(
+					"Skill %s effect %s params.%s is unsupported; use %s." % [
+						String(skill_id),
+						context_label,
+						String(legacy_param),
+						String(unsupported_param_aliases.get(legacy_param, "")),
+					]
+				)
+		if effect_def.params.has("duration"):
 			errors.append(
-				"Skill %s effect %s params.duration_tu must be 0 or a multiple of %d." % [
+				"Skill %s effect %s params.duration is unsupported; use duration_tu." % [
 					String(skill_id),
 					context_label,
-					TU_GRANULARITY,
 				]
 			)
-	if effect_def.params != null:
+		if effect_def.params.has("duration_tu"):
+			var params_duration_tu := int(effect_def.params.get("duration_tu", 0))
+			if not _is_valid_tu_value(params_duration_tu):
+				errors.append(
+					"Skill %s effect %s params.duration_tu must be 0 or a multiple of %d." % [
+						String(skill_id),
+						context_label,
+						TU_GRANULARITY,
+					]
+				)
 		_append_weapon_param_validation_errors(errors, skill_id, effect_def, context_label)
 
 	match effect_def.effect_type:
-		&"status":
+		&"status", &"apply_status":
 			if effect_def.status_id == &"":
 				errors.append(
 					"Skill %s status effect in %s is missing status_id." % [
@@ -404,7 +487,7 @@ func _append_effect_validation_errors(
 						TU_GRANULARITY,
 					]
 				)
-		&"terrain_replace":
+		&"terrain", &"terrain_replace", &"terrain_replace_to":
 			if effect_def.terrain_replace_to == &"":
 				errors.append(
 					"Skill %s terrain_replace effect in %s is missing terrain_replace_to." % [
@@ -412,21 +495,38 @@ func _append_effect_validation_errors(
 						context_label,
 					]
 				)
+		&"height", &"height_delta":
+			if int(effect_def.height_delta) == 0:
+				errors.append(
+					"Skill %s height effect in %s must have non-zero height_delta." % [
+						String(skill_id),
+						context_label,
+					]
+				)
 		&"forced_move":
-			var forced_move_mode := effect_def.forced_move_mode
-			if forced_move_mode == &"":
-				forced_move_mode = ProgressionDataUtils.to_string_name(effect_def.params.get("mode", ""))
-			var forced_move_distance := int(effect_def.forced_move_distance)
-			if forced_move_distance <= 0:
-				forced_move_distance = int(effect_def.params.get("distance", 0))
-			if forced_move_mode == &"":
+			if effect_def.params != null:
+				if effect_def.params.has("mode"):
+					errors.append(
+						"Skill %s forced_move effect in %s params.mode is unsupported; use forced_move_mode." % [
+							String(skill_id),
+							context_label,
+						]
+					)
+				if effect_def.params.has("distance"):
+					errors.append(
+						"Skill %s forced_move effect in %s params.distance is unsupported; use forced_move_distance." % [
+							String(skill_id),
+							context_label,
+						]
+					)
+			if effect_def.forced_move_mode == &"":
 				errors.append(
 					"Skill %s forced_move effect in %s is missing forced_move_mode." % [
 						String(skill_id),
 						context_label,
 					]
 				)
-			if forced_move_distance <= 0:
+			if int(effect_def.forced_move_distance) <= 0:
 				errors.append(
 					"Skill %s forced_move effect in %s must have forced_move_distance >= 1." % [
 						String(skill_id),

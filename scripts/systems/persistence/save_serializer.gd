@@ -2,10 +2,29 @@ class_name SaveSerializer
 extends RefCounted
 
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
-const DEFAULT_PLAYER_FACTION_ID := "player"
 const SAVE_DIRECTORY := "user://saves"
+const WORLD_MAP_SEED_KEY := "map_seed"
 const WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY := "next_equipment_instance_serial"
+const SAVE_META_REQUIRED_KEYS := [
+	"save_id",
+	"display_name",
+	"world_preset_id",
+	"world_preset_name",
+	"generation_config_path",
+	"world_size_cells",
+	"created_at_unix_time",
+	"updated_at_unix_time",
+]
+const SAVE_INDEX_REQUIRED_KEYS := [
+	"save_id_b64",
+	"display_name_b64",
+	"world_preset_id_b64",
+	"world_preset_name_b64",
+	"generation_config_path_b64",
+	"world_size_cells",
+	"created_at_unix_time",
+	"updated_at_unix_time",
+]
 
 var _progression_serialization = null
 var _world_preset_registry = null
@@ -81,9 +100,11 @@ func decode_v5_payload(
 	payload: Dictionary,
 	generation_config_path: String,
 	generation_config,
-	save_meta: Dictionary
+	_save_meta: Dictionary
 ) -> Dictionary:
-	var save_version := int(payload.get("version", -1))
+	if not payload.has("version") or payload.get("version") is not int:
+		return {"error": ERR_INVALID_DATA}
+	var save_version := int(payload.get("version"))
 	if save_version != _save_version:
 		return {"error": ERR_INVALID_DATA}
 
@@ -101,26 +122,36 @@ func decode_v5_payload(
 	if world_data.is_empty():
 		return {"error": ERR_INVALID_DATA}
 
-	var payload_save_id := String(payload.get("save_id", save_meta.get("save_id", "")))
+	if not payload.has("save_id") or payload.get("save_id") is not String:
+		return {"error": ERR_INVALID_DATA}
+	var payload_save_id := String(payload.get("save_id", "")).strip_edges()
 	if payload_save_id.is_empty():
 		return {"error": ERR_INVALID_DATA}
+	if not payload.has("generation_config_path") or payload.get("generation_config_path") is not String:
+		return {"error": ERR_INVALID_DATA}
+	var payload_generation_config_path := String(payload.get("generation_config_path", "")).strip_edges()
+	if payload_generation_config_path.is_empty() or payload_generation_config_path != generation_config_path:
+		return {"error": ERR_INVALID_DATA}
 
-	var slot_meta_raw = payload.get("save_slot_meta", {})
+	var slot_meta_raw = payload.get("save_slot_meta", null)
 	if typeof(slot_meta_raw) != TYPE_DICTIONARY:
 		return {"error": ERR_INVALID_DATA}
-	var merged_meta: Dictionary = save_meta.duplicate(true)
-	for key in slot_meta_raw.keys():
-		merged_meta[key] = slot_meta_raw[key]
-
-	merged_meta["save_id"] = payload_save_id
-	merged_meta["generation_config_path"] = generation_config_path
-	var normalized_meta := normalize_save_meta(merged_meta)
+	var normalized_meta := normalize_save_meta(slot_meta_raw)
 	if normalized_meta.is_empty():
+		return {"error": ERR_INVALID_DATA}
+	if String(normalized_meta.get("save_id", "")).strip_edges() != payload_save_id:
+		return {"error": ERR_INVALID_DATA}
+	if String(normalized_meta.get("generation_config_path", "")).strip_edges() != payload_generation_config_path:
 		return {"error": ERR_INVALID_DATA}
 	var player_coord_variant: Variant = world_state.get("player_coord", null)
 	if not _is_supported_vector2i_value(player_coord_variant):
 		return {"error": ERR_INVALID_DATA}
-	var party_state_payload: Variant = payload.get("party_state", {})
+	if not world_state.has("player_faction_id") or world_state.get("player_faction_id") is not String:
+		return {"error": ERR_INVALID_DATA}
+	var player_faction_id := String(world_state.get("player_faction_id", "")).strip_edges()
+	if player_faction_id.is_empty():
+		return {"error": ERR_INVALID_DATA}
+	var party_state_payload: Variant = payload.get("party_state", null)
 	if typeof(party_state_payload) != TYPE_DICTIONARY:
 		return {"error": ERR_INVALID_DATA}
 	var deserialized_party_state = _deserialize_party_state(party_state_payload)
@@ -135,7 +166,7 @@ func decode_v5_payload(
 		"generation_config": generation_config,
 		"world_data": world_data,
 		"player_coord": read_vector2i(player_coord_variant, Vector2i.ZERO),
-		"player_faction_id": String(world_state.get("player_faction_id", DEFAULT_PLAYER_FACTION_ID)),
+		"player_faction_id": player_faction_id,
 		"party_state": normalize_party_state(deserialized_party_state),
 	}
 
@@ -162,53 +193,49 @@ func build_save_meta(
 	})
 
 
-func extract_save_meta_from_payload(payload: Dictionary, fallback_save_id: String = "") -> Dictionary:
+func extract_save_meta_from_payload(payload: Dictionary) -> Dictionary:
 	if payload.is_empty():
 		return {}
 
-	var raw_meta_variant = payload.get("save_slot_meta", {})
-	var merged_meta: Dictionary = {}
-	if typeof(raw_meta_variant) == TYPE_DICTIONARY:
-		merged_meta = raw_meta_variant.duplicate(true)
-	var save_id := String(payload.get("save_id", merged_meta.get("save_id", fallback_save_id))).strip_edges()
-	if save_id.is_empty():
+	if not payload.has("save_id") or payload.get("save_id") is not String:
+		return {}
+	if not payload.has("generation_config_path") or payload.get("generation_config_path") is not String:
+		return {}
+	var save_id := String(payload.get("save_id", "")).strip_edges()
+	var generation_config_path := String(payload.get("generation_config_path", "")).strip_edges()
+	if save_id.is_empty() or generation_config_path.is_empty():
 		return {}
 
-	var generation_config_path := String(payload.get(
-		"generation_config_path",
-		merged_meta.get("generation_config_path", "")
-	)).strip_edges()
-	if generation_config_path.is_empty():
+	var raw_meta_variant = payload.get("save_slot_meta", null)
+	if typeof(raw_meta_variant) != TYPE_DICTIONARY:
 		return {}
-
-	var recovered_meta: Dictionary = merged_meta.duplicate(true)
-	recovered_meta["save_id"] = save_id
-	recovered_meta["generation_config_path"] = generation_config_path
-	if String(recovered_meta.get("display_name", "")).strip_edges().is_empty():
-		recovered_meta["display_name"] = save_id
-	if String(recovered_meta.get("world_preset_name", "")).strip_edges().is_empty():
-		recovered_meta["world_preset_name"] = _get_fallback_world_preset_name(generation_config_path)
-
-	var payload_meta_variant = payload.get("meta", {})
-	if typeof(payload_meta_variant) == TYPE_DICTIONARY:
-		var payload_meta: Dictionary = payload_meta_variant
-		var saved_at_unix_time := int(payload_meta.get("saved_at_unix_time", 0))
-		if int(recovered_meta.get("created_at_unix_time", 0)) <= 0 and saved_at_unix_time > 0:
-			recovered_meta["created_at_unix_time"] = saved_at_unix_time
-		if int(recovered_meta.get("updated_at_unix_time", 0)) <= 0 and saved_at_unix_time > 0:
-			recovered_meta["updated_at_unix_time"] = saved_at_unix_time
-
-	var world_size_cells := read_vector2i(recovered_meta.get("world_size_cells", Vector2i.ZERO))
-	if world_size_cells == Vector2i.ZERO:
-		var generation_config = load(generation_config_path)
-		var recovered_world_size := _get_generation_world_size_cells(generation_config)
-		if recovered_world_size != Vector2i.ZERO:
-			recovered_meta["world_size_cells"] = recovered_world_size
-
-	return normalize_save_meta(recovered_meta)
+	var normalized_meta := normalize_save_meta(raw_meta_variant)
+	if normalized_meta.is_empty():
+		return {}
+	if String(normalized_meta.get("save_id", "")).strip_edges() != save_id:
+		return {}
+	if String(normalized_meta.get("generation_config_path", "")).strip_edges() != generation_config_path:
+		return {}
+	return normalized_meta
 
 
 func normalize_save_meta(raw_meta: Dictionary) -> Dictionary:
+	for required_key in SAVE_META_REQUIRED_KEYS:
+		if not raw_meta.has(required_key):
+			return {}
+	for string_key in [
+		"save_id",
+		"display_name",
+		"world_preset_id",
+		"world_preset_name",
+		"generation_config_path",
+	]:
+		if raw_meta.get(string_key) is not String:
+			return {}
+	if raw_meta.get("created_at_unix_time") is not int:
+		return {}
+	if raw_meta.get("updated_at_unix_time") is not int:
+		return {}
 	var save_id := String(raw_meta.get("save_id", "")).strip_edges()
 	if save_id.is_empty():
 		return {}
@@ -225,11 +252,14 @@ func normalize_save_meta(raw_meta: Dictionary) -> Dictionary:
 		return {}
 
 	var created_at := int(raw_meta.get("created_at_unix_time", 0))
-	var updated_at := int(raw_meta.get("updated_at_unix_time", created_at))
+	var updated_at := int(raw_meta.get("updated_at_unix_time", 0))
 	if created_at <= 0 or updated_at <= 0:
 		return {}
-	var world_size_cells := read_vector2i(raw_meta.get("world_size_cells", Vector2i.ZERO))
-	if world_size_cells == Vector2i.ZERO:
+	var world_size_variant: Variant = raw_meta.get("world_size_cells", null)
+	if not _is_supported_vector2i_value(world_size_variant):
+		return {}
+	var world_size_cells := read_vector2i(world_size_variant)
+	if world_size_cells.x <= 0 or world_size_cells.y <= 0:
 		return {}
 
 	return {
@@ -245,13 +275,13 @@ func normalize_save_meta(raw_meta: Dictionary) -> Dictionary:
 
 
 func normalize_world_data(world_data: Dictionary) -> Dictionary:
-	var validation_error := get_equipment_instance_serial_validation_error(world_data)
+	var validation_error := get_world_data_validation_error(world_data)
 	if not validation_error.is_empty():
-		_crash_due_to_corrupt_save(validation_error)
+		push_error(validation_error)
 		return {}
 	var normalized = world_data.duplicate(true)
-	normalized["map_seed"] = _normalize_runtime_seed(world_data.get("map_seed", 0))
-	normalized["world_step"] = maxi(int(world_data.get("world_step", 0)), 0)
+	normalized[WORLD_MAP_SEED_KEY] = int(world_data.get(WORLD_MAP_SEED_KEY))
+	normalized["world_step"] = int(world_data["world_step"])
 	normalized[WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY] = int(world_data.get(WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY))
 	normalized["active_submap_id"] = String(world_data.get("active_submap_id", ""))
 	normalized["submap_return_stack"] = _normalize_submap_return_stack(world_data.get("submap_return_stack", []))
@@ -271,13 +301,13 @@ func normalize_world_data(world_data: Dictionary) -> Dictionary:
 
 
 func serialize_world_data(world_data: Dictionary) -> Dictionary:
-	var validation_error := get_equipment_instance_serial_validation_error(world_data)
+	var validation_error := get_world_data_validation_error(world_data)
 	if not validation_error.is_empty():
-		_crash_due_to_corrupt_save(validation_error)
+		push_error(validation_error)
 		return {}
 	var serialized_world_data = world_data.duplicate(true)
 	serialized_world_data["active_submap_id"] = String(world_data.get("active_submap_id", ""))
-	serialized_world_data["map_seed"] = _normalize_runtime_seed(world_data.get("map_seed", 0))
+	serialized_world_data[WORLD_MAP_SEED_KEY] = int(world_data.get(WORLD_MAP_SEED_KEY))
 	serialized_world_data[WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY] = int(world_data.get(WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY))
 	serialized_world_data["submap_return_stack"] = _serialize_submap_return_stack(world_data.get("submap_return_stack", []))
 	serialized_world_data["world_events"] = _serialize_world_events(world_data.get("world_events", []))
@@ -292,6 +322,39 @@ func serialize_world_data(world_data: Dictionary) -> Dictionary:
 	serialized_world_data["encounter_anchors"] = encounter_anchor_payloads
 	serialized_world_data["mounted_submaps"] = _serialize_mounted_submaps(world_data.get("mounted_submaps", {}))
 	return serialized_world_data
+
+
+func get_world_data_validation_error(world_data: Dictionary) -> String:
+	var seed_error := get_world_data_seed_validation_error(world_data)
+	if not seed_error.is_empty():
+		return seed_error
+	var world_step_error := get_world_data_step_validation_error(world_data)
+	if not world_step_error.is_empty():
+		return world_step_error
+	return get_equipment_instance_serial_validation_error(world_data)
+
+
+func get_world_data_seed_validation_error(world_data: Dictionary) -> String:
+	if not world_data.has(WORLD_MAP_SEED_KEY):
+		return "Corrupt save world_data: missing required field '%s'." % WORLD_MAP_SEED_KEY
+	var seed := int(world_data.get(WORLD_MAP_SEED_KEY, 0))
+	if seed < 1:
+		return "Corrupt save world_data: %s must be >= 1, got %s." % [
+			WORLD_MAP_SEED_KEY,
+			str(world_data.get(WORLD_MAP_SEED_KEY)),
+		]
+	return ""
+
+
+func get_world_data_step_validation_error(world_data: Dictionary) -> String:
+	if not world_data.has("world_step"):
+		return "Corrupt save world_data: missing required field 'world_step'."
+	if world_data["world_step"] is not int:
+		return "Corrupt save world_data: world_step must be an int, got %s." % typeof(world_data["world_step"])
+	var world_step := int(world_data["world_step"])
+	if world_step < 0:
+		return "Corrupt save world_data: world_step must be >= 0, got %s." % str(world_data["world_step"])
+	return ""
 
 
 func get_equipment_instance_serial_validation_error(world_data: Dictionary) -> String:
@@ -326,19 +389,10 @@ func get_mounted_submap_world_data_validation_error(
 	if world_data.is_empty():
 		return _format_mounted_submap_world_data_error(submap_id, "generated submap requires complete world_data.")
 
-	var validation_error := get_equipment_instance_serial_validation_error(world_data)
+	var validation_error := get_world_data_validation_error(world_data)
 	if validation_error.is_empty():
 		return ""
 	return _format_mounted_submap_world_data_error(submap_id, validation_error)
-
-
-func _crash_due_to_corrupt_save(message: String) -> void:
-	push_error(message)
-	if OS.has_method("crash"):
-		OS.call("crash", message)
-	var main_loop := Engine.get_main_loop()
-	if main_loop != null and main_loop.has_method("quit"):
-		main_loop.call("quit", 1)
 
 
 func normalize_party_state(party_state):
@@ -435,17 +489,42 @@ func serialize_save_index_entries(entries: Array[Dictionary]) -> Array[Dictionar
 func deserialize_save_index_entry(raw_entry: Dictionary) -> Dictionary:
 	if raw_entry.is_empty():
 		return {}
-	if not raw_entry.has("save_id_b64"):
+	for required_key in SAVE_INDEX_REQUIRED_KEYS:
+		if not raw_entry.has(required_key):
+			return {}
+	var save_id_variant: Variant = _decode_save_index_string_field(raw_entry, "save_id_b64", false)
+	if save_id_variant == null:
+		return {}
+	var display_name_variant: Variant = _decode_save_index_string_field(raw_entry, "display_name_b64", false)
+	if display_name_variant == null:
+		return {}
+	var world_preset_id_variant: Variant = _decode_save_index_string_field(raw_entry, "world_preset_id_b64", true)
+	if world_preset_id_variant == null:
+		return {}
+	var world_preset_name_variant: Variant = _decode_save_index_string_field(raw_entry, "world_preset_name_b64", false)
+	if world_preset_name_variant == null:
+		return {}
+	var generation_config_path_variant: Variant = _decode_save_index_string_field(raw_entry, "generation_config_path_b64", false)
+	if generation_config_path_variant == null:
+		return {}
+	var world_size_variant: Variant = _read_save_index_vector2i(raw_entry.get("world_size_cells", null))
+	if world_size_variant == null:
+		return {}
+	var created_at_variant: Variant = raw_entry.get("created_at_unix_time", null)
+	if not is_save_index_json_integer_value(created_at_variant):
+		return {}
+	var updated_at_variant: Variant = raw_entry.get("updated_at_unix_time", null)
+	if not is_save_index_json_integer_value(updated_at_variant):
 		return {}
 	return {
-		"save_id": _decode_save_index_string(String(raw_entry.get("save_id_b64", ""))),
-		"display_name": _decode_save_index_string(String(raw_entry.get("display_name_b64", ""))),
-		"world_preset_id": _decode_save_index_string(String(raw_entry.get("world_preset_id_b64", ""))),
-		"world_preset_name": _decode_save_index_string(String(raw_entry.get("world_preset_name_b64", ""))),
-		"generation_config_path": _decode_save_index_string(String(raw_entry.get("generation_config_path_b64", ""))),
-		"world_size_cells": raw_entry.get("world_size_cells", {"x": 0, "y": 0}),
-		"created_at_unix_time": int(raw_entry.get("created_at_unix_time", 0)),
-		"updated_at_unix_time": int(raw_entry.get("updated_at_unix_time", 0)),
+		"save_id": String(save_id_variant),
+		"display_name": String(display_name_variant),
+		"world_preset_id": String(world_preset_id_variant),
+		"world_preset_name": String(world_preset_name_variant),
+		"generation_config_path": String(generation_config_path_variant),
+		"world_size_cells": world_size_variant,
+		"created_at_unix_time": int(created_at_variant),
+		"updated_at_unix_time": int(updated_at_variant),
 	}
 
 
@@ -483,7 +562,9 @@ func upsert_save_meta(entries: Array[Dictionary], save_meta: Dictionary) -> Arra
 			updated_entries.append(normalized_meta)
 			replaced = true
 		else:
-			updated_entries.append(normalize_save_meta(entry))
+			var normalized_existing_entry := normalize_save_meta(entry)
+			if not normalized_existing_entry.is_empty():
+				updated_entries.append(normalized_existing_entry)
 
 	if not replaced:
 		updated_entries.append(normalized_meta)
@@ -506,6 +587,8 @@ func read_save_index_payload(index_file: FileAccess) -> Variant:
 	var json := JSON.new()
 	if json.parse(raw_text) != OK:
 		return null
+	if json.data is not Dictionary:
+		return null
 	return json.data
 
 
@@ -516,7 +599,7 @@ func is_ascii_save_index_buffer(raw_bytes: PackedByteArray) -> bool:
 		if byte_int == 9 or byte_int == 10 or byte_int == 13 or byte_int == 32:
 			continue
 		if not saw_content:
-			if byte_int != 123 and byte_int != 91:
+			if byte_int != 123:
 				return false
 			saw_content = true
 		if byte_int < 0 or byte_int > 127:
@@ -545,13 +628,20 @@ func _is_supported_vector2i_value(value: Variant) -> bool:
 		return true
 	if value is Dictionary:
 		var vector_dict := value as Dictionary
-		return vector_dict.has("x") and vector_dict.has("y")
+		return vector_dict.has("x") \
+			and vector_dict.has("y") \
+			and vector_dict.get("x") is int \
+			and vector_dict.get("y") is int
 	return false
 
 
-func _normalize_runtime_seed(value: Variant) -> int:
-	var seed := int(value)
-	return seed if seed > 0 else TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
+func is_save_index_json_integer_value(value: Variant) -> bool:
+	if value is int:
+		return true
+	if value is float:
+		var float_value := float(value)
+		return float_value == floor(float_value)
+	return false
 
 
 func sort_save_meta_newest_first(a: Dictionary, b: Dictionary) -> bool:
@@ -578,20 +668,42 @@ func _decode_save_index_string(value: String) -> String:
 	return Marshalls.base64_to_raw(value).get_string_from_utf8()
 
 
+func _decode_save_index_string_field(raw_entry: Dictionary, key: String, allow_empty: bool) -> Variant:
+	var encoded_variant: Variant = raw_entry.get(key, null)
+	if encoded_variant is not String:
+		return null
+	var encoded := String(encoded_variant)
+	if encoded.is_empty():
+		return "" if allow_empty else null
+	var raw_bytes := Marshalls.base64_to_raw(encoded)
+	if raw_bytes.is_empty():
+		return null
+	var decoded := raw_bytes.get_string_from_utf8()
+	if decoded.is_empty() and not allow_empty:
+		return null
+	return decoded
+
+
+func _read_save_index_vector2i(value: Variant) -> Variant:
+	if value is Vector2i:
+		return value
+	if value is not Dictionary:
+		return null
+	var vector_dict := value as Dictionary
+	if not vector_dict.has("x") or not vector_dict.has("y"):
+		return null
+	var x_variant: Variant = vector_dict.get("x")
+	var y_variant: Variant = vector_dict.get("y")
+	if not is_save_index_json_integer_value(x_variant) or not is_save_index_json_integer_value(y_variant):
+		return null
+	var vector := Vector2i(int(x_variant), int(y_variant))
+	if vector.x <= 0 or vector.y <= 0:
+		return null
+	return vector
+
+
 func _build_save_file_path(save_id: String) -> String:
 	return "%s/%s.dat" % [SAVE_DIRECTORY, save_id]
-
-
-func _get_fallback_world_preset_name(generation_config_path: String) -> String:
-	if _world_preset_registry != null and _world_preset_registry.has_method("get_fallback_preset_name"):
-		return String(_world_preset_registry.get_fallback_preset_name(generation_config_path))
-	return ""
-
-
-func _get_generation_world_size_cells(generation_config) -> Vector2i:
-	if generation_config != null and generation_config.has_method("get_world_size_cells"):
-		return generation_config.get_world_size_cells()
-	return Vector2i.ZERO
 
 
 func _get_generation_player_start_coord(generation_config) -> Vector2i:
@@ -744,7 +856,7 @@ func _normalize_mounted_submaps(submaps_variant: Variant) -> Dictionary:
 			entry.has("world_data")
 		)
 		if not validation_error.is_empty():
-			_crash_due_to_corrupt_save(validation_error)
+			push_error(validation_error)
 			return {}
 		var normalized_world_data: Dictionary = {}
 		if is_generated:
@@ -945,7 +1057,7 @@ func _serialize_mounted_submaps(submaps_variant: Variant) -> Dictionary:
 			entry.has("world_data")
 		)
 		if not validation_error.is_empty():
-			_crash_due_to_corrupt_save(validation_error)
+			push_error(validation_error)
 			return {}
 		var serialized_world_data: Dictionary = {}
 		if is_generated:

@@ -44,22 +44,34 @@ func _run() -> void:
 	_test_stamina_max_uses_constitution_strength_and_agility_formula()
 	_test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap()
 	_test_core_max_skill_queues_attribute_progress_once()
+	_test_core_max_skill_ignores_string_name_attribute_growth_key()
 	_test_non_core_skill_max_level_cap_lifts_when_core()
 	_test_attribute_growth_progress_round_trip_persists()
+	_test_unit_progress_from_dict_requires_top_level_schema_fields()
+	_test_unit_progress_from_dict_rejects_attribute_and_reputation_schema_defaults()
+	_test_unit_progress_from_dict_rejects_pending_profession_choice_schema_defaults()
+	_test_unit_progress_from_dict_rejects_child_id_fallbacks()
+	_test_unit_progress_from_dict_rejects_child_schema_defaults()
 	_test_combat_resource_unlocks_follow_learned_skill_costs()
+	_test_starting_and_random_skill_refresh_unlocks_combat_resources()
+	_test_combat_skill_level_overrides_accumulate_minimum_level_patches()
+	_test_min_only_requirements_ignore_zero_max_value()
 	_test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement()
 	_test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core()
 	_test_achievement_progress_is_member_scoped_and_unlocks_once()
 	_test_single_event_can_unlock_multiple_achievements_in_queue_order()
 	_test_pending_character_reward_applies_in_stable_order()
 	_test_pending_character_reward_round_trip_persists()
+	_test_party_state_from_dict_rejects_pending_character_reward_schema_defaults()
 	_test_quest_reward_pending_character_materializer()
 	_test_research_pending_character_reward_preserves_queue_naming_and_triggers_growth_events()
 	_test_submit_item_objective_materializer_tracks_progress_and_failures()
+	_test_quest_progress_events_require_formal_progress_schema()
 	_test_party_state_quest_round_trip_persists()
 	_test_party_state_quest_buckets_stay_mutually_exclusive()
 	_test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 	await _test_party_management_window_renders_achievement_summary()
+	await _test_party_management_window_ignores_legacy_equipment_state_dictionary()
 	await _test_party_management_window_keeps_main_character_active()
 
 	if _failures.is_empty():
@@ -285,6 +297,8 @@ func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() 
 	var perception_before: int = attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION)
 	var willpower_before: int = attributes.get_attribute_value(UnitBaseAttributes.WILLPOWER)
 
+	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 12)
+	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 14)
 	_assert_true(manager.learn_skill(&"hero", &"warrior_guard_break"), "成长链路应允许 hero 学会裂甲斩。")
 	_assert_true(manager.learn_knowledge(&"hero", &"field_manual"), "成长链路应允许 hero 学会测试知识。")
 	_assert_true(manager.learn_skill(&"hero", &"charge"), "成长链路应允许 hero 学会冲锋。")
@@ -329,7 +343,7 @@ func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() 
 	)
 	_assert_eq(
 		attributes.get_attribute_value(UnitBaseAttributes.AGILITY),
-		agility_before + 1,
+		15,
 		"确认熟练度成就奖励后，应提高敏捷。"
 	)
 
@@ -438,7 +452,7 @@ func _test_core_max_skill_queues_attribute_progress_once() -> void:
 		&"test_growth_core",
 		&"basic",
 		{
-			UnitBaseAttributes.AGILITY: 60,
+			"agility": 60,
 		}
 	)
 	var manager := CharacterManagementModule.new()
@@ -460,6 +474,32 @@ func _test_core_max_skill_queues_attribute_progress_once() -> void:
 
 	manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
 	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 60, "确认奖励后应写入技能配置的 60 点敏捷进度。")
+
+
+func _test_core_max_skill_ignores_string_name_attribute_growth_key() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var skill_def := _make_test_growth_skill(
+		&"test_legacy_growth_core",
+		&"basic",
+		{
+			UnitBaseAttributes.AGILITY: 60,
+		}
+	)
+	var manager := CharacterManagementModule.new()
+	manager.setup(party_state, {skill_def.skill_id: skill_def}, {}, {})
+
+	_assert_true(manager.learn_skill(&"hero", skill_def.skill_id), "旧 StringName key 测试技能应能学会。")
+	var skill_progress = member_state.progression.get_skill_progress(skill_def.skill_id)
+	skill_progress.is_core = true
+	member_state.progression.set_skill_progress(skill_progress)
+
+	var mastery_delta = manager.grant_battle_mastery(&"hero", skill_def.skill_id, 999)
+	_assert_true(mastery_delta.mastery_changes.size() == 1, "旧 StringName key 技能仍应正常获得熟练度。")
+	_assert_eq(int(skill_progress.skill_level), 3, "旧 StringName key 技能应提升到满级。")
+	_assert_eq(party_state.pending_character_rewards.size(), 0, "旧 StringName key attribute_growth_progress 不应产生属性成长奖励。")
+	_assert_true(not bool(skill_progress.core_max_growth_claimed), "未产生正式属性成长奖励时不应标记 core_max_growth_claimed。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 0, "旧 StringName key attribute_growth_progress 不应写入敏捷进度。")
 
 
 func _test_non_core_skill_max_level_cap_lifts_when_core() -> void:
@@ -488,6 +528,7 @@ func _test_non_core_skill_max_level_cap_lifts_when_core() -> void:
 func _test_attribute_growth_progress_round_trip_persists() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"hero"
+	progress.display_name = "Hero"
 	progress.attribute_growth_progress[UnitBaseAttributes.STRENGTH] = 80
 	progress.attribute_growth_progress[UnitBaseAttributes.AGILITY] = 240
 
@@ -517,9 +558,452 @@ func _test_attribute_growth_progress_round_trip_persists() -> void:
 	)
 
 
+func _test_unit_progress_from_dict_requires_top_level_schema_fields() -> void:
+	for field_name in [
+		"version",
+		"unit_id",
+		"display_name",
+		"character_level",
+		"unit_base_attributes",
+		"reputation_state",
+		"skills",
+		"professions",
+		"known_knowledge_ids",
+		"active_core_skill_ids",
+		"attribute_growth_progress",
+		"achievement_progress",
+		"pending_profession_choices",
+		"blocked_relearn_skill_ids",
+		"merged_skill_source_map",
+		"unlocked_combat_resource_ids",
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		payload.erase(field_name)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 UnitProgress.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	for field_case in [
+		{"field": "version", "value": "1"},
+		{"field": "version", "value": 2},
+		{"field": "unit_id", "value": ""},
+		{"field": "unit_id", "value": 123},
+		{"field": "display_name", "value": ""},
+		{"field": "display_name", "value": 123},
+		{"field": "character_level", "value": "1"},
+		{"field": "character_level", "value": -1},
+		{"field": "known_knowledge_ids", "value": [""]},
+		{"field": "known_knowledge_ids", "value": ["lore", "lore"]},
+		{"field": "active_core_skill_ids", "value": [""]},
+		{"field": "active_core_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"field": "attribute_growth_progress", "value": {"": 1}},
+		{"field": "attribute_growth_progress", "value": {"strength": "1"}},
+		{"field": "attribute_growth_progress", "value": {"strength": -1}},
+		{"field": "blocked_relearn_skill_ids", "value": [""]},
+		{"field": "blocked_relearn_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"field": "merged_skill_source_map", "value": {"": ["source_skill"]}},
+		{"field": "merged_skill_source_map", "value": {"test_strict_skill": "source_skill"}},
+		{"field": "merged_skill_source_map", "value": {"test_strict_skill": [""]}},
+		{"field": "merged_skill_source_map", "value": {"test_strict_skill": ["source_skill", "source_skill"]}},
+		{"field": "unlocked_combat_resource_ids", "value": [""]},
+		{"field": "unlocked_combat_resource_ids", "value": ["hp", "hp"]},
+		{"field": "unlocked_combat_resource_ids", "value": ["hp"]},
+		{"field": "unlocked_combat_resource_ids", "value": ["hp", "stamina", "unknown"]},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		payload[String(field_case.get("field", ""))] = field_case.get("value")
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"UnitProgress.%s 非法值不应被转换、丢弃或补默认。" % String(field_case.get("field", ""))
+		)
+
+	for field_case in [
+		{"field": "unit_base_attributes", "value": []},
+		{"field": "reputation_state", "value": []},
+		{"field": "skills", "value": []},
+		{"field": "professions", "value": []},
+		{"field": "known_knowledge_ids", "value": {}},
+		{"field": "active_core_skill_ids", "value": {}},
+		{"field": "attribute_growth_progress", "value": []},
+		{"field": "achievement_progress", "value": []},
+		{"field": "pending_profession_choices", "value": {}},
+		{"field": "blocked_relearn_skill_ids", "value": {}},
+		{"field": "merged_skill_source_map", "value": []},
+		{"field": "unlocked_combat_resource_ids", "value": {}},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		payload[String(field_case.get("field", ""))] = field_case.get("value")
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"UnitProgress.%s 类型错误的 payload 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	var invalid_pending_choice_payload := _build_unit_progress_payload_with_child_entries()
+	invalid_pending_choice_payload["pending_profession_choices"] = ["invalid"]
+	_assert_true(
+		UnitProgress.from_dict(invalid_pending_choice_payload) == null,
+		"pending_profession_choices 中包含非字典条目时应直接拒绝。"
+	)
+
+
+func _test_unit_progress_from_dict_rejects_attribute_and_reputation_schema_defaults() -> void:
+	for field_name in [
+		"strength",
+		"agility",
+		"constitution",
+		"perception",
+		"intelligence",
+		"willpower",
+		"custom_stats",
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		var attributes_payload: Dictionary = (payload.get("unit_base_attributes", {}) as Dictionary).duplicate(true)
+		attributes_payload.erase(field_name)
+		payload["unit_base_attributes"] = attributes_payload
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 UnitBaseAttributes.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	var invalid_custom_stats_payload := _build_unit_progress_payload_with_child_entries()
+	var invalid_attributes_payload: Dictionary = (invalid_custom_stats_payload.get("unit_base_attributes", {}) as Dictionary).duplicate(true)
+	invalid_attributes_payload["custom_stats"] = []
+	invalid_custom_stats_payload["unit_base_attributes"] = invalid_attributes_payload
+	_assert_true(
+		UnitProgress.from_dict(invalid_custom_stats_payload) == null,
+		"UnitBaseAttributes.custom_stats 类型错误的 payload 应直接拒绝。"
+	)
+
+	for field_case in [
+		{"field": "strength", "value": "3"},
+		{"field": "agility", "value": "3"},
+		{"field": "constitution", "value": "3"},
+		{"field": "perception", "value": "3"},
+		{"field": "intelligence", "value": "3"},
+		{"field": "willpower", "value": "3"},
+		{"field": "custom_stats", "value": {"": 1}},
+		{"field": "custom_stats", "value": {123: 1}},
+		{"field": "custom_stats", "value": {"hidden_luck_at_birth": "1"}},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		var attributes_payload: Dictionary = (payload.get("unit_base_attributes", {}) as Dictionary).duplicate(true)
+		attributes_payload[String(field_case.get("field", ""))] = field_case.get("value")
+		payload["unit_base_attributes"] = attributes_payload
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"UnitBaseAttributes.%s 非法值不应被转换、丢弃或补默认。" % String(field_case.get("field", ""))
+		)
+
+	for field_name in ["morality", "custom_states"]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		var reputation_payload: Dictionary = (payload.get("reputation_state", {}) as Dictionary).duplicate(true)
+		reputation_payload.erase(field_name)
+		payload["reputation_state"] = reputation_payload
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 UnitReputationState.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	var invalid_custom_states_payload := _build_unit_progress_payload_with_child_entries()
+	var invalid_reputation_payload: Dictionary = (invalid_custom_states_payload.get("reputation_state", {}) as Dictionary).duplicate(true)
+	invalid_reputation_payload["custom_states"] = []
+	invalid_custom_states_payload["reputation_state"] = invalid_reputation_payload
+	_assert_true(
+		UnitProgress.from_dict(invalid_custom_states_payload) == null,
+		"UnitReputationState.custom_states 类型错误的 payload 应直接拒绝。"
+	)
+
+	for field_case in [
+		{"field": "morality", "value": "0"},
+		{"field": "custom_states", "value": {"": 1}},
+		{"field": "custom_states", "value": {123: 1}},
+		{"field": "custom_states", "value": {"guild_fame": "1"}},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		var reputation_payload: Dictionary = (payload.get("reputation_state", {}) as Dictionary).duplicate(true)
+		reputation_payload[String(field_case.get("field", ""))] = field_case.get("value")
+		payload["reputation_state"] = reputation_payload
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"UnitReputationState.%s 非法值不应被转换、丢弃或补默认。" % String(field_case.get("field", ""))
+		)
+
+
+func _test_unit_progress_from_dict_rejects_pending_profession_choice_schema_defaults() -> void:
+	for field_name in [
+		"trigger_skill_ids",
+		"candidate_profession_ids",
+		"target_rank_map",
+		"qualifier_skill_pool_ids",
+		"assignable_skill_candidate_ids",
+		"required_qualifier_count",
+		"required_assigned_core_count",
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_erase_pending_profession_choice_field(payload, field_name)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 PendingProfessionChoice.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	for field_case in [
+		{"field": "trigger_skill_ids", "value": {}},
+		{"field": "candidate_profession_ids", "value": {}},
+		{"field": "target_rank_map", "value": []},
+		{"field": "qualifier_skill_pool_ids", "value": {}},
+		{"field": "assignable_skill_candidate_ids", "value": {}},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_set_pending_profession_choice_field_value(
+			payload,
+			String(field_case.get("field", "")),
+			field_case.get("value")
+		)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"PendingProfessionChoice.%s 类型错误的 payload 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	for field_case in [
+		{"field": "trigger_skill_ids", "value": [""]},
+		{"field": "trigger_skill_ids", "value": [123]},
+		{"field": "trigger_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"field": "candidate_profession_ids", "value": [""]},
+		{"field": "candidate_profession_ids", "value": [123]},
+		{"field": "candidate_profession_ids", "value": ["test_strict_profession", "test_strict_profession"]},
+		{"field": "target_rank_map", "value": {"": 2}},
+		{"field": "target_rank_map", "value": {123: 2}},
+		{"field": "target_rank_map", "value": {"test_strict_profession": "2"}},
+		{"field": "target_rank_map", "value": {"test_strict_profession": -1}},
+		{"field": "qualifier_skill_pool_ids", "value": [""]},
+		{"field": "qualifier_skill_pool_ids", "value": [123]},
+		{"field": "qualifier_skill_pool_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"field": "assignable_skill_candidate_ids", "value": [""]},
+		{"field": "assignable_skill_candidate_ids", "value": [123]},
+		{"field": "assignable_skill_candidate_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"field": "required_qualifier_count", "value": "1"},
+		{"field": "required_qualifier_count", "value": -1},
+		{"field": "required_assigned_core_count", "value": "1"},
+		{"field": "required_assigned_core_count", "value": -1},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_set_pending_profession_choice_field_value(
+			payload,
+			String(field_case.get("field", "")),
+			field_case.get("value")
+		)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"PendingProfessionChoice.%s 非法值不应被转换、丢弃或补默认。" % String(field_case.get("field", ""))
+		)
+
+
+func _test_unit_progress_from_dict_rejects_child_id_fallbacks() -> void:
+	for case in [
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "skill_id", "erase": true},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "skill_id", "value": ""},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "skill_id", "value": 123},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "skill_id", "value": "other_skill"},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "profession_id", "erase": true},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "profession_id", "value": ""},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "profession_id", "value": 123},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "profession_id", "value": "other_profession"},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "achievement_id", "erase": true},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "achievement_id", "value": ""},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "achievement_id", "value": 123},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "achievement_id", "value": "other_achievement"},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		var bucket := String(case.get("bucket", ""))
+		var entry_id := String(case.get("entry_id", ""))
+		var field_name := String(case.get("field", ""))
+		var bucket_payload: Dictionary = (payload.get(bucket, {}) as Dictionary).duplicate(true)
+		var entry_payload: Dictionary = (bucket_payload.get(entry_id, {}) as Dictionary).duplicate(true)
+		if bool(case.get("erase", false)):
+			entry_payload.erase(field_name)
+		else:
+			entry_payload[field_name] = case.get("value")
+		bucket_payload[entry_id] = entry_payload
+		payload[bucket] = bucket_payload
+
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"%s.%s 缺失或与 map key 错配时，UnitProgress.from_dict 应直接拒绝。" % [bucket, field_name]
+		)
+
+
+func _test_unit_progress_from_dict_rejects_child_schema_defaults() -> void:
+	for field_name in [
+		"is_learned",
+		"skill_level",
+		"current_mastery",
+		"total_mastery_earned",
+		"is_core",
+		"assigned_profession_id",
+		"merged_from_skill_ids",
+		"mastery_from_training",
+		"mastery_from_battle",
+		"profession_granted_by",
+		"core_max_growth_claimed",
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_erase_unit_progress_child_field(payload, "skills", "test_strict_skill", field_name)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 UnitSkillProgress.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	for field_name in [
+		"rank",
+		"is_active",
+		"is_hidden",
+		"core_skill_ids",
+		"granted_skill_ids",
+		"promotion_history",
+		"inactive_reason",
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_erase_unit_progress_child_field(payload, "professions", "test_strict_profession", field_name)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 UnitProfessionProgress.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	for field_name in ["current_value", "is_unlocked", "unlocked_at_unix_time"]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_erase_unit_progress_child_field(payload, "achievement_progress", "test_strict_achievement", field_name)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 AchievementProgressState.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	for case in [
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "merged_from_skill_ids"},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "core_skill_ids"},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "granted_skill_ids"},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "promotion_history"},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_set_unit_progress_child_field_value(
+			payload,
+			String(case.get("bucket", "")),
+			String(case.get("entry_id", "")),
+			String(case.get("field", "")),
+			{}
+		)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"%s.%s 类型错误的 payload 应直接拒绝。" % [String(case.get("bucket", "")), String(case.get("field", ""))]
+		)
+
+	for case in [
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "is_learned", "value": 1},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "skill_level", "value": "1"},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "skill_level", "value": -1},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "current_mastery", "value": "0"},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "current_mastery", "value": -1},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "total_mastery_earned", "value": "0"},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "total_mastery_earned", "value": -1},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "is_core", "value": 0},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "assigned_profession_id", "value": 123},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "merged_from_skill_ids", "value": [""]},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "merged_from_skill_ids", "value": [123]},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "merged_from_skill_ids", "value": ["source_skill", "source_skill"]},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "mastery_from_training", "value": "0"},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "mastery_from_training", "value": -1},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "mastery_from_battle", "value": "0"},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "mastery_from_battle", "value": -1},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "profession_granted_by", "value": 123},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "core_max_growth_claimed", "value": 0},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "rank", "value": "1"},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "rank", "value": -1},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "is_active", "value": 1},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "is_hidden", "value": 0},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "core_skill_ids", "value": [""]},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "core_skill_ids", "value": [123]},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "core_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "granted_skill_ids", "value": [""]},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "granted_skill_ids", "value": [123]},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "granted_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "inactive_reason", "value": 123},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "current_value", "value": "1"},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "current_value", "value": -1},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "is_unlocked", "value": 1},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "unlocked_at_unix_time", "value": "1"},
+		{"bucket": "achievement_progress", "entry_id": "test_strict_achievement", "field": "unlocked_at_unix_time", "value": -1},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_set_unit_progress_child_field_value(
+			payload,
+			String(case.get("bucket", "")),
+			String(case.get("entry_id", "")),
+			String(case.get("field", "")),
+			case.get("value")
+		)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"%s.%s 非法值不应被转换、丢弃或补默认。" % [String(case.get("bucket", "")), String(case.get("field", ""))]
+		)
+
+	var invalid_promotion_history_payload := _build_unit_progress_payload_with_child_entries()
+	_set_unit_progress_child_field_value(
+		invalid_promotion_history_payload,
+		"professions",
+		"test_strict_profession",
+		"promotion_history",
+		["invalid"]
+	)
+	_assert_true(
+		UnitProgress.from_dict(invalid_promotion_history_payload) == null,
+		"promotion_history 中包含非字典条目时应直接拒绝。"
+	)
+
+	for field_name in [
+		"new_rank",
+		"consumed_skill_ids",
+		"qualifier_skill_ids",
+		"snapshot_unit_base_attributes",
+		"timestamp",
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_erase_promotion_record_field(payload, field_name)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"缺少 ProfessionPromotionRecord.%s 的 payload 应直接拒绝。" % field_name
+		)
+
+	for field_case in [
+		{"field": "new_rank", "value": "2"},
+		{"field": "new_rank", "value": -1},
+		{"field": "consumed_skill_ids", "value": {}},
+		{"field": "consumed_skill_ids", "value": [""]},
+		{"field": "consumed_skill_ids", "value": [123]},
+		{"field": "consumed_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"field": "qualifier_skill_ids", "value": {}},
+		{"field": "qualifier_skill_ids", "value": [""]},
+		{"field": "qualifier_skill_ids", "value": [123]},
+		{"field": "qualifier_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
+		{"field": "snapshot_unit_base_attributes", "value": []},
+		{"field": "timestamp", "value": "123"},
+		{"field": "timestamp", "value": -1},
+	]:
+		var payload := _build_unit_progress_payload_with_child_entries()
+		_set_promotion_record_field_value(
+			payload,
+			String(field_case.get("field", "")),
+			field_case.get("value")
+		)
+		_assert_true(
+			UnitProgress.from_dict(payload) == null,
+			"ProfessionPromotionRecord.%s 类型错误的 payload 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+
 func _test_combat_resource_unlocks_follow_learned_skill_costs() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"hero"
+	progress.display_name = "Hero"
 	var mp_skill := _make_test_combat_resource_skill(&"test_mp_spell", 3, 0)
 	var aura_skill := _make_test_combat_resource_skill(&"test_aura_slash", 0, 2)
 	var service := ProgressionService.new()
@@ -545,6 +1029,82 @@ func _test_combat_resource_unlocks_follow_learned_skill_costs() -> void:
 	_assert_true(restored_progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "斗气解锁状态应通过 UnitProgress 存档往返保留。")
 
 
+func _test_starting_and_random_skill_refresh_unlocks_combat_resources() -> void:
+	var session := GameSession.new()
+	var starting_skill := _make_test_combat_resource_skill(&"test_basic_start", 0, 0)
+	var random_aura_skill := _make_test_combat_resource_skill(&"test_random_aura_start", 0, 2)
+	session._skill_defs = {
+		starting_skill.skill_id: starting_skill,
+		random_aura_skill.skill_id: random_aura_skill,
+	}
+	var member_state: PartyMemberState = session._build_default_member_state(
+		&"test_starting_resource_member",
+		"资源刷新测试",
+		starting_skill.skill_id,
+		&"portrait_test",
+		18,
+		6,
+		4,
+		2,
+		3,
+		1,
+		1,
+		1,
+		24,
+		0
+	)
+	_assert_true(
+		member_state.progression.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA),
+		"新建角色随机起始书技能耗 Aura 时，应在创建链路刷新 runtime state 并解锁 Aura 资源。"
+	)
+	session.free()
+
+
+func _test_combat_skill_level_overrides_accumulate_minimum_level_patches() -> void:
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.ap_cost = 2
+	combat_profile.stamina_cost = 30
+	combat_profile.cooldown_tu = 20
+	combat_profile.level_overrides = {
+		2: {"stamina_cost": 20},
+		4: {"cooldown_tu": 5},
+		5: {"ap_cost": 1},
+	}
+
+	var level_five_costs := combat_profile.get_effective_resource_costs(5)
+	_assert_eq(int(level_five_costs.get("ap_cost", 0)), 1, "5 级 override 应应用本级 AP patch。")
+	_assert_eq(int(level_five_costs.get("stamina_cost", 0)), 20, "5 级 override 不应丢失 2 级 stamina patch。")
+	_assert_eq(int(level_five_costs.get("cooldown_tu", 0)), 5, "5 级 override 不应丢失 4 级 cooldown patch。")
+
+	var string_key_profile := CombatSkillDef.new()
+	string_key_profile.stamina_cost = 30
+	string_key_profile.level_overrides = {
+		"2": {"stamina_cost": 10},
+	}
+	var string_key_costs := string_key_profile.get_effective_resource_costs(2)
+	_assert_eq(int(string_key_costs.get("stamina_cost", 0)), 30, "字符串等级 key 不应被 combat_profile runtime 当成等级 override。")
+
+
+func _test_min_only_requirements_ignore_zero_max_value() -> void:
+	var attribute_requirement := AttributeRequirement.new()
+	attribute_requirement.min_value = 5
+	attribute_requirement.max_value = 0
+	_assert_true(attribute_requirement.matches_value(7), "属性 min-only 条件 max_value=0 时不应形成不可能区间。")
+	_assert_true(not attribute_requirement.matches_value(4), "属性 min-only 条件仍应保留下限。")
+
+	var reputation_requirement := ReputationRequirement.new()
+	reputation_requirement.min_value = 3
+	reputation_requirement.max_value = 0
+	_assert_true(reputation_requirement.matches_value(4), "声望 min-only 条件 max_value=0 时不应形成不可能区间。")
+	_assert_true(not reputation_requirement.matches_value(2), "声望 min-only 条件仍应保留下限。")
+
+	var active_condition := ProfessionActiveCondition.new()
+	active_condition.min_value = 2
+	active_condition.max_value = 0
+	_assert_true(active_condition.matches_value(9), "职业激活 min-only 条件 max_value=0 时不应形成不可能区间。")
+	_assert_true(not active_condition.matches_value(1), "职业激活 min-only 条件仍应保留下限。")
+
+
 func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var achievement_defs := {
@@ -565,7 +1125,11 @@ func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievem
 		),
 	}
 	var manager := _setup_manager(party_state, achievement_defs)
-	var progression: UnitProgress = party_state.get_member_state(&"hero").progression
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
+	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 12)
+	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 14)
+	var progression: UnitProgress = member_state.progression
 
 	_assert_true(manager.learn_skill(&"hero", &"charge"), "前置条件：hero 应能学会冲锋。")
 	_assert_true(manager.learn_skill(&"hero", &"warrior_combo_strike"), "前置条件：hero 应能学会连击。")
@@ -764,7 +1328,10 @@ func _test_pending_character_reward_applies_in_stable_order() -> void:
 	var manager := _setup_manager(party_state, {})
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	var progression: UnitProgress = member_state.progression
-	var strength_before: int = progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH)
+	var attributes: UnitBaseAttributes = progression.unit_base_attributes
+	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 12)
+	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 14)
+	var strength_before: int = attributes.get_attribute_value(UnitBaseAttributes.STRENGTH)
 
 	var reward = manager.build_pending_character_reward(
 		&"hero",
@@ -791,7 +1358,7 @@ func _test_pending_character_reward_applies_in_stable_order() -> void:
 				"entry_type": String(AchievementRewardDef.TYPE_SKILL_MASTERY),
 				"target_id": "charge",
 				"target_label": "冲锋",
-				"amount": 20,
+				"amount": 100,
 				"reason_text": "随后结算熟练度",
 			},
 			{
@@ -812,8 +1379,8 @@ func _test_pending_character_reward_applies_in_stable_order() -> void:
 	var charge_progress = progression.get_skill_progress(&"charge")
 	_assert_true(progression.has_knowledge(&"wayfarer_notes"), "知识奖励应被成功入账。")
 	_assert_true(charge_progress != null and charge_progress.is_learned, "技能奖励应先于熟练度生效。")
-	_assert_eq(int(charge_progress.total_mastery_earned), 20, "技能熟练度奖励应在技能解锁后成功入账。")
-	_assert_eq(int(charge_progress.skill_level), 1, "20 点冲锋熟练度应将技能提升到 1 级。")
+	_assert_eq(int(charge_progress.total_mastery_earned), 100, "技能熟练度奖励应在技能解锁后成功入账。")
+	_assert_eq(int(charge_progress.skill_level), 1, "100 点冲锋熟练度应将技能提升到 1 级。")
 	_assert_eq(
 		progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH),
 		strength_before + 2,
@@ -869,6 +1436,100 @@ func _test_pending_character_reward_round_trip_persists() -> void:
 	_assert_eq(restored_party_state.pending_character_rewards.size(), 1, "未确认奖励应通过 PartyState 存档往返恢复。")
 	_assert_eq(restored_party_state.pending_character_rewards[0].source_id, &"persist_reward", "恢复后的奖励应保留来源 ID。")
 	_assert_true(restored_progress != null and restored_progress.is_unlocked, "成就进度应随 PartyState 一并恢复。")
+
+
+func _test_party_state_from_dict_rejects_pending_character_reward_schema_defaults() -> void:
+	for field_name in [
+		"reward_id",
+		"member_id",
+		"member_name",
+		"source_type",
+		"source_id",
+		"source_label",
+		"summary_text",
+		"entries",
+	]:
+		var payload := _build_party_state_payload_with_pending_character_reward()
+		_erase_pending_character_reward_field(payload, field_name)
+		_assert_true(
+			PartyState.from_dict(payload) == null,
+			"缺少 PendingCharacterReward.%s 的 PartyState payload 应直接拒绝。" % field_name
+		)
+
+	for field_name in [
+		"entry_type",
+		"target_id",
+		"target_label",
+		"amount",
+		"reason_text",
+	]:
+		var payload := _build_party_state_payload_with_pending_character_reward()
+		_erase_pending_character_reward_entry_field(payload, field_name)
+		_assert_true(
+			PartyState.from_dict(payload) == null,
+			"缺少 PendingCharacterRewardEntry.%s 的 PartyState payload 应直接拒绝。" % field_name
+		)
+
+	for field_case in [
+		{"field": "reward_id", "value": ""},
+		{"field": "reward_id", "value": 123},
+		{"field": "member_id", "value": ""},
+		{"field": "member_id", "value": 123},
+		{"field": "member_name", "value": 123},
+		{"field": "source_type", "value": ""},
+		{"field": "source_type", "value": 123},
+		{"field": "source_id", "value": ""},
+		{"field": "source_id", "value": 123},
+		{"field": "source_label", "value": 123},
+		{"field": "summary_text", "value": 123},
+		{"field": "entries", "value": {}},
+		{"field": "entries", "value": []},
+	]:
+		var payload := _build_party_state_payload_with_pending_character_reward()
+		_set_pending_character_reward_field_value(
+			payload,
+			String(field_case.get("field", "")),
+			field_case.get("value")
+		)
+		_assert_true(
+			PartyState.from_dict(payload) == null,
+			"PendingCharacterReward.%s 非法的 PartyState payload 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	for field_case in [
+		{"field": "entry_type", "value": ""},
+		{"field": "entry_type", "value": 123},
+		{"field": "target_id", "value": ""},
+		{"field": "target_id", "value": 123},
+		{"field": "target_label", "value": 123},
+		{"field": "amount", "value": "1"},
+		{"field": "amount", "value": 0},
+		{"field": "reason_text", "value": 123},
+	]:
+		var payload := _build_party_state_payload_with_pending_character_reward()
+		_set_pending_character_reward_entry_field_value(
+			payload,
+			String(field_case.get("field", "")),
+			field_case.get("value")
+		)
+		_assert_true(
+			PartyState.from_dict(payload) == null,
+			"PendingCharacterRewardEntry.%s 非法的 PartyState payload 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	var invalid_reward_entry_payload := _build_party_state_payload_with_pending_character_reward()
+	invalid_reward_entry_payload["pending_character_rewards"] = ["invalid"]
+	_assert_true(
+		PartyState.from_dict(invalid_reward_entry_payload) == null,
+		"pending_character_rewards 中包含非字典条目时应直接拒绝。"
+	)
+
+	var invalid_nested_entry_payload := _build_party_state_payload_with_pending_character_reward()
+	_set_pending_character_reward_entries_value(invalid_nested_entry_payload, ["invalid"])
+	_assert_true(
+		PartyState.from_dict(invalid_nested_entry_payload) == null,
+		"PendingCharacterReward.entries 中包含非字典条目时应直接拒绝。"
+	)
 
 
 func _test_quest_reward_pending_character_materializer() -> void:
@@ -1058,6 +1719,16 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 	submit_item_wrong_item_quest.quest_id = &"contract_supply_delivery_wrong_item"
 	submit_item_wrong_item_quest.display_name = "物资缴纳错货"
 	submit_item_wrong_item_quest.objective_defs = submit_item_quest.objective_defs.duplicate(true)
+	var submit_item_missing_target_quest := QuestDef.new()
+	submit_item_missing_target_quest.quest_id = &"contract_supply_delivery_missing_target"
+	submit_item_missing_target_quest.display_name = "物资缴纳缺目标值"
+	submit_item_missing_target_quest.objective_defs = [
+		{
+			"objective_id": "deliver_ore",
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"target_id": "iron_ore",
+		},
+	]
 
 	var manager := CharacterManagementModule.new()
 	manager.setup(
@@ -1070,6 +1741,7 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 			submit_item_quest.quest_id: submit_item_quest,
 			submit_item_shortage_quest.quest_id: submit_item_shortage_quest,
 			submit_item_wrong_item_quest.quest_id: submit_item_wrong_item_quest,
+			submit_item_missing_target_quest.quest_id: submit_item_missing_target_quest,
 		}
 	)
 	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
@@ -1131,7 +1803,165 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 	if active_wrong_item_quest != null:
 		_assert_eq(active_wrong_item_quest.get_objective_progress(&"deliver_ore"), 0, "错误物品时不应推进 quest objective。")
 	_assert_true(not party_state.has_claimable_quest(submit_item_wrong_item_quest.quest_id), "错误物品时任务不应误进入 claimable_quests。")
+
+	var missing_target_submit_state := QuestState.new()
+	missing_target_submit_state.quest_id = submit_item_missing_target_quest.quest_id
+	missing_target_submit_state.mark_accepted(9)
+	party_state.set_active_quest_state(missing_target_submit_state)
+	var missing_target_submit_result := manager.submit_item_objective(submit_item_missing_target_quest.quest_id, &"deliver_ore", 10)
+	_assert_true(not bool(missing_target_submit_result.get("ok", true)), "submit_item objective 缺 target_value 时应正式失败。")
+	_assert_eq(String(missing_target_submit_result.get("error_code", "")), "invalid_submit_item_objective", "缺 target_value 时不应按默认 1 提交任务。")
+	var active_missing_target_quest: QuestState = party_state.get_active_quest_state(submit_item_missing_target_quest.quest_id)
+	_assert_true(active_missing_target_quest != null, "缺 target_value 时任务应继续停留在 active_quests。")
+	if active_missing_target_quest != null:
+		_assert_eq(active_missing_target_quest.get_objective_progress(&"deliver_ore"), 0, "缺 target_value 时不应推进 quest objective。")
+	_assert_true(not party_state.has_claimable_quest(submit_item_missing_target_quest.quest_id), "缺 target_value 时任务不应进入 claimable_quests。")
 	session.free()
+
+
+func _test_quest_progress_events_require_formal_progress_schema() -> void:
+	var quest_def := QuestDef.new()
+	quest_def.quest_id = &"contract_formal_progress_event"
+	quest_def.display_name = "正式进度事件"
+	quest_def.objective_defs = [
+		{
+			"objective_id": "train_once",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service:training",
+			"target_value": 2,
+		},
+	]
+	var party_state := _make_party_state([&"hero"])
+	var manager := CharacterManagementModule.new()
+	manager.setup(
+		party_state,
+		{},
+		{},
+		{},
+		{},
+		{quest_def.quest_id: quest_def}
+	)
+	_assert_true(manager.accept_quest(quest_def.quest_id, 1), "测试任务应可被正式接取。")
+	var active_quest: QuestState = party_state.get_active_quest_state(quest_def.quest_id)
+	_assert_true(active_quest != null, "接取后应存在 active quest。")
+	if active_quest == null:
+		return
+
+	var bad_events: Array = [
+		{
+			"event_type": "progress",
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"world_step": 2,
+			"amount": 1,
+		},
+		{
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"progress_delta": 1,
+			"world_step": 2,
+		},
+		{
+			"event_type": "progress",
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"progress_delta": "1",
+			"world_step": 2,
+		},
+		{
+			"event_type": "progress",
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"progress_delta": 1,
+			"world_step": 2,
+			"target_value": "2",
+		},
+		{
+			"event_type": "progress",
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"progress_delta": 1,
+		},
+		{
+			"event_type": "progress",
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"progress_delta": 1,
+			"world_step": "2",
+		},
+		{
+			"event_type": "legacy_progress",
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"progress_delta": 1,
+			"world_step": 2,
+		},
+	]
+	for bad_event in bad_events:
+		var summary := manager.apply_quest_progress_events([bad_event], 2)
+		_assert_eq((summary.get("progressed_quest_ids", []) as Array).size(), 0, "坏 quest progress event 不应推进任务。")
+	_assert_eq(active_quest.get_objective_progress(&"train_once"), 0, "amount / 缺 event_type / 字符串字段 / 缺 world_step 不应被兼容成任务进度。")
+	_assert_true(not party_state.has_claimable_quest(quest_def.quest_id), "坏 progress event 不应把任务推进到 claimable。")
+
+	var formal_summary := manager.apply_quest_progress_events([
+		{
+			"event_type": "progress",
+			"quest_id": String(quest_def.quest_id),
+			"objective_id": "train_once",
+			"progress_delta": 1,
+			"world_step": 3,
+		},
+	], 3)
+	_assert_eq((formal_summary.get("progressed_quest_ids", []) as Array).size(), 1, "正式 progress_delta 应能推进任务。")
+	_assert_eq(active_quest.get_objective_progress(&"train_once"), 1, "直接 quest progress event 应从 QuestDef 读取 target_value。")
+	_assert_true(not party_state.has_claimable_quest(quest_def.quest_id), "未达到 QuestDef target_value 前不应完成。")
+
+	var matched_summary := manager.apply_quest_progress_events([
+		{
+			"event_type": "progress",
+			"objective_type": String(QuestDef.OBJECTIVE_SETTLEMENT_ACTION),
+			"target_id": "service:training",
+			"progress_delta": 1,
+			"world_step": 4,
+		},
+	], 4)
+	_assert_eq((matched_summary.get("progressed_quest_ids", []) as Array).size(), 1, "按 objective_type/target_id 匹配的正式事件应推进任务。")
+	_assert_true(party_state.has_claimable_quest(quest_def.quest_id), "达到正式 objective target_value 后任务应进入 claimable。")
+
+	var missing_target_quest_def := QuestDef.new()
+	missing_target_quest_def.quest_id = &"contract_missing_target_value"
+	missing_target_quest_def.display_name = "缺目标值"
+	missing_target_quest_def.objective_defs = [
+		{
+			"objective_id": "bad_target",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service:bad",
+		},
+	]
+	var missing_target_party := _make_party_state([&"hero"])
+	var missing_target_manager := CharacterManagementModule.new()
+	missing_target_manager.setup(
+		missing_target_party,
+		{},
+		{},
+		{},
+		{},
+		{missing_target_quest_def.quest_id: missing_target_quest_def}
+	)
+	_assert_true(missing_target_manager.accept_quest(missing_target_quest_def.quest_id, 5), "缺 target_value 的坏夹具仍可用于验证 service 拒绝进度事件。")
+	missing_target_manager.apply_quest_progress_events([
+		{
+			"event_type": "progress",
+			"quest_id": String(missing_target_quest_def.quest_id),
+			"objective_id": "bad_target",
+			"progress_delta": 1,
+			"world_step": 6,
+		},
+	], 6)
+	var missing_target_state: QuestState = missing_target_party.get_active_quest_state(missing_target_quest_def.quest_id)
+	_assert_true(missing_target_state != null, "缺 target_value 任务应保持 active。")
+	if missing_target_state != null:
+		_assert_eq(missing_target_state.get_objective_progress(&"bad_target"), 0, "缺正式 target_value 时不应按默认 1 推进任务。")
 
 
 func _test_party_state_quest_round_trip_persists() -> void:
@@ -1293,6 +2123,53 @@ func _test_party_management_window_renders_achievement_summary() -> void:
 	await process_frame
 
 
+func _test_party_management_window_ignores_legacy_equipment_state_dictionary() -> void:
+	var party_state := _make_party_state([&"legacy", &"formal"])
+	var legacy_member: PartyMemberState = party_state.get_member_state(&"legacy")
+	var formal_member: PartyMemberState = party_state.get_member_state(&"formal")
+
+	legacy_member.equipment_state = {
+		&"main_hand": &"bronze_sword",
+		"off_hand": "bronze_sword",
+	}
+
+	var formal_equipment := EquipmentState.new()
+	var formal_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_000321")
+	_assert_true(
+		formal_equipment.set_equipped_entry(&"main_hand", &"bronze_sword", [&"main_hand"], formal_instance),
+		"测试前置：正式 EquipmentState 应能写入主手装备。"
+	)
+	formal_member.equipment_state = formal_equipment
+
+	var bronze_sword := ItemDef.new()
+	bronze_sword.item_id = &"bronze_sword"
+	bronze_sword.display_name = "青铜剑"
+	bronze_sword.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	bronze_sword.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	bronze_sword.equipment_slot_ids = ["main_hand"]
+
+	var window = PartyManagementWindowScene.instantiate()
+	root.add_child(window)
+	await process_frame
+	window.set_item_defs({&"bronze_sword": bronze_sword})
+	window.show_party(party_state)
+	await process_frame
+
+	_assert_true(window.select_member(&"legacy"), "队伍管理窗口应能选中旧字典装备成员。")
+	var legacy_text: String = String(window.equipment_label.text)
+	_assert_text_contains(legacy_text, "已装备：0", "旧字典 equipment_state 不应被恢复为已装备物品。")
+	_assert_text_contains(legacy_text, "主手：空", "旧字典 equipment_state 的主手槽应按空装备展示。")
+	_assert_true(not legacy_text.contains("青铜剑"), "旧字典 equipment_state 不应显示旧 item 展示名。")
+
+	_assert_true(window.select_member(&"formal"), "队伍管理窗口应能选中正式装备成员。")
+	var formal_text: String = String(window.equipment_label.text)
+	_assert_text_contains(formal_text, "已装备：1", "正式 EquipmentState 应按已装备数量展示。")
+	_assert_text_contains(formal_text, "主手：青铜剑", "正式 EquipmentState 应显示当前装备物品。")
+
+	window.queue_free()
+	await process_frame
+
+
 func _test_party_management_window_keeps_main_character_active() -> void:
 	var party_state := _make_party_state([&"hero", &"mage", &"healer"])
 	party_state.main_character_member_id = &"hero"
@@ -1389,6 +2266,215 @@ func _make_party_state(member_ids: Array[StringName]) -> PartyState:
 		if party_state.main_character_member_id == &"":
 			party_state.main_character_member_id = member_id
 	return party_state
+
+
+func _build_party_state_payload_with_pending_character_reward() -> Dictionary:
+	var party_state := _make_party_state([&"hero"])
+	var manager := _setup_manager(party_state, {})
+	var reward = manager.build_pending_character_reward(
+		&"hero",
+		&"strict_reward",
+		&"achievement",
+		&"strict_reward",
+		"严格奖励",
+		[
+			{
+				"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+				"target_id": "charge",
+				"target_label": "冲锋",
+				"amount": 1,
+				"reason_text": "严格 schema 测试。",
+			},
+		],
+		"用于严格 schema 测试"
+	)
+	party_state.enqueue_pending_character_reward(reward)
+	return party_state.to_dict()
+
+
+func _erase_pending_character_reward_field(payload: Dictionary, field_name: String) -> void:
+	var reward_payload := _get_first_pending_character_reward_payload(payload)
+	reward_payload.erase(field_name)
+	_set_first_pending_character_reward_payload(payload, reward_payload)
+
+
+func _set_pending_character_reward_field_value(payload: Dictionary, field_name: String, value) -> void:
+	var reward_payload := _get_first_pending_character_reward_payload(payload)
+	reward_payload[field_name] = value
+	_set_first_pending_character_reward_payload(payload, reward_payload)
+
+
+func _erase_pending_character_reward_entry_field(payload: Dictionary, field_name: String) -> void:
+	var entry_payload := _get_first_pending_character_reward_entry_payload(payload)
+	entry_payload.erase(field_name)
+	_set_first_pending_character_reward_entry_payload(payload, entry_payload)
+
+
+func _set_pending_character_reward_entry_field_value(payload: Dictionary, field_name: String, value) -> void:
+	var entry_payload := _get_first_pending_character_reward_entry_payload(payload)
+	entry_payload[field_name] = value
+	_set_first_pending_character_reward_entry_payload(payload, entry_payload)
+
+
+func _set_pending_character_reward_entries_value(payload: Dictionary, entries_value) -> void:
+	var reward_payload := _get_first_pending_character_reward_payload(payload)
+	reward_payload["entries"] = entries_value
+	_set_first_pending_character_reward_payload(payload, reward_payload)
+
+
+func _get_first_pending_character_reward_payload(payload: Dictionary) -> Dictionary:
+	var pending_rewards: Array = (payload.get("pending_character_rewards", []) as Array).duplicate(true)
+	if pending_rewards.is_empty():
+		return {}
+	return (pending_rewards[0] as Dictionary).duplicate(true)
+
+
+func _set_first_pending_character_reward_payload(payload: Dictionary, reward_payload: Dictionary) -> void:
+	var pending_rewards: Array = (payload.get("pending_character_rewards", []) as Array).duplicate(true)
+	if pending_rewards.is_empty():
+		pending_rewards.append(reward_payload)
+	else:
+		pending_rewards[0] = reward_payload
+	payload["pending_character_rewards"] = pending_rewards
+
+
+func _get_first_pending_character_reward_entry_payload(payload: Dictionary) -> Dictionary:
+	var reward_payload := _get_first_pending_character_reward_payload(payload)
+	var entries: Array = (reward_payload.get("entries", []) as Array).duplicate(true)
+	if entries.is_empty():
+		return {}
+	return (entries[0] as Dictionary).duplicate(true)
+
+
+func _set_first_pending_character_reward_entry_payload(payload: Dictionary, entry_payload: Dictionary) -> void:
+	var reward_payload := _get_first_pending_character_reward_payload(payload)
+	var entries: Array = (reward_payload.get("entries", []) as Array).duplicate(true)
+	if entries.is_empty():
+		entries.append(entry_payload)
+	else:
+		entries[0] = entry_payload
+	reward_payload["entries"] = entries
+	_set_first_pending_character_reward_payload(payload, reward_payload)
+
+
+func _build_unit_progress_payload_with_child_entries() -> Dictionary:
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	progress.display_name = "Hero"
+	progress.character_level = 1
+
+	var skill_progress := UnitSkillProgress.new()
+	skill_progress.skill_id = &"test_strict_skill"
+	skill_progress.is_learned = true
+	skill_progress.skill_level = 1
+	progress.set_skill_progress(skill_progress)
+
+	var profession_progress := UnitProfessionProgress.new()
+	profession_progress.profession_id = &"test_strict_profession"
+	profession_progress.rank = 1
+	var promotion_record := ProfessionPromotionRecord.new()
+	promotion_record.new_rank = 2
+	promotion_record.consumed_skill_ids = [&"test_strict_skill"]
+	promotion_record.qualifier_skill_ids = [&"test_strict_skill"]
+	promotion_record.snapshot_unit_base_attributes = {"strength": 3}
+	promotion_record.timestamp = 123
+	profession_progress.add_promotion_record(promotion_record)
+	progress.set_profession_progress(profession_progress)
+
+	var achievement_progress := AchievementProgressState.new()
+	achievement_progress.achievement_id = &"test_strict_achievement"
+	achievement_progress.current_value = 1
+	progress.set_achievement_progress_state(achievement_progress)
+
+	var pending_choice := PendingProfessionChoice.new()
+	pending_choice.trigger_skill_ids = [&"test_strict_skill"]
+	pending_choice.candidate_profession_ids = [&"test_strict_profession"]
+	pending_choice.target_rank_map[&"test_strict_profession"] = 2
+	pending_choice.qualifier_skill_pool_ids = [&"test_strict_skill"]
+	pending_choice.assignable_skill_candidate_ids = [&"test_strict_skill"]
+	pending_choice.required_qualifier_count = 1
+	pending_choice.required_assigned_core_count = 1
+	progress.pending_profession_choices.append(pending_choice)
+
+	return progress.to_dict()
+
+
+func _erase_unit_progress_child_field(payload: Dictionary, bucket: String, entry_id: String, field_name: String) -> void:
+	var bucket_payload: Dictionary = (payload.get(bucket, {}) as Dictionary).duplicate(true)
+	var entry_payload: Dictionary = (bucket_payload.get(entry_id, {}) as Dictionary).duplicate(true)
+	entry_payload.erase(field_name)
+	bucket_payload[entry_id] = entry_payload
+	payload[bucket] = bucket_payload
+
+
+func _set_unit_progress_child_field_value(payload: Dictionary, bucket: String, entry_id: String, field_name: String, value) -> void:
+	var bucket_payload: Dictionary = (payload.get(bucket, {}) as Dictionary).duplicate(true)
+	var entry_payload: Dictionary = (bucket_payload.get(entry_id, {}) as Dictionary).duplicate(true)
+	entry_payload[field_name] = value
+	bucket_payload[entry_id] = entry_payload
+	payload[bucket] = bucket_payload
+
+
+func _erase_pending_profession_choice_field(payload: Dictionary, field_name: String) -> void:
+	var choice_payload := _get_first_pending_profession_choice_payload(payload)
+	choice_payload.erase(field_name)
+	_set_first_pending_profession_choice_payload(payload, choice_payload)
+
+
+func _set_pending_profession_choice_field_value(payload: Dictionary, field_name: String, value) -> void:
+	var choice_payload := _get_first_pending_profession_choice_payload(payload)
+	choice_payload[field_name] = value
+	_set_first_pending_profession_choice_payload(payload, choice_payload)
+
+
+func _get_first_pending_profession_choice_payload(payload: Dictionary) -> Dictionary:
+	var pending_choices: Array = (payload.get("pending_profession_choices", []) as Array).duplicate(true)
+	if pending_choices.is_empty():
+		return {}
+	return (pending_choices[0] as Dictionary).duplicate(true)
+
+
+func _set_first_pending_profession_choice_payload(payload: Dictionary, choice_payload: Dictionary) -> void:
+	var pending_choices: Array = (payload.get("pending_profession_choices", []) as Array).duplicate(true)
+	if pending_choices.is_empty():
+		pending_choices.append(choice_payload)
+	else:
+		pending_choices[0] = choice_payload
+	payload["pending_profession_choices"] = pending_choices
+
+
+func _erase_promotion_record_field(payload: Dictionary, field_name: String) -> void:
+	var record_payload := _get_first_promotion_record_payload(payload)
+	record_payload.erase(field_name)
+	_set_first_promotion_record_payload(payload, record_payload)
+
+
+func _set_promotion_record_field_value(payload: Dictionary, field_name: String, value) -> void:
+	var record_payload := _get_first_promotion_record_payload(payload)
+	record_payload[field_name] = value
+	_set_first_promotion_record_payload(payload, record_payload)
+
+
+func _get_first_promotion_record_payload(payload: Dictionary) -> Dictionary:
+	var professions_payload: Dictionary = (payload.get("professions", {}) as Dictionary).duplicate(true)
+	var profession_payload: Dictionary = (professions_payload.get("test_strict_profession", {}) as Dictionary).duplicate(true)
+	var promotion_history: Array = (profession_payload.get("promotion_history", []) as Array).duplicate(true)
+	if promotion_history.is_empty():
+		return {}
+	return (promotion_history[0] as Dictionary).duplicate(true)
+
+
+func _set_first_promotion_record_payload(payload: Dictionary, record_payload: Dictionary) -> void:
+	var professions_payload: Dictionary = (payload.get("professions", {}) as Dictionary).duplicate(true)
+	var profession_payload: Dictionary = (professions_payload.get("test_strict_profession", {}) as Dictionary).duplicate(true)
+	var promotion_history: Array = (profession_payload.get("promotion_history", []) as Array).duplicate(true)
+	if promotion_history.is_empty():
+		promotion_history.append(record_payload)
+	else:
+		promotion_history[0] = record_payload
+	profession_payload["promotion_history"] = promotion_history
+	professions_payload["test_strict_profession"] = profession_payload
+	payload["professions"] = professions_payload
 
 
 func _make_achievement(

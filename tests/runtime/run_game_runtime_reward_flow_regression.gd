@@ -209,13 +209,16 @@ func _build_reward(reward_id: String) -> PendingCharacterReward:
 	reward.reward_id = StringName(reward_id)
 	reward.member_id = &"hero"
 	reward.member_name = "Hero"
+	reward.source_type = &"test_reward"
 	reward.source_id = StringName(reward_id)
 	reward.source_label = reward_id
+	reward.summary_text = "测试奖励 %s" % reward_id
 	var entry := PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
 	entry.entry_type = &"skill_mastery"
 	entry.target_id = StringName("skill_%s" % reward_id)
 	entry.target_label = reward_id
 	entry.amount = 1
+	entry.reason_text = "测试熟练度奖励"
 	reward.entries.append(entry)
 	return reward
 

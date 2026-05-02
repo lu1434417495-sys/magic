@@ -5,9 +5,6 @@
 class_name ProgressionContentRegistry
 extends RefCounted
 
-const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
 const PROFESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/profession_content_registry.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
@@ -33,7 +30,6 @@ const VALID_CORE_SKILL_TRANSITION_MODES := {
 	&"inherit": true,
 	&"replace_sources_with_result": true,
 }
-const TU_GRANULARITY := 5
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
@@ -49,8 +45,6 @@ var _skill_content_registry = SKILL_CONTENT_REGISTRY_SCRIPT.new()
 var _profession_content_registry = PROFESSION_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：收集配置校验阶段发现的错误信息，便于启动时统一报告和定位问题。
 var _validation_errors: Array[String] = []
-## 字段说明：记录已由资源注册表提供的技能主键，供迁移期间的兼容桥跳过重复 code seed。
-var _resource_skill_ids: Dictionary = {}
 
 
 func _init() -> void:
@@ -63,13 +57,9 @@ func rebuild() -> void:
 	_achievement_defs.clear()
 	_quest_defs.clear()
 	_validation_errors.clear()
-	_resource_skill_ids.clear()
 
 	_skill_content_registry.rebuild()
 	_skill_defs = _skill_content_registry.get_skill_defs().duplicate()
-	for skill_key in _skill_defs.keys():
-		_resource_skill_ids[StringName(skill_key)] = true
-	_register_seed_melee_skills()
 	# Official profession skill seeds now live in SkillDef resources under data/configs/skills.
 	_validation_errors.append_array(_skill_content_registry.validate())
 	# Profession seed ownership lives in resource files under data/configs/professions.
@@ -118,25 +108,6 @@ func validate() -> Array[String]:
 		if not errors.has(validation_error):
 			errors.append(validation_error)
 	return errors
-
-
-func _register_seed_melee_skills() -> void:
-	_register_skill(
-		_build_skill(
-			&"charge",
-			"冲锋",
-			"朝四个正交方向发起位移。基础距离 3，1 级为 4，3 级为 5，5 级为 6；途中会被陷阱和挡路单位打断。",
-			&"active",
-			5,
-			[20, 35, 55, 80, 110],
-			[&"melee", &"mobility", &"charge"],
-			&"book",
-			[],
-			[&"training", &"battle"],
-			[],
-			_build_charge_combat_profile(&"charge")
-		)
-	)
 
 
 func _register_seed_achievements() -> void:
@@ -540,313 +511,6 @@ func _build_achievement_reward(
 	reward.amount = amount
 	reward.reason_text = reason_text
 	return reward
-
-
-func _build_skill(
-	skill_id: StringName,
-	display_name: String,
-	description: String,
-	skill_type: StringName,
-	max_level: int,
-	mastery_curve_values: Array,
-	tags: Array[StringName],
-	learn_source: StringName,
-	learn_requirements: Array[StringName],
-	mastery_sources: Array[StringName],
-	attribute_modifiers: Array[AttributeModifier] = [],
-	combat_profile: CombatSkillDef = null,
-	icon_id: StringName = &""
-) -> SkillDef:
-	var skill_def := SkillDef.new()
-	skill_def.skill_id = skill_id
-	skill_def.display_name = display_name
-	skill_def.icon_id = icon_id if icon_id != &"" else skill_id
-	skill_def.description = description
-	skill_def.skill_type = skill_type
-	skill_def.max_level = max_level
-	skill_def.mastery_curve = _build_mastery_curve(mastery_curve_values)
-	skill_def.tags = tags.duplicate()
-	skill_def.learn_source = learn_source
-	skill_def.learn_requirements = learn_requirements.duplicate()
-	skill_def.mastery_sources = mastery_sources.duplicate()
-	skill_def.attribute_modifiers = attribute_modifiers.duplicate()
-	skill_def.combat_profile = combat_profile
-	return skill_def
-
-
-func _build_mastery_curve(values: Array) -> PackedInt32Array:
-	var curve := PackedInt32Array()
-	for value in values:
-		curve.append(int(value))
-	return curve
-
-
-func _build_modifier(attribute_id: StringName, value: int) -> AttributeModifier:
-	var modifier := AttributeModifier.new()
-	modifier.attribute_id = attribute_id
-	modifier.mode = AttributeModifier.MODE_FLAT
-	modifier.value = value
-	return modifier
-
-
-func _build_damage_effect(
-	power: int,
-	damage_tag: StringName = &"",
-	target_team_filter: StringName = &""
-) -> CombatEffectDef:
-	var effect_def := CombatEffectDef.new()
-	effect_def.effect_type = &"damage"
-	effect_def.power = power
-	if damage_tag != &"":
-		effect_def.damage_tag = damage_tag
-	if target_team_filter != &"":
-		effect_def.effect_target_team_filter = target_team_filter
-	return effect_def
-
-
-func _build_heal_effect(power: int, target_team_filter: StringName = &"") -> CombatEffectDef:
-	var effect_def := CombatEffectDef.new()
-	effect_def.effect_type = &"heal"
-	effect_def.power = power
-	if target_team_filter != &"":
-		effect_def.effect_target_team_filter = target_team_filter
-	return effect_def
-
-
-func _build_status_effect(
-	status_id: StringName,
-	duration: int,
-	power: int = 1,
-	target_team_filter: StringName = &""
-) -> CombatEffectDef:
-	var effect_def := CombatEffectDef.new()
-	effect_def.effect_type = &"status"
-	effect_def.status_id = status_id
-	effect_def.power = power
-	if target_team_filter != &"":
-		effect_def.effect_target_team_filter = target_team_filter
-	if duration > 0:
-		effect_def.duration_tu = _normalize_tu_value(duration, "status effect duration_tu")
-	return effect_def
-
-
-func _build_unit_combat_profile(
-	skill_id: StringName,
-	range_value: int,
-	ap_cost: int,
-	target_team_filter: StringName,
-	effect_defs: Array[CombatEffectDef],
-	mp_cost: int = 0,
-	stamina_cost: int = 0,
-	cooldown_tu: int = 0
-) -> CombatSkillDef:
-	var combat_profile := CombatSkillDef.new()
-	combat_profile.skill_id = skill_id
-	combat_profile.target_mode = &"unit"
-	combat_profile.target_team_filter = target_team_filter
-	combat_profile.range_pattern = &"single"
-	combat_profile.range_value = range_value
-	combat_profile.area_pattern = &"single"
-	combat_profile.area_value = 0
-	combat_profile.requires_los = false
-	combat_profile.ap_cost = ap_cost
-	combat_profile.mp_cost = maxi(mp_cost, 0)
-	combat_profile.stamina_cost = maxi(stamina_cost, 0)
-	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "unit combat_profile cooldown_tu")
-	combat_profile.effect_defs = effect_defs.duplicate()
-	return combat_profile
-
-
-func _build_ground_aoe_combat_profile(
-	skill_id: StringName,
-	range_value: int,
-	ap_cost: int,
-	target_team_filter: StringName,
-	area_pattern: StringName,
-	area_value: int,
-	effect_defs: Array[CombatEffectDef],
-	mp_cost: int = 0,
-	stamina_cost: int = 0,
-	cooldown_tu: int = 0
-) -> CombatSkillDef:
-	var combat_profile := CombatSkillDef.new()
-	combat_profile.skill_id = skill_id
-	combat_profile.target_mode = &"ground"
-	combat_profile.target_team_filter = target_team_filter
-	combat_profile.range_pattern = &"single"
-	combat_profile.range_value = range_value
-	combat_profile.area_pattern = area_pattern
-	combat_profile.area_value = area_value
-	combat_profile.requires_los = false
-	combat_profile.ap_cost = ap_cost
-	combat_profile.mp_cost = maxi(mp_cost, 0)
-	combat_profile.stamina_cost = maxi(stamina_cost, 0)
-	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "ground aoe combat_profile cooldown_tu")
-	combat_profile.effect_defs = effect_defs.duplicate()
-	return combat_profile
-
-
-func _build_basic_melee_combat_profile(skill_id: StringName, range_value: int, power: int) -> CombatSkillDef:
-	var effect_def: CombatEffectDef = CombatEffectDef.new()
-	effect_def.effect_type = &"damage"
-	effect_def.power = power
-
-	var combat_profile: CombatSkillDef = CombatSkillDef.new()
-	combat_profile.skill_id = skill_id
-	combat_profile.target_mode = &"unit"
-	combat_profile.target_team_filter = &"enemy"
-	combat_profile.range_pattern = &"single"
-	combat_profile.range_value = range_value
-	combat_profile.area_pattern = &"single"
-	combat_profile.area_value = 0
-	combat_profile.requires_los = false
-	combat_profile.ap_cost = 1
-	combat_profile.cooldown_tu = 0
-	combat_profile.effect_defs = [effect_def]
-	return combat_profile
-
-
-func _build_ground_variant_combat_profile(
-	skill_id: StringName,
-	range_value: int,
-	ap_cost: int,
-	cast_variants: Array[CombatCastVariantDef],
-	target_team_filter: StringName = &"any",
-	mp_cost: int = 0,
-	stamina_cost: int = 0,
-	cooldown_tu: int = 0
-) -> CombatSkillDef:
-	var combat_profile: CombatSkillDef = CombatSkillDef.new()
-	combat_profile.skill_id = skill_id
-	combat_profile.target_mode = &"ground"
-	combat_profile.target_team_filter = target_team_filter
-	combat_profile.range_pattern = &"single"
-	combat_profile.range_value = range_value
-	combat_profile.area_pattern = &"single"
-	combat_profile.area_value = 0
-	combat_profile.requires_los = false
-	combat_profile.ap_cost = ap_cost
-	combat_profile.mp_cost = maxi(mp_cost, 0)
-	combat_profile.stamina_cost = maxi(stamina_cost, 0)
-	combat_profile.cooldown_tu = _normalize_tu_value(cooldown_tu, "ground variant combat_profile cooldown_tu")
-	combat_profile.cast_variants = cast_variants.duplicate()
-	return combat_profile
-
-
-func _build_charge_combat_profile(skill_id: StringName) -> CombatSkillDef:
-	var charge_effect := CombatEffectDef.new()
-	charge_effect.effect_type = &"charge"
-	charge_effect.params = {
-		"skill_id": skill_id,
-		"base_distance": 3,
-		"distance_by_level": {
-			"1": 4,
-			"3": 5,
-			"5": 6,
-		},
-		"collision_base_damage": 0,
-		"collision_size_gap_damage": 0,
-	}
-
-	var cast_variant := _build_cast_variant(
-		&"charge_line",
-		"直线冲锋",
-		"选择同一行或同一列的目标格，沿该方向逐格冲锋。",
-		0,
-		&"single",
-		1,
-		[],
-		[charge_effect]
-	)
-
-	return _build_ground_variant_combat_profile(skill_id, 6, 1, [cast_variant])
-
-
-func _build_cast_variant(
-	variant_id: StringName,
-	display_name: String,
-	description: String,
-	min_skill_level: int,
-	footprint_pattern: StringName,
-	required_coord_count: int,
-	allowed_base_terrains: Array[StringName],
-	effect_defs: Array[CombatEffectDef]
-) -> CombatCastVariantDef:
-	var cast_variant := CombatCastVariantDef.new()
-	cast_variant.variant_id = variant_id
-	cast_variant.display_name = display_name
-	cast_variant.description = description
-	cast_variant.min_skill_level = min_skill_level
-	cast_variant.target_mode = &"ground"
-	cast_variant.footprint_pattern = footprint_pattern
-	cast_variant.required_coord_count = required_coord_count
-	cast_variant.allowed_base_terrains = allowed_base_terrains.duplicate()
-	cast_variant.effect_defs = effect_defs.duplicate()
-	return cast_variant
-
-
-func _build_terrain_replace_effect(terrain: StringName) -> CombatEffectDef:
-	var effect_def: CombatEffectDef = CombatEffectDef.new()
-	effect_def.effect_type = &"terrain_replace"
-	effect_def.terrain_replace_to = terrain
-	return effect_def
-
-
-func _build_height_delta_effect(height_delta: int) -> CombatEffectDef:
-	var effect_def: CombatEffectDef = CombatEffectDef.new()
-	effect_def.effect_type = &"height_delta"
-	effect_def.height_delta = height_delta
-	return effect_def
-
-
-func _build_timed_terrain_effect(
-	terrain_effect_id: StringName,
-	power: int,
-	duration_tu: int,
-	tick_interval_tu: int,
-	tick_effect_type: StringName = &"damage",
-	status_id: StringName = &"",
-	target_team_filter: StringName = &"",
-	damage_tag: StringName = &""
-) -> CombatEffectDef:
-	var effect_def := CombatEffectDef.new()
-	effect_def.effect_type = &"terrain_effect"
-	effect_def.terrain_effect_id = terrain_effect_id
-	effect_def.tick_effect_type = tick_effect_type
-	effect_def.power = power
-	effect_def.duration_tu = _normalize_tu_value(duration_tu, "terrain effect duration_tu")
-	effect_def.tick_interval_tu = _normalize_tu_value(tick_interval_tu, "terrain effect tick_interval_tu")
-	effect_def.stack_behavior = &"refresh"
-	if target_team_filter != &"":
-		effect_def.effect_target_team_filter = target_team_filter
-	if tick_effect_type == &"damage":
-		effect_def.damage_tag = damage_tag
-	if status_id != &"":
-		effect_def.status_id = status_id
-		effect_def.duration_tu = _normalize_tu_value(tick_interval_tu, "terrain status duration_tu")
-	return effect_def
-
-
-func _normalize_tu_value(value: int, field_label: String) -> int:
-	var normalized := maxi(value, 0)
-	if normalized == 0:
-		return 0
-	if normalized % TU_GRANULARITY != 0:
-		push_error("%s must use %d TU steps, got %d." % [field_label, TU_GRANULARITY, normalized])
-		return 0
-	return normalized
-
-
-func _register_skill(skill_def: SkillDef) -> void:
-	if skill_def == null or skill_def.skill_id == &"":
-		_validation_errors.append("Encountered a skill definition without a skill_id.")
-		return
-	if _skill_defs.has(skill_def.skill_id):
-		if _resource_skill_ids.has(skill_def.skill_id):
-			return
-		_validation_errors.append("Duplicate skill_id registered: %s" % String(skill_def.skill_id))
-		return
-	_skill_defs[skill_def.skill_id] = skill_def
 
 
 func _register_achievement(achievement_def: AchievementDef) -> void:

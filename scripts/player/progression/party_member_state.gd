@@ -87,31 +87,88 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Dictionary):
 	if data.is_empty():
 		return null
+	for field_name in [
+		"member_id",
+		"display_name",
+		"faction_id",
+		"portrait_id",
+		"control_mode",
+		"current_hp",
+		"current_mp",
+		"is_dead",
+		"body_size",
+	]:
+		if not data.has(field_name):
+			return null
 	var progression_data: Variant = data.get("progression", null)
 	var equipment_state_data: Variant = data.get("equipment_state", null)
 	if progression_data is not Dictionary or equipment_state_data is not Dictionary:
 		return null
+	var member_id = _parse_string_name_field(data.get("member_id", null), false)
+	if member_id == null:
+		return null
+	var display_name_variant: Variant = data.get("display_name", null)
+	if display_name_variant is not String:
+		return null
+	var display_name := String(display_name_variant)
+	if display_name.strip_edges().is_empty():
+		return null
+	var faction_id = _parse_string_name_field(data.get("faction_id", null), false)
+	if faction_id == null:
+		return null
+	var portrait_id = _parse_string_name_field(data.get("portrait_id", null), true)
+	if portrait_id == null:
+		return null
+	var control_mode = _parse_string_name_field(data.get("control_mode", null), false)
+	if control_mode == null:
+		return null
+	var current_hp_variant: Variant = data.get("current_hp", null)
+	if current_hp_variant is not int or int(current_hp_variant) < 0:
+		return null
+	var current_mp_variant: Variant = data.get("current_mp", null)
+	if current_mp_variant is not int or int(current_mp_variant) < 0:
+		return null
+	var is_dead_variant: Variant = data.get("is_dead", null)
+	if is_dead_variant is not bool:
+		return null
+	var body_size_variant: Variant = data.get("body_size", null)
+	if body_size_variant is not int:
+		return null
+	var body_size_value := int(body_size_variant)
+	if body_size_value < 1:
+		return null
+
 	var member_state := PARTY_MEMBER_STATE_SCRIPT.new()
-	member_state.member_id = ProgressionDataUtils.to_string_name(data.get("member_id", ""))
-	member_state.display_name = String(data.get("display_name", ""))
-	member_state.faction_id = ProgressionDataUtils.to_string_name(data.get("faction_id", "player"))
-	member_state.portrait_id = ProgressionDataUtils.to_string_name(data.get("portrait_id", ""))
+	member_state.member_id = member_id
+	member_state.display_name = display_name
+	member_state.faction_id = faction_id
+	member_state.portrait_id = portrait_id
 	member_state.progression = UNIT_PROGRESS_SCRIPT.from_dict(progression_data)
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.from_dict(equipment_state_data)
-	member_state.control_mode = ProgressionDataUtils.to_string_name(data.get("control_mode", "manual"))
-	member_state.current_hp = int(data.get("current_hp", 1))
-	member_state.current_mp = int(data.get("current_mp", 0))
-	member_state.is_dead = bool(data.get("is_dead", false))
-	member_state.body_size = maxi(int(data.get("body_size", 1)), 1)
+	member_state.control_mode = control_mode
+	member_state.current_hp = int(current_hp_variant)
+	member_state.current_mp = int(current_mp_variant)
+	member_state.is_dead = bool(is_dead_variant)
+	member_state.body_size = body_size_value
 
 	if member_state.progression == null or member_state.equipment_state == null:
 		return null
-	if member_state.progression.unit_id == &"":
-		member_state.progression.unit_id = member_state.member_id
-	if member_state.progression.display_name.is_empty():
-		member_state.progression.display_name = member_state.display_name
+	if member_state.progression.unit_id == &"" or member_state.progression.unit_id != member_state.member_id:
+		return null
+	if member_state.progression.display_name.strip_edges().is_empty():
+		return null
 
 	return member_state
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"" and not allow_empty:
+		return null
+	return parsed_value
 
 
 func _get_unit_base_attributes() -> UnitBaseAttributes:

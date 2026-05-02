@@ -92,7 +92,12 @@ func _test_decode_v5_payload_rejects_empty_world_data() -> void:
 func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var initial_log_path := game_session.get_active_log_file_path()
-	_assert_true(not initial_log_path.is_empty(), "GameSession 初始化时应持有日志路径。")
+	_assert_eq(initial_log_path, "", "GameSession 默认不应持有日志文件路径。")
+	_assert_eq(
+		bool(game_session.get_log_snapshot().get("file_output_enabled", true)),
+		false,
+		"GameSession 默认应关闭运行日志文件输出。"
+	)
 
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
 	_assert_eq(create_error, OK, "日志边界回归前置：应能创建测试存档。")
@@ -101,7 +106,7 @@ func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 		return
 
 	var create_log_path := game_session.get_active_log_file_path()
-	_assert_true(create_log_path != initial_log_path, "创建新存档后应轮转到新的日志文件。")
+	_assert_eq(create_log_path, "", "创建新存档后默认不应写 session jsonl 日志文件。")
 	var create_logs := game_session.get_recent_logs(4)
 	_assert_eq(int(create_logs.size()), 1, "新存档日志会话应从空缓冲开始。")
 	if create_logs.size() == 1:
@@ -113,18 +118,17 @@ func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 	_assert_eq(load_error, OK, "日志边界回归前置：应能重新加载同一存档。")
 	if load_error == OK:
 		var load_log_path := game_session.get_active_log_file_path()
-		_assert_true(load_log_path != create_log_path, "加载存档后应轮转到新的日志文件。")
+		_assert_eq(load_log_path, "", "加载存档后默认不应写 session jsonl 日志文件。")
 		var load_logs := game_session.get_recent_logs(4)
 		_assert_eq(int(load_logs.size()), 1, "加载存档后的日志缓冲应重新开始计数。")
 		if load_logs.size() == 1:
 			_assert_eq(String(load_logs[0].get("event_id", "")), "session.save.load.ok", "加载存档后的首条日志应记录 load.ok。")
 			_assert_eq(int(load_logs[0].get("seq", 0)), 1, "加载存档后的日志序号应重新从 1 开始。")
 
-		var pre_unload_log_path := load_log_path
 		game_session.unload_active_world()
 		_assert_true(not game_session.has_active_world(), "卸载世界后不应继续保留 active world。")
 		var unload_log_path := game_session.get_active_log_file_path()
-		_assert_true(unload_log_path != pre_unload_log_path, "卸载世界后应轮转到新的日志文件。")
+		_assert_eq(unload_log_path, "", "卸载世界后默认不应写 session jsonl 日志文件。")
 		var unload_logs := game_session.get_recent_logs(4)
 		_assert_eq(int(unload_logs.size()), 1, "卸载世界后的日志缓冲应重新开始计数。")
 		if unload_logs.size() == 1:

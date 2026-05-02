@@ -53,8 +53,12 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var attribute_growth_progress: Dictionary = {}
 ## 字段说明：在编辑器中暴露属性修正列表配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var attribute_modifiers: Array[AttributeModifier] = []
-## 字段说明：按技能等级显式写明的效果描述文本，便于 UI 根据当前等级直接展示。
-@export var level_descriptions: Dictionary = {}
+## 字段说明：等级描述模板字符串，支持 {key} 变量替换和 {{?key}}...{{/key}} 条件块；
+## 条件块在配置中存在对应 key 且值非空时保留内容，否则整段删除。
+@export_multiline var level_description_template: String = ""
+## 字段说明：按技能等级提供的模板变量配置字典；每个等级只写需要显示的字段，
+## 未写的字段对应条件块自动隐藏，不需要显式写 false 或空字符串。
+@export var level_description_configs: Dictionary = {}
 ## 字段说明：在编辑器中暴露战斗配置档配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var combat_profile: CombatSkillDef
 
@@ -63,7 +67,6 @@ func get_mastery_required_for_level(level: int) -> int:
 	if level < 0 or level >= mastery_curve.size():
 		return 0
 	return mastery_curve[level]
-
 
 func is_profession_skill() -> bool:
 	return learn_source == &"profession"

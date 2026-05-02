@@ -201,6 +201,7 @@ func submit_item_objective(quest_id: StringName, objective_id: StringName = &"",
 		"target_id": String(item_id),
 		"target_value": target_value,
 		"progress_delta": required_quantity,
+		"world_step": world_step,
 		"item_id": String(item_id),
 		"quantity": required_quantity,
 		"context": {
@@ -242,6 +243,9 @@ func claim_quest_reward(quest_id: StringName, world_step: int = -1) -> Dictionar
 	var quest_reward_data := _resolve_quest_reward_data(quest_id)
 	if not bool(quest_reward_data.get("found", false)):
 		result["error_code"] = "quest_def_missing"
+		return result
+	if not String(quest_reward_data.get("error_code", "")).is_empty():
+		result["error_code"] = String(quest_reward_data["error_code"])
 		return result
 	var reward_preview := _preview_quest_reward_claim(quest_id, quest_reward_data)
 	if not bool(reward_preview.get("ok", false)):
@@ -1062,10 +1066,16 @@ func _enqueue_core_max_attribute_growth_reward(
 	if int(skill_progress.skill_level) < int(skill_def.max_level):
 		return
 
+	var attribute_keys: Array[String] = []
+	for raw_attribute_key in skill_def.attribute_growth_progress.keys():
+		if typeof(raw_attribute_key) == TYPE_STRING:
+			attribute_keys.append(String(raw_attribute_key))
+	attribute_keys.sort()
+
 	var entries: Array = []
-	for attribute_key in ProgressionDataUtils.sorted_string_keys(skill_def.attribute_growth_progress):
+	for attribute_key in attribute_keys:
 		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
-		var amount := int(skill_def.attribute_growth_progress.get(attribute_id, skill_def.attribute_growth_progress.get(attribute_key, 0)))
+		var amount := int(skill_def.attribute_growth_progress.get(attribute_key, 0))
 		if amount <= 0:
 			continue
 		entries.append({
@@ -1207,40 +1217,51 @@ func _normalize_pending_character_reward_variant(reward_variant) -> PendingChara
 
 
 func _resolve_quest_reward_data(quest_id: StringName) -> Dictionary:
-	var quest_variant = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), null))
+	var quest_variant = _get_string_name_keyed_value(_quest_defs, quest_id)
 	if quest_variant == null:
 		return {
 			"found": false,
+			"error_code": "quest_def_missing",
 			"display_name": "",
 			"reward_entries": [],
 		}
 	if quest_variant is Dictionary:
 		var quest_data := (quest_variant as Dictionary).duplicate(true)
-		return {
-			"found": true,
-			"display_name": String(quest_data.get("display_name", "")),
-			"reward_entries": quest_data.get("reward_entries", []),
-		}
+		return _normalize_quest_reward_data(quest_data)
 	if quest_variant is QuestDef:
 		var quest_def: QuestDef = quest_variant
-		return {
-			"found": true,
+		return _normalize_quest_reward_data({
 			"display_name": quest_def.display_name,
 			"reward_entries": quest_def.reward_entries.duplicate(true),
-		}
+		})
 	if quest_variant is Object and quest_variant.has_method("to_dict"):
 		var quest_data_variant = quest_variant.to_dict()
 		if quest_data_variant is Dictionary:
-			return {
-				"found": true,
-				"display_name": String((quest_data_variant as Dictionary).get("display_name", "")),
-				"reward_entries": (quest_data_variant as Dictionary).get("reward_entries", []),
-			}
+			return _normalize_quest_reward_data(quest_data_variant as Dictionary)
 	return {
 		"found": false,
+		"error_code": "quest_def_missing",
 		"display_name": "",
 		"reward_entries": [],
 	}
+
+
+func _normalize_quest_reward_data(quest_data: Dictionary) -> Dictionary:
+	var result := {
+		"found": true,
+		"error_code": "",
+		"display_name": "",
+		"reward_entries": quest_data.get("reward_entries", []),
+	}
+	if not quest_data.has("display_name") or quest_data["display_name"] is not String:
+		result["error_code"] = "invalid_quest_display_name"
+		return result
+	var display_name := String(quest_data["display_name"]).strip_edges()
+	if display_name.is_empty():
+		result["error_code"] = "invalid_quest_display_name"
+		return result
+	result["display_name"] = display_name
+	return result
 
 
 func _preview_quest_submit_item_objective(quest_id: StringName, objective_id: StringName = &"") -> Dictionary:
@@ -1260,7 +1281,7 @@ func _preview_quest_submit_item_objective(quest_id: StringName, objective_id: St
 		result["error_code"] = "quest_not_active"
 		return result
 
-	var quest_variant = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), null))
+	var quest_variant = _get_string_name_keyed_value(_quest_defs, quest_id)
 	if quest_variant == null:
 		result["error_code"] = "quest_def_missing"
 		return result
@@ -1292,12 +1313,14 @@ func _preview_quest_submit_item_objective(quest_id: StringName, objective_id: St
 		if requested_objective_id != &"" and current_objective_id != requested_objective_id:
 			continue
 		var item_id := ProgressionDataUtils.to_string_name(objective_data.get("target_id", ""))
-		var target_value := maxi(int(objective_data.get("target_value", 1)), 1)
+		var target_value := 0
+		if objective_data.has("target_value") and objective_data["target_value"] is int:
+			target_value = maxi(int(objective_data["target_value"]), 0)
 		result["objective_id"] = String(current_objective_id)
 		result["item_id"] = String(item_id)
 		result["target_value"] = target_value
 		result["required_quantity"] = maxi(target_value - quest_state.get_objective_progress(current_objective_id), 0)
-		if current_objective_id == &"" or item_id == &"":
+		if current_objective_id == &"" or item_id == &"" or target_value <= 0:
 			result["error_code"] = "invalid_submit_item_objective"
 			return result
 		if quest_state.is_objective_complete(current_objective_id, target_value):
@@ -1312,6 +1335,17 @@ func _preview_quest_submit_item_objective(quest_id: StringName, objective_id: St
 
 	result["error_code"] = "objective_already_complete" if found_completed_submit_item_objective else "objective_not_found"
 	return result
+
+
+func _get_string_name_keyed_value(values: Dictionary, key: StringName) -> Variant:
+	if key == &"":
+		return null
+	for value_key in values.keys():
+		if typeof(value_key) != TYPE_STRING_NAME:
+			continue
+		if value_key == key:
+			return values[value_key]
+	return null
 
 
 func _preview_quest_reward_claim(quest_id: StringName, quest_reward_data: Dictionary) -> Dictionary:
@@ -1329,7 +1363,9 @@ func _preview_quest_reward_claim(quest_id: StringName, quest_reward_data: Dictio
 		return result
 	var quest_label := String(quest_reward_data.get("display_name", "")).strip_edges()
 	if quest_label.is_empty():
-		quest_label = String(quest_id)
+		result["ok"] = false
+		result["error_code"] = "invalid_quest_display_name"
+		return result
 	var unsupported_reward_types: Array[StringName] = []
 	var reward_item_entries: Array[Dictionary] = []
 	var reward_item_ids: Array[StringName] = []
@@ -1407,17 +1443,36 @@ func _preview_quest_item_reward_entry(reward_data: Dictionary) -> Dictionary:
 			"ok": false,
 			"error_code": "item_reward_missing_def",
 		}
+	var item_display_name := _resolve_item_reward_display_name(item_def)
+	if item_display_name.is_empty():
+		return {
+			"ok": false,
+			"error_code": "invalid_item_display_name",
+		}
 	return {
 		"ok": true,
 		"item_reward": {
 			"item_id": String(reward_item_id),
-			"display_name": item_def.display_name if not item_def.display_name.is_empty() else String(reward_item_id),
+			"display_name": item_display_name,
 			"quantity": reward_quantity,
 		},
 		"warehouse_deposit_item_ids": ProgressionDataUtils.string_name_array_to_string_array(
 			_build_repeated_item_ids(reward_item_id, reward_quantity)
 		),
 	}
+
+
+func _resolve_item_reward_display_name(item_def_variant: Variant) -> String:
+	if item_def_variant is Dictionary:
+		var item_data := item_def_variant as Dictionary
+		if not item_data.has("display_name") or item_data["display_name"] is not String:
+			return ""
+		return String(item_data["display_name"]).strip_edges()
+	if item_def_variant is Object:
+		var display_name_variant: Variant = (item_def_variant as Object).get("display_name")
+		if display_name_variant is String:
+			return String(display_name_variant).strip_edges()
+	return ""
 
 
 func _preview_quest_pending_character_reward_entry(
@@ -1501,11 +1556,20 @@ func _normalize_pending_character_entry(entry_variant) -> PendingCharacterReward
 	if entry_variant is PendingCharacterRewardEntry:
 		return PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_dict((entry_variant as PendingCharacterRewardEntry).to_dict())
 	if entry_variant is Dictionary:
-		var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_variant(entry_variant)
-		if entry == null:
+		var entry_data: Dictionary = entry_variant
+		var entry_type := ProgressionDataUtils.to_string_name(entry_data.get("entry_type", ""))
+		var target_id := ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
+		var amount := int(entry_data.get("amount", 0))
+		if entry_type == &"" or target_id == &"" or amount == 0:
 			return null
+		var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
+		entry.entry_type = entry_type
+		entry.target_id = target_id
+		entry.amount = amount
+		entry.target_label = String(entry_data.get("target_label", ""))
 		if entry.target_label.is_empty():
 			entry.target_label = _resolve_reward_target_label(entry.entry_type, entry.target_id, "")
+		entry.reason_text = String(entry_data.get("reason_text", ""))
 		return entry
 	return null
 

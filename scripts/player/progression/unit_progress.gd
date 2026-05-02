@@ -259,58 +259,219 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
+	for field_name in [
+		"version",
+		"unit_id",
+		"display_name",
+		"character_level",
+		"unit_base_attributes",
+		"reputation_state",
+		"skills",
+		"professions",
+		"known_knowledge_ids",
+		"active_core_skill_ids",
+		"attribute_growth_progress",
+		"achievement_progress",
+		"pending_profession_choices",
+		"blocked_relearn_skill_ids",
+		"merged_skill_source_map",
+		"unlocked_combat_resource_ids",
+	]:
+		if not data.has(field_name):
+			return null
+	var unit_base_attributes_data: Variant = data.get("unit_base_attributes", null)
+	var reputation_state_data: Variant = data.get("reputation_state", null)
+	var skills_data: Variant = data.get("skills", null)
+	var professions_data: Variant = data.get("professions", null)
+	var known_knowledge_ids_variant: Variant = data.get("known_knowledge_ids", null)
+	var active_core_skill_ids_variant: Variant = data.get("active_core_skill_ids", null)
+	var attribute_growth_progress_variant: Variant = data.get("attribute_growth_progress", null)
+	var achievement_progress_data: Variant = data.get("achievement_progress", null)
+	var pending_choices_data: Variant = data.get("pending_profession_choices", null)
+	var blocked_relearn_skill_ids_variant: Variant = data.get("blocked_relearn_skill_ids", null)
+	var merged_skill_source_map_variant: Variant = data.get("merged_skill_source_map", null)
 	var unlocked_resources_variant: Variant = data.get("unlocked_combat_resource_ids", null)
+	if unit_base_attributes_data is not Dictionary:
+		return null
+	if reputation_state_data is not Dictionary:
+		return null
+	if skills_data is not Dictionary:
+		return null
+	if professions_data is not Dictionary:
+		return null
+	if known_knowledge_ids_variant is not Array:
+		return null
+	if active_core_skill_ids_variant is not Array:
+		return null
+	if attribute_growth_progress_variant is not Dictionary:
+		return null
+	if achievement_progress_data is not Dictionary:
+		return null
+	if pending_choices_data is not Array:
+		return null
+	if blocked_relearn_skill_ids_variant is not Array:
+		return null
+	if merged_skill_source_map_variant is not Dictionary:
+		return null
 	if unlocked_resources_variant is not Array:
 		return null
+	var version_variant: Variant = data.get("version", null)
+	if version_variant is not int or int(version_variant) != 1:
+		return null
+	var parsed_unit_id = _parse_required_string_name(data.get("unit_id", null))
+	if parsed_unit_id == null:
+		return null
+	var display_name_variant: Variant = data.get("display_name", null)
+	if display_name_variant is not String:
+		return null
+	var parsed_display_name := String(display_name_variant)
+	if parsed_display_name.strip_edges().is_empty():
+		return null
+	var character_level_variant: Variant = data.get("character_level", null)
+	if character_level_variant is not int or int(character_level_variant) < 0:
+		return null
+	var parsed_known_knowledge_ids = _parse_unique_string_name_array(known_knowledge_ids_variant)
+	if parsed_known_knowledge_ids == null:
+		return null
+	var parsed_active_core_skill_ids = _parse_unique_string_name_array(active_core_skill_ids_variant)
+	if parsed_active_core_skill_ids == null:
+		return null
+	var parsed_attribute_growth_progress = _parse_nonnegative_int_map(attribute_growth_progress_variant)
+	if parsed_attribute_growth_progress == null:
+		return null
+	var parsed_blocked_relearn_skill_ids = _parse_unique_string_name_array(blocked_relearn_skill_ids_variant)
+	if parsed_blocked_relearn_skill_ids == null:
+		return null
+	var parsed_merged_skill_source_map = _parse_string_name_array_map(merged_skill_source_map_variant)
+	if parsed_merged_skill_source_map == null:
+		return null
+	var parsed_unlocked_resources = _parse_unique_string_name_array(unlocked_resources_variant)
+	if parsed_unlocked_resources == null:
+		return null
+	for resource_id in parsed_unlocked_resources:
+		if not VALID_COMBAT_RESOURCE_IDS.has(resource_id):
+			return null
+	for default_resource_id in DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS:
+		if not parsed_unlocked_resources.has(default_resource_id):
+			return null
 
 	var progress := UNIT_PROGRESS_SCRIPT.new()
-	progress.version = int(data.get("version", 1))
-	progress.unit_id = ProgressionDataUtils.to_string_name(data.get("unit_id", ""))
-	progress.display_name = String(data.get("display_name", ""))
-	progress.character_level = int(data.get("character_level", 0))
-	progress.unit_base_attributes = UnitBaseAttributes.from_dict(data.get("unit_base_attributes", {}))
-	progress.reputation_state = UNIT_REPUTATION_STATE_SCRIPT.from_dict(data.get("reputation_state", {}))
-	progress.known_knowledge_ids = ProgressionDataUtils.to_string_name_array(data.get("known_knowledge_ids", []))
-	progress.attribute_growth_progress = ProgressionDataUtils.to_string_name_int_map(data.get("attribute_growth_progress", {}))
-	progress.blocked_relearn_skill_ids = ProgressionDataUtils.to_string_name_array(data.get("blocked_relearn_skill_ids", []))
-	progress.merged_skill_source_map = ProgressionDataUtils.to_string_name_array_map(data.get("merged_skill_source_map", {}))
-	progress.unlocked_combat_resource_ids = []
-	for resource_id in ProgressionDataUtils.to_string_name_array(unlocked_resources_variant):
-		progress.unlock_combat_resource(resource_id)
+	progress.version = int(version_variant)
+	progress.unit_id = parsed_unit_id
+	progress.display_name = parsed_display_name
+	progress.character_level = int(character_level_variant)
+	progress.unit_base_attributes = UnitBaseAttributes.from_dict(unit_base_attributes_data)
+	progress.reputation_state = UNIT_REPUTATION_STATE_SCRIPT.from_dict(reputation_state_data)
+	if progress.unit_base_attributes == null or progress.reputation_state == null:
+		return null
+	progress.known_knowledge_ids = parsed_known_knowledge_ids
+	progress.attribute_growth_progress = parsed_attribute_growth_progress
+	progress.blocked_relearn_skill_ids = parsed_blocked_relearn_skill_ids
+	progress.merged_skill_source_map = parsed_merged_skill_source_map
+	progress.unlocked_combat_resource_ids = parsed_unlocked_resources
 	progress.sync_default_combat_resource_unlocks()
 
-	var skills_data: Variant = data.get("skills", {})
-	if skills_data is Dictionary:
-		for key in skills_data.keys():
-			var skill_progress = UNIT_SKILL_PROGRESS_SCRIPT.from_dict(skills_data[key])
-			if skill_progress.skill_id == &"":
-				skill_progress.skill_id = ProgressionDataUtils.to_string_name(key)
-			progress.skills[skill_progress.skill_id] = skill_progress
-			if not skill_progress.merged_from_skill_ids.is_empty():
-				progress.merged_skill_source_map[skill_progress.skill_id] = skill_progress.merged_from_skill_ids.duplicate()
+	for key in skills_data.keys():
+		var skill_id := ProgressionDataUtils.to_string_name(key)
+		if skill_id == &"" or progress.skills.has(skill_id):
+			return null
+		var skill_progress_payload: Variant = skills_data[key]
+		if skill_progress_payload is not Dictionary:
+			return null
+		var skill_progress = UNIT_SKILL_PROGRESS_SCRIPT.from_dict(skill_progress_payload)
+		if skill_progress == null or skill_progress.skill_id == &"" or skill_progress.skill_id != skill_id:
+			return null
+		progress.skills[skill_progress.skill_id] = skill_progress
+		if not skill_progress.merged_from_skill_ids.is_empty():
+			progress.merged_skill_source_map[skill_progress.skill_id] = skill_progress.merged_from_skill_ids.duplicate()
 
-	var professions_data: Variant = data.get("professions", {})
-	if professions_data is Dictionary:
-		for key in professions_data.keys():
-			var profession_progress = UNIT_PROFESSION_PROGRESS_SCRIPT.from_dict(professions_data[key])
-			if profession_progress.profession_id == &"":
-				profession_progress.profession_id = ProgressionDataUtils.to_string_name(key)
-			progress.professions[profession_progress.profession_id] = profession_progress
+	for key in professions_data.keys():
+		var profession_id := ProgressionDataUtils.to_string_name(key)
+		if profession_id == &"" or progress.professions.has(profession_id):
+			return null
+		var profession_progress_payload: Variant = professions_data[key]
+		if profession_progress_payload is not Dictionary:
+			return null
+		var profession_progress = UNIT_PROFESSION_PROGRESS_SCRIPT.from_dict(profession_progress_payload)
+		if profession_progress == null or profession_progress.profession_id == &"" or profession_progress.profession_id != profession_id:
+			return null
+		progress.professions[profession_progress.profession_id] = profession_progress
 
-	var achievement_progress_data: Variant = data.get("achievement_progress", {})
-	if achievement_progress_data is Dictionary:
-		for key in achievement_progress_data.keys():
-			var progress_state = ACHIEVEMENT_PROGRESS_STATE_SCRIPT.from_dict(achievement_progress_data[key])
-			if progress_state.achievement_id == &"":
-				progress_state.achievement_id = ProgressionDataUtils.to_string_name(key)
-			progress.achievement_progress[progress_state.achievement_id] = progress_state
+	for key in achievement_progress_data.keys():
+		var achievement_id := ProgressionDataUtils.to_string_name(key)
+		if achievement_id == &"" or progress.achievement_progress.has(achievement_id):
+			return null
+		var achievement_progress_payload: Variant = achievement_progress_data[key]
+		if achievement_progress_payload is not Dictionary:
+			return null
+		var progress_state = ACHIEVEMENT_PROGRESS_STATE_SCRIPT.from_dict(achievement_progress_payload)
+		if progress_state == null or progress_state.achievement_id == &"" or progress_state.achievement_id != achievement_id:
+			return null
+		progress.achievement_progress[progress_state.achievement_id] = progress_state
 
-	var pending_choices_data: Variant = data.get("pending_profession_choices", [])
-	if pending_choices_data is Array:
-		for pending_choice_data in pending_choices_data:
-			if pending_choice_data is Dictionary:
-				progress.pending_profession_choices.append(PendingProfessionChoice.from_dict(pending_choice_data))
+	for pending_choice_data in pending_choices_data:
+		if pending_choice_data is not Dictionary:
+			return null
+		var pending_choice = PendingProfessionChoice.from_dict(pending_choice_data)
+		if pending_choice == null:
+			return null
+		progress.pending_profession_choices.append(pending_choice)
 
-	progress.active_core_skill_ids = ProgressionDataUtils.to_string_name_array(data.get("active_core_skill_ids", []))
+	progress.active_core_skill_ids = parsed_active_core_skill_ids
 	progress.sync_active_core_skill_ids()
 	return progress
+
+
+static func _parse_required_string_name(value: Variant):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"":
+		return null
+	return parsed_value
+
+
+static func _parse_unique_string_name_array(values: Array):
+	var parsed_values: Array[StringName] = []
+	var seen_values: Dictionary = {}
+	for raw_value in values:
+		var parsed_value = _parse_required_string_name(raw_value)
+		if parsed_value == null or seen_values.has(parsed_value):
+			return null
+		seen_values[parsed_value] = true
+		parsed_values.append(parsed_value)
+	return parsed_values
+
+
+static func _parse_nonnegative_int_map(values: Dictionary):
+	var parsed_values: Dictionary = {}
+	var seen_keys: Dictionary = {}
+	for raw_key in values.keys():
+		var parsed_key = _parse_required_string_name(raw_key)
+		if parsed_key == null or seen_keys.has(parsed_key):
+			return null
+		var raw_value: Variant = values[raw_key]
+		if raw_value is not int or int(raw_value) < 0:
+			return null
+		seen_keys[parsed_key] = true
+		parsed_values[parsed_key] = int(raw_value)
+	return parsed_values
+
+
+static func _parse_string_name_array_map(values: Dictionary):
+	var parsed_values: Dictionary = {}
+	var seen_keys: Dictionary = {}
+	for raw_key in values.keys():
+		var parsed_key = _parse_required_string_name(raw_key)
+		if parsed_key == null or seen_keys.has(parsed_key):
+			return null
+		var raw_values: Variant = values[raw_key]
+		if raw_values is not Array:
+			return null
+		var parsed_array = _parse_unique_string_name_array(raw_values)
+		if parsed_array == null:
+			return null
+		seen_keys[parsed_key] = true
+		parsed_values[parsed_key] = parsed_array
+	return parsed_values

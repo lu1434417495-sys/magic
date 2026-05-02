@@ -14,4 +14,6 @@ extends Resource
 
 
 func matches_value(value: int) -> bool:
-	return value >= min_value and value <= max_value
+	if value < min_value:
+		return false
+	return max_value <= 0 or value <= max_value

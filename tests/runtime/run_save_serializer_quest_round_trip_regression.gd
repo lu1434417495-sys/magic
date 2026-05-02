@@ -17,12 +17,20 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_save_serializer_round_trip_preserves_party_quest_schema()
 	_test_world_map_template_bindings_round_trip()
-	_test_extract_save_meta_recovers_missing_slot_fields()
+	_test_extract_save_meta_rejects_missing_slot_fields()
 	_test_normalize_party_state_keeps_main_character_active()
 	_test_normalize_party_state_preserves_explicit_dead_main_character()
 	_test_party_state_from_dict_requires_main_character_member_id()
+	_test_party_state_from_dict_requires_claimable_quests()
+	_test_party_state_from_dict_requires_roster_header_fields()
+	_test_party_state_from_dict_requires_member_schema_fields()
+	_test_party_state_from_dict_rejects_bad_quest_state_schema()
+	_test_party_state_from_dict_rejects_bad_completed_quest_ids()
 	_test_party_state_from_dict_rejects_overlapping_quest_buckets()
 	_test_decode_v5_payload_rejects_missing_main_character_member_id()
+	_test_decode_v5_payload_rejects_missing_claimable_quests()
+	_test_decode_v5_payload_rejects_missing_roster_header_fields()
+	_test_decode_v5_payload_rejects_missing_member_schema_fields()
 
 	if _failures.is_empty():
 		print("Save serializer quest round trip regression: PASS")
@@ -184,16 +192,16 @@ func _test_world_map_template_bindings_round_trip() -> void:
 	_cleanup_test_session(game_session)
 
 
-func _test_extract_save_meta_recovers_missing_slot_fields() -> void:
+func _test_extract_save_meta_rejects_missing_slot_fields() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
-	_assert_true(create_error == OK, "Save meta 恢复回归需要可创建的测试世界。")
+	_assert_true(create_error == OK, "Save meta 严格校验回归需要可创建的测试世界。")
 	if create_error != OK:
 		_cleanup_test_session(game_session)
 		return
 
 	var serializer = game_session._save_serializer
-	_assert_true(serializer != null, "Save meta 恢复回归需要已初始化的 SaveSerializer。")
+	_assert_true(serializer != null, "Save meta 严格校验回归需要已初始化的 SaveSerializer。")
 	if serializer == null:
 		_cleanup_test_session(game_session)
 		return
@@ -212,32 +220,31 @@ func _test_extract_save_meta_recovers_missing_slot_fields() -> void:
 		"world_preset_id": String(game_session.get_active_save_meta().get("world_preset_id", "")),
 	}
 
-	var recovered_meta: Dictionary = serializer.extract_save_meta_from_payload(payload, game_session.get_active_save_id())
-	_assert_true(not recovered_meta.is_empty(), "缺失 display_name/world_size/timestamps 的 save meta 应能从 payload 恢复。")
-	if not recovered_meta.is_empty():
-		_assert_eq(
-			String(recovered_meta.get("display_name", "")),
-			String(game_session.get_active_save_id()),
-			"缺失 display_name 时应回退到 save_id。"
-		)
-		_assert_eq(
-			String(recovered_meta.get("world_preset_name", "")),
-			String(game_session.get_active_save_meta().get("world_preset_name", "")),
-			"缺失 world_preset_name 时应回退到 registry 的预设名。"
-		)
-		_assert_eq(
-			recovered_meta.get("world_size_cells", Vector2i.ZERO),
-			game_session.get_active_save_meta().get("world_size_cells", Vector2i.ZERO),
-			"缺失 world_size_cells 时应通过 generation config 恢复。"
-		)
-		_assert_true(
-			int(recovered_meta.get("created_at_unix_time", 0)) > 0,
-			"缺失 created_at_unix_time 时应回退到 payload.meta.saved_at_unix_time。"
-		)
-		_assert_true(
-			int(recovered_meta.get("updated_at_unix_time", 0)) > 0,
-			"缺失 updated_at_unix_time 时应回退到 payload.meta.saved_at_unix_time。"
-		)
+	var rejected_meta: Dictionary = serializer.extract_save_meta_from_payload(payload)
+	_assert_true(rejected_meta.is_empty(), "缺失 display_name/world_size/timestamps 的 save_slot_meta 应直接拒绝。")
+	var decode_result: Dictionary = serializer.decode_v5_payload(
+		payload,
+		game_session.get_generation_config_path(),
+		game_session.get_generation_config(),
+		game_session.get_active_save_meta()
+	)
+	_assert_eq(int(decode_result.get("error", OK)), ERR_INVALID_DATA, "缺失完整 save_slot_meta 的 payload 应直接判为坏数据。")
+
+	var missing_generation_path_payload: Dictionary = serializer.build_save_payload(
+		game_session.get_active_save_id(),
+		game_session.get_generation_config_path(),
+		game_session.get_active_save_meta(),
+		game_session.get_world_data(),
+		game_session.get_player_coord(),
+		game_session.get_player_faction_id(),
+		game_session.get_party_state(),
+		int(Time.get_unix_time_from_system())
+	)
+	missing_generation_path_payload.erase("generation_config_path")
+	_assert_true(
+		serializer.extract_save_meta_from_payload(missing_generation_path_payload).is_empty(),
+		"缺失 generation_config_path 的 payload 不应再从调用方参数恢复 meta。"
+	)
 
 	_cleanup_test_session(game_session)
 
@@ -354,6 +361,226 @@ func _test_party_state_from_dict_requires_main_character_member_id() -> void:
 	_assert_true(invalid_party_state == null, "缺少 main_character_member_id 的旧 PartyState shape 不再支持。")
 
 
+func _test_party_state_from_dict_requires_claimable_quests() -> void:
+	var invalid_party_state = PartyState.from_dict({
+		"version": 3,
+		"gold": 180,
+		"leader_member_id": "hero",
+		"main_character_member_id": "hero",
+		"fate_run_flags": {},
+		"meta_flags": {},
+		"active_member_ids": ["hero"],
+		"reserve_member_ids": [],
+		"member_states": {
+			"hero": _build_party_member_state(&"hero", "Hero").to_dict(),
+		},
+		"pending_character_rewards": [],
+		"active_quests": [],
+		"completed_quest_ids": [],
+		"warehouse_state": {"stacks": [], "equipment_instances": []},
+	})
+	_assert_true(invalid_party_state == null, "缺少 claimable_quests 的 PartyState shape 应直接拒绝。")
+
+
+func _test_party_state_from_dict_requires_roster_header_fields() -> void:
+	for field_name in ["version", "gold", "leader_member_id", "active_member_ids", "reserve_member_ids"]:
+		var party_state_payload := _build_minimal_party_state_payload()
+		party_state_payload.erase(field_name)
+		var invalid_party_state = PartyState.from_dict(party_state_payload)
+		_assert_true(invalid_party_state == null, "缺少 %s 的 PartyState shape 应直接拒绝。" % field_name)
+
+	for field_name in ["active_member_ids", "reserve_member_ids"]:
+		var party_state_payload := _build_minimal_party_state_payload()
+		party_state_payload[field_name] = "hero"
+		var invalid_party_state = PartyState.from_dict(party_state_payload)
+		_assert_true(invalid_party_state == null, "%s 不是数组的 PartyState shape 应直接拒绝。" % field_name)
+
+	for field_case in [
+		{"field": "leader_member_id", "value": ""},
+		{"field": "leader_member_id", "value": "ghost"},
+		{"field": "leader_member_id", "value": 123},
+		{"field": "main_character_member_id", "value": "ghost"},
+		{"field": "main_character_member_id", "value": 123},
+		{"field": "version", "value": "3"},
+		{"field": "version", "value": 2},
+		{"field": "gold", "value": "180"},
+		{"field": "gold", "value": -1},
+		{"field": "active_member_ids", "value": [""]},
+		{"field": "active_member_ids", "value": ["hero", "hero"]},
+		{"field": "active_member_ids", "value": ["ghost"]},
+		{"field": "reserve_member_ids", "value": [""]},
+		{"field": "reserve_member_ids", "value": ["hero", "hero"]},
+		{"field": "reserve_member_ids", "value": ["ghost"]},
+	]:
+		var party_state_payload := _build_minimal_party_state_payload()
+		party_state_payload[String(field_case.get("field", ""))] = field_case.get("value")
+		var invalid_party_state = PartyState.from_dict(party_state_payload)
+		_assert_true(
+			invalid_party_state == null,
+			"%s 类型错误、取值非法、重复或引用未知成员的 PartyState shape 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	var overlapping_roster_payload := _build_minimal_party_state_payload()
+	overlapping_roster_payload["reserve_member_ids"] = ["hero"]
+	_assert_true(
+		PartyState.from_dict(overlapping_roster_payload) == null,
+		"同一成员同时出现在 active/reserve roster 时应直接拒绝。"
+	)
+
+
+func _test_party_state_from_dict_requires_member_schema_fields() -> void:
+	for field_name in [
+		"member_id",
+		"display_name",
+		"faction_id",
+		"portrait_id",
+		"control_mode",
+		"current_hp",
+		"current_mp",
+		"is_dead",
+		"body_size",
+	]:
+		var missing_field_payload := _build_party_payload_with_member_field_removed(field_name)
+		_assert_true(
+			PartyState.from_dict(missing_field_payload) == null,
+			"缺少成员字段 %s 的 PartyState shape 应直接拒绝。" % field_name
+		)
+
+	for field_case in [
+		{"field": "member_id", "value": ""},
+		{"field": "member_id", "value": 123},
+		{"field": "display_name", "value": ""},
+		{"field": "display_name", "value": 123},
+		{"field": "faction_id", "value": ""},
+		{"field": "faction_id", "value": 123},
+		{"field": "portrait_id", "value": 123},
+		{"field": "control_mode", "value": ""},
+		{"field": "control_mode", "value": 123},
+		{"field": "current_hp", "value": "18"},
+		{"field": "current_hp", "value": -1},
+		{"field": "current_mp", "value": "6"},
+		{"field": "current_mp", "value": -1},
+		{"field": "is_dead", "value": 0},
+		{"field": "body_size", "value": "1"},
+		{"field": "body_size", "value": 0},
+	]:
+		var invalid_field_payload := _build_party_payload_with_member_field_value(
+			String(field_case.get("field", "")),
+			field_case.get("value")
+		)
+		_assert_true(
+			PartyState.from_dict(invalid_field_payload) == null,
+			"成员字段 %s 非法的 PartyState shape 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	var mismatched_key_payload := _build_party_payload_with_member_field_value("member_id", "mage")
+	_assert_true(
+		PartyState.from_dict(mismatched_key_payload) == null,
+		"member_states key 与成员 member_id 不一致的 PartyState shape 应直接拒绝。"
+	)
+
+	for field_name in ["unit_id", "display_name"]:
+		var missing_progression_payload := _build_party_payload_with_progression_field_removed(field_name)
+		_assert_true(
+			PartyState.from_dict(missing_progression_payload) == null,
+			"缺少 progression.%s 的 PartyState shape 应直接拒绝。" % field_name
+		)
+
+	for field_case in [
+		{"field": "unit_id", "value": ""},
+		{"field": "unit_id", "value": "mage"},
+		{"field": "display_name", "value": ""},
+	]:
+		var invalid_progression_payload := _build_party_payload_with_progression_field_value(
+			String(field_case.get("field", "")),
+			field_case.get("value")
+		)
+		_assert_true(
+			PartyState.from_dict(invalid_progression_payload) == null,
+			"progression.%s 非法的 PartyState shape 应直接拒绝。" % String(field_case.get("field", ""))
+	)
+
+
+func _test_party_state_from_dict_rejects_bad_quest_state_schema() -> void:
+	for field_name in [
+		"quest_id",
+		"status_id",
+		"objective_progress",
+		"accepted_at_world_step",
+		"completed_at_world_step",
+		"reward_claimed_at_world_step",
+		"last_progress_context",
+	]:
+		var active_payload := _build_minimal_party_state_payload()
+		var active_quest_payload := _build_active_quest_payload()
+		active_quest_payload.erase(field_name)
+		active_payload["active_quests"] = [active_quest_payload]
+		_assert_true(
+			PartyState.from_dict(active_payload) == null,
+			"active_quests 内 QuestState.%s 缺失的 PartyState shape 应直接拒绝。" % field_name
+		)
+
+		var claimable_payload := _build_minimal_party_state_payload()
+		var claimable_quest_payload := _build_claimable_quest_payload()
+		claimable_quest_payload.erase(field_name)
+		claimable_payload["claimable_quests"] = [claimable_quest_payload]
+		_assert_true(
+			PartyState.from_dict(claimable_payload) == null,
+			"claimable_quests 内 QuestState.%s 缺失的 PartyState shape 应直接拒绝。" % field_name
+		)
+
+	for field_case in [
+		{"field": "status_id", "value": "legacy_unknown"},
+		{"field": "objective_progress", "value": []},
+		{"field": "last_progress_context", "value": []},
+	]:
+		var payload := _build_minimal_party_state_payload()
+		var quest_payload := _build_active_quest_payload()
+		quest_payload[String(field_case.get("field", ""))] = field_case.get("value")
+		payload["active_quests"] = [quest_payload]
+		_assert_true(
+			PartyState.from_dict(payload) == null,
+			"active_quests 内 QuestState.%s 非法的 PartyState shape 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	var wrong_active_status_payload := _build_minimal_party_state_payload()
+	wrong_active_status_payload["active_quests"] = [_build_claimable_quest_payload()]
+	_assert_true(
+		PartyState.from_dict(wrong_active_status_payload) == null,
+		"active_quests 内部 status 不是 active 时应直接拒绝。"
+	)
+
+	var wrong_claimable_status_payload := _build_minimal_party_state_payload()
+	wrong_claimable_status_payload["claimable_quests"] = [_build_active_quest_payload()]
+	_assert_true(
+		PartyState.from_dict(wrong_claimable_status_payload) == null,
+		"claimable_quests 内部 status 不是 completed 时应直接拒绝。"
+	)
+
+	var duplicate_active_payload := _build_minimal_party_state_payload()
+	duplicate_active_payload["active_quests"] = [
+		_build_active_quest_payload(),
+		_build_active_quest_payload(),
+	]
+	_assert_true(
+		PartyState.from_dict(duplicate_active_payload) == null,
+		"active_quests 内重复 quest_id 时应直接拒绝。"
+	)
+
+
+func _test_party_state_from_dict_rejects_bad_completed_quest_ids() -> void:
+	for completed_quest_ids in [
+		[""],
+		["intro_contract", "intro_contract"],
+	]:
+		var payload := _build_minimal_party_state_payload()
+		payload["completed_quest_ids"] = completed_quest_ids
+		_assert_true(
+			PartyState.from_dict(payload) == null,
+			"completed_quest_ids 内空 id 或重复 id 应直接拒绝。"
+		)
+
+
 func _test_party_state_from_dict_rejects_overlapping_quest_buckets() -> void:
 	var active_quest := QuestState.new()
 	active_quest.quest_id = &"contract_overlap"
@@ -420,6 +647,252 @@ func _test_decode_v5_payload_rejects_missing_main_character_member_id() -> void:
 	_assert_eq(int(decode_result.get("error", OK)), ERR_INVALID_DATA, "缺少 main_character_member_id 的旧存档应直接判为坏数据。")
 
 	_cleanup_test_session(game_session)
+
+
+func _test_decode_v5_payload_rejects_missing_claimable_quests() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_true(create_error == OK, "缺 claimable_quests 字段的存档回归需要可创建的测试世界。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var serializer = game_session._save_serializer
+	_assert_true(serializer != null, "缺 claimable_quests 字段的存档回归需要已初始化的 SaveSerializer。")
+	if serializer == null:
+		_cleanup_test_session(game_session)
+		return
+
+	var payload: Dictionary = serializer.build_save_payload(
+		game_session.get_active_save_id(),
+		game_session.get_generation_config_path(),
+		game_session.get_active_save_meta(),
+		game_session.get_world_data(),
+		game_session.get_player_coord(),
+		game_session.get_player_faction_id(),
+		game_session.get_party_state(),
+		int(Time.get_unix_time_from_system())
+	)
+	var party_state_payload: Dictionary = (payload.get("party_state", {}) as Dictionary).duplicate(true)
+	party_state_payload.erase("claimable_quests")
+	payload["party_state"] = party_state_payload
+
+	var decode_result: Dictionary = serializer.decode_v5_payload(
+		payload,
+		game_session.get_generation_config_path(),
+		game_session.get_generation_config(),
+		game_session.get_active_save_meta()
+	)
+	_assert_eq(int(decode_result.get("error", OK)), ERR_INVALID_DATA, "缺少 claimable_quests 的存档应直接判为坏数据。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_decode_v5_payload_rejects_missing_roster_header_fields() -> void:
+	for field_name in ["version", "gold", "leader_member_id", "active_member_ids", "reserve_member_ids"]:
+		var game_session = GAME_SESSION_SCRIPT.new()
+		var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+		_assert_true(create_error == OK, "缺 %s 字段的存档回归需要可创建的测试世界。" % field_name)
+		if create_error != OK:
+			_cleanup_test_session(game_session)
+			continue
+
+		var serializer = game_session._save_serializer
+		_assert_true(serializer != null, "缺 %s 字段的存档回归需要已初始化的 SaveSerializer。" % field_name)
+		if serializer == null:
+			_cleanup_test_session(game_session)
+			continue
+
+		var payload: Dictionary = serializer.build_save_payload(
+			game_session.get_active_save_id(),
+			game_session.get_generation_config_path(),
+			game_session.get_active_save_meta(),
+			game_session.get_world_data(),
+			game_session.get_player_coord(),
+			game_session.get_player_faction_id(),
+			game_session.get_party_state(),
+			int(Time.get_unix_time_from_system())
+		)
+		var party_state_payload: Dictionary = (payload.get("party_state", {}) as Dictionary).duplicate(true)
+		party_state_payload.erase(field_name)
+		payload["party_state"] = party_state_payload
+
+		var decode_result: Dictionary = serializer.decode_v5_payload(
+			payload,
+			game_session.get_generation_config_path(),
+			game_session.get_generation_config(),
+			game_session.get_active_save_meta()
+		)
+		_assert_eq(
+			int(decode_result.get("error", OK)),
+			ERR_INVALID_DATA,
+			"缺少 %s 的存档应直接判为坏数据。" % field_name
+		)
+
+		_cleanup_test_session(game_session)
+
+
+func _test_decode_v5_payload_rejects_missing_member_schema_fields() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_true(create_error == OK, "缺成员 schema 字段的存档回归需要可创建的测试世界。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var serializer = game_session._save_serializer
+	_assert_true(serializer != null, "缺成员 schema 字段的存档回归需要已初始化的 SaveSerializer。")
+	if serializer == null:
+		_cleanup_test_session(game_session)
+		return
+
+	for field_case in [
+		{"scope": "member", "field": "member_id"},
+		{"scope": "member", "field": "control_mode"},
+		{"scope": "progression", "field": "unit_id"},
+	]:
+		var payload := _build_save_payload_for_session(game_session, serializer)
+		_erase_main_member_payload_field(
+			payload,
+			game_session,
+			String(field_case.get("scope", "")),
+			String(field_case.get("field", ""))
+		)
+
+		var decode_result: Dictionary = serializer.decode_v5_payload(
+			payload,
+			game_session.get_generation_config_path(),
+			game_session.get_generation_config(),
+			game_session.get_active_save_meta()
+		)
+		_assert_eq(
+			int(decode_result.get("error", OK)),
+			ERR_INVALID_DATA,
+			"缺少 %s.%s 的存档应直接判为坏数据。" % [String(field_case.get("scope", "")), String(field_case.get("field", ""))]
+		)
+
+	_cleanup_test_session(game_session)
+
+
+func _build_save_payload_for_session(game_session, serializer) -> Dictionary:
+	return serializer.build_save_payload(
+		game_session.get_active_save_id(),
+		game_session.get_generation_config_path(),
+		game_session.get_active_save_meta(),
+		game_session.get_world_data(),
+		game_session.get_player_coord(),
+		game_session.get_player_faction_id(),
+		game_session.get_party_state(),
+		int(Time.get_unix_time_from_system())
+	)
+
+
+func _build_minimal_party_state_payload() -> Dictionary:
+	return {
+		"version": 3,
+		"gold": 180,
+		"leader_member_id": "hero",
+		"main_character_member_id": "hero",
+		"fate_run_flags": {},
+		"meta_flags": {},
+		"active_member_ids": ["hero"],
+		"reserve_member_ids": [],
+		"member_states": {
+			"hero": _build_party_member_state(&"hero", "Hero").to_dict(),
+		},
+		"pending_character_rewards": [],
+		"active_quests": [],
+		"claimable_quests": [],
+		"completed_quest_ids": [],
+		"warehouse_state": {"stacks": [], "equipment_instances": []},
+	}
+
+
+func _build_active_quest_payload() -> Dictionary:
+	var quest_state := QuestState.new()
+	quest_state.quest_id = &"contract_schema_strict"
+	quest_state.mark_accepted(4)
+	quest_state.record_objective_progress(
+		&"report_back",
+		1,
+		2,
+		{"settlement_id": "spring_village_01"}
+	)
+	return quest_state.to_dict()
+
+
+func _build_claimable_quest_payload() -> Dictionary:
+	var quest_state := QuestState.new()
+	quest_state.quest_id = &"contract_schema_strict"
+	quest_state.mark_accepted(4)
+	quest_state.record_objective_progress(
+		&"report_back",
+		2,
+		2,
+		{"settlement_id": "spring_village_01"}
+	)
+	quest_state.mark_completed(7)
+	return quest_state.to_dict()
+
+
+func _build_party_payload_with_member_field_removed(field_name: String) -> Dictionary:
+	var payload := _build_minimal_party_state_payload()
+	var member_states: Dictionary = (payload.get("member_states", {}) as Dictionary).duplicate(true)
+	var member_payload: Dictionary = (member_states.get("hero", {}) as Dictionary).duplicate(true)
+	member_payload.erase(field_name)
+	member_states["hero"] = member_payload
+	payload["member_states"] = member_states
+	return payload
+
+
+func _build_party_payload_with_member_field_value(field_name: String, value) -> Dictionary:
+	var payload := _build_minimal_party_state_payload()
+	var member_states: Dictionary = (payload.get("member_states", {}) as Dictionary).duplicate(true)
+	var member_payload: Dictionary = (member_states.get("hero", {}) as Dictionary).duplicate(true)
+	member_payload[field_name] = value
+	member_states["hero"] = member_payload
+	payload["member_states"] = member_states
+	return payload
+
+
+func _build_party_payload_with_progression_field_removed(field_name: String) -> Dictionary:
+	var payload := _build_minimal_party_state_payload()
+	var member_states: Dictionary = (payload.get("member_states", {}) as Dictionary).duplicate(true)
+	var member_payload: Dictionary = (member_states.get("hero", {}) as Dictionary).duplicate(true)
+	var progression_payload: Dictionary = (member_payload.get("progression", {}) as Dictionary).duplicate(true)
+	progression_payload.erase(field_name)
+	member_payload["progression"] = progression_payload
+	member_states["hero"] = member_payload
+	payload["member_states"] = member_states
+	return payload
+
+
+func _build_party_payload_with_progression_field_value(field_name: String, value) -> Dictionary:
+	var payload := _build_minimal_party_state_payload()
+	var member_states: Dictionary = (payload.get("member_states", {}) as Dictionary).duplicate(true)
+	var member_payload: Dictionary = (member_states.get("hero", {}) as Dictionary).duplicate(true)
+	var progression_payload: Dictionary = (member_payload.get("progression", {}) as Dictionary).duplicate(true)
+	progression_payload[field_name] = value
+	member_payload["progression"] = progression_payload
+	member_states["hero"] = member_payload
+	payload["member_states"] = member_states
+	return payload
+
+
+func _erase_main_member_payload_field(payload: Dictionary, game_session, scope: String, field_name: String) -> void:
+	var party_state_payload: Dictionary = (payload.get("party_state", {}) as Dictionary).duplicate(true)
+	var member_states: Dictionary = (party_state_payload.get("member_states", {}) as Dictionary).duplicate(true)
+	var member_id := String(game_session.get_party_state().main_character_member_id)
+	var member_payload: Dictionary = (member_states.get(member_id, {}) as Dictionary).duplicate(true)
+	if scope == "progression":
+		var progression_payload: Dictionary = (member_payload.get("progression", {}) as Dictionary).duplicate(true)
+		progression_payload.erase(field_name)
+		member_payload["progression"] = progression_payload
+	else:
+		member_payload.erase(field_name)
+	member_states[member_id] = member_payload
+	party_state_payload["member_states"] = member_states
+	payload["party_state"] = party_state_payload
 
 
 func _build_party_member_state(member_id: StringName, display_name: String, is_dead: bool = false) -> PartyMemberState:

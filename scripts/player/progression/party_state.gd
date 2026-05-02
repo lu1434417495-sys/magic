@@ -7,7 +7,6 @@ extends RefCounted
 
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
-const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
 const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const QUEST_STATE_SCRIPT = preload("res://scripts/player/progression/quest_state.gd")
@@ -391,7 +390,8 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Dictionary):
 	if data.is_empty():
 		return null
-	if int(data.get("version", 0)) != 3:
+	var version_variant: Variant = data.get("version", null)
+	if version_variant is not int or int(version_variant) != 3:
 		return null
 	if not data.has("main_character_member_id"):
 		return null
@@ -407,7 +407,7 @@ static func from_dict(data: Dictionary):
 	var active_quests_variant: Variant = data.get("active_quests", null)
 	if active_quests_variant is not Array:
 		return null
-	var claimable_quests_variant: Variant = data.get("claimable_quests", [])
+	var claimable_quests_variant: Variant = data.get("claimable_quests", null)
 	if claimable_quests_variant is not Array:
 		return null
 	var completed_quest_ids_variant: Variant = data.get("completed_quest_ids", null)
@@ -423,38 +423,87 @@ static func from_dict(data: Dictionary):
 	var meta_flags_variant: Variant = data.get("meta_flags", null)
 	if meta_flags_variant is not Dictionary:
 		return null
+	if not data.has("gold"):
+		return null
+	var gold_variant: Variant = data.get("gold", null)
+	if gold_variant is not int or int(gold_variant) < 0:
+		return null
+	if not data.has("leader_member_id"):
+		return null
+	var leader_member_id_variant: Variant = data.get("leader_member_id", null)
+	var parsed_leader_member_id = _parse_required_string_name(leader_member_id_variant)
+	if parsed_leader_member_id == null:
+		return null
+	var main_character_member_id_variant: Variant = data.get("main_character_member_id", null)
+	var parsed_main_character_member_id = _parse_required_string_name(main_character_member_id_variant)
+	if parsed_main_character_member_id == null:
+		return null
+	var active_member_ids_variant: Variant = data.get("active_member_ids", null)
+	if active_member_ids_variant is not Array:
+		return null
+	var reserve_member_ids_variant: Variant = data.get("reserve_member_ids", null)
+	if reserve_member_ids_variant is not Array:
+		return null
 
 	var party_state := PARTY_STATE_SCRIPT.new()
-	party_state.version = int(data.get("version", 3))
-	party_state.gold = maxi(int(data.get("gold", 0)), 0)
-	party_state.leader_member_id = ProgressionDataUtils.to_string_name(data.get("leader_member_id", ""))
-	party_state.main_character_member_id = ProgressionDataUtils.to_string_name(data.get("main_character_member_id", ""))
-	party_state.set_fate_run_flags(fate_run_flags_variant)
-	party_state.set_meta_flags(meta_flags_variant)
-	party_state.active_member_ids = ProgressionDataUtils.to_string_name_array(data.get("active_member_ids", []))
-	party_state.reserve_member_ids = ProgressionDataUtils.to_string_name_array(data.get("reserve_member_ids", []))
+	party_state.version = int(version_variant)
+	party_state.gold = int(gold_variant)
+	party_state.leader_member_id = parsed_leader_member_id
+	party_state.main_character_member_id = parsed_main_character_member_id
+	var parsed_fate_run_flags = _parse_boolean_flag_dict(fate_run_flags_variant)
+	if parsed_fate_run_flags == null:
+		return null
+	var parsed_meta_flags = _parse_boolean_flag_dict(meta_flags_variant)
+	if parsed_meta_flags == null:
+		return null
+	var parsed_active_member_ids = _parse_unique_string_name_array(active_member_ids_variant)
+	if parsed_active_member_ids == null:
+		return null
+	var parsed_reserve_member_ids = _parse_unique_string_name_array(reserve_member_ids_variant)
+	if parsed_reserve_member_ids == null:
+		return null
+	party_state.fate_run_flags = parsed_fate_run_flags
+	party_state.meta_flags = parsed_meta_flags
+	party_state.active_member_ids = parsed_active_member_ids
+	party_state.reserve_member_ids = parsed_reserve_member_ids
 	party_state.warehouse_state = WAREHOUSE_STATE_SCRIPT.from_dict(warehouse_state_data)
 	if party_state.warehouse_state == null:
 		return null
 
 	for key in member_states_data.keys():
-		var member_state = PARTY_MEMBER_STATE_SCRIPT.from_dict(member_states_data[key])
+		var serialized_member_id := ProgressionDataUtils.to_string_name(key)
+		if serialized_member_id == &"":
+			return null
+		var member_state_payload: Variant = member_states_data[key]
+		if member_state_payload is not Dictionary:
+			return null
+		var member_state = PARTY_MEMBER_STATE_SCRIPT.from_dict(member_state_payload)
 		if member_state == null:
 			return null
-		if member_state.member_id == &"":
-			member_state.member_id = ProgressionDataUtils.to_string_name(key)
-		if member_state.progression == null:
-			member_state.progression = UNIT_PROGRESS_SCRIPT.new()
-		if member_state.progression.unit_id == &"":
-			member_state.progression.unit_id = member_state.member_id
-		if member_state.progression.display_name.is_empty():
-			member_state.progression.display_name = member_state.display_name
+		if member_state.member_id != serialized_member_id:
+			return null
+		if party_state.member_states.has(member_state.member_id):
+			return null
 		party_state.member_states[member_state.member_id] = member_state
 
+	if party_state.leader_member_id == &"" or not party_state.has_member_state(party_state.leader_member_id):
+		return null
+	var roster_seen_ids: Dictionary = {}
+	for member_id in party_state.active_member_ids:
+		if not party_state.has_member_state(member_id):
+			return null
+		roster_seen_ids[member_id] = true
+	for member_id in party_state.reserve_member_ids:
+		if roster_seen_ids.has(member_id) or not party_state.has_member_state(member_id):
+			return null
+		roster_seen_ids[member_id] = true
+
 	for reward_variant in pending_rewards_variant:
-		var reward = PENDING_CHARACTER_REWARD_SCRIPT.from_variant(reward_variant)
+		if reward_variant is not Dictionary:
+			return null
+		var reward = PENDING_CHARACTER_REWARD_SCRIPT.from_dict(reward_variant)
 		if reward == null or reward.is_empty():
-			continue
+			return null
 		party_state.pending_character_rewards.append(reward)
 
 	for quest_variant in active_quests_variant:
@@ -462,7 +511,9 @@ static func from_dict(data: Dictionary):
 			return null
 		var quest_state: QuestState = QUEST_STATE_SCRIPT.from_dict(quest_variant)
 		if quest_state == null or quest_state.quest_id == &"" or party_state.has_active_quest(quest_state.quest_id):
-			continue
+			return null
+		if quest_state.status_id != QuestState.STATUS_ACTIVE:
+			return null
 		party_state.active_quests.append(quest_state)
 
 	for quest_variant in claimable_quests_variant:
@@ -470,12 +521,15 @@ static func from_dict(data: Dictionary):
 			return null
 		var quest_state: QuestState = QUEST_STATE_SCRIPT.from_dict(quest_variant)
 		if quest_state == null or quest_state.quest_id == &"" or party_state.has_claimable_quest(quest_state.quest_id):
-			continue
+			return null
+		if quest_state.status_id != QuestState.STATUS_COMPLETED:
+			return null
 		party_state.claimable_quests.append(quest_state)
 
-	party_state.completed_quest_ids = _normalize_unique_string_name_array(
-		ProgressionDataUtils.to_string_name_array(completed_quest_ids_variant)
-	)
+	var parsed_completed_quest_ids = _parse_completed_quest_ids(completed_quest_ids_variant)
+	if parsed_completed_quest_ids == null:
+		return null
+	party_state.completed_quest_ids = parsed_completed_quest_ids
 	var active_quest_ids := party_state.get_active_quest_ids()
 	var claimable_quest_ids := party_state.get_claimable_quest_ids()
 	for quest_id in active_quest_ids:
@@ -518,6 +572,46 @@ static func _normalize_unique_string_name_array(values: Array) -> Array[StringNa
 		seen_values[normalized_value] = true
 		normalized_values.append(normalized_value)
 	return normalized_values
+
+
+static func _parse_required_string_name(value: Variant):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"":
+		return null
+	return parsed_value
+
+
+static func _parse_unique_string_name_array(values: Array):
+	var parsed_values: Array[StringName] = []
+	var seen_values: Dictionary = {}
+	for raw_value in values:
+		var parsed_value := ProgressionDataUtils.to_string_name(raw_value)
+		if parsed_value == &"" or seen_values.has(parsed_value):
+			return null
+		seen_values[parsed_value] = true
+		parsed_values.append(parsed_value)
+	return parsed_values
+
+
+static func _parse_completed_quest_ids(values: Array):
+	return _parse_unique_string_name_array(values)
+
+
+static func _parse_boolean_flag_dict(values: Dictionary):
+	var parsed_flags: Dictionary = {}
+	var seen_flag_ids: Dictionary = {}
+	for raw_key in values.keys():
+		var flag_id := ProgressionDataUtils.to_string_name(raw_key)
+		if flag_id == &"" or seen_flag_ids.has(flag_id):
+			return null
+		if values[raw_key] is not bool:
+			return null
+		seen_flag_ids[flag_id] = true
+		parsed_flags[flag_id] = bool(values[raw_key])
+	return parsed_flags
 
 
 static func _normalize_fate_run_flags(values: Variant) -> Dictionary:

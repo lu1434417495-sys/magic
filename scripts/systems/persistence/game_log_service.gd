@@ -6,18 +6,20 @@ signal entry_added(entry: Dictionary)
 const LOG_DIRECTORY := "user://logs"
 const DEFAULT_BUFFER_LIMIT := 400
 const DEFAULT_TAIL_LIMIT := 50
+const DEFAULT_FILE_OUTPUT_ENABLED := false
 
 var _entries: Array[Dictionary] = []
 var _max_entries := DEFAULT_BUFFER_LIMIT
 var _next_seq := 1
 var _session_log_virtual_path := ""
-var _write_enabled := true
+var _file_output_enabled := DEFAULT_FILE_OUTPUT_ENABLED
+var _write_enabled := false
 
 
-func _init(max_entries: int = DEFAULT_BUFFER_LIMIT) -> void:
+func _init(max_entries: int = DEFAULT_BUFFER_LIMIT, file_output_enabled: bool = DEFAULT_FILE_OUTPUT_ENABLED) -> void:
 	_max_entries = maxi(max_entries, 1)
-	_session_log_virtual_path = _build_session_log_virtual_path()
-	_initialize_log_file()
+	_file_output_enabled = file_output_enabled
+	_start_file_session_if_enabled()
 
 
 func append_entry(
@@ -60,6 +62,8 @@ func build_snapshot(limit: int = DEFAULT_TAIL_LIMIT) -> Dictionary:
 	return {
 		"file_path": get_log_path(),
 		"virtual_path": _session_log_virtual_path,
+		"file_output_enabled": _file_output_enabled,
+		"file_write_active": _write_enabled,
 		"entry_count": _entries.size(),
 		"buffer_limit": _max_entries,
 		"entries": get_recent_entries(limit),
@@ -69,9 +73,7 @@ func build_snapshot(limit: int = DEFAULT_TAIL_LIMIT) -> Dictionary:
 func start_new_session() -> void:
 	clear_entries()
 	_next_seq = 1
-	_write_enabled = true
-	_session_log_virtual_path = _build_session_log_virtual_path()
-	_initialize_log_file()
+	_start_file_session_if_enabled()
 
 
 func clear_entries() -> void:
@@ -88,6 +90,17 @@ func get_virtual_log_path() -> String:
 	return _session_log_virtual_path
 
 
+func set_file_output_enabled(enabled: bool) -> void:
+	if _file_output_enabled == enabled:
+		return
+	_file_output_enabled = enabled
+	_start_file_session_if_enabled()
+
+
+func is_file_output_enabled() -> bool:
+	return _file_output_enabled
+
+
 func _build_session_log_virtual_path() -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
@@ -99,7 +112,18 @@ func _build_session_log_virtual_path() -> String:
 	]
 
 
+func _start_file_session_if_enabled() -> void:
+	_write_enabled = false
+	_session_log_virtual_path = ""
+	if not _file_output_enabled:
+		return
+	_session_log_virtual_path = _build_session_log_virtual_path()
+	_initialize_log_file()
+
+
 func _initialize_log_file() -> void:
+	if not _file_output_enabled or _session_log_virtual_path.is_empty():
+		return
 	var ensure_dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(LOG_DIRECTORY))
 	if ensure_dir_error != OK:
 		_disable_file_write("Failed to create log directory %s. Error: %d" % [LOG_DIRECTORY, ensure_dir_error])
@@ -112,6 +136,7 @@ func _initialize_log_file() -> void:
 		])
 		return
 	file.close()
+	_write_enabled = true
 
 
 func _append_to_file(entry: Dictionary) -> void:

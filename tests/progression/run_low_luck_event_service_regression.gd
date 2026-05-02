@@ -26,6 +26,7 @@ func _run() -> void:
 	_test_broken_bridge_survival_triggers_once_per_run()
 	_test_lamp_without_witness_triggers_once_per_run()
 	_test_borrowed_road_triggers_once_per_run()
+	_test_legacy_string_member_tracking_keys_do_not_trigger()
 
 	if _failures.is_empty():
 		print("Low luck event service regression: PASS")
@@ -201,6 +202,36 @@ func _test_borrowed_road_triggers_once_per_run() -> void:
 		"同周目重复满足大失败获胜条件时不应再次触发死里借来的路。"
 	)
 	_assert_true((second_result.get("pending_character_rewards", []) as Array).is_empty(), "去重后死里借来的路不应重复排入奖励。")
+
+
+func _test_legacy_string_member_tracking_keys_do_not_trigger() -> void:
+	var context := _build_context(-5)
+	var service: LowLuckEventService = context.get("service") as LowLuckEventService
+	var party_state: PartyState = context.get("party_state") as PartyState
+	if service == null or party_state == null:
+		_assert_true(false, "legacy string member key regression 前置构建失败。")
+		return
+
+	var battle_id: StringName = &"legacy_string_member_key"
+	service._critical_fail_by_battle_id[battle_id] = {
+		String(HERO_ID): true,
+	}
+	var result := service.handle_battle_resolution(
+		_build_battle_state(battle_id, true),
+		_build_battle_resolution_result(battle_id)
+	)
+	_assert_true(
+		(result.get("triggered_event_ids", []) as Array).is_empty(),
+		"battle member tracking 只有 legacy String key 时不应触发 low luck 事件。"
+	)
+	_assert_true(
+		(result.get("pending_character_rewards", []) as Array).is_empty(),
+		"battle member tracking 只有 legacy String key 时不应排入奖励。"
+	)
+	_assert_true(
+		not party_state.has_meta_flag(_build_member_flag_id(LowLuckEventService.EVENT_BORROWED_ROAD)),
+		"battle member tracking 只有 legacy String key 时不应写入去重 flag。"
+	)
 
 
 func _build_context(hidden_luck_at_birth: int, party_state: PartyState = null) -> Dictionary:

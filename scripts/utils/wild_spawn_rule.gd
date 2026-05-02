@@ -9,8 +9,8 @@ extends Resource
 @export var region_tag: String = ""
 ## 字段说明：在编辑器中暴露怪物名称配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var monster_name: String = "野怪"
-## 字段说明：在编辑器中暴露怪物模板标识配置，供正式战斗 runtime 稳定映射敌方模板与 AI brain。
-@export var monster_template_id: StringName = &""
+## 字段说明：在编辑器中暴露敌方 roster 模板标识配置，供正式战斗 runtime 稳定映射敌方模板与 AI brain。
+@export var enemy_roster_template_id: StringName = &""
 ## 字段说明：在编辑器中暴露正式遭遇编队标识，用于让世界遭遇显式命中混编 roster，而不是只落回单模板敌人。
 @export var encounter_profile_id: StringName = &""
 ## 字段说明：在编辑器中暴露每区块密度配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

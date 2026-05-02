@@ -76,7 +76,7 @@ func complete_quest(quest_id: StringName, world_step: int = -1) -> bool:
 	return _party_state.mark_quest_claimable(quest_id, world_step)
 
 
-func apply_quest_progress_events(event_variants: Array, default_world_step: int = -1) -> Dictionary:
+func apply_quest_progress_events(event_variants: Array, _unused_world_step: int = -1) -> Dictionary:
 	var summary := {
 		"accepted_quest_ids": [],
 		"progressed_quest_ids": [],
@@ -90,9 +90,11 @@ func apply_quest_progress_events(event_variants: Array, default_world_step: int 
 		if event_variant is not Dictionary:
 			continue
 		var event_data: Dictionary = (event_variant as Dictionary).duplicate(true)
-		var event_type := ProgressionDataUtils.to_string_name(event_data.get("event_type", EVENT_PROGRESS))
-		var quest_id := ProgressionDataUtils.to_string_name(event_data.get("quest_id", ""))
-		var event_world_step := int(event_data.get("world_step", default_world_step))
+		if not _is_valid_quest_progress_event(event_data):
+			continue
+		var event_type := _read_required_string_name(event_data, "event_type")
+		var quest_id := _read_required_string_name(event_data, "quest_id")
+		var event_world_step := int(event_data["world_step"])
 		match event_type:
 			EVENT_ACCEPT:
 				if quest_id == &"":
@@ -107,7 +109,7 @@ func apply_quest_progress_events(event_variants: Array, default_world_step: int 
 						_append_unique_string_name(summary["accepted_quest_ids"], quest_id)
 				if complete_quest(quest_id, event_world_step):
 					_append_unique_string_name(summary["claimable_quest_ids"], quest_id)
-			_:
+			EVENT_PROGRESS:
 				var progressed_quest_ids := _apply_progress_event(event_data, event_world_step)
 				for progressed_quest_id_variant in progressed_quest_ids:
 					var progressed_quest_id := ProgressionDataUtils.to_string_name(progressed_quest_id_variant)
@@ -122,7 +124,7 @@ func apply_quest_progress_events(event_variants: Array, default_world_step: int 
 func _apply_progress_event(event_data: Dictionary, world_step: int) -> Array[StringName]:
 	var progressed_quest_ids: Array[StringName] = []
 	var quest_id := ProgressionDataUtils.to_string_name(event_data.get("quest_id", ""))
-	var progress_delta := maxi(int(event_data.get("progress_delta", event_data.get("amount", 1))), 0)
+	var progress_delta := _resolve_progress_delta(event_data)
 	if progress_delta <= 0:
 		return progressed_quest_ids
 	if quest_id != &"":
@@ -133,8 +135,10 @@ func _apply_progress_event(event_data: Dictionary, world_step: int) -> Array[Str
 		if quest_state == null:
 			return progressed_quest_ids
 		var objective_id := ProgressionDataUtils.to_string_name(event_data.get("objective_id", ""))
-		var target_value := maxi(int(event_data.get("target_value", 1)), 1)
 		if objective_id == &"":
+			return progressed_quest_ids
+		var target_value := _resolve_event_target_value(event_data, quest_id, objective_id)
+		if target_value <= 0:
 			return progressed_quest_ids
 		quest_state.record_objective_progress(
 			objective_id,
@@ -151,8 +155,10 @@ func _apply_progress_event(event_data: Dictionary, world_step: int) -> Array[Str
 		if quest_state == null or objective_def.is_empty():
 			continue
 		var objective_id := ProgressionDataUtils.to_string_name(objective_def.get("objective_id", ""))
-		var target_value := maxi(int(objective_def.get("target_value", event_data.get("target_value", 1))), 1)
 		if objective_id == &"":
+			continue
+		var target_value := _resolve_objective_target_value(objective_def)
+		if target_value <= 0:
 			continue
 		quest_state.record_objective_progress(
 			objective_id,
@@ -165,13 +171,116 @@ func _apply_progress_event(event_data: Dictionary, world_step: int) -> Array[Str
 
 
 func _did_progress_reach_target(event_data: Dictionary) -> bool:
-	var quest_id := ProgressionDataUtils.to_string_name(event_data.get("quest_id", ""))
-	var objective_id := ProgressionDataUtils.to_string_name(event_data.get("objective_id", ""))
-	var target_value := maxi(int(event_data.get("target_value", 1)), 1)
+	var quest_id := _read_required_string_name(event_data, "quest_id")
+	var objective_id := _read_required_string_name(event_data, "objective_id")
 	if quest_id == &"" or objective_id == &"":
+		return false
+	var target_value := _resolve_event_target_value(event_data, quest_id, objective_id)
+	if target_value <= 0:
 		return false
 	var quest_state: QuestState = _party_state.get_active_quest_state(quest_id)
 	return quest_state != null and quest_state.is_objective_complete(objective_id, target_value)
+
+
+func _is_valid_quest_progress_event(event_data: Dictionary) -> bool:
+	var event_type := _read_required_string_name(event_data, "event_type")
+	if event_type != EVENT_ACCEPT and event_type != EVENT_PROGRESS and event_type != EVENT_COMPLETE:
+		return false
+	if not event_data.has("world_step") or event_data["world_step"] is not int:
+		return false
+	if event_data.has("allow_reaccept") and event_data["allow_reaccept"] is not bool:
+		return false
+	if event_data.has("auto_accept") and event_data["auto_accept"] is not bool:
+		return false
+	if event_data.has("context") and event_data["context"] is not Dictionary:
+		return false
+	match event_type:
+		EVENT_ACCEPT, EVENT_COMPLETE:
+			return _read_required_string_name(event_data, "quest_id") != &""
+		EVENT_PROGRESS:
+			return _is_valid_progress_event(event_data)
+	return false
+
+
+func _is_valid_progress_event(event_data: Dictionary) -> bool:
+	if _resolve_progress_delta(event_data) <= 0:
+		return false
+	if event_data.has("target_value") and (event_data["target_value"] is not int or int(event_data["target_value"]) <= 0):
+		return false
+	if event_data.has("quest_id") or event_data.has("objective_id"):
+		return _read_required_string_name(event_data, "quest_id") != &"" \
+			and _read_required_string_name(event_data, "objective_id") != &""
+	return _read_required_string_name(event_data, "objective_type") != &"" \
+		and _read_required_string_name(event_data, "target_id") != &""
+
+
+func _read_required_string_name(event_data: Dictionary, field_name: String) -> StringName:
+	if not event_data.has(field_name):
+		return &""
+	var value: Variant = event_data[field_name]
+	if value is StringName:
+		return value
+	if value is String:
+		return StringName(value)
+	return &""
+
+
+func _resolve_progress_delta(event_data: Dictionary) -> int:
+	if not event_data.has("progress_delta"):
+		return 0
+	var progress_delta_variant: Variant = event_data["progress_delta"]
+	if progress_delta_variant is not int:
+		return 0
+	var progress_delta := int(progress_delta_variant)
+	return progress_delta if progress_delta > 0 else 0
+
+
+func _resolve_event_target_value(event_data: Dictionary, quest_id: StringName, objective_id: StringName) -> int:
+	if objective_id == &"":
+		return 0
+	if event_data.has("target_value"):
+		var target_value_variant: Variant = event_data["target_value"]
+		if target_value_variant is not int:
+			return 0
+		return maxi(int(target_value_variant), 0)
+	return _resolve_objective_target_value(_find_objective_def(quest_id, objective_id))
+
+
+func _resolve_objective_target_value(objective_def: Dictionary) -> int:
+	if objective_def.is_empty() or not objective_def.has("target_value"):
+		return 0
+	var target_value_variant: Variant = objective_def["target_value"]
+	if target_value_variant is not int:
+		return 0
+	return maxi(int(target_value_variant), 0)
+
+
+func _find_objective_def(quest_id: StringName, objective_id: StringName) -> Dictionary:
+	if quest_id == &"" or objective_id == &"":
+		return {}
+	for objective_variant in _get_objective_defs(quest_id):
+		if objective_variant is not Dictionary:
+			continue
+		var objective_def := objective_variant as Dictionary
+		if ProgressionDataUtils.to_string_name(objective_def.get("objective_id", "")) == objective_id:
+			return objective_def.duplicate(true)
+	return {}
+
+
+func _get_objective_defs(quest_id: StringName) -> Array:
+	if quest_id == &"":
+		return []
+	var quest_def = _quest_defs.get(quest_id)
+	if quest_def == null:
+		return []
+	var objective_defs_variant: Variant = []
+	if quest_def is Dictionary:
+		objective_defs_variant = (quest_def as Dictionary).get("objective_defs", [])
+	elif quest_def is Object:
+		objective_defs_variant = (quest_def as Object).get("objective_defs")
+	if objective_defs_variant is not Array:
+		return []
+	return objective_defs_variant
 
 
 func _find_matching_active_objectives(event_data: Dictionary) -> Array[Dictionary]:
@@ -186,7 +295,7 @@ func _find_matching_active_objectives(event_data: Dictionary) -> Array[Dictionar
 		var quest_def = _quest_defs.get(quest_state.quest_id)
 		if quest_def == null:
 			continue
-		for objective_variant in quest_def.objective_defs:
+		for objective_variant in _get_objective_defs(quest_state.quest_id):
 			if objective_variant is not Dictionary:
 				continue
 			var objective_def: Dictionary = objective_variant

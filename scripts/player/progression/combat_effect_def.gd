@@ -45,6 +45,10 @@ extends Resource
 @export var bonus_condition: StringName = &""
 ## 字段说明：在编辑器中暴露触发事件标识配置，便于描述命中后、击杀后等触发型效果。
 @export var trigger_event: StringName = &""
+## 字段说明：被动效果的触发条件；空表示主动施放即时生效，"battle_start" 表示战斗开始时触发，"on_fatal_damage" 表示受致命伤害时触发。
+@export var trigger_condition: StringName = &""
+## 字段说明：触发前需要拥有的状态唯一标识；配合 trigger_condition 使用，如 on_fatal_damage 时需要先拥有 death_ward。
+@export var trigger_status_id: StringName = &""
 ## 字段说明：在编辑器中暴露参数配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var params: Dictionary = {}
 

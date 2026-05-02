@@ -6,6 +6,7 @@ const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/co
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -38,6 +39,7 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_inject_repeatable_quest_def(game_session)
 	_inject_item_reward_quest_defs(game_session)
 	_inject_submit_item_quest_defs(game_session)
+	_inject_string_key_only_quest_def(game_session)
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
@@ -53,6 +55,7 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 
 	var progress_result := facade.command_progress_quest(&"contract_manual_drill", &"train_once", 1, {
 		"target_value": 2,
+		"world_step": facade.get_world_step(),
 		"action_id": "service:training",
 	})
 	_assert_true(bool(progress_result.get("ok", false)), "quest progress 命令应成功。")
@@ -116,6 +119,102 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_assert_eq(_extract_item_reward_quantity(item_claim_result.get("item_rewards", []), "iron_ore"), 2, "item reward claim 结果应暴露写入仓库的物品条目。")
 	_assert_eq(runtime_warehouse_service.count_item(&"iron_ore"), 2, "item reward claim 后共享仓库应新增铁矿石。")
 	_assert_true(facade.get_party_state().has_completed_quest(&"contract_supply_receipt"), "item reward claim 后任务应进入 completed_quest_ids。")
+
+	var string_key_accept_result := facade.command_accept_quest(&"contract_string_key_only")
+	_assert_true(not bool(string_key_accept_result.get("ok", true)), "String key-only quest_def 不应被 runtime accept 恢复。")
+	_assert_eq(String(string_key_accept_result.get("message", "")), "未找到任务 contract_string_key_only。", "runtime quest lookup 应只读取 StringName key。")
+	_assert_true(not facade.get_party_state().has_active_quest(&"contract_string_key_only"), "String key-only quest_def accept 失败后不应写入 active_quests。")
+
+	var missing_display_name_accept_result := facade.command_accept_quest(&"contract_missing_display_name_reward")
+	_assert_true(not bool(missing_display_name_accept_result.get("ok", true)), "缺少 display_name 的 quest 不应被 accept 命令恢复。")
+	_assert_eq(String(missing_display_name_accept_result.get("message", "")), "任务配置缺少 display_name，当前无法执行命令。", "缺少 display_name 时 accept 不应回退成 quest_id。")
+	_assert_true(not facade.get_party_state().has_active_quest(&"contract_missing_display_name_reward"), "缺少 display_name 的 accept 失败后不应写入 active_quests。")
+
+	var missing_display_name_active_quest := QuestState.new()
+	missing_display_name_active_quest.quest_id = &"contract_missing_display_name_reward"
+	missing_display_name_active_quest.mark_accepted(23)
+	facade.get_party_state().set_active_quest_state(missing_display_name_active_quest)
+	var missing_display_name_progress_result := facade.command_progress_quest(&"contract_missing_display_name_reward", &"warehouse_visit", 1)
+	_assert_true(not bool(missing_display_name_progress_result.get("ok", true)), "缺少 display_name 的 quest 不应被 progress 命令恢复。")
+	_assert_eq(String(missing_display_name_progress_result.get("message", "")), "任务配置缺少 display_name，当前无法执行命令。", "缺少 display_name 时 progress 不应回退成 quest_id。")
+	var missing_display_name_active_after_progress: QuestState = facade.get_party_state().get_active_quest_state(&"contract_missing_display_name_reward")
+	_assert_true(missing_display_name_active_after_progress != null, "缺少 display_name 的 progress 失败后任务应继续停留在 active_quests。")
+	if missing_display_name_active_after_progress != null:
+		_assert_eq(missing_display_name_active_after_progress.get_objective_progress(&"warehouse_visit"), 0, "缺少 display_name 的 progress 失败后不应推进 objective_progress。")
+	var missing_display_name_complete_result := facade.command_complete_quest(&"contract_missing_display_name_reward")
+	_assert_true(not bool(missing_display_name_complete_result.get("ok", true)), "缺少 display_name 的 quest 不应被 complete 命令恢复。")
+	_assert_eq(String(missing_display_name_complete_result.get("message", "")), "任务配置缺少 display_name，当前无法执行命令。", "缺少 display_name 时 complete 不应回退成 quest_id。")
+	_assert_true(facade.get_party_state().has_active_quest(&"contract_missing_display_name_reward"), "缺少 display_name 的 complete 失败后任务应继续停留在 active_quests。")
+	_assert_true(not facade.get_party_state().has_claimable_quest(&"contract_missing_display_name_reward"), "缺少 display_name 的 complete 失败后不应进入 claimable_quests。")
+
+	var missing_display_name_submit_result := facade.command_submit_quest_item(&"contract_missing_display_name_reward")
+	_assert_true(not bool(missing_display_name_submit_result.get("ok", true)), "缺少 display_name 的 quest 不应被 submit_item 命令恢复。")
+	_assert_eq(String(missing_display_name_submit_result.get("message", "")), "任务配置缺少 display_name，当前无法执行命令。", "缺少 display_name 时 submit_item 不应回退成 quest_id。")
+	_assert_true(facade.get_party_state().has_active_quest(&"contract_missing_display_name_reward"), "缺少 display_name 的 submit_item 失败后任务应继续停留在 active_quests。")
+
+	var missing_display_name_reward_quest := QuestState.new()
+	missing_display_name_reward_quest.quest_id = &"contract_missing_display_name_reward"
+	missing_display_name_reward_quest.mark_accepted(24)
+	missing_display_name_reward_quest.mark_completed(25)
+	facade.get_party_state().set_claimable_quest_state(missing_display_name_reward_quest)
+	var gold_before_missing_display_name_claim: int = facade.get_party_state().get_gold()
+	var missing_display_name_claim_result := facade.command_claim_quest(&"contract_missing_display_name_reward")
+	_assert_true(not bool(missing_display_name_claim_result.get("ok", true)), "缺少 display_name 的 quest reward 不应被 runtime claim 恢复。")
+	_assert_eq(String(missing_display_name_claim_result.get("message", "")), "任务配置缺少 display_name，当前无法执行命令。", "缺少 display_name 时领奖反馈不应回退成 quest_id。")
+	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_missing_display_name_reward"), "缺少 display_name 领奖失败后任务应继续停留在 claimable_quests。")
+	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_missing_display_name_reward"), "缺少 display_name 领奖失败后任务不应误写入 completed_quest_ids。")
+	_assert_eq(facade.get_party_state().get_gold(), gold_before_missing_display_name_claim, "缺少 display_name 领奖失败时不应写入金币奖励。")
+
+	var legacy_alias_reward_quest := QuestState.new()
+	legacy_alias_reward_quest.quest_id = &"contract_legacy_item_reward_alias"
+	legacy_alias_reward_quest.mark_accepted(24)
+	legacy_alias_reward_quest.mark_completed(25)
+	facade.get_party_state().set_claimable_quest_state(legacy_alias_reward_quest)
+	var iron_ore_count_before_legacy_alias_claim := runtime_warehouse_service.count_item(&"iron_ore")
+	var legacy_alias_claim_result := facade.command_claim_quest(&"contract_legacy_item_reward_alias")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	_assert_true(not bool(legacy_alias_claim_result.get("ok", true)), "旧 target_id/amount item reward 不应被 runtime claim 恢复。")
+	_assert_eq(String(legacy_alias_claim_result.get("message", "")), "任务《旧别名奖励》包含无效的物品奖励配置，当前无法领取。", "旧 item reward 别名应返回无效物品奖励反馈。")
+	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_legacy_item_reward_alias"), "旧 item reward 别名失败后任务应继续停留在 claimable_quests。")
+	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_legacy_item_reward_alias"), "旧 item reward 别名失败后任务不应误写入 completed_quest_ids。")
+	_assert_eq(runtime_warehouse_service.count_item(&"iron_ore"), iron_ore_count_before_legacy_alias_claim, "旧 item reward 别名失败时不应写入共享仓库。")
+
+	var invalid_item_display_name_quest := QuestState.new()
+	invalid_item_display_name_quest.quest_id = &"contract_invalid_item_display_name_reward"
+	invalid_item_display_name_quest.mark_accepted(24)
+	invalid_item_display_name_quest.mark_completed(25)
+	facade.get_party_state().set_claimable_quest_state(invalid_item_display_name_quest)
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	var nameless_item_count_before_claim := runtime_warehouse_service.count_item(&"nameless_reward_item")
+	var gold_before_invalid_item_display_name_claim: int = facade.get_party_state().get_gold()
+	var invalid_item_display_name_claim_result := facade.command_claim_quest(&"contract_invalid_item_display_name_reward")
+	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
+	_assert_true(not bool(invalid_item_display_name_claim_result.get("ok", true)), "空 display_name 的 item reward 不应被 runtime claim 恢复。")
+	_assert_eq(String(invalid_item_display_name_claim_result.get("message", "")), "任务《空名物品奖励》引用的物品奖励缺少 display_name，当前无法领取。", "空 item display_name 应返回明确配置错误。")
+	_assert_true(not String(invalid_item_display_name_claim_result.get("message", "")).contains("nameless_reward_item"), "空 display_name 的 item reward 失败反馈不应泄露 item_id。")
+	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_invalid_item_display_name_reward"), "空 item display_name 领奖失败后任务应继续停留在 claimable_quests。")
+	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_invalid_item_display_name_reward"), "空 item display_name 领奖失败后任务不应误写入 completed_quest_ids。")
+	_assert_eq(facade.get_party_state().get_gold(), gold_before_invalid_item_display_name_claim, "空 item display_name 领奖失败时不应写入金币奖励。")
+	_assert_eq(runtime_warehouse_service.count_item(&"nameless_reward_item"), nameless_item_count_before_claim, "空 item display_name 领奖失败时不应写入共享仓库。")
+	var direct_character_management := CharacterManagementModule.new()
+	direct_character_management.setup(
+		facade.get_party_state(),
+		game_session.get_skill_defs(),
+		game_session.get_profession_defs(),
+		game_session.get_achievement_defs(),
+		game_session.get_item_defs(),
+		game_session.get_quest_defs()
+	)
+	var invalid_item_display_name_direct_result := direct_character_management.claim_quest_reward(&"contract_invalid_item_display_name_reward", 26)
+	_assert_eq(String(invalid_item_display_name_direct_result.get("error_code", "")), "invalid_item_display_name", "空 item display_name 领奖预览应返回明确 invalid_item_display_name。")
+	var missing_display_summary := facade._build_quest_claim_reward_summary_text({
+		"item_rewards": [{"item_id": "nameless_reward_item", "quantity": 1}],
+	})
+	_assert_eq(missing_display_summary, "", "缺少 display_name 的 reward summary 不应回退显示 item_id。")
+	var empty_display_summary := facade._build_quest_claim_reward_summary_text({
+		"item_rewards": [{"item_id": "nameless_reward_item", "display_name": "", "quantity": 1}],
+	})
+	_assert_eq(empty_display_summary, "", "空 display_name 的 reward summary 不应回退显示 item_id。")
 
 	var overflow_quest := QuestState.new()
 	overflow_quest.quest_id = &"contract_reward_overflow"
@@ -244,6 +343,13 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 
 	var battle_accept_result := facade.command_accept_quest(&"contract_first_hunt")
 	_assert_true(bool(battle_accept_result.get("ok", false)), "battle quest 前置接取应成功。")
+	facade.start_battle(encounter_anchor)
+	var started_battle_state = facade.get_battle_state()
+	_assert_true(started_battle_state != null and not started_battle_state.is_empty(), "battle quest 前置应能建立正式 BattleState。")
+	if started_battle_state == null or started_battle_state.is_empty():
+		facade.dispose()
+		_cleanup_test_session(game_session)
+		return
 	var battle_resolution_result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
 	battle_resolution_result.winner_faction_id = &"player"
 	facade.finalize_battle_resolution(battle_resolution_result)
@@ -326,6 +432,45 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 	])
 	game_session.get_quest_defs()[overflow_quest.quest_id] = overflow_quest
 
+	var missing_display_name_quest := QuestDef.new()
+	missing_display_name_quest.quest_id = &"contract_missing_display_name_reward"
+	missing_display_name_quest.description = "用于验证领奖链不再把 quest_id 当成展示名。"
+	missing_display_name_quest.provider_interaction_id = &"service_contract_board"
+	missing_display_name_quest.objective_defs = item_reward_quest.objective_defs.duplicate(true)
+	missing_display_name_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 1},
+	])
+	game_session.get_quest_defs()[missing_display_name_quest.quest_id] = missing_display_name_quest
+
+	var legacy_alias_quest := QuestDef.new()
+	legacy_alias_quest.quest_id = &"contract_legacy_item_reward_alias"
+	legacy_alias_quest.display_name = "旧别名奖励"
+	legacy_alias_quest.description = "用于验证 item reward 不再接受 target_id/amount 旧别名。"
+	legacy_alias_quest.provider_interaction_id = &"service_contract_board"
+	legacy_alias_quest.objective_defs = item_reward_quest.objective_defs.duplicate(true)
+	legacy_alias_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_ITEM, "target_id": "iron_ore", "amount": 2},
+	])
+	game_session.get_quest_defs()[legacy_alias_quest.quest_id] = legacy_alias_quest
+
+	var nameless_reward_item := ItemDef.new()
+	nameless_reward_item.item_id = &"nameless_reward_item"
+	nameless_reward_item.display_name = ""
+	nameless_reward_item.description = "用于验证 quest item reward 不再把 item_id 当展示名。"
+	game_session.get_item_defs()[nameless_reward_item.item_id] = nameless_reward_item
+
+	var invalid_item_display_name_quest_def := QuestDef.new()
+	invalid_item_display_name_quest_def.quest_id = &"contract_invalid_item_display_name_reward"
+	invalid_item_display_name_quest_def.display_name = "空名物品奖励"
+	invalid_item_display_name_quest_def.description = "用于验证 item reward 要求 ItemDef.display_name。"
+	invalid_item_display_name_quest_def.provider_interaction_id = &"service_contract_board"
+	invalid_item_display_name_quest_def.objective_defs = item_reward_quest.objective_defs.duplicate(true)
+	invalid_item_display_name_quest_def.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 7},
+		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "nameless_reward_item", "quantity": 1},
+	])
+	game_session.get_quest_defs()[invalid_item_display_name_quest_def.quest_id] = invalid_item_display_name_quest_def
+
 
 func _inject_submit_item_quest_defs(game_session) -> void:
 	if game_session == null:
@@ -369,6 +514,28 @@ func _inject_submit_item_quest_defs(game_session) -> void:
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 11},
 	])
 	game_session.get_quest_defs()[submit_item_wrong_item_quest.quest_id] = submit_item_wrong_item_quest
+
+
+func _inject_string_key_only_quest_def(game_session) -> void:
+	if game_session == null:
+		return
+	var string_key_quest := QuestDef.new()
+	string_key_quest.quest_id = &"contract_string_key_only"
+	string_key_quest.display_name = "旧 String key 契约"
+	string_key_quest.description = "用于验证 quest_defs 不再按 String key 恢复。"
+	string_key_quest.provider_interaction_id = &"service_contract_board"
+	string_key_quest.objective_defs = [
+		{
+			"objective_id": "string_key_objective",
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"target_id": "service:training",
+			"target_value": 1,
+		},
+	]
+	string_key_quest.reward_entries = _build_reward_entries([
+		{"reward_type": QuestDef.REWARD_GOLD, "amount": 1},
+	])
+	game_session.get_quest_defs()[String(string_key_quest.quest_id)] = string_key_quest
 
 
 func _inject_pending_reward_quest_def(game_session, member_id: StringName) -> void:

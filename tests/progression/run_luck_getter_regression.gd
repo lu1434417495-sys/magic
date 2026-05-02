@@ -111,10 +111,15 @@ func _test_party_member_state_luck_getters_delegate_and_stay_null_safe() -> void
 func _test_from_dict_missing_progression_resource_schema_is_rejected() -> void:
 	var attributes := UnitBaseAttributes.from_dict({
 		"strength": 3,
+		"agility": 2,
+		"constitution": 3,
+		"perception": 2,
+		"intelligence": 1,
+		"willpower": 1,
 		"custom_stats": {},
 	})
 	_assert_luck_case(
-		"UnitBaseAttributes.from_dict 缺少 luck 键",
+		"UnitBaseAttributes.from_dict custom_stats 缺少 luck 键",
 		attributes,
 		0,
 		0,
@@ -140,12 +145,17 @@ func _test_from_dict_missing_progression_resource_schema_is_rejected() -> void:
 				"perception": 2,
 				"intelligence": 1,
 				"willpower": 1,
+				"custom_stats": {},
 			},
-			"reputation_state": {},
+			"reputation_state": {
+				"morality": 0,
+				"custom_states": {},
+			},
 			"skills": {},
 			"professions": {},
 			"known_knowledge_ids": [],
 			"active_core_skill_ids": [],
+			"attribute_growth_progress": {},
 			"achievement_progress": {},
 			"pending_profession_choices": [],
 			"blocked_relearn_skill_ids": [],

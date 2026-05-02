@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_snapshot_builder.gd")
+const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/game_text_snapshot_renderer.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -18,10 +19,14 @@ func _run() -> void:
 	_test_snapshot_builder_matches_facade_outputs()
 	_test_text_snapshot_redacts_host_log_paths()
 	_test_snapshot_builder_exposes_party_quest_snapshot()
+	_test_snapshot_builder_rejects_legacy_quest_container_shapes()
+	_test_text_snapshot_requires_explicit_quest_stage_id()
+	_test_text_snapshot_rejects_legacy_window_and_report_fields()
 	_test_snapshot_builder_cross_references_quest_items_in_text_snapshot()
 	_test_snapshot_builder_exposes_contract_board_modal_snapshot()
 	_test_snapshot_builder_exposes_forge_modal_snapshot()
 	_test_snapshot_builder_exposes_generic_forge_modal_snapshot()
+	_test_snapshot_builder_requires_panel_kind_for_forge_modal()
 	_test_snapshot_builder_exposes_game_over_snapshot()
 	_test_snapshot_builder_exposes_battle_loot_snapshot()
 	_test_snapshot_builder_omits_loot_section_when_empty()
@@ -56,7 +61,8 @@ func _test_snapshot_builder_matches_facade_outputs() -> void:
 	_assert_eq(builder_text, facade_text, "Snapshot builder 文本快照应与 facade.build_text_snapshot() 保持一致。")
 	_assert_true(not builder_text.is_empty(), "Snapshot builder 文本快照不应为空。")
 	_assert_true(builder_snapshot.has("logs"), "运行时快照应包含日志段。")
-	_assert_true(not String(builder_snapshot.get("logs", {}).get("file_path", "")).is_empty(), "运行时快照应暴露日志文件路径。")
+	_assert_eq(String(builder_snapshot.get("logs", {}).get("file_path", "")), "", "运行时快照默认不应暴露日志文件路径。")
+	_assert_eq(bool(builder_snapshot.get("logs", {}).get("file_output_enabled", true)), false, "运行时日志文件输出默认应关闭。")
 	_assert_true(not (builder_snapshot.get("logs", {}).get("entries", []) as Array).is_empty(), "运行时快照应包含最近日志条目。")
 	_assert_true(builder_text.contains("[LOG]"), "运行时文本快照应包含日志分段。")
 
@@ -66,32 +72,42 @@ func _test_snapshot_builder_matches_facade_outputs() -> void:
 
 
 func _test_text_snapshot_redacts_host_log_paths() -> void:
-	var game_session = _create_test_session()
-	if game_session == null:
-		return
+	var memory_text_snapshot := GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT.render_full_snapshot({
+		"logs": {
+			"file_path": "",
+			"virtual_path": "",
+			"entry_count": 1,
+			"buffer_limit": 3,
+			"entries": [
+				{
+					"seq": 1,
+					"level": "info",
+					"domain": "session",
+					"event_id": "session.memory_only",
+					"message": "memory only",
+				},
+			],
+		},
+	})
+	_assert_true(memory_text_snapshot.contains("[LOG]"), "内存日志仍应渲染 LOG 分段。")
+	_assert_true(not memory_text_snapshot.contains("file_name="), "内存日志文本快照不应渲染文件名。")
+	_assert_true(not memory_text_snapshot.contains("file_path="), "文本快照不应继续渲染绝对 file_path 标签。")
+	_assert_true(not memory_text_snapshot.contains("virtual_path="), "文本快照不应继续渲染 virtual_path 标签。")
 
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
-	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(facade)
-
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
-	var logs_snapshot: Dictionary = snapshot.get("logs", {})
-	var file_path := String(logs_snapshot.get("file_path", ""))
-	var virtual_path := String(logs_snapshot.get("virtual_path", ""))
-	var expected_file_name := virtual_path.get_file() if not virtual_path.is_empty() else file_path.get_file()
-
-	_assert_true(not expected_file_name.is_empty(), "日志文本面回归前置：应能解析稳定日志文件名。")
-	_assert_true(text_snapshot.contains("file_name=%s" % expected_file_name), "文本快照应只渲染稳定日志文件名。")
-	_assert_true(not text_snapshot.contains("file_path="), "文本快照不应继续渲染绝对 file_path 标签。")
-	_assert_true(not text_snapshot.contains("virtual_path="), "文本快照不应继续渲染 virtual_path 标签。")
-	_assert_true(not file_path.is_empty() and not text_snapshot.contains(file_path), "文本快照不应泄漏宿主绝对日志路径。")
-	_assert_true(not virtual_path.is_empty() and not text_snapshot.contains(virtual_path), "文本快照不应泄漏 session 级虚拟日志路径。")
-
-	builder.dispose()
-	facade.dispose()
-	_cleanup_test_session(game_session)
+	var file_path := "C:/tmp/magic/session_redaction.jsonl"
+	var virtual_path := "user://logs/session_redaction.jsonl"
+	var file_text_snapshot := GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT.render_full_snapshot({
+		"logs": {
+			"file_path": file_path,
+			"virtual_path": virtual_path,
+			"entry_count": 0,
+			"buffer_limit": 3,
+			"entries": [],
+		},
+	})
+	_assert_true(file_text_snapshot.contains("file_name=session_redaction.jsonl"), "文本快照应只渲染稳定日志文件名。")
+	_assert_true(not file_text_snapshot.contains(file_path), "文本快照不应泄漏宿主绝对日志路径。")
+	_assert_true(not file_text_snapshot.contains(virtual_path), "文本快照不应泄漏 session 级虚拟日志路径。")
 
 
 func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
@@ -168,6 +184,219 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	_assert_true(text_snapshot.contains("quest=contract_settlement_warehouse | stage=claimable"), "文本快照应渲染待领奖励任务明细。")
 
 	builder.dispose()
+
+
+func _test_snapshot_builder_rejects_legacy_quest_container_shapes() -> void:
+	var legacy_map_party := FakeLegacyQuestPartyState.new()
+	legacy_map_party.active_quests_variant = {
+		"contract_key_backfill": _build_snapshot_quest_payload("contract_key_backfill"),
+	}
+	legacy_map_party.claimable_quests_variant = []
+	legacy_map_party.completed_quest_ids_variant = {
+		"contract_completed_by_map": true,
+	}
+	var legacy_map_snapshot := _build_party_quest_snapshot(legacy_map_party)
+
+	_assert_eq(legacy_map_snapshot.get("active_quest_ids", []), [], "字典形 active_quests 不应再被 snapshot builder 接受。")
+	_assert_eq(legacy_map_snapshot.get("active_quests", []), [], "quest 字典 key 不应再回填 quest_id 生成任务明细。")
+	_assert_eq(legacy_map_snapshot.get("completed_quest_ids", []), [], "字典形 completed_quest_ids 不应再按 key 兼容渲染。")
+
+	var missing_id_party := FakeLegacyQuestPartyState.new()
+	var missing_id_payload := _build_snapshot_quest_payload("contract_missing_id")
+	missing_id_payload.erase("quest_id")
+	missing_id_party.active_quests_variant = [missing_id_payload]
+	missing_id_party.claimable_quests_variant = []
+	missing_id_party.completed_quest_ids_variant = []
+	var missing_id_snapshot := _build_party_quest_snapshot(missing_id_party)
+
+	_assert_eq(missing_id_snapshot.get("active_quest_ids", []), [], "缺 quest_id 的任务条目不应再被恢复。")
+	_assert_eq(missing_id_snapshot.get("active_quests", []), [], "缺必需字段的任务条目不应进入任务明细。")
+
+
+func _test_text_snapshot_requires_explicit_quest_stage_id() -> void:
+	var snapshot: Dictionary = {
+		"party": {
+			"quests": {
+				"active_quest_ids": ["contract_missing_stage", "contract_numeric_stage", "contract_empty_stage"],
+				"claimable_quest_ids": ["contract_valid_stage"],
+				"completed_quest_ids": [],
+				"active_quests": [
+					{
+						"quest_id": "contract_missing_stage",
+						"status_id": "active",
+						"objective_progress": {},
+						"accepted_at_world_step": 1,
+						"completed_at_world_step": -1,
+						"reward_claimed_at_world_step": -1,
+						"last_progress_context": {},
+					},
+					{
+						"quest_id": "contract_numeric_stage",
+						"stage_id": 1,
+						"status_id": "active",
+						"objective_progress": {},
+						"accepted_at_world_step": 1,
+						"completed_at_world_step": -1,
+						"reward_claimed_at_world_step": -1,
+						"last_progress_context": {},
+					},
+					{
+						"quest_id": "contract_empty_stage",
+						"stage_id": "",
+						"status_id": "active",
+						"objective_progress": {},
+						"accepted_at_world_step": 1,
+						"completed_at_world_step": -1,
+						"reward_claimed_at_world_step": -1,
+						"last_progress_context": {},
+					},
+				],
+				"claimable_quests": [
+					{
+						"quest_id": "contract_valid_stage",
+						"stage_id": "claimable",
+						"status_id": "completed",
+						"objective_progress": {},
+						"accepted_at_world_step": 1,
+						"completed_at_world_step": 2,
+						"reward_claimed_at_world_step": -1,
+						"last_progress_context": {},
+					},
+				],
+			},
+		},
+	}
+	var text_snapshot := GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT.render_full_snapshot(snapshot)
+
+	_assert_true(text_snapshot.contains("active_quest_ids=contract_missing_stage contract_numeric_stage contract_empty_stage"), "文本快照应保留 quest ID 汇总。")
+	_assert_true(text_snapshot.contains("quest=contract_valid_stage | stage=claimable"), "文本快照应渲染显式 stage_id 的任务明细。")
+	_assert_true(not text_snapshot.contains("quest=contract_missing_stage"), "缺 stage_id 的任务明细不应按 active 兜底渲染。")
+	_assert_true(not text_snapshot.contains("quest=contract_numeric_stage"), "非字符串 stage_id 的任务明细不应渲染。")
+	_assert_true(not text_snapshot.contains("quest=contract_empty_stage"), "空 stage_id 的任务明细不应渲染。")
+
+
+func _test_text_snapshot_rejects_legacy_window_and_report_fields() -> void:
+	var snapshot: Dictionary = {
+		"shop": {
+			"visible": true,
+			"window_data": {
+				"title": "旧商店字段",
+				"settlement_id": "settlement_legacy_schema",
+				"entries": [
+					{
+						"entry_id": "old_shop_entry_id",
+						"state_label": "状态：旧字段",
+						"cost_label": "价格：旧字段",
+					},
+				],
+			},
+		},
+		"contract_board": {
+			"visible": true,
+			"window_data": {
+				"title": "旧任务板字段",
+				"settlement_id": "settlement_legacy_schema",
+				"interaction_script_id": "old_contract_provider",
+				"entries": [
+					{
+						"entry_id": "old_contract_entry_id",
+						"quest_id": "contract_current_id",
+						"state_label": "状态：旧字段",
+						"cost_label": "奖励：旧字段",
+					},
+				],
+			},
+		},
+		"stagecoach": {
+			"visible": true,
+			"window_data": {
+				"title": "旧驿站字段",
+				"settlement_id": "settlement_legacy_schema",
+				"entries": [
+					{
+						"entry_id": "old_stagecoach_entry_id",
+						"state_label": "状态：旧字段",
+						"cost_label": "车费：旧字段",
+					},
+				],
+			},
+		},
+		"forge": {
+			"visible": true,
+			"window_data": {
+				"title": "旧锻造字段",
+				"settlement_id": "settlement_legacy_schema",
+				"entries": [
+					{
+						"entry_id": "old_forge_entry_id",
+						"state_label": "状态：旧字段",
+						"cost_label": "材料：旧字段",
+					},
+				],
+			},
+		},
+		"battle": {
+			"active": true,
+			"report_entry_count": 2,
+			"report_entries": [
+				{
+					"entry_type": "change_equipment",
+					"ok": true,
+					"reason_id": "equip",
+					"current_ap": 9,
+					"text": "old entry_type equipment report",
+				},
+				{
+					"type": "change_equipment",
+					"entry_type": "change_equipment",
+					"ok": true,
+					"reason_id": "equip",
+					"unit_id": "player_sword_01",
+					"target_unit_id": "player_sword_01",
+					"slot_id": "head",
+					"item_id": "leather_cap",
+					"instance_id": "eq_legacy_schema",
+					"ap_before": 4,
+					"current_ap": 2,
+					"text": "formal type without formal operation or ap_after",
+				},
+			],
+		},
+		"reward": {
+			"visible": true,
+			"remaining_count": 1,
+			"reward": {
+				"reward_id": "reward_legacy_schema",
+				"member_id": "player_sword_01",
+				"member_name": "剑士",
+				"source_label": "测试",
+				"summary_text": "旧奖励字段",
+				"entries": [
+					{
+						"entry_type": "attribute_delta",
+						"target_label": "old_reward_target_label",
+						"amount": 1,
+						"reason_text": "旧字段奖励",
+					},
+				],
+			},
+		},
+	}
+	var text_snapshot := GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT.render_full_snapshot(snapshot)
+
+	_assert_true(text_snapshot.contains("provider_interaction_id="), "缺 provider_interaction_id 时文本快照只应渲染空正式字段。")
+	_assert_true(not text_snapshot.contains("old_contract_provider"), "旧 interaction_script_id 不应回填 provider_interaction_id。")
+	_assert_true(not text_snapshot.contains("old_shop_entry_id"), "shop 条目缺 display_name 时不应回退 entry_id。")
+	_assert_true(not text_snapshot.contains("old_contract_entry_id"), "contract board 条目缺 display_name 时不应回退 entry_id。")
+	_assert_true(not text_snapshot.contains("old_stagecoach_entry_id"), "stagecoach 条目缺 display_name 时不应回退 entry_id。")
+	_assert_true(not text_snapshot.contains("old_forge_entry_id"), "forge 条目缺 display_name 时不应回退 entry_id。")
+	_assert_true(not text_snapshot.contains("old entry_type equipment report"), "缺 type 的 change_equipment 战报不应靠 entry_type 渲染为有效装备战报。")
+	_assert_true(text_snapshot.contains("report=change_equipment | ok=true | error= | op= | unit=player_sword_01"), "正式 type 存在但缺 operation 时不应从 reason_id 回填 op。")
+	_assert_true(text_snapshot.contains("ap=4>0"), "正式 type 存在但缺 ap_after 时不应从 current_ap 回填 AP。")
+	_assert_true(not text_snapshot.contains("op=equip"), "旧 reason_id 不应回填 change_equipment operation。")
+	_assert_true(not text_snapshot.contains("ap=4>2"), "旧 current_ap 不应回填 change_equipment ap_after。")
+	_assert_true(text_snapshot.contains("entry=attribute_delta |  | amount=1"), "奖励条目缺 target_id 时应渲染空正式目标字段。")
+	_assert_true(not text_snapshot.contains("old_reward_target_label"), "奖励条目缺 target_id 时不应回退 target_label。")
 
 
 func _test_snapshot_builder_cross_references_quest_items_in_text_snapshot() -> void:
@@ -337,6 +566,25 @@ func _test_snapshot_builder_exposes_generic_forge_modal_snapshot() -> void:
 	builder.dispose()
 
 
+func _test_snapshot_builder_requires_panel_kind_for_forge_modal() -> void:
+	var runtime := FakeQuestRuntime.new()
+	runtime.active_modal_id = "forge"
+	runtime.active_shop_context = {
+		"title": "旧 forge 来源",
+		"settlement_id": "forge_town",
+		"submission_source": "forge",
+		"entries": [],
+	}
+
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+
+	_assert_true((snapshot.get("forge", {}).get("window_data", {}) as Dictionary).is_empty(), "只有 submission_source=forge 的旧窗口上下文不应再被识别为 forge modal。")
+
+	builder.dispose()
+
+
 func _test_snapshot_builder_exposes_game_over_snapshot() -> void:
 	var runtime := FakeQuestRuntime.new()
 	runtime.active_modal_id = "game_over"
@@ -446,6 +694,28 @@ func _assert_eq(actual, expected, message: String) -> void:
 		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
+func _build_party_quest_snapshot(party_state) -> Dictionary:
+	var runtime := FakeQuestRuntime.new()
+	runtime.party_state = party_state
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	builder.dispose()
+	return snapshot.get("party", {}).get("quests", {})
+
+
+func _build_snapshot_quest_payload(quest_id: String) -> Dictionary:
+	return {
+		"quest_id": quest_id,
+		"status_id": "active",
+		"objective_progress": {},
+		"accepted_at_world_step": 1,
+		"completed_at_world_step": -1,
+		"reward_claimed_at_world_step": -1,
+		"last_progress_context": {},
+	}
+
+
 class FakeQuestPartyState:
 	extends RefCounted
 
@@ -468,6 +738,23 @@ class FakeQuestPartyState:
 
 	func get_completed_quest_ids():
 		return completed_quest_ids
+
+
+class FakeLegacyQuestPartyState:
+	extends FakeQuestPartyState
+
+	var active_quests_variant = null
+	var claimable_quests_variant = null
+	var completed_quest_ids_variant = null
+
+	func get_active_quests():
+		return active_quests_variant
+
+	func get_claimable_quests():
+		return claimable_quests_variant
+
+	func get_completed_quest_ids():
+		return completed_quest_ids_variant
 
 
 class FakeQuestRuntime:

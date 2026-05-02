@@ -6,6 +6,13 @@ const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const ContentValidationRunner = preload("res://tests/runtime/content_validation_runner.gd")
+const WorldMapGenerationConfig = preload("res://scripts/utils/world_map_generation_config.gd")
+const SettlementConfig = preload("res://scripts/utils/settlement_config.gd")
+const FacilityConfig = preload("res://scripts/utils/facility_config.gd")
+const FacilitySlotConfig = preload("res://scripts/utils/facility_slot_config.gd")
+const SettlementDistributionRule = preload("res://scripts/utils/settlement_distribution_rule.gd")
+const WeightedFacilityEntry = preload("res://scripts/utils/weighted_facility_entry.gd")
+const WildSpawnRule = preload("res://scripts/utils/wild_spawn_rule.gd")
 
 const OFFICIAL_SKILL_DIRECTORY := "res://data/configs/skills"
 const OFFICIAL_PROFESSION_DIRECTORY := "res://data/configs/professions"
@@ -37,6 +44,7 @@ func _run() -> void:
 	var item_defs := item_registry.get_item_defs()
 	var enemy_registry := EnemyContentRegistry.new()
 	var enemy_templates := enemy_registry.get_enemy_templates()
+	var wild_encounter_rosters := enemy_registry.get_wild_encounter_rosters()
 
 	var official_report := validation_runner.build_run_report("official_content", [
 		validation_runner.validate_skill_directory(OFFICIAL_SKILL_DIRECTORY),
@@ -44,6 +52,7 @@ func _run() -> void:
 		validation_runner.validate_item_directory(OFFICIAL_ITEM_DIRECTORY),
 		validation_runner.validate_recipe_directory(OFFICIAL_RECIPE_DIRECTORY, item_defs),
 		validation_runner.validate_enemy_seed(OFFICIAL_ENEMY_SEED_PATH),
+		validation_runner.validate_world_presets(enemy_templates, wild_encounter_rosters),
 		validation_runner.validate_quest_entries(
 			"official_quests",
 			_build_quest_entries_from_dict(progression_registry.get_quest_defs(), "progression_seed"),
@@ -62,6 +71,12 @@ func _run() -> void:
 	var enemy_missing_result := validation_runner.validate_enemy_seed(ENEMY_MISSING_ID_SEED_PATH)
 	var enemy_duplicate_result := validation_runner.validate_enemy_seed(ENEMY_DUPLICATE_ID_SEED_PATH)
 	var enemy_invalid_reference_result := validation_runner.validate_enemy_seed(ENEMY_INVALID_REFERENCE_SEED_PATH)
+	var world_result := validation_runner.validate_world_generation_config(
+		"invalid_world_generation_config",
+		_build_invalid_world_generation_config(),
+		enemy_templates,
+		wild_encounter_rosters
+	)
 	var quest_result := validation_runner.validate_quest_entries(
 		"invalid_quest_entries",
 		_build_invalid_quest_entries(),
@@ -77,6 +92,7 @@ func _run() -> void:
 		enemy_missing_result,
 		enemy_duplicate_result,
 		enemy_invalid_reference_result,
+		world_result,
 		quest_result,
 	])
 	_reports.append(validation_runner.format_report(invalid_fixture_report))
@@ -108,6 +124,16 @@ func _run() -> void:
 	_assert_messages_have_fragment(enemy_errors, "Duplicate enemy template_id registered: duplicate_enemy", "敌方 validation runner 应覆盖重复 template_id。")
 	_assert_messages_have_fragment(enemy_errors, "references missing template missing_template", "敌方 validation runner 应覆盖非法 template 引用。")
 	_assert_messages_have_fragment(enemy_errors, "must declare attack_equipment_item_id", "敌方 validation runner 应覆盖非 beast 模板缺失真实攻击装备。")
+
+	_assert_domain_has_fragment(world_result, "facility missing facility_id", "世界 validation runner 应覆盖缺失 facility_id。")
+	_assert_domain_has_fragment(world_result, "duplicate facility_id known_facility", "世界 validation runner 应覆盖重复 facility_id。")
+	_assert_domain_has_fragment(world_result, "settlement missing settlement_id", "世界 validation runner 应覆盖缺失 settlement_id。")
+	_assert_domain_has_fragment(world_result, "duplicate settlement_id known_settlement", "世界 validation runner 应覆盖重复 settlement_id。")
+	_assert_domain_has_fragment(world_result, "settlement distribution references missing settlement missing_settlement", "世界 validation runner 应覆盖非法据点分布引用。")
+	_assert_domain_has_fragment(world_result, "references missing guaranteed facility missing_facility", "世界 validation runner 应覆盖非法保底设施引用。")
+	_assert_domain_has_fragment(world_result, "references missing optional facility missing_optional_facility", "世界 validation runner 应覆盖非法可选设施引用。")
+	_assert_domain_has_fragment(world_result, "references missing enemy roster template missing_enemy", "世界 validation runner 应覆盖非法野怪敌方模板引用。")
+	_assert_domain_has_fragment(world_result, "references missing encounter profile missing_roster", "世界 validation runner 应覆盖非法野怪 roster 引用。")
 
 	_assert_domain_has_fragment(quest_result, "is missing quest_id", "任务 validation runner 应覆盖缺失 quest_id。")
 	_assert_domain_has_fragment(quest_result, "Duplicate quest_id registered: duplicate_quest", "任务 validation runner 应覆盖重复 quest_id。")
@@ -216,6 +242,68 @@ func _build_invalid_quest_entries() -> Array[Dictionary]:
 		{"source": "fixture::duplicate_quest_b", "quest_def": duplicate_b},
 		{"source": "fixture::invalid_reference_quest", "quest_def": invalid_reference_quest},
 	]
+
+
+func _build_invalid_world_generation_config():
+	var valid_facility := FacilityConfig.new()
+	valid_facility.facility_id = "known_facility"
+	valid_facility.display_name = "Known Facility"
+	valid_facility.interaction_type = "service_known"
+	valid_facility.allowed_slot_tags = ["core"]
+
+	var duplicate_facility := FacilityConfig.new()
+	duplicate_facility.facility_id = "known_facility"
+	duplicate_facility.display_name = "Duplicate Facility"
+	duplicate_facility.interaction_type = "service_duplicate"
+	duplicate_facility.allowed_slot_tags = ["core"]
+
+	var missing_id_facility := FacilityConfig.new()
+	missing_id_facility.display_name = "Missing Id Facility"
+	missing_id_facility.interaction_type = "service_missing_id"
+	missing_id_facility.allowed_slot_tags = ["core"]
+
+	var known_slot := FacilitySlotConfig.new()
+	known_slot.slot_id = "core_slot"
+	known_slot.slot_tag = "core"
+
+	var optional_missing_facility := WeightedFacilityEntry.new()
+	optional_missing_facility.facility_id = "missing_optional_facility"
+	optional_missing_facility.weight = 1.0
+
+	var settlement := SettlementConfig.new()
+	settlement.settlement_id = "known_settlement"
+	settlement.display_name = "Known Settlement"
+	settlement.facility_slots = [known_slot]
+	settlement.guaranteed_facility_ids = ["missing_facility"]
+	settlement.optional_facility_pool = [optional_missing_facility]
+
+	var duplicate_settlement := SettlementConfig.new()
+	duplicate_settlement.settlement_id = "known_settlement"
+	duplicate_settlement.display_name = "Duplicate Settlement"
+	duplicate_settlement.facility_slots = [known_slot]
+
+	var missing_id_settlement := SettlementConfig.new()
+	missing_id_settlement.display_name = "Missing Id Settlement"
+	missing_id_settlement.facility_slots = [known_slot]
+
+	var missing_distribution := SettlementDistributionRule.new()
+	missing_distribution.settlement_id = "missing_settlement"
+	missing_distribution.faction_id = "neutral"
+
+	var missing_wild_rule := WildSpawnRule.new()
+	missing_wild_rule.region_tag = "invalid_wilds"
+	missing_wild_rule.enemy_roster_template_id = &"missing_enemy"
+	missing_wild_rule.encounter_profile_id = &"missing_roster"
+	missing_wild_rule.density_per_chunk = 1
+
+	var config := WorldMapGenerationConfig.new()
+	config.world_size_in_chunks = Vector2i(1, 1)
+	config.chunk_size = Vector2i(4, 4)
+	config.settlement_library = [settlement, duplicate_settlement, missing_id_settlement]
+	config.facility_library = [valid_facility, duplicate_facility, missing_id_facility]
+	config.settlement_distribution = [missing_distribution]
+	config.wild_monster_distribution = [missing_wild_rule]
+	return config
 
 
 func _combine_domain_errors(domain_results: Array[Dictionary]) -> Array[String]:

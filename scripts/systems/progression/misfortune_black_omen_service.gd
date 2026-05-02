@@ -97,8 +97,8 @@ func _try_grant_cursed_relic_elite_or_boss_victory(payload: Dictionary) -> Dicti
 		result["error_code"] = "member_not_found"
 		return result
 
-	var encounter_won := _did_player_win(payload)
-	var defeated_elite_or_boss := bool(payload.get("defeated_elite_or_boss", payload.get("defender_is_elite_or_boss", false)))
+	var encounter_won := _is_payload_bool_true(payload, "encounter_won")
+	var defeated_elite_or_boss := _is_payload_bool_true(payload, "defeated_elite_or_boss")
 	var has_cursed_relic := _has_cursed_relic(member_state, payload)
 	result["ok"] = true
 	result["conditions_met"] = encounter_won and defeated_elite_or_boss and has_cursed_relic
@@ -121,9 +121,9 @@ func _try_grant_boss_curse_survival_victory(payload: Dictionary) -> Dictionary:
 		result["error_code"] = "member_not_found"
 		return result
 
-	var encounter_won := _did_player_win(payload)
-	var boss_encounter := bool(payload.get("boss_encounter", payload.get("encounter_is_boss", false)))
-	var member_survived := bool(payload.get("member_survived", payload.get("unit_survived", false)))
+	var encounter_won := _is_payload_bool_true(payload, "encounter_won")
+	var boss_encounter := _is_payload_bool_true(payload, "boss_encounter")
+	var member_survived := _is_payload_bool_true(payload, "member_survived")
 	var has_boss_curse := _has_boss_curse(payload)
 	result["ok"] = true
 	result["conditions_met"] = encounter_won and boss_encounter and member_survived and has_boss_curse
@@ -163,20 +163,22 @@ func _try_grant_dead_road_lantern_black_omen_path(payload: Dictionary) -> Dictio
 
 
 func _resolve_member_id(payload: Dictionary) -> StringName:
-	return ProgressionDataUtils.to_string_name(payload.get("member_id", payload.get("attacker_member_id", "")))
+	if not payload.has("member_id"):
+		return &""
+	var member_id_variant: Variant = payload["member_id"]
+	var member_id_type := typeof(member_id_variant)
+	if member_id_type != TYPE_STRING and member_id_type != TYPE_STRING_NAME:
+		return &""
+	return ProgressionDataUtils.to_string_name(member_id_variant)
 
 
-func _did_player_win(payload: Dictionary) -> bool:
-	if payload.has("encounter_won"):
-		return bool(payload.get("encounter_won", false))
-	if payload.has("player_won"):
-		return bool(payload.get("player_won", false))
-	return String(payload.get("winner_faction_id", "")).strip_edges() == "player"
+func _is_payload_bool_true(payload: Dictionary, field_name: String) -> bool:
+	return payload.has(field_name) and payload[field_name] is bool and bool(payload[field_name])
 
 
 func _has_cursed_relic(member_state: PartyMemberState, payload: Dictionary) -> bool:
 	if payload.has("has_cursed_relic"):
-		return bool(payload.get("has_cursed_relic", false))
+		return payload["has_cursed_relic"] is bool and bool(payload["has_cursed_relic"])
 	if member_state == null or member_state.equipment_state == null or _item_defs.is_empty():
 		return false
 
@@ -200,19 +202,25 @@ func _has_cursed_relic(member_state: PartyMemberState, payload: Dictionary) -> b
 
 func _has_boss_curse(payload: Dictionary) -> bool:
 	if payload.has("has_boss_curse"):
-		return bool(payload.get("has_boss_curse", false))
-	var curse_ids := ProgressionDataUtils.to_string_name_array(
-		payload.get("boss_curse_status_ids", payload.get("member_boss_curse_status_ids", []))
-	)
+		return payload["has_boss_curse"] is bool and bool(payload["has_boss_curse"])
+	var curse_ids := ProgressionDataUtils.to_string_name_array(payload.get("boss_curse_status_ids", []))
 	return not curse_ids.is_empty()
 
 
 func _get_item_def(item_id: StringName) -> ItemDef:
-	var direct_match = _item_defs.get(item_id)
-	if direct_match is ItemDef:
-		return direct_match as ItemDef
-	var string_match = _item_defs.get(String(item_id))
-	return string_match as ItemDef if string_match is ItemDef else null
+	var item_def = _get_item_def_by_string_name_key(_item_defs, item_id)
+	return item_def as ItemDef if item_def is ItemDef else null
+
+
+func _get_item_def_by_string_name_key(item_defs: Dictionary, item_id: StringName):
+	if item_id == &"":
+		return null
+	for key in item_defs.keys():
+		if typeof(key) != TYPE_STRING_NAME:
+			continue
+		if key == item_id:
+			return item_defs[key]
+	return null
 
 
 func _get_member_state(member_id: StringName) -> PartyMemberState:

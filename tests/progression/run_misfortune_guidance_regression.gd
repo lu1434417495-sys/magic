@@ -58,6 +58,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_misfortune_guidance_unlock_chain_feeds_rank_2_to_5()
+	_test_forge_result_rejects_legacy_ok_success_alias()
+	_test_forge_result_rejects_string_key_only_dark_equipment_def()
 
 	if _failures.is_empty():
 		print("Misfortune guidance regression: PASS")
@@ -161,6 +163,66 @@ func _test_misfortune_guidance_unlock_chain_feeds_rank_2_to_5() -> void:
 	_assert_true(bool(rank_5_result.get("ok", false)), "guidance_blessed 达成后应允许进入 rank 5。")
 	_apply_next_pending_reward(manager, party_state, 5)
 	_assert_eq(_get_custom_stat(party_state, DOOM_AUTHORITY_STAT_ID), 5, "完整 guidance 链结算后 doom_authority 应到 rank 5。")
+
+
+func _test_forge_result_rejects_legacy_ok_success_alias() -> void:
+	var context := _build_context()
+	var party_state: PartyState = context.get("party_state") as PartyState
+	var guidance: MisfortuneGuidanceService = context.get("guidance") as MisfortuneGuidanceService
+	var battle_gateway: StubMisfortuneBattleGateway = context.get("battle_gateway") as StubMisfortuneBattleGateway
+	var item_defs: Dictionary = context.get("item_defs", {})
+	if party_state == null or guidance == null or battle_gateway == null:
+		_assert_true(false, "Misfortune legacy ok alias regression 前置构建失败。")
+		return
+
+	battle_gateway.calamity_by_member_id = {HERO_ID: 2}
+	guidance.handle_battle_resolution(
+		_build_battle_state_without_enemies(&"misfortune_legacy_ok_alias"),
+		_build_battle_resolution_result(&"misfortune_legacy_ok_alias", {"converted_calamity_shards": 1})
+	)
+	var legacy_result := _build_forge_result(&"shadow_halberd")
+	legacy_result.erase("success")
+	legacy_result["ok"] = true
+	var legacy_unlocks := guidance.handle_forge_result(HERO_ID, legacy_result, item_defs)
+	_assert_true(legacy_unlocks.is_empty(), "forge result 只有 legacy ok=true 时不应解锁 guidance_exalted。")
+	_assert_true(
+		not _is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_EXALTED),
+		"forge result 缺正式 success 字段时不应写入 guidance_exalted。"
+	)
+
+
+func _test_forge_result_rejects_string_key_only_dark_equipment_def() -> void:
+	var context := _build_context()
+	var party_state: PartyState = context.get("party_state") as PartyState
+	var guidance: MisfortuneGuidanceService = context.get("guidance") as MisfortuneGuidanceService
+	var battle_gateway: StubMisfortuneBattleGateway = context.get("battle_gateway") as StubMisfortuneBattleGateway
+	var item_defs: Dictionary = context.get("item_defs", {})
+	if party_state == null or guidance == null or battle_gateway == null:
+		_assert_true(false, "Misfortune String-key-only item_defs regression 前置构建失败。")
+		return
+
+	battle_gateway.calamity_by_member_id = {HERO_ID: 2}
+	guidance.handle_battle_resolution(
+		_build_battle_state_without_enemies(&"misfortune_string_key_item_defs"),
+		_build_battle_resolution_result(&"misfortune_string_key_item_defs", {"converted_calamity_shards": 1})
+	)
+	var dark_weapon := item_defs.get(&"shadow_halberd") as ItemDef
+	if dark_weapon == null:
+		_assert_true(false, "Misfortune String-key-only item_defs regression 前置：应存在正式 shadow_halberd。")
+		return
+	var string_key_only_defs := {
+		String(dark_weapon.item_id): dark_weapon,
+	}
+	var unlocks := guidance.handle_forge_result(
+		HERO_ID,
+		_build_forge_result(&"shadow_halberd"),
+		string_key_only_defs
+	)
+	_assert_true(unlocks.is_empty(), "forge result 只有 String key 的 dark equipment def 时不应解锁 guidance_exalted。")
+	_assert_true(
+		not _is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_EXALTED),
+		"forge result 缺正式 StringName key 时不应写入 guidance_exalted。"
+	)
 
 
 func _build_context() -> Dictionary:

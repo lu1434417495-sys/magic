@@ -66,18 +66,82 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	var progress := UNIT_PROFESSION_PROGRESS_SCRIPT.new()
-	progress.profession_id = ProgressionDataUtils.to_string_name(data.get("profession_id", ""))
-	progress.rank = int(data.get("rank", 0))
-	progress.is_active = bool(data.get("is_active", true))
-	progress.is_hidden = bool(data.get("is_hidden", false))
-	progress.core_skill_ids = ProgressionDataUtils.to_string_name_array(data.get("core_skill_ids", []))
-	progress.granted_skill_ids = ProgressionDataUtils.to_string_name_array(data.get("granted_skill_ids", []))
-	progress.inactive_reason = ProgressionDataUtils.to_string_name(data.get("inactive_reason", ""))
+	for field_name in [
+		"profession_id",
+		"rank",
+		"is_active",
+		"is_hidden",
+		"core_skill_ids",
+		"granted_skill_ids",
+		"promotion_history",
+		"inactive_reason",
+	]:
+		if not data.has(field_name):
+			return null
+	var core_skill_ids_variant: Variant = data["core_skill_ids"]
+	var granted_skill_ids_variant: Variant = data["granted_skill_ids"]
+	var promotion_history_data: Variant = data["promotion_history"]
+	if core_skill_ids_variant is not Array:
+		return null
+	if granted_skill_ids_variant is not Array:
+		return null
+	if promotion_history_data is not Array:
+		return null
+	var profession_id = _parse_string_name_field(data["profession_id"], false)
+	if profession_id == null:
+		return null
+	var rank_variant: Variant = data["rank"]
+	if rank_variant is not int or int(rank_variant) < 0:
+		return null
+	if data["is_active"] is not bool or data["is_hidden"] is not bool:
+		return null
+	var core_skill_ids = _parse_unique_string_name_array(core_skill_ids_variant)
+	if core_skill_ids == null:
+		return null
+	var granted_skill_ids = _parse_unique_string_name_array(granted_skill_ids_variant)
+	if granted_skill_ids == null:
+		return null
+	var inactive_reason = _parse_string_name_field(data["inactive_reason"], true)
+	if inactive_reason == null:
+		return null
 
-	var promotion_history_data: Array = data.get("promotion_history", [])
+	var progress := UNIT_PROFESSION_PROGRESS_SCRIPT.new()
+	progress.profession_id = profession_id
+	progress.rank = int(rank_variant)
+	progress.is_active = data["is_active"]
+	progress.is_hidden = data["is_hidden"]
+	progress.core_skill_ids = core_skill_ids
+	progress.granted_skill_ids = granted_skill_ids
+	progress.inactive_reason = inactive_reason
+
 	for record_data in promotion_history_data:
-		if record_data is Dictionary:
-			progress.promotion_history.append(ProfessionPromotionRecord.from_dict(record_data))
+		if record_data is not Dictionary:
+			return null
+		var promotion_record := ProfessionPromotionRecord.from_dict(record_data)
+		if promotion_record == null:
+			return null
+		progress.promotion_history.append(promotion_record)
 
 	return progress
+
+
+static func _parse_string_name_field(value: Variant, allow_empty: bool):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	var parsed_value := ProgressionDataUtils.to_string_name(value)
+	if parsed_value == &"" and not allow_empty:
+		return null
+	return parsed_value
+
+
+static func _parse_unique_string_name_array(values: Array):
+	var parsed_values: Array[StringName] = []
+	var seen_values: Dictionary = {}
+	for raw_value in values:
+		var parsed_value = _parse_string_name_field(raw_value, false)
+		if parsed_value == null or seen_values.has(parsed_value):
+			return null
+		seen_values[parsed_value] = true
+		parsed_values.append(parsed_value)
+	return parsed_values
