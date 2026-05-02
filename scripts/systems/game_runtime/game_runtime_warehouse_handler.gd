@@ -44,25 +44,29 @@ func command_open_party_warehouse() -> Dictionary:
 	return _command_ok()
 
 
-func command_discard_one(item_id: StringName) -> Dictionary:
+func command_discard_one(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
 	if not _has_runtime():
 		return _runtime_unavailable_error()
 	if _get_active_modal_id() != "warehouse":
 		return _command_error("共享仓库当前未打开。")
 	if _get_party_warehouse_service() == null:
 		return _command_error("共享仓库服务尚未准备完成。")
-	on_party_warehouse_discard_one_requested(item_id)
+	var result := on_party_warehouse_discard_one_requested(item_id, instance_id)
+	if not bool(result.get("success", true)):
+		return _command_error(String(result.get("message", "当前无法丢弃该物品。")))
 	return _command_ok()
 
 
-func command_discard_all(item_id: StringName) -> Dictionary:
+func command_discard_all(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
 	if not _has_runtime():
 		return _runtime_unavailable_error()
 	if _get_active_modal_id() != "warehouse":
 		return _command_error("共享仓库当前未打开。")
 	if _get_party_warehouse_service() == null:
 		return _command_error("共享仓库服务尚未准备完成。")
-	on_party_warehouse_discard_all_requested(item_id)
+	var result := on_party_warehouse_discard_all_requested(item_id, instance_id)
+	if not bool(result.get("success", true)):
+		return _command_error(String(result.get("message", "当前无法丢弃该物品。")))
 	return _command_ok()
 
 
@@ -135,46 +139,51 @@ func open_party_warehouse_window(entry_label: String) -> void:
 		party_warehouse_service.setup(_get_party_state(), item_defs, equipment_instance_id_allocator)
 
 
-func on_party_warehouse_discard_one_requested(item_id: StringName) -> void:
+func on_party_warehouse_discard_one_requested(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
 	var party_warehouse_service = _get_party_warehouse_service()
 	if not _has_runtime() or party_warehouse_service == null:
-		return
+		return {"success": false, "message": RUNTIME_UNAVAILABLE_MESSAGE}
 
 	var item_name := _get_item_display_name(item_id)
-	var result: Dictionary = party_warehouse_service.remove_item(item_id, 1)
+	var result: Dictionary = _remove_warehouse_item_or_instance(party_warehouse_service, item_id, 1, instance_id)
 	if int(result.get("removed_quantity", 0)) <= 0:
-		_update_status("%s 当前没有可丢弃的库存。" % item_name)
-		return
+		var failure_message := _build_discard_failure_message(item_id, result)
+		_update_status(failure_message)
+		return {"success": false, "message": failure_message}
 
 	var persist_error := int(_persist_party_state())
 	if persist_error == OK:
 		_update_status("已从共享仓库丢弃 1 件 %s。" % item_name)
 	else:
 		_update_status("已从共享仓库丢弃 1 件 %s，但队伍状态持久化失败。" % item_name)
+	return {"success": true, "message": _get_status_text()}
 
 
-func on_party_warehouse_discard_all_requested(item_id: StringName) -> void:
+func on_party_warehouse_discard_all_requested(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
 	var party_warehouse_service = _get_party_warehouse_service()
 	if not _has_runtime() or party_warehouse_service == null:
-		return
+		return {"success": false, "message": RUNTIME_UNAVAILABLE_MESSAGE}
 
 	var item_name := _get_item_display_name(item_id)
 	var total_quantity: int = party_warehouse_service.count_item(item_id)
 	if total_quantity <= 0:
-		_update_status("%s 当前没有可丢弃的库存。" % item_name)
-		return
+		var no_stock_message := "%s 当前没有可丢弃的库存。" % item_name
+		_update_status(no_stock_message)
+		return {"success": false, "message": no_stock_message}
 
-	var result: Dictionary = party_warehouse_service.remove_item(item_id, total_quantity)
+	var result: Dictionary = _remove_warehouse_item_or_instance(party_warehouse_service, item_id, total_quantity, instance_id)
 	var removed_quantity := int(result.get("removed_quantity", 0))
 	if removed_quantity <= 0:
-		_update_status("%s 当前没有可丢弃的库存。" % item_name)
-		return
+		var failure_message := _build_discard_failure_message(item_id, result)
+		_update_status(failure_message)
+		return {"success": false, "message": failure_message}
 
 	var persist_error := int(_persist_party_state())
 	if persist_error == OK:
 		_update_status("已从共享仓库丢弃全部 %s，共 %d 件。" % [item_name, removed_quantity])
 	else:
 		_update_status("已从共享仓库丢弃全部 %s，但队伍状态持久化失败。" % item_name)
+	return {"success": true, "message": _get_status_text()}
 
 
 func on_party_warehouse_use_requested(item_id: StringName, member_id: StringName) -> Dictionary:
@@ -375,6 +384,36 @@ func _build_warehouse_window_data() -> Dictionary:
 		"default_target_member_id": String(_resolve_warehouse_target_member_id()),
 		"entries": inventory_entries,
 	}
+
+
+func _remove_warehouse_item_or_instance(
+	party_warehouse_service,
+	item_id: StringName,
+	quantity: int,
+	instance_id: StringName = &""
+) -> Dictionary:
+	var normalized_instance_id := ProgressionDataUtils.to_string_name(instance_id)
+	var item_def = party_warehouse_service.get_item_def(item_id) if party_warehouse_service != null and party_warehouse_service.has_method("get_item_def") else null
+	if item_def != null and item_def.is_equipment():
+		return party_warehouse_service.remove_equipment_instance(item_id, normalized_instance_id)
+	return party_warehouse_service.remove_item(item_id, quantity)
+
+
+func _build_discard_failure_message(item_id: StringName, result: Dictionary) -> String:
+	var item_name := _get_item_display_name(item_id)
+	match String(result.get("error_code", "")):
+		"equipment_instance_id_required":
+			return "请选择要丢弃的 %s 装备实例。" % item_name
+		"warehouse_missing_instance":
+			return "共享仓库中没有指定的 %s 装备实例。" % item_name
+		"equipment_instance_item_mismatch":
+			return "指定装备实例不属于 %s。" % item_name
+		"item_not_equipment":
+			return "%s 不是装备实例，无法按实例丢弃。" % item_name
+		"item_not_found":
+			return "未找到物品定义 %s。" % String(item_id)
+		_:
+			return "%s 当前没有可丢弃的库存。" % item_name
 
 
 func _get_item_display_name(item_id: StringName) -> String:

@@ -3,6 +3,12 @@ extends SceneTree
 const WorldMapRuntimeProxy = preload("res://scripts/systems/game_runtime/world_map_runtime_proxy.gd")
 const WorldMapSystem = preload("res://scripts/systems/game_runtime/world_map_system.gd")
 
+class StagecoachTravelProxySpy:
+	var travel_calls: Array[String] = []
+
+	func command_stagecoach_travel(target_settlement_id: String) -> void:
+		travel_calls.append(target_settlement_id)
+
 var _failures: Array[String] = []
 
 
@@ -12,6 +18,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_world_map_system_does_not_expose_runtime_passthrough_surface()
+	_test_stagecoach_modal_accepts_only_formal_target_payload()
 	_test_world_map_runtime_proxy_keeps_expected_contract()
 
 	if _failures.is_empty():
@@ -83,6 +90,42 @@ func _test_world_map_system_does_not_expose_runtime_passthrough_surface() -> voi
 			"WorldMapSystem 不应再暴露 %s 这类 runtime 透传 API。" % method_name
 		)
 
+	system.free()
+
+
+func _test_stagecoach_modal_accepts_only_formal_target_payload() -> void:
+	var system := WorldMapSystem.new()
+	var proxy := StagecoachTravelProxySpy.new()
+	system._runtime = RefCounted.new()
+	system._runtime_proxy = proxy
+
+	system._on_stagecoach_service_modal_action_requested(
+		"spring_village_01",
+		"service:stagecoach",
+		{"settlement_id": "legacy_destination"}
+	)
+	_assert_true(
+		proxy.travel_calls.is_empty(),
+		"Stagecoach modal payload 只有 settlement_id 时不应触发旅行。"
+	)
+
+	system._on_stagecoach_service_modal_action_requested(
+		"spring_village_01",
+		"service:stagecoach",
+		{"target_settlement_id": "north_outpost"}
+	)
+	_assert_true(
+		proxy.travel_calls.size() == 1,
+		"Stagecoach modal payload 使用 target_settlement_id 时应触发一次旅行。"
+	)
+	if proxy.travel_calls.size() == 1:
+		_assert_true(
+			proxy.travel_calls[0] == "north_outpost",
+			"Stagecoach modal 应把正式 target_settlement_id 透传给旅行命令。"
+		)
+
+	system._runtime = null
+	system._runtime_proxy = null
 	system.free()
 
 

@@ -2,6 +2,7 @@ extends SceneTree
 
 const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_settlement_command_handler.gd")
+const SettlementShopService = preload("res://scripts/systems/settlement/settlement_shop_service.gd")
 const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
@@ -22,6 +23,15 @@ class MockAttributeSnapshot:
 
 	func get_value(attribute_id: StringName) -> int:
 		return int(values.get(attribute_id, 0))
+
+
+class MockFogSystem:
+	extends RefCounted
+
+	var visible := true
+
+	func is_visible(_coord: Vector2i, _faction_id: String) -> bool:
+		return visible
 
 
 class MockSettlementHandler:
@@ -67,6 +77,7 @@ class MockRuntime:
 	var _active_shop_context: Dictionary = {}
 	var _active_forge_context: Dictionary = {}
 	var _active_stagecoach_context: Dictionary = {}
+	var _fog_system := MockFogSystem.new()
 	var _current_status_message := ""
 	var _selected_settlement: Dictionary = {}
 	var _settlements_by_id: Dictionary = {}
@@ -110,6 +121,8 @@ class MockRuntime:
 		return battle_active
 
 	func get_active_settlement_id() -> String:
+		if _active_settlement_id.is_empty():
+			return String(_selected_settlement.get("settlement_id", ""))
 		return _active_settlement_id
 
 	func set_active_settlement_id(settlement_id: String) -> void:
@@ -221,6 +234,12 @@ class MockRuntime:
 	func get_world_step() -> int:
 		return world_step
 
+	func get_fog_system():
+		return _fog_system
+
+	func get_player_faction_id() -> String:
+		return "player"
+
 	func advance_world_time_by_steps(delta_steps: int) -> void:
 		world_step += maxi(delta_steps, 0)
 
@@ -229,11 +248,11 @@ class MockRuntime:
 			"quest_id": String(quest_id),
 			"allow_reaccept": allow_reaccept,
 		})
-		var quest_data: Dictionary = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), {})).duplicate(true)
-		var quest_label := String(quest_data.get("display_name", quest_id))
+		var quest_data: Dictionary = _quest_defs.get(quest_id, {}).duplicate(true)
 		if quest_data.is_empty():
 			_current_status_message = "未找到任务 %s。" % String(quest_id)
 			return build_command_error(_current_status_message)
+		var quest_label := String(quest_data["display_name"])
 		if _party_state.has_active_quest(quest_id):
 			_current_status_message = "任务《%s》已在进行中，不能重复接取。" % quest_label
 			return build_command_error(_current_status_message)
@@ -258,11 +277,11 @@ class MockRuntime:
 		claimed_quest_calls.append({
 			"quest_id": String(quest_id),
 		})
-		var quest_data: Dictionary = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), {})).duplicate(true)
-		var quest_label := String(quest_data.get("display_name", quest_id))
+		var quest_data: Dictionary = _quest_defs.get(quest_id, {}).duplicate(true)
 		if quest_data.is_empty():
 			_current_status_message = "未找到任务 %s。" % String(quest_id)
 			return build_command_error(_current_status_message)
+		var quest_label := String(quest_data["display_name"])
 		if not _party_state.has_claimable_quest(quest_id):
 			_current_status_message = "当前没有可领取的任务《%s》奖励。" % quest_label
 			return build_command_error(_current_status_message)
@@ -293,10 +312,13 @@ class MockRuntime:
 			"quest_id": String(quest_id),
 			"objective_id": String(objective_id),
 		})
-		var quest_data: Dictionary = _quest_defs.get(quest_id, _quest_defs.get(String(quest_id), {})).duplicate(true)
-		var quest_label := String(quest_data.get("display_name", quest_id))
+		var quest_data: Dictionary = _quest_defs.get(quest_id, {}).duplicate(true)
+		if quest_data.is_empty():
+			_current_status_message = "当前没有进行中的任务《%s》。" % String(quest_id)
+			return build_command_error(_current_status_message)
+		var quest_label := String(quest_data["display_name"])
 		var active_quest: QuestState = _party_state.get_active_quest_state(quest_id)
-		if quest_data.is_empty() or active_quest == null:
+		if active_quest == null:
 			_current_status_message = "当前没有进行中的任务《%s》。" % quest_label
 			return build_command_error(_current_status_message)
 		var target_value := 1
@@ -419,6 +441,77 @@ class MockRuntime:
 		return OK
 
 
+class MockShopItemDef:
+	extends RefCounted
+
+	var display_name := ""
+	var description := ""
+	var icon := ""
+	var sellable := true
+	var buy_price := 0
+	var sell_price := 0
+
+	func get_buy_price(price_multiplier: float = 1.0) -> int:
+		return maxi(int(round(float(buy_price) * maxf(price_multiplier, 0.0))), 0)
+
+	func get_sell_price(_price_multiplier: float = 0.5) -> int:
+		return maxi(int(sell_price), 0)
+
+
+class MockShopWarehouseService:
+	extends RefCounted
+
+	var inventory_entries: Array[Dictionary] = []
+	var counts: Dictionary = {}
+	var added_items: Array[Dictionary] = []
+	var removed_items: Array[Dictionary] = []
+
+	func get_inventory_entries() -> Array[Dictionary]:
+		var entries: Array[Dictionary] = []
+		for entry in inventory_entries:
+			entries.append(entry.duplicate(true))
+		return entries
+
+	func preview_add_item(item_id: StringName, quantity: int) -> Dictionary:
+		return {
+			"item_id": String(item_id),
+			"requested_quantity": quantity,
+			"added_quantity": quantity,
+			"remaining_quantity": 0,
+		}
+
+	func add_item(item_id: StringName, quantity: int) -> Dictionary:
+		added_items.append({
+			"item_id": String(item_id),
+			"quantity": quantity,
+		})
+		counts[item_id] = int(counts.get(item_id, 0)) + quantity
+		return {
+			"item_id": String(item_id),
+			"requested_quantity": quantity,
+			"added_quantity": quantity,
+			"remaining_quantity": 0,
+		}
+
+	func count_item(item_id: StringName) -> int:
+		return int(counts.get(item_id, 0))
+
+	func remove_item(item_id: StringName, quantity: int) -> Dictionary:
+		var available_quantity := count_item(item_id)
+		var removed_quantity := mini(maxi(quantity, 0), available_quantity)
+		counts[item_id] = available_quantity - removed_quantity
+		removed_items.append({
+			"item_id": String(item_id),
+			"quantity": removed_quantity,
+		})
+		return {
+			"item_id": String(item_id),
+			"requested_quantity": quantity,
+			"removed_quantity": removed_quantity,
+			"remaining_quantity": maxi(quantity - removed_quantity, 0),
+		}
+
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -427,6 +520,7 @@ func _run() -> void:
 	_test_facade_delegates_settlement_surface_to_handler()
 	_test_settlement_handler_routes_research_service()
 	_test_settlement_handler_routes_actions_and_modal_state()
+	_test_settlement_shop_service_rejects_bad_entry_schema()
 	_test_settlement_handler_rejects_invalid_or_spoofed_actions()
 	await _test_world_generation_exposes_research_service()
 
@@ -503,7 +597,6 @@ func _test_settlement_handler_routes_research_service() -> void:
 			"shop_states": {},
 		},
 	}
-
 	var handler := GameRuntimeSettlementCommandHandler.new()
 	handler.setup(runtime)
 
@@ -719,6 +812,129 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 				{"reward_type": "gold", "amount": 120},
 			],
 		},
+		&"contract_missing_display_name": {
+			"quest_id": "contract_missing_display_name",
+			"description": "缺少 display_name 的坏契约不应显示。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "bad_missing_name",
+					"objective_type": "defeat_enemy",
+					"target_id": "",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 1},
+			],
+		},
+		&"contract_missing_description": {
+			"quest_id": "contract_missing_description",
+			"display_name": "缺说明契约",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "bad_missing_description",
+					"objective_type": "defeat_enemy",
+					"target_id": "",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 1},
+			],
+		},
+		&"contract_missing_objectives": {
+			"quest_id": "contract_missing_objectives",
+			"display_name": "缺目标契约",
+			"description": "缺少 objective_defs 的坏契约不应显示。",
+			"provider_interaction_id": "service_contract_board",
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 1},
+			],
+		},
+		&"contract_missing_objective_target": {
+			"quest_id": "contract_missing_objective_target",
+			"display_name": "缺目标对象契约",
+			"description": "据点事务目标缺少 target_id 时不应回退成未命名。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "bad_missing_target",
+					"objective_type": "settlement_action",
+					"target_id": "",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 1},
+			],
+		},
+		&"contract_unknown_objective_type": {
+			"quest_id": "contract_unknown_objective_type",
+			"display_name": "未知目标契约",
+			"description": "未知 objective_type 不应直接显示 objective_id。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "bad_unknown_objective",
+					"objective_type": "legacy_custom",
+					"target_id": "legacy_target",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 1},
+			],
+		},
+		&"contract_missing_rewards": {
+			"quest_id": "contract_missing_rewards",
+			"display_name": "缺奖励契约",
+			"description": "缺少 reward_entries 的坏契约不应显示。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "bad_missing_rewards",
+					"objective_type": "defeat_enemy",
+					"target_id": "",
+					"target_value": 1,
+				},
+			],
+		},
+		&"contract_invalid_reward_amount": {
+			"quest_id": "contract_invalid_reward_amount",
+			"display_name": "坏奖励契约",
+			"description": "非法奖励数值不应回退成奖励待定。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "bad_reward_amount",
+					"objective_type": "defeat_enemy",
+					"target_id": "",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 0},
+			],
+		},
+		"contract_string_key_only": {
+			"quest_id": "contract_string_key_only",
+			"display_name": "旧 String key 契约",
+			"description": "用于验证任务板不再按 String key 恢复契约。",
+			"provider_interaction_id": "service_contract_board",
+			"objective_defs": [
+				{
+					"objective_id": "string_key_objective",
+					"objective_type": "settlement_action",
+					"target_id": "service:training",
+					"target_value": 1,
+				},
+			],
+			"reward_entries": [
+				{"reward_type": "gold", "amount": 1},
+			],
+		},
 		&"contract_supply_drop": {
 			"quest_id": "contract_supply_drop",
 			"display_name": "物资缴纳",
@@ -760,6 +976,8 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_true(runtime.sync_party_calls > 0, "成功据点动作后应同步角色管理侧的队伍状态。")
 	_assert_true(runtime.achievement_events.size() == 1, "成功据点动作后应记录成就事件。")
 	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:warehouse", "成就事件应记录动作 ID。")
+	runtime._active_modal_id = "settlement"
+	runtime._active_settlement_id = "spring_village_01"
 
 	var contract_board_result := handler.command_execute_settlement_action("service:contract_board")
 	var contract_board_window_data := handler.get_contract_board_window_data()
@@ -769,9 +987,71 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(String(contract_board_window_data.get("action_id", "")), "service:contract_board", "任务板 modal 应保留原始 action_id。")
 	_assert_eq(String(contract_board_window_data.get("provider_interaction_id", "")), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。")
 	_assert_eq(contract_board_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop"], "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。")
+	var missing_name_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_missing_display_name")
+	var missing_description_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_missing_description")
+	var missing_objectives_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_missing_objectives")
+	var missing_objective_target_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_missing_objective_target")
+	var unknown_objective_type_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_unknown_objective_type")
+	var missing_rewards_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_missing_rewards")
+	var invalid_reward_amount_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_invalid_reward_amount")
+	var string_key_only_entry := _find_contract_board_entry(contract_board_window_data.get("entries", []), "contract_string_key_only")
+	_assert_true(missing_name_entry.is_empty(), "缺少 display_name 的契约不应回退成 quest_id 出现在任务板。")
+	_assert_true(missing_description_entry.is_empty(), "缺少 description 的契约不应回退成暂无说明出现在任务板。")
+	_assert_true(missing_objectives_entry.is_empty(), "缺少 objective_defs 的契约不应回退成暂无目标说明出现在任务板。")
+	_assert_true(missing_objective_target_entry.is_empty(), "缺少 target_id 的据点事务目标不应回退成未命名出现在任务板。")
+	_assert_true(unknown_objective_type_entry.is_empty(), "未知 objective_type 不应回退成 objective_id 出现在任务板。")
+	_assert_true(missing_rewards_entry.is_empty(), "缺少 reward_entries 的契约不应回退成奖励待定出现在任务板。")
+	_assert_true(invalid_reward_amount_entry.is_empty(), "非法 reward amount 的契约不应回退成奖励待定出现在任务板。")
+	_assert_true(string_key_only_entry.is_empty(), "String key-only 契约不应被任务板恢复。")
+	var bad_schema_submission := handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_missing_display_name",
+		"provider_interaction_id": "service_contract_board",
+	})
+	_assert_true(not bool(bad_schema_submission.get("ok", true)), "缺少 display_name 的坏契约即使被构造提交也应拒绝。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 0, "坏契约 schema 不应触发 quest accept。")
+	var bad_objective_submission := handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_missing_objectives",
+		"provider_interaction_id": "service_contract_board",
+	})
+	_assert_true(not bool(bad_objective_submission.get("ok", true)), "缺少 objective_defs 的坏契约即使被构造提交也应拒绝。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 0, "坏 objective schema 不应触发 quest accept。")
+	var legacy_panel_submission := handler.command_execute_settlement_action("service:contract_board", {
+		"panel_kind": "contract_board",
+		"quest_id": "contract_manual_drill",
+		"provider_interaction_id": "service_contract_board",
+	})
+	_assert_true(not bool(legacy_panel_submission.get("ok", false)), "旧 panel_kind 字段不应再被识别为任务板提交或普通据点动作。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 0, "旧 panel_kind 字段不应触发 quest accept。")
+	var legacy_entry_submission := handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"entry_id": "contract_manual_drill",
+		"provider_interaction_id": "service_contract_board",
+	})
+	_assert_true(not bool(legacy_entry_submission.get("ok", true)), "旧 entry_id 字段不应回退成 quest_id。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 0, "旧 entry_id 字段不应触发 quest accept。")
+	_assert_eq(runtime._current_status_message, "当前契约条目缺少 quest_id，无法接取。", "旧 entry_id 提交应返回缺 quest_id 的反馈。")
+	var legacy_provider_submission := handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_manual_drill",
+		"interaction_script_id": "service_contract_board",
+	})
+	_assert_true(not bool(legacy_provider_submission.get("ok", true)), "旧 interaction_script_id 字段不应回退成 provider_interaction_id。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 0, "旧 interaction_script_id 字段不应触发 quest accept。")
+	_assert_eq(runtime._current_status_message, "当前契约条目缺少 provider_interaction_id，无法匹配任务板。", "旧 interaction_script_id 提交应返回缺 provider_interaction_id 的反馈。")
+	var string_key_submission := handler.command_execute_settlement_action("service:contract_board", {
+		"submission_source": "contract_board",
+		"quest_id": "contract_string_key_only",
+		"provider_interaction_id": "service_contract_board",
+	})
+	_assert_true(not bool(string_key_submission.get("ok", true)), "String key-only 契约即使被构造提交也应拒绝。")
+	_assert_eq(runtime.accepted_quest_calls.size(), 0, "String key-only 契约不应触发 quest accept。")
+	_assert_eq(runtime._current_status_message, "当前任务板未找到契约 contract_string_key_only。", "String key-only 提交应按未找到任务处理。")
 	var mismatched_contract_submission := handler.command_execute_settlement_action("service:bounty_registry", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_manual_drill",
+		"provider_interaction_id": "service_contract_board",
 	})
 	_assert_true(not bool(mismatched_contract_submission.get("ok", true)), "任务板提交不应允许切到其他 action_id。")
 	_assert_eq(runtime.accepted_quest_calls.size(), 0, "action_id 与当前任务板不一致时不应触发 quest accept。")
@@ -779,6 +1059,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	var accept_contract_result := handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_manual_drill",
+		"provider_interaction_id": "service_contract_board",
 	})
 	var accepted_contract_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_manual_drill")
 	_assert_true(bool(accept_contract_result.get("ok", false)), "任务板提交应保持据点动作链路可执行。")
@@ -793,6 +1074,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_manual_drill",
+		"provider_interaction_id": "service_contract_board",
 	})
 	_assert_eq(runtime.accepted_quest_calls.size(), 2, "重复提交同一契约时仍应调用正式 quest accept 命令。")
 	_assert_eq(runtime._current_status_message, "任务《训练记录》已在进行中，不能重复接取。", "重复接取时应返回明确反馈。")
@@ -802,6 +1084,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_manual_drill",
+		"provider_interaction_id": "service_contract_board",
 	})
 	var claimed_contract_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_manual_drill")
 	_assert_eq(runtime.accepted_quest_calls.size(), 2, "领取 claimable 契约时不应重复走 quest accept 命令。")
@@ -822,6 +1105,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_repeatable_patrol",
+		"provider_interaction_id": "service_contract_board",
 	})
 	var repeatable_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_repeatable_patrol")
 	_assert_eq(runtime.accepted_quest_calls.size(), 2, "repeatable 契约领奖时不应误走 quest accept。")
@@ -840,6 +1124,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	handler.command_execute_settlement_action("service:contract_board", {
 		"submission_source": "contract_board",
 		"quest_id": "contract_supply_drop",
+		"provider_interaction_id": "service_contract_board",
 	})
 	var submit_item_entry := _find_contract_board_entry(handler.get_contract_board_window_data().get("entries", []), "contract_supply_drop")
 	_assert_eq(runtime.accepted_quest_calls.size(), 2, "active submit_item 契约提交时不应再走 quest accept。")
@@ -958,6 +1243,31 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_true(not canonical_training_result.has("effects"), "据点服务结果不应再输出 legacy effects。")
 	_assert_eq(int(canonical_training_result.get("gold_delta", 0)), 0, "普通据点服务不应修改金币字段。")
 
+	var legacy_reward_source_result := handler.execute_settlement_action("spring_village_01", "service:training", {
+		"interaction_script_id": "training_service",
+		"facility_name": "训练场",
+		"npc_name": "教官",
+		"service_type": "训练",
+		"member_id": "hero",
+		"mastery_source_type": "legacy_mastery",
+		"pending_character_rewards": [
+			{
+				"member_id": "hero",
+				"entries": [
+					{
+						"entry_type": "skill_mastery",
+						"target_id": "warrior_heavy_strike",
+						"amount": 1,
+					},
+				],
+			},
+		],
+	})
+	var legacy_reward_entries: Array = legacy_reward_source_result.get("pending_character_rewards", [])
+	var legacy_reward: Dictionary = legacy_reward_entries[0] if not legacy_reward_entries.is_empty() and legacy_reward_entries[0] is Dictionary else {}
+	_assert_eq(String(legacy_reward.get("source_type", "")), "training", "旧 mastery_source_type 不应回退成奖励 source_type。")
+	_assert_eq(String(legacy_reward.get("source_id", "")), "training", "旧 mastery_source_type 不应回退成奖励 source_id。")
+
 	runtime._party_state.gold = 200
 	runtime._party_state.get_member_state(&"hero").current_hp = 10
 	var rest_result := handler.execute_settlement_action("spring_village_01", "service:rest_full", {
@@ -999,6 +1309,160 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(runtime._active_modal_id, "", "关闭据点窗口应清空 modal。")
 	_assert_true(runtime.present_reward_calls > 0, "关闭据点窗口后应尝试恢复待确认奖励。")
 	_assert_eq(runtime._current_status_message, "已关闭据点窗口，返回世界地图。", "关闭据点窗口后应刷新状态文案。")
+
+
+func _test_settlement_shop_service_rejects_bad_entry_schema() -> void:
+	var shop_service := SettlementShopService.new()
+	var item_defs := _make_shop_item_defs()
+	var settlement_record := {
+		"settlement_id": "spring_village_01",
+		"display_name": "春泉村",
+	}
+	var valid_warehouse := MockShopWarehouseService.new()
+	valid_warehouse.inventory_entries = [
+		_make_formal_inventory_entry("travel_ration", 3),
+	]
+	valid_warehouse.counts = {
+		&"travel_ration": 3,
+	}
+	var valid_window_data := shop_service.build_window_data(
+		"service_basic_supply",
+		settlement_record,
+		_make_shop_state([
+			{"item_id": "healing_herb", "quantity": 2, "unit_price": 12, "sold_out": false},
+		]),
+		item_defs,
+		valid_warehouse,
+		100
+	)
+	_assert_eq((valid_window_data.get("buy_entries", []) as Array).size(), 1, "正式 shop stock entry 应生成可购买条目。")
+	_assert_eq((valid_window_data.get("sell_entries", []) as Array).size(), 1, "正式 sell inventory entry 应生成可出售条目。")
+
+	var invalid_stock_cases: Array[Dictionary] = [
+		{
+			"label": "字符串 quantity",
+			"entry": {"item_id": "healing_herb", "quantity": "2", "unit_price": 12, "sold_out": false},
+		},
+		{
+			"label": "字符串 unit_price",
+			"entry": {"item_id": "healing_herb", "quantity": 2, "unit_price": "12", "sold_out": false},
+		},
+		{
+			"label": "缺 unit_price",
+			"entry": {"item_id": "healing_herb", "quantity": 2, "sold_out": false},
+		},
+		{
+			"label": "空 item_id",
+			"entry": {"item_id": "", "quantity": 2, "unit_price": 12, "sold_out": false},
+		},
+		{
+			"label": "旧 price 字段",
+			"entry": {"item_id": "healing_herb", "quantity": 2, "unit_price": 12, "price": 1, "sold_out": false},
+		},
+		{
+			"label": "字符串 sold_out",
+			"entry": {"item_id": "healing_herb", "quantity": 2, "unit_price": 12, "sold_out": "false"},
+		},
+		{
+			"label": "非正 quantity",
+			"entry": {"item_id": "healing_herb", "quantity": 0, "unit_price": 12, "sold_out": false},
+		},
+	]
+	for case_data in invalid_stock_cases:
+		var label := String(case_data.get("label", "坏库存"))
+		var warehouse := MockShopWarehouseService.new()
+		var party_state := _make_party_state()
+		party_state.gold = 100
+		var settlement_state := _make_shop_state([
+			(case_data.get("entry", {}) as Dictionary).duplicate(true),
+		])
+		var window_data := shop_service.build_window_data(
+			"service_basic_supply",
+			settlement_record,
+			settlement_state,
+			item_defs,
+			warehouse,
+			party_state.gold
+		)
+		_assert_eq((window_data.get("buy_entries", []) as Array).size(), 0, "%s 的坏 shop stock 不应生成购买窗口条目。" % label)
+		var gold_before := party_state.gold
+		var buy_result := shop_service.buy(
+			"service_basic_supply",
+			settlement_record,
+			settlement_state,
+			item_defs,
+			warehouse,
+			party_state,
+			&"healing_herb",
+			1
+		)
+		_assert_true(not bool(buy_result.get("success", true)), "%s 的坏 shop stock 不应允许购买交易。" % label)
+		_assert_eq(party_state.gold, gold_before, "%s 的坏 shop stock 不应扣除金币。" % label)
+		_assert_eq(warehouse.added_items.size(), 0, "%s 的坏 shop stock 不应写入仓库。" % label)
+
+	var invalid_sell_cases: Array[Dictionary] = [
+		{
+			"label": "旧 quantity 回退",
+			"entry": {"item_id": "travel_ration", "quantity": 2},
+		},
+		{
+			"label": "字符串 total_quantity",
+			"entry": {"item_id": "travel_ration", "total_quantity": "2"},
+		},
+		{
+			"label": "空 item_id",
+			"entry": {"item_id": "", "total_quantity": 2},
+		},
+	]
+	for case_data in invalid_sell_cases:
+		var label := String(case_data.get("label", "坏出售条目"))
+		var warehouse := MockShopWarehouseService.new()
+		warehouse.inventory_entries = [
+			(case_data.get("entry", {}) as Dictionary).duplicate(true),
+		]
+		var window_data := shop_service.build_window_data(
+			"service_basic_supply",
+			settlement_record,
+			_make_shop_state([]),
+			item_defs,
+			warehouse,
+			100
+		)
+		_assert_eq((window_data.get("sell_entries", []) as Array).size(), 0, "%s 的坏 sell entry 不应生成出售窗口条目。" % label)
+
+	var no_price_item := _make_shop_item_def("无价样品", "没有正式回收价。", 10, 0, true)
+	var no_price_item_defs := item_defs.duplicate()
+	no_price_item_defs[&"no_price_sample"] = no_price_item
+	var no_price_warehouse := MockShopWarehouseService.new()
+	no_price_warehouse.inventory_entries = [
+		_make_formal_inventory_entry("no_price_sample", 1),
+	]
+	no_price_warehouse.counts = {
+		&"no_price_sample": 1,
+	}
+	var no_price_window_data := shop_service.build_window_data(
+		"service_basic_supply",
+		settlement_record,
+		_make_shop_state([]),
+		no_price_item_defs,
+		no_price_warehouse,
+		100
+	)
+	_assert_eq((no_price_window_data.get("sell_entries", []) as Array).size(), 0, "缺少正式 sell_price 的物品不应补默认回收价。")
+	var no_price_party := _make_party_state()
+	var no_price_sell_result := shop_service.sell(
+		"service_basic_supply",
+		settlement_record,
+		_make_shop_state([]),
+		no_price_item_defs,
+		no_price_warehouse,
+		no_price_party,
+		&"no_price_sample",
+		1
+	)
+	_assert_true(not bool(no_price_sell_result.get("success", true)), "缺少正式 sell_price 的物品不应允许出售交易。")
+	_assert_eq(no_price_party.gold, 0, "缺少正式 sell_price 的出售失败不应增加金币。")
+	_assert_eq(no_price_warehouse.removed_items.size(), 0, "缺少正式 sell_price 的出售失败不应移除仓库物品。")
 
 
 func _test_settlement_handler_rejects_invalid_or_spoofed_actions() -> void:
@@ -1045,6 +1509,18 @@ func _test_settlement_handler_rejects_invalid_or_spoofed_actions() -> void:
 	var handler := GameRuntimeSettlementCommandHandler.new()
 	handler.setup(runtime)
 
+	runtime._active_modal_id = ""
+	var closed_modal_result := handler.command_execute_settlement_action("service:basic_supply")
+	_assert_true(not bool(closed_modal_result.get("ok", true)), "未打开据点窗口时不应执行据点服务。")
+	_assert_eq(String(closed_modal_result.get("message", "")), "当前没有打开对应的据点窗口。", "未打开据点窗口应返回明确错误。")
+	runtime._active_modal_id = "settlement"
+
+	runtime._fog_system.visible = false
+	var hidden_settlement_result := handler.command_execute_settlement_action("service:basic_supply")
+	_assert_true(not bool(hidden_settlement_result.get("ok", true)), "不可见据点不应执行据点服务。")
+	_assert_eq(String(hidden_settlement_result.get("message", "")), "当前据点不在视野中，不能执行据点服务。", "不可见据点应返回明确错误。")
+	runtime._fog_system.visible = true
+
 	var missing_action_result := handler.command_execute_settlement_action("service:missing")
 	_assert_true(not bool(missing_action_result.get("ok", true)), "未开放的 action_id 应被直接拒绝。")
 	_assert_true(String(missing_action_result.get("message", "")).find("未开放该服务") >= 0, "未开放 action_id 的错误信息应明确指出未开放。")
@@ -1054,6 +1530,18 @@ func _test_settlement_handler_rejects_invalid_or_spoofed_actions() -> void:
 	_assert_true(not bool(disabled_stagecoach_result.get("ok", true)), "禁用的据点服务不应继续执行。")
 	_assert_eq(String(disabled_stagecoach_result.get("message", "")), "驿站 当前不可用：暂无已访问路线。", "禁用服务应返回明确 disabled_reason。")
 	_assert_eq(runtime._active_modal_id, "settlement", "禁用服务失败后不应切换 modal。")
+
+	handler.on_settlement_action_requested("spring_village_01", "service:basic_supply", {
+		"interaction_script_id": "service_research",
+		"facility_name": "伪造图书馆",
+		"npc_name": "伪造导师",
+		"service_type": "研究",
+	})
+	var signal_shop_window_data := handler.get_shop_window_data()
+	_assert_eq(runtime._active_modal_id, "shop", "UI 信号入口收到伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。")
+	_assert_eq(String(signal_shop_window_data.get("interaction_script_id", "")), "service_basic_supply", "UI 信号入口应使用真实服务 interaction_script_id。")
+	_assert_eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。")
+	runtime._active_modal_id = "settlement"
 
 	var spoofed_shop_result := handler.command_execute_settlement_action("service:basic_supply", {
 		"interaction_script_id": "service_research",
@@ -1118,6 +1606,67 @@ func _make_party_state() -> PartyState:
 	return party_state
 
 
+func _make_shop_item_defs() -> Dictionary:
+	return {
+		&"healing_herb": _make_shop_item_def("治疗草药", "恢复少量生命。", 12, 6, true),
+		&"travel_ration": _make_shop_item_def("旅行口粮", "野外行军口粮。", 14, 7, true),
+	}
+
+
+func _make_shop_item_def(
+	display_name: String,
+	description: String,
+	buy_price: int,
+	sell_price: int,
+	sellable: bool
+) -> MockShopItemDef:
+	var item_def := MockShopItemDef.new()
+	item_def.display_name = display_name
+	item_def.description = description
+	item_def.icon = ""
+	item_def.buy_price = buy_price
+	item_def.sell_price = sell_price
+	item_def.sellable = sellable
+	return item_def
+
+
+func _make_shop_state(current_inventory: Array) -> Dictionary:
+	return {
+		"visited": true,
+		"reputation": 0,
+		"active_conditions": [],
+		"cooldowns": {},
+		"world_step": 0,
+		"shop_inventory_seed": 0,
+		"shop_last_refresh_step": 0,
+		"shop_states": {
+			"village_basic_supply": {
+				"shop_id": "village_basic_supply",
+				"current_inventory": current_inventory.duplicate(true),
+				"seed": 1,
+				"last_refresh_step": 0,
+			},
+		},
+	}
+
+
+func _make_formal_inventory_entry(item_id: String, total_quantity: int) -> Dictionary:
+	return {
+		"item_id": item_id,
+		"display_name": item_id,
+		"description": "",
+		"icon": "",
+		"quantity": total_quantity,
+		"total_quantity": total_quantity,
+		"is_stackable": true,
+		"stack_limit": 99,
+		"item_category": "misc",
+		"is_skill_book": false,
+		"granted_skill_id": "",
+		"storage_mode": "stack",
+	}
+
+
 func _has_call(calls: Array[Dictionary], method_name: String) -> bool:
 	for call in calls:
 		if String(call.get("method", "")) == method_name:
@@ -1142,7 +1691,7 @@ func _extract_contract_board_entry_ids(entry_variants) -> Array[String]:
 		if entry_variant is not Dictionary:
 			continue
 		var entry: Dictionary = entry_variant
-		result.append(String(entry.get("quest_id", entry.get("entry_id", ""))))
+		result.append(String(entry.get("quest_id", "")))
 	return result
 
 
@@ -1153,7 +1702,7 @@ func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
 		if entry_variant is not Dictionary:
 			continue
 		var entry: Dictionary = entry_variant
-		if String(entry.get("quest_id", entry.get("entry_id", ""))) == quest_id:
+		if String(entry.get("quest_id", "")) == quest_id:
 			return entry.duplicate(true)
 	return {}
 

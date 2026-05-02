@@ -77,17 +77,21 @@ func _run() -> void:
 	await _run_command(runner, "warehouse add bronze_sword 1")
 	await _run_command(runner, "warehouse add %s 1" % skill_book_item_id)
 	var before_equip_snapshot: Dictionary = runner.get_session().build_snapshot()
-	await _run_command(runner, "party equip player_sword_01 bronze_sword")
+	var bronze_sword_instance_id := _find_session_warehouse_instance_id(runner, "bronze_sword")
+	_assert_true(not bronze_sword_instance_id.is_empty(), "party equip 文本回归前置：应能找到 bronze_sword instance_id。")
+	await _run_command(runner, "party equip player_sword_01 bronze_sword instance_id=%s" % bronze_sword_instance_id)
 	_assert_equipment_command_applied(before_equip_snapshot, runner.get_session().build_snapshot())
 	await _run_command(runner, "party unequip player_sword_01 main_hand")
 	_assert_equipment_command_reverted(before_equip_snapshot, runner.get_session().build_snapshot())
 	await _assert_equipment_requirement_error_message(runner)
+	await _assert_duplicate_equipment_instance_text_boundaries(runner)
 	await _run_command(runner, "party open")
 	await _run_command(runner, "party select player_sword_01")
 	await _run_command(runner, "party warehouse")
 	await _run_command(runner, "warehouse use %s player_sword_01" % skill_book_item_id)
 	_assert_skill_book_command_applied(runner.get_session().build_snapshot(), skill_book_skill_id, skill_book_item_id)
 	await _run_command(runner, "close")
+	await _run_command(runner, "world open")
 	await _run_command(runner, "settlement action service:warehouse")
 	_assert_settlement_reward_queued_while_warehouse_open(runner.get_session().build_snapshot())
 	await _run_command(runner, "close")
@@ -681,7 +685,8 @@ func _assert_log_snapshot_available(runner) -> void:
 	var snapshot: Dictionary = runner.get_session().build_snapshot()
 	var logs_snapshot: Dictionary = snapshot.get("logs", {})
 	var entries: Array = logs_snapshot.get("entries", [])
-	_assert_true(not String(logs_snapshot.get("file_path", "")).is_empty(), "headless 快照应暴露当前日志文件路径。")
+	_assert_eq(String(logs_snapshot.get("file_path", "")), "", "headless 快照默认不应暴露当前日志文件路径。")
+	_assert_eq(bool(logs_snapshot.get("file_output_enabled", true)), false, "headless 运行日志文件输出默认应关闭。")
 	_assert_true(not entries.is_empty(), "headless 快照应包含最近日志条目。")
 	_assert_true(runner.get_session().build_text_snapshot().contains("[LOG]"), "headless 文本快照应包含日志分段。")
 
@@ -721,7 +726,7 @@ func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
 		if entry_variant is not Dictionary:
 			continue
 		var entry: Dictionary = entry_variant
-		if String(entry.get("quest_id", entry.get("entry_id", ""))) == quest_id:
+		if String(entry.get("quest_id", "")) == quest_id:
 			return entry.duplicate(true)
 	return {}
 
@@ -845,12 +850,41 @@ func _assert_equipment_requirement_error_message(runner) -> void:
 	blocked_sword.equip_requirement = requirement
 	item_defs[&"bronze_sword"] = blocked_sword
 
-	var result = await _run_command_expect_fail(runner, "party equip player_sword_01 bronze_sword")
+	var bronze_sword_instance_id := _find_session_warehouse_instance_id(runner, "bronze_sword")
+	_assert_true(not bronze_sword_instance_id.is_empty(), "资格失败文本回归前置：应能找到 bronze_sword instance_id。")
+	var result = await _run_command_expect_fail(runner, "party equip player_sword_01 bronze_sword instance_id=%s" % bronze_sword_instance_id)
 	_assert_true(result.message.contains("职业不满足"), "资格失败时应返回职业要求文案。")
 	_assert_true(result.message.contains("青铜短剑"), "资格失败文案应包含物品名称。")
 	_assert_eq(_count_session_warehouse_item("bronze_sword"), 1, "资格失败时不应消耗仓库中的装备。")
 
 	item_defs[&"bronze_sword"] = bronze_sword
+
+
+func _assert_duplicate_equipment_instance_text_boundaries(runner) -> void:
+	await _run_command(runner, "warehouse add bronze_sword 1")
+	var bronze_instance_ids := _find_session_warehouse_instance_ids(runner, "bronze_sword")
+	_assert_true(bronze_instance_ids.size() >= 2, "duplicate instance 文本回归前置：仓库中应至少有两件 bronze_sword。")
+	if bronze_instance_ids.size() < 2:
+		return
+
+	var item_only_equip_result = await _run_command_expect_fail(runner, "party equip player_sword_01 bronze_sword")
+	_assert_true(item_only_equip_result.message.contains("指定装备实例"), "重复装备实例 party equip item-only 应要求 instance_id。")
+	var missing_equip_result = await _run_command_expect_fail(runner, "party equip player_sword_01 bronze_sword instance_id=eq_text_missing")
+	_assert_true(missing_equip_result.message.contains("指定"), "错误 instance_id 的 party equip 应被拒绝。")
+	await _run_command(runner, "party equip player_sword_01 bronze_sword instance_id=%s" % bronze_instance_ids[1])
+	await _run_command(runner, "party unequip player_sword_01 main_hand")
+
+	bronze_instance_ids = _find_session_warehouse_instance_ids(runner, "bronze_sword")
+	_assert_true(bronze_instance_ids.size() >= 2, "duplicate discard 文本回归前置：卸装后应恢复两件 bronze_sword。")
+	if bronze_instance_ids.size() < 2:
+		return
+	await _run_command(runner, "party warehouse")
+	var item_only_discard_result = await _run_command_expect_fail(runner, "warehouse discard-one bronze_sword")
+	_assert_true(item_only_discard_result.message.contains("请选择"), "重复装备实例 warehouse discard item-only 应要求 instance_id。")
+	var missing_discard_result = await _run_command_expect_fail(runner, "warehouse discard-one bronze_sword instance_id=eq_text_missing")
+	_assert_true(missing_discard_result.message.contains("指定"), "错误 instance_id 的 warehouse discard 应被拒绝。")
+	await _run_command(runner, "warehouse discard-one bronze_sword instance_id=%s" % bronze_instance_ids[0])
+	await _run_command(runner, "close")
 
 
 func _find_party_member(members: Array, member_id: String) -> Dictionary:
@@ -908,6 +942,30 @@ func _count_session_warehouse_item(item_id: String) -> int:
 			continue
 		total += 1
 	return total
+
+
+func _find_session_warehouse_instance_id(runner, item_id: String) -> String:
+	var ids := _find_session_warehouse_instance_ids(runner, item_id)
+	return ids[0] if not ids.is_empty() else ""
+
+
+func _find_session_warehouse_instance_ids(runner, item_id: String) -> Array[String]:
+	var result: Array[String] = []
+	if runner == null or runner.get_session() == null:
+		return result
+	var game_session = runner.get_session().get_game_session()
+	if game_session == null:
+		return result
+	var party_state = game_session.get_party_state()
+	if party_state == null or party_state.warehouse_state == null:
+		return result
+	for instance in party_state.warehouse_state.get_non_empty_instances():
+		if instance == null:
+			continue
+		if String(instance.item_id) == item_id:
+			result.append(String(instance.instance_id))
+	result.sort()
+	return result
 
 
 func _find_unit(units: Array, unit_id: String) -> Dictionary:

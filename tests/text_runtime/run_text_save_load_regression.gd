@@ -37,6 +37,7 @@ func _test_game_load_reopens_newly_created_save() -> void:
 	var save_id := String(runner.get_session().get_game_session().get_active_save_id())
 	_assert_true(not save_id.is_empty(), "新建世界后应能读取 active save id。")
 	_assert_true(_save_slots_include_id(runner, save_id), "新建世界后 save slots 应包含 active save id。")
+	_assert_ungenerated_submap_placeholder(runner, "ashen_ashlands", "新建 ashen_intersection 后应保留未生成子地图空占位。")
 
 	var load_result = await runner.execute_line("game load %s" % save_id)
 	_assert_true(bool(load_result.ok), "game load 刚创建的 save_id 应成功。")
@@ -45,6 +46,7 @@ func _test_game_load_reopens_newly_created_save() -> void:
 		save_id,
 		"重新载入后 active save id 应保持不变。"
 	)
+	_assert_ungenerated_submap_placeholder(runner, "ashen_ashlands", "重新载入后未生成子地图占位仍应是空 world_data。")
 
 	await runner.dispose(true)
 
@@ -150,6 +152,29 @@ func _count_party_state_item(party_state, item_id: String) -> int:
 			continue
 		total += 1
 	return total
+
+
+func _assert_ungenerated_submap_placeholder(runner, submap_id: String, message: String) -> void:
+	var game_session = runner.get_session().get_game_session()
+	_assert_true(game_session != null, "%s | GameSession 应可访问。" % message)
+	if game_session == null:
+		return
+	var world_data: Dictionary = game_session.get_world_data()
+	var submaps_variant: Variant = world_data.get("mounted_submaps", {})
+	_assert_true(submaps_variant is Dictionary, "%s | mounted_submaps 应为 Dictionary。" % message)
+	if submaps_variant is not Dictionary:
+		return
+	var submaps := submaps_variant as Dictionary
+	var submap_variant: Variant = submaps.get(submap_id, {})
+	_assert_true(submap_variant is Dictionary, "%s | 应存在子地图 %s。" % [message, submap_id])
+	if submap_variant is not Dictionary:
+		return
+	var submap := submap_variant as Dictionary
+	_assert_true(not bool(submap.get("is_generated", true)), "%s | 子地图不应被标记为已生成。" % message)
+	var submap_world_data_variant: Variant = submap.get("world_data", null)
+	_assert_true(submap_world_data_variant is Dictionary, "%s | 子地图 world_data 占位应为 Dictionary。" % message)
+	if submap_world_data_variant is Dictionary:
+		_assert_true((submap_world_data_variant as Dictionary).is_empty(), "%s | 未生成子地图 world_data 必须保持空字典。" % message)
 
 
 func _assert_command_ok(runner, command_text: String) -> void:

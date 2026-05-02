@@ -183,28 +183,51 @@ func _draw_settlements(camera_origin: Vector2, visible_rect: Rect2i) -> void:
 		var footprint_size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
 		if not Rect2i(origin, footprint_size).intersects(visible_rect):
 			continue
-		var fog_state: int = _fog_system.get_fog_state(origin, _player_faction_id)
-		if fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_UNEXPLORED:
-			continue
-
-		var rect := Rect2(
-			(Vector2(origin) - camera_origin) * cell_size,
-			Vector2(footprint_size) * cell_size
-		).grow(-3.0)
 		var color := _get_settlement_color(settlement.get("tier", 0))
-		if fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_EXPLORED:
-			color = color.darkened(0.45)
-			color.a = 0.85
-
-		_draw_settlement_body(rect, settlement.get("tier", 0), color, fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_EXPLORED)
-		draw_rect(rect, Color(0.05, 0.08, 0.14, 0.95), false, 2.0)
+		var visible_cells := _draw_settlement_footprint_cells(origin, footprint_size, camera_origin, visible_rect, settlement.get("tier", 0), color)
+		if visible_cells.is_empty():
+			continue
 
 		if not can_draw_labels:
 			continue
+		var origin_fog_state: int = _fog_system.get_fog_state(origin, _player_faction_id)
+		if origin_fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_UNEXPLORED:
+			continue
 
+		var rect := _get_cell_rect_for_origin(origin, camera_origin).grow(-3.0)
 		var label: String = settlement.get("display_name", "据点")
 		var label_pos := rect.position + Vector2(8, min(24, rect.size.y - 6))
 		draw_string(font, label_pos, label, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 12.0, font_size, Color.WHITE)
+
+
+func _draw_settlement_footprint_cells(
+	origin: Vector2i,
+	footprint_size: Vector2i,
+	camera_origin: Vector2,
+	visible_rect: Rect2i,
+	tier: int,
+	base_color: Color
+) -> Array[Vector2i]:
+	var drawn_cells: Array[Vector2i] = []
+	var width := maxi(footprint_size.x, 1)
+	var height := maxi(footprint_size.y, 1)
+	for y in range(height):
+		for x in range(width):
+			var cell_coord := origin + Vector2i(x, y)
+			if not visible_rect.has_point(cell_coord):
+				continue
+			var fog_state: int = _fog_system.get_fog_state(cell_coord, _player_faction_id)
+			if fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_UNEXPLORED:
+				continue
+			var cell_rect := _get_cell_rect_for_origin(cell_coord, camera_origin).grow(-3.0)
+			var color := base_color
+			if fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_EXPLORED:
+				color = color.darkened(0.45)
+				color.a = 0.85
+			_draw_settlement_body(cell_rect, tier, color, fog_state == WORLD_MAP_FOG_SYSTEM_SCRIPT.FOG_EXPLORED)
+			draw_rect(cell_rect, Color(0.05, 0.08, 0.14, 0.95), false, 2.0)
+			drawn_cells.append(cell_coord)
+	return drawn_cells
 
 
 func _draw_settlement_body(rect: Rect2, tier: int, color: Color, is_explored: bool) -> void:

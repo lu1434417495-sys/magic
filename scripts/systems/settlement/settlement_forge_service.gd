@@ -160,7 +160,17 @@ func build_window_data(
 		"confirm_label": String(service_profile.get("confirm_label", "确认")),
 		"cancel_label": "返回",
 		"show_member_selector": false,
-		"allow_empty_entries": true,
+		"default_member_id": String(payload.get("member_id", payload.get("default_member_id", ""))),
+		"selected_member_id": String(payload.get("member_id", payload.get("selected_member_id", ""))),
+		"entry_title": "可选配方",
+		"summary_title": "工坊概况",
+		"state_title": "配方状态",
+		"cost_title": "材料消耗",
+		"details_title": "配方说明",
+		"member_title": "工坊成员",
+		"empty_state_label": "状态：暂无配方",
+		"empty_cost_label": "材料：暂无配方",
+		"empty_details_text": "当前没有可用配方。",
 		"entries": recipe_entries,
 	}
 

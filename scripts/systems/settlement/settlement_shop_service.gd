@@ -2,7 +2,12 @@ class_name SettlementShopService
 extends RefCounted
 
 const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
-const DEFAULT_FALLBACK_PRICE := 10
+const SHOP_STOCK_ENTRY_KEYS := {
+	"item_id": true,
+	"quantity": true,
+	"unit_price": true,
+	"sold_out": true,
+}
 
 const SHOP_DEFS := {
 	"service_basic_supply": {
@@ -124,16 +129,14 @@ func build_window_data(
 		int(settlement_state.get("world_step", 0))
 	)
 	var buy_entries: Array[Dictionary] = []
-	for entry_variant in shop_state.get("current_inventory", []):
-		if entry_variant is not Dictionary:
+	for entry_variant in _get_shop_current_inventory(shop_state):
+		var stock_entry := _parse_shop_stock_entry(entry_variant, item_defs)
+		if stock_entry.is_empty():
 			continue
-		var entry_data: Dictionary = entry_variant
-		var item_id := ProgressionDataUtils.to_string_name(entry_data.get("item_id", ""))
-		var item_def = item_defs.get(item_id)
-		if item_def == null:
-			continue
-		var quantity := maxi(int(entry_data.get("quantity", 0)), 0)
-		var unit_price := maxi(int(entry_data.get("unit_price", 0)), 1)
+		var item_id: StringName = stock_entry["item_id"]
+		var item_def = stock_entry["item_def"]
+		var quantity: int = stock_entry["quantity"]
+		var unit_price: int = stock_entry["unit_price"]
 		var can_buy := quantity > 0 and current_gold >= unit_price
 		buy_entries.append({
 			"item_id": String(item_id),
@@ -149,24 +152,26 @@ func build_window_data(
 	var sell_entries: Array[Dictionary] = []
 	if warehouse_service != null:
 		for entry_data in warehouse_service.get_inventory_entries():
-			if entry_data is not Dictionary:
+			var sell_source := _parse_sell_inventory_entry(entry_data, item_defs)
+			if sell_source.is_empty():
 				continue
-			var inventory_entry: Dictionary = entry_data
-			var item_id := ProgressionDataUtils.to_string_name(inventory_entry.get("item_id", ""))
-			var item_def = item_defs.get(item_id)
-			if item_def == null or not bool(item_def.sellable):
+			var item_id: StringName = sell_source["item_id"]
+			var item_def = sell_source["item_def"]
+			if not item_def.sellable:
 				continue
-			var total_quantity := maxi(int(inventory_entry.get("total_quantity", inventory_entry.get("quantity", 0))), 0)
-			if total_quantity <= 0:
+			var total_quantity: int = sell_source["total_quantity"]
+			var unit_price := _resolve_sell_price(item_def)
+			if unit_price <= 0:
 				continue
 			sell_entries.append({
 				"item_id": String(item_id),
-				"display_name": String(inventory_entry.get("display_name", item_id)),
-				"description": String(inventory_entry.get("description", "")),
-				"icon": String(inventory_entry.get("icon", "")),
+				"instance_id": String(sell_source.get("instance_id", "")),
+				"display_name": String(item_def.display_name if not item_def.display_name.is_empty() else item_id),
+				"description": String(item_def.description),
+				"icon": String(item_def.icon),
 				"quantity": total_quantity,
-				"unit_price": _resolve_sell_price(item_def),
-				"stock_text": "持有 %d" % total_quantity,
+				"unit_price": unit_price,
+				"stock_text": _build_sell_stock_text(total_quantity, String(sell_source.get("instance_id", ""))),
 				"can_sell": true,
 				"disabled_reason": "",
 			})
@@ -178,13 +183,30 @@ func build_window_data(
 			String(settlement_record.get("display_name", "据点")),
 			String(shop_def.get("title", "交易")),
 		],
+		"meta": "商店：%s  |  金币：%d" % [
+			String(shop_def.get("title", "交易")),
+			maxi(current_gold, 0),
+		],
 		"shop_id": String(shop_def.get("shop_id", "")),
 		"interaction_script_id": interaction_script_id,
 		"settlement_id": String(settlement_record.get("settlement_id", "")),
+		"panel_kind": "shop",
 		"gold": maxi(current_gold, 0),
 		"buy_entries": buy_entries,
 		"sell_entries": sell_entries,
 		"feedback_text": String(settlement_state.get("shop_feedback_text", "")),
+		"confirm_label": "确认交易",
+		"cancel_label": "返回据点",
+		"show_member_selector": true,
+		"entry_title": "交易条目",
+		"summary_title": "交易概况",
+		"state_title": "交易状态",
+		"cost_title": "交易费用",
+		"details_title": "交易说明",
+		"member_title": "交易成员",
+		"empty_state_label": "状态：暂无商品",
+		"empty_cost_label": "费用：暂无商品",
+		"empty_details_text": "当前没有可交易条目。",
 	}
 
 
@@ -196,7 +218,8 @@ func buy(
 	warehouse_service,
 	party_state,
 	item_id: StringName,
-	quantity: int
+	quantity: int,
+	instance_id: StringName = &""
 ) -> Dictionary:
 	var shop_def: Dictionary = get_shop_def(interaction_script_id)
 	if shop_def.is_empty():
@@ -223,20 +246,20 @@ func buy(
 		int(settlement_state.get("world_step", 0))
 	)
 	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id)
-	var stock_entry := _find_inventory_entry(shop_state, normalized_item_id)
+	var stock_entry := _find_inventory_entry(shop_state, normalized_item_id, item_defs)
 	if stock_entry.is_empty():
 		return {
 			"success": false,
 			"message": "当前商店没有该商品。",
 		}
-	var available_quantity := maxi(int(stock_entry.get("quantity", 0)), 0)
+	var available_quantity: int = stock_entry["quantity"]
 	if available_quantity <= 0:
 		return {
 			"success": false,
 			"message": "该商品当前已售罄。",
 		}
 	var actual_quantity := mini(requested_quantity, available_quantity)
-	var unit_price := maxi(int(stock_entry.get("unit_price", 0)), 1)
+	var unit_price: int = stock_entry["unit_price"]
 	var total_cost := unit_price * actual_quantity
 	if party_state.has_method("can_afford") and not party_state.can_afford(total_cost):
 		return {
@@ -260,7 +283,7 @@ func buy(
 		party_state.spend_gold(unit_price * added_quantity)
 	else:
 		party_state.gold = maxi(int(party_state.gold) - unit_price * added_quantity, 0)
-	_consume_shop_stock(shop_state, normalized_item_id, added_quantity)
+	_consume_shop_stock(shop_state, normalized_item_id, added_quantity, item_defs)
 	settlement_state["shop_feedback_text"] = "购入 %d 件 %s，花费 %d 金。" % [
 		added_quantity,
 		String(normalized_item_id),
@@ -283,7 +306,8 @@ func sell(
 	warehouse_service,
 	party_state,
 	item_id: StringName,
-	quantity: int
+	quantity: int,
+	instance_id: StringName = &""
 ) -> Dictionary:
 	var shop_def: Dictionary = get_shop_def(interaction_script_id)
 	if shop_def.is_empty():
@@ -303,6 +327,7 @@ func sell(
 			"message": "出售数量必须大于 0。",
 		}
 	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id)
+	var normalized_instance_id := ProgressionDataUtils.to_string_name(instance_id)
 	var item_def = item_defs.get(normalized_item_id)
 	if item_def == null:
 		return {
@@ -314,6 +339,12 @@ func sell(
 			"success": false,
 			"message": "%s 当前不能出售。" % String(item_def.display_name if not item_def.display_name.is_empty() else normalized_item_id),
 		}
+	var unit_price := _resolve_sell_price(item_def)
+	if unit_price <= 0:
+		return {
+			"success": false,
+			"message": "%s 当前没有有效回收价格。" % String(item_def.display_name if not item_def.display_name.is_empty() else normalized_item_id),
+		}
 	var owned_quantity: int = warehouse_service.count_item(normalized_item_id)
 	if owned_quantity <= 0:
 		return {
@@ -321,14 +352,27 @@ func sell(
 			"message": "共享仓库中没有该物品。",
 		}
 	var actual_quantity := mini(requested_quantity, owned_quantity)
-	var remove_result: Dictionary = warehouse_service.remove_item(normalized_item_id, actual_quantity)
+	var remove_result: Dictionary = {}
+	if item_def.is_equipment():
+		if normalized_instance_id == &"" and owned_quantity > 1:
+			return {
+				"success": false,
+				"message": "请选择要出售的 %s 装备实例。" % String(item_def.display_name if not item_def.display_name.is_empty() else normalized_item_id),
+			}
+		actual_quantity = 1
+		if normalized_instance_id != &"":
+			remove_result = warehouse_service.remove_equipment_instance(normalized_item_id, normalized_instance_id)
+		else:
+			remove_result = warehouse_service.remove_item(normalized_item_id, 1)
+	else:
+		remove_result = warehouse_service.remove_item(normalized_item_id, actual_quantity)
 	var removed_quantity := int(remove_result.get("removed_quantity", 0))
 	if removed_quantity <= 0:
 		return {
 			"success": false,
-			"message": "当前无法出售该物品。",
+			"message": _build_sell_remove_failure_message(item_def, normalized_item_id, remove_result),
 		}
-	var total_gain := _resolve_sell_price(item_def) * removed_quantity
+	var total_gain := unit_price * removed_quantity
 	if party_state.has_method("add_gold"):
 		party_state.add_gold(total_gain)
 	else:
@@ -343,6 +387,7 @@ func sell(
 		"message": String(settlement_state.get("shop_feedback_text", "")),
 		"gold_delta": total_gain,
 		"item_id": String(normalized_item_id),
+		"instance_id": String(normalized_instance_id),
 		"quantity": removed_quantity,
 	}
 
@@ -415,10 +460,13 @@ func _build_shop_entry(entry_variant: Variant, item_defs: Dictionary) -> Diction
 	var min_qty := maxi(int(source.get("min_qty", 1)), 1)
 	var max_qty := maxi(int(source.get("max_qty", min_qty)), min_qty)
 	var quantity := _rng.randi_range(min_qty, max_qty)
+	var unit_price := _resolve_buy_price(item_def, float(source.get("price_multiplier", 1.0)))
+	if unit_price <= 0:
+		return {}
 	return {
 		"item_id": String(item_id),
 		"quantity": quantity,
-		"unit_price": _resolve_buy_price(item_def, float(source.get("price_multiplier", 1.0))),
+		"unit_price": unit_price,
 		"sold_out": false,
 	}
 
@@ -460,7 +508,7 @@ func _resolve_buy_price(item_def, price_multiplier: float) -> int:
 		var buy_price := int(item_def.get_buy_price(price_multiplier))
 		if buy_price > 0:
 			return buy_price
-	return maxi(int(round(float(DEFAULT_FALLBACK_PRICE) * maxf(price_multiplier, 0.1))), 1)
+	return 0
 
 
 func _resolve_sell_price(item_def) -> int:
@@ -468,31 +516,140 @@ func _resolve_sell_price(item_def) -> int:
 		var sell_price := int(item_def.get_sell_price())
 		if sell_price > 0:
 			return sell_price
-	return maxi(int(floor(float(DEFAULT_FALLBACK_PRICE) * 0.5)), 1)
+	return 0
 
 
-func _find_inventory_entry(shop_state: Dictionary, item_id: StringName) -> Dictionary:
-	for entry_variant in shop_state.get("current_inventory", []):
-		if entry_variant is not Dictionary:
+func _find_inventory_entry(shop_state: Dictionary, item_id: StringName, item_defs: Dictionary) -> Dictionary:
+	for entry_variant in _get_shop_current_inventory(shop_state):
+		var stock_entry := _parse_shop_stock_entry(entry_variant, item_defs)
+		if stock_entry.is_empty():
 			continue
-		var entry_data: Dictionary = entry_variant
-		if ProgressionDataUtils.to_string_name(entry_data.get("item_id", "")) == item_id:
-			return entry_data
+		if stock_entry["item_id"] == item_id:
+			return stock_entry
 	return {}
 
 
-func _consume_shop_stock(shop_state: Dictionary, item_id: StringName, quantity: int) -> void:
-	var inventory: Array = shop_state.get("current_inventory", [])
+func _consume_shop_stock(shop_state: Dictionary, item_id: StringName, quantity: int, item_defs: Dictionary) -> void:
+	var inventory := _get_shop_current_inventory(shop_state)
 	for index in range(inventory.size()):
 		var entry_variant = inventory[index]
-		if entry_variant is not Dictionary:
+		var stock_entry := _parse_shop_stock_entry(entry_variant, item_defs)
+		if stock_entry.is_empty() or stock_entry["item_id"] != item_id:
 			continue
 		var entry_data: Dictionary = entry_variant
-		if ProgressionDataUtils.to_string_name(entry_data.get("item_id", "")) != item_id:
-			continue
-		var remaining_quantity := maxi(int(entry_data.get("quantity", 0)) - maxi(quantity, 0), 0)
-		entry_data["quantity"] = remaining_quantity
-		entry_data["sold_out"] = remaining_quantity <= 0
-		inventory[index] = entry_data
+		var remaining_quantity: int = stock_entry["quantity"] - maxi(quantity, 0)
+		if remaining_quantity <= 0:
+			inventory.remove_at(index)
+		else:
+			entry_data["quantity"] = remaining_quantity
+			entry_data["sold_out"] = false
+			inventory[index] = entry_data
 		break
 	shop_state["current_inventory"] = inventory
+
+
+func _get_shop_current_inventory(shop_state: Dictionary) -> Array:
+	if not shop_state.has("current_inventory"):
+		return []
+	var inventory_variant: Variant = shop_state["current_inventory"]
+	if inventory_variant is not Array:
+		return []
+	return inventory_variant
+
+
+func _parse_shop_stock_entry(entry_variant: Variant, item_defs: Dictionary) -> Dictionary:
+	if entry_variant is not Dictionary:
+		return {}
+	var entry_data: Dictionary = entry_variant
+	if not _has_only_allowed_keys(entry_data, SHOP_STOCK_ENTRY_KEYS):
+		return {}
+	if not _has_non_empty_string(entry_data, "item_id"):
+		return {}
+	if not _has_positive_int(entry_data, "quantity"):
+		return {}
+	if not _has_positive_int(entry_data, "unit_price"):
+		return {}
+	if entry_data.has("sold_out"):
+		if typeof(entry_data["sold_out"]) != TYPE_BOOL:
+			return {}
+		if bool(entry_data["sold_out"]):
+			return {}
+	var item_id := StringName(String(entry_data["item_id"]).strip_edges())
+	var item_def = item_defs.get(item_id)
+	if item_def == null:
+		return {}
+	return {
+		"item_id": item_id,
+		"item_def": item_def,
+		"quantity": int(entry_data["quantity"]),
+		"unit_price": int(entry_data["unit_price"]),
+	}
+
+
+func _parse_sell_inventory_entry(entry_variant: Variant, item_defs: Dictionary) -> Dictionary:
+	if entry_variant is not Dictionary:
+		return {}
+	var entry_data: Dictionary = entry_variant
+	if not _has_non_empty_string(entry_data, "item_id"):
+		return {}
+	if not _has_positive_int(entry_data, "total_quantity"):
+		return {}
+	var instance_id := ""
+	if entry_data.has("instance_id"):
+		if entry_data["instance_id"] is not String:
+			return {}
+		instance_id = String(entry_data["instance_id"]).strip_edges()
+	var item_id := StringName(String(entry_data["item_id"]).strip_edges())
+	var item_def = item_defs.get(item_id)
+	if item_def == null:
+		return {}
+	return {
+		"item_id": item_id,
+		"item_def": item_def,
+		"total_quantity": 1 if not instance_id.is_empty() else int(entry_data["total_quantity"]),
+		"instance_id": instance_id,
+	}
+
+
+func _build_sell_stock_text(total_quantity: int, instance_id: String) -> String:
+	if not instance_id.is_empty():
+		return "持有 1 · 实例 %s" % instance_id
+	return "持有 %d" % total_quantity
+
+
+func _build_sell_remove_failure_message(item_def, item_id: StringName, remove_result: Dictionary) -> String:
+	var item_name := String(item_def.display_name if item_def != null and not item_def.display_name.is_empty() else item_id)
+	match String(remove_result.get("error_code", "")):
+		"equipment_instance_id_required":
+			return "请选择要出售的 %s 装备实例。" % item_name
+		"warehouse_missing_instance":
+			return "共享仓库中没有指定的 %s 装备实例。" % item_name
+		"equipment_instance_item_mismatch":
+			return "指定装备实例不属于 %s。" % item_name
+		_:
+			return "当前无法出售该物品。"
+
+
+func _has_only_allowed_keys(data: Dictionary, allowed_keys: Dictionary) -> bool:
+	for key_variant in data.keys():
+		if key_variant is not String:
+			return false
+		if not allowed_keys.has(String(key_variant)):
+			return false
+	return true
+
+
+func _has_non_empty_string(data: Dictionary, field_name: String) -> bool:
+	if not data.has(field_name):
+		return false
+	if data[field_name] is not String:
+		return false
+	return not String(data[field_name]).strip_edges().is_empty()
+
+
+func _has_positive_int(data: Dictionary, field_name: String) -> bool:
+	if not data.has(field_name):
+		return false
+	if typeof(data[field_name]) != TYPE_INT:
+		return false
+	return int(data[field_name]) > 0

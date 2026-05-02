@@ -105,7 +105,12 @@ func command_move_member_to_reserve(member_id: StringName) -> Dictionary:
 	return _command_ok()
 
 
-func command_party_equip_item(member_id: StringName, item_id: StringName, slot_id: StringName = &"") -> Dictionary:
+func command_party_equip_item(
+	member_id: StringName,
+	item_id: StringName,
+	slot_id: StringName = &"",
+	instance_id: StringName = &""
+) -> Dictionary:
 	if not _has_runtime():
 		return _runtime_unavailable_error()
 	if _get_party_state() == null:
@@ -116,7 +121,7 @@ func command_party_equip_item(member_id: StringName, item_id: StringName, slot_i
 	if active_modal_id == "reward" or active_modal_id == "promotion" or active_modal_id == "settlement" or active_modal_id == "character_info":
 		return _command_error("当前窗口会阻止装备切换。")
 
-	var result: Dictionary = _equip_party_item(member_id, item_id, slot_id)
+	var result: Dictionary = _equip_party_item(member_id, item_id, slot_id, instance_id)
 	if not bool(result.get("success", false)):
 		return _command_error(_build_equipment_error_message(result, true))
 
@@ -316,6 +321,12 @@ func _build_equipment_error_message(result: Dictionary, is_equip_action: bool) -
 			return "%s 不能装备到 %s。" % [_get_item_display_name(item_id), slot_label]
 		"warehouse_missing_item":
 			return "共享仓库中没有可用于装备的 %s。" % _get_item_display_name(item_id)
+		"warehouse_missing_instance":
+			return "共享仓库中没有指定的 %s 装备实例。" % _get_item_display_name(item_id)
+		"equipment_instance_id_required":
+			return "共享仓库中有多件 %s，请指定装备实例。" % _get_item_display_name(item_id)
+		"equipment_instance_item_mismatch":
+			return "指定装备实例不属于 %s。" % _get_item_display_name(item_id)
 		"warehouse_blocked_swap":
 			return "%s 当前没有空间接回被替换下来的装备。" % slot_label
 		"slot_invalid":
@@ -407,10 +418,10 @@ func _set_party_selected_member_id(member_id: StringName) -> void:
 		_runtime.set_party_selected_member_id(member_id)
 
 
-func _equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName) -> Dictionary:
+func _equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName, instance_id: StringName = &"") -> Dictionary:
 	if not _has_runtime():
 		return {}
-	return _runtime.equip_party_item(member_id, item_id, slot_id)
+	return _runtime.equip_party_item(member_id, item_id, slot_id, instance_id)
 
 
 func _unequip_party_item(member_id: StringName, slot_id: StringName) -> Dictionary:

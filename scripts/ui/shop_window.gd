@@ -3,6 +3,13 @@ extends Control
 
 const PARTY_MEMBER_OPTION_UTILS = preload("res://scripts/ui/party_member_option_utils.gd")
 
+const SUPPORTED_PANEL_KINDS := {
+	"shop": true,
+	"contract_board": true,
+	"forge": true,
+	"stagecoach": true,
+}
+
 signal action_requested(settlement_id: String, action_id: String, payload: Dictionary)
 signal closed
 
@@ -32,6 +39,7 @@ var _action_id := ""
 var _entries: Array[Dictionary] = []
 var _member_options: Array[Dictionary] = []
 var _member_option_map: Dictionary = {}
+var _entry_payload_valid := true
 var _selected_entry_index := -1
 var _selected_member_id: StringName = &""
 
@@ -47,22 +55,35 @@ func _ready() -> void:
 
 
 func show_shop(window_data: Dictionary) -> void:
-	_window_data = window_data.duplicate(true)
-	_settlement_id = String(_window_data.get("settlement_id", ""))
-	_action_id = String(_window_data.get("action_id", ""))
+	var normalized_window_data := _normalize_top_level_payload(window_data)
+	if normalized_window_data.is_empty():
+		hide_window()
+		return
+	_window_data = normalized_window_data
+	_settlement_id = String(_window_data["settlement_id"])
+	_action_id = String(_window_data["action_id"])
 	_entries = _build_entries()
+	if not _entry_payload_valid:
+		hide_window()
+		return
 	_member_options = _build_member_options()
 	_member_option_map = PARTY_MEMBER_OPTION_UTILS.build_member_option_map(_member_options)
 	_selected_entry_index = -1
-	_selected_member_id = _resolve_default_member_id() if _should_show_member_selector() else &""
+	_selected_member_id = _resolve_default_member_id()
 	visible = true
 	refresh_view()
 
 
 func show_stagecoach(window_data: Dictionary) -> void:
 	var normalized_window_data := window_data.duplicate(true)
-	if String(normalized_window_data.get("panel_kind", "")).is_empty():
-		normalized_window_data["panel_kind"] = "stagecoach"
+	if not normalized_window_data.has("panel_kind") or normalized_window_data["panel_kind"] is not String:
+		hide_window()
+		return
+	var panel_kind := String(normalized_window_data["panel_kind"]).strip_edges()
+	if panel_kind != "stagecoach":
+		hide_window()
+		return
+	normalized_window_data["panel_kind"] = panel_kind
 	show_shop(normalized_window_data)
 
 
@@ -74,8 +95,25 @@ func hide_window() -> void:
 	_entries.clear()
 	_member_options.clear()
 	_member_option_map.clear()
+	_entry_payload_valid = true
 	_selected_entry_index = -1
 	_selected_member_id = &""
+	if title_label != null:
+		title_label.text = ""
+	if meta_label != null:
+		meta_label.text = ""
+	if entry_title_label != null:
+		entry_title_label.text = ""
+	if summary_title_label != null:
+		summary_title_label.text = ""
+	if state_title_label != null:
+		state_title_label.text = ""
+	if cost_title_label != null:
+		cost_title_label.text = ""
+	if details_title_label != null:
+		details_title_label.text = ""
+	if member_title_label != null:
+		member_title_label.text = ""
 	if entry_list != null:
 		entry_list.clear()
 	if member_selector != null:
@@ -90,16 +128,20 @@ func hide_window() -> void:
 		cost_label.text = ""
 	if member_state_label != null:
 		member_state_label.text = ""
+	if confirm_button != null:
+		confirm_button.text = ""
+		confirm_button.disabled = true
+	if cancel_button != null:
+		cancel_button.text = ""
 
 
 func refresh_view() -> void:
-	var panel_profile := _get_panel_profile()
-	title_label.text = String(_window_data.get("title", panel_profile.get("window_title", "交易窗口")))
-	meta_label.text = _build_meta_text(panel_profile)
-	summary_label.text = String(_window_data.get("summary_text", panel_profile.get("summary_text", "选择一项交易后确认执行。")))
-	confirm_button.text = String(_window_data.get("confirm_label", panel_profile.get("confirm_label", "确认")))
-	cancel_button.text = String(_window_data.get("cancel_label", panel_profile.get("cancel_label", "返回")))
-	_apply_section_titles(panel_profile)
+	title_label.text = String(_window_data["title"])
+	meta_label.text = _build_meta_text()
+	summary_label.text = String(_window_data["summary_text"])
+	confirm_button.text = String(_window_data["confirm_label"])
+	cancel_button.text = String(_window_data["cancel_label"])
+	_apply_section_titles()
 	_rebuild_entry_list()
 	_build_member_selector()
 	_select_entry(_selected_entry_index if _selected_entry_index >= 0 else 0)
@@ -108,47 +150,102 @@ func refresh_view() -> void:
 	_refresh_controls()
 
 
-func _build_meta_text(panel_profile: Dictionary = {}) -> String:
-	var state_summary_text := String(_window_data.get("state_summary_text", ""))
-	var meta_text := String(_window_data.get("meta", ""))
+func _normalize_top_level_payload(window_data: Dictionary) -> Dictionary:
+	var normalized := window_data.duplicate(true)
+	for field_name in [
+		"settlement_id",
+		"action_id",
+		"panel_kind",
+		"title",
+		"meta",
+		"summary_text",
+		"confirm_label",
+		"cancel_label",
+		"entry_title",
+		"summary_title",
+		"state_title",
+		"cost_title",
+		"details_title",
+		"member_title",
+		"empty_state_label",
+		"empty_cost_label",
+		"empty_details_text",
+	]:
+		if not window_data.has(field_name) or window_data[field_name] is not String:
+			return {}
+		var field_value := String(window_data[field_name]).strip_edges()
+		if field_value.is_empty():
+			return {}
+		normalized[field_name] = field_value
+
+	var panel_kind := String(normalized["panel_kind"])
+	if not SUPPORTED_PANEL_KINDS.has(panel_kind):
+		return {}
+	if not window_data.has("state_summary_text") or window_data["state_summary_text"] is not String:
+		return {}
+	normalized["state_summary_text"] = String(window_data["state_summary_text"])
+	if not window_data.has("show_member_selector") or window_data["show_member_selector"] is not bool:
+		return {}
+	normalized["show_member_selector"] = bool(window_data["show_member_selector"])
+	return normalized
+
+
+func _build_meta_text() -> String:
+	var state_summary_text := String(_window_data["state_summary_text"])
+	var meta_text := String(_window_data["meta"])
 	if not state_summary_text.is_empty():
-		if meta_text.is_empty():
-			return state_summary_text
 		return "%s\n%s" % [meta_text, state_summary_text]
-	if not meta_text.is_empty():
-		return meta_text
-	return String(panel_profile.get("meta_fallback_text", "交易窗口将使用当前选定成员。")) if _should_show_member_selector() else String(panel_profile.get("summary_text", "选择一项后确认执行。"))
+	return meta_text
 
 
 func _build_entries() -> Array[Dictionary]:
-	var entries_variant: Variant = _window_data.get("entries", [])
+	_entry_payload_valid = true
+	var entries_variant: Variant = _window_data.get("entries", null)
 	var entries: Array[Dictionary] = []
-	if entries_variant is Array:
-		for entry_variant in entries_variant:
-			if entry_variant is Dictionary:
-				entries.append((entry_variant as Dictionary).duplicate(true))
-	if entries.is_empty() and not bool(_window_data.get("allow_empty_entries", false)):
-		entries.append(_build_fallback_entry())
+	if entries_variant is not Array:
+		_entry_payload_valid = false
+		return entries
+	for entry_variant in entries_variant:
+		if entry_variant is not Dictionary:
+			_entry_payload_valid = false
+			return []
+		var entry := _normalize_entry(entry_variant as Dictionary)
+		if entry.is_empty():
+			_entry_payload_valid = false
+			return []
+		entries.append(entry)
 	return entries
 
 
-func _build_fallback_entry() -> Dictionary:
-	var panel_profile := _get_panel_profile()
-	return {
-		"entry_id": "default",
-		"display_name": String(_window_data.get("service_name", _window_data.get("title", panel_profile.get("fallback_entry_name", "交易")))),
-		"summary_text": String(_window_data.get("summary_text", panel_profile.get("fallback_summary_text", "默认交易条目。"))),
-		"details_text": String(_window_data.get("details_text", _window_data.get("summary_text", ""))),
-		"state_label": String(_window_data.get("state_label", _window_data.get("state_text", panel_profile.get("fallback_state_label", "状态：可用")))),
-		"cost_label": String(_window_data.get("cost_label", "费用：待定")),
-		"is_enabled": bool(_window_data.get("is_enabled", true)),
-		"disabled_reason": String(_window_data.get("disabled_reason", "")),
-	}
+func _normalize_entry(entry: Dictionary) -> Dictionary:
+	var normalized := entry.duplicate(true)
+	for field_name in [
+		"entry_id",
+		"display_name",
+		"summary_text",
+		"details_text",
+		"state_label",
+		"cost_label",
+	]:
+		if not entry.has(field_name) or entry[field_name] is not String:
+			return {}
+		var field_value := String(entry[field_name]).strip_edges()
+		if field_value.is_empty():
+			return {}
+		normalized[field_name] = field_value
+	if not entry.has("is_enabled") or entry["is_enabled"] is not bool:
+		return {}
+	normalized["is_enabled"] = bool(entry["is_enabled"])
+	if not entry.has("disabled_reason") or entry["disabled_reason"] is not String:
+		return {}
+	var disabled_reason := String(entry["disabled_reason"]).strip_edges()
+	if not bool(entry["is_enabled"]) and disabled_reason.is_empty():
+		return {}
+	normalized["disabled_reason"] = disabled_reason
+	return normalized
 
 
 func _build_member_options() -> Array[Dictionary]:
-	if not _should_show_member_selector():
-		return []
 	return PARTY_MEMBER_OPTION_UTILS.build_member_options(_window_data)
 
 
@@ -212,7 +309,10 @@ func _refresh_member_state() -> void:
 		member_state_label.text = "成员：当前选择不可用。"
 		return
 
-	var display_name := String(member_option.get("display_name", String(_selected_member_id)))
+	var display_name := PARTY_MEMBER_OPTION_UTILS.get_member_option_display_name(member_option)
+	if display_name.is_empty():
+		member_state_label.text = "成员：当前选择不可用。"
+		return
 	var roster_role := String(member_option.get("roster_role", "成员"))
 	var state_summary_text := String(_window_data.get("state_summary_text", ""))
 	var lines := PackedStringArray([
@@ -237,12 +337,12 @@ func _rebuild_entry_list() -> void:
 
 
 func _build_entry_label(entry: Dictionary) -> String:
-	var display_name := String(entry.get("display_name", entry.get("entry_id", "条目")))
-	var state_label := String(entry.get("state_label", entry.get("state_text", "状态：可用")))
-	var cost_label := String(entry.get("cost_label", "费用：待定"))
+	var display_name := String(entry["display_name"])
+	var state_label := String(entry["state_label"])
+	var cost_label := String(entry["cost_label"])
 	var label := "%s\n%s  |  %s" % [display_name, state_label, cost_label]
-	if not bool(entry.get("is_enabled", true)):
-		var disabled_reason := String(entry.get("disabled_reason", ""))
+	if not bool(entry["is_enabled"]):
+		var disabled_reason := String(entry["disabled_reason"])
 		if not disabled_reason.is_empty():
 			label += "\n%s" % disabled_reason
 	return label
@@ -261,41 +361,44 @@ func _select_entry(index: int) -> void:
 
 func _refresh_details() -> void:
 	if _entries.is_empty():
-		var panel_profile := _get_panel_profile()
-		state_label.text = String(panel_profile.get("empty_state_label", "状态：暂无条目"))
-		cost_label.text = String(panel_profile.get("empty_cost_label", "费用：暂无条目"))
-		details_label.text = String(panel_profile.get("empty_details_text", "当前没有可用条目。"))
+		state_label.text = String(_window_data["empty_state_label"])
+		cost_label.text = String(_window_data["empty_cost_label"])
+		details_label.text = String(_window_data["empty_details_text"])
 		confirm_button.disabled = true
 		return
 
 	var entry := _entries[_selected_entry_index] if _selected_entry_index >= 0 and _selected_entry_index < _entries.size() else _entries[0]
-	var state_text := String(entry.get("state_label", entry.get("state_text", "状态：可用")))
-	var resolved_cost_label := String(entry.get("cost_label", "费用：待定"))
-	state_label.text = state_text
+	var entry_state_label := String(entry["state_label"])
+	var resolved_cost_label := String(entry["cost_label"])
+	state_label.text = entry_state_label
 	cost_label.text = resolved_cost_label
 	details_label.text = _build_entry_details(entry)
 
 
 func _build_entry_details(entry: Dictionary) -> String:
 	var lines := PackedStringArray([
-		"条目：%s" % String(entry.get("display_name", entry.get("entry_id", "条目"))),
-		"摘要：%s" % String(entry.get("summary_text", "暂无摘要。")),
-		"说明：%s" % String(entry.get("details_text", "暂无说明。")),
-		"状态：%s" % String(entry.get("state_label", entry.get("state_text", "状态：可用"))),
-		"费用：%s" % String(entry.get("cost_label", "费用：待定")),
+		"条目：%s" % String(entry["display_name"]),
+		"摘要：%s" % String(entry["summary_text"]),
+		"说明：%s" % String(entry["details_text"]),
+		"状态：%s" % String(entry["state_label"]),
+		"费用：%s" % String(entry["cost_label"]),
 	])
-	var disabled_reason := String(entry.get("disabled_reason", ""))
+	var disabled_reason := String(entry["disabled_reason"])
 	if not disabled_reason.is_empty():
 		lines.append("不可用原因：%s" % disabled_reason)
 	if _should_show_member_selector():
-		lines.append("当前成员：%s" % (_get_selected_member_display_name(_selected_member_id) if _selected_member_id != &"" else "未选择"))
+		var selected_member_display_name := _get_selected_member_display_name(_selected_member_id) if _selected_member_id != &"" else ""
+		lines.append("当前成员：%s" % (selected_member_display_name if not selected_member_display_name.is_empty() else "未选择"))
 	return "\n".join(lines)
 
 
 func _refresh_controls() -> void:
 	var has_member := _selected_member_id != &"" and _member_option_map.has(_selected_member_id)
 	var has_entry := not _entries.is_empty()
-	var entry_enabled := has_entry and bool((_entries[_selected_entry_index] if _selected_entry_index >= 0 and _selected_entry_index < _entries.size() else _entries[0]).get("is_enabled", true))
+	var entry_enabled := false
+	if has_entry:
+		var entry := _entries[_selected_entry_index] if _selected_entry_index >= 0 and _selected_entry_index < _entries.size() else _entries[0]
+		entry_enabled = bool(entry["is_enabled"])
 	confirm_button.disabled = ((_should_show_member_selector() and not has_member) or not entry_enabled)
 	member_selector.disabled = _member_options.is_empty()
 
@@ -303,8 +406,8 @@ func _refresh_controls() -> void:
 func _get_selected_member_display_name(member_id: StringName) -> String:
 	var member_option: Dictionary = _member_option_map.get(member_id, {})
 	if member_option.is_empty():
-		return String(member_id)
-	return String(member_option.get("display_name", member_id))
+		return ""
+	return PARTY_MEMBER_OPTION_UTILS.get_member_option_display_name(member_option)
 
 
 func _build_confirm_payload() -> Dictionary:
@@ -376,62 +479,17 @@ func _on_shade_gui_input(event: InputEvent) -> void:
 
 
 func _get_panel_kind() -> String:
-	var panel_kind := String(_window_data.get("panel_kind", "shop"))
-	return panel_kind if not panel_kind.is_empty() else "shop"
+	return String(_window_data["panel_kind"])
 
 
 func _should_show_member_selector() -> bool:
-	return bool(_window_data.get("show_member_selector", true))
+	return bool(_window_data["show_member_selector"])
 
 
-func _apply_section_titles(panel_profile: Dictionary) -> void:
-	entry_title_label.text = String(_window_data.get("entry_title", panel_profile.get("entry_title", "可选条目")))
-	summary_title_label.text = String(_window_data.get("summary_title", panel_profile.get("summary_title", "交易概况")))
-	state_title_label.text = String(_window_data.get("state_title", panel_profile.get("state_title", "交易状态")))
-	cost_title_label.text = String(_window_data.get("cost_title", panel_profile.get("cost_title", "交易费用")))
-	details_title_label.text = String(_window_data.get("details_title", panel_profile.get("details_title", "交易说明")))
-	member_title_label.text = String(_window_data.get("member_title", panel_profile.get("member_title", "交易成员")))
-
-
-func _get_panel_profile() -> Dictionary:
-	match _get_panel_kind():
-		"stagecoach":
-			return {
-				"window_title": "驿站窗口",
-				"summary_text": "选择一项行程后确认出发。",
-				"confirm_label": "确认出发",
-				"cancel_label": "返回",
-				"meta_fallback_text": "驿站窗口将使用当前选定成员。",
-				"entry_title": "可选路线",
-				"summary_title": "行程概况",
-				"state_title": "行程状态",
-				"cost_title": "行程费用",
-				"details_title": "行程说明",
-				"member_title": "出发成员",
-				"fallback_entry_name": "行程",
-				"fallback_summary_text": "默认行程条目。",
-				"fallback_state_label": "状态：可出发",
-				"empty_state_label": "状态：暂无路线",
-				"empty_cost_label": "费用：暂无路线",
-				"empty_details_text": "当前没有可用路线。",
-			}
-		_:
-			return {
-				"window_title": "交易窗口",
-				"summary_text": "选择一项交易后确认执行。",
-				"confirm_label": "确认",
-				"cancel_label": "返回",
-				"meta_fallback_text": "交易窗口将使用当前选定成员。",
-				"entry_title": "可选条目",
-				"summary_title": "交易概况",
-				"state_title": "交易状态",
-				"cost_title": "交易费用",
-				"details_title": "交易说明",
-				"member_title": "交易成员",
-				"fallback_entry_name": "交易",
-				"fallback_summary_text": "默认交易条目。",
-				"fallback_state_label": "状态：可用",
-				"empty_state_label": "状态：暂无条目",
-				"empty_cost_label": "费用：暂无条目",
-				"empty_details_text": "当前没有可用条目。",
-			}
+func _apply_section_titles() -> void:
+	entry_title_label.text = String(_window_data["entry_title"])
+	summary_title_label.text = String(_window_data["summary_title"])
+	state_title_label.text = String(_window_data["state_title"])
+	cost_title_label.text = String(_window_data["cost_title"])
+	details_title_label.text = String(_window_data["details_title"])
+	member_title_label.text = String(_window_data["member_title"])

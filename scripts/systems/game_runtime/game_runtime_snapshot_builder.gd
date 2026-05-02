@@ -4,6 +4,15 @@ extends RefCounted
 const BATTLE_HUD_ADAPTER_SCRIPT = preload("res://scripts/ui/battle_hud_adapter.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/game_text_snapshot_renderer.gd")
+const QUEST_ENTRY_REQUIRED_FIELDS := [
+	"quest_id",
+	"status_id",
+	"objective_progress",
+	"accepted_at_world_step",
+	"completed_at_world_step",
+	"reward_claimed_at_world_step",
+	"last_progress_context",
+]
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -137,8 +146,6 @@ func _build_quest_snapshot(party_state) -> Dictionary:
 	var completed_quest_ids: Array[String] = []
 	if completed_quest_ids_variant is Array:
 		completed_quest_ids = _string_name_array_to_string_array(ProgressionDataUtils.to_string_name_array(completed_quest_ids_variant))
-	elif completed_quest_ids_variant is Dictionary:
-		completed_quest_ids = _string_name_array_to_string_array(ProgressionDataUtils.to_string_name_array((completed_quest_ids_variant as Dictionary).keys()))
 	return {
 		"active_quest_ids": active_quest_ids,
 		"claimable_quest_ids": claimable_quest_ids,
@@ -148,30 +155,19 @@ func _build_quest_snapshot(party_state) -> Dictionary:
 	}
 
 
-func _get_party_state_quest_value(party_state, property_name: String, getter_name: String):
+func _get_party_state_quest_value(party_state, _property_name: String, getter_name: String):
 	if party_state == null:
 		return null
-	if party_state.has_method(getter_name):
+	if party_state is Object and party_state.has_method(getter_name):
 		return party_state.call(getter_name)
-	if party_state is Object:
-		for property_info in party_state.get_property_list():
-			if String(property_info.get("name", "")) != property_name:
-				continue
-			return party_state.get(property_name)
-	return party_state.get(property_name)
+	return null
 
 
 func _build_quest_entries(quest_entries_variant, stage_id: String) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	if quest_entries_variant is Dictionary:
-		for quest_key in ProgressionDataUtils.sorted_string_keys(quest_entries_variant):
-			var quest_variant = _get_dictionary_value_by_string_key(quest_entries_variant as Dictionary, quest_key)
-			var quest_entry := _normalize_quest_entry(quest_variant, quest_key, stage_id)
-			if not quest_entry.is_empty():
-				entries.append(quest_entry)
-	elif quest_entries_variant is Array:
+	if quest_entries_variant is Array:
 		for quest_variant in quest_entries_variant:
-			var quest_entry := _normalize_quest_entry(quest_variant, "", stage_id)
+			var quest_entry := _normalize_quest_entry(quest_variant, stage_id)
 			if not quest_entry.is_empty():
 				entries.append(quest_entry)
 		entries.sort_custom(Callable(self, "_compare_quest_entries"))
@@ -188,7 +184,7 @@ func _build_quest_ids(quest_entries: Array[Dictionary]) -> Array[String]:
 	return quest_ids
 
 
-func _normalize_quest_entry(quest_variant, fallback_quest_id: String = "", stage_id: String = "") -> Dictionary:
+func _normalize_quest_entry(quest_variant, stage_id: String) -> Dictionary:
 	var quest_data: Dictionary = {}
 	if quest_variant is Dictionary:
 		quest_data = (quest_variant as Dictionary).duplicate(true)
@@ -198,38 +194,68 @@ func _normalize_quest_entry(quest_variant, fallback_quest_id: String = "", stage
 			quest_data = (quest_data_variant as Dictionary).duplicate(true)
 	if quest_data.is_empty():
 		return {}
-	var quest_id := String(quest_data.get("quest_id", fallback_quest_id))
-	if quest_id.is_empty():
-		quest_id = fallback_quest_id
+	if not _has_exact_quest_entry_fields(quest_data):
+		return {}
+	var quest_id := _read_quest_string(quest_data["quest_id"])
+	var status_id := _read_quest_string(quest_data["status_id"])
+	if quest_id.is_empty() or status_id.is_empty():
+		return {}
+	if (
+		quest_data["accepted_at_world_step"] is not int
+		or int(quest_data["accepted_at_world_step"]) < -1
+		or quest_data["completed_at_world_step"] is not int
+		or int(quest_data["completed_at_world_step"]) < -1
+		or quest_data["reward_claimed_at_world_step"] is not int
+		or int(quest_data["reward_claimed_at_world_step"]) < -1
+	):
+		return {}
+	var objective_progress = _normalize_quest_progress_map(quest_data["objective_progress"])
+	if objective_progress == null:
+		return {}
+	var context_variant = quest_data["last_progress_context"]
+	if context_variant is not Dictionary:
+		return {}
 	quest_data["quest_id"] = quest_id
 	quest_data["stage_id"] = stage_id
-	quest_data["status_id"] = String(quest_data.get("status_id", ""))
-	quest_data["objective_progress"] = _normalize_quest_progress_map(quest_data.get("objective_progress", {}))
-	quest_data["accepted_at_world_step"] = int(quest_data.get("accepted_at_world_step", -1))
-	quest_data["completed_at_world_step"] = int(quest_data.get("completed_at_world_step", -1))
-	quest_data["reward_claimed_at_world_step"] = int(quest_data.get("reward_claimed_at_world_step", -1))
-	var context_variant = quest_data.get("last_progress_context", {})
-	quest_data["last_progress_context"] = context_variant.duplicate(true) if context_variant is Dictionary else {}
+	quest_data["status_id"] = status_id
+	quest_data["objective_progress"] = objective_progress
+	quest_data["last_progress_context"] = (context_variant as Dictionary).duplicate(true)
 	return quest_data
 
 
-func _normalize_quest_progress_map(progress_variant) -> Dictionary:
+func _has_exact_quest_entry_fields(quest_data: Dictionary) -> bool:
+	if quest_data.size() != QUEST_ENTRY_REQUIRED_FIELDS.size():
+		return false
+	for field_name in QUEST_ENTRY_REQUIRED_FIELDS:
+		if not quest_data.has(field_name):
+			return false
+	return true
+
+
+func _read_quest_string(value) -> String:
+	if value is not String and value is not StringName:
+		return ""
+	var text := String(value).strip_edges()
+	return text
+
+
+func _normalize_quest_progress_map(progress_variant):
 	if progress_variant is not Dictionary:
-		return {}
-	return ProgressionDataUtils.string_name_int_map_to_string_dict(ProgressionDataUtils.to_string_name_int_map(progress_variant))
+		return null
+	var result: Dictionary = {}
+	for objective_id_variant in (progress_variant as Dictionary).keys():
+		var objective_id := _read_quest_string(objective_id_variant)
+		if objective_id.is_empty():
+			return null
+		var progress_value = (progress_variant as Dictionary)[objective_id_variant]
+		if progress_value is not int or int(progress_value) < 0:
+			return null
+		result[objective_id] = int(progress_value)
+	return result
 
 
 func _compare_quest_entries(a: Dictionary, b: Dictionary) -> bool:
 	return String(a.get("quest_id", "")) < String(b.get("quest_id", ""))
-
-
-func _get_dictionary_value_by_string_key(source: Dictionary, key: String):
-	if source.has(key):
-		return source.get(key)
-	var key_name := StringName(key)
-	if source.has(key_name):
-		return source.get(key_name)
-	return source.get(key)
 
 
 func _build_party_member_snapshot(member_id: StringName, roster_role: String) -> Dictionary:
@@ -489,9 +515,7 @@ func _get_window_data_from_runtime(method_name: String) -> Dictionary:
 func _window_data_matches_panel_kind(window_data: Dictionary, panel_kind: String) -> bool:
 	if window_data.is_empty():
 		return false
-	if String(window_data.get("panel_kind", "")) == panel_kind:
-		return true
-	return String(window_data.get("submission_source", "")) == panel_kind
+	return String(window_data.get("panel_kind", "")) == panel_kind
 
 
 func _coord_to_dict(coord: Vector2i) -> Dictionary:

@@ -11,7 +11,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _test_character_info_window_renders_fate_section_happy_path()
-	await _test_character_info_window_fate_section_falls_back_for_missing_fields()
+	await _test_character_info_window_rejects_bad_section_schema()
+	await _test_character_info_window_rejects_bad_fate_payload()
 
 	if _failures.is_empty():
 		print("CharacterInfoWindow fate regression: PASS")
@@ -31,6 +32,7 @@ func _test_character_info_window_renders_fate_section_happy_path() -> void:
 
 	window.show_character({
 		"display_name": "黑冠见证者",
+		"meta_label": "战斗单位  |  玩家前排",
 		"sections": [
 			{
 				"title": "基础概览",
@@ -51,6 +53,7 @@ func _test_character_info_window_renders_fate_section_happy_path() -> void:
 			"doom_authority": 4,
 			"has_misfortune": true,
 		},
+		"status_label": "战斗单位",
 	})
 	await process_frame
 
@@ -80,13 +83,108 @@ func _test_character_info_window_renders_fate_section_happy_path() -> void:
 	await process_frame
 
 
-func _test_character_info_window_fate_section_falls_back_for_missing_fields() -> void:
+func _test_character_info_window_rejects_bad_section_schema() -> void:
 	var window = CHARACTER_INFO_WINDOW_SCENE.instantiate()
 	root.add_child(window)
 	await process_frame
 
+	var missing_sections := _make_valid_character_info_payload()
+	missing_sections.erase("sections")
+	window.show_character(missing_sections)
+	await process_frame
+	_assert_true(not window.visible, "缺少 sections 的人物信息 payload 应拒绝。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "缺少 sections 时不应渲染默认 section。")
+
+	var legacy_top_level := _make_valid_character_info_payload({
+		"type_label": "世界 NPC",
+	})
+	window.show_character(legacy_top_level)
+	await process_frame
+	_assert_true(not window.visible, "含旧 type_label 的人物信息 payload 应拒绝。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "旧 top-level 字段不应被忽略后继续渲染。")
+
+	var legacy_section_shape := _make_valid_character_info_payload({
+		"sections": [
+			{
+				"title": "旧段落",
+				"entries": [
+					{
+						"text": "正式 text entry。",
+					},
+				],
+				"body": "旧 body 字段。",
+				"rows": [
+					{
+						"text": "旧 rows 字段。",
+					},
+				],
+				"lines": [
+					"旧 lines 字段。",
+				],
+			},
+		],
+	})
+	window.show_character(legacy_section_shape)
+	await process_frame
+	_assert_true(not window.visible, "section 含旧 body/rows/lines 字段时应拒绝整份 payload。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "旧 body/rows/lines 字段不应被忽略后继续渲染。")
+
+	var value_only_entry := _make_valid_character_info_payload({
+		"sections": [
+			{
+				"title": "装备摘要",
+				"entries": [
+					{
+						"value": "塔盾",
+					},
+				],
+			},
+		],
+	})
+	window.show_character(value_only_entry)
+	await process_frame
+	_assert_true(not window.visible, "value-only entry 不属于当前 schema，应拒绝整份 payload。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "value-only entry 不应被转换成 text entry。")
+
+	var mixed_entry_shape := _make_valid_character_info_payload({
+		"sections": [
+			{
+				"title": "基础概览",
+				"entries": [
+					{
+						"label": "职业",
+						"value": "旅人",
+						"text": "旧混合条目。",
+					},
+				],
+			},
+		],
+	})
+	window.show_character(mixed_entry_shape)
+	await process_frame
+	_assert_true(not window.visible, "entry 只能是 {label,value} 或 {text}，混合字段应拒绝。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "混合 entry 不应按 label/value 局部渲染。")
+
+	window.queue_free()
+	await process_frame
+
+
+func _test_character_info_window_rejects_bad_fate_payload() -> void:
+	var window = CHARACTER_INFO_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	window.show_character(_make_valid_character_info_payload({
+		"fate": null,
+	}))
+	await process_frame
+
+	_assert_true(not window.visible, "显式 null fate payload 应拒绝整个人物信息 payload。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "显式 null fate 不应被当成缺省 fate 渲染基础 section。")
+
 	window.show_character({
 		"display_name": "未命名旅人",
+		"meta_label": "战斗单位",
 		"sections": [
 			{
 				"title": "基础概览",
@@ -101,28 +199,67 @@ func _test_character_info_window_fate_section_falls_back_for_missing_fields() ->
 		"fate": {
 			"hidden_luck_at_birth": -6,
 		},
+		"status_label": "",
 	})
 	await process_frame
 
-	_assert_eq(window.sections_container.get_child_count(), 2, "缺字段的 fate payload 仍应补出命运段落。")
-	var rendered_texts := _collect_label_texts(window.sections_container)
-	_assert_true(rendered_texts.has("命运"), "缺字段 fallback 仍应渲染命运标题。")
-	_assert_true(rendered_texts.has("-6"), "缺少 effective_luck 时应从 hidden_luck_at_birth 回退出 -6。")
-	_assert_true(rendered_texts.has("0"), "缺少 faith_luck_bonus 时应回退为 0。")
-	_assert_true(rendered_texts.has("0（未获福印）"), "缺少 fortune_marked 时应回退为未获福印。")
-	_assert_true(rendered_texts.has("0（未见黑兆）"), "缺少 doom_marked 时应回退为未见黑兆。")
-	_assert_true(not rendered_texts.has("厄权："), "未入 Misfortune 时不应显示 doom_authority。")
-	_assert_true(
-		rendered_texts.has("生来暗运已压到最深坏运档，这类角色更容易撞进命运事件的极端分支。"),
-		"hidden_luck_at_birth=-6 时应显示最深坏运提示。"
-	)
-	_assert_true(
-		rendered_texts.has("有效运势已压到 -6 下限：大失败区间会扩到 1-3；若处于劣势，命运的怜悯仍只回拉一档暴击门。"),
-		"缺少 effective_luck 字段时仍应补出 -6 下限提示。"
-	)
+	_assert_true(not window.visible, "缺字段 fate payload 应拒绝整个人物信息 payload。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "缺字段 fate payload 不应保留基础 section。")
+
+	window.show_character({
+		"display_name": "字符串运势旅人",
+		"meta_label": "战斗单位",
+		"sections": [
+			{
+				"title": "基础概览",
+				"entries": [
+					{
+						"label": "职业",
+						"value": "旅人",
+					},
+				],
+			},
+		],
+		"fate": {
+			"hidden_luck_at_birth": -6,
+			"faith_luck_bonus": 0,
+			"effective_luck": "-6",
+			"fortune_marked": 0,
+			"doom_marked": 0,
+			"doom_authority": 0,
+			"has_misfortune": false,
+		},
+		"status_label": "",
+	})
+	await process_frame
+
+	_assert_true(not window.visible, "错类型 fate payload 不应被字符串转 int 后展示。")
+	_assert_eq(window.sections_container.get_child_count(), 0, "错类型 fate payload 不应渲染任何 section。")
 
 	window.queue_free()
 	await process_frame
+
+
+func _make_valid_character_info_payload(overrides: Dictionary = {}) -> Dictionary:
+	var data := {
+		"display_name": "严格旅人",
+		"meta_label": "战斗单位",
+		"sections": [
+			{
+				"title": "基础概览",
+				"entries": [
+					{
+						"label": "职业",
+						"value": "旅人",
+					},
+				],
+			},
+		],
+		"status_label": "",
+	}
+	for key in overrides.keys():
+		data[key] = overrides[key]
+	return data
 
 
 func _collect_label_texts(node: Node) -> Array[String]:

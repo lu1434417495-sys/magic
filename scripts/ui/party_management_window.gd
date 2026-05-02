@@ -8,6 +8,7 @@ extends Control
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const SkillLevelDescriptionFormatter = preload("res://scripts/systems/progression/skill_level_description_formatter.gd")
 
 ## 信号说明：当界面请求队长变化时发出的信号，具体处理由外层系统或控制器负责。
 signal leader_change_requested(member_id: StringName)
@@ -365,7 +366,7 @@ func _refresh_details() -> void:
 	overview_label.text = _build_overview_text(member_state, snapshot)
 	attributes_label.text = _build_attributes_text(member_state, snapshot)
 	equipment_label.text = "\n".join(_build_equipment_detail_lines(member_state))
-	skills_label.text = "\n".join(_build_skill_detail_lines(member_state.progression))
+	skills_label.text = "\n".join(_build_skill_detail_lines(member_state.progression, snapshot))
 	professions_label.text = "\n".join(_build_profession_detail_lines(member_state.progression))
 	status_label.text = "当前队长：%s  |  上阵 %d / %d  |  替补 %d" % [
 		String(_leader_member_id),
@@ -448,6 +449,13 @@ func _build_equipment_detail_lines(member_state: PartyMemberState) -> PackedStri
 	var equipment_state = member_state.equipment_state
 	var filled_count := 0
 	for slot_id in EQUIPMENT_RULES_SCRIPT.get_all_slot_ids():
+		var entry_slot_id := _get_entry_slot_for_slot(equipment_state, slot_id)
+		if entry_slot_id != &"" and entry_slot_id != slot_id:
+			lines.append("%s：由%s占用" % [
+				EQUIPMENT_RULES_SCRIPT.get_slot_label(slot_id),
+				EQUIPMENT_RULES_SCRIPT.get_slot_label(entry_slot_id),
+			])
+			continue
 		var item_id := _get_equipped_item_id(equipment_state, slot_id)
 		if item_id == &"":
 			lines.append("%s：空" % EQUIPMENT_RULES_SCRIPT.get_slot_label(slot_id))
@@ -469,7 +477,7 @@ func _build_equipment_detail_lines(member_state: PartyMemberState) -> PackedStri
 	return lines
 
 
-func _build_skill_detail_lines(progression: UnitProgress) -> PackedStringArray:
+func _build_skill_detail_lines(progression: UnitProgress, snapshot = null) -> PackedStringArray:
 	var lines := PackedStringArray()
 	if progression == null:
 		lines.append("暂无技能数据。")
@@ -502,12 +510,21 @@ func _build_skill_detail_lines(progression: UnitProgress) -> PackedStringArray:
 		if skill_def != null and not skill_def.description.is_empty():
 			lines.append("  说明：%s" % skill_def.description)
 		var current_level := int(skill_progress.skill_level)
-		var level_desc := skill_def.level_descriptions.get(str(current_level), "") as String
-		if not level_desc.is_empty():
-			lines.append("  当前效果：%s" % level_desc)
-		var preview_lines := _build_level_override_preview(skill_def, current_level)
-		for preview_line in preview_lines:
-			lines.append(preview_line)
+		if skill_def != null:
+			var runtime_context := {}
+			if snapshot != null and snapshot.has_method("get_value"):
+				var con_value := _get_snapshot_value(snapshot, UnitBaseAttributes.CONSTITUTION)
+				var will_value := _get_snapshot_value(snapshot, UnitBaseAttributes.WILLPOWER)
+				runtime_context["con_mod"] = int(floor((con_value - 10) / 2.0))
+				runtime_context["will_mod"] = int(floor((will_value - 10) / 2.0))
+			var level_desc: String = SkillLevelDescriptionFormatter.build_level_description(skill_def, current_level, runtime_context)
+			if not level_desc.is_empty():
+				lines.append("  当前效果：%s" % level_desc)
+			var preview_lines := _build_level_override_preview(skill_def, current_level)
+			for preview_line in preview_lines:
+				lines.append(preview_line)
+		else:
+			lines.append("  说明：技能定义缺失。")
 		if not skill_progress.merged_from_skill_ids.is_empty():
 			lines.append("  来源：%s" % _format_skill_id_list(skill_progress.merged_from_skill_ids))
 	if learned_count <= 0:
@@ -609,9 +626,13 @@ func _get_snapshot_value(snapshot, attribute_id: StringName) -> int:
 func _get_equipped_item_id(equipment_state, slot_id: StringName) -> StringName:
 	if equipment_state is Object and equipment_state.has_method("get_equipped_item_id"):
 		return equipment_state.get_equipped_item_id(slot_id)
-	if equipment_state is Dictionary:
-		return ProgressionDataUtils.to_string_name(equipment_state.get(slot_id, equipment_state.get(String(slot_id), "")))
 	return &""
+
+
+func _get_entry_slot_for_slot(equipment_state, slot_id: StringName) -> StringName:
+	if equipment_state is Object and equipment_state.has_method("get_entry_slot_for_slot"):
+		return equipment_state.get_entry_slot_for_slot(slot_id)
+	return slot_id if _get_equipped_item_id(equipment_state, slot_id) != &"" else &""
 
 
 func _get_item_display_name(item_id: StringName) -> String:
@@ -803,11 +824,14 @@ func _build_equipment_summary_lines(member_state: PartyMemberState) -> PackedStr
 	var equipment_state = member_state.equipment_state
 	var filled_count := 0
 	for slot_id in EQUIPMENT_RULES_SCRIPT.get_all_slot_ids():
-		var item_id: StringName = &""
-		if equipment_state is Object and equipment_state.has_method("get_equipped_item_id"):
-			item_id = equipment_state.get_equipped_item_id(slot_id)
-		elif equipment_state is Dictionary:
-			item_id = ProgressionDataUtils.to_string_name(equipment_state.get(slot_id, equipment_state.get(String(slot_id), "")))
+		var entry_slot_id := _get_entry_slot_for_slot(equipment_state, slot_id)
+		if entry_slot_id != &"" and entry_slot_id != slot_id:
+			lines.append("- %s：由%s占用" % [
+				EQUIPMENT_RULES_SCRIPT.get_slot_label(slot_id),
+				EQUIPMENT_RULES_SCRIPT.get_slot_label(entry_slot_id),
+			])
+			continue
+		var item_id := _get_equipped_item_id(equipment_state, slot_id)
 		if item_id == &"":
 			continue
 		filled_count += 1
@@ -880,14 +904,17 @@ func _on_move_to_active_button_pressed() -> void:
 
 	_reserve_member_ids.erase(_selected_member_id)
 	_active_member_ids.append(_selected_member_id)
+	var leader_changed := false
 	if _leader_member_id == &"":
 		_leader_member_id = _selected_member_id
-		leader_change_requested.emit(_leader_member_id)
+		leader_changed = true
 	_rebuild_lists()
 	_select_active_member_id(_selected_member_id)
 	_refresh_controls()
 	_refresh_details()
 	_emit_roster_change()
+	if leader_changed:
+		leader_change_requested.emit(_leader_member_id)
 
 
 func _on_move_to_reserve_button_pressed() -> void:
@@ -903,14 +930,17 @@ func _on_move_to_reserve_button_pressed() -> void:
 
 	_active_member_ids.erase(_selected_member_id)
 	_reserve_member_ids.append(_selected_member_id)
+	var leader_changed := false
 	if _leader_member_id == _selected_member_id:
 		_leader_member_id = _active_member_ids[0]
-		leader_change_requested.emit(_leader_member_id)
+		leader_changed = true
 	_rebuild_lists()
 	_select_reserve_member_id(_selected_member_id)
 	_refresh_controls()
 	_refresh_details()
 	_emit_roster_change()
+	if leader_changed:
+		leader_change_requested.emit(_leader_member_id)
 
 
 func _emit_roster_change() -> void:

@@ -8,6 +8,13 @@ const INVALID_ITEM_DIRECTORY := "res://tests/fixtures/resource_validation/item_r
 var _failures: Array[String] = []
 
 
+class InvalidWorldContentValidator:
+	extends RefCounted
+
+	func validate_world_presets(_enemy_templates: Dictionary = {}, _wild_encounter_rosters: Dictionary = {}) -> Array[String]:
+		return ["World preset fixture references missing settlement missing_settlement."]
+
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -18,6 +25,7 @@ func _run() -> void:
 
 	await _assert_official_validation_surface(runner)
 	await _assert_invalid_item_validation_surface(runner)
+	await _assert_invalid_world_validation_surface(runner)
 
 	await runner.dispose(true)
 	_finish()
@@ -28,13 +36,16 @@ func _assert_official_validation_surface(runner) -> void:
 	var validation_snapshot: Dictionary = snapshot_result.snapshot.get("validation", {})
 	var domains: Dictionary = validation_snapshot.get("domains", {})
 	var item_domain: Dictionary = domains.get("item", {})
+	var world_domain: Dictionary = domains.get("world", {})
 
 	_assert_true(bool(validation_snapshot.get("ok", false)), "正式 headless validation 快照应标记为 ok。")
 	_assert_eq(int(validation_snapshot.get("error_count", -1)), 0, "正式 headless validation 快照不应有错误。")
 	_assert_eq(int(item_domain.get("error_count", -1)), 0, "正式 item validation domain 不应有错误。")
+	_assert_eq(int(world_domain.get("error_count", -1)), 0, "正式 world validation domain 不应有错误。")
 	_assert_true(snapshot_result.snapshot_text.contains("[VALIDATION]"), "headless 文本快照应包含 VALIDATION 分段。")
 	_assert_true(snapshot_result.snapshot_text.contains("domain=progression | errors=0"), "文本快照应稳定渲染 progression validation 摘要。")
 	_assert_true(snapshot_result.snapshot_text.contains("domain=item | errors=0"), "文本快照应稳定渲染 item validation 摘要。")
+	_assert_true(snapshot_result.snapshot_text.contains("domain=world | errors=0"), "文本快照应稳定渲染 world validation 摘要。")
 	_assert_true(_find_log_entry(snapshot_result.snapshot, "session.content.item_validation_failed").is_empty(), "正式内容不应依赖 item validation 错误日志。")
 
 	await _run_command(runner, "expect field validation.ok == true")
@@ -61,18 +72,44 @@ func _assert_invalid_item_validation_surface(runner) -> void:
 	var item_errors: Array = item_domain.get("errors", [])
 
 	_assert_true(not bool(validation_snapshot.get("ok", true)), "非法 item registry 应让 headless validation 快照标记失败。")
-	_assert_eq(int(item_domain.get("error_count", 0)), 3, "非法 item registry 应稳定暴露 3 条 item 校验错误。")
+	_assert_eq(int(item_domain.get("error_count", 0)), 5, "非法 item registry 应稳定暴露 5 条 item 校验错误。")
 	_assert_error_contains(item_errors, "is missing item_id", "headless validation 快照应暴露缺失 item_id。")
 	_assert_error_contains(item_errors, "Duplicate item_id registered: duplicate_item", "headless validation 快照应暴露重复 item_id。")
 	_assert_error_contains(item_errors, "declares invalid slot phantom_slot", "headless validation 快照应暴露非法槽位引用。")
-	_assert_true(snapshot_result.snapshot_text.contains("domain=item | errors=3"), "headless 文本快照应稳定渲染 item validation 错误计数。")
+	_assert_true(snapshot_result.snapshot_text.contains("domain=item | errors=5"), "headless 文本快照应稳定渲染 item validation 错误计数。")
 	_assert_true(snapshot_result.snapshot_text.contains("is missing item_id"), "headless 文本快照应渲染缺失 item_id 错误。")
 	_assert_true(snapshot_result.snapshot_text.contains("Duplicate item_id registered: duplicate_item"), "headless 文本快照应渲染重复 item_id 错误。")
 	_assert_true(snapshot_result.snapshot_text.contains("declares invalid slot phantom_slot"), "headless 文本快照应渲染非法槽位错误。")
 	_assert_true(_find_log_entry(snapshot_result.snapshot, "session.content.item_validation_failed").is_empty(), "validation surface 回归不应依赖额外日志注入来暴露 item 错误。")
 
 	await _run_command(runner, "expect field validation.ok == false")
-	await _run_command(runner, "expect field validation.domains.item.error_count == 3")
+	await _run_command(runner, "expect field validation.domains.item.error_count == 5")
+
+
+func _assert_invalid_world_validation_surface(runner) -> void:
+	var game_session = runner.get_session().get_game_session()
+	_assert_true(game_session != null, "world validation surface 回归前置：GameSession 应可访问。")
+	if game_session == null:
+		return
+
+	var original_validator = game_session._world_content_validator
+	game_session._world_content_validator = InvalidWorldContentValidator.new()
+	game_session.refresh_content_validation_snapshot()
+
+	var snapshot_result = await _run_command(runner, "snapshot")
+	var validation_snapshot: Dictionary = snapshot_result.snapshot.get("validation", {})
+	var domains: Dictionary = validation_snapshot.get("domains", {})
+	var world_domain: Dictionary = domains.get("world", {})
+	var world_errors: Array = world_domain.get("errors", [])
+
+	_assert_true(not bool(validation_snapshot.get("ok", true)), "非法 world preset 应让 headless validation 快照标记失败。")
+	_assert_eq(int(world_domain.get("error_count", 0)), 1, "非法 world validator 应稳定暴露 1 条 world 校验错误。")
+	_assert_error_contains(world_errors, "references missing settlement missing_settlement", "headless validation 快照应暴露 world preset 错误。")
+	_assert_true(snapshot_result.snapshot_text.contains("domain=world | errors=1"), "headless 文本快照应稳定渲染 world validation 错误计数。")
+	_assert_true(snapshot_result.snapshot_text.contains("references missing settlement missing_settlement"), "headless 文本快照应渲染 world validation 错误。")
+
+	game_session._world_content_validator = original_validator
+	game_session.refresh_content_validation_snapshot()
 
 
 func _find_log_entry(snapshot: Dictionary, event_id: String) -> Dictionary:

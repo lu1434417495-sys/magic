@@ -671,9 +671,11 @@ func _on_shop_service_modal_action_requested(_settlement_id: String, _action_id:
 		return
 	var quantity := maxi(int(payload.get("request_quantity", 1)), 1)
 	var item_id := StringName(String(payload.get("item_id", "")))
+	var instance_id := StringName(String(payload.get("instance_id", "")))
 	match String(payload.get("shop_action", "buy")):
 		"sell":
-			_runtime_proxy.command_shop_sell(item_id, quantity)
+			_runtime.command_shop_sell(item_id, quantity, instance_id)
+			_render_from_runtime()
 		_:
 			_runtime_proxy.command_shop_buy(item_id, quantity)
 
@@ -687,7 +689,9 @@ func _on_forge_service_modal_action_requested(_settlement_id: String, action_id:
 func _on_stagecoach_service_modal_action_requested(_settlement_id: String, _action_id: String, payload: Dictionary) -> void:
 	if _runtime == null:
 		return
-	var target_settlement_id := String(payload.get("target_settlement_id", payload.get("settlement_id", "")))
+	var target_settlement_id := String(payload.get("target_settlement_id", ""))
+	if target_settlement_id.is_empty():
+		return
 	_runtime_proxy.command_stagecoach_travel(target_settlement_id)
 
 
@@ -727,16 +731,18 @@ func _on_party_button_pressed() -> void:
 	_runtime_proxy.command_open_party()
 
 
-func _on_party_warehouse_discard_one_requested(item_id: StringName) -> void:
+func _on_party_warehouse_discard_one_requested(item_id: StringName, instance_id: StringName) -> void:
 	if _runtime == null:
 		return
-	_runtime_proxy.command_warehouse_discard_one(item_id)
+	_runtime.command_warehouse_discard_one(item_id, instance_id)
+	_render_from_runtime()
 
 
-func _on_party_warehouse_discard_all_requested(item_id: StringName) -> void:
+func _on_party_warehouse_discard_all_requested(item_id: StringName, instance_id: StringName) -> void:
 	if _runtime == null:
 		return
-	_runtime_proxy.command_warehouse_discard_all(item_id)
+	_runtime.command_warehouse_discard_all(item_id, instance_id)
+	_render_from_runtime()
 
 
 func _on_party_warehouse_use_requested(item_id: StringName, member_id: StringName) -> void:

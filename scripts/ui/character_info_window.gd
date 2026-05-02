@@ -7,6 +7,19 @@ extends Control
 
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const FATE_SECTION_TITLE := "命运"
+const LEGACY_TOP_LEVEL_KEYS := ["type_label", "faction_label", "coord"]
+const SECTION_KEYS := ["title", "entries"]
+const PAIR_ENTRY_KEYS := ["label", "value"]
+const TEXT_ENTRY_KEYS := ["text"]
+const FATE_KEYS := [
+	"hidden_luck_at_birth",
+	"faith_luck_bonus",
+	"effective_luck",
+	"fortune_marked",
+	"doom_marked",
+	"doom_authority",
+	"has_misfortune",
+]
 
 ## 信号说明：当窗口或面板关闭时发出的信号，供外层恢复输入焦点、刷新数据或清理临时状态。
 signal closed
@@ -36,13 +49,17 @@ func _ready() -> void:
 
 
 func show_character(window_data: Dictionary) -> void:
-	var display_name := String(window_data.get("display_name", "人物"))
-	var type_label := _normalize_label(String(window_data.get("type_label", "")), "未知类型")
-	var faction_label := _normalize_label(String(window_data.get("faction_label", "")), "未知")
-	var coord_text := _format_coord(window_data.get("coord", Vector2i.ZERO))
-	var status_text := String(window_data.get("status_label", ""))
-	var meta_text := _build_meta_text(window_data, type_label, faction_label, coord_text)
-	var sections := _normalize_sections(window_data, display_name, type_label, faction_label, coord_text)
+	var top_level_payload := _normalize_top_level_payload(window_data)
+	if top_level_payload.is_empty():
+		hide_window()
+		return
+	var sections := _normalize_sections(window_data)
+	if sections.is_empty():
+		hide_window()
+		return
+	var display_name := String(top_level_payload["display_name"])
+	var meta_text := String(top_level_payload["meta_label"]).strip_edges()
+	var status_text := String(top_level_payload["status_label"])
 
 	visible = true
 	title_label.text = display_name
@@ -83,144 +100,104 @@ func _on_shade_gui_input(event: InputEvent) -> void:
 	_close_window()
 
 
-func _format_coord(coord_value: Variant) -> String:
-	if coord_value is Vector2i:
-		var coord := coord_value as Vector2i
-		return "(%d, %d)" % [coord.x, coord.y]
-	if coord_value is Vector2:
-		var coordf := coord_value as Vector2
-		return "(%d, %d)" % [int(coordf.x), int(coordf.y)]
-	return "(0, 0)"
+func _normalize_top_level_payload(window_data: Dictionary) -> Dictionary:
+	for legacy_key in LEGACY_TOP_LEVEL_KEYS:
+		if window_data.has(legacy_key):
+			return {}
+	for field_name in ["display_name", "meta_label", "status_label"]:
+		if not window_data.has(field_name) or window_data[field_name] is not String:
+			return {}
+	var display_name := String(window_data["display_name"]).strip_edges()
+	if display_name.is_empty():
+		return {}
+	return {
+		"display_name": display_name,
+		"meta_label": String(window_data["meta_label"]),
+		"status_label": String(window_data["status_label"]),
+	}
 
 
-func _normalize_label(value: String, fallback: String) -> String:
-	if value.is_empty():
-		return fallback
-	return value
-
-
-func _build_meta_text(window_data: Dictionary, type_label: String, faction_label: String, coord_text: String) -> String:
-	var meta_text := String(window_data.get("meta_label", ""))
-	if not meta_text.is_empty():
-		return meta_text
-	var has_legacy_meta := window_data.has("type_label") or window_data.has("faction_label") or window_data.has("coord")
-	if not has_legacy_meta:
-		return ""
-	return "%s  |  阵营 %s  |  坐标 %s" % [type_label, faction_label, coord_text]
-
-
-func _normalize_sections(
-	window_data: Dictionary,
-	display_name: String,
-	type_label: String,
-	faction_label: String,
-	coord_text: String
-) -> Array[Dictionary]:
-	var sections := _normalize_explicit_sections(window_data.get("sections", []))
+func _normalize_sections(window_data: Dictionary) -> Array[Dictionary]:
+	if not window_data.has("sections"):
+		return []
+	var sections := _normalize_explicit_sections(window_data["sections"])
 	if sections.is_empty():
-		sections = [{
-			"title": "身份信息",
-			"entries": [
-				{
-					"kind": "pair",
-					"label": "姓名",
-					"value": display_name,
-				},
-				{
-					"kind": "pair",
-					"label": "类型",
-					"value": type_label,
-				},
-				{
-					"kind": "pair",
-					"label": "阵营",
-					"value": faction_label,
-				},
-				{
-					"kind": "pair",
-					"label": "坐标",
-					"value": coord_text,
-				},
-			],
-		}]
-	var fate_section := _build_fate_section(window_data.get("fate", null), sections)
-	if not fate_section.is_empty():
+		return sections
+	if not window_data.has("fate"):
+		return sections
+	var fate_section := _build_fate_section(window_data["fate"], sections)
+	if fate_section.is_empty():
+		return []
+	else:
 		sections.append(fate_section)
 	return sections
 
 
 func _normalize_explicit_sections(section_variants: Variant) -> Array[Dictionary]:
 	var sections: Array[Dictionary] = []
-	if section_variants is not Array:
+	if section_variants is not Array or (section_variants as Array).is_empty():
 		return sections
 	for section_variant in section_variants:
 		if section_variant is not Dictionary:
-			continue
+			return []
 		var section_data := section_variant as Dictionary
-		var normalized_entries := _normalize_section_entries(section_data)
+		if not _has_exact_keys(section_data, SECTION_KEYS):
+			return []
+		if not section_data.has("title") or section_data["title"] is not String:
+			return []
+		var title_text := String(section_data["title"]).strip_edges()
+		if title_text.is_empty():
+			return []
+		if not section_data.has("entries") or section_data["entries"] is not Array:
+			return []
+		var normalized_entries := _normalize_section_entries(section_data["entries"])
 		if normalized_entries.is_empty():
-			continue
+			return []
 		sections.append({
-			"title": String(section_data.get("title", "")),
+			"title": title_text,
 			"entries": normalized_entries,
 		})
 	return sections
 
 
-func _normalize_section_entries(section_data: Dictionary) -> Array[Dictionary]:
+func _normalize_section_entries(entry_variants: Array) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	var entry_source: Variant = section_data.get("entries", section_data.get("rows", section_data.get("lines", [])))
-	if entry_source is Array:
-		for entry_variant in entry_source:
-			var normalized_entry := _normalize_entry(entry_variant)
-			if normalized_entry.is_empty():
-				continue
-			entries.append(normalized_entry)
-	elif entry_source is PackedStringArray:
-		for line in entry_source:
-			var normalized_entry := _normalize_entry(String(line))
-			if normalized_entry.is_empty():
-				continue
-			entries.append(normalized_entry)
-	var body_text := String(section_data.get("body", "")).strip_edges()
-	if entries.is_empty() and not body_text.is_empty():
-		entries.append({
-			"kind": "text",
-			"text": body_text,
-		})
+	if entry_variants.is_empty():
+		return entries
+	for entry_variant in entry_variants:
+		var normalized_entry := _normalize_entry(entry_variant)
+		if normalized_entry.is_empty():
+			return []
+		entries.append(normalized_entry)
 	return entries
 
 
 func _normalize_entry(entry_variant: Variant) -> Dictionary:
-	if entry_variant is Dictionary:
-		var entry := entry_variant as Dictionary
-		var label_text := String(entry.get("label", ""))
-		var value_text := String(entry.get("value", ""))
-		var text_value := String(entry.get("text", "")).strip_edges()
-		if not label_text.is_empty():
-			return {
-				"kind": "pair",
-				"label": label_text,
-				"value": value_text,
-			}
-		if not text_value.is_empty():
-			return {
-				"kind": "text",
-				"text": text_value,
-			}
-		if not value_text.is_empty():
-			return {
-				"kind": "text",
-				"text": value_text,
-			}
+	if entry_variant is not Dictionary:
 		return {}
-	var text := String(entry_variant).strip_edges()
-	if text.is_empty():
-		return {}
-	return {
-		"kind": "text",
-		"text": text,
-	}
+	var entry := entry_variant as Dictionary
+	if _has_exact_keys(entry, PAIR_ENTRY_KEYS):
+		if entry["label"] is not String or not entry.has("value") or entry["value"] is not String:
+			return {}
+		var label_text := String(entry["label"]).strip_edges()
+		if label_text.is_empty():
+			return {}
+		return {
+			"kind": "pair",
+			"label": label_text,
+			"value": String(entry["value"]),
+		}
+	if _has_exact_keys(entry, TEXT_ENTRY_KEYS):
+		if entry["text"] is not String:
+			return {}
+		var text_value := String(entry["text"]).strip_edges()
+		if text_value.is_empty():
+			return {}
+		return {
+			"kind": "text",
+			"text": text_value,
+		}
+	return {}
 
 
 func _build_fate_section(fate_variant: Variant, existing_sections: Array[Dictionary]) -> Dictionary:
@@ -230,19 +207,39 @@ func _build_fate_section(fate_variant: Variant, existing_sections: Array[Diction
 		return {}
 
 	var fate_data := fate_variant as Dictionary
-	var hidden_luck_at_birth := int(fate_data.get("hidden_luck_at_birth", 0))
-	var faith_luck_bonus := int(fate_data.get("faith_luck_bonus", 0))
-	var effective_luck := int(fate_data.get("effective_luck", 0))
-	if not fate_data.has("effective_luck"):
-		effective_luck = clampi(
-			hidden_luck_at_birth + faith_luck_bonus,
-			UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
-			UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX
-		)
-	var fortune_marked := int(fate_data.get("fortune_marked", 0))
-	var doom_marked := int(fate_data.get("doom_marked", 0))
-	var doom_authority := int(fate_data.get("doom_authority", 0))
-	var has_misfortune := bool(fate_data.get("has_misfortune", doom_authority > 0))
+	if not _has_exact_keys(fate_data, FATE_KEYS):
+		return {}
+	for field_name in [
+		"hidden_luck_at_birth",
+		"faith_luck_bonus",
+		"effective_luck",
+		"fortune_marked",
+		"doom_marked",
+		"doom_authority",
+	]:
+		if not fate_data.has(field_name) or fate_data[field_name] is not int:
+			return {}
+	if not fate_data.has("has_misfortune") or fate_data["has_misfortune"] is not bool:
+		return {}
+
+	var hidden_luck_at_birth := int(fate_data["hidden_luck_at_birth"])
+	var faith_luck_bonus := int(fate_data["faith_luck_bonus"])
+	var effective_luck := int(fate_data["effective_luck"])
+	var fortune_marked := int(fate_data["fortune_marked"])
+	var doom_marked := int(fate_data["doom_marked"])
+	var doom_authority := int(fate_data["doom_authority"])
+	var has_misfortune := bool(fate_data["has_misfortune"])
+	var expected_effective_luck := clampi(
+		hidden_luck_at_birth + faith_luck_bonus,
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX
+	)
+	if effective_luck != expected_effective_luck:
+		return {}
+	if fortune_marked < 0 or doom_marked < 0 or doom_authority < 0:
+		return {}
+	if has_misfortune != (doom_authority > 0):
+		return {}
 
 	var entries: Array[Dictionary] = [
 		{
@@ -290,9 +287,18 @@ func _build_fate_section(fate_variant: Variant, existing_sections: Array[Diction
 	}
 
 
+func _has_exact_keys(data: Dictionary, expected_keys: Array) -> bool:
+	if data.size() != expected_keys.size():
+		return false
+	for expected_key in expected_keys:
+		if not data.has(expected_key):
+			return false
+	return true
+
+
 func _has_section_title(sections: Array[Dictionary], title_text: String) -> bool:
 	for section in sections:
-		if String(section.get("title", "")).strip_edges() == title_text:
+		if String(section["title"]).strip_edges() == title_text:
 			return true
 	return false
 
@@ -352,7 +358,7 @@ func _build_section_panel(section_data: Dictionary) -> PanelContainer:
 	content.add_theme_constant_override("separation", 10)
 	margin.add_child(content)
 
-	var title_text := String(section_data.get("title", "")).strip_edges()
+	var title_text := String(section_data["title"]).strip_edges()
 	if not title_text.is_empty():
 		var section_title := Label.new()
 		section_title.text = title_text
@@ -360,15 +366,12 @@ func _build_section_panel(section_data: Dictionary) -> PanelContainer:
 		section_title.add_theme_font_size_override("font_size", 18)
 		content.add_child(section_title)
 
-	for entry_variant in section_data.get("entries", []):
-		if entry_variant is not Dictionary:
-			continue
-		var entry := entry_variant as Dictionary
-		var kind := String(entry.get("kind", "text"))
+	for entry in section_data["entries"]:
+		var kind := String(entry["kind"])
 		if kind == "pair":
 			content.add_child(_build_pair_entry(entry))
 		else:
-			content.add_child(_build_text_entry(String(entry.get("text", ""))))
+			content.add_child(_build_text_entry(String(entry["text"])))
 
 	return panel
 
@@ -380,14 +383,14 @@ func _build_pair_entry(entry: Dictionary) -> Control:
 
 	var label_node := Label.new()
 	label_node.custom_minimum_size = Vector2(108.0, 0.0)
-	label_node.text = "%s：" % String(entry.get("label", ""))
+	label_node.text = "%s：" % String(entry["label"])
 	label_node.add_theme_color_override("font_color", Color(0.635294, 0.713726, 0.85098, 1.0))
 	row.add_child(label_node)
 
 	var value_node := Label.new()
 	value_node.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	value_node.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	value_node.text = String(entry.get("value", ""))
+	value_node.text = String(entry["value"])
 	value_node.add_theme_color_override("font_color", Color(0.960784, 0.976471, 1.0, 1.0))
 	row.add_child(value_node)
 

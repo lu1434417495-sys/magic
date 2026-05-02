@@ -4,6 +4,7 @@ extends RefCounted
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
 const RUNTIME_UNAVAILABLE_MESSAGE := "运行时尚未初始化。"
+const INVALID_QUEST_DISPLAY_NAME_MESSAGE := "任务配置缺少 display_name，当前无法执行命令。"
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -33,6 +34,8 @@ func command_accept_quest(quest_id: StringName, allow_reaccept: bool = false) ->
 	if quest_data.is_empty():
 		return _command_error("未找到任务 %s。" % String(quest_id))
 	var quest_label := _resolve_quest_label(quest_id, quest_data)
+	if quest_label.is_empty():
+		return _invalid_quest_display_name_error()
 	var party_state = _get_party_state()
 	if party_state != null and party_state.has_active_quest(quest_id):
 		return _command_error("任务《%s》已在进行中，不能重复接取。" % quest_label)
@@ -63,19 +66,26 @@ func command_progress_quest(quest_id: StringName, objective_id: StringName, prog
 		return _command_error("运行时尚未初始化。")
 	if quest_id == &"" or objective_id == &"":
 		return _command_error("任务 ID 和目标 ID 不能为空。")
+	var quest_data := _get_quest_def_data(quest_id)
+	if quest_data.is_empty():
+		return _command_error("未找到任务 %s。" % String(quest_id))
+	var quest_label := _resolve_quest_label(quest_id, quest_data)
+	if quest_label.is_empty():
+		return _invalid_quest_display_name_error()
 	var event_data := {
 		"event_type": "progress",
 		"quest_id": String(quest_id),
 		"objective_id": String(objective_id),
 		"progress_delta": maxi(progress_delta, 0),
+		"world_step": _get_world_step(),
 	}
 	for key in payload.keys():
 		event_data[key] = payload[key]
 	var summary := _apply_quest_progress_events_to_party([event_data], "quest")
 	if not (summary.get("progressed_quest_ids", []) as Array).has(quest_id):
-		return _command_error("当前无法推进任务 %s 的目标 %s。" % [String(quest_id), String(objective_id)])
+		return _command_error("当前无法推进任务《%s》的目标 %s。" % [quest_label, String(objective_id)])
 	var persist_error := _persist_party_state()
-	var message := "已推进任务 %s 的目标 %s。" % [String(quest_id), String(objective_id)]
+	var message := "已推进任务《%s》的目标 %s。" % [quest_label, String(objective_id)]
 	if persist_error != OK:
 		message = "%s 但队伍状态持久化失败。" % message
 		_update_status(message)
@@ -93,7 +103,11 @@ func command_complete_quest(quest_id: StringName) -> Dictionary:
 	if quest_id == &"":
 		return _command_error("任务 ID 不能为空。")
 	var quest_data := _get_quest_def_data(quest_id)
+	if quest_data.is_empty():
+		return _command_error("未找到任务 %s。" % String(quest_id))
 	var quest_label := _resolve_quest_label(quest_id, quest_data)
+	if quest_label.is_empty():
+		return _invalid_quest_display_name_error()
 	if not character_management.complete_quest(quest_id, _get_world_step()):
 		return _command_error("当前无法完成任务《%s》。" % quest_label)
 	_set_party_state(character_management.get_party_state())
@@ -119,6 +133,8 @@ func command_submit_quest_item(quest_id: StringName, objective_id: StringName = 
 	if quest_data.is_empty():
 		return _command_error("未找到任务 %s。" % String(quest_id))
 	var quest_label := _resolve_quest_label(quest_id, quest_data)
+	if quest_label.is_empty():
+		return _invalid_quest_display_name_error()
 	var submit_result: Dictionary = character_management.submit_item_objective(quest_id, objective_id, _get_world_step())
 	if not bool(submit_result.get("ok", false)):
 		var item_id := ProgressionDataUtils.to_string_name(submit_result.get("item_id", ""))
@@ -180,6 +196,8 @@ func command_claim_quest(quest_id: StringName) -> Dictionary:
 	if quest_data.is_empty():
 		return _command_error("未找到任务 %s。" % String(quest_id))
 	var quest_label := _resolve_quest_label(quest_id, quest_data)
+	if quest_label.is_empty():
+		return _invalid_quest_display_name_error()
 	var claim_result: Dictionary = character_management.claim_quest_reward(quest_id, _get_world_step())
 	if not bool(claim_result.get("ok", false)):
 		var error_code := String(claim_result.get("error_code", ""))
@@ -188,10 +206,14 @@ func command_claim_quest(quest_id: StringName) -> Dictionary:
 				return _command_error("当前没有可领取的任务《%s》奖励。" % quest_label)
 			"quest_def_missing":
 				return _command_error("任务《%s》缺少奖励配置，当前无法领取。" % quest_label)
+			"invalid_quest_display_name":
+				return _invalid_quest_display_name_error()
 			"invalid_gold_amount":
 				return _command_error("任务《%s》包含无效的金币奖励配置，当前无法领取。" % quest_label)
 			"invalid_item_reward":
 				return _command_error("任务《%s》包含无效的物品奖励配置，当前无法领取。" % quest_label)
+			"invalid_item_display_name":
+				return _command_error("任务《%s》引用的物品奖励缺少 display_name，当前无法领取。" % quest_label)
 			"invalid_pending_character_reward":
 				return _command_error("任务《%s》包含无效的角色奖励配置，当前无法领取。" % quest_label)
 			"item_reward_missing_def":
@@ -245,6 +267,10 @@ func _runtime_unavailable_error() -> Dictionary:
 	return {"ok": false, "message": RUNTIME_UNAVAILABLE_MESSAGE}
 
 
+func _invalid_quest_display_name_error() -> Dictionary:
+	return _command_error(INVALID_QUEST_DISPLAY_NAME_MESSAGE)
+
+
 func _get_character_management():
 	return _runtime.get_character_management() if _has_runtime() else null
 
@@ -284,7 +310,7 @@ func _get_quest_def_data(quest_id: StringName) -> Dictionary:
 
 
 func _resolve_quest_label(quest_id: StringName, quest_data: Dictionary) -> String:
-	return _runtime._resolve_quest_label(quest_id, quest_data) if _has_runtime() else String(quest_id)
+	return _runtime._resolve_quest_label(quest_id, quest_data) if _has_runtime() else ""
 
 
 func _build_quest_claim_reward_summary_text(claim_result: Dictionary) -> String:

@@ -270,21 +270,29 @@ static func _build_quest_lines(quests: Dictionary) -> Array[String]:
 		"claimable_quest_ids=%s" % _format_array(quests.get("claimable_quest_ids", [])),
 		"completed_quest_ids=%s" % _format_array(quests.get("completed_quest_ids", [])),
 	]
-	_append_quest_detail_lines(lines, quests.get("active_quests", []), "active")
-	_append_quest_detail_lines(lines, quests.get("claimable_quests", []), "claimable")
+	_append_quest_detail_lines(lines, quests.get("active_quests", []))
+	_append_quest_detail_lines(lines, quests.get("claimable_quests", []))
 	return lines
 
 
-static func _append_quest_detail_lines(lines: Array[String], quest_variants, fallback_stage_id: String) -> void:
+static func _append_quest_detail_lines(lines: Array[String], quest_variants) -> void:
 	if quest_variants is not Array:
 		return
 	for quest_variant in quest_variants:
 		if quest_variant is not Dictionary:
 			continue
 		var quest: Dictionary = quest_variant
+		if not quest.has("stage_id"):
+			continue
+		var stage_variant = quest["stage_id"]
+		if stage_variant is not String and stage_variant is not StringName:
+			continue
+		var stage_id := String(stage_variant)
+		if stage_id.is_empty():
+			continue
 		lines.append("quest=%s | stage=%s | status=%s | progress=%s | accepted=%d | completed=%d | rewarded=%d | context=%s" % [
 			String(quest.get("quest_id", "")),
-			String(quest.get("stage_id", fallback_stage_id)),
+			stage_id,
 			String(quest.get("status_id", "")),
 			_format_quest_progress(quest.get("objective_progress", {})),
 			int(quest.get("accepted_at_world_step", -1)),
@@ -310,7 +318,7 @@ static func _build_shop_lines(shop_snapshot: Dictionary) -> Array[String]:
 				continue
 			var entry: Dictionary = entry_variant
 			lines.append("entry=%s | state=%s | cost=%s" % [
-				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("display_name", "")),
 				String(entry.get("state_label", "")),
 				String(entry.get("cost_label", "")),
 			])
@@ -325,7 +333,7 @@ static func _build_contract_board_lines(contract_board_snapshot: Dictionary) -> 
 		"visible=%s" % _format_bool(bool(contract_board_snapshot.get("visible", false))),
 		"title=%s" % String(window_data.get("title", "")),
 		"settlement_id=%s" % String(window_data.get("settlement_id", "")),
-		"provider_interaction_id=%s" % String(window_data.get("provider_interaction_id", window_data.get("interaction_script_id", ""))),
+		"provider_interaction_id=%s" % String(window_data.get("provider_interaction_id", "")),
 	]
 	var entries_variant = window_data.get("entries", [])
 	if entries_variant is Array:
@@ -334,7 +342,7 @@ static func _build_contract_board_lines(contract_board_snapshot: Dictionary) -> 
 				continue
 			var entry: Dictionary = entry_variant
 			lines.append("entry=%s | state=%s | reward=%s" % [
-				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("display_name", "")),
 				String(entry.get("state_label", "")),
 				String(entry.get("cost_label", "")),
 			])
@@ -357,7 +365,7 @@ static func _build_stagecoach_lines(stagecoach_snapshot: Dictionary) -> Array[St
 				continue
 			var entry: Dictionary = entry_variant
 			lines.append("route=%s | state=%s | cost=%s" % [
-				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("display_name", "")),
 				String(entry.get("state_label", "")),
 				String(entry.get("cost_label", "")),
 			])
@@ -380,7 +388,7 @@ static func _build_forge_lines(forge_snapshot: Dictionary) -> Array[String]:
 				continue
 			var entry: Dictionary = entry_variant
 			lines.append("entry=%s | state=%s | cost=%s" % [
-				String(entry.get("display_name", entry.get("entry_id", ""))),
+				String(entry.get("display_name", "")),
 				String(entry.get("state_label", "")),
 				String(entry.get("cost_label", "")),
 			])
@@ -417,15 +425,32 @@ static func _build_settlement_lines(settlement: Dictionary) -> Array[String]:
 static func _build_character_lines(character_info: Dictionary) -> Array[String]:
 	if character_info.is_empty():
 		return []
-	return [
+	var lines: Array[String] = [
 		"visible=%s" % _format_bool(bool(character_info.get("visible", false))),
 		"source=%s" % String(character_info.get("source", "")),
 		"display_name=%s" % String(character_info.get("display_name", "")),
-		"type_label=%s" % String(character_info.get("type_label", "")),
-		"faction_label=%s" % String(character_info.get("faction_label", "")),
-		"coord=%s" % _format_coord(character_info.get("coord", {})),
+		"meta_label=%s" % String(character_info.get("meta_label", "")),
 		"status_label=%s" % String(character_info.get("status_label", "")),
 	]
+	var sections_variant = character_info.get("sections", [])
+	if sections_variant is Array:
+		for section_variant in sections_variant:
+			if section_variant is not Dictionary:
+				continue
+			var section: Dictionary = section_variant
+			lines.append("section=%s | entries=%d" % [
+				String(section.get("title", "")),
+				_count_character_section_entries(section.get("entries", [])),
+			])
+	return lines
+
+
+static func _count_character_section_entries(entries_variant: Variant) -> int:
+	if entries_variant is Array:
+		return (entries_variant as Array).size()
+	if entries_variant is PackedStringArray:
+		return (entries_variant as PackedStringArray).size()
+	return 0
 
 
 static func _build_warehouse_lines(warehouse: Dictionary) -> Array[String]:
@@ -497,8 +522,11 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 			if report_entry_variant is not Dictionary:
 				continue
 			var report_entry: Dictionary = report_entry_variant
-			if String(report_entry.get("type", report_entry.get("entry_type", ""))) == "change_equipment":
+			var report_type := String(report_entry.get("type", ""))
+			if report_type == "change_equipment":
 				lines.append(_build_change_equipment_report_line(report_entry))
+				continue
+			if report_type.is_empty() and String(report_entry.get("entry_type", "")) == "change_equipment":
 				continue
 			lines.append("report=%s | reason=%s | tags=%s | text=%s" % [
 				String(report_entry.get("entry_type", "")),
@@ -566,14 +594,14 @@ static func _build_change_equipment_report_line(report_entry: Dictionary) -> Str
 	return "report=change_equipment | ok=%s | error=%s | op=%s | unit=%s | target=%s | slot=%s | item=%s | instance=%s | ap=%d>%d | hp=%d/%d>%d/%d | hp_clamped=%s | text=%s" % [
 		_format_bool(bool(report_entry.get("ok", false))),
 		String(report_entry.get("error_code", "")),
-		String(report_entry.get("operation", report_entry.get("reason_id", ""))),
+		String(report_entry.get("operation", "")),
 		String(report_entry.get("unit_id", "")),
 		String(report_entry.get("target_unit_id", "")),
 		String(report_entry.get("slot_id", "")),
 		String(report_entry.get("item_id", "")),
 		String(report_entry.get("instance_id", "")),
 		int(report_entry.get("ap_before", 0)),
-		int(report_entry.get("ap_after", report_entry.get("current_ap", 0))),
+		int(report_entry.get("ap_after", 0)),
 		int(report_entry.get("hp_before", 0)),
 		int(report_entry.get("hp_max_before", 0)),
 		int(report_entry.get("hp_after", 0)),
@@ -618,7 +646,7 @@ static func _build_reward_lines(reward_snapshot: Dictionary) -> Array[String]:
 			var entry: Dictionary = entry_variant
 			lines.append("entry=%s | %s | amount=%d | reason=%s" % [
 				String(entry.get("entry_type", "")),
-				String(entry.get("target_id", entry.get("target_label", ""))),
+				String(entry.get("target_id", "")),
 				int(entry.get("amount", 0)),
 				String(entry.get("reason_text", "")),
 			])

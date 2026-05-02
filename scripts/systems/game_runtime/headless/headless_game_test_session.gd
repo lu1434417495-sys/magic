@@ -510,6 +510,7 @@ func _resolve_battle_backpack_equipment_instance(
 			"ok": false,
 			"message": "战斗背包状态不可用。",
 		}
+	var matching_instances: Array[Dictionary] = []
 	for instance in backpack_view.get_non_empty_instances():
 		if instance == null:
 			continue
@@ -519,10 +520,18 @@ func _resolve_battle_backpack_equipment_instance(
 			continue
 		if normalized_item_id != &"" and candidate_item_id != normalized_item_id:
 			continue
-		return {
-			"ok": true,
+		matching_instances.append({
 			"instance_id": String(candidate_instance_id),
 			"item_id": String(candidate_item_id),
+		})
+	if matching_instances.size() == 1:
+		var matched_instance: Dictionary = matching_instances[0]
+		matched_instance["ok"] = true
+		return matched_instance
+	if normalized_instance_id == &"" and matching_instances.size() > 1:
+		return {
+			"ok": false,
+			"message": "战斗背包中有多个 %s 装备实例，请指定 instance_id。" % String(normalized_item_id),
 		}
 	var label := String(normalized_instance_id) if normalized_instance_id != &"" else String(normalized_item_id)
 	return {

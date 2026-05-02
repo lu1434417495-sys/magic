@@ -3,6 +3,7 @@ extends SceneTree
 const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GameRuntimeRewardFlowHandler = preload("res://scripts/systems/game_runtime/game_runtime_reward_flow_handler.gd")
 const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 
 var _failures: Array[String] = []
@@ -240,6 +241,19 @@ func _test_reward_handler_routes_modal_close_and_reward_presentation() -> void:
 
 	var reward := PendingCharacterReward.new()
 	reward.reward_id = &"test_reward"
+	reward.member_id = &"hero"
+	reward.member_name = "Hero"
+	reward.source_type = &"test_reward"
+	reward.source_id = &"test_reward"
+	reward.source_label = "测试奖励"
+	reward.summary_text = "测试奖励"
+	var entry := PendingCharacterRewardEntry.new()
+	entry.entry_type = &"skill_mastery"
+	entry.target_id = &"test_skill"
+	entry.target_label = "测试技能"
+	entry.amount = 1
+	entry.reason_text = "测试奖励"
+	reward.entries = [entry]
 	runtime._party_state.pending_character_rewards = [reward]
 	_assert_true(handler.present_pending_reward_if_ready(), "存在待领奖励时应进入 reward modal。")
 	_assert_eq(runtime._active_modal_id, "reward", "奖励弹窗应切换 modal 到 reward。")

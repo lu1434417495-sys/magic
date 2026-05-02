@@ -20,12 +20,8 @@ static func get_party_state(window_data: Dictionary):
 
 
 static func build_member_options(window_data: Dictionary) -> Array[Dictionary]:
-	var explicit_options := get_dictionary_array(window_data.get("member_options", []))
-	if not explicit_options.is_empty():
-		var options: Array[Dictionary] = []
-		for option_variant in explicit_options:
-			options.append(option_variant.duplicate(true))
-		return options
+	if window_data.has("member_options"):
+		return _build_explicit_member_options(window_data["member_options"])
 
 	var party_state = get_party_state(window_data)
 	if party_state == null:
@@ -56,6 +52,8 @@ static func build_member_option_map(options: Array[Dictionary]) -> Dictionary:
 	var member_map: Dictionary = {}
 	for option_variant in options:
 		var option: Dictionary = option_variant
+		if get_member_option_display_name(option).is_empty():
+			continue
 		var member_id := ProgressionDataUtils.to_string_name(option.get("member_id", ""))
 		if member_id != &"":
 			member_map[member_id] = option
@@ -63,7 +61,9 @@ static func build_member_option_map(options: Array[Dictionary]) -> Dictionary:
 
 
 static func build_member_option_label(member_option: Dictionary) -> String:
-	var display_name := String(member_option.get("display_name", member_option.get("member_id", "成员")))
+	var display_name := get_member_option_display_name(member_option)
+	if display_name.is_empty():
+		return ""
 	var roster_role := String(member_option.get("roster_role", ""))
 	var is_leader := bool(member_option.get("is_leader", false))
 	var current_hp := int(member_option.get("current_hp", 0))
@@ -119,12 +119,37 @@ static func _append_member_option(
 	var member_state = party_state.get_member_state(member_id)
 	if member_state == null:
 		return
+	var display_name := String(member_state.display_name).strip_edges()
+	if display_name.is_empty():
+		return
 	seen_ids[member_id] = true
 	options.append({
 		"member_id": String(member_id),
-		"display_name": member_state.display_name,
+		"display_name": display_name,
 		"roster_role": default_role,
 		"is_leader": party_state.leader_member_id == member_id,
 		"current_hp": int(member_state.current_hp),
 		"current_mp": int(member_state.current_mp),
 	})
+
+
+static func get_member_option_display_name(member_option: Dictionary) -> String:
+	if not member_option.has("display_name") or member_option["display_name"] is not String:
+		return ""
+	return String(member_option["display_name"]).strip_edges()
+
+
+static func _build_explicit_member_options(value: Variant) -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
+	if value is not Array:
+		return options
+	for option_variant in value:
+		if option_variant is not Dictionary:
+			continue
+		var option := (option_variant as Dictionary).duplicate(true)
+		var display_name := get_member_option_display_name(option)
+		if display_name.is_empty():
+			continue
+		option["display_name"] = display_name
+		options.append(option)
+	return options

@@ -28,8 +28,8 @@ class MockPartyCommandHandler:
 	func command_move_member_to_reserve(member_id: StringName) -> Dictionary:
 		return _record("command_move_member_to_reserve", [member_id])
 
-	func command_party_equip_item(member_id: StringName, item_id: StringName, slot_id: StringName = &"") -> Dictionary:
-		return _record("command_party_equip_item", [member_id, item_id, slot_id])
+	func command_party_equip_item(member_id: StringName, item_id: StringName, slot_id: StringName = &"", instance_id: StringName = &"") -> Dictionary:
+		return _record("command_party_equip_item", [member_id, item_id, slot_id, instance_id])
 
 	func command_party_unequip_item(member_id: StringName, slot_id: StringName) -> Dictionary:
 		return _record("command_party_unequip_item", [member_id, slot_id])
@@ -124,14 +124,14 @@ class MockPartyEquipmentService:
 	var next_unequip_result: Dictionary = {}
 	var item_defs: Dictionary = {}
 
-	func setup(party_state, item_defs_in: Dictionary, warehouse_service) -> void:
+	func setup(party_state, item_defs_in: Dictionary, warehouse_service, _instance_id_allocator = null) -> void:
 		setup_calls.append({
 			"party_state": party_state,
 			"item_defs": item_defs_in.duplicate(true),
 		})
 		item_defs = item_defs_in.duplicate(true)
 
-	func equip_item(member_id: StringName, item_id: StringName, slot_id: StringName) -> Dictionary:
+	func equip_item(member_id: StringName, item_id: StringName, slot_id: StringName, instance_id: StringName = &"") -> Dictionary:
 		return next_equip_result.duplicate(true)
 
 	func unequip_item(member_id: StringName, slot_id: StringName) -> Dictionary:
@@ -245,8 +245,8 @@ class MockRuntime:
 	func set_party_selected_member_id(member_id: StringName) -> void:
 		_party_selected_member_id = member_id
 
-	func equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName) -> Dictionary:
-		return _party_equipment_service.equip_item(member_id, item_id, slot_id)
+	func equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName, instance_id: StringName = &"") -> Dictionary:
+		return _party_equipment_service.equip_item(member_id, item_id, slot_id, instance_id)
 
 	func unequip_party_item(member_id: StringName, slot_id: StringName) -> Dictionary:
 		return _party_equipment_service.unequip_item(member_id, slot_id)
@@ -314,7 +314,7 @@ class MockRuntime:
 				_character_management
 			)
 		if _party_equipment_service != null:
-			_party_equipment_service.setup(_party_state, _game_session.get_item_defs(), _party_warehouse_service)
+			_party_equipment_service.setup(_party_state, _game_session.get_item_defs(), _party_warehouse_service, null)
 		refresh_fog()
 		return persist_error
 

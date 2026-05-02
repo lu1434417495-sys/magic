@@ -211,6 +211,10 @@ var _party_selected_member_id: StringName = &""
 var _wild_encounter_rosters: Dictionary = {}
 
 
+func _init() -> void:
+	_bind_runtime_sidecar_owners()
+
+
 func setup(game_session) -> void:
 	_game_session = game_session
 	if _game_session == null:
@@ -1083,8 +1087,8 @@ func build_runtime_promotion_prompt(delta, selection_hint: String = "确认后�
 	return _build_promotion_prompt(delta, selection_hint)
 
 
-func equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName) -> Dictionary:
-	return _party_equipment_service.equip_item(member_id, item_id, slot_id) if _party_equipment_service != null else {}
+func equip_party_item(member_id: StringName, item_id: StringName, slot_id: StringName, instance_id: StringName = &"") -> Dictionary:
+	return _party_equipment_service.equip_item(member_id, item_id, slot_id, instance_id) if _party_equipment_service != null else {}
 
 
 func unequip_party_item(member_id: StringName, slot_id: StringName) -> Dictionary:
@@ -1693,13 +1697,19 @@ func command_move_member_to_reserve(member_id: StringName) -> Dictionary:
 	)
 
 
-func command_party_equip_item(member_id: StringName, item_id: StringName, slot_id: StringName = &"") -> Dictionary:
+func command_party_equip_item(
+	member_id: StringName,
+	item_id: StringName,
+	slot_id: StringName = &"",
+	instance_id: StringName = &""
+) -> Dictionary:
 	return _execute_logged_command("party.equip_item", "party", {
 		"member_id": member_id,
 		"item_id": item_id,
 		"slot_id": slot_id,
+		"instance_id": instance_id,
 	}, func() -> Dictionary:
-		return _party_command_handler.command_party_equip_item(member_id, item_id, slot_id)
+		return _party_command_handler.command_party_equip_item(member_id, item_id, slot_id, instance_id)
 	)
 
 
@@ -1718,19 +1728,21 @@ func command_open_party_warehouse() -> Dictionary:
 	)
 
 
-func command_warehouse_discard_one(item_id: StringName) -> Dictionary:
+func command_warehouse_discard_one(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
 	return _execute_logged_command("warehouse.discard_one", "warehouse", {
 		"item_id": item_id,
+		"instance_id": instance_id,
 	}, func() -> Dictionary:
-		return _warehouse_handler.command_discard_one(item_id)
+		return _warehouse_handler.command_discard_one(item_id, instance_id)
 	)
 
 
-func command_warehouse_discard_all(item_id: StringName) -> Dictionary:
+func command_warehouse_discard_all(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
 	return _execute_logged_command("warehouse.discard_all", "warehouse", {
 		"item_id": item_id,
+		"instance_id": instance_id,
 	}, func() -> Dictionary:
-		return _warehouse_handler.command_discard_all(item_id)
+		return _warehouse_handler.command_discard_all(item_id, instance_id)
 	)
 
 
@@ -1770,12 +1782,13 @@ func command_shop_buy(item_id: StringName, quantity: int) -> Dictionary:
 	)
 
 
-func command_shop_sell(item_id: StringName, quantity: int) -> Dictionary:
+func command_shop_sell(item_id: StringName, quantity: int, instance_id: StringName = &"") -> Dictionary:
 	return _execute_logged_command("shop.sell", "shop", {
 		"item_id": item_id,
 		"quantity": quantity,
+		"instance_id": instance_id,
 	}, func() -> Dictionary:
-		return _settlement_command_handler.command_shop_sell(item_id, quantity)
+		return _settlement_command_handler.command_shop_sell(item_id, quantity, instance_id)
 	)
 
 
@@ -2185,6 +2198,7 @@ func _refresh_fog() -> void:
 		VISION_SOURCE_DATA_SCRIPT.new(leader_member_id, _player_coord, _world_map_data_context.active_generation_config.player_vision_range, _player_faction_id),
 	]
 	_fog_system.rebuild_visibility_for_faction(_player_faction_id, sources)
+	_save_active_fog_state_to_world_data()
 
 
 func _on_world_map_cell_clicked(coord: Vector2i) -> void:
@@ -2259,8 +2273,11 @@ func _try_open_character_info_at_world_coord(coord: Vector2i) -> bool:
 	if npc.is_empty():
 		return false
 
-	var display_name: String = npc.get("display_name", "NPC")
-	var faction_label := _format_faction_label(String(npc.get("faction_id", "neutral")))
+	var world_npc_fields := _normalize_world_npc_character_info_fields(npc)
+	if world_npc_fields.is_empty():
+		return false
+	var display_name := String(world_npc_fields["display_name"])
+	var faction_label := _format_faction_label(String(world_npc_fields["faction_id"]))
 	_active_character_info_context = {
 		"display_name": display_name,
 		"meta_label": _build_character_info_meta_label("世界 NPC", faction_label, coord),
@@ -2271,6 +2288,18 @@ func _try_open_character_info_at_world_coord(coord: Vector2i) -> bool:
 	_active_modal_id = "character_info"
 	_update_status("已打开 %s 的人物信息窗。" % display_name)
 	return true
+
+
+func _normalize_world_npc_character_info_fields(npc: Dictionary) -> Dictionary:
+	var normalized_fields: Dictionary = {}
+	for field_name in ["display_name", "faction_id"]:
+		if not npc.has(field_name) or npc[field_name] is not String:
+			return {}
+		var field_value := String(npc[field_name]).strip_edges()
+		if field_value.is_empty():
+			return {}
+		normalized_fields[field_name] = field_value
+	return normalized_fields
 
 
 func _try_open_character_info_at_battle_coord(coord: Vector2i) -> bool:
@@ -2545,6 +2574,7 @@ func _build_default_battle_quest_progress_events(winner_faction_id: String) -> A
 		"objective_type": "defeat_enemy",
 		"target_id": String(encounter_anchor.enemy_roster_template_id),
 		"progress_delta": 1,
+		"world_step": get_world_step(),
 		"enemy_template_id": String(encounter_anchor.enemy_roster_template_id),
 		"encounter_id": String(encounter_anchor.entity_id),
 		"encounter_kind": String(encounter_anchor.encounter_kind),
@@ -2581,7 +2611,7 @@ func _get_quest_def_data(quest_id: StringName) -> Dictionary:
 	var quest_defs: Dictionary = _game_session.get_quest_defs()
 	if quest_defs == null:
 		return {}
-	var quest_variant = quest_defs.get(quest_id, quest_defs.get(String(quest_id), null))
+	var quest_variant = _get_string_name_keyed_value(quest_defs, quest_id)
 	if quest_variant is Dictionary:
 		return (quest_variant as Dictionary).duplicate(true)
 	if quest_variant is Object and quest_variant.has_method("to_dict"):
@@ -2591,9 +2621,21 @@ func _get_quest_def_data(quest_id: StringName) -> Dictionary:
 	return {}
 
 
-func _resolve_quest_label(quest_id: StringName, quest_data: Dictionary) -> String:
-	var display_name := String(quest_data.get("display_name", "")).strip_edges()
-	return display_name if not display_name.is_empty() else String(quest_id)
+func _get_string_name_keyed_value(values: Dictionary, key: StringName) -> Variant:
+	if key == &"":
+		return null
+	for value_key in values.keys():
+		if typeof(value_key) != TYPE_STRING_NAME:
+			continue
+		if value_key == key:
+			return values[value_key]
+	return null
+
+
+func _resolve_quest_label(_quest_id: StringName, quest_data: Dictionary) -> String:
+	if not quest_data.has("display_name") or quest_data["display_name"] is not String:
+		return ""
+	return String(quest_data["display_name"]).strip_edges()
 
 
 func _quest_progress_summary_to_string_dict(summary: Dictionary) -> Dictionary:
@@ -2629,9 +2671,11 @@ func _build_quest_claim_reward_summary_text(claim_result: Dictionary) -> String:
 		var reward_quantity := int(reward_data.get("quantity", 0))
 		if reward_quantity <= 0:
 			continue
-		var reward_label := String(reward_data.get("display_name", reward_data.get("item_id", ""))).strip_edges()
+		if not reward_data.has("display_name") or reward_data["display_name"] is not String:
+			continue
+		var reward_label := String(reward_data["display_name"]).strip_edges()
 		if reward_label.is_empty():
-			reward_label = String(reward_data.get("item_id", ""))
+			continue
 		reward_parts.append("%s x%d" % [reward_label, reward_quantity])
 	for reward_variant in claim_result.get("pending_character_rewards", []):
 		if reward_variant is not Dictionary:
@@ -2697,6 +2741,7 @@ func _persist_party_state() -> int:
 func _persist_world_data() -> int:
 	if _game_session == null:
 		return ERR_UNAVAILABLE
+	_save_active_fog_state_to_world_data()
 	return int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 
 
@@ -2874,6 +2919,7 @@ func _format_coord(coord: Vector2i) -> String:
 
 
 func _sync_active_world_context() -> void:
+	_save_active_fog_state_to_world_data()
 	var sync_result := _world_map_data_context.sync_active_world_context(
 		_generation_config,
 		_grid_system,
@@ -2883,7 +2929,33 @@ func _sync_active_world_context() -> void:
 	_player_coord = sync_result.get("player_coord", _player_coord)
 	_selected_coord = sync_result.get("selected_coord", _selected_coord)
 	if _world_map_data_context.active_generation_config != null:
-		_fog_system.setup(_world_map_data_context.active_generation_config.get_world_size_cells())
+		_fog_system.setup(
+			_world_map_data_context.active_generation_config.get_world_size_cells(),
+			_get_active_world_fog_state()
+		)
+
+
+func _get_active_world_fog_state() -> Dictionary:
+	var active_world_data: Dictionary = _world_map_data_context.active_world_data
+	if active_world_data.is_empty():
+		return {}
+	var fog_state_variant = active_world_data.get(WORLD_MAP_FOG_SYSTEM_SCRIPT.WORLD_DATA_FOG_STATES_KEY, {})
+	return fog_state_variant if fog_state_variant is Dictionary else {}
+
+
+func _save_active_fog_state_to_world_data() -> void:
+	if _world_map_data_context.active_world_data.is_empty():
+		return
+	if _world_map_data_context.active_generation_config == null:
+		return
+	if _fog_system == null or not _fog_system.has_method("export_persistent_state"):
+		return
+	_world_map_data_context.active_world_data[WORLD_MAP_FOG_SYSTEM_SCRIPT.WORLD_DATA_FOG_STATES_KEY] = _fog_system.export_persistent_state()
+	if _world_map_data_context.is_submap_active():
+		var submap_entry := _get_mounted_submap_entry(_world_map_data_context.active_map_id)
+		if not submap_entry.is_empty():
+			submap_entry["world_data"] = _world_map_data_context.active_world_data
+			_set_mounted_submap_entry(_world_map_data_context.active_map_id, submap_entry)
 
 
 func _get_world_event_at(coord: Vector2i) -> Dictionary:
@@ -2968,6 +3040,7 @@ func _enter_submap(submap_id: String, source_map_id: String, source_coord: Vecto
 	_active_settlement_feedback_text = ""
 	_active_character_info_context.clear()
 	_sync_active_world_context()
+	_refresh_fog()
 	var player_persist_error := int(_game_session.set_player_coord(_player_coord))
 	var world_persist_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 	var target_name := String(submap_entry.get("display_name", submap_id))
@@ -3000,6 +3073,7 @@ func _return_from_active_submap() -> Dictionary:
 	_pending_submap_prompt.clear()
 	_active_modal_id = ""
 	_sync_active_world_context()
+	_refresh_fog()
 	var player_persist_error := int(_game_session.set_player_coord(_player_coord))
 	var world_persist_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
 	if player_persist_error != OK or world_persist_error != OK:

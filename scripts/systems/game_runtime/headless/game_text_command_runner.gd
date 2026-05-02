@@ -296,10 +296,20 @@ func _execute_party_command(tokens: Array[String]) -> Dictionary:
 			if tokens.size() < 4:
 				return {
 					"ok": false,
-					"message": "用法: party equip <member_id> <item_id> [slot_id]",
+					"message": "用法: party equip <member_id> <item_id> [slot_id] [instance_id=<instance_id>]",
 				}
-			var slot_id := StringName(tokens[4]) if tokens.size() >= 5 else &""
-			return runtime.command_party_equip_item(StringName(tokens[2]), StringName(tokens[3]), slot_id)
+			var party_equip_args_start := 4
+			var slot_id := &""
+			if tokens.size() >= 5 and tokens[4].find("=") < 0:
+				slot_id = StringName(tokens[4])
+				party_equip_args_start = 5
+			var party_equip_args := _parse_named_args(tokens, party_equip_args_start)
+			return runtime.command_party_equip_item(
+				StringName(tokens[2]),
+				StringName(tokens[3]),
+				slot_id,
+				StringName(String(party_equip_args.get("instance_id", "")))
+			)
 		"unequip":
 			if tokens.size() < 4:
 				return {
@@ -390,19 +400,22 @@ func _execute_shop_command(tokens: Array[String]) -> Dictionary:
 	if tokens.size() < 3:
 		return {
 			"ok": false,
-			"message": "用法: shop buy|sell <item_id> [quantity]",
+			"message": "用法: shop buy|sell <item_id> [quantity] [instance_id=<instance_id>]",
 		}
 	var quantity := 1
-	if tokens.size() >= 4:
+	var shop_args_start := 3
+	if tokens.size() >= 4 and tokens[3].find("=") < 0:
 		var quantity_result := _parse_int_argument(tokens[3], "商品数量")
 		if not bool(quantity_result.get("ok", false)):
 			return quantity_result
 		quantity = int(quantity_result.get("value", 1))
+		shop_args_start = 4
+	var shop_args := _parse_named_args(tokens, shop_args_start)
 	match tokens[1]:
 		"buy":
 			return runtime.command_shop_buy(StringName(tokens[2]), quantity)
 		"sell":
-			return runtime.command_shop_sell(StringName(tokens[2]), quantity)
+			return runtime.command_shop_sell(StringName(tokens[2]), quantity, StringName(String(shop_args.get("instance_id", ""))))
 		_:
 			return {
 				"ok": false,
@@ -435,7 +448,7 @@ func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
 	if tokens.size() < 3:
 		return {
 			"ok": false,
-			"message": "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one|discard-all <item_id> | warehouse capacity <value>",
+			"message": "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one|discard-all <item_id> [instance_id=<instance_id>] | warehouse capacity <value>",
 		}
 	match tokens[1]:
 		"add":
@@ -462,9 +475,17 @@ func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
 				return capacity_result
 			return await _session.set_party_storage_capacity(int(capacity_result.get("value", 0)))
 		"discard-one":
-			return runtime.command_warehouse_discard_one(StringName(tokens[2]))
+			var discard_one_args := _parse_named_args(tokens, 3)
+			return runtime.command_warehouse_discard_one(
+				StringName(tokens[2]),
+				StringName(String(discard_one_args.get("instance_id", "")))
+			)
 		"discard-all":
-			return runtime.command_warehouse_discard_all(StringName(tokens[2]))
+			var discard_all_args := _parse_named_args(tokens, 3)
+			return runtime.command_warehouse_discard_all(
+				StringName(tokens[2]),
+				StringName(String(discard_all_args.get("instance_id", "")))
+			)
 		_:
 			return {
 				"ok": false,

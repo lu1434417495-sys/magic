@@ -2,6 +2,7 @@ extends SceneTree
 
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
 const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
 const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
@@ -9,6 +10,11 @@ const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_
 const VERSATILE_TEST_WEAPON_ID: StringName = &"wpndice_versatile_longsword"
 const OFFHAND_TEST_ITEM_ID: StringName = &"wpndice_offhand_focus"
 const RESTRICTED_TEST_HELM_ID: StringName = &"wpndice_restricted_helm"
+const STRING_KEY_ONLY_TEST_HELM_ID: StringName = &"wpndice_string_key_only_helm"
+const STRING_KEY_ONLY_TEST_HELM_INSTANCE_ID: StringName = &"wpndice_string_key_only_helm_001"
+const DUPLICATE_TEST_CHARM_ID: StringName = &"wpndice_duplicate_charm"
+const DUPLICATE_TEST_CHARM_COMMON_INSTANCE_ID: StringName = &"wpndice_duplicate_charm_common_001"
+const DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID: StringName = &"wpndice_duplicate_charm_rare_001"
 
 var _failures: Array[String] = []
 
@@ -38,12 +44,42 @@ func _run() -> void:
 	var active_member_id := String(active_unit_state.source_member_id) if active_unit_state != null else ""
 	_assert_true(not active_member_id.is_empty(), "战斗换装回归前置：手动单位应关联队伍成员。")
 
+	_install_string_key_only_battle_item_instance(runner)
+	_prime_active_unit_ap(runner, 2)
+	var string_key_result = await _run_command_expect_fail(
+		runner,
+		"battle equip head %s instance_id=%s" % [String(STRING_KEY_ONLY_TEST_HELM_ID), String(STRING_KEY_ONLY_TEST_HELM_INSTANCE_ID)]
+	)
+	_assert_battle_equip_string_key_only_item_not_found(string_key_result.snapshot, string_key_result.snapshot_text)
+
 	_prime_active_unit_ap(runner, 2)
 	var requirement_result = await _run_command_expect_fail(
 		runner,
 		"battle equip head %s" % String(RESTRICTED_TEST_HELM_ID)
 	)
 	_assert_battle_equip_requirement_failure(requirement_result.snapshot, requirement_result.snapshot_text)
+
+	_install_duplicate_battle_item_instances(runner)
+	_prime_active_unit_ap(runner, 4)
+	var duplicate_item_only_result = await _run_command_expect_fail(
+		runner,
+		"battle equip accessory_1 %s" % String(DUPLICATE_TEST_CHARM_ID)
+	)
+	_assert_battle_duplicate_item_only_requires_instance(duplicate_item_only_result)
+
+	_prime_active_unit_ap(runner, 4)
+	var duplicate_explicit_result = await _run_command(
+		runner,
+		"battle equip accessory_1 %s instance_id=%s" % [String(DUPLICATE_TEST_CHARM_ID), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)]
+	)
+	_assert_battle_duplicate_explicit_equip(duplicate_explicit_result.snapshot)
+
+	_prime_active_unit_ap(runner, 4)
+	var duplicate_unequip_result = await _run_command(
+		runner,
+		"battle unequip accessory_1 instance_id=%s" % String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
+	)
+	_assert_battle_duplicate_unequip_round_trip(duplicate_unequip_result.snapshot, runner)
 
 	_prime_active_unit_ap(runner, 4)
 	var equip_result = await _run_command(runner, "battle equip head leather_cap")
@@ -150,6 +186,43 @@ func _install_battle_equipment_test_items(runner) -> void:
 	item_defs[VERSATILE_TEST_WEAPON_ID] = _build_versatile_test_weapon_def()
 	item_defs[OFFHAND_TEST_ITEM_ID] = _build_offhand_test_item_def()
 	item_defs[RESTRICTED_TEST_HELM_ID] = _build_restricted_test_helm_def()
+	item_defs[String(STRING_KEY_ONLY_TEST_HELM_ID)] = _build_string_key_only_test_helm_def()
+	item_defs[DUPLICATE_TEST_CHARM_ID] = _build_duplicate_test_charm_def()
+
+
+func _install_string_key_only_battle_item_instance(runner) -> void:
+	var runtime = runner.get_session().get_runtime_facade()
+	var battle_state = runtime.get_battle_state() if runtime != null else null
+	_assert_true(battle_state != null, "String-key-only 战斗换装回归前置：应存在战斗状态。")
+	if battle_state == null:
+		return
+	var backpack = battle_state.get_party_backpack_view()
+	_assert_true(backpack != null, "String-key-only 战斗换装回归前置：应存在 battle-local 背包。")
+	if backpack == null:
+		return
+	backpack.equipment_instances.append(
+		EquipmentInstanceState.create(STRING_KEY_ONLY_TEST_HELM_ID, STRING_KEY_ONLY_TEST_HELM_INSTANCE_ID)
+	)
+
+
+func _install_duplicate_battle_item_instances(runner) -> void:
+	var runtime = runner.get_session().get_runtime_facade()
+	var battle_state = runtime.get_battle_state() if runtime != null else null
+	_assert_true(battle_state != null, "重复实例战斗换装回归前置：应存在战斗状态。")
+	if battle_state == null:
+		return
+	var backpack = battle_state.get_party_backpack_view()
+	_assert_true(backpack != null, "重复实例战斗换装回归前置：应存在 battle-local 背包。")
+	if backpack == null:
+		return
+	var common_instance := EquipmentInstanceState.create(DUPLICATE_TEST_CHARM_ID, DUPLICATE_TEST_CHARM_COMMON_INSTANCE_ID)
+	common_instance.rarity = EquipmentInstanceState.RarityTier.COMMON
+	common_instance.current_durability = 10
+	var rare_instance := EquipmentInstanceState.create(DUPLICATE_TEST_CHARM_ID, DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
+	rare_instance.rarity = EquipmentInstanceState.RarityTier.RARE
+	rare_instance.current_durability = 24
+	backpack.equipment_instances.append(common_instance)
+	backpack.equipment_instances.append(rare_instance)
 
 
 func _build_versatile_test_weapon_def() -> ItemDef:
@@ -186,6 +259,18 @@ func _build_offhand_test_item_def() -> ItemDef:
 	return item_def
 
 
+func _build_duplicate_test_charm_def() -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = DUPLICATE_TEST_CHARM_ID
+	item_def.display_name = "WPNDICE Duplicate Charm"
+	item_def.is_stackable = false
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ACCESSORY
+	item_def.equipment_slot_ids = ["accessory_1", "accessory_2"]
+	item_def.tags = [&"accessory", &"test"]
+	return item_def
+
+
 func _build_restricted_test_helm_def() -> ItemDef:
 	var item_def := ItemDef.new()
 	item_def.item_id = RESTRICTED_TEST_HELM_ID
@@ -198,6 +283,18 @@ func _build_restricted_test_helm_def() -> ItemDef:
 	var requirement := EquipmentRequirement.new()
 	requirement.min_body_size = 99
 	item_def.equip_requirement = requirement
+	return item_def
+
+
+func _build_string_key_only_test_helm_def() -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = STRING_KEY_ONLY_TEST_HELM_ID
+	item_def.display_name = "WPNDICE String Key Only Helm"
+	item_def.is_stackable = false
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.equipment_slot_ids = ["head"]
+	item_def.tags = [&"head", &"armor", &"test"]
 	return item_def
 
 
@@ -231,7 +328,7 @@ func _assert_battle_equip_ap_failure(snapshot: Dictionary, text_snapshot: String
 	var report := _find_latest_change_equipment_report(snapshot)
 	_assert_true(not bool(report.get("ok", true)), "AP 不足时 change_equipment report 应标记失败。")
 	_assert_eq(String(report.get("error_code", "")), "ap_insufficient", "AP 不足时 report 应暴露稳定错误码。")
-	_assert_eq(int(report.get("current_ap", -1)), 1, "AP 不足失败时不应扣 AP。")
+	_assert_eq(int(report.get("ap_after", -1)), 1, "AP 不足失败时不应扣 AP。")
 	_assert_eq(_count_battle_backpack_item(snapshot, "bronze_sword"), 1, "AP 不足失败时装备实例应留在 battle-local 背包。")
 	_assert_true(text_snapshot.contains("error=ap_insufficient"), "文本快照应渲染 AP 不足失败原因。")
 
@@ -240,7 +337,7 @@ func _assert_battle_equip_self_only_failure(snapshot: Dictionary, text_snapshot:
 	var report := _find_latest_change_equipment_report(snapshot)
 	_assert_true(not bool(report.get("ok", true)), "指定其他目标时 change_equipment report 应标记失败。")
 	_assert_eq(String(report.get("error_code", "")), "target_not_self", "指定其他目标时应暴露 self-only 错误码。")
-	_assert_eq(int(report.get("current_ap", -1)), 2, "self-only 失败时不应扣 AP。")
+	_assert_eq(int(report.get("ap_after", -1)), 2, "self-only 失败时不应扣 AP。")
 	_assert_eq(_count_battle_backpack_item(snapshot, "bronze_sword"), 1, "self-only 失败时装备实例应留在 battle-local 背包。")
 	_assert_true(text_snapshot.contains("只能为当前行动单位自己换装"), "文本快照应保留 self-only 失败文案。")
 
@@ -249,7 +346,7 @@ func _assert_battle_equip_requirement_failure(snapshot: Dictionary, text_snapsho
 	var report := _find_latest_change_equipment_report(snapshot)
 	_assert_true(not bool(report.get("ok", true)), "装备需求失败时 change_equipment report 应标记失败。")
 	_assert_eq(String(report.get("error_code", "")), "body_size_too_small", "装备需求失败应暴露稳定错误码。")
-	_assert_eq(int(report.get("current_ap", -1)), 2, "装备需求失败时不应扣 AP。")
+	_assert_eq(int(report.get("ap_after", -1)), 2, "装备需求失败时不应扣 AP。")
 	_assert_eq(_count_battle_backpack_item(snapshot, String(RESTRICTED_TEST_HELM_ID)), 1, "装备需求失败时实例应留在 battle-local 背包。")
 	var hud_entry := _find_battle_hud_backpack_entry(snapshot, String(RESTRICTED_TEST_HELM_ID))
 	_assert_true(not hud_entry.is_empty(), "HUD 快照应包含需求受限装备。")
@@ -261,11 +358,57 @@ func _assert_battle_equip_requirement_failure(snapshot: Dictionary, text_snapsho
 	_assert_true(text_snapshot.contains("error=body_size_too_small"), "文本快照应渲染装备需求失败原因。")
 
 
+func _assert_battle_equip_string_key_only_item_not_found(snapshot: Dictionary, text_snapshot: String) -> void:
+	var report := _find_latest_change_equipment_report(snapshot)
+	_assert_true(not bool(report.get("ok", true)), "String-key-only 装备定义不应允许战斗换装。")
+	_assert_eq(String(report.get("error_code", "")), "item_not_found", "String-key-only 装备定义不应被恢复为正式 item_def。")
+	_assert_eq(int(report.get("ap_after", -1)), 2, "String-key-only 装备定义失败时不应扣 AP。")
+	_assert_eq(
+		_count_battle_backpack_item(snapshot, String(STRING_KEY_ONLY_TEST_HELM_ID)),
+		1,
+		"String-key-only 装备定义失败后实例应留在 battle-local 背包。"
+	)
+	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
+	_assert_true(_find_equipped_entry(unit.get("equipment", []), "head").is_empty(), "String-key-only 装备定义失败后 head 槽应保持清空。")
+	_assert_true(text_snapshot.contains("error=item_not_found"), "文本快照应渲染 String-key-only 装备定义缺失原因。")
+
+
+func _assert_battle_duplicate_item_only_requires_instance(result) -> void:
+	_assert_true(String(result.message).contains("请指定 instance_id"), "同 item_id 多 battle-local 实例的 headless 便利命令应要求 instance_id。 message=%s" % result.message)
+	_assert_eq(_count_battle_backpack_item(result.snapshot, String(DUPLICATE_TEST_CHARM_ID)), 2, "item_id-only 失败后两个重复实例都应留在 battle-local 背包。")
+
+
+func _assert_battle_duplicate_explicit_equip(snapshot: Dictionary) -> void:
+	var report := _find_latest_change_equipment_report(snapshot)
+	_assert_true(bool(report.get("ok", false)), "指定 duplicate rare instance_id 的战斗装备应成功。")
+	_assert_eq(String(report.get("item_id", "")), String(DUPLICATE_TEST_CHARM_ID), "duplicate explicit equip report 应记录测试饰品。")
+	_assert_eq(String(report.get("instance_id", "")), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID), "duplicate explicit equip report 应记录指定实例。")
+	_assert_eq(_count_battle_backpack_item(snapshot, String(DUPLICATE_TEST_CHARM_ID)), 1, "装备指定实例后 battle-local 背包中应只剩另一个重复实例。")
+	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
+	var equipped := _find_equipped_entry(unit.get("equipment", []), "accessory_1")
+	_assert_eq(String(equipped.get("instance_id", "")), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID), "battle-local 饰品槽应写入指定 rare instance_id。")
+
+
+func _assert_battle_duplicate_unequip_round_trip(snapshot: Dictionary, runner) -> void:
+	var report := _find_latest_change_equipment_report(snapshot)
+	_assert_true(bool(report.get("ok", false)), "指定 duplicate rare instance_id 的战斗卸装应成功。")
+	_assert_eq(String(report.get("operation", "")), "unequip", "duplicate round-trip report 应来自卸装。")
+	_assert_eq(String(report.get("instance_id", "")), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID), "duplicate unequip report 应记录指定实例。")
+	_assert_eq(_count_battle_backpack_item(snapshot, String(DUPLICATE_TEST_CHARM_ID)), 2, "卸装后两个重复实例都应回到 battle-local 背包。")
+	var runtime = runner.get_session().get_runtime_facade()
+	var battle_state = runtime.get_battle_state() if runtime != null else null
+	var returned_instance = _find_battle_backpack_instance(battle_state.get_party_backpack_view() if battle_state != null else null, DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
+	_assert_true(returned_instance != null, "卸装 round-trip 后应能在 battle-local 背包找到 rare 实例。")
+	if returned_instance != null:
+		_assert_eq(int(returned_instance.rarity), int(EquipmentInstanceState.RarityTier.RARE), "卸装 round-trip 后 rare 品质应保留。")
+		_assert_eq(int(returned_instance.current_durability), 24, "卸装 round-trip 后 rare 耐久应保留。")
+
+
 func _assert_battle_unequip_backpack_full_failure(snapshot: Dictionary, text_snapshot: String) -> void:
 	var report := _find_latest_change_equipment_report(snapshot)
 	_assert_true(not bool(report.get("ok", true)), "背包满卸装时 change_equipment report 应标记失败。")
 	_assert_eq(String(report.get("error_code", "")), "backpack_capacity_exceeded", "背包满卸装应暴露容量错误码。")
-	_assert_eq(int(report.get("current_ap", -1)), 2, "背包满卸装失败时不应扣 AP。")
+	_assert_eq(int(report.get("ap_after", -1)), 2, "背包满卸装失败时不应扣 AP。")
 	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
 	var equipped := _find_equipped_entry(unit.get("equipment", []), "head")
 	_assert_eq(String(equipped.get("item_id", "")), "leather_cap", "背包满卸装失败后 head 装备应保持不变。")
@@ -379,7 +522,7 @@ func _find_latest_change_equipment_report(snapshot: Dictionary) -> Dictionary:
 		if report_variant is not Dictionary:
 			continue
 		var report: Dictionary = report_variant
-		if String(report.get("type", report.get("entry_type", ""))) == "change_equipment":
+		if String(report.get("type", "")) == "change_equipment":
 			return report
 	return {}
 
@@ -467,6 +610,17 @@ func _count_battle_backpack_item(snapshot: Dictionary, item_id: String) -> int:
 		if String(instance.get("item_id", "")) == item_id:
 			total += 1
 	return total
+
+
+func _find_battle_backpack_instance(backpack_view, instance_id: StringName):
+	if backpack_view == null:
+		return null
+	for instance in backpack_view.equipment_instances:
+		if instance == null:
+			continue
+		if String(instance.instance_id) == String(instance_id):
+			return instance
+	return null
 
 
 func _run_command(runner, command_text: String):

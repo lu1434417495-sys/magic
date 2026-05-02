@@ -17,6 +17,13 @@ const ASHEN_INTERSECTION_CONFIG_PATH := "res://data/configs/world_map/ashen_inte
 var _failures: Array[String] = []
 
 
+class MockFogSystem:
+	extends RefCounted
+
+	func is_visible(_coord: Vector2i, _faction_id: String) -> bool:
+		return true
+
+
 class MockRuntime:
 	extends RefCounted
 
@@ -32,6 +39,7 @@ class MockRuntime:
 	var _active_modal_id := "settlement"
 	var _active_settlement_feedback_text := ""
 	var _active_forge_context: Dictionary = {}
+	var _fog_system := MockFogSystem.new()
 	var _current_status_message := ""
 	var persist_calls := 0
 	var sync_party_calls := 0
@@ -86,6 +94,8 @@ class MockRuntime:
 		return registry.get_recipe_defs()
 
 	func get_active_settlement_id() -> String:
+		if _active_settlement_id.is_empty():
+			return String(_selected_settlement.get("settlement_id", ""))
 		return _active_settlement_id
 
 	func set_active_settlement_id(settlement_id: String) -> void:
@@ -99,6 +109,15 @@ class MockRuntime:
 
 	func get_active_modal_id() -> String:
 		return _active_modal_id
+
+	func get_fog_system():
+		return _fog_system
+
+	func get_player_faction_id() -> String:
+		return "player"
+
+	func get_world_step() -> int:
+		return 0
 
 	func set_active_forge_context(context: Dictionary) -> void:
 		_active_forge_context = context.duplicate(true)
@@ -305,6 +324,7 @@ func _test_settlement_handler_routes_generic_forge() -> void:
 	var item_defs := _load_item_defs()
 	var runtime := MockRuntime.new()
 	runtime._party_state = _build_party_state(10)
+	_add_member_to_party(runtime._party_state, &"mage", "Mage")
 	runtime._warehouse_service = PartyWarehouseService.new()
 	runtime._warehouse_service.setup(runtime._party_state, item_defs)
 	runtime._item_defs = item_defs
@@ -339,11 +359,15 @@ func _test_settlement_handler_routes_generic_forge() -> void:
 	_assert_true(bool(generic_entry.get("is_enabled", false)), "存在通用 forge 配方时，service_repair_gear 应可用。")
 	_assert_eq(String(generic_entry.get("cost_label", "")), "按配方材料", "通用 forge 入口应显示按配方材料计价。")
 
-	var open_result := handler.command_execute_settlement_action("service:repair_gear")
+	var open_result := handler.command_execute_settlement_action("service:repair_gear", {
+		"member_id": "mage",
+	})
 	_assert_true(bool(open_result.get("ok", false)), "service:repair_gear 首次触发应成功打开 forge modal。")
 	_assert_eq(runtime._active_modal_id, "forge", "首次点击通用 forge 服务后应切换到 forge modal。")
 	var forge_window_data := handler.get_forge_window_data()
 	_assert_eq(String(forge_window_data.get("action_id", "")), "service:repair_gear", "通用 forge modal 应保留原始 action_id。")
+	_assert_eq(String(forge_window_data.get("default_member_id", "")), "mage", "通用 forge modal 应保留据点窗口选择的默认成员。")
+	_assert_eq(String(forge_window_data.get("selected_member_id", "")), "mage", "通用 forge modal 应保留据点窗口选择的当前成员。")
 	_assert_true(String(forge_window_data.get("title", "")).find("重铸") == -1, "通用 forge modal 标题不应回退成大师重铸。")
 	var forge_entries: Array = forge_window_data.get("entries", [])
 	_assert_true(forge_entries.size() > 0, "通用 forge window data 应暴露可选配方。")
@@ -354,6 +378,7 @@ func _test_settlement_handler_routes_generic_forge() -> void:
 
 	var command_result := handler.command_execute_settlement_action("service:repair_gear", {
 		"submission_source": "forge",
+		"member_id": String(forge_window_data.get("selected_member_id", "")),
 		"recipe_id": "forge_militia_axe",
 	})
 	_assert_true(bool(command_result.get("ok", false)), "forge modal 提交通用配方后应成功执行锻造。")
@@ -368,6 +393,7 @@ func _test_settlement_handler_routes_generic_forge() -> void:
 	_assert_true(runtime._current_status_message.find("民兵手斧") >= 0, "handler 应刷新通用 forge 完成状态文案。")
 	_assert_eq(runtime.applied_quest_event_batches.size(), 1, "通用 forge 成功后应把默认 quest progress 事件应用到运行时。")
 	_assert_eq(runtime.achievement_events.size(), 1, "通用 forge 成功后应记录据点动作成就事件。")
+	_assert_eq(runtime.achievement_events[0].get("member_id", ""), "mage", "通用 forge 成就事件应归因到据点窗口选择的成员。")
 	_assert_eq(runtime.achievement_events[0].get("detail_id", ""), "service:repair_gear", "成就事件应记录通用 forge 动作 ID。")
 
 	handler.on_forge_window_closed()
@@ -548,6 +574,21 @@ func _build_party_state(storage_space: int) -> PartyState:
 		&"hero": hero,
 	}
 	return party_state
+
+
+func _add_member_to_party(party_state: PartyState, member_id: StringName, display_name: String) -> void:
+	var member := PartyMemberState.new()
+	member.member_id = member_id
+	member.display_name = display_name
+
+	var progression := UnitProgress.new()
+	progression.unit_id = member_id
+	progression.display_name = display_name
+	member.progression = progression
+
+	party_state.set_member_state(member)
+	if not party_state.active_member_ids.has(member_id):
+		party_state.active_member_ids.append(member_id)
 
 
 func _load_item_defs() -> Dictionary:

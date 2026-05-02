@@ -257,12 +257,12 @@ func command_open_party_warehouse() -> Dictionary:
 	return _call_runtime_command(&"command_open_party_warehouse")
 
 
-func command_warehouse_discard_one(item_id: StringName) -> Dictionary:
-	return _call_runtime_command(&"command_warehouse_discard_one", [item_id])
+func command_warehouse_discard_one(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
+	return _call_runtime_command(&"command_warehouse_discard_one", [item_id, instance_id])
 
 
-func command_warehouse_discard_all(item_id: StringName) -> Dictionary:
-	return _call_runtime_command(&"command_warehouse_discard_all", [item_id])
+func command_warehouse_discard_all(item_id: StringName, instance_id: StringName = &"") -> Dictionary:
+	return _call_runtime_command(&"command_warehouse_discard_all", [item_id, instance_id])
 
 
 func command_warehouse_use_item(item_id: StringName, member_id: StringName = &"") -> Dictionary:
@@ -277,8 +277,8 @@ func command_shop_buy(item_id: StringName, quantity: int = 1) -> Dictionary:
 	return _call_runtime_command(&"command_shop_buy", [item_id, quantity])
 
 
-func command_shop_sell(item_id: StringName, quantity: int = 1) -> Dictionary:
-	return _call_runtime_command(&"command_shop_sell", [item_id, quantity])
+func command_shop_sell(item_id: StringName, quantity: int = 1, instance_id: StringName = &"") -> Dictionary:
+	return _call_runtime_command(&"command_shop_sell", [item_id, quantity, instance_id])
 
 
 func command_stagecoach_travel(settlement_id: String) -> Dictionary:

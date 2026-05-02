@@ -6,9 +6,9 @@ class_name PartyWarehouseWindow
 extends Control
 
 ## 信号说明：当界面请求丢弃单个时发出的信号，具体处理由外层系统或控制器负责。
-signal discard_one_requested(item_id: StringName)
+signal discard_one_requested(item_id: StringName, instance_id: StringName)
 ## 信号说明：当界面请求丢弃全部时发出的信号，具体处理由外层系统或控制器负责。
-signal discard_all_requested(item_id: StringName)
+signal discard_all_requested(item_id: StringName, instance_id: StringName)
 ## 信号说明：当界面请求使用技能书时发出的信号，具体处理由外层系统或控制器负责。
 signal use_requested(item_id: StringName, member_id: StringName)
 ## 信号说明：当窗口或面板关闭时发出的信号，供外层恢复输入焦点、刷新数据或清理临时状态。
@@ -47,6 +47,7 @@ signal closed
 var _window_data: Dictionary = {}
 ## 字段说明：记录已选物品唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var _selected_item_id: StringName = &""
+var _selected_instance_id: StringName = &""
 ## 字段说明：记录已选展示条目索引，作为界面刷新、输入处理和窗口联动的重要依据。
 var _selected_entry_index := -1
 ## 字段说明：记录技能书当前目标成员唯一标识，作为技能书使用流程的目标选择缓存。
@@ -92,6 +93,7 @@ func hide_window() -> void:
 	visible = false
 	_window_data.clear()
 	_selected_item_id = &""
+	_selected_instance_id = &""
 	_selected_entry_index = -1
 	_selected_target_member_id = &""
 	if stack_list != null:
@@ -113,7 +115,7 @@ func _rebuild_stack_list() -> void:
 	for entry_data_variant in _get_inventory_entries():
 		var entry_data: Dictionary = entry_data_variant
 		var label := "%s  x%d" % [
-			String(entry_data.get("display_name", entry_data.get("item_id", "未知物品"))),
+			String(entry_data.get("display_name", "")),
 			int(entry_data.get("quantity", 0)),
 		]
 		if bool(entry_data.get("is_stackable", false)):
@@ -131,6 +133,7 @@ func _restore_selection() -> void:
 	var inventory_entries := _get_inventory_entries()
 	if inventory_entries.is_empty():
 		_selected_item_id = &""
+		_selected_instance_id = &""
 		_selected_entry_index = -1
 		return
 
@@ -138,7 +141,9 @@ func _restore_selection() -> void:
 	if _selected_item_id != &"":
 		for index in range(inventory_entries.size()):
 			var entry_data: Dictionary = inventory_entries[index]
-			if ProgressionDataUtils.to_string_name(entry_data.get("item_id", "")) == _selected_item_id:
+			var entry_item_id := ProgressionDataUtils.to_string_name(entry_data.get("item_id", ""))
+			var entry_instance_id := ProgressionDataUtils.to_string_name(entry_data.get("instance_id", ""))
+			if entry_item_id == _selected_item_id and (_selected_instance_id == &"" or entry_instance_id == _selected_instance_id):
 				target_index = index
 				break
 	if target_index < 0:
@@ -147,6 +152,7 @@ func _restore_selection() -> void:
 	_selected_entry_index = target_index
 	var selected_entry: Dictionary = inventory_entries[target_index]
 	_selected_item_id = ProgressionDataUtils.to_string_name(selected_entry.get("item_id", ""))
+	_selected_instance_id = ProgressionDataUtils.to_string_name(selected_entry.get("instance_id", ""))
 	stack_list.select(target_index)
 	stack_list.ensure_current_is_visible()
 
@@ -162,7 +168,7 @@ func _rebuild_target_member_selector() -> void:
 	for index in range(target_members.size()):
 		var member_data: Dictionary = target_members[index]
 		var member_id := ProgressionDataUtils.to_string_name(member_data.get("member_id", ""))
-		var label := String(member_data.get("display_name", member_id))
+		var label := _get_target_member_display_name_from_data(member_data)
 		target_member_selector.add_item(label)
 		target_member_selector.set_item_metadata(index, member_data)
 		if member_id == _selected_target_member_id:
@@ -194,13 +200,13 @@ func _refresh_details() -> void:
 
 	item_icon.texture = _load_icon_texture(String(entry_data.get("icon", "")))
 	var item_id := String(entry_data.get("item_id", ""))
-	var total_quantity := int(entry_data.get("total_quantity", entry_data.get("quantity", 0)))
+	var total_quantity := int(entry_data.get("total_quantity", 0))
 	var stack_limit := int(entry_data.get("stack_limit", 1))
 	var quantity := int(entry_data.get("quantity", 0))
 	var storage_mode := String(entry_data.get("storage_mode", ""))
 	var storage_rule_text := "每堆上限 %d" % stack_limit if bool(entry_data.get("is_stackable", false)) else "不可堆叠，按实例独立占格"
 	var lines := PackedStringArray([
-		"物品：%s" % String(entry_data.get("display_name", item_id)),
+		"物品：%s" % String(entry_data.get("display_name", "")),
 		"物品 ID：%s" % item_id,
 		"当前条目数量：%d" % quantity,
 		"同类总数：%d" % total_quantity,
@@ -208,8 +214,13 @@ func _refresh_details() -> void:
 		"堆叠规则：%s" % storage_rule_text,
 		"说明：%s" % String(entry_data.get("description", "暂无说明。")),
 	])
+	var instance_id := String(entry_data.get("instance_id", ""))
+	if not instance_id.is_empty():
+		lines.append("装备实例：%s" % instance_id)
+		lines.append("品质：%d" % int(entry_data.get("rarity", 0)))
+		lines.append("耐久：%d" % int(entry_data.get("current_durability", -1)))
 	if bool(entry_data.get("is_skill_book", false)):
-		lines.append("技能书效果：使目标角色学会 %s。" % String(entry_data.get("granted_skill_name", entry_data.get("granted_skill_id", ""))))
+		lines.append("技能书效果：使目标角色学会 %s。" % String(entry_data.get("granted_skill_name", "")))
 		if _selected_target_member_id != &"":
 			lines.append("当前目标：%s" % _get_target_member_display_name(_selected_target_member_id))
 	details_label.text = "\n".join(lines)
@@ -269,8 +280,14 @@ func _get_target_member_display_name(member_id: StringName) -> String:
 		var member_data: Dictionary = member_data_variant
 		if ProgressionDataUtils.to_string_name(member_data.get("member_id", "")) != member_id:
 			continue
-		return String(member_data.get("display_name", member_id))
-	return String(member_id)
+		return _get_target_member_display_name_from_data(member_data)
+	return ""
+
+
+func _get_target_member_display_name_from_data(member_data: Dictionary) -> String:
+	if not member_data.has("display_name") or member_data["display_name"] is not String:
+		return ""
+	return String(member_data["display_name"]).strip_edges()
 
 
 func _selected_entry_is_skill_book() -> bool:
@@ -292,6 +309,7 @@ func _on_stack_selected(index: int) -> void:
 	_selected_entry_index = index
 	var entry_data := _get_selected_entry_data()
 	_selected_item_id = ProgressionDataUtils.to_string_name(entry_data.get("item_id", ""))
+	_selected_instance_id = ProgressionDataUtils.to_string_name(entry_data.get("instance_id", ""))
 	_refresh_details()
 	_refresh_controls()
 
@@ -312,13 +330,13 @@ func _on_target_member_selected(index: int) -> void:
 func _on_discard_one_button_pressed() -> void:
 	if _selected_item_id == &"":
 		return
-	discard_one_requested.emit(_selected_item_id)
+	discard_one_requested.emit(_selected_item_id, _selected_instance_id)
 
 
 func _on_discard_all_button_pressed() -> void:
 	if _selected_item_id == &"":
 		return
-	discard_all_requested.emit(_selected_item_id)
+	discard_all_requested.emit(_selected_item_id, _selected_instance_id)
 
 
 func _on_use_button_pressed() -> void:

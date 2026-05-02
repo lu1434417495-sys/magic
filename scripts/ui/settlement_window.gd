@@ -24,9 +24,14 @@ var _window_data: Dictionary = {}
 var _settlement_id := ""
 var _member_options: Array[Dictionary] = []
 var _member_option_map: Dictionary = {}
+var _facilities: Array[Dictionary] = []
+var _residents: Array[Dictionary] = []
 var _selected_member_id: StringName = &""
 var _services: Array[Dictionary] = []
 var _selected_service_index := -1
+var _facility_payload_valid := true
+var _resident_payload_valid := true
+var _service_payload_valid := true
 
 
 func _ready() -> void:
@@ -37,11 +42,20 @@ func _ready() -> void:
 
 
 func show_settlement(window_data: Dictionary) -> void:
-	_window_data = window_data.duplicate(true)
-	_settlement_id = String(_window_data.get("settlement_id", ""))
+	var normalized_window_data := _normalize_top_level_payload(window_data)
+	if normalized_window_data.is_empty():
+		hide_window()
+		return
+	_window_data = normalized_window_data
+	_settlement_id = String(_window_data["settlement_id"])
 	_member_options = _build_member_options()
 	_member_option_map = PARTY_MEMBER_OPTION_UTILS.build_member_option_map(_member_options)
+	_facilities = _build_facility_entries()
+	_residents = _build_resident_entries()
 	_services = _build_service_entries()
+	if not _facility_payload_valid or not _resident_payload_valid or not _service_payload_valid:
+		hide_window()
+		return
 	_selected_member_id = PARTY_MEMBER_OPTION_UTILS.resolve_default_member_id(_window_data, _member_option_map, _member_options)
 	_selected_service_index = -1
 	visible = true
@@ -54,9 +68,18 @@ func hide_window() -> void:
 	_settlement_id = ""
 	_member_options.clear()
 	_member_option_map.clear()
+	_facilities.clear()
+	_residents.clear()
 	_selected_member_id = &""
 	_services.clear()
 	_selected_service_index = -1
+	_facility_payload_valid = true
+	_resident_payload_valid = true
+	_service_payload_valid = true
+	if title_label != null:
+		title_label.text = ""
+	if meta_label != null:
+		meta_label.text = ""
 	if facilities_label != null:
 		facilities_label.text = ""
 	if resident_label != null:
@@ -83,7 +106,7 @@ func set_feedback(message: String) -> void:
 
 
 func _refresh_view() -> void:
-	title_label.text = String(_window_data.get("display_name", "据点"))
+	title_label.text = String(_window_data["display_name"])
 	meta_label.text = _build_meta_text()
 	facilities_label.text = _build_facility_text()
 	resident_label.text = _build_resident_text()
@@ -92,14 +115,14 @@ func _refresh_view() -> void:
 	_refresh_member_state()
 	_refresh_service_details()
 	if feedback_label != null and feedback_label.text.is_empty():
-		feedback_label.text = String(_window_data.get("feedback_text", "点击服务继续，或切换成员后再操作。"))
+		feedback_label.text = String(_window_data["feedback_text"])
 
 
 func _build_meta_text() -> String:
-	var tier_name := String(_window_data.get("tier_name", "未知"))
-	var footprint_size: Vector2i = _window_data.get("footprint_size", Vector2i.ONE)
-	var faction_id := String(_window_data.get("faction_id", "neutral"))
-	var state_summary_text := String(_window_data.get("state_summary_text", ""))
+	var tier_name := String(_window_data["tier_name"])
+	var footprint_size: Vector2i = _window_data["footprint_size"]
+	var faction_id := String(_window_data["faction_id"])
+	var state_summary_text := String(_window_data["state_summary_text"])
 	var lines := PackedStringArray([
 		"%s  |  占地 %dx%d  |  阵营 %s" % [tier_name, footprint_size.x, footprint_size.y, faction_id]
 	])
@@ -109,16 +132,14 @@ func _build_meta_text() -> String:
 
 
 func _build_facility_text() -> String:
-	var facilities := PARTY_MEMBER_OPTION_UTILS.get_dictionary_array(_window_data.get("facilities", []))
-	if facilities.is_empty():
+	if _facilities.is_empty():
 		return "设施：暂无"
 
 	var lines: PackedStringArray = ["设施："]
-	for facility_variant in facilities:
-		var facility: Dictionary = facility_variant
-		var display_name := String(facility.get("display_name", "设施"))
-		var slot_tag := String(facility.get("slot_tag", "未标记"))
-		var interaction_type := String(facility.get("interaction_type", ""))
+	for facility in _facilities:
+		var display_name := String(facility["display_name"])
+		var slot_tag := String(facility["slot_tag"])
+		var interaction_type := String(facility["interaction_type"])
 		var line := "- %s [%s]" % [display_name, slot_tag]
 		if not interaction_type.is_empty():
 			line += " · %s" % interaction_type
@@ -127,19 +148,16 @@ func _build_facility_text() -> String:
 
 
 func _build_resident_text() -> String:
-	var residents := PARTY_MEMBER_OPTION_UTILS.get_dictionary_array(_window_data.get("service_npcs", []))
-	if residents.is_empty():
+	if _residents.is_empty():
 		return "驻留 NPC：暂无"
 
 	var lines: PackedStringArray = ["驻留 NPC："]
-	for resident_variant in residents:
-		var resident: Dictionary = resident_variant
-		var display_name := String(resident.get("display_name", "NPC"))
-		var service_type := String(resident.get("service_type", "服务"))
-		var facility_name := String(resident.get("facility_name", ""))
-		var line := "- %s · %s" % [display_name, service_type]
-		if not facility_name.is_empty():
-			line += " · %s" % facility_name
+	for resident in _residents:
+		var line := "- %s · %s · %s" % [
+			String(resident["display_name"]),
+			String(resident["service_type"]),
+			String(resident["facility_name"]),
+		]
 		lines.append(line)
 	return "\n".join(lines)
 
@@ -148,47 +166,157 @@ func _build_member_options() -> Array[Dictionary]:
 	return PARTY_MEMBER_OPTION_UTILS.build_member_options(_window_data)
 
 
+func _normalize_top_level_payload(window_data: Dictionary) -> Dictionary:
+	var normalized := window_data.duplicate(true)
+	for field_name in ["settlement_id", "display_name", "tier_name", "faction_id", "feedback_text"]:
+		if not window_data.has(field_name) or window_data[field_name] is not String:
+			return {}
+		var field_value := String(window_data[field_name]).strip_edges()
+		if field_value.is_empty():
+			return {}
+		normalized[field_name] = field_value
+	if not window_data.has("state_summary_text") or window_data["state_summary_text"] is not String:
+		return {}
+	normalized["state_summary_text"] = String(window_data["state_summary_text"])
+	if not window_data.has("footprint_size") or typeof(window_data["footprint_size"]) != TYPE_VECTOR2I:
+		return {}
+	var footprint_size: Vector2i = window_data["footprint_size"]
+	if footprint_size.x < 1 or footprint_size.y < 1:
+		return {}
+	normalized["footprint_size"] = footprint_size
+	for field_name in ["available_services", "facilities", "service_npcs"]:
+		if not window_data.has(field_name) or window_data[field_name] is not Array:
+			return {}
+	return normalized
+
+
+func _build_facility_entries() -> Array[Dictionary]:
+	_facility_payload_valid = true
+	var facilities_variant: Variant = _window_data["facilities"]
+	var facilities: Array[Dictionary] = []
+	if facilities_variant is not Array:
+		_facility_payload_valid = false
+		return facilities
+	for facility_variant in facilities_variant:
+		if facility_variant is not Dictionary:
+			_facility_payload_valid = false
+			return []
+		var facility := _normalize_facility_entry(facility_variant as Dictionary)
+		if facility.is_empty():
+			_facility_payload_valid = false
+			return []
+		facilities.append(facility)
+	return facilities
+
+
+func _normalize_facility_entry(facility: Dictionary) -> Dictionary:
+	var normalized := facility.duplicate(true)
+	for field_name in ["display_name", "slot_tag"]:
+		if not facility.has(field_name) or facility[field_name] is not String:
+			return {}
+		var field_value := String(facility[field_name]).strip_edges()
+		if field_value.is_empty():
+			return {}
+		normalized[field_name] = field_value
+	if not facility.has("interaction_type") or facility["interaction_type"] is not String:
+		return {}
+	normalized["interaction_type"] = String(facility["interaction_type"]).strip_edges()
+	return normalized
+
+
+func _build_resident_entries() -> Array[Dictionary]:
+	_resident_payload_valid = true
+	var residents_variant: Variant = _window_data["service_npcs"]
+	var residents: Array[Dictionary] = []
+	if residents_variant is not Array:
+		_resident_payload_valid = false
+		return residents
+	for resident_variant in residents_variant:
+		if resident_variant is not Dictionary:
+			_resident_payload_valid = false
+			return []
+		var resident := _normalize_resident_entry(resident_variant as Dictionary)
+		if resident.is_empty():
+			_resident_payload_valid = false
+			return []
+		residents.append(resident)
+	return residents
+
+
+func _normalize_resident_entry(resident: Dictionary) -> Dictionary:
+	var normalized := resident.duplicate(true)
+	for field_name in ["display_name", "service_type", "facility_name"]:
+		if not resident.has(field_name) or resident[field_name] is not String:
+			return {}
+		var field_value := String(resident[field_name]).strip_edges()
+		if field_value.is_empty():
+			return {}
+		normalized[field_name] = field_value
+	return normalized
+
+
 func _build_service_entries() -> Array[Dictionary]:
-	var services_variant: Variant = _window_data.get("available_services", [])
+	_service_payload_valid = true
+	var services_variant: Variant = _window_data["available_services"]
 	var services: Array[Dictionary] = []
 	if services_variant is not Array:
+		_service_payload_valid = false
 		return services
 
-	var facilities_by_id := _build_facility_lookup()
 	for service_variant in services_variant:
 		if service_variant is not Dictionary:
-			continue
-		var service := (service_variant as Dictionary).duplicate(true)
-		var facility_id := String(service.get("facility_id", ""))
-		var facility: Dictionary = facilities_by_id.get(facility_id, {})
-		if not facility.is_empty():
-			if String(service.get("facility_name", "")).is_empty():
-				service["facility_name"] = String(facility.get("display_name", "设施"))
-			if String(service.get("interaction_type", "")).is_empty():
-				service["interaction_type"] = String(facility.get("interaction_type", ""))
-		if not service.has("is_enabled"):
-			service["is_enabled"] = true
-		if not service.has("disabled_reason"):
-			service["disabled_reason"] = ""
-		if not service.has("cost_label"):
-			service["cost_label"] = _build_default_cost_label(service)
-		if not service.has("state_label"):
-			service["state_label"] = _build_default_state_label(service)
-		if not service.has("summary_text"):
-			service["summary_text"] = _build_service_summary_text(service)
+			_service_payload_valid = false
+			return []
+		var service := _normalize_service_entry(service_variant as Dictionary)
+		if service.is_empty():
+			_service_payload_valid = false
+			return []
 		services.append(service)
 	return services
 
 
-func _build_facility_lookup() -> Dictionary:
-	var facility_lookup: Dictionary = {}
-	var facilities := PARTY_MEMBER_OPTION_UTILS.get_dictionary_array(_window_data.get("facilities", []))
-	for facility_variant in facilities:
-		var facility: Dictionary = facility_variant
-		var facility_id := String(facility.get("facility_id", ""))
-		if not facility_id.is_empty():
-			facility_lookup[facility_id] = facility.duplicate(true)
-	return facility_lookup
+func _normalize_service_entry(service: Dictionary) -> Dictionary:
+	var normalized := service.duplicate(true)
+	for legacy_field_name in ["window_kind", "service_window_kind", "panel"]:
+		if service.has(legacy_field_name):
+			return {}
+	for field_name in [
+		"action_id",
+		"facility_name",
+		"npc_name",
+		"service_type",
+		"interaction_script_id",
+		"cost_label",
+		"state_label",
+		"summary_text",
+	]:
+		if not service.has(field_name) or service[field_name] is not String:
+			return {}
+		var field_value := String(service[field_name]).strip_edges()
+		if field_value.is_empty():
+			return {}
+		normalized[field_name] = field_value
+	if not service.has("is_enabled") or service["is_enabled"] is not bool:
+		return {}
+	if not service.has("disabled_reason") or service["disabled_reason"] is not String:
+		return {}
+	var disabled_reason := String(service["disabled_reason"]).strip_edges()
+	if not bool(service["is_enabled"]) and disabled_reason.is_empty():
+		return {}
+	normalized["is_enabled"] = bool(service["is_enabled"])
+	normalized["disabled_reason"] = disabled_reason
+	if service.has("panel_kind"):
+		if service["panel_kind"] is not String:
+			return {}
+		var panel_kind := String(service["panel_kind"]).strip_edges()
+		if panel_kind.is_empty():
+			return {}
+		normalized["panel_kind"] = panel_kind
+	if service.has("interaction_type"):
+		if service["interaction_type"] is not String:
+			return {}
+		normalized["interaction_type"] = String(service["interaction_type"]).strip_edges()
+	return normalized
 
 
 func _rebuild_member_selector() -> void:
@@ -235,9 +363,12 @@ func _refresh_member_state() -> void:
 		member_state_label.text = "成员：当前选择不可用。"
 		return
 
-	var display_name := String(member_option.get("display_name", String(_selected_member_id)))
+	var display_name := PARTY_MEMBER_OPTION_UTILS.get_member_option_display_name(member_option)
+	if display_name.is_empty():
+		member_state_label.text = "成员：当前选择不可用。"
+		return
 	var roster_role := String(member_option.get("roster_role", "成员"))
-	var state_summary_text := String(_window_data.get("state_summary_text", ""))
+	var state_summary_text := String(_window_data["state_summary_text"])
 	var lines := PackedStringArray([
 		"成员：%s" % display_name,
 		"编组：%s" % roster_role,
@@ -253,16 +384,14 @@ func _refresh_member_state() -> void:
 func _rebuild_service_buttons() -> void:
 	_clear_service_buttons()
 	for index in range(_services.size()):
-		var service := _services[index]
+		var service := _resolve_service_for_selected_member(_services[index])
 		var button := Button.new()
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.custom_minimum_size = Vector2(0, 58)
 		button.text = _build_service_button_text(service)
-		button.disabled = not bool(service.get("is_enabled", true))
-		if button.disabled and String(service.get("disabled_reason", "")).is_empty():
-			button.tooltip_text = "当前服务不可用。"
-		elif button.disabled:
-			button.tooltip_text = String(service.get("disabled_reason", ""))
+		button.disabled = not bool(service["is_enabled"])
+		if button.disabled:
+			button.tooltip_text = String(service["disabled_reason"])
 		button.pressed.connect(_on_service_button_pressed.bind(index))
 		services_container.add_child(button)
 
@@ -274,43 +403,21 @@ func _rebuild_service_buttons() -> void:
 
 
 func _build_service_button_text(service: Dictionary) -> String:
-	var facility_name := String(service.get("facility_name", "设施"))
-	var npc_name := String(service.get("npc_name", "NPC"))
-	var service_type := String(service.get("service_type", "服务"))
-	var state_label := String(service.get("state_label", "状态：可用"))
-	var cost_label := String(service.get("cost_label", "费用：待定"))
+	var facility_name := String(service["facility_name"])
+	var npc_name := String(service["npc_name"])
+	var service_type := String(service["service_type"])
+	var state_label := String(service["state_label"])
+	var cost_label := String(service["cost_label"])
 	var text := "%s · %s · %s\n%s  |  %s" % [facility_name, npc_name, service_type, state_label, cost_label]
-	if not bool(service.get("is_enabled", true)):
-		var disabled_reason := String(service.get("disabled_reason", ""))
+	if not bool(service["is_enabled"]):
+		var disabled_reason := String(service["disabled_reason"])
 		if not disabled_reason.is_empty():
 			text += "\n%s" % disabled_reason
 	return text
 
 
 func _build_service_summary_text(service: Dictionary) -> String:
-	var facility_name := String(service.get("facility_name", "设施"))
-	var npc_name := String(service.get("npc_name", "NPC"))
-	var service_type := String(service.get("service_type", "服务"))
-	return "%s · %s · %s" % [facility_name, npc_name, service_type]
-
-
-func _build_default_cost_label(service: Dictionary) -> String:
-	var cost_label := String(service.get("cost_label", ""))
-	if not cost_label.is_empty():
-		return cost_label
-	return "费用：待定"
-
-
-func _build_default_state_label(service: Dictionary) -> String:
-	var explicit_state_label := String(service.get("state_label", service.get("state_text", "")))
-	if not explicit_state_label.is_empty():
-		return explicit_state_label
-	if not bool(service.get("is_enabled", true)):
-		var disabled_reason := String(service.get("disabled_reason", ""))
-		if not disabled_reason.is_empty():
-			return "状态：%s" % disabled_reason
-		return "状态：不可用"
-	return "状态：可用"
+	return String(service["summary_text"])
 
 
 func _refresh_service_details() -> void:
@@ -322,24 +429,22 @@ func _refresh_service_details() -> void:
 
 	if _selected_service_index < 0 or _selected_service_index >= _services.size():
 		_selected_service_index = 0
-	var service := _services[_selected_service_index]
-	var state_label := String(service.get("state_label", _build_default_state_label(service)))
-	var cost_label := String(service.get("cost_label", _build_default_cost_label(service)))
-	service_state_label.text = state_label
-	service_cost_label.text = cost_label
+	var service := _resolve_service_for_selected_member(_services[_selected_service_index])
+	service_state_label.text = String(service["state_label"])
+	service_cost_label.text = String(service["cost_label"])
 	service_details_label.text = _build_service_detail_text(service)
 
 
 func _build_service_detail_text(service: Dictionary) -> String:
 	var lines := PackedStringArray([
-		"设施：%s" % String(service.get("facility_name", "设施")),
-		"NPC：%s" % String(service.get("npc_name", "NPC")),
-		"服务：%s" % String(service.get("service_type", "服务")),
-		"交互：%s" % String(service.get("interaction_type", "unknown")),
-		"状态：%s" % String(service.get("state_label", _build_default_state_label(service))),
-		"费用：%s" % String(service.get("cost_label", _build_default_cost_label(service))),
+		"设施：%s" % String(service["facility_name"]),
+		"NPC：%s" % String(service["npc_name"]),
+		"服务：%s" % String(service["service_type"]),
+		"交互：%s" % String(service["interaction_script_id"]),
+		"状态：%s" % String(service["state_label"]),
+		"费用：%s" % String(service["cost_label"]),
 	])
-	var disabled_reason := String(service.get("disabled_reason", ""))
+	var disabled_reason := String(service["disabled_reason"])
 	if not disabled_reason.is_empty():
 		lines.append("说明：%s" % disabled_reason)
 	return "\n".join(lines)
@@ -348,14 +453,14 @@ func _build_service_detail_text(service: Dictionary) -> String:
 func _on_service_button_pressed(index: int) -> void:
 	if index < 0 or index >= _services.size():
 		return
-	var service: Dictionary = _services[index]
-	if not bool(service.get("is_enabled", true)):
-		set_feedback(String(service.get("disabled_reason", "当前服务不可用。")))
+	var service: Dictionary = _resolve_service_for_selected_member(_services[index])
+	if not bool(service["is_enabled"]):
+		set_feedback(String(service["disabled_reason"]))
 		return
 	_selected_service_index = index
 	_refresh_service_details()
 	var payload := _build_service_payload(service)
-	action_requested.emit(_settlement_id, String(payload.get("action_id", "")), payload)
+	action_requested.emit(_settlement_id, String(payload["action_id"]), payload)
 
 
 func _build_service_payload(service: Dictionary) -> Dictionary:
@@ -363,7 +468,7 @@ func _build_service_payload(service: Dictionary) -> Dictionary:
 	payload["settlement_id"] = _settlement_id
 	payload["member_id"] = String(_selected_member_id)
 	payload["default_member_id"] = String(_selected_member_id)
-	payload["state_summary_text"] = String(_window_data.get("state_summary_text", ""))
+	payload["state_summary_text"] = String(_window_data["state_summary_text"])
 	payload["summary_text"] = _build_service_summary_text(service)
 	payload["details_text"] = _build_service_detail_text(service)
 	payload["submission_source"] = "settlement"
@@ -373,23 +478,35 @@ func _build_service_payload(service: Dictionary) -> Dictionary:
 	return payload
 
 
+func _resolve_service_for_selected_member(service: Dictionary) -> Dictionary:
+	var resolved := service.duplicate(true)
+	if _selected_member_id == &"":
+		return resolved
+	if not service.has("member_availability"):
+		return resolved
+	var availability_variant = service.get("member_availability", {})
+	if availability_variant is not Dictionary:
+		return resolved
+	var availability_by_member: Dictionary = availability_variant
+	var member_availability_variant = availability_by_member.get(String(_selected_member_id), {})
+	if member_availability_variant is not Dictionary:
+		resolved["is_enabled"] = false
+		resolved["disabled_reason"] = "当前成员不可用"
+		resolved["state_label"] = "状态：当前成员不可用"
+		return resolved
+	var member_availability: Dictionary = member_availability_variant
+	var is_enabled := bool(member_availability.get("is_enabled", false))
+	var disabled_reason := String(member_availability.get("disabled_reason", "")).strip_edges()
+	resolved["is_enabled"] = is_enabled
+	resolved["disabled_reason"] = disabled_reason
+	resolved["state_label"] = "状态：可用" if is_enabled else "状态：%s" % (disabled_reason if not disabled_reason.is_empty() else "不可用")
+	return resolved
+
+
 func _resolve_service_panel_kind(service: Dictionary) -> String:
-	var explicit_panel_kind := String(service.get("panel_kind", service.get("window_kind", service.get("service_window_kind", ""))))
-	if not explicit_panel_kind.is_empty():
-		match explicit_panel_kind.to_lower():
-			"buy", "sell", "trade", "shop":
-				return "shop"
-			"travel", "stagecoach", "route":
-				return "stagecoach"
-			_:
-				return explicit_panel_kind
-	var interaction_type := String(service.get("interaction_type", ""))
-	var service_type := String(service.get("service_type", ""))
-	if interaction_type == "shop" or service_type.find("交易") != -1 or service_type.find("商") != -1:
-		return "shop"
-	if interaction_type == "travel" or service_type.find("传送") != -1 or service_type.find("行路") != -1:
-		return "stagecoach"
-	return ""
+	if not service.has("panel_kind"):
+		return ""
+	return String(service["panel_kind"])
 
 
 func _clear_service_buttons() -> void:
@@ -403,6 +520,8 @@ func _on_member_selected(index: int) -> void:
 	else:
 		_selected_member_id = ProgressionDataUtils.to_string_name(member_selector.get_item_metadata(index))
 	_refresh_member_state()
+	_rebuild_service_buttons()
+	_refresh_service_details()
 
 
 func _close_from_button() -> void:
