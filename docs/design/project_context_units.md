@@ -1,6 +1,6 @@
 # 当前 Godot 项目的最优上下文单元
 
-更新日期：`2026-04-29`
+更新日期：`2026-05-02`
 
 ## 目的
 
@@ -245,17 +245,19 @@ HeadlessGameTestSession
   - 当前 active save id / path / meta。
   - 当前 generation config path / object。
   - 当前 `world_data`、玩家坐标、玩家 faction。
-  - 旧存档或外部写入缺失 `world_data.map_seed` 时，`SaveSerializer.normalize_world_data()` 会通过 `TrueRandomSeedService` 补运行时地图 seed。
+  - `world_data.map_seed` 是当前 save schema 的必需字段，只能由新世界生成链分配；缺失、非法或非正数直接视为坏档，不再由 `SaveSerializer` 补随机 seed。
+  - `world_data.world_step` 是当前 save schema 的必需非负 int 字段；缺失、字符串或负数直接视为坏档，不再按 0 恢复。
   - `world_data.next_equipment_instance_serial` 是装备实例 ID 的 world-level 递增序列；这是当前 save schema 的必需字段，缺失或非法时 `world_data` 直接无效，不做旧存档补字段。`GameSession.allocate_equipment_instance_id()` 使用它生成 `eq_000001` 形态的 ID，并扫描当前队伍背包 / 装备位避免与已持有实例冲突。
   - `world_data.mounted_submaps[*].world_data` 是双态结构：`is_generated = false` 时只能是当前 schema 的空占位 `{}`；`is_generated = true` 时必须是完整 `world_data`，并继续要求 `next_equipment_instance_serial` 等必需字段。不要把已生成子地图的坏数据降级成未生成占位。
+  - `save_slot_meta` 是存档列表和 payload 解码的正式元数据真相源，必须显式包含 `save_id`、`display_name`、`world_preset_id`、`world_preset_name`、`generation_config_path`、`world_size_cells`、`created_at_unix_time`、`updated_at_unix_time`；缺字段不再从 payload、generation config 或 index 调用参数回填。
   - 当前 `PartyState`。
   - 缓存后的 `skill_defs` / `profession_defs` / `achievement_defs` / `item_defs` / `recipe_defs` / `enemy_templates` / `enemy_ai_brains`。
 - 主要职责：
   - 创建新存档、读取现有存档。
   - 管理 `user://saves/index.dat` 与 slot payload，当前全局 `SAVE_VERSION = 5`。
   - 统一持久化 `world_data + party_state`。
-  - `GameLogService` 现在作为开发侧 sidecar 挂在 `GameSession` 下，负责维护内存 ring buffer 并把结构化运行日志追加到 `user://logs/*.jsonl`；create/load/unload world 会显式轮转日志会话边界。它不是存档真相源，也不参与 `SAVE_VERSION`。
-  - `SaveSerializer` 负责 save payload、V5 解码、save meta、world/party 归一化和 save index 的编码格式。
+  - `GameLogService` 现在作为开发侧 sidecar 挂在 `GameSession` 下，默认只维护内存 ring buffer；只有显式开启文件输出时才把结构化运行日志追加到 `user://logs/*.jsonl`。create/load/unload world 会显式轮转日志会话边界。它不是存档真相源，也不参与 `SAVE_VERSION`。
+  - `SaveSerializer` 负责 save payload、V5 解码、save meta、world/party 归一化和 save index 的编码格式；save meta 和 save index 数值字段不接受字符串 / 布尔转换，save index 只接受当前 `{version, saves}` 顶层结构与完整 base64 entry 字段，旧 top-level array / 缺字段 entry 视为无效缓存，只允许从正式 save payload 重建。
   - 为运行时仓库、角色奖励和战利品提交路径提供 world-level 装备实例 ID 分配入口；不要在 `EquipmentInstanceState`、掉落服务或仓库预览里自行随机生成持久 ID。
   - 提供 progression / item / recipe / enemy 内容注册表的统一访问口。
   - 提供战斗中的 save lock。
@@ -272,7 +274,7 @@ HeadlessGameTestSession
   - 改 save payload。
   - 改 slot meta。
   - 改 active world 生命周期。
-  - 改 serialization / legacy 兼容。
+  - 改 serialization schema。
   - 改内容注册表接入。
 - 不要顺手带上：
   - `scripts/ui/world_map_view.gd`
@@ -285,6 +287,7 @@ HeadlessGameTestSession
   - `scripts/utils/world_map_settlement_bundle.gd`
   - `scripts/utils/world_map_settlement_name_pool.gd`
   - `scripts/utils/world_map_wild_spawn_bundle.gd`
+  - `scripts/utils/world_map_content_validator.gd`
   - `scripts/utils/settlement_config.gd`
   - `scripts/utils/settlement_distribution_rule.gd`
   - `scripts/utils/facility_config.gd`
@@ -305,13 +308,14 @@ HeadlessGameTestSession
   - `data/configs/world_map/shared/main_world_default_wild_spawn_bundle.tres`
 - 真相源：
   - `demo/test/small/medium` 这类通用主世界预设只持有世界尺寸、chunk、玩家视野、程序化生成开关、程序化野怪 chunk 抽签分母、起始野外遭遇保底与数量参数。
-  - 通用主世界的据点模板、设施模板、设施槽位、服务 NPC 模板由 `main_world_default_settlement_bundle.tres` 持有；默认据点实例展示名由 `main_world_settlement_name_pool.tres` 持有，`template_town` / `template_city` / `template_capital` / `template_metropolis` 分别额外优先使用 `main_world_town_name_pool.tres`、`main_world_city_name_pool.tres`、`main_world_capital_name_pool.tres`、`main_world_metropolis_name_pool.tres`；野外遭遇规则由 `main_world_default_wild_spawn_bundle.tres` 持有。
+  - 通用主世界的据点模板、设施模板、设施槽位、服务 NPC 模板由 `main_world_default_settlement_bundle.tres` 持有；默认据点实例展示名由 `main_world_settlement_name_pool.tres` 持有，`template_town` / `template_city` / `template_capital` / `template_metropolis` 分别额外优先使用 `main_world_town_name_pool.tres`、`main_world_city_name_pool.tres`、`main_world_capital_name_pool.tres`、`main_world_metropolis_name_pool.tres`；野外遭遇规则由 `main_world_default_wild_spawn_bundle.tres` 持有，敌方单模板入口字段为 `WildSpawnRule.enemy_roster_template_id`。
   - 世界据点通过 `SettlementConfig.tier = WORLD_STRONGHOLD` 标记，不再单独拆资源。
   - `ashen_intersection` 这类主题化世界仍可在各自 `tres` 内持有专属模板；运行时实例 id 由世界生成阶段分配。
 - 主要职责：
   - 定义 world spawn 输入资源。
   - 区分“主世界参数模板”和“共享主世界内容模板”的持有边界。
   - 为登录预设与 `GameSession` 提供 generation config。
+  - `WorldMapContentValidator` 校验 world preset、共享据点/设施 bundle、据点分布、设施引用与野外遭遇引用，并由 `GameSession` 的 content validation snapshot 暴露为 `world` domain。
 - 邻接单元：
   - CU-01
   - CU-02
@@ -348,6 +352,8 @@ HeadlessGameTestSession
   - 按模板生成据点实例、设施实例、服务 NPC 实例与 `available_services` 绑定。
   - 注入兜底的共享仓库服务 `interaction_script_id = "party_warehouse"`。
   - 生成玩家开局位置、遭遇锚点、世界事件与挂载子地图定义；程序化野怪锚点密度由 `WorldMapGenerationConfig.procedural_wild_spawn_chunk_chance_denominator` 与 `WildSpawnRule.density_per_chunk` 共同控制。
+  - `WorldMapSpawnSystem` 从 `WildSpawnRule.enemy_roster_template_id` 写入 `EncounterAnchorData.enemy_roster_template_id`，作为单模板敌方遭遇的稳定模板入口。
+  - `EncounterAnchorData.from_dict()` 只接受当前 `to_dict()` 的精确字段形状；`entity_id / display_name / world_coord / faction_id / enemy_roster_template_id / region_tag / vision_range / is_cleared / encounter_kind / encounter_profile_id / growth_stage / suppressed_until_step` 缺失、出现额外字段、类型错误、核心身份字段为空或 `encounter_kind` 非 `single / settlement` 时直接拒绝。
   - 据点名称池洗牌、程序化遭遇筛选、默认据点遭遇补位等地图域随机 seed 都从 `TrueRandomSeedService` 取值；配置资源里的 `seed` 只保留为编辑器字段，不再作为正式地图随机入口。
 - 邻接单元：
   - CU-02
@@ -437,10 +443,11 @@ HeadlessGameTestSession
   - 技能命令的最终 `preview-first` 放行口径由 `BattleRuntimeModule.issue_command()` 持有；`BattleSessionFacade.issue_battle_command()` 只负责转发命令、应用 batch，并在技能确认执行后处理 selection target 清理等 session 侧副作用。
   - `GameRuntimeBattleSelectionState` 持有战斗技能选择、目标队列与选中格等运行时状态。
   - `GameRuntimeBattleSelection` 承载战斗技能选择、目标队列与相关只读查询逻辑，并通过 `GameRuntimeBattleSelectionState` 读写状态；技能选择与目标队列的运行时读写优先通过 `GameRuntimeFacade` 的显式 selection helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - `GameRuntimeSettlementCommandHandler` 承载据点动作 payload 组装、据点动作执行、任务板 / 商店 / 驿站 / forge modal 分流、据点状态回写与角色奖励 payload 归并；据点窗口状态、任务板 / 商店 / forge / 驿站窗口状态、据点反馈文本、默认交互成员和据点成功动作后的奖励 / 持久化链路优先通过 `GameRuntimeFacade` 的显式 settlement helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - 任务板 `submit_item` 正式目标由 `GameRuntimeSettlementCommandHandler` 只负责解析活跃 objective / provider payload，并委托 `GameRuntimeFacade -> CharacterManagementModule` 执行正式仓库扣除；不要把任务缴纳扣库规则塞回据点窗口或 handler 本体。
+  - `GameRuntimeSettlementCommandHandler` 承载据点动作 payload 组装、据点动作执行、任务板 / 商店 / 驿站 / forge modal 分流、据点状态回写与角色奖励 payload 归并；据点窗口 `available_services` 的 `cost_label / state_label / summary_text / panel_kind` 也由这里根据正式服务入口生成，窗口层只渲染不补字段；据点窗口状态、任务板 / 商店 / forge / 驿站窗口状态、据点反馈文本、默认交互成员和据点成功动作后的奖励 / 持久化链路优先通过 `GameRuntimeFacade` 的显式 settlement helper / state accessor 协调，不再直接散写 runtime 私有字段。
+  - 任务板 `submit_item` 正式目标由 `GameRuntimeSettlementCommandHandler` 只负责解析活跃 objective / provider payload，并委托 `GameRuntimeFacade -> CharacterManagementModule` 执行正式仓库扣除；任务板可展示契约定义和领奖路径都必须显式提供非空 String `quest_id / provider_interaction_id / display_name / description`、非空且合法的 `objective_defs`、非空且合法的 `reward_entries`。`settlement_action` / `submit_item` objective 必须显式提供非空 `target_id` 与正整数 `target_value`；item reward 必须显式提供非空 `item_id` 与正整数 `quantity`，不接受 `target_id` / `amount` 旧别名；坏 schema 会被 handler 或 `CharacterManagementModule` 拒绝。不要把任务缴纳扣库规则塞回据点窗口或 handler 本体。
+  - `SettlementServiceResult.from_dictionary()` 只接受 `to_dictionary()` 的精确顶层字段；`pending_character_rewards` 必须是完整 `PendingCharacterReward.to_dict()` payload，`quest_progress_events` 只接受当前 `progress / accept / complete` 事件字段与严格类型，坏数组 entry 会拒绝整份 result。
   - `GameRuntimeSettlementCommandHandler` 创建缺失 settlement state 时也通过 `TrueRandomSeedService` 补 `shop_inventory_seed`，避免地图运行时新状态继续落固定 seed。
-  - `SettlementShopService` 承载商店库存生成、买卖结算和 shop runtime state 刷新；商店库存 `seed` 由 `TrueRandomSeedService` 分配并随 shop state 持久化，不再用 settlement/shop/world_step 哈希派生；不要把商店定价和库存更新逻辑回塞到 `WorldMapSystem` 或 `SettlementWindow`。
+  - `SettlementShopService` 承载商店库存生成、买卖结算和 shop runtime state 刷新；商店库存 `seed` 由 `TrueRandomSeedService` 分配并随 shop state 持久化，不再用 settlement/shop/world_step 哈希派生；`current_inventory[*]` 只接受非空 String `item_id`、正 int `quantity / unit_price` 与可选 bool `sold_out = false` 的正式库存条目，买价 / 卖价必须来自正式 `ItemDef` 正数价格，不在商店服务内补默认价；出售窗口只读取仓库条目的正 int `total_quantity`。不要把商店定价和库存更新逻辑回塞到 `WorldMapSystem` 或 `SettlementWindow`。
   - `SettlementForgeService` 承载 `RecipeDef` 装载、设施标签校验以及通过 `PartyWarehouseService` 的原子扣料 / 入仓；不要把 forge 规则回塞到 `GameRuntimeSettlementCommandHandler` 或 `GameRuntimeFacade`。
   - `GameRuntimeFacade` 负责把 `GameSession.allocate_equipment_instance_id()` 注入 `PartyWarehouseService`、`PartyEquipmentService` 与 `CharacterManagementModule`；据点购买、forge 产出、任务奖励和战利品提交都必须沿这条 world-level 装备实例 ID 分配链路，预览窗口不能消耗序列。
   - `GameRuntimeWarehouseHandler` 承载队伍共享背包窗口数据、默认目标成员解析和历史 `warehouse` 命令处理；仓库窗口状态、当前入口标签、默认目标成员和队伍共享背包持久化链路的运行时读写优先通过 `GameRuntimeFacade` 的显式 warehouse helper / state accessor 协调，不再直接散写 runtime 私有字段。
@@ -448,10 +455,10 @@ HeadlessGameTestSession
   - 战斗内随机装备掉落在敌人死亡瞬间只 roll 稀有度与 item payload；真正持久 `instance_id` 在 `GameRuntimeFacade` 提交到共享背包时由 world-level 分配器写入，外部 `equipment_instance` 战利品 payload 的原始 ID 不作为持久身份保留。
   - `GameRuntimePartyCommandHandler` 承载队伍管理窗口打开、成员选择、队长切换、编成提交，以及装备 / 卸装与队伍持久化回写；队伍窗口、当前选中成员和队伍持久化链路的运行时读写优先通过 `GameRuntimeFacade` 的显式 party helper / state accessor 协调，不再直接散写 runtime 私有字段。
   - `GameRuntimeRewardFlowHandler` 承载角色奖励确认、晋升选择、reward/promotion modal 编排与待领奖励呈现时机；奖励 modal 需要继续避让据点任务板 / 商店 / forge / 驿站等互斥窗口，相关运行时读写优先通过 `GameRuntimeFacade` 的显式 reward helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - `GameRuntimeQuestCommandHandler` 承载 quest 接取 / 推进 / 完成 / submit_item / 领奖命令；据点任务板只解析 provider payload，正式 quest state 与仓库扣除仍由 `CharacterManagementModule` 和 facade 的持久化 helper 统一协调。
+  - `GameRuntimeQuestCommandHandler` 承载 quest 接取 / 推进 / 完成 / submit_item / 领奖命令；任务命令只接受带非空 String `display_name` 的正式 quest 定义，缺失时直接拒绝，不再把 `quest_id` 当展示名；据点任务板只解析 provider payload，正式 quest state 与仓库扣除仍由 `CharacterManagementModule` 和 facade 的持久化 helper 统一协调。
   - `GameRuntimeCommandLogger` 承载 runtime 命令日志、battle batch 日志上下文与 log snapshot 归一化；`GameRuntimeFacade` 只保留命令入口和状态真相源，不再直接拼日志 payload。
   - `GameRuntimeBattleWritebackService` 负责战后 battle-local 队伍装备 / 背包 view 回写到 `PartyState` 并报告 invariant；`GameRuntimeBattleLootCommitService` 负责把 canonical battle loot 提交到队伍共享背包、处理 ordinary battle calamity shard chapter cap、生成最后一次战利品快照。
-  - `GameRuntimeCharacterInfoBuilder` 负责世界 NPC / 战斗单位人物信息窗的 section 与 fate payload 构建；窗口真相源仍在 facade 的 `_active_character_info_context`。
+  - `GameRuntimeCharacterInfoBuilder` 负责世界 NPC / 战斗单位人物信息窗的 section 与 fate payload 构建；窗口真相源仍在 facade 的 `_active_character_info_context`，世界 NPC 来源记录必须显式提供非空 String `display_name` 与 `faction_id`，facade 不再把坏记录回退成 `NPC` / `neutral`。
   - `GameRuntimeSnapshotBuilder` 负责组织 headless 结构化快照，并通过 `GameRuntimeFacade` 的显式只读接口取数。
   - 初始化 `WorldMapGridSystem`、`WorldMapFogSystem`、`PartyWarehouseService`、`CharacterManagementModule`、`BattleRuntimeModule`。
   - `GameRuntimeFacade` 继续处理世界移动、battle/world 总编排、模态状态真相源与统一持久化桥接，不再直接承载队伍命令或奖励确认流程细节。
@@ -516,7 +523,10 @@ HeadlessGameTestSession
 - 真相源：
   - `SettlementWindow` 的当前展示态。
   - 复用 `ShopWindow` shell 的 shop / forge / stagecoach entry-list modal 的当前展示态。
+  - 据点服务窗口顶层 payload 必须显式提供非空 String `settlement_id / display_name / tier_name / faction_id / feedback_text`、String `state_summary_text` 与正尺寸 `Vector2i footprint_size`；窗口层不再补 `据点 / 未知 / neutral / Vector2i.ONE / 默认反馈提示`。`available_services` 条目必须由 runtime / handler 产出正式显示字段：非空 String `action_id / facility_name / npc_name / service_type / interaction_script_id / cost_label / state_label / summary_text`、bool `is_enabled`、String `disabled_reason`；禁用服务必须有非空 `disabled_reason`。`facilities` / `service_npcs` 必须是显式数组；设施条目必须提供非空 String `display_name / slot_tag` 与 String `interaction_type`，驻留 NPC 条目必须提供非空 String `display_name / service_type / facility_name`。窗口层不再从 `facility_id` 反查设施名，不再补 `NPC / 设施 / 服务 / 费用待定 / 状态可用 / 未标记`，也不再读取 `window_kind / service_window_kind` 旧 panel alias。
+  - `ShopWindow` entry-list modal 必须收到正式顶层显示字段：非空 String `settlement_id / action_id / panel_kind / title / meta / summary_text / confirm_label / cancel_label / entry_title / summary_title / state_title / cost_title / details_title / member_title / empty_state_label / empty_cost_label / empty_details_text`、String `state_summary_text` 与 bool `show_member_selector`；`panel_kind` 只接受 `shop / contract_board / forge / stagecoach`。`entries` 必须是显式数组；空数组表示正式空态并禁用确认。每个条目必须提供非空 String `entry_id / display_name / summary_text / details_text / state_label / cost_label`、bool `is_enabled`、String `disabled_reason`；禁用条目必须有非空 `disabled_reason`。窗口层不再合成默认交易 / 路线条目，也不再补 `交易窗口 / 确认 / 可选条目 / 费用待定 / 状态可用 / 暂无摘要 / 暂无说明` 等 profile 文案。`show_stagecoach()` 只接受显式 `panel_kind = "stagecoach"` 的 payload。
   - 人物信息窗口上下文。
+  - 人物信息窗口正式 payload 只接受 `display_name / meta_label / sections / status_label / fate`；`display_name` 必须是非空 String，`meta_label / status_label` 可空但必须是 String，`type_label / faction_label / coord` 只应作为 section 内容由 runtime builder 产出，窗口层不再做旧 payload fallback。`sections` 必须是非空数组，每个 section 必须包含非空 String `title` 与非空 `entries` 数组；entry 只接受 `{label: String, value: String}` 或 `{text: String}`，不再接受 `body`、`rows`、`lines`、字符串 entry 或 value-only entry。`fate` 可缺省；一旦提供就必须完整包含 int 型 `hidden_luck_at_birth / faith_luck_bonus / effective_luck / fortune_marked / doom_marked / doom_authority` 与 bool 型 `has_misfortune`，且 `effective_luck` 与 `has_misfortune` 必须和当前公式一致，坏 payload 会拒绝整个人物信息 payload。
   - 当前 scene 层据点按钮与关闭信号的发射边界。
 - 主要职责：
   - 展示设施、服务、服务 NPC、服务按钮，以及据点成员选择 / 成本 / 状态摘要。
@@ -551,7 +561,7 @@ HeadlessGameTestSession
 - 主要职责：
   - 展示 active / reserve roster、leader 切换。
   - `PartyManagementWindow` 现在是“人物管理”窗口：用九宫格外框、响应式内容边距和列表 / 概览 / 详情 tabs 展示成员信息。
-  - 展示成员概览、最终属性快照、装备槽、已学技能、职业进度与成就摘要；显示数据由 `WorldMapSystem` 注入的 item / skill / profession defs 与本地临时 `AttributeService` snapshot 生成。
+  - 展示成员概览、最终属性快照、装备槽、已学技能、职业进度与成就摘要；显示数据由 `WorldMapSystem` 注入的 item / skill / profession defs、本地临时 `AttributeService` snapshot 与 `SkillLevelDescriptionFormatter` 生成。
   - 展示待转职选择。
   - 展示通用 `PendingCharacterReward` 队列。
   - 只发出动作，不负责真正改 `PartyState` / progression。
@@ -616,9 +626,9 @@ HeadlessGameTestSession
   - 物品定义与 `item_id -> ItemDef`。
   - 配方定义与 `recipe_id -> RecipeDef`。
   - `PartyState.warehouse_state` 当前语义是队伍共享背包：队伍随身携带的普通堆栈与装备实例池，历史文件 / 服务名仍使用 `warehouse`，但它不是未来据点共享仓库。
-  - `WarehouseState.stacks` 是普通堆叠物运行时真相源；`WarehouseState.equipment_instances` 只拥有未装备的装备实例。已装备实例由 `EquipmentState.equipped_slots[*].equipment_instance` 拥有，`EquipmentEntryState.item_id / instance_id` 只是当前 entry 的投影读键，不是实例字段真相源。
-  - 装备实例的持久 `instance_id` 由 `GameSession` 持有的 `world_data.next_equipment_instance_serial` 递增分配；`EquipmentInstanceState` 只负责承载 / 序列化字段和格式化 ID，不再调用时间戳或随机数造 ID。装备实例 payload 必须包含当前 schema 的 `instance_id/item_id/rarity/current_durability/armor_wear_progress/weapon_wear_progress`，缺字段直接拒绝。
-  - 装备槽位状态与固定槽位规则；`EquipmentState` 当前装备 entry payload 是 `occupied_slot_ids + equipment_instance`，`equipment_instance` 必须是完整 `EquipmentInstanceState` payload。旧的装备 entry 顶层 `item_id / instance_id` payload 不属于当前 schema，不做兼容读取。
+  - `WarehouseState.stacks` 是普通堆叠物运行时真相源；`WarehouseState.equipment_instances` 只拥有未装备的装备实例。`warehouse_state` payload 必须精确包含 `stacks` 与 `equipment_instances` 两个数组；`WarehouseStackState` 条目必须精确包含字符串类 `item_id` 与正整数 `quantity`，坏条目或额外字段都会让整份仓库 payload 失败。已装备实例由 `EquipmentState.equipped_slots[*].equipment_instance` 拥有，`EquipmentEntryState.item_id / instance_id` 只是当前 entry 的投影读键，不是实例字段真相源。
+  - 装备实例的持久 `instance_id` 由 `GameSession` 持有的 `world_data.next_equipment_instance_serial` 递增分配；`EquipmentInstanceState` 只负责承载 / 序列化字段和格式化 ID，不再调用时间戳或随机数造 ID。装备实例 payload 必须精确包含当前 schema 的 `instance_id/item_id/rarity/current_durability/armor_wear_progress/weapon_wear_progress`，其中 id 字段必须是字符串类字段，`rarity/current_durability` 必须是 int，磨损进度必须是非负 float，缺字段、额外字段或错类型直接拒绝。
+  - 装备槽位状态与固定槽位规则；`EquipmentState` 当前 payload 必须精确包含 `equipped_slots`，装备 entry payload 必须精确包含 `occupied_slot_ids + equipment_instance`，`equipment_instance` 必须是完整 `EquipmentInstanceState` payload。`occupied_slot_ids` 必须是唯一、非空、合法槽位数组，并且包含 entry key；非法 slot key、坏 entry、额外字段或占用槽重叠都会让整份 `EquipmentState` payload 失败。旧的装备 entry 顶层 `item_id / instance_id` payload 不属于当前 schema，不做兼容读取。
   - 武器 `ItemDef.weapon_profile` 是武器运行时真相源；攻击范围、伤害类型、单双手骰、versatile 与当前握法会在开战时投影到 `BattleUnitState`，战斗内武器技能射程统一由 `BattleRangeService` 从该投影读取并叠加临时修正，不再从角色 attribute snapshot 或旧 `ItemDef` 顶层武器字段兜底读取。
   - `EquipmentDropService` 当前持有装备掉落稀有度公式：`3d6 + drop_luck`。
   - 当前容量 / 已用 / 超容规则。
@@ -629,18 +639,20 @@ HeadlessGameTestSession
   - 用全队 `storage_space` 统计容量。
   - `ItemContentRegistry` 在注册阶段先扫描 `data/configs/items_templates`，再扫描 `data/configs/items`；当前武器模板只保留正式会用到的 BG3 子集（Shortsword / Greatsword / Handaxe / Mace），实例若声明 `base_item_id` 会沿模板链合并（标量空回退、tags/modifiers 合并去重、equipment_slot_ids 覆盖、weapon_profile 委托 `WeaponProfileDef` 合并、attribute_modifiers 深拷贝并把 source_id 重写为最终 item_id），合并产物才进入 `_item_defs`。模板自身不暴露给运行时；循环或缺失模板在校验阶段报错。可交易且声明 `base_price > 0` 的物品必须显式声明 `buy_price` / `sell_price`，`ItemDef` 运行时不再用 `base_price` 推导买卖价。
   - `RecipeContentRegistry` 负责扫描 / 校验 `RecipeDef`，供据点 forge 流读取。
+  - `ItemDef.display_name` 是任务物品奖励摘要与仓库可见物品名的正式来源；任务领奖路径要求奖励物品定义提供非空 String `display_name`，缺失时拒绝领奖，不再把 `item_id` 当展示名。
+  - `SkillBookItemFactory` 只为 `learn_source = "book"` 且 `SkillDef.display_name` 非空的技能生成技能书 `ItemDef`；技能书显示名和说明只使用正式技能名，不再用 `skill_id` 生成兜底文案。
   - `EquipmentDropService` 负责把调用方已 clamp 的 `drop_luck` 映射为正式装备稀有度；当前不持有掉落表内容，也不二次 clamp。
   - 战斗内随机装备掉落现在由 `BattleRuntimeModule` 在敌人死亡瞬间调用 `EquipmentDropService` 预 roll 稀有度，掉落 payload 使用当前 transient loot schema 且可暂不带持久 `instance_id`；`GameRuntimeFacade` 写入队伍共享背包时才调用 world-level 分配器补实例 ID。
   - `PartyWarehouseService.setup_party_backpack_view()` 可把同一套堆叠 / 装备实例规则绑定到 battle-local 队伍共享背包 view；该 view 复用 `WarehouseState` 结构，但语义上不是据点共享仓库，也不直接改写 `PartyState.warehouse_state`。
-  - `PartyWarehouseService` 的正式 `add_item` / `add_equipment_instance` / `commit_batch_swap` 通过注入的 world-level 分配器创建装备实例 ID；`preview_add_item` / `preview_batch_swap` 只能写入临时 preview ID，不能推进 `next_equipment_instance_serial`。
+  - `PartyWarehouseService` 的正式 `add_item` / `add_equipment_instance` / `commit_batch_swap` 通过注入的 world-level 分配器创建装备实例 ID；`preview_add_item` / `preview_batch_swap` 只能写入临时 preview ID，不能推进 `next_equipment_instance_serial`。涉及既有装备实例的正式删除 / 移出 / 出售 / 装备选择必须以 `instance_id` 定位；同 `item_id` 多实例时 item_id-only 装备移除会拒绝，而不是任取第一件。
   - `preview_add_item` / `add_item` / `remove_item`。
   - 处理仓库与装备槽位之间的完整 `EquipmentInstanceState` 所有权转移；装备时从 `WarehouseState.equipment_instances` 移入 `EquipmentState.equipped_slots[*].equipment_instance`，卸装时必须原样移回仓库，不能用 `item_id + instance_id` 重建默认实例。
   - 维护 weapon profile 静态配置与装备槽位流转；`ItemDef.get_attribute_modifiers()` 不再把 `weapon_profile.attack_range` 注入属性快照，战斗射程只通过 `CharacterManagementModule.get_member_weapon_projection()` 给 `BattleUnitFactory` 生成单位武器投影。
   - 仓库列表、详情、丢弃单件 / 全部。
 - 说明：
   - 装备属性、槽位规则与武器投影仍从静态 `item_id / ItemDef` 读取；稀有度、耐久与磨损等实例字段必须随 `EquipmentInstanceState` 在仓库、装备位和 battle-local view 之间保真流转。
-  - 当前 CU-10 / CU-11 的主要架构漂移不是“装备位是否保存完整实例”：`EquipmentEntryState` 已以完整 `EquipmentInstanceState` 作为已装备实例真相源。真正未收束的是命令 / UI / 服务入口仍大量按 `item_id` 聚合选择装备实例，例如 `PartyWarehouseService.remove_item()` / `take_equipment_instance_by_item()` / `commit_batch_swap()`、`PartyEquipmentService.preview_equip()` / `equip_item()`、仓库丢弃 / 出售与队伍装备入口。重复同 `item_id`、不同 `instance_id` / 稀有度 / 耐久的装备仍可能被装备、丢弃或出售错实例。
-  - 上述 `item_id` 级选择不是已批准的兼容或降级合同；后续修复应把装备变更入口推进到实例级 API：仓库提供按 `instance_id` 查询 / 移出 / 删除，队伍装备命令传入并校验 `instance_id + item_id`，批量交换区分 stack entry 与 equipment instance entry，仓库 / 队伍 UI 与 headless 快照暴露可选择的装备实例，而不是只暴露聚合数量。
+  - 当前 CU-10 / CU-11 的主要架构漂移不是“装备位是否保存完整实例”：`EquipmentEntryState` 已以完整 `EquipmentInstanceState` 作为已装备实例真相源；基础装备、丢弃 / 删除、出售、battle-local 换装和 headless 文本表面现在都能传入并校验 `instance_id + item_id`。item_id-only 路径只保留唯一匹配时的便利行为；重复同 `item_id`、不同 `instance_id` / 稀有度 / 耐久的装备必须显式选择实例。
+  - 上述 `item_id` 级便利不是已批准的兼容或降级合同；新增正式装备变更入口应继续暴露可选择的装备实例，并在重复实例时要求 `instance_id`，不能重新把实例装备折叠成只按聚合数量选择。
   - 如果任务进入“战斗内装备损坏 / 持久耐久结算”，不要把它当成 CU-10 单独任务，至少还要补 CU-11、CU-12、CU-15、CU-16。
 - 邻接单元：
   - CU-02
@@ -688,14 +700,27 @@ HeadlessGameTestSession
   - 正式角色奖励结构。
   - `PartyMemberState -> UnitBaseAttributes.get_drop_luck()` 是正式掉落幸运值来源；当前 battle loot 改为按击杀者逐次读取，`PartyState` 不再持有整场战斗共用的掉落承担者字段。
   - `UnitBaseAttributes.ACTION_THRESHOLD` / `AttributeService.ACTION_THRESHOLD` 是友军行动阈值的角色侧属性入口；角色快照缺省值为 `30 TU`，战斗单位不再只吃 battle 层默认值。
-  - `UnitProgress.unlocked_combat_resource_ids` 是角色侧 HP / 体力 / MP / 斗气 HUD 展示解锁的正式记录；HP 与体力默认解锁，MP / 斗气由 progression 规则按已学习技能消耗写入。该字段是当前 `UnitProgress` payload 的必需数组字段，缺失或类型错误直接拒绝。
+  - `UnitProgress.unlocked_combat_resource_ids` 是角色侧 HP / 体力 / MP / 斗气 HUD 展示解锁的正式记录；HP 与体力默认解锁，MP / 斗气由 progression 规则按已学习技能消耗写入。
 - 主要职责：
   - 定义 party / member / progression / reward 数据模型。
   - 负责模型级 `to_dict` / `from_dict`。
-  - 当前 `PartyState.version = 3`，包含 `main_character_member_id`、`warehouse_state`、`pending_character_rewards`、`active_quests`、`claimable_quests`、`completed_quest_ids`、命运周目标记 `fate_run_flags` 与通用周目剧情去重字典 `meta_flags`；`PartyMemberState` 额外持有 `is_dead`。`fate_run_flags` / `meta_flags` 是当前 schema 的必需字典字段，不做缺字段回填。
+  - 当前 `PartyState.version = 3`，包含 `gold`、`leader_member_id`、`main_character_member_id`、`active_member_ids`、`reserve_member_ids`、`warehouse_state`、`pending_character_rewards`、`active_quests`、`claimable_quests`、`completed_quest_ids`、命运周目标记 `fate_run_flags` 与通用周目剧情去重字典 `meta_flags`。这些顶层字段都是当前 schema 的必需字段，不做缺字段回填；`version` 与 `gold` 必须是 int，`version` 必须等于 3，`gold` 必须非负，错误类型或负金币不会被转换 / clamp；`fate_run_flags` / `meta_flags` 必须是非空 flag id 到 bool 的字典，空 key、归一化重复 key 或非 bool value 都会让 `PartyState.from_dict()` 失败。
+  - `leader_member_id` 与 `main_character_member_id` 必须引用 `member_states` 内的成员；`active_member_ids` / `reserve_member_ids` 必须是非空成员 id 的唯一数组，每个 id 都必须引用 `member_states`，且两个 roster bucket 不能重叠。
+  - `PartyMemberState` 当前 schema 必须显式包含 `member_id`、`display_name`、`faction_id`、`portrait_id`、`progression`、`equipment_state`、`control_mode`、`current_hp`、`current_mp`、`is_dead` 与 `body_size`；身份 / 阵营 / 控制模式必须是非空字符串类字段，`portrait_id` 可空但必须是字符串类字段，`current_hp` / `current_mp` / `body_size` 必须是 int 且 HP / MP 非负、body size 至少为 1，`is_dead` 必须是 bool；`member_states` 字典 key 必须与成员 `member_id` 一致，`progression.unit_id` 必须与成员 `member_id` 一致，缺失、空身份或错配都视为坏 payload。
+  - `UnitProgress` 当前 schema 必须显式包含 `version`、`unit_id`、`display_name`、`character_level`、`unit_base_attributes`、`reputation_state`、`skills`、`professions`、`known_knowledge_ids`、`active_core_skill_ids`、`attribute_growth_progress`、`achievement_progress`、`pending_profession_choices`、`blocked_relearn_skill_ids`、`merged_skill_source_map` 与 `unlocked_combat_resource_ids`；`version` 必须是 int 且等于 1，`unit_id` / `display_name` 必须非空，`character_level` 必须是非负 int；集合 / 映射字段类型错误或 `pending_profession_choices` 内条目不是字典时直接拒绝。
+  - `UnitProgress.known_knowledge_ids`、`active_core_skill_ids`、`blocked_relearn_skill_ids` 与 `unlocked_combat_resource_ids` 必须是非空 id 的唯一数组；`attribute_growth_progress` 必须是非空属性 id 到非负 int 的字典；`merged_skill_source_map` 必须是非空 skill id 到非空唯一 source skill id 数组的字典；`unlocked_combat_resource_ids` 只接受当前合法资源 id，且必须显式包含 HP / 体力默认资源。
+  - `UnitProgress.skills`、`UnitProgress.professions` 与 `UnitProgress.achievement_progress` 的字典 key 必须分别与子 payload 内部的 `skill_id`、`profession_id`、`achievement_id` 一致；缺内部 id、空 id、错配或归一化重复都视为坏 payload。
+  - `AchievementDef.from_dict()` 与 `AchievementRewardDef.from_dict()` 只接受各自 `to_dict()` 写出的完整字段集合；成就 id / event type、奖励 type / target id 必须非空，数值字段必须是 int，坏 reward entry 会让整份 achievement payload 失败，显式 `rewards = []` 仍是合法无奖励成就。
+  - `PendingProfessionChoice` 当前 schema 必须显式包含自身 `to_dict()` 写出的全部字段；`trigger_skill_ids`、`candidate_profession_ids`、`qualifier_skill_pool_ids` 与 `assignable_skill_candidate_ids` 必须是非空 id 的唯一数组，`target_rank_map` 必须是非空 profession id 到非负 int 的字典，`required_qualifier_count` / `required_assigned_core_count` 必须是非负 int。
+  - `PendingCharacterReward` 当前 schema 必须显式包含自身 `to_dict()` 写出的全部字段，且 `reward_id`、`member_id`、`source_type`、`source_id` 与至少一条有效 `entries` 不能为空；文本字段必须是 String，不做跨类型转文本。`PendingCharacterRewardEntry` 必须显式包含自身 `to_dict()` 写出的全部字段，且 `entry_type`、`target_id` 与非 0 `amount` 不能为空；`amount` 必须是 int。`PartyState.pending_character_rewards` 内任一 reward 或 entry 坏 schema 都会让整份 party payload 无效。
+  - `UnitBaseAttributes` 当前 schema 必须显式包含六维基础属性 `strength`、`agility`、`constitution`、`perception`、`intelligence`、`willpower` 与 `custom_stats`；六维属性值必须是 int，`custom_stats` 必须是非空字符串 id 到 int 的字典。`UnitReputationState` 当前 schema 必须显式包含 `morality` 与 `custom_states`；`morality` 必须是 int，`custom_states` 必须是非空字符串 id 到 int 的字典。
+  - `UnitSkillProgress`、`UnitProfessionProgress` 与 `AchievementProgressState` 当前 schema 必须显式包含各自 `to_dict()` 写出的全部字段；必填 id 字段必须是非空字符串类字段，可空 id 字段可为空但必须是字符串类字段，bool 字段必须是 bool，等级 / 熟练度 / rank / achievement 数值 / 时间戳必须是非负 int；`merged_from_skill_ids`、`core_skill_ids`、`granted_skill_ids` 必须是非空 id 的唯一数组，`promotion_history` 必须是数组且内部条目必须是字典。
+  - `ProfessionPromotionRecord` 当前 schema 必须显式包含 `new_rank`、`consumed_skill_ids`、`qualifier_skill_ids`、`snapshot_unit_base_attributes` 与 `timestamp`；`new_rank` / `timestamp` 必须是非负 int，技能列表必须是非空 id 的唯一数组，属性快照必须是字典。
   - `PartyState` 现在不再保存任何“整场战斗共用掉落承担者”字段；战斗掉落 lucky source 的时点与归属完全下放到 battle runtime。
   - `FaithDeityDef` / `FaithRankDef` 持有 faith 阵营与阶级静态内容，与 quest / fate sidecar 的运行时读写共用这层数据模型。
   - `main_character_member_id` 现在是严格合同字段，不再对缺失/坏引用做 leader 或 roster fallback；旧 shape / 坏存档会在反序列化阶段直接失败。
+  - `QuestState` 当前 schema 必须精确包含 `quest_id`、`status_id`、`objective_progress`、`accepted_at_world_step`、`completed_at_world_step`、`reward_claimed_at_world_step` 与 `last_progress_context`；`quest_id` 必须非空，`status_id` 必须是当前枚举值，三类 world step 必须是 `>= -1` 的 int，`objective_progress` 必须是非空 String/StringName objective id 到非负 int 的字典，`last_progress_context` 必须是字典。`active_quests` 只接受 `active` 状态，`claimable_quests` 只接受 `completed` 状态；坏任务状态不再被跳过或降级成 inactive。
+  - `completed_quest_ids` 必须是非空 quest id 的唯一数组，空 id 或重复 id 都会让 `PartyState.from_dict()` 直接失败。
   - `active_quests` / `claimable_quests` / `completed_quest_ids` 现在是互斥 bucket：同一 quest 只能存在于其中一个；模型 API 会主动迁移 bucket，反序列化遇到重叠坏 shape 会直接失败。
   - 装备实例化的持久模型已经跨 CU-10 / CU-11 落到 `WarehouseState.equipment_instances` 与 `EquipmentEntryState.equipment_instance`；后续耐久结算或实例级选择修复应继续维护这条所有权边界，不要在 `PartyMemberState` 或 battle runtime 中复制第二份持久装备注册表。
 - 邻接单元：
@@ -729,9 +754,10 @@ HeadlessGameTestSession
   - 生成与应用 `PendingCharacterReward`。
   - 统一使用 `PendingCharacterReward`。
   - `MisfortuneBlackOmenService` 现在持有 `doom_marked` 的受控写入口与默认黑兆 hook 样板；黑兆事件脚本应通过这里把 `doom_marked = 1` 写回角色，而不是复用 `hidden_luck_at_birth` 的 protected custom-stat 白名单链路。
+  - `MisfortuneBlackOmenService` 默认黑兆 hook 的正式 payload 入口是 `member_id` 与 `encounter_won: bool`；诅咒遗物 hook 使用 `defeated_elite_or_boss` 加角色装备检查或显式 `has_cursed_relic: bool`，boss 诅咒 hook 使用 `boss_encounter`、`member_survived` 加 `boss_curse_status_ids` 或显式 `has_boss_curse: bool`。坏 schema 只返回 `invalid_request` / `conditions_not_met`，不做字段推断。
   - `MisfortuneBlackOmenService` 还承接 `dead_road_lantern_black_omen_path` 这类“路径已命中黑兆”的后端 hook；亡途灯笼只在这里受控写入 `doom_marked`，路径显隐判断则继续由 `LowLuckRelicRules` 统一封装，UI 展示留给专门界面单元。
-  - 通过 `QuestProgressService` 接受 `quest_progress_events`，维护 `PartyState.active_quests` / `claimable_quests` / `completed_quest_ids`，并把事件上下文写入 `QuestState.last_progress_context`。
-  - `submit_item` 正式任务目标的仓库扣除与进度推进也归这里协调：先按 objective 需求预览共享仓库可提交数量，再通过 `PartyWarehouseService` 做原子扣除，只有 quest progress 成功时才提交扣除结果。
+  - 通过 `QuestProgressService` 接受 `quest_progress_events`，维护 `PartyState.active_quests` / `claimable_quests` / `completed_quest_ids`，并把事件上下文写入 `QuestState.last_progress_context`。进度事件必须显式提供非空 `event_type`、正整数 `progress_delta` 与 int `world_step`；目标值只从事件的 int `target_value` 或 `QuestDef.objective_defs[*].target_value` 读取，不能用旧 `amount`、缺省 event type、缺省 world step 或默认目标值推进任务。
+  - `submit_item` 正式任务目标的仓库扣除与进度推进也归这里协调：先按 objective 需求预览共享仓库可提交数量，再通过 `PartyWarehouseService` 做原子扣除，只有 quest progress 成功时才提交扣除结果；submit objective 必须显式提供正整数 `target_value`，缺字段或错类型直接视为无效目标。
   - 处理 profession promotion、战后 hp/mp/真实死亡回写，以及死亡成员装备回收。
   - 未来若存在战斗内装备损坏或耐久归零后的属性变化，也必须通过这里提供的角色状态 / attribute snapshot，让 `BattleUnitFactory` 把 party 与 battle 单位重新对齐。
 - 邻接单元：
@@ -784,9 +810,10 @@ HeadlessGameTestSession
 - 主要职责：
   - 定义 progression 语义，不直接执行业务流程。
   - `SkillContentRegistry` 负责扫描 `data/configs/skills/*.tres`，并报告 skill_id、嵌套战斗资源结构与基础 schema 相关的静态错误；warrior / archer / mage 正式技能 seed 现在都以这些 SkillDef 资源为真相源，`DesignSkillCatalog` 代码承载路径已全部下线。
+  - `SkillDef` 只持有 `level_description_template + level_description_configs` 等描述配置数据；等级说明渲染由 CU-14 的 `SkillLevelDescriptionFormatter` 承担，避免资源类反向承载 UI 文本生成逻辑。
   - `CombatSkillDef` 的命中修正字段是 `attack_roll_bonus`，并可通过 `level_overrides` 按技能等级覆盖消耗 / 冷却；战斗熟练度触发方式由 `mastery_trigger_mode` / `mastery_amount_mode` 配置，runtime 只读取配置和本次结算结果判断是否入账；`CombatEffectDef` 可用 `min_skill_level` / `max_skill_level` 表达分级效果，可用 `trigger_event` 表达大成功等结算事件条件，不再持有攻击 / 防御属性缩放字段，伤害类型通过 `damage_tag` 表达，完全免疫、减半与易伤等承伤档位通过状态参数 `mitigation_tier` 表达，实际命中、触发过滤与伤害公式归 CU-16 执行。
   - `ProfessionContentRegistry` 负责扫描 `data/configs/professions/*.tres`，并报告 profession_id、技能/职业引用与 rank requirement 相关的静态错误。
-  - `ProgressionContentRegistry` 负责聚合 skill/profession registry、补齐剩余未迁移的 code fallback（当前主要只剩 `charge`），并汇总 skill/profession registry 的静态校验结果。
+  - `ProgressionContentRegistry` 负责聚合 skill/profession registry，并汇总 skill/profession registry 的静态校验结果；主动技能内容必须由 `data/configs/skills/*.tres` 的 `SkillDef` 资源提供，`charge` 不再由 registry 代码构造注入。
   - Fortuna guidance 这类剧情门票 achievement 现在允许无奖励定义；正式效果由 rank gate 或剧情脚本消费，不强制进入 reward queue。
   - 做静态内容校验。
 - 邻接单元：
@@ -811,6 +838,7 @@ HeadlessGameTestSession
   - `scripts/systems/progression\profession_rule_service.gd`
   - `scripts/systems/progression\profession_assignment_service.gd`
   - `scripts/systems/progression\skill_merge_service.gd`
+  - `scripts/systems/progression\skill_level_description_formatter.gd`
   - `scripts/systems/attributes\attribute_service.gd`
   - `scripts/systems/progression\attribute_growth_service.gd`
   - `scripts/systems/progression\character_creation_service.gd`
@@ -823,6 +851,7 @@ HeadlessGameTestSession
   - 授予 mastery、重算角色等级。
   - 判断职业解锁 / 升级 / active 状态。
   - 技能合并与核心技能分配。
+  - `SkillLevelDescriptionFormatter` 负责把 `SkillDef` 等级描述模板、等级配置、匹配等级的 effect params 和 UI 提供的 runtime context 渲染成展示文本；它不拥有技能配置、不修改资源，也不参与战斗结算。
   - 派生属性计算。
   - 满级核心技能提供的基础属性成长进度累计与转化。
   - `AttributeService` 的战斗属性真相源是 `attack_bonus`、单一展示用 `armor_class`，以及内部 AC 组件 `armor_ac_bonus / shield_ac_bonus / dodge_bonus / deflection_bonus`；旧物理 / 魔法攻击、防御、命中、闪避属性不再进入正式快照。
@@ -893,6 +922,7 @@ HeadlessGameTestSession
 - 主要职责：
   - 开战、推进时间轴、接手 AI / manual command。
   - 战斗时间轴的行动进度按 `tu_per_tick` 固定累加到 `BattleUnitState.action_progress`；实际入队阈值必须由每个 `BattleUnitState.action_threshold` 持有，`BattleTimelineState` 不再保存全局行动阈值。
+  - `BattleTimelineState`、`BattleCellState`、`BattleTerrainEffectState` 与 `BattleEdgeFeatureState` 的 `from_dict()` 只接受当前 `to_dict()` 写出的完整字段集合与严格类型；缺字段、额外字段、字符串数值 / bool、坏数组 entry 或坏 edge / terrain effect 子 payload 都返回 `null`。`BattleTerrainEffectState.from_dict_array()` 对坏数组整体返回 `null`，不再跳过坏 entry；`BattleCellState.to_dict()` 对空 edge 也必须写出正式 `none` edge payload。
   - 战斗时间轴每个 `5 TU` tick 也负责体力恢复：每 tick 增加 `5 + constitution` 点恢复进度，`10` 点进度转化为 `1` 点体力；单位直接跳过行动进入休息，休息恢复进度翻倍直到下次行动窗口。
   - 预览与执行移动、单体技能、地面技能、charge、terrain effect。
   - 单体技能 preview 只用 `BattleDamagePreviewRangeService` 暴露非暴击基础伤害范围，不再通过 `BattleDamageResolver.resolve_effects()` 模拟目标承伤、护盾或状态减伤。
@@ -901,14 +931,15 @@ HeadlessGameTestSession
   - `BattleRepeatAttackResolver` 负责 `repeat_attack_until_fail` 的逐段执行、资源消耗与日志归并，并把命中判定委托给 `BattleHitResolver`；连击段数与逐段命中产生的主动技能熟练度只通过 `BattleSkillMasteryService` 的窄 recorder 接口记录，不再回调 `BattleRuntimeModule` 上的宽方法。
   - `BattleChangeEquipmentResolver` 承载 `TYPE_CHANGE_EQUIPMENT` 的 preview / 执行 / 结果报告与 battle-local 装备 view 事务；`BattleRuntimeModule` 只保留命令分派和旧 helper 名称转发。
   - `BattleRuntimeSkillTurnResolver` 承载施法阻断、技能消耗 / 冷却、黑契推进代价、回合开始状态、TU tick 伤害与状态持续时间推进；需要判断技能资源或状态参数时优先读这个 sidecar，而不是在 runtime 主文件新增分支。
-  - `BattleRuntimeLootResolver` 承载敌方死亡掉落收集、fate 固定 loot / calamity conversion 条目和 `BattleResolutionResult` 构建；chapter cap 与持久入仓仍归 `GameRuntimeBattleLootCommitService`。
+  - `BattleRuntimeLootResolver` 承载敌方死亡掉落收集、fate 固定 loot / calamity conversion 条目和 `BattleResolutionResult` 构建；chapter cap 与持久入仓仍归 `GameRuntimeBattleLootCommitService`。`BattleResolutionResult.from_dict()` 只接受当前 `to_dict()` 的精确顶层字段，`battle_id / encounter_anchor_id / terrain_profile_id / winner_faction_id / encounter_resolution` 必须是非空字符串，数组字段与 `party_resource_commit` 必须显式存在且类型正确；`loot_entries / overflow_entries` 内任一坏 entry 都会拒绝整份 payload，装备掉落必须使用完整 `equipment_instance` payload 且 `quantity = 1`、entry `item_id` 与实例 `item_id` 一致。
   - `BattleTerrainEffectSystem` 负责 timed terrain effect 的写入、推进与 tick 结算。
   - `BattleState.log_entries` 现在由 runtime 作为 battle 内正式日志 ring buffer 维护，按 `10000` 条与 `10 MiB` 双阈值自动淘汰最旧记录；不要再把 battle log 上限控制散写到 HUD 或 facade。
   - `BattleRatingSystem` 负责战斗评分统计、标签与结算奖励提交；它只把评分事实交给 `BattleSkillMasteryService` 构造本场成功使用过的主动技能熟练度奖励条目，不再承载被动技能熟练度暂存接口。
   - `BattleSkillMasteryService` 负责主动技能战斗熟练度的命令内暂存、`CombatSkillDef.mastery_trigger_mode` / `mastery_amount_mode` 判定、逐目标阶级金额计算、连击 bonus 汇总、战斗评分到主动技能熟练度奖励条目的映射，以及 `金刚不坏` / `格挡` 这类被动受击技能的 grant 请求构造；`BattleRuntimeModule` 只在技能成功后记录使用事件、读取 service 汇总金额，或把受击事实交给 service 后应用返回的 grant，并调用 `CharacterManagementModule` 入账与 `BattleUnitFactory.refresh_known_skills()` 回灌当前战斗单位。
   - `BattleReportFormatter` 现在同时负责 fate attack / skill event report entry 与伤害结果摘要、减伤 / 护盾日志文案；不要把纯展示文案再塞回技能结算流程。
   - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
-  - `BattleUnitFactory` 构建 / 刷新友军单位时先把 `PartyMemberState.equipment_state` 复制到 `BattleUnitState.equipment_view`，后续 attribute snapshot 与 weapon projection 刷新都以这份 battle-local 装备 view 为输入；`action_threshold` 仍写入 `BattleUnitState.action_threshold`，正式主角初始默认值为 `30 TU`。
+  - `BattleRuntimeModule.start_battle()` 只从 terrain generator 输出的非空 `terrain_profile_id` 初始化 `BattleState.terrain_profile_id`；`battle_terrain_profile` 是开战 context 传给 generator 的输入，不作为 state 字段回填来源。
+  - `BattleUnitFactory` 构建 / 刷新友军单位时先把 `PartyMemberState.equipment_state` 复制到 `BattleUnitState.equipment_view`，后续 attribute snapshot 与 weapon projection 刷新都以这份 battle-local 装备 view 为输入；友军构建 context 只接受 `ally_member_ids`，`action_threshold` 仍写入 `BattleUnitState.action_threshold`，正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
   - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有 battle-local `equipment_view`、武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足 `requires_weapon`，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前近战武器伤害类型的近战技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
   - `BattleState.party_backpack_view` 是开战时从 `PartyState.warehouse_state` 复制出的 battle-local 队伍共享背包 view；`BattleUnitState.equipment_view` 是每个友军开战时从 `PartyMemberState.equipment_state` 复制出的 battle-local 装备 view，并保留 `entry_slot -> EquipmentEntryState(occupied_slot_ids, equipment_instance)` 结构。战斗内后续背包 / 换装命令必须只改这两份 view，不直接访问据点共享仓库或直接 mutate party 背包 / 成员装备状态；`BattleRuntimeModule` 的 `TYPE_CHANGE_EQUIPMENT` 事务从 `ItemDef` 解析主手双手武器、副手装备与 versatile 握法联动，在副本 view 上完成容量与实例唯一所有权校验，并移动完整 `EquipmentInstanceState` 以保留稀有度 / 耐久 / 磨损字段，成功后才提交并按一次命令扣 `2 AP`。当前仍不扩 battle save payload，战斗中存档继续依赖现有 save lock 不支持；`GameSession.save_game_state()` 在 lock 中只标记 dirty，`flush_game_state()` 返回 busy，解锁后再统一持久化。
@@ -916,9 +947,9 @@ HeadlessGameTestSession
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
   - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。
   - `BattleRuntimeModule` 现在会维护 `_ai_turn_traces` 与 `_battle_metrics` 两套正式 sidecar：前者记录 AI 每回合候选动作与最终选择，后者覆盖全单位 / 全阵营的行动、施法、伤害、治疗、击杀统计；做数值实验时不要再靠日志字符串反推。
-  - `EnemyAiAction` 的资源预筛与 `BattleAiScoreService` 的资源成本评分都读取当前单位技能等级后的 `CombatSkillDef.get_effective_resource_costs()`；`BattleAiScoreService` 只做候选评分，不拥有技能合法性，合法性仍以 `BattleRuntimeModule.preview_command()` 为准。评分读取 preview 的正式目标列表，并按当前单位技能等级过滤 `CombatEffectDef.min_skill_level / max_skill_level`，对 `target_low_hp` 等目标条件只在目标实际满足阈值时计入伤害倍率。
+  - `EnemyAiAction` 的资源预筛与 `BattleAiScoreService` 的资源成本评分都读取当前单位技能等级后的 `CombatSkillDef.get_effective_resource_costs()`；`BattleAiScoreService` 只做候选评分，不拥有技能合法性，合法性仍以 `BattleRuntimeModule.preview_command()` 为准。评分读取 preview 的正式目标列表，并按当前单位技能等级过滤 `CombatEffectDef.min_skill_level / max_skill_level`，对 `target_low_hp` 等目标条件只按正式 `params.hp_ratio_threshold` 判断，目标实际满足阈值时才计入伤害倍率。
   - `BattleUnitState` 现在把“普通移动预算”和“技能 AP”拆成两条资源线：`current_move_points` 负责普通移动消耗，`current_ap` 继续只服务技能/攻击等行动；turn start 重置与 snapshot/HUD 展示都必须同步两者，不能再把普通移动回写成 AP 消耗。
-  - `BattleUnitFactory` 构建 / 刷新友军时会把 `UnitProgress.unlocked_combat_resource_ids` 复制到 `BattleUnitState`；敌军按资源上限 / 当前值 / 已知技能消耗解锁 battle-local MP / 斗气展示。`BattleUnitState.from_dict()` 要求 `unlocked_combat_resource_ids` 是当前 payload 的显式数组字段，不再对缺字段补默认解锁。
+  - `BattleUnitFactory` 构建 / 刷新友军时会把 `UnitProgress.unlocked_combat_resource_ids` 复制到 `BattleUnitState`；敌军按资源上限 / 当前值 / 已知技能消耗解锁 battle-local MP / 斗气展示。`BattleUnitState.from_dict()` 只接受当前 `to_dict()` 的精确字段集合，要求 `unlocked_combat_resource_ids` 是显式数组字段且至少包含 `hp / stamina`；字符串数值、错类型、坏装备视图、坏武器骰、坏状态 entry 或 `status_effects` key 与 entry `status_id` 不一致都会拒绝整份 unit payload。
   - `BattleRuntimeModule` 现在还负责把 `BattleDamageResolver` 返回的 source-side status effect 一并写进 batch，并处理血债披肩的“队友倒地返 1 AP”副作用；preview 路径必须用克隆单位，避免提前消耗黑星楔钉这类 battle-local 首次触发锁。
   - `BattleSkillResolutionRules` 现在是 battle skill 变体解析、unit/ground 路由与 fate 接入 policy 的共享真相源；`BattleRuntimeModule` 与 `BattleHudAdapter` 都必须复用它，不要再在 runtime / HUD 各写一套 skill fate 判定。
   - `FortuneService` 现在作为 `BattleRuntimeModule` 持有的战斗 sidecar，订阅 `BattleFateEventBus` 的 `critical_success_under_disadvantage` 事件，负责按 per-run 尝试锁与二次确认规则写入 `PartyState.fate_run_flags` / `fortune_marked`；不要把 Fortuna 标记逻辑塞回 `GameRuntimeFacade` 或 UI。
@@ -930,7 +961,7 @@ HeadlessGameTestSession
   - `BattleSimRunner` 负责按 scenario/profile 批量起 battle runtime、驱动 manual policy、应用 skill/brain/action/score-profile override，并输出 JSON report + turn-trace JSONL。
   - 统计战斗评分并产出 canonical post-battle character reward。
   - `BattleSimRunner` 通过 `BattleSimContentProvider` 读取 skill defs、enemy templates 与 enemy AI brains，并用 `BattleSimTerrainGenerator` 消费 scenario 的 cells / spawns；不要让模拟 runner 直接 preload `GameSession` 或 live save state。
-  - `BattleRuntimeModule` 现在会在敌方单位死亡时，按 `BattleUnitState.enemy_template_id -> EnemyTemplateDef.drop_entries` 逐次生成 loot：固定材料直接累积到 `_active_loot_entries`，随机装备按击杀者 `drop_luck` 立刻 roll 成 `equipment_instance`；`BattleResolutionResult.loot_entries` 只承接这些已解析好的 per-kill 掉落与 fate bonus loot。普通战未消耗 calamity 仍先产出 raw `calamity_conversion` 条目，chapter 级普通战 shard 上限不在 runtime 内裁切。
+  - `BattleRuntimeModule` 现在会在敌方单位死亡时，按 `BattleUnitState.enemy_template_id -> EnemyTemplateDef.drop_entries` 逐次生成 loot：drop entry 必须是当前 `drop_entry_id / drop_type / item_id / quantity` 形状，固定材料直接累积到 `_active_loot_entries`，随机装备按击杀者 `drop_luck` 立刻 roll 成 `equipment_instance`；`BattleResolutionResult.loot_entries` 只承接这些已解析好的 per-kill 掉落与 fate bonus loot。普通战未消耗 calamity 仍先产出 raw `calamity_conversion` 条目，chapter 级普通战 shard 上限不在 runtime 内裁切。
   - `BattleUnitState.enemy_template_id` 现在是 battle 内掉落归因的正式 bridge；如果改敌方构建链路，必须保证这个字段仍能稳定映射回 `EnemyTemplateDef`。
   - `GameRuntimeFacade` 不再决定随机装备该读谁的 luck；它只负责提交 battle runtime 已经解析好的 fixed item / `equipment_instance` / 仍需 chapter-cap 裁切的固定 fate loot。
   - `BattleRuntimeModule.start_battle()` 现在统一通过 `BattleUnitFactory` 构建友军 / 敌军 / terrain，并在实际摆放后通过 `BattleSpawnReachabilityService` 验证敌方出生点最终能抵达攻击玩家的位置；`CharacterManagementModule` 不再直接产出 `BattleUnitState`。
@@ -1002,12 +1033,14 @@ HeadlessGameTestSession
   - `BattleRangeService` 负责战斗有效射程读取：以 `BattleUnitState.weapon_attack_range` 为武器基础射程，按技能标签 / 当前武器伤害标签需求解析技能射程，并在读取层叠加状态等临时射程修正；不要再让 runtime、HUD、selection、AI 可达性各自手写射程分支。
   - `BattleTerrainRules` 负责 `land / shallow_water / flowing_water / deep_water / mud / spike` 的基础通行与显示语义。
   - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
-  - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
+  - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；状态效果来源时长只接受 `CombatEffectDef.duration_tu` 或 `params.duration_tu`，`params.duration` 属于无效 skill schema；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
+  - `BattleStatusEffectState.from_dict()` 只接受当前 `to_dict()` 字段集合：`status_id / source_unit_id / power / params / stacks` 必须存在，`duration / tick_interval_tu / next_tick_at_tu / skip_next_turn_end_decay` 只有在 `to_dict()` 会写出的有效值下才合法；非 Dictionary、缺字段、额外字段、字符串数值、`skip_next_turn_end_decay = false` 或缺 `status_id` 的状态 entry 都会被拒绝。
   - `BattleDamageResolver` 现已正式切到“攻击侧倍率一次聚合取整 -> `IMMUNE / HALF / NORMAL / DOUBLE` -> 固定值减伤 -> 护盾后吸收”的 M1 流水线；元素抗性不再是人物主属性派生值，完全免疫、减半与易伤一律通过状态参数 `mitigation_tier` 结算。`armor_break` 不再提供承伤易伤倍率，而是在 `BattleHitResolver` 中按 `power * 2` 降低目标有效 AC；`damage_reduction_up`、`guarding` 不再按旧百分比链解释。`black_star_brand_elite` 的“禁暴击 / 首次受击穿透部分格挡”也在这层消费，不要把这一击穿透逻辑回写到 skill resource。
-  - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，且只有 `params.add_weapon_dice = true` 的 damage effect 才额外读取当前武器骰。`physical` damage 不会自动加武器骰，旧裸武器字段也没有 fallback。之后再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 或 `params.use_weapon_physical_damage_tag` 的当前武器投影提供。
+  - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，且只有 `params.add_weapon_dice = true` 的 damage effect 才额外读取当前武器骰。`physical` damage 不会自动加武器骰，旧裸武器字段也没有 fallback。之后再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 或 `params.use_weapon_physical_damage_tag` 的当前武器投影提供；状态伤害匹配、DR 绕过与低血倍率只读取正式 `params.damage_tag / dr_bypass_tag / hp_ratio_threshold`。
   - `BattleDamageResolver` 对暴击采用额外再掷一组 weapon dice / skill dice 的语义；带 `CombatEffectDef.trigger_event` 的效果会在当前结算上下文中先做事件过滤，例如 `critical_hit` 只在大成功命中后应用；`damage_dice_high_total_roll`、`skill_damage_dice_is_max`、`weapon_damage_dice_is_max` 及其 reason 都按每个 damage event 独立计算，没有对应骰组时必须为 false，不能因 `0 == 0` 触发。
+  - `forced_move` effect 的位移模式与距离只读取 `CombatEffectDef.forced_move_mode / forced_move_distance`；旧 `params.mode / params.distance` 属于无效 skill schema，不再作为运行时 fallback。
   - `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害骰，但不能满足 `requires_weapon`，也不参与武器熟练 / 武器精通。
-  - `BattleDamagePreviewRangeService` 只负责纯预览的非暴击基础伤害范围：按 `power + add_weapon_dice 当前武器骰 + 技能骰 + dice_bonus` 汇总多段 damage effect；不调用 `BattleDamageResolver`，不消费 RNG，也不读取 target/status/shield/mastery/report。
+  - `BattleDamagePreviewRangeService` 只负责纯预览的非暴击基础伤害范围：按 `power + add_weapon_dice 当前武器骰 + 技能骰 + dice_bonus` 汇总多段 damage effect；技能骰来源只接受 `params.dice_count / dice_sides / dice_bonus`，旧 `params.damage_dice_count / damage_dice_sides / damage_dice_bonus` 属于无效 skill schema；不调用 `BattleDamageResolver`，不消费 RNG，也不读取 target/status/shield/mastery/report。
   - `BattleDamageResolver` 现在还消费 `LowLuckRelicRules` 的 battle-local 遗物逻辑：逆命护符会把首次 `critical_fail` 降级为普通 miss 并施加 2 回合输出下降，黑星楔钉会在首击忽视部分 guard 后于未击杀时给自己挂 1 回合 exposed，血债披肩会在低血时减伤；这些 battle-local 首次触发锁不要散写到 skill / item resource。
 - `BattleFateAttackRules` 现在是 battle attack roll 语义的共享 helper，负责统一“命中线 / 封暴击状态 / d20 是否命中”的纯判定；`BattleDamageResolver` 与 `BattleHitResolver` 都必须复用它，避免 runtime 执行与 preview/AI 评分再次分叉。
 - `BattleDamageResolver` 现在还持有 battle-local `BattleFateEventBus`，并在攻击结算后派发只读 fate payload（如 `critical_fail / critical_success_under_disadvantage / ordinary_miss / hardship_survival`）；`FortuneService` 已通过该 payload 订阅 Fortuna 标记逻辑，后续 Faith / 剧情系统继续沿用这条 bus，而不是拿运行时对象直接改命运属性。
@@ -1070,7 +1103,7 @@ HeadlessGameTestSession
 - 适合任务：
   - 改 canyon profile。
   - 改战斗出生点与 prop 注入。
-  - 清理旧 / 新 battle build 边界。
+  - 改战斗构建边界。
 - 不要顺手带上：
   - `scripts/ui/save_list_window.gd`
   - `scripts/systems/inventory\party_warehouse_service.gd`
@@ -1130,12 +1163,23 @@ HeadlessGameTestSession
   - `tests/battle_runtime/run_battle_spawn_reachability_regression.gd`
   - `tests/battle_runtime/run_battle_resolution_contract_regression.gd`
   - `tests/battle_runtime/run_battle_state_disadvantage_regression.gd`
+  - `tests/battle_runtime/run_battle_timeline_state_schema_regression.gd`
+  - `tests/battle_runtime/run_battle_cell_state_schema_regression.gd`
+  - `tests/battle_runtime/run_battle_edge_feature_state_schema_regression.gd`
+  - `tests/battle_runtime/run_battle_status_effect_state_schema_regression.gd`
+  - `tests/battle_runtime/run_battle_terrain_effect_state_schema_regression.gd`
+  - `tests/battle_runtime/run_battle_unit_state_schema_regression.gd`
   - `tests/battle_runtime/run_battle_unit_factory_regression.gd`
   - `tests/battle_runtime/run_battle_skill_protocol_regression.gd`
   - `tests/battle_runtime/run_battle_damage_preview_range_contract_regression.gd`
+  - `tests/battle_runtime/run_battle_hit_preview_contract_regression.gd`
+  - `tests/battle_runtime/run_battle_hit_rate_legacy_cleanup_regression.gd`
+  - `tests/battle_runtime/run_battle_rule_status_param_schema_regression.gd`
   - `tests/battle_runtime/run_battle_weapon_dice_regression.gd`
+  - `tests/battle_runtime/run_battle_change_equipment_requirement_regression.gd`
   - `tests/battle_runtime/run_battle_ui_regression.gd`
   - `tests/battle_runtime/run_battle_loot_drop_luck_regression.gd`
+  - `tests/battle_runtime/run_move_to_range_progress_regression.gd`
   - `tests/battle_runtime/run_battle_6v40_headless_benchmark.gd`
   - `tests/battle_runtime/run_battle_panel_full_refresh_benchmark.gd`
   - `tests/battle_runtime/run_status_effect_semantics_regression.gd`
@@ -1156,11 +1200,16 @@ HeadlessGameTestSession
   - `tests/battle_runtime/run_battle_simulation_regression.gd`
   - `tests/battle_runtime/run_battle_ai_vs_ai_simulation_regression.gd`
   - `tests/battle_runtime/run_battle_balance_simulation.gd`
+  - `tests/battle_runtime/run_battle_sim_formal_terrain_regression.gd`
+  - `tests/battle_runtime/run_battle_sim_report_builder_regression.gd`
+  - `tests/battle_runtime/run_battle_sim_unit_spec_defaults_regression.gd`
   - `tests/battle_runtime/capture_canyon_battle_board.gd`
   - `tests/progression/run_progression_tests.gd`
   - `tests/progression/run_character_creation_service_regression.gd`
+  - `tests/progression/run_achievement_schema_regression.gd`
   - `tests/progression/run_quest_schema_regression.gd`
   - `tests/progression/run_skill_schema_regression.gd`
+  - `tests/progression/run_level_description_template_regression.gd`
   - `tests/progression/run_profession_schema_regression.gd`
   - `tests/progression/run_luck_getter_regression.gd`
   - `tests/progression/run_protected_custom_stat_regression.gd`
@@ -1176,6 +1225,7 @@ HeadlessGameTestSession
   - `tests/runtime/run_game_runtime_reward_flow_regression.gd`
   - `tests/runtime/run_game_runtime_snapshot_builder_regression.gd`
   - `tests/runtime/run_bootstrap_session_regression.gd`
+  - `tests/runtime/run_invalid_save_graceful_regression.gd`
   - `tests/runtime/run_battle_permadeath_regression.gd`
   - `tests/runtime/run_save_serializer_quest_round_trip_regression.gd`
   - `tests/runtime/content_validation_runner.gd`
@@ -1191,22 +1241,31 @@ HeadlessGameTestSession
   - `tests/text_runtime/run_text_command_script.gd`
   - `tests/text_runtime/run_text_command_repl.gd`
   - `tests/text_runtime/scenarios/smoke_startup.txt`
+  - `tests/world_map/run_encounter_anchor_schema_regression.gd`
+  - `tests/world_map/run_world_map_low_level_defensive_regression.gd`
+  - `tests/world_map/run_world_map_runtime_proxy_regression.gd`
+  - `tests/world_map/run_world_map_shared_content_injection_regression.gd`
   - `tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`
   - `tests/world_map/runtime/run_game_runtime_party_command_handler_regression.gd`
   - `tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.gd`
+  - `tests/world_map/runtime/run_settlement_research_service_schema_regression.gd`
   - `tests/world_map/runtime/run_world_map_battle_loading_overlay_regression.gd`
   - `tests/world_map/runtime/run_world_map_battle_start_confirm_regression.gd`
   - `tests/world_map/runtime/run_world_map_input_routing_regression.gd`
+  - `tests/world_map/runtime/run_world_map_runtime_log_dock_regression.gd`
   - `tests/world_map/runtime/run_world_map_settlement_entry_regression.gd`
   - `tests/world_map/runtime/run_world_map_system_surface_regression.gd`
   - `tests/world_map/runtime/run_world_map_view_color_config_regression.gd`
   - `tests/world_map/runtime/run_world_submap_regression.gd`
+  - `tests/world_map/ui/run_character_info_window_fate_regression.gd`
+  - `tests/world_map/ui/run_party_management_window_regression.gd`
+  - `tests/world_map/ui/run_service_window_ui_regression.gd`
   - `tools/build_battle_sim_analysis_packet.py`
   - `tools/character_creation_reroll_simulation.gd`
   - `.codex/skills/battle-sim-analysis/SKILL.md`
 - 执行约束：
   - 常规“全量测试”只覆盖确定性 headless 回归 / smoke / schema / runtime contract；不要把数值模拟、平衡模拟或交互式开发入口混进默认测试集合。
-  - `tests/battle_runtime/run_battle_simulation_regression.gd`、`tests/battle_runtime/run_battle_ai_vs_ai_simulation_regression.gd` 与 `tests/battle_runtime/run_battle_balance_simulation.gd` 属于 battle simulation / balance analysis 入口，不作为常规测试用例；只有用户明确要求 battle simulation、数值模拟、AI 对战模拟或平衡分析时才运行。
+  - `tests/battle_runtime/run_battle_simulation_regression.gd`、`tests/battle_runtime/run_battle_ai_vs_ai_simulation_regression.gd`、`tests/battle_runtime/run_battle_balance_simulation.gd`、`tests/battle_runtime/run_battle_sim_formal_terrain_regression.gd`、`tests/battle_runtime/run_battle_sim_report_builder_regression.gd` 与 `tests/battle_runtime/run_battle_sim_unit_spec_defaults_regression.gd` 属于 battle simulation / balance analysis 入口，不作为常规测试用例；只有用户明确要求 battle simulation、数值模拟、AI 对战模拟或平衡分析时才运行。
   - `tests/text_runtime/run_text_command_repl.gd` 是开发 REPL，不作为自动化全量测试入口。
 - 主要职责：
   - equipment：
@@ -1269,12 +1328,13 @@ HeadlessGameTestSession
     - pending character reward 顺序与序列化
     - character reward 序列化与展示
   - runtime：
-    - `GameLogService` ring buffer 与 jsonl 追加写盘
+    - `GameLogService` 默认内存 ring buffer 与可选 jsonl 追加写盘
     - `SettlementServiceResult` canonical 契约
     - battle / quest runtime 桥的最小回写链
     - runtime snapshot / text snapshot 的日志分段稳定性
   - resource validation runner：
     - 统一汇总 profession / skill / enemy / item / recipe / quest 的静态校验输出
+    - 统一汇总 world preset / settlement bundle / facility / wild spawn 静态校验输出
     - 覆盖 missing id / duplicate id / invalid reference 三类夹具回归
     - 输出按 domain 分组，便于 headless 回归与本地排障直接复用
   - text runtime：
@@ -1291,7 +1351,7 @@ HeadlessGameTestSession
 - 说明：
   - `capture_canyon_battle_board.gd` 只是截图辅助，不是断言型回归。
   - battle board v2 视觉改动的最小验收是 `run_battle_board_regression.gd`；若改 terrain 生成、高度列、edge feature、spawn 或可达性，再补 `run_battle_runtime_smoke.gd` / `run_battle_spawn_reachability_regression.gd`。
-  - progression 测试现在是单 runner 脚本，不再走旧的 `helpers/` + `cases/` 目录。
+  - progression 测试当前使用单 runner 脚本。
 - 邻接单元：
   - CU-10
   - CU-15
@@ -1328,7 +1388,7 @@ HeadlessGameTestSession
   - `enemy_template_id -> EnemyTemplateDef`
   - `brain_id -> EnemyAiBrainDef`
   - `encounter_profile_id -> WildEncounterRosterDef`
-  - `EnemyTemplateDef.drop_entries` 作为敌方单位 per-kill 掉落配置真相源。
+  - `EnemyTemplateDef.drop_entries` 作为敌方单位 per-kill 掉落配置真相源；每条 drop entry 必须精确提供非空 `drop_entry_id`、受支持 `drop_type`、非空 `item_id` 与正 int `quantity`。
   - `EnemyTemplateDef.attack_equipment_item_id` 作为非 `beast` 敌人的攻击装备真相源；它只用于战斗武器投影，不是死亡掉落真相源。
   - 各状态下的 action 顺序、目标选择与距离策略。
 - 主要职责：
@@ -1338,8 +1398,8 @@ HeadlessGameTestSession
   - `EnemyTemplateDef` 同时承担“这个敌人怎么打”和“这个敌人死后掉什么”的静态作者职责；`WildEncounterRosterDef` 只负责回答“这一场会出现哪些敌人、各几只”。
   - `EnemyTemplateDef` 现在同时拥有敌方六维来源：所有正式模板（包括 `beast`）都必须显式提供完整 `base_attribute_overrides` 六维；`EncounterRosterBuilder` 入场时用这组基础属性走 `AttributeService` 派生公式，例如 `stamina_max = 24 + 5*constitution + strength + agility`。`attribute_overrides` 只表达作者显式覆盖的最终战斗属性；模板写了 `stamina_max` 就覆盖派生值，没写就使用派生值。
   - `EnemyTemplateDef` 也持有敌方武器来源：非 `beast` 模板必须通过 `attack_equipment_item_id` 显式引用一个正式武器 `ItemDef.weapon_profile`，模板入场时投影为 `BattleUnitState` 的 equipped weapon；该攻击装备只影响战斗投影，不自动进入死亡掉落。内容校验会报告非 `beast` 模板缺攻击装备；若运行时仍遇到缺失或无效攻击装备，战斗投影降级为 `unarmed`（1D4、`physical_blunt`、range 1）。
-  - `EncounterRosterBuilder` 是敌方模板进入战斗单位构建前的 roster bridge；检查敌方攻击装备投影时要和 `EnemyTemplateDef` 一起读。
-  - 带 `beast` 标签的模板默认投影 `natural_weapon`：`1D6`、`physical_blunt`、melee、range 1；模板可通过 `natural_weapon_damage_tag` 或 `bite/sting/horn`、`claw/tear`、`slam/charge/trample` 标签分别覆写为 pierce、slash、blunt。
+  - `EncounterRosterBuilder` 是敌方模板进入战斗单位构建前的 roster bridge；敌人身份从 `EncounterAnchorData.enemy_roster_template_id / encounter_profile_id / display_name` 读取，检查敌方攻击装备投影时要和 `EnemyTemplateDef` 一起读。
+  - 带 `beast` 标签的模板默认投影 `natural_weapon`：`1D6`、`physical_blunt`、range 1；模板可通过 `natural_weapon_attack_range` 显式声明自然武器射程，通过 `natural_weapon_damage_tag` 或 `bite/sting/horn`、`claw/tear`、`slam/charge/trample` 标签分别覆写为 pierce、slash、blunt。
   - `EnemyTemplateDef.attribute_overrides` 继续使用 `hp_max`、`mp_max`、`action_points`、`attack_bonus`、`armor_class` 与可选 AC 组件属性描述作者需要固定的战斗面板；不要为了占位写低值 / 0 值资源字段，没写的属性会由六维派生。不要再写旧攻击 / 防御 / 命中 / 闪避属性，也不要再写 `weapon_attack_range` / `weapon_physical_damage_tag`。
   - 敌方死亡掉落只读 `EnemyTemplateDef.drop_entries`；如果希望敌人持有的攻击装备可掉落，必须显式写进 `drop_entries` 或另起缴械 / 掉落规则，不允许把 `attack_equipment_item_id` 自动当作死亡掉落。
   - 定义近战压迫型、远程控制型等默认行为树形态。
@@ -1384,7 +1444,7 @@ HeadlessGameTestSession
   - 用 `GameTextCommandResult` 输出可读结果。
   - 用 `GameTextSnapshotRenderer` 渲染稳定文本快照；当前快照已正式包含 `validation` 段与 `[VALIDATION]` 文本分段、`logs` 段与 `[LOG]` 文本分段、`game_over` 段与 `[GAME_OVER]` 文本分段，以及据点 `contract_board` / forge modal 的 `[CONTRACT_BOARD]` / `[FORGE]` 分段，供自动化 / agent / 人工排障读取结构化校验摘要、最近运行日志、主角死亡上下文与服务窗口状态。
   - 当前还覆盖 mounted submap 的确认进入、返回原坐标和 active map snapshot / 文本命令。
-  - 当前文本命令域已包含最小 `quest accept/progress/complete` 调试接口；party 快照与文本快照会稳定暴露 `party.quests` / `[QUEST]` 分段，其中 quest state 至少区分 `active_quest_ids` / `claimable_quest_ids` / `completed_quest_ids`，并可验证 settlement / battle 自动 quest progress 结果。
+  - 当前文本命令域已包含最小 `quest accept/progress/complete` 调试接口；party 快照与文本快照会稳定暴露 `party.quests` / `[QUEST]` 分段，其中 quest state 至少区分 `active_quest_ids` / `claimable_quest_ids` / `completed_quest_ids`，quest 明细只渲染显式非空字符串 `stage_id`，并可验证 settlement / battle 自动 quest progress 结果。
   - 当前文本命令域已包含自动化专用 `battle equip <slot_id> <item_id> [instance_id=...]` 与 `battle unequip <slot_id> [instance_id=...]`，统一生成 `TYPE_CHANGE_EQUIPMENT` 命令并验证 AP 不足、自身限制、背包容量、双手 / versatile 联动、HP clamp、battle-local view 与战后回写；这是 `BattleCommand.TYPE_CHANGE_EQUIPMENT` 的自动化表面，不拥有战斗换装规则，也不是正式玩家 UI。
   - 为回归、调试、agent 驱动提供非 UI 入口，但不参与正式启动链。
 - 邻接单元：
@@ -1553,52 +1613,19 @@ HeadlessGameTestSession
   - 改 runtime schema 补 CU-06
   - 改具体业务领域补对应叶子单元
 
-## 当前 sidecar / 兼容层 / 漂移点
+## 当前 sidecar / 漂移点
 
 - `tests/progression/`
-  - 旧 `helpers/` + `cases/` 目录已经移除；当前只保留单 runner 模式。
+  - 当前只保留单 runner 模式。
 - 结论：
   - world / battle 运行时已经拆成 `GameRuntimeFacade`、`WorldMapRuntimeProxy` 与 `WorldMapSystem` 三层。
   - battle renderer 主线已经完成换代。
   - reward queue 主线与边界命名已经统一到 `pending_character_rewards`。
-  - 装备实例的持久真相源已经从“槽位只存 id”收束到“未装备归 `WarehouseState.equipment_instances`、已装备归 `EquipmentEntryState.equipment_instance`”；当前剩余漂移集中在 CU-10/CU-11 的装备实例选择入口仍按 `item_id` 聚合，不能表达指定 `instance_id`。
+  - 装备实例的持久真相源已经从“槽位只存 id”收束到“未装备归 `WarehouseState.equipment_instances`、已装备归 `EquipmentEntryState.equipment_instance`”；装备 / 卸装、丢弃 / 删除、出售、battle-local 换装和 headless 文本表面现在都能传入并校验 `instance_id + item_id`，同 `item_id` 重复实例必须显式选择实例。
 
-### 兼容项清单（2026-04-17）
+### Schema 约束
 
-当前主线已不再保留历史存档、legacy alias、旧 payload 或旧运行时 fallback 兼容项。
-
-#### 当前仍生效的兼容项
-
-- 无。
-
-#### 已移除的兼容项
-
-| ID | 位置 | 已移除内容 |
-| --- | --- | --- |
-| `R01` | `scripts/player/progression/party_state.gd` / `scripts/systems/battle\core\battle_resolution_result.gd` / `scripts/systems/settlement\settlement_service_result.gd` | `pending_mastery_rewards -> pending_character_rewards` 全链路兼容桥 |
-| `R02` | 已删除文件：`PendingMasteryReward*` | 旧 `PendingMasteryReward*` 类型 |
-| `R03` | `scripts/systems/game_runtime\world_map_system.gd` / `scripts/ui/shop_window.gd` / `scripts/ui/settlement_window.gd` | 旧 UI payload `cost_text` alias；正式字段只保留 `cost_label` |
-| `R04` | 已删除文件：`BattleStateFactory` | 旧 `BattleStateFactory` sidecar / fallback builder |
-| `R05` | 已删除文件：`SettlementWindowSystem` / `scenes/main/world_map.tscn` | 旧 `SettlementWindowSystem` sidecar 与场景节点 |
-| `R06` | `scripts/systems/persistence\save_serializer.gd` | 旧 save meta 默认值回填、旧 `Vector2i` 表达（`Vector2` / `Array`）与旧 save index entry 形状 |
-| `R07` | `scripts/systems/persistence\game_session.gd` | 旧单文件存档 `user://world_map_state.dat` 清理入口 |
-| `R08` | `scripts/systems/attributes\attribute_service.gd` / battle skill 与 enemy/item configs | 旧 `physical_attack / magic_attack / physical_defense / magic_defense / hit_rate / evasion` 战斗属性 schema |
-| `R09` | `scripts/systems/game_runtime\game_runtime_facade.gd` / headless runtime log snapshots | 旧命令日志 `context.after` 后态 alias，正式字段只保留 `context.runtime` |
-| `R08` | `scripts/systems/persistence\game_session.gd` | 旧仓库装备堆叠格式的显式拒绝兼容分支 |
-| `R09` | `scripts/player/progression/party_state.gd` | 旧 `PartyState.claimable_quests` 缺字段时默认空数组 |
-| `R10` | `scripts/player/equipment/equipment_state.gd` / `scripts/player/equipment/equipment_entry_state.gd` | 旧顶层槽位映射、`set_equipped_item()` 与缺 `occupied_slot_ids` 装备数据 |
-| `R11` | `scripts/systems/world\world_map_fog_system.gd` | 旧 fog `Dictionary -> WorldMapFogFactionState` 自动迁移 |
-| `R12` | `scripts/systems/persistence\save_serializer.gd` | `world_preset_name` 缺失时按 `generation_config_path` 回填 fallback preset name |
-| `R13` | `scripts/enemies/enemy_content_registry.gd` / `scripts/enemies/enemy_template_def.gd` | 敌人模板 `alias_ids` / `display_name` alias 查找 |
-| `R14` | `scripts/systems/world\encounter_roster_builder.gd` | `monster_name` / `monster_display_name` 作为候选模板 ID 的兼容查找 |
-| `R15` | `scripts/systems/battle\terrain\battle_terrain_rules.gd` | legacy `water -> deep_water` 归一映射 |
-| `R16` | `scripts/systems/battle\ai\battle_ai_service.gd` | 缺少 brain 时的旧版 AI 决策 `_choose_legacy_command()` |
-| `R17` | `scripts/systems/battle\terrain\battle_terrain_generator.gd` / `scripts/systems/game_runtime\game_runtime_facade.gd` | terrain 生成返回空结果时保留 `battle_loading` pending 并持续重试 |
-| `R18` | `scripts/systems/game_runtime\battle_session_facade.gd` | 缺少 `BattleResolutionResult` 时按 `runtime_state` 临时拼 fallback result |
-
-#### 使用建议
-
-- 当前如果读到旧 schema、旧 alias 或缺失正式 battle result，应直接视为无效输入或配置错误，而不是继续做隐式迁移。
+- 当前运行时、资源配置与存档读取只接受正式 schema；输入、配置或 payload 缺失必需字段时按错误处理，不在上下文地图里维护历史迁移清单。
 
 ## 不推荐的切法
 
