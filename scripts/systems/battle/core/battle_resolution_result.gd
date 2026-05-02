@@ -10,6 +10,35 @@ const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progressi
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 const BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
+const TOP_LEVEL_FIELDS := [
+	"battle_id",
+	"seed",
+	"world_coord",
+	"encounter_anchor_id",
+	"terrain_profile_id",
+	"winner_faction_id",
+	"encounter_resolution",
+	"loot_entries",
+	"overflow_entries",
+	"pending_character_rewards",
+	"quest_progress_events",
+	"world_mutations",
+	"party_resource_commit",
+]
+const REQUIRED_STRING_FIELDS := [
+	"battle_id",
+	"encounter_anchor_id",
+	"terrain_profile_id",
+	"winner_faction_id",
+	"encounter_resolution",
+]
+const REQUIRED_ARRAY_FIELDS := [
+	"loot_entries",
+	"overflow_entries",
+	"pending_character_rewards",
+	"quest_progress_events",
+	"world_mutations",
+]
 
 ## 字段说明：记录战斗唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var battle_id: StringName = &""
@@ -89,22 +118,180 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
+static func from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
+	var payload := data as Dictionary
+	if not _has_valid_top_level_payload(payload):
+		return null
+
 	var result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
-	result.battle_id = ProgressionDataUtils.to_string_name(data.get("battle_id", ""))
-	result.seed = int(data.get("seed", 0))
-	result.world_coord = data.get("world_coord", Vector2i.ZERO)
-	result.encounter_anchor_id = ProgressionDataUtils.to_string_name(data.get("encounter_anchor_id", ""))
-	result.terrain_profile_id = ProgressionDataUtils.to_string_name(data.get("terrain_profile_id", "default"))
-	result.winner_faction_id = ProgressionDataUtils.to_string_name(data.get("winner_faction_id", ""))
-	result.encounter_resolution = ProgressionDataUtils.to_string_name(data.get("encounter_resolution", ""))
-	result.set_loot_entries(data.get("loot_entries", []))
-	result.set_overflow_entries(data.get("overflow_entries", []))
-	result.pending_character_rewards = _reward_variants_from_dicts(data.get("pending_character_rewards", []))
-	result.quest_progress_events = _duplicate_variant_array(data.get("quest_progress_events", []))
-	result.world_mutations = _duplicate_variant_array(data.get("world_mutations", []))
-	result.party_resource_commit = data.get("party_resource_commit", {}).duplicate(true) if data.get("party_resource_commit", {}) is Dictionary else {}
+	result.battle_id = ProgressionDataUtils.to_string_name(payload["battle_id"])
+	result.seed = int(payload["seed"])
+	result.world_coord = payload["world_coord"]
+	result.encounter_anchor_id = ProgressionDataUtils.to_string_name(payload["encounter_anchor_id"])
+	result.terrain_profile_id = ProgressionDataUtils.to_string_name(payload["terrain_profile_id"])
+	result.winner_faction_id = ProgressionDataUtils.to_string_name(payload["winner_faction_id"])
+	result.encounter_resolution = ProgressionDataUtils.to_string_name(payload["encounter_resolution"])
+	var parsed_loot_entries = _drop_entry_dicts_from_payload(payload["loot_entries"])
+	if parsed_loot_entries == null:
+		return null
+	var parsed_overflow_entries = _drop_entry_dicts_from_payload(payload["overflow_entries"])
+	if parsed_overflow_entries == null:
+		return null
+	var parsed_pending_character_rewards = _reward_variants_from_dicts(payload["pending_character_rewards"])
+	if parsed_pending_character_rewards == null:
+		return null
+	var parsed_quest_progress_events = _dictionary_array_from_payload(payload["quest_progress_events"])
+	if parsed_quest_progress_events == null:
+		return null
+	var parsed_world_mutations = _dictionary_array_from_payload(payload["world_mutations"])
+	if parsed_world_mutations == null:
+		return null
+	result.loot_entries = parsed_loot_entries
+	result.overflow_entries = parsed_overflow_entries
+	result.pending_character_rewards = parsed_pending_character_rewards
+	result.quest_progress_events = parsed_quest_progress_events
+	result.world_mutations = parsed_world_mutations
+	result.party_resource_commit = (payload["party_resource_commit"] as Dictionary).duplicate(true)
 	return result
+
+
+static func _has_valid_top_level_payload(payload: Dictionary) -> bool:
+	if not _has_exact_fields(payload, TOP_LEVEL_FIELDS):
+		return false
+	for field_name in REQUIRED_STRING_FIELDS:
+		if not payload.has(field_name):
+			return false
+		if not _is_non_empty_string(payload[field_name]):
+			return false
+	if not payload.has("seed") or payload["seed"] is not int:
+		return false
+	if not payload.has("world_coord") or payload["world_coord"] is not Vector2i:
+		return false
+	for field_name in REQUIRED_ARRAY_FIELDS:
+		if not payload.has(field_name):
+			return false
+		if payload[field_name] is not Array:
+			return false
+	if not payload.has("party_resource_commit") or payload["party_resource_commit"] is not Dictionary:
+		return false
+	return true
+
+
+static func _has_exact_fields(payload: Dictionary, expected_fields: Array) -> bool:
+	if payload.size() != expected_fields.size():
+		return false
+	var expected_lookup: Dictionary = {}
+	var seen_lookup: Dictionary = {}
+	for field_name in expected_fields:
+		expected_lookup[field_name] = true
+	for key_variant in payload.keys():
+		if key_variant is not String:
+			return false
+		if not expected_lookup.has(key_variant):
+			return false
+		if seen_lookup.has(key_variant):
+			return false
+		seen_lookup[key_variant] = true
+	return seen_lookup.size() == expected_lookup.size()
+
+
+static func _is_non_empty_string(value: Variant) -> bool:
+	return value is String and not String(value).strip_edges().is_empty()
+
+
+static func _is_non_empty_string_name_value(value: Variant) -> bool:
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return false
+	return not String(value).strip_edges().is_empty()
+
+
+static func _drop_entry_dicts_from_payload(values: Variant):
+	if values is not Array:
+		return null
+	var parsed_entries: Array[Dictionary] = []
+	for entry_variant in values:
+		if entry_variant is not Dictionary:
+			return null
+		var parsed_entry = _drop_entry_from_payload(entry_variant)
+		if parsed_entry == null:
+			return null
+		parsed_entries.append(parsed_entry)
+	return parsed_entries
+
+
+static func _drop_entry_from_payload(entry_data: Dictionary):
+	var required_fields := [
+		"drop_type",
+		"drop_source_kind",
+		"drop_source_id",
+		"drop_source_label",
+		"drop_entry_id",
+		"item_id",
+		"quantity",
+	]
+	for field_name in required_fields:
+		if not entry_data.has(field_name):
+			return null
+	for field_name in [
+		"drop_type",
+		"drop_source_kind",
+		"drop_source_id",
+		"drop_source_label",
+		"drop_entry_id",
+		"item_id",
+	]:
+		if not _is_non_empty_string_name_value(entry_data[field_name]):
+			return null
+	if entry_data["quantity"] is not int:
+		return null
+	var quantity := int(entry_data["quantity"])
+	if quantity <= 0:
+		return null
+
+	var drop_type := ProgressionDataUtils.to_string_name(entry_data["drop_type"])
+	var allowed_field_count := required_fields.size()
+	if drop_type == BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE:
+		allowed_field_count += 1
+		if entry_data.size() != allowed_field_count:
+			return null
+		if not entry_data.has("equipment_instance"):
+			return null
+		if quantity != 1:
+			return null
+		var equipment_error := EQUIPMENT_INSTANCE_STATE_SCRIPT.get_payload_validation_error(entry_data["equipment_instance"])
+		if not equipment_error.is_empty():
+			return null
+		var equipment_instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(entry_data["equipment_instance"])
+		if equipment_instance == null:
+			return null
+		var entry_item_id := ProgressionDataUtils.to_string_name(entry_data["item_id"])
+		if equipment_instance.item_id != entry_item_id:
+			return null
+		var normalized_equipment_entry := _duplicate_formal_drop_entry(entry_data)
+		normalized_equipment_entry["equipment_instance"] = equipment_instance.to_dict()
+		return normalized_equipment_entry
+
+	if entry_data.size() != allowed_field_count:
+		return null
+	if entry_data.has("equipment_instance"):
+		return null
+	return _duplicate_formal_drop_entry(entry_data)
+
+
+static func _duplicate_formal_drop_entry(entry_data: Dictionary) -> Dictionary:
+	return {
+		"drop_type": String(ProgressionDataUtils.to_string_name(entry_data["drop_type"])),
+		"drop_source_kind": String(ProgressionDataUtils.to_string_name(entry_data["drop_source_kind"])),
+		"drop_source_id": String(ProgressionDataUtils.to_string_name(entry_data["drop_source_id"])),
+		"drop_source_label": String(entry_data["drop_source_label"]).strip_edges(),
+		"drop_entry_id": String(ProgressionDataUtils.to_string_name(entry_data["drop_entry_id"])),
+		"item_id": String(ProgressionDataUtils.to_string_name(entry_data["item_id"])),
+		"quantity": int(entry_data["quantity"]),
+	}
+
 
 static func _normalize_drop_entry_variants(loot_entry_variants: Variant) -> Array[Dictionary]:
 	var normalized_entries: Array[Dictionary] = []
@@ -117,16 +304,12 @@ static func _normalize_drop_entry_variants(loot_entry_variants: Variant) -> Arra
 		var drop_type := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_type", ""))
 		var drop_source_kind := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_source_kind", ""))
 		var drop_source_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_source_id", ""))
-		var drop_entry_id := ProgressionDataUtils.to_string_name(
-			loot_entry_data.get("drop_entry_id", loot_entry_data.get("drop_id", ""))
-		)
+		var drop_entry_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_entry_id", ""))
 		var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
 		var quantity := maxi(int(loot_entry_data.get("quantity", 0)), 0)
-		if drop_type == &"" or drop_source_kind == &"" or drop_source_id == &"" or drop_entry_id == &"" or item_id == &"" or quantity <= 0:
-			continue
 		var drop_source_label := String(loot_entry_data.get("drop_source_label", "")).strip_edges()
-		if drop_source_label.is_empty():
-			drop_source_label = String(drop_source_id)
+		if drop_type == &"" or drop_source_kind == &"" or drop_source_id == &"" or drop_source_label.is_empty() or drop_entry_id == &"" or item_id == &"" or quantity <= 0:
+			continue
 		var normalized_entry := {
 			"drop_type": String(drop_type),
 			"drop_source_kind": String(drop_source_kind),
@@ -137,8 +320,10 @@ static func _normalize_drop_entry_variants(loot_entry_variants: Variant) -> Arra
 			"quantity": quantity,
 		}
 		if drop_type == BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE:
+			if not loot_entry_data.has("equipment_instance"):
+				continue
 			var equipment_instance_data := _normalize_equipment_instance_data(
-				loot_entry_data.get("equipment_instance", loot_entry_data.get("equipment_instance_data", {}))
+				loot_entry_data.get("equipment_instance", {})
 			)
 			if equipment_instance_data.is_empty():
 				continue
@@ -183,19 +368,17 @@ static func _reward_variants_to_dicts(reward_variants: Array) -> Array[Dictionar
 	return rewards
 
 
-static func _reward_variants_from_dicts(values: Variant) -> Array:
+static func _reward_variants_from_dicts(values: Variant):
 	var rewards: Array = []
 	if values is not Array:
-		return rewards
+		return null
 	for reward_variant in values:
-		if reward_variant is Dictionary:
-			var reward_from_dict = PENDING_CHARACTER_REWARD_SCRIPT.from_variant(reward_variant)
-			if reward_from_dict != null:
-				rewards.append(reward_from_dict)
-			continue
-		var normalized_reward = PENDING_CHARACTER_REWARD_SCRIPT.from_variant(reward_variant)
-		if normalized_reward != null:
-			rewards.append(normalized_reward)
+		if reward_variant is not Dictionary:
+			return null
+		var reward_from_dict = PENDING_CHARACTER_REWARD_SCRIPT.from_variant(reward_variant)
+		if reward_from_dict == null:
+			return null
+		rewards.append(reward_from_dict)
 	return rewards
 
 
@@ -210,6 +393,17 @@ static func _duplicate_variant_array(values: Variant) -> Array:
 			result.append((value as Array).duplicate(true))
 		else:
 			result.append(value)
+	return result
+
+
+static func _dictionary_array_from_payload(values: Variant):
+	if values is not Array:
+		return null
+	var result: Array[Dictionary] = []
+	for value in values:
+		if value is not Dictionary:
+			return null
+		result.append((value as Dictionary).duplicate(true))
 	return result
 
 

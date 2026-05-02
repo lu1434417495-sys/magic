@@ -13,10 +13,14 @@ const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
+const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
 
 const RESTRICTED_HELM_ID: StringName = &"requirement_test_restricted_helm"
 const RESTRICTED_HELM_INSTANCE_ID: StringName = &"requirement_test_restricted_helm_001"
+const DUPLICATE_HELM_ID: StringName = &"duplicate_test_helm"
+const DUPLICATE_HELM_COMMON_INSTANCE_ID: StringName = &"duplicate_test_helm_common_001"
+const DUPLICATE_HELM_RARE_INSTANCE_ID: StringName = &"duplicate_test_helm_rare_001"
 
 var _failures: Array[String] = []
 
@@ -27,6 +31,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_battle_change_equipment_enforces_item_requirement()
+	_test_duplicate_same_item_battle_equip_and_unequip_preserves_instance()
 	if _failures.is_empty():
 		print("Battle change equipment requirement regression: PASS")
 		quit(0)
@@ -60,6 +65,7 @@ func _test_battle_change_equipment_enforces_item_requirement() -> void:
 	}
 	state.ally_unit_ids = [unit.unit_id]
 	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = unit.unit_id
 	state.active_unit_id = unit.unit_id
 	state.get_party_backpack_view().equipment_instances = [
 		_make_equipment_instance(RESTRICTED_HELM_INSTANCE_ID, RESTRICTED_HELM_ID),
@@ -102,6 +108,70 @@ func _test_battle_change_equipment_enforces_item_requirement() -> void:
 	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [], "需求满足后应从 battle-local 背包移除实例。")
 
 
+func _test_duplicate_same_item_battle_equip_and_unequip_preserves_instance() -> void:
+	var item_defs := {
+		DUPLICATE_HELM_ID: _build_plain_helm_item(DUPLICATE_HELM_ID),
+	}
+	var party := _build_party(&"duplicate_hero", 2)
+	var member: PartyMemberState = party.get_member_state(&"duplicate_hero")
+	var gateway := CharacterManagementModule.new()
+	gateway.setup(party, {}, {}, {}, item_defs)
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(gateway, {}, {}, {}, null, null, item_defs)
+	var state := _build_state()
+	state.battle_id = &"change_equipment_duplicate_regression"
+	var unit := _build_unit(&"duplicate_hero", Vector2i(0, 0), 4)
+	unit.source_member_id = &"duplicate_hero"
+	unit.set_equipment_view(member.equipment_state)
+	var enemy := _build_unit(&"duplicate_enemy", Vector2i(2, 0), 0)
+	enemy.faction_id = &"enemy"
+	state.units = {
+		unit.unit_id: unit,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [unit.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = unit.unit_id
+	var common_instance = _make_equipment_instance(DUPLICATE_HELM_COMMON_INSTANCE_ID, DUPLICATE_HELM_ID)
+	common_instance.rarity = EquipmentInstanceState.RarityTier.COMMON
+	common_instance.current_durability = 12
+	var rare_instance = _make_equipment_instance(DUPLICATE_HELM_RARE_INSTANCE_ID, DUPLICATE_HELM_ID)
+	rare_instance.rarity = EquipmentInstanceState.RarityTier.RARE
+	rare_instance.current_durability = 29
+	state.get_party_backpack_view().equipment_instances = [common_instance, rare_instance]
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "重复实例测试单位应能放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "重复实例测试敌方应能放入战场。")
+	runtime._state = state
+
+	var missing_instance_command := _build_equip_command(unit.unit_id, &"head", &"", DUPLICATE_HELM_ID)
+	var missing_instance_batch := runtime.issue_command(missing_instance_command)
+	var missing_report := _find_change_equipment_report(missing_instance_batch.report_entries)
+	_assert_eq(String(missing_report.get("error_code", "")), "equipment_instance_required", "战斗换装正式命令缺少 instance_id 应拒绝。")
+	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [String(DUPLICATE_HELM_COMMON_INSTANCE_ID), String(DUPLICATE_HELM_RARE_INSTANCE_ID)], "缺少 instance_id 失败后两个重复实例都应留在背包。")
+
+	var equip_command := _build_equip_command(unit.unit_id, &"head", DUPLICATE_HELM_RARE_INSTANCE_ID, DUPLICATE_HELM_ID)
+	var equip_batch := runtime.issue_command(equip_command)
+	var equip_report := _find_change_equipment_report(equip_batch.report_entries)
+	_assert_true(bool(equip_report.get("ok", false)), "指定 rare instance_id 的 battle-local 装备应成功。 report=%s" % [str(equip_report)])
+	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"head")), String(DUPLICATE_HELM_RARE_INSTANCE_ID), "battle-local 装备位应写入指定 rare instance_id。")
+	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [String(DUPLICATE_HELM_COMMON_INSTANCE_ID)], "装备 rare 后 common 实例应留在背包。")
+	var equipped_instance = unit.get_equipment_view().get_equipped_instance(&"head")
+	_assert_eq(int(equipped_instance.rarity if equipped_instance != null else -1), int(EquipmentInstanceState.RarityTier.RARE), "battle-local 装备位应保留 rare 品质。")
+	_assert_eq(int(equipped_instance.current_durability if equipped_instance != null else -1), 29, "battle-local 装备位应保留 rare 耐久。")
+
+	unit.current_ap = 2
+	var unequip_command := _build_unequip_command(unit.unit_id, &"head", DUPLICATE_HELM_RARE_INSTANCE_ID)
+	var unequip_batch := runtime.issue_command(unequip_command)
+	var unequip_report := _find_change_equipment_report(unequip_batch.report_entries)
+	_assert_true(bool(unequip_report.get("ok", false)), "指定 rare instance_id 的 battle-local 卸装应成功。 report=%s" % [str(unequip_report)])
+	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"head")), "", "卸装后 head 槽应清空。")
+	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [String(DUPLICATE_HELM_COMMON_INSTANCE_ID), String(DUPLICATE_HELM_RARE_INSTANCE_ID)], "卸装后 common 与 rare 实例都应在背包。")
+	var returned_instance = _find_backpack_instance(state.get_party_backpack_view(), DUPLICATE_HELM_RARE_INSTANCE_ID)
+	_assert_eq(int(returned_instance.rarity if returned_instance != null else -1), int(EquipmentInstanceState.RarityTier.RARE), "卸回背包的 rare 实例应保留品质。")
+	_assert_eq(int(returned_instance.current_durability if returned_instance != null else -1), 29, "卸回背包的 rare 实例应保留耐久。")
+
+
 func _build_restricted_helm_item(item_id: StringName) -> ItemDef:
 	var item_def := ItemDef.new()
 	item_def.item_id = item_id
@@ -117,6 +187,18 @@ func _build_restricted_helm_item(item_id: StringName) -> ItemDef:
 	return item_def
 
 
+func _build_plain_helm_item(item_id: StringName) -> ItemDef:
+	var item_def := ItemDef.new()
+	item_def.item_id = item_id
+	item_def.display_name = "Duplicate Test Helm"
+	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.equipment_slot_ids = ["head"]
+	item_def.is_stackable = false
+	item_def.max_stack = 1
+	return item_def
+
+
 func _build_party(member_id: StringName, body_size: int) -> PartyState:
 	var party := PartyState.new()
 	var member := PartyMemberState.new()
@@ -128,6 +210,9 @@ func _build_party(member_id: StringName, body_size: int) -> PartyState:
 	member.progression = UnitProgress.new()
 	member.progression.unit_id = member_id
 	member.progression.display_name = member.display_name
+	var unit_base_attributes := UnitBaseAttributes.new()
+	unit_base_attributes.custom_stats[&"storage_space"] = 4
+	member.progression.unit_base_attributes = unit_base_attributes
 	party.set_member_state(member)
 	party.active_member_ids = [member_id]
 	party.leader_member_id = member_id
@@ -192,6 +277,21 @@ func _build_equip_command(
 	return command
 
 
+func _build_unequip_command(
+	unit_id: StringName,
+	slot_id: StringName,
+	instance_id: StringName
+) -> BattleCommand:
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.unit_id = unit_id
+	command.target_unit_id = unit_id
+	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_UNEQUIP
+	command.equipment_slot_id = slot_id
+	command.equipment_instance_id = instance_id
+	return command
+
+
 func _make_equipment_instance(instance_id: StringName, item_id: StringName):
 	var instance := EquipmentInstanceState.new()
 	instance.instance_id = ProgressionDataUtils.to_string_name(instance_id)
@@ -204,7 +304,7 @@ func _find_change_equipment_report(report_entries: Array) -> Dictionary:
 		if entry_variant is not Dictionary:
 			continue
 		var entry: Dictionary = entry_variant
-		if String(entry.get("type", "")) == "change_equipment":
+		if String(entry.get("type", entry.get("entry_type", ""))) == "change_equipment":
 			return entry
 	return {}
 
@@ -219,6 +319,17 @@ func _backpack_instance_id_signature(backpack_view) -> Array[String]:
 		result.append(String(instance.instance_id))
 	result.sort()
 	return result
+
+
+func _find_backpack_instance(backpack_view, instance_id: StringName):
+	if backpack_view == null:
+		return null
+	for instance in backpack_view.equipment_instances:
+		if instance == null:
+			continue
+		if String(instance.instance_id) == String(instance_id):
+			return instance
+	return null
 
 
 func _assert_true(value: bool, message: String) -> void:

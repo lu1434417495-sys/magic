@@ -442,13 +442,13 @@ func _build_unit(
 	unit.current_ap = current_ap
 	unit.current_hp = 60
 	unit.current_mp = 4
-	unit.current_stamina = 4
+	unit.current_stamina = 40
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 60)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 40)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 2)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
@@ -460,6 +460,18 @@ func _build_unit(
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 0)
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, 0)
 	unit.attribute_snapshot.set_value(FORTUNE_MARK_TARGET_STAT_ID, 1 if is_elite_or_boss else 0)
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "test_longsword",
+		"weapon_profile_type_id": "longsword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 10, "flat_bonus": 0},
+		"weapon_is_versatile": true,
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 	return unit
 
 

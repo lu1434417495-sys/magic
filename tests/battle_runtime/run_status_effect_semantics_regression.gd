@@ -6,6 +6,8 @@ const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BattleRuntimeSkillTurnResolver = preload("res://scripts/systems/battle/runtime/battle_skill_turn_resolver.gd")
 const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
@@ -24,6 +26,14 @@ func _run() -> void:
 	_test_refresh_timeline_statuses_keep_single_stack_and_max_duration()
 	_test_taunted_uses_timeline_decay_without_turn_end_decay()
 	_test_status_duration_is_not_backfilled_from_semantic_defaults()
+	_test_status_params_duration_is_not_used_as_runtime_duration()
+	_test_status_duration_tu_ignores_legacy_params_duration()
+	_test_damage_resolver_reads_only_formal_damage_status_params()
+	_test_skill_turn_status_params_require_formal_string_keys()
+	_test_status_effect_from_dict_requires_explicit_status_id()
+	_test_legacy_status_effect_map_keys_are_not_status_id_fallbacks()
+	_test_non_dictionary_status_effect_entries_are_rejected()
+	_test_status_effect_to_dict_from_dict_round_trip_still_restores()
 	if _failures.is_empty():
 		print("Status effect semantics regression: PASS")
 		quit(0)
@@ -274,6 +284,288 @@ func _test_status_duration_is_not_backfilled_from_semantic_defaults() -> void:
 	_assert_true(merged != null and not merged.has_duration(), "缺少来源时长时，状态不应再从语义表回填默认 TU。")
 
 
+func _test_status_params_duration_is_not_used_as_runtime_duration() -> void:
+	var effect_def := CombatEffectDef.new()
+	effect_def.effect_type = &"status"
+	effect_def.status_id = &"pinned"
+	effect_def.power = 1
+	effect_def.params = {
+		"duration": 15,
+	}
+
+	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit")
+	_assert_true(merged != null, "旧 params.duration 不应阻止状态对象合并。")
+	_assert_true(merged != null and not merged.has_duration(), "旧 params.duration 不应再恢复为状态剩余 TU。")
+
+
+func _test_status_duration_tu_ignores_legacy_params_duration() -> void:
+	var effect_def := CombatEffectDef.new()
+	effect_def.effect_type = &"status"
+	effect_def.status_id = &"pinned"
+	effect_def.power = 1
+	effect_def.duration_tu = 20
+	effect_def.params = {
+		"duration": 90,
+	}
+
+	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit")
+	_assert_true(merged != null, "正式 duration_tu 应继续生成状态对象。")
+	_assert_eq(int(merged.duration) if merged != null else -1, 20, "正式 duration_tu 应生效，旧 params.duration 不应覆盖。")
+
+
+func _test_damage_resolver_reads_only_formal_damage_status_params() -> void:
+	var runtime := _build_runtime()
+	var source := _build_unit(&"damage_alias_source", Vector2i.ZERO, 2)
+	var physical_effect := _build_damage_effect(10, &"physical_slash")
+
+	var formal_tag_target := _build_unit(&"formal_damage_tag_target", Vector2i.ZERO, 2)
+	_set_status_params(formal_tag_target, &"formal_fire_barrier", {
+		"damage_tag": "fire",
+		"mitigation_tier": "half",
+	})
+	var formal_tag_result: Dictionary = runtime._damage_resolver.resolve_effects(source, formal_tag_target, [physical_effect])
+	_assert_eq(int(formal_tag_result.get("damage", -1)), 10, "正式 damage_tag 不匹配时不应套用 mitigation_tier。")
+
+	var legacy_tag_target := _build_unit(&"legacy_tag_target", Vector2i.ZERO, 2)
+	_set_status_params(legacy_tag_target, &"legacy_fire_barrier", {
+		"tag": "fire",
+		"mitigation_tier": "half",
+	})
+	var legacy_tag_result: Dictionary = runtime._damage_resolver.resolve_effects(source, legacy_tag_target, [physical_effect])
+	_assert_eq(int(legacy_tag_result.get("damage", -1)), 5, "旧 params.tag 不应再被当作 damage_tag 过滤。")
+
+	var formal_bypass_effect := _build_damage_effect(10, &"physical_slash")
+	formal_bypass_effect.params["dr_bypass_tag"] = "armor_pierce"
+	var formal_bypass_target := _build_unit(&"formal_bypass_target", Vector2i.ZERO, 2)
+	_set_status_params(formal_bypass_target, &"formal_content_dr", {
+		"content_dr": 4,
+		"dr_bypass_tag": "armor_pierce",
+	})
+	var formal_bypass_result: Dictionary = runtime._damage_resolver.resolve_effects(source, formal_bypass_target, [formal_bypass_effect])
+	_assert_eq(int(formal_bypass_result.get("damage", -1)), 10, "正式 dr_bypass_tag 匹配时应绕过 content_dr。")
+
+	var legacy_effect_bypass := _build_damage_effect(10, &"physical_slash")
+	legacy_effect_bypass.params["bypass_tag"] = "armor_pierce"
+	var legacy_effect_bypass_target := _build_unit(&"legacy_effect_bypass_target", Vector2i.ZERO, 2)
+	_set_status_params(legacy_effect_bypass_target, &"formal_content_dr", {
+		"content_dr": 4,
+		"dr_bypass_tag": "armor_pierce",
+	})
+	var legacy_effect_bypass_result: Dictionary = runtime._damage_resolver.resolve_effects(source, legacy_effect_bypass_target, [legacy_effect_bypass])
+	_assert_eq(int(legacy_effect_bypass_result.get("damage", -1)), 6, "旧 effect params.bypass_tag 不应再绕过 content_dr。")
+
+	var legacy_status_bypass_target := _build_unit(&"legacy_status_bypass_target", Vector2i.ZERO, 2)
+	_set_status_params(legacy_status_bypass_target, &"legacy_content_dr", {
+		"content_dr": 4,
+		"bypass_tag": "armor_pierce",
+	})
+	var legacy_status_bypass_result: Dictionary = runtime._damage_resolver.resolve_effects(source, legacy_status_bypass_target, [formal_bypass_effect])
+	_assert_eq(int(legacy_status_bypass_result.get("damage", -1)), 6, "旧 status params.bypass_tag 不应再被当作 dr_bypass_tag。")
+
+	var formal_low_hp_effect := _build_damage_effect(10, &"physical_slash")
+	formal_low_hp_effect.bonus_condition = &"target_low_hp"
+	formal_low_hp_effect.damage_ratio_percent = 200
+	formal_low_hp_effect.params["hp_ratio_threshold"] = 0.7
+	var formal_low_hp_target := _build_unit(&"formal_low_hp_target", Vector2i.ZERO, 2)
+	formal_low_hp_target.current_hp = 18
+	var formal_low_hp_result: Dictionary = runtime._damage_resolver.resolve_effects(source, formal_low_hp_target, [formal_low_hp_effect])
+	_assert_eq(int(formal_low_hp_result.get("damage", -1)), 20, "正式 hp_ratio_threshold 应控制低血伤害倍率阈值。")
+
+	var legacy_low_hp_effect := _build_damage_effect(10, &"physical_slash")
+	legacy_low_hp_effect.bonus_condition = &"target_low_hp"
+	legacy_low_hp_effect.damage_ratio_percent = 200
+	legacy_low_hp_effect.params["low_hp_ratio"] = 0.7
+	var legacy_low_hp_target := _build_unit(&"legacy_low_hp_target", Vector2i.ZERO, 2)
+	legacy_low_hp_target.current_hp = 18
+	var legacy_low_hp_result: Dictionary = runtime._damage_resolver.resolve_effects(source, legacy_low_hp_target, [legacy_low_hp_effect])
+	_assert_eq(int(legacy_low_hp_result.get("damage", -1)), 10, "旧 params.low_hp_ratio 不应再覆盖默认低血阈值。")
+
+
+func _test_skill_turn_status_params_require_formal_string_keys() -> void:
+	var resolver := BattleRuntimeSkillTurnResolver.new()
+
+	var legacy_bool_unit := _build_unit(&"legacy_bool_param_unit", Vector2i.ZERO, 2)
+	_set_status_params(legacy_bool_unit, &"legacy_counter_lock", {
+		&"lock_counterattack": true,
+	})
+	_assert_true(
+		not resolver.has_status_param_bool(legacy_bool_unit, &"lock_counterattack"),
+		"StringName-only lock_counterattack params 不应再被 status bool helper 接受。"
+	)
+
+	var formal_bool_unit := _build_unit(&"formal_bool_param_unit", Vector2i.ZERO, 2)
+	_set_status_params(formal_bool_unit, &"formal_counter_lock", {
+		"lock_counterattack": true,
+	})
+	_assert_true(
+		resolver.has_status_param_bool(formal_bool_unit, &"lock_counterattack"),
+		"正式 String key 的 lock_counterattack params 应继续生效。"
+	)
+
+	var legacy_int_unit := _build_unit(&"legacy_int_param_unit", Vector2i.ZERO, 2)
+	_set_status_params(legacy_int_unit, &"legacy_main_skill_lock", {
+		&"main_skill_lock_other_debuff_count": 2,
+	})
+	_assert_eq(
+		resolver.get_status_param_max_int(legacy_int_unit, &"main_skill_lock_other_debuff_count"),
+		0,
+		"StringName-only main_skill_lock_other_debuff_count params 不应再被 int helper 接受。"
+	)
+
+	var formal_int_unit := _build_unit(&"formal_int_param_unit", Vector2i.ZERO, 2)
+	_set_status_params(formal_int_unit, &"formal_main_skill_lock", {
+		"main_skill_lock_other_debuff_count": 2,
+	})
+	_assert_eq(
+		resolver.get_status_param_max_int(formal_int_unit, &"main_skill_lock_other_debuff_count"),
+		2,
+		"正式 String key 的 main_skill_lock_other_debuff_count params 应继续生效。"
+	)
+
+	var legacy_counts_true_unit := _build_unit(&"legacy_counts_true_unit", Vector2i.ZERO, 2)
+	_set_status_params(legacy_counts_true_unit, &"custom_bad_debuff", {
+		&"counts_as_debuff": true,
+	})
+	_assert_eq(
+		resolver.count_debuff_statuses(legacy_counts_true_unit),
+		0,
+		"StringName-only counts_as_debuff=true 不应再把自定义状态计为 debuff。"
+	)
+
+	var formal_counts_true_unit := _build_unit(&"formal_counts_true_unit", Vector2i.ZERO, 2)
+	_set_status_params(formal_counts_true_unit, &"custom_formal_debuff", {
+		"counts_as_debuff": true,
+	})
+	_assert_eq(
+		resolver.count_debuff_statuses(formal_counts_true_unit),
+		1,
+		"正式 String key 的 counts_as_debuff=true 应继续把自定义状态计为 debuff。"
+	)
+
+	var legacy_counts_false_unit := _build_unit(&"legacy_counts_false_unit", Vector2i.ZERO, 2)
+	_set_status_params(legacy_counts_false_unit, &"burning", {
+		&"counts_as_debuff": false,
+	})
+	_assert_eq(
+		resolver.count_debuff_statuses(legacy_counts_false_unit),
+		1,
+		"StringName-only counts_as_debuff=false 不应再覆盖内建 debuff 表。"
+	)
+
+	var formal_counts_false_unit := _build_unit(&"formal_counts_false_unit", Vector2i.ZERO, 2)
+	_set_status_params(formal_counts_false_unit, &"burning", {
+		"counts_as_debuff": false,
+	})
+	_assert_eq(
+		resolver.count_debuff_statuses(formal_counts_false_unit),
+		0,
+		"正式 String key 的 counts_as_debuff=false 应继续覆盖内建 debuff 表。"
+	)
+
+
+func _test_status_effect_from_dict_requires_explicit_status_id() -> void:
+	var missing_status_id_payload := _build_status_effect_payload()
+	missing_status_id_payload.erase("status_id")
+	var missing_status_id = BattleStatusEffectState.from_dict(missing_status_id_payload)
+	_assert_true(missing_status_id == null, "状态效果反序列化应拒绝缺少 status_id 的字典。")
+
+	var empty_status_id_payload := _build_status_effect_payload()
+	empty_status_id_payload["status_id"] = ""
+	var empty_status_id = BattleStatusEffectState.from_dict(empty_status_id_payload)
+	_assert_true(empty_status_id == null, "状态效果反序列化应拒绝空 status_id。")
+
+	var non_string_status_id_payload := _build_status_effect_payload()
+	non_string_status_id_payload["status_id"] = 12
+	var non_string_status_id = BattleStatusEffectState.from_dict(non_string_status_id_payload)
+	_assert_true(non_string_status_id == null, "状态效果反序列化应拒绝非 String/StringName 的 status_id。")
+
+	var non_dictionary_entry = BattleStatusEffectState.from_dict("burning")
+	_assert_true(non_dictionary_entry == null, "状态效果反序列化应拒绝非 Dictionary entry。")
+
+	var string_name_status_id_payload := _build_status_effect_payload()
+	string_name_status_id_payload["status_id"] = &"slow"
+	string_name_status_id_payload["source_unit_id"] = &"source"
+	var string_name_status_id = BattleStatusEffectState.from_dict(string_name_status_id_payload)
+	_assert_true(
+		string_name_status_id != null and string_name_status_id.status_id == &"slow",
+		"状态效果反序列化应接受显式 StringName status_id。"
+	)
+
+
+func _test_legacy_status_effect_map_keys_are_not_status_id_fallbacks() -> void:
+	var unit := _build_unit(&"legacy_status_map_unit", Vector2i(1, 1), 2)
+	var payload := unit.to_dict()
+	payload["status_effects"] = {
+		"burning": {
+			"power": 2,
+			"stacks": 1,
+			"duration": 10,
+		},
+	}
+
+	_assert_true(
+		BattleUnitState.from_dict(payload) == null,
+		"缺 status_id 的旧状态 map shape 应拒绝整份单位 payload。"
+	)
+
+
+func _test_non_dictionary_status_effect_entries_are_rejected() -> void:
+	var unit := _build_unit(&"non_dict_status_entry_unit", Vector2i(1, 1), 2)
+	var payload := unit.to_dict()
+	payload["status_effects"] = {
+		"burning": "legacy_entry",
+	}
+
+	_assert_true(
+		BattleUnitState.from_dict(payload) == null,
+		"非 Dictionary status effect entry 应拒绝整份单位 payload。"
+	)
+
+
+func _test_status_effect_to_dict_from_dict_round_trip_still_restores() -> void:
+	var effect := BattleStatusEffectState.new()
+	effect.status_id = &"burning"
+	effect.source_unit_id = &"round_trip_source"
+	effect.power = 3
+	effect.params = {
+		"damage_tag": "fire",
+	}
+	effect.stacks = 2
+	effect.duration = 20
+	effect.tick_interval_tu = 10
+	effect.next_tick_at_tu = 15
+	effect.skip_next_turn_end_decay = true
+
+	var restored_effect = BattleStatusEffectState.from_dict(effect.to_dict())
+	_assert_true(restored_effect != null, "正式状态 effect to_dict/from_dict 应继续恢复对象。")
+	_assert_eq(restored_effect.status_id if restored_effect != null else &"", &"burning", "正式状态 effect round trip 应保留 status_id。")
+	_assert_eq(restored_effect.source_unit_id if restored_effect != null else &"", &"round_trip_source", "正式状态 effect round trip 应保留来源单位。")
+	_assert_eq(restored_effect.power if restored_effect != null else -1, 3, "正式状态 effect round trip 应保留 power。")
+	_assert_eq(restored_effect.stacks if restored_effect != null else -1, 2, "正式状态 effect round trip 应保留 stacks。")
+	_assert_eq(restored_effect.duration if restored_effect != null else -1, 20, "正式状态 effect round trip 应保留 duration。")
+	_assert_eq(restored_effect.tick_interval_tu if restored_effect != null else -1, 10, "正式状态 effect round trip 应保留 tick interval。")
+	_assert_eq(restored_effect.next_tick_at_tu if restored_effect != null else -1, 15, "正式状态 effect round trip 应保留 next tick。")
+	_assert_true(restored_effect != null and restored_effect.skip_next_turn_end_decay, "正式状态 effect round trip 应保留 turn end decay 标记。")
+
+	var unit := _build_unit(&"status_round_trip_unit", Vector2i(1, 1), 2)
+	unit.set_status_effect(effect)
+	var restored_unit = BattleUnitState.from_dict(unit.to_dict())
+	var unit_effect = restored_unit.get_status_effect(&"burning") if restored_unit != null else null
+	_assert_true(unit_effect != null, "正式 BattleUnitState 状态字典 round trip 应继续恢复状态。")
+	_assert_eq(unit_effect.status_id if unit_effect != null else &"", &"burning", "正式 BattleUnitState 状态 round trip 应保留 status_id。")
+	_assert_eq(unit_effect.stacks if unit_effect != null else -1, 2, "正式 BattleUnitState 状态 round trip 应保留 stacks。")
+
+
+func _build_status_effect_payload() -> Dictionary:
+	return {
+		"status_id": "burning",
+		"source_unit_id": "source",
+		"power": 2,
+		"params": {},
+		"stacks": 1,
+	}
+
+
 func _apply_status(
 	runtime: BattleRuntimeModule,
 	source_unit: BattleUnitState,
@@ -293,6 +585,24 @@ func _apply_status(
 		effect_def.tick_interval_tu = tick_interval_tu
 	var result := runtime._damage_resolver.resolve_effects(source_unit, target_unit, [effect_def])
 	runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
+
+
+func _set_status_params(unit: BattleUnitState, status_id: StringName, params: Dictionary) -> void:
+	var status_effect := BattleStatusEffectState.new()
+	status_effect.status_id = status_id
+	status_effect.power = 1
+	status_effect.stacks = 1
+	status_effect.params = params.duplicate(true)
+	unit.set_status_effect(status_effect)
+
+
+func _build_damage_effect(power: int, damage_tag: StringName) -> CombatEffectDef:
+	var effect_def := CombatEffectDef.new()
+	effect_def.effect_type = &"damage"
+	effect_def.power = power
+	effect_def.damage_tag = damage_tag
+	effect_def.params = {}
+	return effect_def
 
 
 func _build_runtime() -> BattleRuntimeModule:

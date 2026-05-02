@@ -134,7 +134,7 @@ func _test_selection_sidecar_reuses_shared_line_cone_radius_and_self_target_coll
 		game_session,
 		&"warrior_sweeping_slash",
 		0,
-		20,
+		40,
 		Vector2i(2, 1),
 		"cone"
 	)
@@ -319,6 +319,7 @@ func _assert_selection_sidecar_matches_ground_preview_target_collection(
 	)
 	caster.current_stamina = current_stamina
 	caster.attribute_snapshot.set_value(&"stamina_max", maxi(current_stamina, 1))
+	_apply_test_equipped_weapon(caster)
 	_add_unit_to_state(facade, state, caster, false)
 	state.phase = &"unit_acting"
 	state.active_unit_id = caster.unit_id
@@ -819,6 +820,21 @@ func _build_manual_unit(
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
 	return unit
+
+
+func _apply_test_equipped_weapon(unit: BattleUnitState, attack_range: int = 1) -> void:
+	if unit == null:
+		return
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "battle_selection_test_blade",
+		"weapon_profile_type_id": "test_blade",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": attack_range,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 
 
 func _add_unit_to_state(facade, state: BattleState, unit: BattleUnitState, is_enemy: bool) -> void:

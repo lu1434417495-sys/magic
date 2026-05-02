@@ -16,7 +16,7 @@ func _run() -> void:
 	_test_power_only_damage_preview()
 	_test_weapon_and_skill_dice_damage_range()
 	_test_multiple_damage_effects_are_summed()
-	_test_two_handed_weapon_dice_and_alias_skill_dice_fields()
+	_test_two_handed_weapon_dice_ignores_alias_skill_dice_fields()
 	_test_dice_bonus_without_dice_is_ignored()
 	if _failures.is_empty():
 		print("Battle damage preview range contract regression: PASS")
@@ -86,7 +86,7 @@ func _test_multiple_damage_effects_are_summed() -> void:
 		_assert_eq(int((ranges[1] as Dictionary).get("effect_index", -1)), 2, "第二段应保留原 effect index。")
 
 
-func _test_two_handed_weapon_dice_and_alias_skill_dice_fields() -> void:
+func _test_two_handed_weapon_dice_ignores_alias_skill_dice_fields() -> void:
 	var source := _build_unit(&"two_handed_preview_user")
 	source.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
@@ -105,16 +105,16 @@ func _test_two_handed_weapon_dice_and_alias_skill_dice_fields() -> void:
 	effect.params["damage_dice_bonus"] = 2
 
 	var preview := BattleDamagePreviewRangeService.build_skill_damage_preview(source, [effect])
-	_assert_eq(int(preview.get("min_damage", 0)), 12, "双手握法应读取 two_handed_dice 计算最小伤害。")
-	_assert_eq(int(preview.get("max_damage", 0)), 28, "双手握法应读取 two_handed_dice 计算最大伤害。")
+	_assert_eq(int(preview.get("min_damage", 0)), 7, "旧技能骰 alias 不应加入预览最小伤害。")
+	_assert_eq(int(preview.get("max_damage", 0)), 17, "旧技能骰 alias 不应加入预览最大伤害。")
 	var ranges := preview.get("damage_ranges", []) as Array
 	if ranges.size() >= 1 and ranges[0] is Dictionary:
 		var damage_range := ranges[0] as Dictionary
 		_assert_eq(int(damage_range.get("weapon_damage_dice_count", 0)), 2, "双手武器骰数量应来自 two_handed_dice。")
 		_assert_eq(int(damage_range.get("weapon_damage_dice_sides", 0)), 6, "双手武器骰面应来自 two_handed_dice。")
-		_assert_eq(int(damage_range.get("damage_dice_count", 0)), 3, "技能骰应读取 damage_dice_count alias。")
-		_assert_eq(int(damage_range.get("damage_dice_sides", 0)), 3, "技能骰应读取 damage_dice_sides alias。")
-		_assert_eq(int(damage_range.get("damage_dice_bonus", 0)), 2, "技能骰应读取 damage_dice_bonus alias。")
+		_assert_eq(int(damage_range.get("damage_dice_count", 0)), 0, "旧 damage_dice_count alias 不应再被读取。")
+		_assert_eq(int(damage_range.get("damage_dice_sides", 0)), 0, "旧 damage_dice_sides alias 不应再被读取。")
+		_assert_eq(int(damage_range.get("damage_dice_bonus", 0)), 0, "旧 damage_dice_bonus alias 不应再被读取。")
 
 
 func _test_dice_bonus_without_dice_is_ignored() -> void:

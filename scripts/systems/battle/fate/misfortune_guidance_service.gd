@@ -106,7 +106,7 @@ func handle_forge_result(
 	var normalized_member_id := ProgressionDataUtils.to_string_name(member_id)
 	if normalized_member_id == &"":
 		return unlocked_ids
-	if not bool(result.get("success", result.get("ok", false))):
+	if not bool(result.get("success", false)):
 		return unlocked_ids
 	if not _has_exalted_ready_flag(normalized_member_id):
 		return unlocked_ids
@@ -259,11 +259,19 @@ func _resolve_forge_output_item_id(result: Dictionary) -> StringName:
 func _get_item_def(item_defs: Dictionary, item_id: StringName) -> ItemDef:
 	if item_defs.is_empty() or item_id == &"":
 		return null
-	var direct_match = item_defs.get(item_id)
-	if direct_match is ItemDef:
-		return direct_match as ItemDef
-	var string_match = item_defs.get(String(item_id))
-	return string_match as ItemDef if string_match is ItemDef else null
+	var item_def = _get_item_def_by_string_name_key(item_defs, item_id)
+	return item_def as ItemDef if item_def is ItemDef else null
+
+
+func _get_item_def_by_string_name_key(item_defs: Dictionary, item_id: StringName):
+	if item_id == &"":
+		return null
+	for key in item_defs.keys():
+		if typeof(key) != TYPE_STRING_NAME:
+			continue
+		if key == item_id:
+			return item_defs[key]
+	return null
 
 
 func _unlock_achievement(member_id: StringName, achievement_id: StringName) -> bool:

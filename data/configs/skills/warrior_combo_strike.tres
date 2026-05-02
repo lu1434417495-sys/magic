@@ -44,10 +44,10 @@ ap_cost = 1
 stamina_cost = 30
 cooldown_tu = 0
 level_overrides = {
-"2": {
+2: {
 "stamina_cost": 25
 },
-"4": {
+4: {
 "stamina_cost": 20
 }
 }
@@ -60,7 +60,46 @@ script = ExtResource("5_v7utl")
 skill_id = &"warrior_combo_strike"
 display_name = "连击"
 icon_id = &"warrior_combo_strike"
-description = "圣剑连斩的来源技能之一。连续进行武器攻击，每段命中惩罚逐次指数提升。2级起初始体力消耗降至25，4级起降至20。熟练度增长：命中且暴击或武器骰最大值时获得基础熟练度；成功触发第5段连击起，每多一段额外获得翻倍熟练度奖励。满级核心后提供敏捷+50、力量+10的属性成长进度。"
+description = "连续进行武器攻击，命中惩罚随段数指数提升。高等级增加免惩罚段数并降低体力消耗。精通：命中且暴击/武器骰最大值时获得基础精通；第5段起逐段额外翻倍奖励。"
+level_description_template = "连续武器攻击，体力消耗{stamina}。{penalty_desc}，后续逐段翻倍（-{penalty_value}起）。额外段消耗{follow_up_cost}体力。"
+level_description_configs = {
+"0": {
+"stamina": "30",
+"penalty_desc": "无命中惩罚减免",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"1": {
+"stamina": "30",
+"penalty_desc": "前1段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"2": {
+"stamina": "25",
+"penalty_desc": "前1段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"3": {
+"stamina": "25",
+"penalty_desc": "前2段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"4": {
+"stamina": "20",
+"penalty_desc": "前2段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"5": {
+"stamina": "20",
+"penalty_desc": "前3段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+}
+}
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(200, 500, 1100, 2000, 3200)

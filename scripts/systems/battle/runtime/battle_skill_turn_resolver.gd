@@ -487,8 +487,8 @@ func count_debuff_statuses(unit_state: BattleUnitState) -> int:
 func status_counts_as_debuff(status_id: StringName, status_entry: BattleStatusEffectState) -> bool:
 	if status_entry != null and status_entry.params != null:
 		var params: Dictionary = status_entry.params
-		if params.has("counts_as_debuff") or params.has(&"counts_as_debuff"):
-			return bool(params.get("counts_as_debuff", params.get(&"counts_as_debuff", false)))
+		if _status_params_has_formal_key(params, "counts_as_debuff"):
+			return bool(_status_params_get_formal_value(params, "counts_as_debuff", false))
 	return bool(DEBUFF_STATUS_IDS.get(status_id, false))
 
 
@@ -501,7 +501,7 @@ func has_status_param_bool(unit_state: BattleUnitState, param_key: StringName) -
 		if status_entry == null or status_entry.params == null:
 			continue
 		var params: Dictionary = status_entry.params
-		if bool(params.get(String(param_key), params.get(param_key, false))):
+		if bool(_status_params_get_formal_value(params, String(param_key), false)):
 			return true
 	return false
 
@@ -516,8 +516,22 @@ func get_status_param_max_int(unit_state: BattleUnitState, param_key: StringName
 		if status_entry == null or status_entry.params == null:
 			continue
 		var params: Dictionary = status_entry.params
-		max_value = maxi(int(params.get(String(param_key), params.get(param_key, 0))), max_value)
+		max_value = maxi(int(_status_params_get_formal_value(params, String(param_key), 0)), max_value)
 	return max_value
+
+
+func _status_params_has_formal_key(params: Dictionary, param_key: String) -> bool:
+	for key_variant in params.keys():
+		if key_variant is String and key_variant == param_key:
+			return true
+	return false
+
+
+func _status_params_get_formal_value(params: Dictionary, param_key: String, default_value: Variant) -> Variant:
+	for key_variant in params.keys():
+		if key_variant is String and key_variant == param_key:
+			return params[key_variant]
+	return default_value
 
 
 func _is_black_contract_push_skill(skill_id: StringName) -> bool:

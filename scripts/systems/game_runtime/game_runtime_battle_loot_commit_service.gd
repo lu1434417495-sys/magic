@@ -280,8 +280,7 @@ func _commit_random_equipment_loot_entry(loot_entry_data: Dictionary) -> Diction
 
 
 func _commit_equipment_instance_loot_entry(loot_entry_data: Dictionary) -> Dictionary:
-	var equipment_instance_variant: Variant = loot_entry_data.get("equipment_instance", loot_entry_data.get("equipment_instance_data", {}))
-	if equipment_instance_variant is not Dictionary:
+	if not loot_entry_data.has("equipment_instance") or loot_entry_data.get("equipment_instance") is not Dictionary:
 		return {
 			"ok": false,
 			"error_code": "battle_loot_equipment_instance_missing_payload",
@@ -289,6 +288,7 @@ func _commit_equipment_instance_loot_entry(loot_entry_data: Dictionary) -> Dicti
 			"committed_item_count": 0,
 			"overflow_entries": [],
 		}
+	var equipment_instance_variant: Variant = loot_entry_data.get("equipment_instance")
 	var equipment_instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_transient_loot_dict(equipment_instance_variant)
 	if equipment_instance == null:
 		return {

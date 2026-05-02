@@ -123,7 +123,7 @@ func is_attack_disadvantage(attacker: BattleUnitState, defender: BattleUnitState
 		return true
 	var taunt_entry = attacker.get_status_effect(&"taunted")
 	if taunt_entry != null:
-		var source_id = taunt_entry.source_unit_id
+		var source_id := ProgressionDataUtils.to_string_name(taunt_entry.source_unit_id)
 		var source_unit = units.get(source_id) as BattleUnitState
 		if _is_enemy_unit(attacker, source_unit) and defender != null and defender.unit_id != source_id:
 			return true

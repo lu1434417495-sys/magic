@@ -107,7 +107,8 @@ func _test_black_star_brand_normal_target_blocks_guard_and_counterattack() -> vo
 	caster.known_active_skill_ids = [BLACK_STAR_BRAND_SKILL_ID]
 	caster.known_skill_level_map = {BLACK_STAR_BRAND_SKILL_ID: 1}
 	var enemy := _build_unit(&"brand_normal_enemy", "普通敌人", &"enemy", Vector2i(2, 1), 2)
-	enemy.current_stamina = 2
+	enemy.current_stamina = 60
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
 	enemy.known_active_skill_ids = [WARRIOR_GUARD_SKILL_ID]
 	enemy.known_skill_level_map = {WARRIOR_GUARD_SKILL_ID: 1}
 	enemy.status_effects[STATUS_GUARDING] = {
@@ -135,7 +136,7 @@ func _test_black_star_brand_normal_target_blocks_guard_and_counterattack() -> vo
 	state.active_unit_id = enemy.unit_id
 	state.phase = &"unit_acting"
 	enemy.current_ap = 2
-	enemy.current_stamina = 2
+	enemy.current_stamina = 60
 	var guard_command := _build_skill_command(enemy.unit_id, WARRIOR_GUARD_SKILL_ID, enemy)
 	var guard_preview := runtime.preview_command(guard_command)
 	_assert_true(
@@ -160,7 +161,8 @@ func _test_black_star_brand_elite_target_uses_elite_only_debuffs() -> void:
 	caster.known_active_skill_ids = [BLACK_STAR_BRAND_SKILL_ID]
 	caster.known_skill_level_map = {BLACK_STAR_BRAND_SKILL_ID: 1}
 	var elite := _build_unit(&"brand_elite_target", "精英敌人", &"enemy", Vector2i(2, 1), 2, &"", true)
-	elite.current_stamina = 2
+	elite.current_stamina = 60
+	elite.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
 	elite.known_active_skill_ids = [WARRIOR_GUARD_SKILL_ID, WARRIOR_HEAVY_STRIKE_SKILL_ID]
 	elite.known_skill_level_map = {WARRIOR_GUARD_SKILL_ID: 1, WARRIOR_HEAVY_STRIKE_SKILL_ID: 1}
 	var ally_target := _build_unit(&"brand_elite_ally_target", "被打击者", &"player", Vector2i(3, 1), 2)
@@ -184,7 +186,7 @@ func _test_black_star_brand_elite_target_uses_elite_only_debuffs() -> void:
 	state.active_unit_id = elite.unit_id
 	state.phase = &"unit_acting"
 	elite.current_ap = 2
-	elite.current_stamina = 2
+	elite.current_stamina = 60
 	var guard_command := _build_skill_command(elite.unit_id, WARRIOR_GUARD_SKILL_ID, elite)
 	var guard_preview := runtime.preview_command(guard_command)
 	_assert_true(guard_preview.allowed, "elite 黑星烙印下 warrior_guard 仍应允许施放。")

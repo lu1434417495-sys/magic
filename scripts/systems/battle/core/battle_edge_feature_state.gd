@@ -19,6 +19,16 @@ const RENDER_WALL := &"wall"
 const INTERACT_NONE := &"none"
 const INTERACT_TOGGLE := &"toggle"
 const INTERACT_BREAK := &"break"
+const SCHEMA_FIELDS: Array[String] = [
+	"feature_kind",
+	"render_kind",
+	"render_layers",
+	"blocks_move",
+	"blocks_occupancy",
+	"blocks_los",
+	"interaction_kind",
+	"state_tag",
+]
 
 ## 字段说明：记录 authoring 特征类型，作为规则、渲染和交互层的上层语义入口。
 var feature_kind: StringName = FEATURE_NONE
@@ -64,18 +74,40 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Variant) -> BattleEdgeFeatureState:
-	var feature_state := BATTLE_EDGE_FEATURE_STATE_SCRIPT.new()
 	if data is not Dictionary:
-		return feature_state
+		return null
 	var feature_dict := data as Dictionary
-	feature_state.feature_kind = StringName(String(feature_dict.get("feature_kind", "none")))
-	feature_state.render_kind = StringName(String(feature_dict.get("render_kind", "none")))
-	feature_state.render_layers = maxi(int(feature_dict.get("render_layers", 0)), 0)
-	feature_state.blocks_move = bool(feature_dict.get("blocks_move", false))
-	feature_state.blocks_occupancy = bool(feature_dict.get("blocks_occupancy", false))
-	feature_state.blocks_los = bool(feature_dict.get("blocks_los", false))
-	feature_state.interaction_kind = StringName(String(feature_dict.get("interaction_kind", "none")))
-	feature_state.state_tag = StringName(String(feature_dict.get("state_tag", "")))
+	if not _has_exact_schema_fields(feature_dict):
+		return null
+	var feature_kind: Variant = feature_dict["feature_kind"]
+	var render_kind: Variant = feature_dict["render_kind"]
+	var render_layers: Variant = feature_dict["render_layers"]
+	var blocks_move_value: Variant = feature_dict["blocks_move"]
+	var blocks_occupancy_value: Variant = feature_dict["blocks_occupancy"]
+	var blocks_los_value: Variant = feature_dict["blocks_los"]
+	var interaction_kind: Variant = feature_dict["interaction_kind"]
+	var state_tag: Variant = feature_dict["state_tag"]
+	if not _is_non_empty_string_like(feature_kind):
+		return null
+	if not _is_non_empty_string_like(render_kind):
+		return null
+	if not _is_non_empty_string_like(interaction_kind):
+		return null
+	if not _is_string_like(state_tag):
+		return null
+	if render_layers is not int or render_layers < 0:
+		return null
+	if blocks_move_value is not bool or blocks_occupancy_value is not bool or blocks_los_value is not bool:
+		return null
+	var feature_state := BATTLE_EDGE_FEATURE_STATE_SCRIPT.new()
+	feature_state.feature_kind = StringName(feature_kind)
+	feature_state.render_kind = StringName(render_kind)
+	feature_state.render_layers = render_layers
+	feature_state.blocks_move = blocks_move_value
+	feature_state.blocks_occupancy = blocks_occupancy_value
+	feature_state.blocks_los = blocks_los_value
+	feature_state.interaction_kind = StringName(interaction_kind)
+	feature_state.state_tag = StringName(state_tag)
 	return feature_state
 
 
@@ -116,3 +148,27 @@ static func make_toggle_door(is_open: bool = false) -> BattleEdgeFeatureState:
 	feature_state.interaction_kind = INTERACT_TOGGLE
 	feature_state.state_tag = &"open" if is_open else &"closed"
 	return feature_state
+
+
+static func _has_exact_schema_fields(feature_dict: Dictionary) -> bool:
+	if feature_dict.size() != SCHEMA_FIELDS.size():
+		return false
+	for key_variant in feature_dict.keys():
+		if key_variant is not String:
+			return false
+		if not SCHEMA_FIELDS.has(key_variant):
+			return false
+	for field in SCHEMA_FIELDS:
+		if not feature_dict.has(field):
+			return false
+	return true
+
+
+static func _is_string_like(value: Variant) -> bool:
+	return value is String or value is StringName
+
+
+static func _is_non_empty_string_like(value: Variant) -> bool:
+	if not _is_string_like(value):
+		return false
+	return not String(value).is_empty()

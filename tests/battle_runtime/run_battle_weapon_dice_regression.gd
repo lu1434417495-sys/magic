@@ -83,6 +83,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_add_weapon_dice_explicit_formula()
+	_test_legacy_skill_dice_aliases_are_not_used()
 	_test_physical_damage_does_not_add_weapon_dice_by_default()
 	_test_critical_hit_rolls_extra_weapon_and_skill_dice_once()
 	_test_each_damage_effect_reads_add_weapon_dice_independently()
@@ -119,6 +120,23 @@ func _test_add_weapon_dice_explicit_formula() -> void:
 	_assert_eq(int(event.get("damage_dice_total", 0)), 5, "技能骰应保留为 damage_dice_total。")
 	_assert_eq(int(event.get("damage_dice_bonus", 0)), 3, "技能骰 bonus 应加入基础伤害。")
 	_assert_eq(int(result.get("damage", 0)), 21, "无减伤时总 HP 伤害应等于 base_damage。")
+
+
+func _test_legacy_skill_dice_aliases_are_not_used() -> void:
+	var resolver := FixedRollDamageResolver.new([6, 6, 6])
+	var source := _build_unit(&"legacy_dice_alias_user")
+	var target := _build_unit(&"legacy_dice_alias_target")
+	var effect := _build_damage_effect(5, false)
+	effect.params["damage_dice_count"] = 3
+	effect.params["damage_dice_sides"] = 6
+	effect.params["damage_dice_bonus"] = 9
+
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var event := _first_damage_event(result)
+	_assert_eq(int(event.get("base_damage", 0)), 5, "旧技能骰 alias 不应加入真实伤害。")
+	_assert_eq(int(event.get("damage_dice_count", -1)), 0, "旧 damage_dice_count alias 不应再被读取。")
+	_assert_eq(int(event.get("damage_dice_sides", -1)), 0, "旧 damage_dice_sides alias 不应再被读取。")
+	_assert_eq(int(event.get("damage_dice_bonus", -1)), 0, "旧 damage_dice_bonus alias 不应再被读取。")
 
 
 func _test_physical_damage_does_not_add_weapon_dice_by_default() -> void:

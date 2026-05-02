@@ -48,22 +48,34 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Variant) -> EquipmentEntryState:
 	if data is not Dictionary:
 		return null
-	var occupied_variant: Variant = data.get("occupied_slot_ids", null)
+	var payload := data as Dictionary
+	if payload.size() != 2:
+		return null
+	if not payload.has("occupied_slot_ids") or not payload.has("equipment_instance"):
+		return null
+	var occupied_variant: Variant = payload["occupied_slot_ids"]
 	if occupied_variant is not Array:
 		return null
-	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(data.get("equipment_instance", null))
+	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(payload["equipment_instance"])
 	if instance == null:
 		return null
 	var entry := SCRIPT.new()
 	if not entry.set_equipment_instance(instance):
 		return null
 	for raw_slot_id in occupied_variant:
+		if not _is_string_name_payload_value(raw_slot_id):
+			return null
 		var slot_id := ProgressionDataUtils.to_string_name(raw_slot_id)
-		if not EQUIPMENT_RULES_SCRIPT.is_valid_slot(slot_id):
-			continue
+		if slot_id == &"" or not EQUIPMENT_RULES_SCRIPT.is_valid_slot(slot_id):
+			return null
 		if entry.occupied_slot_ids.has(slot_id):
-			continue
+			return null
 		entry.occupied_slot_ids.append(slot_id)
 	if entry.item_id == &"" or entry.occupied_slot_ids.is_empty():
 		return null
 	return entry
+
+
+static func _is_string_name_payload_value(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type == TYPE_STRING or value_type == TYPE_STRING_NAME

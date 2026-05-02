@@ -38,15 +38,24 @@ const STATUS_CROWN_BREAK_BROKEN_FANG: StringName = &"crown_break_broken_fang"
 const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
+const STATUS_LAST_STAND_ACTIVE: StringName = &"last_stand_active"
 
 
 static func has_semantic(status_id: StringName) -> bool:
 	return not get_semantic(status_id).is_empty()
 
 
+static func is_harmful_status(status_id: StringName) -> bool:
+	match ProgressionDataUtils.to_string_name(status_id):
+		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_BURNING, STATUS_SLOW, STATUS_STAGGERED, STATUS_HEX_OF_FRAILTY, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT, &"black_star_brand_normal", &"black_star_brand_elite":
+			return true
+		_:
+			return false
+
+
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_DODGE_BONUS_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD:
+		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_DODGE_BONUS_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD, STATUS_LAST_STAND_ACTIVE:
 			return _build_refresh_timeline_semantic()
 		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT:
 			return _build_refresh_timeline_semantic()
@@ -85,9 +94,9 @@ static func merge_status(effect_def, source_unit_id: StringName, existing_entry:
 	if semantic.is_empty():
 		status_entry.power = int(effect_def.power)
 		status_entry.stacks = maxi(previous_stacks + 1, 1)
-		var legacy_duration := _resolve_duration_tu(effect_def)
-		if legacy_duration >= 0:
-			status_entry.duration = legacy_duration
+		var source_duration := _resolve_duration_tu(effect_def)
+		if source_duration >= 0:
+			status_entry.duration = source_duration
 		return status_entry
 
 	var stack_mode := ProgressionDataUtils.to_string_name(semantic.get("stack_mode", STACK_REFRESH))
@@ -175,8 +184,6 @@ static func _resolve_duration_tu(effect_def) -> int:
 		return _normalize_positive_tu_value(int(effect_def.params.get("duration_tu", 0)), "status params.duration_tu")
 	if int(effect_def.duration_tu) > 0:
 		return _normalize_positive_tu_value(int(effect_def.duration_tu), "status duration_tu")
-	if effect_def.params != null and effect_def.params.has("duration"):
-		return _normalize_positive_tu_value(int(effect_def.params.get("duration", 0)), "legacy status duration")
 	return -1
 
 

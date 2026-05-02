@@ -26,6 +26,12 @@ const LOOT_SOURCE_ID_ORDINARY_BATTLE: StringName = &"ordinary_battle"
 const LOOT_SOURCE_ID_ELITE_BOSS_BATTLE: StringName = &"elite_boss_battle"
 const CALAMITY_PER_SHARD := 2
 const DOOM_SENTENCE_REFUND_CALAMITY := 5
+const DROP_DEFINITION_REQUIRED_FIELDS := [
+	"drop_entry_id",
+	"drop_type",
+	"item_id",
+	"quantity",
+]
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -95,14 +101,15 @@ func _build_defeated_unit_loot_entries(unit_state: BattleUnitState, enemy_templa
 	var drop_entries: Array = enemy_template.get_drop_entries() if enemy_template.has_method("get_drop_entries") else []
 	for drop_entry_variant in drop_entries:
 		if drop_entry_variant is not Dictionary:
-			continue
+			return []
 		var drop_entry_data := drop_entry_variant as Dictionary
-		var drop_id := ProgressionDataUtils.to_string_name(drop_entry_data.get("drop_id", ""))
-		var drop_type := ProgressionDataUtils.to_string_name(drop_entry_data.get("drop_type", ""))
-		var item_id := ProgressionDataUtils.to_string_name(drop_entry_data.get("item_id", ""))
-		var quantity := maxi(int(drop_entry_data.get("quantity", 0)), 0)
-		if drop_id == &"" or drop_type == &"" or item_id == &"" or quantity <= 0:
-			continue
+		var parsed_drop_entry := _parse_drop_definition(drop_entry_data)
+		if parsed_drop_entry.is_empty():
+			return []
+		var drop_entry_id: StringName = parsed_drop_entry["drop_entry_id"]
+		var drop_type: StringName = parsed_drop_entry["drop_type"]
+		var item_id: StringName = parsed_drop_entry["item_id"]
+		var quantity: int = parsed_drop_entry["quantity"]
 		if drop_type == LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
 			if _runtime._equipment_drop_service != null and _runtime._equipment_drop_service.has_method("roll_item_instances"):
 				var rolled_instances: Array = _runtime._equipment_drop_service.roll_item_instances(item_id, quantity, normalized_drop_luck)
@@ -111,7 +118,7 @@ func _build_defeated_unit_loot_entries(unit_state: BattleUnitState, enemy_templa
 						LOOT_SOURCE_KIND_ENEMY_UNIT,
 						unit_state.unit_id,
 						source_label,
-						"%s_%s_%d" % [String(unit_state.unit_id), String(drop_id), instance_index + 1],
+						"%s_%s_%d" % [String(unit_state.unit_id), String(drop_entry_id), instance_index + 1],
 						rolled_instances[instance_index]
 					)
 					if not loot_entry.is_empty():
@@ -121,7 +128,7 @@ func _build_defeated_unit_loot_entries(unit_state: BattleUnitState, enemy_templa
 				LOOT_SOURCE_KIND_ENEMY_UNIT,
 				unit_state.unit_id,
 				source_label,
-				"%s_%s" % [String(unit_state.enemy_template_id if unit_state.enemy_template_id != &"" else unit_state.unit_id), String(drop_id)],
+				"%s_%s" % [String(unit_state.enemy_template_id if unit_state.enemy_template_id != &"" else unit_state.unit_id), String(drop_entry_id)],
 				item_id,
 				quantity
 			)
@@ -135,13 +142,50 @@ func _build_defeated_unit_loot_entries(unit_state: BattleUnitState, enemy_templa
 			LOOT_SOURCE_KIND_ENEMY_UNIT,
 			unit_state.unit_id,
 			source_label,
-			"%s_%s" % [String(unit_state.enemy_template_id if unit_state.enemy_template_id != &"" else unit_state.unit_id), String(drop_id)],
+			"%s_%s" % [String(unit_state.enemy_template_id if unit_state.enemy_template_id != &"" else unit_state.unit_id), String(drop_entry_id)],
 			item_id,
 			quantity
 		)
 		if not fixed_entry.is_empty():
 			loot_entries.append(fixed_entry)
 	return loot_entries
+
+
+func _parse_drop_definition(entry_data: Dictionary) -> Dictionary:
+	if entry_data.has("drop_id"):
+		return {}
+	if entry_data.size() != DROP_DEFINITION_REQUIRED_FIELDS.size():
+		return {}
+	for field_name in DROP_DEFINITION_REQUIRED_FIELDS:
+		if not entry_data.has(field_name):
+			return {}
+	var drop_entry_id := _strict_string_name_value(entry_data["drop_entry_id"])
+	var drop_type := _strict_string_name_value(entry_data["drop_type"])
+	var item_id := _strict_string_name_value(entry_data["item_id"])
+	if drop_entry_id == &"" or item_id == &"":
+		return {}
+	if drop_type != LOOT_DROP_TYPE_ITEM and drop_type != LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
+		return {}
+	if entry_data["quantity"] is not int:
+		return {}
+	var quantity := int(entry_data["quantity"])
+	if quantity <= 0:
+		return {}
+	return {
+		"drop_entry_id": drop_entry_id,
+		"drop_type": drop_type,
+		"item_id": item_id,
+		"quantity": quantity,
+	}
+
+
+func _strict_string_name_value(value: Variant) -> StringName:
+	if value is not String and value is not StringName:
+		return &""
+	var text := String(value).strip_edges()
+	if text.is_empty():
+		return &""
+	return StringName(text)
 
 
 func _build_equipment_instance_loot_entry(
@@ -401,4 +445,3 @@ func _resolve_encounter_resolution() -> StringName:
 	if _runtime._state.winner_faction_id == &"draw":
 		return &"draw"
 	return &"resolved"
-

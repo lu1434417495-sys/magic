@@ -534,9 +534,12 @@ func _get_change_equipment_item_def(item_id: StringName):
 	var normalized := ProgressionDataUtils.to_string_name(item_id)
 	if normalized == &"" or _runtime._item_defs == null:
 		return null
-	if _runtime._item_defs.has(normalized):
-		return _runtime._item_defs.get(normalized)
-	return _runtime._item_defs.get(String(normalized))
+	for key in _runtime._item_defs.keys():
+		if typeof(key) != TYPE_STRING_NAME:
+			continue
+		if key == normalized:
+			return _runtime._item_defs[key]
+	return null
 
 
 func _has_change_equipment_item_catalog() -> bool:
@@ -669,4 +672,3 @@ func _stringify_string_name_array(values: Array[StringName]) -> Array[String]:
 	for value in values:
 		result.append(String(value))
 	return result
-

@@ -446,13 +446,13 @@ func _build_unit(
 	unit.current_ap = current_ap
 	unit.current_hp = 60
 	unit.current_mp = 4
-	unit.current_stamina = 4
+	unit.current_stamina = 60
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 60)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 6)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
@@ -464,7 +464,23 @@ func _build_unit(
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 0)
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, 0)
 	unit.attribute_snapshot.set_value(FORTUNE_MARK_TARGET_STAT_ID, 1 if is_elite_or_boss else 0)
+	_apply_test_equipped_weapon(unit)
 	return unit
+
+
+func _apply_test_equipped_weapon(unit: BattleUnitState, attack_range: int = 1) -> void:
+	if unit == null:
+		return
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "crown_break_test_blade",
+		"weapon_profile_type_id": "test_blade",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": attack_range,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 
 
 func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUnitState) -> void:

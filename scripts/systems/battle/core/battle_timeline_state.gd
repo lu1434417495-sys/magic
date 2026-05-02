@@ -8,6 +8,15 @@ extends RefCounted
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const TU_GRANULARITY := 5
 const DEFAULT_TICK_INTERVAL_SECONDS := 1.0
+const SCHEMA_FIELDS := {
+	"current_tu": true,
+	"units_per_second": true,
+	"tick_interval_seconds": true,
+	"tu_per_tick": true,
+	"frozen": true,
+	"ready_unit_ids": true,
+	"delta_remainder": true,
+}
 
 ## 字段说明：记录当前TU，会参与运行时状态流转、系统协作和存档恢复。
 var current_tu := 0
@@ -47,15 +56,38 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
+static func from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
+	if not _has_exact_schema_fields(data):
+		return null
+	if typeof(data["current_tu"]) != TYPE_INT or int(data["current_tu"]) < 0:
+		return null
+	if typeof(data["units_per_second"]) != TYPE_INT or int(data["units_per_second"]) <= 0:
+		return null
+	if typeof(data["tu_per_tick"]) != TYPE_INT or int(data["tu_per_tick"]) <= 0:
+		return null
+	if not _is_number(data["tick_interval_seconds"]) or float(data["tick_interval_seconds"]) <= 0.0:
+		return null
+	if not _is_number(data["delta_remainder"]) or float(data["delta_remainder"]) < 0.0:
+		return null
+	if typeof(data["frozen"]) != TYPE_BOOL:
+		return null
+	if data["ready_unit_ids"] is not Array:
+		return null
+	var parsed_ready_unit_ids = _strings_to_string_name_array(data["ready_unit_ids"])
+	if parsed_ready_unit_ids == null:
+		return null
+	var ready_unit_ids: Array[StringName] = parsed_ready_unit_ids
+
 	var state = BATTLE_TIMELINE_STATE_SCRIPT.new()
-	state.current_tu = int(data.get("current_tu", 0))
-	state.units_per_second = int(data.get("units_per_second", TU_GRANULARITY))
-	state.tick_interval_seconds = float(data.get("tick_interval_seconds", DEFAULT_TICK_INTERVAL_SECONDS))
-	state.tu_per_tick = int(data.get("tu_per_tick", TU_GRANULARITY))
-	state.frozen = bool(data.get("frozen", false))
-	state.ready_unit_ids = _strings_to_string_name_array(data.get("ready_unit_ids", []))
-	state.delta_remainder = float(data.get("delta_remainder", 0.0))
+	state.current_tu = int(data["current_tu"])
+	state.units_per_second = int(data["units_per_second"])
+	state.tick_interval_seconds = float(data["tick_interval_seconds"])
+	state.tu_per_tick = int(data["tu_per_tick"])
+	state.frozen = bool(data["frozen"])
+	state.ready_unit_ids = ready_unit_ids
+	state.delta_remainder = float(data["delta_remainder"])
 	return state
 
 
@@ -66,9 +98,29 @@ static func _string_name_array_to_strings(values: Array[StringName]) -> Array[St
 	return results
 
 
-static func _strings_to_string_name_array(values: Variant) -> Array[StringName]:
+static func _has_exact_schema_fields(data: Dictionary) -> bool:
+	if data.size() != SCHEMA_FIELDS.size():
+		return false
+	for field_name in SCHEMA_FIELDS:
+		if not data.has(field_name):
+			return false
+	return true
+
+
+static func _is_number(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type == TYPE_FLOAT or value_type == TYPE_INT
+
+
+static func _strings_to_string_name_array(values: Variant):
 	var results: Array[StringName] = []
-	if values is Array:
-		for value in values:
-			results.append(StringName(String(value)))
+	if values is not Array:
+		return null
+	for value in values:
+		if typeof(value) != TYPE_STRING and typeof(value) != TYPE_STRING_NAME:
+			return null
+		var id_text := String(value)
+		if id_text.is_empty():
+			return null
+		results.append(StringName(id_text))
 	return results

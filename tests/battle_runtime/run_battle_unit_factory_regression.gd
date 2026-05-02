@@ -7,6 +7,7 @@ extends SceneTree
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
 const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle/runtime/battle_unit_factory_runtime.gd")
@@ -98,12 +99,39 @@ class FakeRuntime:
 		return _min_battle_surface_height
 
 
+class RuntimeUnitFactoryStub:
+	extends RefCounted
+
+	var ally_units: Array = []
+	var enemy_units: Array = []
+	var terrain_data: Dictionary = {}
+
+	func setup(_runtime) -> void:
+		pass
+
+	func dispose() -> void:
+		pass
+
+	func build_ally_units(_party_state, _context: Dictionary) -> Array:
+		return ally_units
+
+	func build_enemy_units(_encounter_anchor, _context: Dictionary) -> Array:
+		return enemy_units
+
+	func build_terrain_data(_encounter_anchor, _seed: int, _context: Dictionary) -> Dictionary:
+		return terrain_data.duplicate(true)
+
+	func refresh_battle_unit(_unit_state) -> void:
+		pass
+
+
 func _initialize() -> void:
 	call_deferred("_run")
 
 
 func _run() -> void:
 	_test_attribute_service_exposes_default_character_action_threshold()
+	_test_battle_unit_factory_context_uses_only_ally_member_ids()
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_runtime_start_battle_clones_party_backpack_view()
 	_test_battle_local_views_write_back_to_party_state()
@@ -114,6 +142,7 @@ func _run() -> void:
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
 	_test_enemy_resource_sync_handles_missing_attribute_snapshot()
 	_test_battle_unit_factory_no_longer_builds_manual_fallback_terrain()
+	_test_runtime_requires_formal_terrain_profile_id_from_generator()
 	if _failures.is_empty():
 		print("Battle unit factory regression: PASS")
 		quit(0)
@@ -138,6 +167,27 @@ func _test_attribute_service_exposes_default_character_action_threshold() -> voi
 		not snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
 		"角色属性快照不应再默认暴露旧 weapon_attack_range 战斗字段。"
 	)
+
+
+func _test_battle_unit_factory_context_uses_only_ally_member_ids() -> void:
+	var factory := BattleUnitFactory.new()
+	var legacy_units: Array = factory.build_ally_units(null, {
+		"battle_member_ids": [&"legacy_battle_member"],
+		"member_ids": [&"legacy_member"],
+	})
+	_assert_eq(legacy_units.size(), 0, "旧 battle_member_ids / member_ids-only context 不应再生成友方单位。")
+
+	var official_units: Array = factory.build_ally_units(null, {
+		"ally_member_ids": [&"hero"],
+		"battle_member_ids": [&"legacy_battle_member"],
+		"member_ids": [&"legacy_member"],
+	})
+	_assert_eq(official_units.size(), 1, "正式 ally_member_ids context 应继续生成友方单位。")
+	if official_units.is_empty():
+		return
+	var unit = official_units[0]
+	_assert_eq(unit.unit_id, &"hero", "正式 ally_member_ids 应决定生成的友方 unit_id。")
+	_assert_eq(unit.source_member_id, &"hero", "正式 ally_member_ids 应决定生成的 source_member_id。")
 
 
 func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder() -> void:
@@ -654,6 +704,93 @@ func _test_battle_unit_factory_no_longer_builds_manual_fallback_terrain() -> voi
 		not terrain_generator.last_context.has("battle_map_size"),
 		"BattleUnitFactory 不应再把 legacy map_size 升级成 battle_map_size。"
 	)
+
+
+func _test_runtime_requires_formal_terrain_profile_id_from_generator() -> void:
+	var missing_profile_state := _start_battle_with_stubbed_terrain({
+		"map_size": Vector2i(3, 3),
+		"cells": _build_flat_cells(Vector2i(3, 3)),
+		"ally_spawns": [Vector2i(0, 1)],
+		"enemy_spawns": [Vector2i(2, 1)],
+	})
+	_assert_true(
+		missing_profile_state != null and missing_profile_state.is_empty(),
+		"BattleRuntimeModule 不应再从 context.battle_terrain_profile 回填缺失的 terrain_data.terrain_profile_id。"
+	)
+
+	var formal_profile_state := _start_battle_with_stubbed_terrain({
+		"map_size": Vector2i(3, 3),
+		"terrain_profile_id": "formal_test_profile",
+		"cells": _build_flat_cells(Vector2i(3, 3)),
+		"ally_spawns": [Vector2i(0, 1)],
+		"enemy_spawns": [Vector2i(2, 1)],
+	})
+	_assert_true(
+		formal_profile_state != null and not formal_profile_state.is_empty(),
+		"terrain_data 显式提供正式 terrain_profile_id 时应继续启动战斗。"
+	)
+	if formal_profile_state != null and not formal_profile_state.is_empty():
+		_assert_eq(
+			String(formal_profile_state.terrain_profile_id),
+			"formal_test_profile",
+			"BattleState.terrain_profile_id 应来自 terrain generator 输出，而不是 context fallback。"
+		)
+
+
+func _start_battle_with_stubbed_terrain(terrain_data: Dictionary) -> BattleState:
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {}, {}, {})
+	var unit_factory := RuntimeUnitFactoryStub.new()
+	unit_factory.ally_units = [_make_runtime_schema_unit(&"terrain_schema_ally", &"player")]
+	unit_factory.enemy_units = [_make_runtime_schema_unit(&"terrain_schema_enemy", &"hostile")]
+	unit_factory.terrain_data = terrain_data
+	runtime._unit_factory = unit_factory
+
+	var encounter_anchor := ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
+	encounter_anchor.entity_id = &"terrain_profile_schema"
+	encounter_anchor.display_name = "地形 profile schema"
+	encounter_anchor.world_coord = Vector2i.ZERO
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.region_tag = &"default"
+
+	return runtime.start_battle(
+		encounter_anchor,
+		20260502,
+		{
+			"battle_terrain_profile": "legacy_context_profile",
+			"enemy_units": [unit_factory.enemy_units[0].to_dict()],
+			"validate_spawn_reachability": false,
+		}
+	)
+
+
+func _make_runtime_schema_unit(unit_id: StringName, faction_id: StringName) -> BattleUnitState:
+	var unit_state := BATTLE_UNIT_STATE_SCRIPT.new()
+	unit_state.unit_id = unit_id
+	unit_state.source_member_id = unit_id
+	unit_state.display_name = String(unit_id)
+	unit_state.faction_id = faction_id
+	unit_state.control_mode = &"manual" if faction_id == &"player" else &"ai"
+	unit_state.current_hp = 10
+	unit_state.current_ap = 2
+	unit_state.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
+	unit_state.is_alive = true
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 10)
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD, ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD)
+	return unit_state
+
+
+func _build_flat_cells(map_size: Vector2i) -> Dictionary:
+	var cells: Dictionary = {}
+	for y in range(map_size.y):
+		for x in range(map_size.x):
+			var coord := Vector2i(x, y)
+			var cell = BATTLE_CELL_STATE_SCRIPT.new()
+			cell.coord = coord
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.recalculate_runtime_values()
+			cells[coord] = cell
+	return cells
 
 
 func _build_single_ally_unit(factory: BattleUnitFactory, party_state: PartyState, label: String):

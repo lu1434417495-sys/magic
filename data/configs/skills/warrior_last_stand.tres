@@ -1,0 +1,97 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_wpb1n"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+
+[sub_resource type="Resource" id="Resource_death_ward"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"death_ward"
+trigger_condition = &"battle_start"
+params = {
+"source_skill_id": "warrior_last_stand"
+}
+
+[sub_resource type="Resource" id="Resource_heal_fatal"]
+script = ExtResource("3_effect")
+effect_type = &"heal_fatal"
+trigger_condition = &"on_fatal_damage"
+trigger_status_id = &"death_ward"
+params = {
+"base_heal": 8,
+"con_mod_base": 2,
+"con_mod_per_2_levels": 1,
+"heal_per_level": 4
+}
+
+[sub_resource type="Resource" id="Resource_erase_death_ward"]
+script = ExtResource("3_effect")
+effect_type = &"erase_status"
+trigger_condition = &"on_fatal_damage"
+trigger_status_id = &"death_ward"
+
+[sub_resource type="Resource" id="Resource_cleanse_harmful"]
+script = ExtResource("3_effect")
+effect_type = &"cleanse_harmful"
+trigger_condition = &"on_fatal_damage"
+trigger_status_id = &"death_ward"
+min_skill_level = 5
+
+[sub_resource type="Resource" id="Resource_last_stand_active"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"last_stand_active"
+trigger_condition = &"on_fatal_damage"
+trigger_status_id = &"death_ward"
+min_skill_level = 7
+duration_tu = 90
+params = {
+"passive_reduction": 1
+}
+
+[sub_resource type="Resource" id="Resource_combat_profile"]
+script = ExtResource("2_combat")
+skill_id = &"warrior_last_stand"
+target_mode = &"self"
+target_team_filter = &"ally"
+target_selection_mode = &"self"
+selection_order_mode = &"stable"
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+min_target_count = 1
+max_target_count = 1
+ap_cost = 0
+mp_cost = 0
+stamina_cost = 0
+aura_cost = 0
+cooldown_tu = 0
+range_value = 0
+area_value = 0
+passive_effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_death_ward"), SubResource("Resource_heal_fatal"), SubResource("Resource_erase_death_ward"), SubResource("Resource_cleanse_harmful"), SubResource("Resource_last_stand_active")])
+
+[resource]
+script = ExtResource("1_wpb1n")
+skill_id = &"warrior_last_stand"
+display_name = "不屈"
+icon_id = &"warrior_last_stand"
+description = "死战不退的肉体极限。进入战斗时自动获得免死标记，首次 HP 降至 0 时阻止死亡并立即恢复生命。Lv5 触发时清除所有负面状态；Lv7 触发后获得持续 90 TU 的所有伤害-1 效果。"
+skill_type = &"passive"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(60, 150, 350, 600, 900, 1200, 1600)
+mastery_sources = Array[StringName]([&"last_stand_triggered", &"critical_survival"])
+growth_tier = &"intermediate"
+attribute_requirements = {
+"constitution": 14,
+"willpower": 14
+}
+skill_level_requirements = {
+"warrior_battle_recovery": 3
+}
+attribute_growth_progress = {
+"constitution": 80,
+"willpower": 40
+}
+tags = Array[StringName]([&"warrior", &"melee", &"survival"])
+combat_profile = SubResource("Resource_combat_profile")

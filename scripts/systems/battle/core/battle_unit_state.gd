@@ -23,6 +23,63 @@ const COMBAT_RESOURCE_HP: StringName = &"hp"
 const COMBAT_RESOURCE_STAMINA: StringName = &"stamina"
 const COMBAT_RESOURCE_MP: StringName = &"mp"
 const COMBAT_RESOURCE_AURA: StringName = &"aura"
+const TO_DICT_FIELDS: Array[String] = [
+	"unit_id",
+	"source_member_id",
+	"enemy_template_id",
+	"display_name",
+	"faction_id",
+	"control_mode",
+	"ai_brain_id",
+	"ai_state_id",
+	"ai_blackboard",
+	"coord",
+	"body_size",
+	"footprint_size",
+	"occupied_coords",
+	"is_alive",
+	"attribute_snapshot",
+	"equipment_view",
+	"current_hp",
+	"current_mp",
+	"current_stamina",
+	"current_aura",
+	"aura_max",
+	"current_ap",
+	"current_move_points",
+	"unlocked_combat_resource_ids",
+	"stamina_recovery_progress",
+	"is_resting",
+	"has_taken_action_this_turn",
+	"current_shield_hp",
+	"shield_max_hp",
+	"shield_duration",
+	"shield_family",
+	"shield_source_unit_id",
+	"shield_source_skill_id",
+	"shield_params",
+	"current_free_move_points",
+	"action_progress",
+	"action_threshold",
+	"known_active_skill_ids",
+	"known_skill_level_map",
+	"movement_tags",
+	"weapon_profile_kind",
+	"weapon_item_id",
+	"weapon_profile_type_id",
+	"weapon_family",
+	"weapon_current_grip",
+	"weapon_attack_range",
+	"weapon_one_handed_dice",
+	"weapon_two_handed_dice",
+	"weapon_is_versatile",
+	"weapon_uses_two_hands",
+	"weapon_physical_damage_tag",
+	"cooldowns",
+	"last_turn_tu",
+	"status_effects",
+	"combo_state",
+]
 const DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS: Array[StringName] = [
 	COMBAT_RESOURCE_HP,
 	COMBAT_RESOURCE_STAMINA,
@@ -272,6 +329,7 @@ func set_unarmed_weapon_projection(
 	apply_weapon_projection({
 		"weapon_profile_kind": String(WEAPON_PROFILE_KIND_UNARMED),
 		"weapon_profile_type_id": "unarmed",
+		"weapon_family": "unarmed",
 		"weapon_current_grip": String(WEAPON_GRIP_ONE_HANDED),
 		"weapon_attack_range": attack_range,
 		"weapon_one_handed_dice": dice,
@@ -338,7 +396,7 @@ func get_status_effect(status_id: StringName):
 	var effect_state: Variant = effect_variant if effect_variant is BattleStatusEffectState else null
 	if effect_state != null and not effect_state.is_empty():
 		return effect_state
-	effect_state = BATTLE_STATUS_EFFECT_STATE_SCRIPT.from_dict(effect_variant, normalized)
+	effect_state = BATTLE_STATUS_EFFECT_STATE_SCRIPT.from_dict(effect_variant)
 	if effect_state == null or effect_state.is_empty():
 		status_effects.erase(normalized)
 		return null
@@ -418,6 +476,7 @@ func to_dict() -> Dictionary:
 		"weapon_profile_kind": String(weapon_profile_kind),
 		"weapon_item_id": String(weapon_item_id),
 		"weapon_profile_type_id": String(weapon_profile_type_id),
+		"weapon_family": String(weapon_family),
 		"weapon_current_grip": String(weapon_current_grip),
 		"weapon_attack_range": weapon_attack_range,
 		"weapon_one_handed_dice": weapon_one_handed_dice.duplicate(true),
@@ -432,101 +491,355 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
-	if data.is_empty():
+static func from_dict(data: Variant):
+	if data is not Dictionary:
 		return null
-	var unlocked_resources_variant: Variant = data.get("unlocked_combat_resource_ids", null)
-	if unlocked_resources_variant is not Array:
+	var payload := data as Dictionary
+	if payload.is_empty():
+		return null
+	if not _has_exact_fields(payload, TO_DICT_FIELDS):
+		return null
+
+	var coord_value: Variant = payload["coord"]
+	var body_size_value: Variant = payload["body_size"]
+	var footprint_size_value: Variant = payload["footprint_size"]
+	var occupied_coords_value: Variant = payload["occupied_coords"]
+	if coord_value is not Vector2i or body_size_value is not int or footprint_size_value is not Vector2i:
+		return null
+	var body_size_int := int(body_size_value)
+	if body_size_int < 1:
+		return null
+	var expected_footprint := get_footprint_size_for_body_size(body_size_int)
+	var expected_occupied := _build_occupied_coords(coord_value, expected_footprint)
+	if footprint_size_value != expected_footprint:
+		return null
+	if occupied_coords_value is not Array:
+		return null
+	var parsed_occupied_coords: Array[Vector2i] = []
+	for coord_variant in occupied_coords_value:
+		if coord_variant is not Vector2i:
+			return null
+		parsed_occupied_coords.append(coord_variant)
+	if parsed_occupied_coords != expected_occupied:
+		return null
+
+	var required_string_fields := [
+		"unit_id",
+		"display_name",
+		"faction_id",
+		"control_mode",
+	]
+	for field_name in required_string_fields:
+		if not _is_non_empty_string_name_payload_value(payload[field_name]):
+			return null
+	var optional_string_fields := [
+		"source_member_id",
+		"enemy_template_id",
+		"ai_brain_id",
+		"ai_state_id",
+		"shield_family",
+		"shield_source_unit_id",
+		"shield_source_skill_id",
+		"weapon_item_id",
+		"weapon_profile_type_id",
+		"weapon_family",
+		"weapon_physical_damage_tag",
+	]
+	for field_name in optional_string_fields:
+		if not _is_string_name_payload_value(payload[field_name]):
+			return null
+
+	var int_fields := [
+		"current_hp",
+		"current_mp",
+		"current_stamina",
+		"current_aura",
+		"aura_max",
+		"current_ap",
+		"current_move_points",
+		"stamina_recovery_progress",
+		"current_shield_hp",
+		"shield_max_hp",
+		"shield_duration",
+		"current_free_move_points",
+		"action_progress",
+		"action_threshold",
+		"weapon_attack_range",
+		"last_turn_tu",
+	]
+	for field_name in int_fields:
+		if payload[field_name] is not int:
+			return null
+	if int(payload["current_move_points"]) < 0:
+		return null
+
+	var bool_fields := [
+		"is_alive",
+		"is_resting",
+		"has_taken_action_this_turn",
+		"weapon_is_versatile",
+		"weapon_uses_two_hands",
+	]
+	for field_name in bool_fields:
+		if payload[field_name] is not bool:
+			return null
+
+	var dict_fields := [
+		"ai_blackboard",
+		"attribute_snapshot",
+		"equipment_view",
+		"shield_params",
+		"weapon_one_handed_dice",
+		"weapon_two_handed_dice",
+		"cooldowns",
+		"known_skill_level_map",
+		"status_effects",
+		"combo_state",
+	]
+	for field_name in dict_fields:
+		if payload[field_name] is not Dictionary:
+			return null
+
+	var attribute_snapshot: Variant = _attribute_snapshot_from_dict(payload["attribute_snapshot"])
+	if attribute_snapshot == null:
+		return null
+	var known_skill_level_map: Variant = _string_name_int_map_from_dict(payload["known_skill_level_map"], true)
+	if known_skill_level_map == null:
+		return null
+	var unlocked_resources := _combat_resource_array_from_payload(payload["unlocked_combat_resource_ids"])
+	if unlocked_resources.is_empty():
+		return null
+	var known_active_skill_ids: Variant = _unique_string_name_array_from_payload(payload["known_active_skill_ids"])
+	if known_active_skill_ids == null:
+		return null
+	var movement_tags: Variant = _unique_string_name_array_from_payload(payload["movement_tags"])
+	if movement_tags == null:
+		return null
+
+	var weapon_profile_kind_value := ProgressionDataUtils.to_string_name(payload["weapon_profile_kind"])
+	if not _is_valid_weapon_profile_kind(weapon_profile_kind_value):
+		return null
+	var weapon_current_grip_value := ProgressionDataUtils.to_string_name(payload["weapon_current_grip"])
+	if not _is_valid_weapon_grip(weapon_current_grip_value):
+		return null
+	var weapon_one_handed_dice: Variant = _strict_weapon_dice_from_dict(payload["weapon_one_handed_dice"])
+	if weapon_one_handed_dice == null:
+		return null
+	var weapon_two_handed_dice: Variant = _strict_weapon_dice_from_dict(payload["weapon_two_handed_dice"])
+	if weapon_two_handed_dice == null:
+		return null
+
+	var equipment_state = EQUIPMENT_STATE_SCRIPT.from_dict(payload["equipment_view"])
+	if equipment_state == null:
+		return null
+	var status_effects: Variant = _status_effects_from_dict(payload["status_effects"])
+	if status_effects == null:
 		return null
 
 	var unit_state = BATTLE_UNIT_STATE_SCRIPT.new()
-	unit_state.unit_id = StringName(String(data.get("unit_id", "")))
-	unit_state.source_member_id = StringName(String(data.get("source_member_id", "")))
-	unit_state.enemy_template_id = StringName(String(data.get("enemy_template_id", "")))
-	unit_state.display_name = String(data.get("display_name", ""))
-	unit_state.faction_id = StringName(String(data.get("faction_id", "")))
-	unit_state.control_mode = StringName(String(data.get("control_mode", "manual")))
-	unit_state.ai_brain_id = StringName(String(data.get("ai_brain_id", "")))
-	unit_state.ai_state_id = StringName(String(data.get("ai_state_id", "")))
-	unit_state.ai_blackboard = data.get("ai_blackboard", {}).duplicate(true)
-	unit_state.coord = data.get("coord", Vector2i.ZERO)
-	unit_state.body_size = maxi(int(data.get("body_size", 1)), 1)
-	unit_state.is_alive = bool(data.get("is_alive", true))
-	unit_state.attribute_snapshot = _attribute_snapshot_from_dict(data.get("attribute_snapshot", {}))
-	if data.has("equipment_view"):
-		unit_state.set_equipment_view(data.get("equipment_view", {}))
-	unit_state.current_hp = int(data.get("current_hp", 0))
-	unit_state.current_mp = int(data.get("current_mp", 0))
-	unit_state.current_stamina = int(data.get("current_stamina", 0))
-	unit_state.current_aura = int(data.get("current_aura", 0))
-	if data.has("aura_max") and unit_state.attribute_snapshot != null:
-		unit_state.attribute_snapshot.set_value(&"aura_max", maxi(int(data.get("aura_max", 0)), 0))
-	unit_state.current_ap = int(data.get("current_ap", 0))
-	unit_state.current_move_points = clampi(
-		int(data.get("current_move_points", DEFAULT_MOVE_POINTS_PER_TURN)),
-		0,
-		DEFAULT_MOVE_POINTS_PER_TURN
-	)
-	unit_state.set_unlocked_combat_resource_ids(_strings_to_string_name_array(unlocked_resources_variant))
-	unit_state.stamina_recovery_progress = maxi(int(data.get("stamina_recovery_progress", 0)), 0)
-	unit_state.is_resting = bool(data.get("is_resting", false))
-	unit_state.has_taken_action_this_turn = bool(data.get("has_taken_action_this_turn", false))
-	unit_state.current_shield_hp = int(data.get("current_shield_hp", 0))
-	unit_state.shield_max_hp = int(data.get("shield_max_hp", 0))
-	unit_state.shield_duration = int(data.get("shield_duration", -1))
-	unit_state.shield_family = StringName(String(data.get("shield_family", "")))
-	unit_state.shield_source_unit_id = StringName(String(data.get("shield_source_unit_id", "")))
-	unit_state.shield_source_skill_id = StringName(String(data.get("shield_source_skill_id", "")))
-	unit_state.shield_params = data.get("shield_params", {}).duplicate(true) if data.get("shield_params", {}) is Dictionary else {}
-	unit_state.current_free_move_points = int(data.get("current_free_move_points", 0))
-	unit_state.action_progress = int(data.get("action_progress", 0))
-	unit_state.action_threshold = int(data.get("action_threshold", DEFAULT_ACTION_THRESHOLD))
-	unit_state.known_active_skill_ids = _strings_to_string_name_array(data.get("known_active_skill_ids", []))
-	unit_state.known_skill_level_map = ProgressionDataUtils.to_string_name_int_map(data.get("known_skill_level_map", {}))
-	unit_state.movement_tags = _strings_to_string_name_array(data.get("movement_tags", []))
-	unit_state.apply_weapon_projection({
-		"weapon_profile_kind": data.get("weapon_profile_kind", WEAPON_PROFILE_KIND_NONE),
-		"weapon_item_id": data.get("weapon_item_id", ""),
-		"weapon_profile_type_id": data.get("weapon_profile_type_id", ""),
-		"weapon_current_grip": data.get("weapon_current_grip", WEAPON_GRIP_NONE),
-		"weapon_attack_range": data.get("weapon_attack_range", 0),
-		"weapon_one_handed_dice": data.get("weapon_one_handed_dice", {}),
-		"weapon_two_handed_dice": data.get("weapon_two_handed_dice", {}),
-		"weapon_is_versatile": data.get("weapon_is_versatile", false),
-		"weapon_uses_two_hands": data.get(
-			"weapon_uses_two_hands",
-			ProgressionDataUtils.to_string_name(data.get("weapon_current_grip", WEAPON_GRIP_NONE)) == WEAPON_GRIP_TWO_HANDED
-		),
-		"weapon_physical_damage_tag": data.get("weapon_physical_damage_tag", ""),
-	})
-	unit_state.cooldowns = data.get("cooldowns", {}).duplicate(true)
-	unit_state.last_turn_tu = int(data.get("last_turn_tu", -1))
-	unit_state.status_effects = _status_effects_from_dict(data.get("status_effects", {}))
-	unit_state.combo_state = data.get("combo_state", {}).duplicate(true)
+	unit_state.unit_id = ProgressionDataUtils.to_string_name(payload["unit_id"])
+	unit_state.source_member_id = ProgressionDataUtils.to_string_name(payload["source_member_id"])
+	unit_state.enemy_template_id = ProgressionDataUtils.to_string_name(payload["enemy_template_id"])
+	unit_state.display_name = String(payload["display_name"])
+	unit_state.faction_id = ProgressionDataUtils.to_string_name(payload["faction_id"])
+	unit_state.control_mode = ProgressionDataUtils.to_string_name(payload["control_mode"])
+	unit_state.ai_brain_id = ProgressionDataUtils.to_string_name(payload["ai_brain_id"])
+	unit_state.ai_state_id = ProgressionDataUtils.to_string_name(payload["ai_state_id"])
+	unit_state.ai_blackboard = payload["ai_blackboard"].duplicate(true)
+	unit_state.coord = coord_value
+	unit_state.body_size = body_size_int
+	unit_state.footprint_size = footprint_size_value
+	unit_state.occupied_coords = parsed_occupied_coords
+	unit_state.is_alive = payload["is_alive"]
+	unit_state.attribute_snapshot = attribute_snapshot
+	unit_state.attribute_snapshot.set_value(&"aura_max", int(payload["aura_max"]))
+	unit_state.equipment_view = equipment_state
+	unit_state.equipment_view_initialized = true
+	unit_state.current_hp = int(payload["current_hp"])
+	unit_state.current_mp = int(payload["current_mp"])
+	unit_state.current_stamina = int(payload["current_stamina"])
+	unit_state.current_aura = int(payload["current_aura"])
+	unit_state.current_ap = int(payload["current_ap"])
+	unit_state.current_move_points = int(payload["current_move_points"])
+	unit_state.unlocked_combat_resource_ids = unlocked_resources
+	unit_state.stamina_recovery_progress = int(payload["stamina_recovery_progress"])
+	unit_state.is_resting = payload["is_resting"]
+	unit_state.has_taken_action_this_turn = payload["has_taken_action_this_turn"]
+	unit_state.current_shield_hp = int(payload["current_shield_hp"])
+	unit_state.shield_max_hp = int(payload["shield_max_hp"])
+	unit_state.shield_duration = int(payload["shield_duration"])
+	unit_state.shield_family = ProgressionDataUtils.to_string_name(payload["shield_family"])
+	unit_state.shield_source_unit_id = ProgressionDataUtils.to_string_name(payload["shield_source_unit_id"])
+	unit_state.shield_source_skill_id = ProgressionDataUtils.to_string_name(payload["shield_source_skill_id"])
+	unit_state.shield_params = payload["shield_params"].duplicate(true)
+	unit_state.current_free_move_points = int(payload["current_free_move_points"])
+	unit_state.action_progress = int(payload["action_progress"])
+	unit_state.action_threshold = int(payload["action_threshold"])
+	unit_state.known_active_skill_ids = known_active_skill_ids
+	unit_state.known_skill_level_map = known_skill_level_map
+	unit_state.movement_tags = movement_tags
+	unit_state.weapon_profile_kind = weapon_profile_kind_value
+	unit_state.weapon_item_id = ProgressionDataUtils.to_string_name(payload["weapon_item_id"])
+	unit_state.weapon_profile_type_id = ProgressionDataUtils.to_string_name(payload["weapon_profile_type_id"])
+	unit_state.weapon_family = ProgressionDataUtils.to_string_name(payload["weapon_family"])
+	unit_state.weapon_current_grip = weapon_current_grip_value
+	unit_state.weapon_attack_range = int(payload["weapon_attack_range"])
+	unit_state.weapon_one_handed_dice = weapon_one_handed_dice
+	unit_state.weapon_two_handed_dice = weapon_two_handed_dice
+	unit_state.weapon_is_versatile = payload["weapon_is_versatile"]
+	unit_state.weapon_uses_two_hands = payload["weapon_uses_two_hands"]
+	unit_state.weapon_physical_damage_tag = ProgressionDataUtils.to_string_name(payload["weapon_physical_damage_tag"])
+	unit_state.cooldowns = payload["cooldowns"].duplicate(true)
+	unit_state.last_turn_tu = int(payload["last_turn_tu"])
+	unit_state.status_effects = status_effects
+	unit_state.combo_state = payload["combo_state"].duplicate(true)
 	unit_state.normalize_shield_state()
 	unit_state.refresh_footprint()
 	return unit_state
 
 
-static func _attribute_snapshot_from_dict(data: Variant) -> AttributeSnapshot:
+static func _attribute_snapshot_from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
 	var snapshot = AttributeSnapshot.new()
-	if data is Dictionary:
-		for key in data.keys():
-			snapshot.set_value(StringName(String(key)), int(data[key]))
+	for key in data.keys():
+		if not _is_string_name_payload_value(key):
+			return null
+		if data[key] is not int:
+			return null
+		snapshot.set_value(ProgressionDataUtils.to_string_name(key), int(data[key]))
 	return snapshot
 
 
-static func _status_effects_from_dict(data: Variant) -> Dictionary:
+static func _status_effects_from_dict(data: Variant):
 	var results: Dictionary = {}
 	if data is not Dictionary:
-		return results
+		return null
 	for status_key in data.keys():
-		var status_id := ProgressionDataUtils.to_string_name(status_key)
-		var effect_state = BATTLE_STATUS_EFFECT_STATE_SCRIPT.from_dict(data.get(status_key), status_id)
+		if not _is_non_empty_string_name_payload_value(status_key):
+			return null
+		var effect_state = BATTLE_STATUS_EFFECT_STATE_SCRIPT.from_dict(data.get(status_key))
 		if effect_state == null or effect_state.is_empty():
-			continue
+			return null
+		if ProgressionDataUtils.to_string_name(status_key) != effect_state.status_id:
+			return null
 		results[effect_state.status_id] = effect_state
 	return results
+
+
+static func _build_occupied_coords(anchor_coord: Vector2i, footprint: Vector2i) -> Array[Vector2i]:
+	var results: Array[Vector2i] = []
+	for y in range(footprint.y):
+		for x in range(footprint.x):
+			results.append(anchor_coord + Vector2i(x, y))
+	return results
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	var expected_lookup: Dictionary = {}
+	var seen_lookup: Dictionary = {}
+	for field_name in expected_fields:
+		expected_lookup[field_name] = true
+	for key in data.keys():
+		if not _is_string_name_payload_value(key):
+			return false
+		var key_string := String(key)
+		if not expected_lookup.has(key_string):
+			return false
+		if seen_lookup.has(key_string):
+			return false
+		seen_lookup[key_string] = true
+	return seen_lookup.size() == expected_lookup.size()
+
+
+static func _is_string_name_payload_value(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type == TYPE_STRING or value_type == TYPE_STRING_NAME
+
+
+static func _is_non_empty_string_name_payload_value(value: Variant) -> bool:
+	return _is_string_name_payload_value(value) and ProgressionDataUtils.to_string_name(value) != &""
+
+
+static func _string_name_int_map_from_dict(data: Variant, require_non_empty_key: bool):
+	if data is not Dictionary:
+		return null
+	var result: Dictionary = {}
+	for key in data.keys():
+		if not _is_string_name_payload_value(key):
+			return null
+		var key_name := ProgressionDataUtils.to_string_name(key)
+		if require_non_empty_key and key_name == &"":
+			return null
+		if data[key] is not int:
+			return null
+		result[key_name] = int(data[key])
+	return result
+
+
+static func _unique_string_name_array_from_payload(values: Variant):
+	if values is not Array:
+		return null
+	var result: Array[StringName] = []
+	var seen: Dictionary = {}
+	for value in values:
+		if not _is_non_empty_string_name_payload_value(value):
+			return null
+		var normalized := ProgressionDataUtils.to_string_name(value)
+		if seen.has(normalized):
+			return null
+		seen[normalized] = true
+		result.append(normalized)
+	return result
+
+
+static func _combat_resource_array_from_payload(values: Variant) -> Array[StringName]:
+	var parsed = _unique_string_name_array_from_payload(values)
+	if parsed == null:
+		return []
+	if not parsed.has(COMBAT_RESOURCE_HP) or not parsed.has(COMBAT_RESOURCE_STAMINA):
+		return []
+	for resource_id in parsed:
+		if not VALID_COMBAT_RESOURCE_IDS.has(resource_id):
+			return []
+	return parsed
+
+
+static func _is_valid_weapon_profile_kind(value: StringName) -> bool:
+	return value == WEAPON_PROFILE_KIND_NONE \
+		or value == WEAPON_PROFILE_KIND_UNARMED \
+		or value == WEAPON_PROFILE_KIND_NATURAL \
+		or value == WEAPON_PROFILE_KIND_EQUIPPED
+
+
+static func _is_valid_weapon_grip(value: StringName) -> bool:
+	return value == WEAPON_GRIP_NONE \
+		or value == WEAPON_GRIP_ONE_HANDED \
+		or value == WEAPON_GRIP_TWO_HANDED
+
+
+static func _strict_weapon_dice_from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
+	var dice_data := data as Dictionary
+	if dice_data.is_empty():
+		return {}
+	if not _has_exact_fields(dice_data, ["dice_count", "dice_sides", "flat_bonus"]):
+		return null
+	for field_name in ["dice_count", "dice_sides", "flat_bonus"]:
+		if dice_data[field_name] is not int:
+			return null
+	var dice_count := int(dice_data["dice_count"])
+	var dice_sides := int(dice_data["dice_sides"])
+	if dice_count <= 0 or dice_sides <= 0:
+		return null
+	return {
+		"dice_count": dice_count,
+		"dice_sides": dice_sides,
+		"flat_bonus": int(dice_data["flat_bonus"]),
+	}
 
 
 func _build_current_weapon_projection_payload() -> Dictionary:
@@ -534,6 +847,7 @@ func _build_current_weapon_projection_payload() -> Dictionary:
 		"weapon_profile_kind": weapon_profile_kind,
 		"weapon_item_id": weapon_item_id,
 		"weapon_profile_type_id": weapon_profile_type_id,
+		"weapon_family": weapon_family,
 		"weapon_current_grip": weapon_current_grip,
 		"weapon_attack_range": weapon_attack_range,
 		"weapon_one_handed_dice": weapon_one_handed_dice,

@@ -65,6 +65,15 @@ func record_bonus(
 	})
 
 
+func record_mastery_amount(skill_def: SkillDef, amount: int) -> void:
+	if skill_def == null or amount <= 0:
+		return
+	_resolution_events.append({
+		"skill_id": skill_def.skill_id,
+		"amount": amount,
+	})
+
+
 func resolve_active_skill_mastery_amount() -> int:
 	var total := 0
 	for event_variant in _resolution_events:
@@ -121,15 +130,20 @@ func build_guard_mastery_grant_from_incoming_hit(
 	attacker_unit: BattleUnitState,
 	target_unit: BattleUnitState,
 	effect_defs: Array,
+	result: Dictionary,
 	skill_defs: Dictionary
 ) -> Dictionary:
-	if attacker_unit == null or target_unit == null or effect_defs.is_empty():
+	if attacker_unit == null or target_unit == null or effect_defs.is_empty() or result == null:
 		return {}
 	if target_unit.source_member_id == &"":
 		return {}
 	if not target_unit.status_effects.has(&"guarding"):
 		return {}
 	if not _effect_defs_have_physical_damage(effect_defs):
+		return {}
+	if not bool(result.get("attack_success", false)):
+		return {}
+	if int(result.get("damage", 0)) <= 0:
 		return {}
 	var guard_def := skill_defs.get(WARRIOR_GUARD_SKILL_ID) as SkillDef
 	if guard_def == null:
@@ -200,6 +214,8 @@ func _is_skill_mastery_qualifying_result(result: Dictionary, skill_def: SkillDef
 			return bool(result.get("applied", false))
 		&"incoming_physical_hit":
 			return false
+		&"secondary_hit":
+			return bool(result.get("secondary_hit_success", false))
 		&"skill_damage_dice_max":
 			if not _result_has_effective_damage_or_absorb(result):
 				return false
@@ -229,7 +245,7 @@ func _get_skill_mastery_amount_mode(skill_def: SkillDef) -> StringName:
 
 
 func _result_has_effective_damage_or_absorb(result: Dictionary) -> bool:
-	return int(result.get("damage", result.get("hp_damage", 0))) > 0 or int(result.get("shield_absorbed", 0)) > 0
+	return int(result.get("damage", 0)) > 0 or int(result.get("shield_absorbed", 0)) > 0
 
 
 func _result_has_status_applied(result: Dictionary) -> bool:
@@ -376,10 +392,21 @@ func _resolve_skill_mastery_target_amount(
 ) -> int:
 	if source_unit == null or target_unit == null:
 		return 0
-	if _get_skill_mastery_amount_mode(skill_def) != &"per_target_rank":
+	var amount_mode := _get_skill_mastery_amount_mode(skill_def)
+	if amount_mode == &"per_cast_hp_ratio":
+		if source_unit.attribute_snapshot == null:
+			return 0
+		var hp_max := maxi(int(source_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 1)
+		var current_hp := source_unit.current_hp
+		if current_hp * 4 < hp_max:
+			return 4
+		if current_hp * 2 < hp_max:
+			return 2
+		return 1
+	if amount_mode != &"per_target_rank":
 		return 0
 	if source_unit.faction_id == target_unit.faction_id:
-		return 0
+		return 1 if _is_same_faction_support_mastery_target(skill_def) else 0
 	if target_unit.faction_id != &"enemy":
 		return 0
 	if _is_boss_target(target_unit):
@@ -387,6 +414,16 @@ func _resolve_skill_mastery_target_amount(
 	if _is_elite_or_boss_target(target_unit):
 		return 2
 	return 1
+
+
+func _is_same_faction_support_mastery_target(skill_def: SkillDef) -> bool:
+	var trigger_mode := _get_skill_mastery_trigger_mode(skill_def)
+	if trigger_mode != &"status_applied" and trigger_mode != &"effect_applied":
+		return false
+	if skill_def == null or skill_def.combat_profile == null:
+		return false
+	var target_filter := ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_team_filter)
+	return target_filter == &"ally" or target_filter == &"self"
 
 
 func _resolve_incoming_skill_mastery_source_amount(

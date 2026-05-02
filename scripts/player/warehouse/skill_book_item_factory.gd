@@ -23,6 +23,8 @@ func build_generated_item_defs(skill_defs: Dictionary, existing_item_defs: Dicti
 			continue
 		if skill_def.skill_id == &"" or skill_def.learn_source != &"book":
 			continue
+		if skill_def.display_name.strip_edges().is_empty():
+			continue
 
 		var item_id := build_item_id_for_skill(skill_def.skill_id)
 		if existing_item_defs.has(item_id):
@@ -42,12 +44,11 @@ func build_generated_item_defs(skill_defs: Dictionary, existing_item_defs: Dicti
 
 
 func _build_display_name(skill_def: SkillDef) -> String:
-	var skill_name := skill_def.display_name if not skill_def.display_name.is_empty() else String(skill_def.skill_id)
-	return "%s 技能书" % skill_name
+	return "%s 技能书" % skill_def.display_name.strip_edges()
 
 
 func _build_description(skill_def: SkillDef) -> String:
-	var skill_name := skill_def.display_name if not skill_def.display_name.is_empty() else String(skill_def.skill_id)
+	var skill_name := skill_def.display_name.strip_edges()
 	var lines := PackedStringArray([
 		"阅读后使一名队员学会技能：%s。" % skill_name,
 	])

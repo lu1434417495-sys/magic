@@ -84,10 +84,16 @@ func build_attribute_modifiers(equipment_state_variant: Variant) -> Array[Attrib
 ##   success, error_code, blockers,
 ##   entry_slot_id, occupied_slot_ids,
 ##   displaced_entries: Array[{ entry_slot_id, item_id }]
-func preview_equip(member_id: StringName, item_id: StringName, requested_slot_id: StringName = &"") -> Dictionary:
+func preview_equip(
+	member_id: StringName,
+	item_id: StringName,
+	requested_slot_id: StringName = &"",
+	instance_id: StringName = &""
+) -> Dictionary:
 	var norm_member := ProgressionDataUtils.to_string_name(member_id)
 	var norm_item   := ProgressionDataUtils.to_string_name(item_id)
 	var norm_slot   := ProgressionDataUtils.to_string_name(requested_slot_id)
+	var norm_instance := ProgressionDataUtils.to_string_name(instance_id)
 
 	# 1. 成员存在性
 	var member_state = _get_member_state(norm_member)
@@ -104,6 +110,13 @@ func preview_equip(member_id: StringName, item_id: StringName, requested_slot_id
 	# 3. 仓库库存
 	if _warehouse_service == null or _warehouse_service.count_item(norm_item) <= 0:
 		return _build_preview_fail(&"", [], [], "warehouse_missing_item")
+	if norm_instance != &"":
+		if not _warehouse_service.has_equipment_instance(norm_instance, norm_item):
+			if _warehouse_service.has_equipment_instance(norm_instance):
+				return _build_preview_fail(&"", [], [], "equipment_instance_item_mismatch")
+			return _build_preview_fail(&"", [], [], "warehouse_missing_instance")
+	elif _warehouse_service.count_item(norm_item) > 1:
+		return _build_preview_fail(&"", [], [], "equipment_instance_id_required")
 
 	# 4. 解析入口槽
 	var allowed_slots: Array[StringName] = item_def.get_equipment_slot_ids()
@@ -136,6 +149,7 @@ func preview_equip(member_id: StringName, item_id: StringName, requested_slot_id
 			displaced_entries.append({
 				"entry_slot_id": String(existing_entry_slot),
 				"item_id": String(existing_item_id),
+				"instance_id": String(equipment_state.get_equipped_instance_id(existing_entry_slot)),
 			})
 
 	# 7. 资格校验
@@ -151,12 +165,19 @@ func preview_equip(member_id: StringName, item_id: StringName, requested_slot_id
 			return _build_preview_fail(entry_slot, occupied_slots, displaced_entries, first_code, blockers_str)
 
 	# 8. 仓库批量预览（仅作容量检查）
-	var items_to_withdraw: Array[StringName] = [norm_item]
+	var withdraw_entries: Array = []
+	if norm_instance != &"":
+		withdraw_entries.append({
+			"item_id": String(norm_item),
+			"instance_id": String(norm_instance),
+		})
+	else:
+		withdraw_entries.append(norm_item)
 	var items_to_deposit: Array[StringName] = []
 	for d in displaced_entries:
 		items_to_deposit.append(ProgressionDataUtils.to_string_name(d.get("item_id", "")))
 
-	var batch_preview: Dictionary = _warehouse_service.preview_batch_swap(items_to_withdraw, items_to_deposit)
+	var batch_preview: Dictionary = _warehouse_service.preview_batch_swap_entries(withdraw_entries, items_to_deposit)
 	if not bool(batch_preview.get("allowed", false)):
 		return _build_preview_fail(entry_slot, occupied_slots, displaced_entries, batch_preview.get("error_code", "warehouse_blocked_swap"))
 
@@ -169,6 +190,7 @@ func preview_equip(member_id: StringName, item_id: StringName, requested_slot_id
 		"error_code": "",
 		"blockers": [],
 		"entry_slot_id": String(entry_slot),
+		"instance_id": String(norm_instance),
 		"occupied_slot_ids": occupied_str,
 		"displaced_entries": displaced_entries,
 	}
@@ -195,25 +217,39 @@ func preview_unequip(member_id: StringName, slot_id: StringName) -> Dictionary:
 	if int(preview_result.get("remaining_quantity", 0)) > 0:
 		return {"success": false, "error_code": "warehouse_full", "blockers": ["warehouse_full"], "item_id": String(current_item_id), "entry_slot_id": String(entry_slot)}
 
-	return {"success": true, "error_code": "", "blockers": [], "item_id": String(current_item_id), "entry_slot_id": String(entry_slot)}
+	return {
+		"success": true,
+		"error_code": "",
+		"blockers": [],
+		"item_id": String(current_item_id),
+		"instance_id": String(equipment_state.get_equipped_instance_id(entry_slot)),
+		"entry_slot_id": String(entry_slot),
+	}
 
 
 # ---------------------------------------------------------------------------
 # equip_item / unequip_item
 # ---------------------------------------------------------------------------
 
-func equip_item(member_id: StringName, item_id: StringName, requested_slot_id: StringName = &"") -> Dictionary:
+func equip_item(
+	member_id: StringName,
+	item_id: StringName,
+	requested_slot_id: StringName = &"",
+	instance_id: StringName = &""
+) -> Dictionary:
 	var norm_member := ProgressionDataUtils.to_string_name(member_id)
 	var norm_item   := ProgressionDataUtils.to_string_name(item_id)
+	var norm_instance := ProgressionDataUtils.to_string_name(instance_id)
 
 	# 走 preview 先验证（含容量、资格、槽位冲突）
-	var preview := preview_equip(norm_member, norm_item, ProgressionDataUtils.to_string_name(requested_slot_id))
+	var preview := preview_equip(norm_member, norm_item, ProgressionDataUtils.to_string_name(requested_slot_id), norm_instance)
 	if not bool(preview.get("success", false)):
 		return _build_result(
 			false, norm_member,
 			ProgressionDataUtils.to_string_name(preview.get("entry_slot_id", "")),
 			norm_item, &"",
-			preview.get("error_code", "preview_failed")
+			preview.get("error_code", "preview_failed"),
+			norm_instance
 		)
 
 	var member_state = _get_member_state(norm_member)
@@ -222,9 +258,9 @@ func equip_item(member_id: StringName, item_id: StringName, requested_slot_id: S
 	var occupied_slots: Array[StringName] = ProgressionDataUtils.to_string_name_array(preview.get("occupied_slot_ids", []))
 
 	# 从仓库取出新装备实例
-	var new_instance = _warehouse_service.take_equipment_instance_by_item(norm_item)
+	var new_instance = _warehouse_service.take_equipment_instance_by_instance_id(norm_instance, norm_item) if norm_instance != &"" else _warehouse_service.take_equipment_instance_by_item(norm_item)
 	if new_instance == null:
-		return _build_result(false, norm_member, entry_slot, norm_item, &"", "warehouse_missing_item")
+		return _build_result(false, norm_member, entry_slot, norm_item, &"", "warehouse_missing_instance", norm_instance)
 
 	# 弹出被替换条目，把实例归还仓库
 	for d in preview.get("displaced_entries", []):
@@ -242,8 +278,20 @@ func equip_item(member_id: StringName, item_id: StringName, requested_slot_id: S
 	var displaced: Array = preview.get("displaced_entries", [])
 	if not displaced.is_empty():
 		previous_item_id = ProgressionDataUtils.to_string_name(displaced[0].get("item_id", ""))
+	var previous_instance_id := &""
+	if not displaced.is_empty():
+		previous_instance_id = ProgressionDataUtils.to_string_name(displaced[0].get("instance_id", ""))
 
-	return _build_result(true, norm_member, entry_slot, norm_item, previous_item_id, "equipped")
+	return _build_result(
+		true,
+		norm_member,
+		entry_slot,
+		norm_item,
+		previous_item_id,
+		"equipped",
+		ProgressionDataUtils.to_string_name(new_instance.instance_id),
+		previous_instance_id
+	)
 
 
 func unequip_item(member_id: StringName, slot_id: StringName) -> Dictionary:
@@ -277,7 +325,15 @@ func unequip_item(member_id: StringName, slot_id: StringName) -> Dictionary:
 	else:
 		equipment_state.clear_slot(norm_slot)
 
-	return _build_result(true, norm_member, norm_slot, current_item_id, &"", "unequipped")
+	return _build_result(
+		true,
+		norm_member,
+		norm_slot,
+		current_item_id,
+		&"",
+		"unequipped",
+		ProgressionDataUtils.to_string_name(instance.instance_id if instance != null else &"")
+	)
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +377,9 @@ func _build_result(
 	slot_id: StringName,
 	item_id: StringName,
 	previous_item_id: StringName,
-	error_code: String
+	error_code: String,
+	instance_id: StringName = &"",
+	previous_instance_id: StringName = &""
 ) -> Dictionary:
 	return {
 		"success": success,
@@ -329,7 +387,9 @@ func _build_result(
 		"slot_id": String(slot_id),
 		"slot_label": EQUIPMENT_RULES_SCRIPT.get_slot_label(slot_id),
 		"item_id": String(item_id),
+		"instance_id": String(instance_id),
 		"previous_item_id": String(previous_item_id),
+		"previous_instance_id": String(previous_instance_id),
 		"error_code": error_code,
 	}
 

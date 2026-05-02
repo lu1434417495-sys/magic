@@ -8,6 +8,16 @@ const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_a
 
 const DROP_TYPE_ITEM: StringName = &"item"
 const DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
+const DROP_ENTRY_REQUIRED_FIELDS := [
+	"drop_entry_id",
+	"drop_type",
+	"item_id",
+	"quantity",
+]
+const UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS: Array[StringName] = [
+	&"weapon_attack_range",
+	&"weapon_physical_damage_tag",
+]
 const TAG_BEAST: StringName = &"beast"
 const NATURAL_WEAPON_PROFILE_TYPE_ID: StringName = &"natural_weapon"
 const NATURAL_WEAPON_DEFAULT_DAMAGE_TAG: StringName = &"physical_blunt"
@@ -23,6 +33,7 @@ const NATURAL_WEAPON_DEFAULT_ATTACK_RANGE := 1
 @export var tags: Array[StringName] = []
 @export var attack_equipment_item_id: StringName = &""
 @export var natural_weapon_damage_tag: StringName = &""
+@export var natural_weapon_attack_range := NATURAL_WEAPON_DEFAULT_ATTACK_RANGE
 @export var base_attribute_overrides: Dictionary = {}
 @export var skill_ids: Array[StringName] = []
 @export var skill_level_map: Dictionary = {}
@@ -77,12 +88,13 @@ func get_attack_equipment_projection(item_defs: Dictionary = {}) -> Dictionary:
 func get_natural_weapon_projection() -> Dictionary:
 	if not has_tag(TAG_BEAST):
 		return {}
+	var attack_range := maxi(int(natural_weapon_attack_range), 1)
 	return {
 		"weapon_profile_kind": String(BattleUnitState.WEAPON_PROFILE_KIND_NATURAL),
 		"weapon_item_id": "",
 		"weapon_profile_type_id": String(NATURAL_WEAPON_PROFILE_TYPE_ID),
 		"weapon_current_grip": String(BattleUnitState.WEAPON_GRIP_ONE_HANDED),
-		"weapon_attack_range": NATURAL_WEAPON_DEFAULT_ATTACK_RANGE,
+		"weapon_attack_range": attack_range,
 		"weapon_one_handed_dice": _build_natural_weapon_dice(),
 		"weapon_two_handed_dice": {},
 		"weapon_is_versatile": false,
@@ -129,7 +141,7 @@ func get_base_attribute_overrides() -> Dictionary:
 	return resolved
 
 
-func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}) -> Array[String]:
+func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}, skill_defs: Dictionary = {}) -> Array[String]:
 	var errors: Array[String] = []
 	if template_id == &"":
 		errors.append("Enemy template is missing template_id.")
@@ -158,14 +170,15 @@ func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}) 
 		errors.append("Enemy template %s action_threshold must be > 0." % String(template_id))
 	elif action_threshold % 5 != 0:
 		errors.append("Enemy template %s action_threshold must be a multiple of 5 TU." % String(template_id))
-	if _dictionary_has_key(attribute_overrides, &"weapon_attack_range"):
-		errors.append(
-			"Enemy template %s must not declare attribute_overrides.weapon_attack_range; use attack_equipment_item_id or beast natural weapon config." % String(template_id)
-		)
-	if _dictionary_has_key(attribute_overrides, &"weapon_physical_damage_tag"):
-		errors.append(
-			"Enemy template %s must not declare attribute_overrides.weapon_physical_damage_tag; use attack_equipment_item_id or beast natural weapon config." % String(template_id)
-		)
+	errors.append_array(_validate_template_skill_ids(skill_defs))
+	for unsupported_key in UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS:
+		if _dictionary_has_unsupported_key(attribute_overrides, unsupported_key):
+			errors.append(
+				"Enemy template %s must not declare attribute_overrides.%s; use attack_equipment_item_id or beast natural weapon config." % [
+					String(template_id),
+					String(unsupported_key),
+				]
+			)
 	var explicit_base_attributes := get_base_attribute_overrides()
 	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
 		if not explicit_base_attributes.has(attribute_id):
@@ -178,6 +191,10 @@ func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}) 
 				"Enemy template %s base attribute %s must be > 0." % [String(template_id), String(attribute_id)]
 			)
 	if has_tag(TAG_BEAST):
+		if int(natural_weapon_attack_range) < 1:
+			errors.append(
+				"Enemy template %s natural_weapon_attack_range must be >= 1." % String(template_id)
+			)
 		var explicit_natural_damage_tag := ProgressionDataUtils.to_string_name(natural_weapon_damage_tag)
 		if explicit_natural_damage_tag != &"" and not _is_valid_weapon_physical_damage_tag(explicit_natural_damage_tag):
 			errors.append(
@@ -193,23 +210,72 @@ func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}) 
 			errors.append("Enemy template %s contains a non-Dictionary drop entry." % String(template_id))
 			continue
 		var entry_data := entry_variant as Dictionary
-		var drop_id := ProgressionDataUtils.to_string_name(entry_data.get("drop_id", ""))
-		var drop_type := ProgressionDataUtils.to_string_name(entry_data.get("drop_type", ""))
-		var item_id := ProgressionDataUtils.to_string_name(entry_data.get("item_id", ""))
-		var quantity := int(entry_data.get("quantity", 0))
-		if drop_id == &"":
-			errors.append("Enemy template %s contains a drop entry without drop_id." % String(template_id))
+		if entry_data.has("drop_id"):
+			errors.append("Enemy template %s drop entry must use drop_entry_id; drop_id is not supported." % String(template_id))
+		if not _has_exact_drop_entry_fields(entry_data):
+			errors.append("Enemy template %s drop entry must contain exactly drop_entry_id, drop_type, item_id, quantity." % String(template_id))
+			continue
+		var drop_entry_id := _read_required_string_name(entry_data["drop_entry_id"])
+		var drop_type := _read_required_string_name(entry_data["drop_type"])
+		var item_id := _read_required_string_name(entry_data["item_id"])
+		if drop_entry_id == &"":
+			errors.append("Enemy template %s contains a drop entry without drop_entry_id." % String(template_id))
 		if drop_type != DROP_TYPE_ITEM and drop_type != DROP_TYPE_RANDOM_EQUIPMENT:
 			errors.append("Enemy template %s drop %s declares unsupported drop_type %s." % [
 				String(template_id),
-				String(drop_id),
+				String(drop_entry_id),
 				String(drop_type),
 			])
 		if item_id == &"":
-			errors.append("Enemy template %s drop %s is missing item_id." % [String(template_id), String(drop_id)])
-		if quantity <= 0:
-			errors.append("Enemy template %s drop %s must have quantity >= 1." % [String(template_id), String(drop_id)])
+			errors.append("Enemy template %s drop %s is missing item_id." % [String(template_id), String(drop_entry_id)])
+		elif _resolve_item_def(item_id, item_defs) == null:
+			errors.append(
+				"Enemy template %s drop %s references missing item_id %s." % [
+					String(template_id),
+					String(drop_entry_id),
+					String(item_id),
+				]
+			)
+		if entry_data["quantity"] is not int:
+			errors.append("Enemy template %s drop %s quantity must be int." % [String(template_id), String(drop_entry_id)])
+		elif int(entry_data["quantity"]) <= 0:
+			errors.append("Enemy template %s drop %s must have quantity >= 1." % [String(template_id), String(drop_entry_id)])
 	return errors
+
+
+func _validate_template_skill_ids(skill_defs: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	var seen_skill_ids: Dictionary = {}
+	for raw_skill_id in skill_ids:
+		var skill_id := ProgressionDataUtils.to_string_name(raw_skill_id)
+		if skill_id == &"":
+			errors.append("Enemy template %s contains an empty skill_id." % String(template_id))
+			continue
+		if seen_skill_ids.has(skill_id):
+			errors.append("Enemy template %s declares duplicate skill_id %s." % [String(template_id), String(skill_id)])
+			continue
+		seen_skill_ids[skill_id] = true
+		if not skill_defs.has(skill_id):
+			errors.append("Enemy template %s references missing skill %s." % [String(template_id), String(skill_id)])
+	return errors
+
+
+func _has_exact_drop_entry_fields(entry_data: Dictionary) -> bool:
+	if entry_data.size() != DROP_ENTRY_REQUIRED_FIELDS.size():
+		return false
+	for field_name in DROP_ENTRY_REQUIRED_FIELDS:
+		if not entry_data.has(field_name):
+			return false
+	return true
+
+
+func _read_required_string_name(value: Variant) -> StringName:
+	if value is not String and value is not StringName:
+		return &""
+	var text := String(value).strip_edges()
+	if text.is_empty():
+		return &""
+	return StringName(text)
 
 
 func _validate_attack_equipment(item_defs: Dictionary) -> Array[String]:
@@ -255,6 +321,10 @@ func _validate_attack_equipment(item_defs: Dictionary) -> Array[String]:
 
 
 func _resolve_attack_equipment_item_def(item_id: StringName, item_defs: Dictionary):
+	return _resolve_item_def(item_id, item_defs)
+
+
+func _resolve_item_def(item_id: StringName, item_defs: Dictionary):
 	if item_defs != null and item_defs.has(item_id):
 		return item_defs.get(item_id) as ItemDef
 	var registry := ItemContentRegistry.new()
@@ -365,7 +435,11 @@ func _natural_weapon_damage_tag_for_template_tag(tag: StringName) -> StringName:
 
 
 func _dictionary_has_key(data: Dictionary, key: StringName) -> bool:
-	return data.has(key) or data.has(String(key))
+	return data.has(String(key))
+
+
+func _dictionary_has_unsupported_key(data: Dictionary, key: StringName) -> bool:
+	return _dictionary_has_key(data, key) or data.has(key)
 
 
 func _is_valid_weapon_physical_damage_tag(damage_tag: StringName) -> bool:

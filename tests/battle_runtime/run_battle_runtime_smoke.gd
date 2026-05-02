@@ -2445,6 +2445,7 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.current_ap = current_ap
 	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	unit.current_hp = 10
+	unit.current_stamina = 60
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	return unit

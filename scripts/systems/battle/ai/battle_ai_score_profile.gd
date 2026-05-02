@@ -30,6 +30,7 @@ extends Resource
 	"mist_offense": 100,
 	"frontline_guard": 130,
 	"harrier_pressure": 100,
+	"charge_open": 100,
 }
 
 

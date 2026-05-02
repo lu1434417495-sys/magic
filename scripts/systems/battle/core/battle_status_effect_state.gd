@@ -3,6 +3,20 @@ extends RefCounted
 
 const SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 
+const REQUIRED_SCHEMA_FIELDS: Array[String] = [
+	"status_id",
+	"source_unit_id",
+	"power",
+	"params",
+	"stacks",
+]
+const OPTIONAL_SCHEMA_FIELDS: Array[String] = [
+	"duration",
+	"tick_interval_tu",
+	"next_tick_at_tu",
+	"skip_next_turn_end_decay",
+]
+
 var status_id: StringName = &""
 var source_unit_id: StringName = &""
 var power := 0
@@ -45,22 +59,83 @@ func to_dict() -> Dictionary:
 	return payload
 
 
-static func from_dict(data: Variant, fallback_status_id: StringName = &"") -> BattleStatusEffectState:
-	if data is BattleStatusEffectState:
-		return (data as BattleStatusEffectState).duplicate_state()
+static func from_dict(data: Variant) -> BattleStatusEffectState:
+	if data is not Dictionary:
+		return null
+	var effect_dict := data as Dictionary
+	if not _has_current_schema_fields(effect_dict):
+		return null
+
+	var raw_status_id: Variant = effect_dict["status_id"]
+	if not _is_non_empty_string_like(raw_status_id):
+		return null
+	var raw_source_unit_id: Variant = effect_dict["source_unit_id"]
+	if not _is_string_like(raw_source_unit_id):
+		return null
+	var raw_power: Variant = effect_dict["power"]
+	if raw_power is not int:
+		return null
+	var raw_params: Variant = effect_dict["params"]
+	if raw_params is not Dictionary:
+		return null
+	var raw_stacks: Variant = effect_dict["stacks"]
+	if raw_stacks is not int or raw_stacks < 0:
+		return null
+	var duration_value := -1
+	if effect_dict.has("duration"):
+		var raw_duration: Variant = effect_dict["duration"]
+		if raw_duration is not int or raw_duration < 0:
+			return null
+		duration_value = raw_duration
+	var tick_interval_value := 0
+	if effect_dict.has("tick_interval_tu"):
+		var raw_tick_interval: Variant = effect_dict["tick_interval_tu"]
+		if raw_tick_interval is not int or raw_tick_interval <= 0:
+			return null
+		tick_interval_value = raw_tick_interval
+	var next_tick_at_value := 0
+	if effect_dict.has("next_tick_at_tu"):
+		var raw_next_tick_at: Variant = effect_dict["next_tick_at_tu"]
+		if raw_next_tick_at is not int or raw_next_tick_at <= 0:
+			return null
+		next_tick_at_value = raw_next_tick_at
+	var skip_decay_value := false
+	if effect_dict.has("skip_next_turn_end_decay"):
+		var raw_skip_decay: Variant = effect_dict["skip_next_turn_end_decay"]
+		if raw_skip_decay is not bool or not raw_skip_decay:
+			return null
+		skip_decay_value = true
 
 	var effect := SCRIPT.new()
-	if data is not Dictionary:
-		effect.status_id = ProgressionDataUtils.to_string_name(fallback_status_id)
-		return effect
-
-	effect.status_id = ProgressionDataUtils.to_string_name(data.get("status_id", fallback_status_id))
-	effect.source_unit_id = ProgressionDataUtils.to_string_name(data.get("source_unit_id", ""))
-	effect.power = int(data.get("power", 0))
-	effect.params = data.get("params", {}).duplicate(true) if data.get("params", {}) is Dictionary else {}
-	effect.stacks = maxi(int(data.get("stacks", 1)), 1)
-	effect.duration = int(data.get("duration", -1)) if data.has("duration") else -1
-	effect.tick_interval_tu = maxi(int(data.get("tick_interval_tu", 0)), 0)
-	effect.next_tick_at_tu = maxi(int(data.get("next_tick_at_tu", 0)), 0)
-	effect.skip_next_turn_end_decay = bool(data.get("skip_next_turn_end_decay", false))
+	effect.status_id = StringName(raw_status_id)
+	effect.source_unit_id = StringName(raw_source_unit_id)
+	effect.power = raw_power
+	effect.params = raw_params.duplicate(true)
+	effect.stacks = raw_stacks
+	effect.duration = duration_value
+	effect.tick_interval_tu = tick_interval_value
+	effect.next_tick_at_tu = next_tick_at_value
+	effect.skip_next_turn_end_decay = skip_decay_value
 	return effect
+
+
+static func _has_current_schema_fields(effect_dict: Dictionary) -> bool:
+	for field in REQUIRED_SCHEMA_FIELDS:
+		if not effect_dict.has(field):
+			return false
+	for key_variant in effect_dict.keys():
+		if key_variant is not String:
+			return false
+		if not REQUIRED_SCHEMA_FIELDS.has(key_variant) and not OPTIONAL_SCHEMA_FIELDS.has(key_variant):
+			return false
+	return true
+
+
+static func _is_string_like(value: Variant) -> bool:
+	return value is String or value is StringName
+
+
+static func _is_non_empty_string_like(value: Variant) -> bool:
+	if not _is_string_like(value):
+		return false
+	return not String(value).is_empty()

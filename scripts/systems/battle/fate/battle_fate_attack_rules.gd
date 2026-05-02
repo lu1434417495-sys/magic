@@ -57,6 +57,16 @@ func _unit_has_status_bool_param(unit_state: BattleUnitState, param_key: StringN
 		if status_entry == null or status_entry.params == null:
 			continue
 		var params: Dictionary = status_entry.params
-		if bool(params.get(String(param_key), params.get(param_key, false))):
+		if bool(_get_status_param_string_key(params, param_key, false)):
 			return true
 	return false
+
+
+func _get_status_param_string_key(params: Dictionary, param_key: StringName, fallback: Variant) -> Variant:
+	if params == null or param_key == &"":
+		return fallback
+	var param_name := String(param_key)
+	for key_variant in params.keys():
+		if key_variant is String and String(key_variant) == param_name:
+			return params[key_variant]
+	return fallback

@@ -5,6 +5,33 @@
 class_name BattleDamageResolver
 extends RefCounted
 
+const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
+
+
+var _skill_defs: Dictionary = {}
+var _last_stand_mastery_records: Array[Dictionary] = []
+
+func set_skill_defs(skill_defs: Dictionary) -> void:
+	_skill_defs = skill_defs if skill_defs != null else {}
+
+func get_and_clear_last_stand_mastery_records() -> Array[Dictionary]:
+	var records := _last_stand_mastery_records.duplicate()
+	_last_stand_mastery_records.clear()
+	return records
+
+func _record_last_stand_mastery(target_unit: BattleUnitState, source_unit: BattleUnitState, source_type: StringName, base_amount: int) -> void:
+	if target_unit == null or base_amount <= 0:
+		return
+	_last_stand_mastery_records.append({
+		"member_id": target_unit.source_member_id,
+		"skill_id": &"warrior_last_stand",
+		"amount": base_amount,
+		"source_type": source_type,
+		"source_label": "不屈",
+		"reason_text": "触发免死" if source_type == &"last_stand_triggered" else "极限承伤",
+		"allow_unlocks": true,
+	})
+
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
@@ -21,6 +48,7 @@ const BattleFateEventBus = preload("res://scripts/systems/battle/fate/battle_fat
 const BattleReportFormatter = preload("res://scripts/systems/battle/rules/battle_report_formatter.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const STATUS_ATTACK_UP: StringName = &"attack_up"
 const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
 const STATUS_GUARDING: StringName = &"guarding"
@@ -53,7 +81,6 @@ const ATTACK_RESOLUTION_HIT: StringName = &"hit"
 const ATTACK_RESOLUTION_MISS: StringName = &"miss"
 const ATTACK_RESOLUTION_CRITICAL_HIT: StringName = &"critical_hit"
 const ATTACK_RESOLUTION_CRITICAL_FAIL: StringName = &"critical_fail"
-const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW: StringName = &"black_star_brand_elite_guard_window"
 const STATUS_CROWN_BREAK_BROKEN_FANG: StringName = &"crown_break_broken_fang"
@@ -103,6 +130,14 @@ func resolve_attack_effects(
 		_dispatch_attack_resolution_events(source_unit, target_unit, attack_metadata, attack_context)
 		return failed_result
 
+	# 二次命中判定（用于盾击晕眩等效果）
+	var secondary_hit_dc_base := 10
+	for eff in effect_defs:
+		if eff != null and eff.trigger_event == &"secondary_hit" and eff.params != null:
+			secondary_hit_dc_base = int(eff.params.get("secondary_hit_dc_base", 10))
+			break
+	attack_metadata["secondary_hit_success"] = _resolve_secondary_hit(source_unit, target_unit, attack_context, secondary_hit_dc_base)
+
 	var resolved_result := _build_attack_metadata_result(
 		resolve_effects(source_unit, target_unit, effect_defs, attack_metadata),
 		attack_metadata
@@ -141,7 +176,7 @@ func resolve_effects(
 		match effect_def.effect_type:
 			&"damage":
 				var damage_outcome := _resolve_damage_outcome(source_unit, target_unit, effect_def, damage_context)
-				var damage_result := _apply_damage_to_target(target_unit, damage_outcome)
+				var damage_result := _apply_damage_to_target(target_unit, damage_outcome, source_unit)
 				var hp_damage := int(damage_result.get("damage", 0))
 				total_damage += hp_damage
 				total_shield_absorbed += int(damage_result.get("shield_absorbed", 0))
@@ -152,7 +187,30 @@ func resolve_effects(
 				shield_broken = shield_broken or bool(damage_result.get("shield_broken", false))
 				applied = true
 			&"heal":
-				var heal_amount := maxi(effect_def.power, 1)
+				var heal_amount := 0
+				if effect_def.params != null and effect_def.params.has("base_sides"):
+					var con_value := 0
+					var will_value := 0
+					if source_unit.attribute_snapshot != null:
+						con_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
+						will_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER))
+					var con_mod := int(floor((con_value - 10) / 2.0))
+					var will_mod := int(floor((will_value - 10) / 2.0))
+
+					var dice_count := maxi(effect_def.power, 1)
+					var base_sides := int(effect_def.params.get("base_sides", 4))
+					var con_mod_sides := int(effect_def.params.get("con_mod_sides", 2))
+					var will_mod_sides := int(effect_def.params.get("will_mod_sides", 1))
+					var dice_sides := maxi(base_sides + con_mod * con_mod_sides + will_mod * will_mod_sides, 4)
+
+					var dice_roll := _roll_dice_pool(dice_count, dice_sides, 0, "heal")
+					heal_amount = int(dice_roll.get("heal_total", 0))
+				else:
+					heal_amount = maxi(effect_def.power, 0)
+					var heal_dice_roll := _roll_damage_dice(effect_def)
+					if not heal_dice_roll.is_empty():
+						heal_amount += int(heal_dice_roll.get("damage_dice_total", 0))
+				heal_amount = maxi(heal_amount, 1)
 				var max_hp := 0
 				if target_unit.attribute_snapshot != null:
 					max_hp = target_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)
@@ -162,6 +220,62 @@ func resolve_effects(
 					target_unit.current_hp += heal_amount
 				total_healing += heal_amount
 				applied = true
+			&"stamina_restore":
+				var con_value := 0
+				var will_value := 0
+				if source_unit.attribute_snapshot != null:
+					con_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
+					will_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER))
+				var con_mod := int(floor((con_value - 10) / 2.0))
+				var will_mod := int(floor((will_value - 10) / 2.0))
+
+				var dice_count := maxi(effect_def.power, 1)
+				var base_sides := int(effect_def.params.get("base_sides", 4))
+				var con_mod_sides := int(effect_def.params.get("con_mod_sides", 2))
+				var will_mod_sides := int(effect_def.params.get("will_mod_sides", 1))
+				var dice_sides := maxi(base_sides + con_mod * con_mod_sides + will_mod * will_mod_sides, 4)
+
+				var dice_roll := _roll_dice_pool(dice_count, dice_sides, 0, "stamina_restore")
+				var stamina_amount := int(dice_roll.get("stamina_restore_total", 0))
+				stamina_amount = maxi(stamina_amount, 1)
+
+				var max_stamina := 0
+				if target_unit.attribute_snapshot != null:
+					max_stamina = target_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)
+				if max_stamina > 0:
+					target_unit.current_stamina = mini(target_unit.current_stamina + stamina_amount, max_stamina)
+				else:
+					target_unit.current_stamina += stamina_amount
+				applied = true
+			&"heal_fatal":
+				var heal_amount := _resolve_heal_fatal_amount(target_unit, effect_def)
+				if heal_amount > 0:
+					var max_hp := 0
+					if target_unit.attribute_snapshot != null:
+						max_hp = target_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)
+					if max_hp > 0:
+						target_unit.current_hp = mini(target_unit.current_hp + heal_amount, max_hp)
+					else:
+						target_unit.current_hp += heal_amount
+					total_healing += heal_amount
+					applied = true
+			&"erase_status":
+				var erased_status_id := ProgressionDataUtils.to_string_name(effect_def.status_id)
+				if erased_status_id == &"":
+					erased_status_id = ProgressionDataUtils.to_string_name(effect_def.trigger_status_id)
+				if erased_status_id != &"" and target_unit.has_status_effect(erased_status_id):
+					target_unit.erase_status_effect(erased_status_id)
+					applied = true
+			&"cleanse_harmful":
+				var removed_status_ids: Array[StringName] = []
+				for status_id_str in ProgressionDataUtils.sorted_string_keys(target_unit.status_effects):
+					var status_id := StringName(status_id_str)
+					if BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT.is_harmful_status(status_id):
+						removed_status_ids.append(status_id)
+				for status_id in removed_status_ids:
+					target_unit.erase_status_effect(status_id)
+				if not removed_status_ids.is_empty():
+					applied = true
 			&"status", &"apply_status":
 				if effect_def.status_id != &"":
 					_apply_status_effect(target_unit, source_unit, effect_def)
@@ -210,6 +324,8 @@ func _does_effect_trigger(effect_def, damage_context: Dictionary) -> bool:
 	match trigger_event:
 		ATTACK_RESOLUTION_CRITICAL_HIT:
 			return bool(damage_context.get("critical_hit", false))
+		&"secondary_hit":
+			return bool(damage_context.get("secondary_hit_success", false))
 		_:
 			push_error(
 				"Unsupported combat effect trigger_event '%s' for effect_type '%s'." % [
@@ -365,6 +481,7 @@ func _build_attack_metadata_result(result: Dictionary, attack_metadata: Dictiona
 	merged["display_required_roll"] = int(attack_metadata.get("display_required_roll", 0))
 	merged["hit_rate_percent"] = int(attack_metadata.get("hit_rate_percent", 0))
 	merged["reverse_fate_downgraded"] = bool(attack_metadata.get("reverse_fate_downgraded", false))
+	merged["secondary_hit_success"] = bool(attack_metadata.get("secondary_hit_success", false))
 	merged["fate_event_tags"] = ProgressionDataUtils.string_name_array_to_string_array(
 		_build_attack_event_tags(attack_metadata)
 	)
@@ -594,9 +711,9 @@ func _resolve_damage_outcome(
 func _roll_damage_dice(effect_def, include_bonus: bool = true, field_prefix: String = "damage_dice") -> Dictionary:
 	if effect_def == null or effect_def.params == null:
 		return {}
-	var dice_count := maxi(int(effect_def.params.get("dice_count", effect_def.params.get("damage_dice_count", 0))), 0)
-	var dice_sides := maxi(int(effect_def.params.get("dice_sides", effect_def.params.get("damage_dice_sides", 0))), 0)
-	var dice_bonus := int(effect_def.params.get("dice_bonus", effect_def.params.get("damage_dice_bonus", 0))) if include_bonus else 0
+	var dice_count := maxi(int(effect_def.params.get("dice_count", 0)), 0)
+	var dice_sides := maxi(int(effect_def.params.get("dice_sides", 0)), 0)
+	var dice_bonus := int(effect_def.params.get("dice_bonus", 0)) if include_bonus else 0
 	return _roll_dice_pool(dice_count, dice_sides, dice_bonus, field_prefix)
 
 
@@ -825,7 +942,9 @@ func _resolve_mitigation_tier_result(target_unit: BattleUnitState, damage_tag: S
 			continue
 		if not _status_params_apply_to_damage_tag(status_entry.params, damage_tag):
 			continue
-		var mitigation_tier := ProgressionDataUtils.to_string_name(status_entry.params.get("mitigation_tier", ""))
+		var mitigation_tier := ProgressionDataUtils.to_string_name(
+			_get_status_param_string_key(status_entry.params, &"mitigation_tier", "")
+		)
 		match mitigation_tier:
 			MITIGATION_TIER_IMMUNE:
 				immune_sources.append(_build_mitigation_source(status_id, "mitigation_tier", 0, mitigation_tier))
@@ -865,16 +984,20 @@ func _resolve_mitigation_tier_result(target_unit: BattleUnitState, damage_tag: S
 func _status_params_apply_to_damage_tag(params: Dictionary, damage_tag: StringName) -> bool:
 	if params == null or damage_tag == &"":
 		return true
-	var explicit_damage_tag := ProgressionDataUtils.to_string_name(params.get("damage_tag", params.get("tag", "")))
+	var explicit_damage_tag := ProgressionDataUtils.to_string_name(
+		_get_status_param_string_key(params, &"damage_tag", "")
+	)
 	if explicit_damage_tag != &"":
 		return explicit_damage_tag == damage_tag
-	var damage_tags_variant = params.get("damage_tags", [])
+	var damage_tags_variant = _get_status_param_string_key(params, &"damage_tags", [])
 	if damage_tags_variant is Array and not (damage_tags_variant as Array).is_empty():
 		for tag_variant in damage_tags_variant:
 			if ProgressionDataUtils.to_string_name(tag_variant) == damage_tag:
 				return true
 		return false
-	var damage_category := ProgressionDataUtils.to_string_name(params.get("damage_category", ""))
+	var damage_category := ProgressionDataUtils.to_string_name(
+		_get_status_param_string_key(params, &"damage_category", "")
+	)
 	match damage_category:
 		&"physical":
 			return _is_physical_damage_tag(damage_tag)
@@ -998,7 +1121,10 @@ func _resolve_passive_reduction_result(target_unit: BattleUnitState) -> Dictiona
 		var status_entry = target_unit.get_status_effect(status_id)
 		if status_entry == null or status_entry.params == null:
 			continue
-		var passive_reduction := maxi(int(status_entry.params.get("passive_reduction", 0)), 0)
+		var passive_reduction := maxi(
+			int(_get_status_param_string_key(status_entry.params, &"passive_reduction", 0)),
+			0
+		)
 		if passive_reduction <= 0:
 			continue
 		if passive_reduction > max_passive_reduction:
@@ -1032,10 +1158,15 @@ func _resolve_content_dr_result(target_unit: BattleUnitState, effect_def, damage
 			continue
 		if not _status_params_apply_to_damage_tag(status_entry.params, damage_tag):
 			continue
-		var content_dr := maxi(int(status_entry.params.get("content_dr", 0)), 0)
+		var content_dr := maxi(
+			int(_get_status_param_string_key(status_entry.params, &"content_dr", 0)),
+			0
+		)
 		if content_dr <= 0:
 			continue
-		var bypass_tag := ProgressionDataUtils.to_string_name(status_entry.params.get("dr_bypass_tag", status_entry.params.get("bypass_tag", "")))
+		var bypass_tag := ProgressionDataUtils.to_string_name(
+			_get_status_param_string_key(status_entry.params, &"dr_bypass_tag", "")
+		)
 		if bypass_tag != &"" and _effect_has_bypass_tag(effect_def, bypass_tag):
 			continue
 		if content_dr > max_content_dr:
@@ -1069,7 +1200,10 @@ func _resolve_guard_block_result(target_unit: BattleUnitState, damage_tag: Strin
 			continue
 		if not _status_params_apply_to_damage_tag(status_entry.params, damage_tag):
 			continue
-		var guard_block := maxi(int(status_entry.params.get("guard_block", 0)), 0)
+		var guard_block := maxi(
+			int(_get_status_param_string_key(status_entry.params, &"guard_block", 0)),
+			0
+		)
 		if guard_block <= 0:
 			continue
 		if guard_block > max_guard_block:
@@ -1133,16 +1267,8 @@ func _is_attack_crit_locked(unit_state: BattleUnitState) -> bool:
 func _effect_has_bypass_tag(effect_def, bypass_tag: StringName) -> bool:
 	if effect_def == null or effect_def.params == null or bypass_tag == &"":
 		return false
-	var explicit_bypass_tag := ProgressionDataUtils.to_string_name(effect_def.params.get("bypass_tag", ""))
-	if explicit_bypass_tag == bypass_tag:
-		return true
-	var bypass_tags_variant = effect_def.params.get("bypass_tags", [])
-	if bypass_tags_variant is not Array:
-		return false
-	for tag_variant in bypass_tags_variant:
-		if ProgressionDataUtils.to_string_name(tag_variant) == bypass_tag:
-			return true
-	return false
+	var explicit_bypass_tag := ProgressionDataUtils.to_string_name(effect_def.params.get("dr_bypass_tag", ""))
+	return explicit_bypass_tag == bypass_tag
 
 
 func _has_bonus_condition(effect_def, target_unit: BattleUnitState) -> bool:
@@ -1166,8 +1292,6 @@ func _is_target_low_hp(effect_def, target_unit: BattleUnitState) -> bool:
 	if effect_def != null and effect_def.params != null:
 		if effect_def.params.has("hp_ratio_threshold"):
 			threshold_ratio = clampf(float(effect_def.params.get("hp_ratio_threshold", threshold_ratio)), 0.0, 1.0)
-		elif effect_def.params.has("low_hp_ratio"):
-			threshold_ratio = clampf(float(effect_def.params.get("low_hp_ratio", threshold_ratio)), 0.0, 1.0)
 
 	return float(target_unit.current_hp) <= float(max_hp) * threshold_ratio
 
@@ -1260,7 +1384,7 @@ func _build_environmental_damage_result(damage_result: Dictionary) -> Dictionary
 	return result
 
 
-func _apply_damage_to_target(target_unit: BattleUnitState, resolved_damage_input) -> Dictionary:
+func _apply_damage_to_target(target_unit: BattleUnitState, resolved_damage_input, source_unit: BattleUnitState = null) -> Dictionary:
 	var damage_outcome := _coerce_damage_outcome(resolved_damage_input)
 	var normalized_damage := maxi(int(damage_outcome.get("resolved_damage", 0)), 0)
 	if target_unit == null or normalized_damage <= 0:
@@ -1281,9 +1405,38 @@ func _apply_damage_to_target(target_unit: BattleUnitState, resolved_damage_input
 
 	var hp_damage := maxi(normalized_damage - shield_absorbed, 0)
 	if hp_damage > 0:
-		target_unit.current_hp = maxi(target_unit.current_hp - hp_damage, 0)
+		var max_hp := 0
+		if target_unit.attribute_snapshot != null:
+			max_hp = int(target_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX))
+		if max_hp > 0 and hp_damage * 10 >= max_hp * 6:
+			_record_last_stand_mastery(target_unit, source_unit, &"critical_survival", 20)
+		var projected_hp := target_unit.current_hp - hp_damage
+		if projected_hp <= 0 and target_unit.has_status_effect(&"death_ward"):
+			target_unit.current_hp = 0
+			if not _trigger_last_stand(target_unit, source_unit):
+				target_unit.current_hp = 0
+		else:
+			target_unit.current_hp = maxi(projected_hp, 0)
 
 	return _build_applied_damage_result(damage_outcome, hp_damage, shield_absorbed, shield_broken)
+
+
+func _resolve_secondary_hit(source_unit: BattleUnitState, target_unit: BattleUnitState, attack_context: Dictionary, dc_base: int = 10) -> bool:
+	if source_unit == null or target_unit == null:
+		return false
+	var str_value := 0
+	if source_unit.attribute_snapshot != null:
+		str_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.STRENGTH))
+	var str_mod := int(floor((str_value - 10) / 2.0))
+
+	var con_value := 0
+	if target_unit.attribute_snapshot != null:
+		con_value = int(target_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
+	var con_mod := int(floor((con_value - 10) / 2.0))
+
+	var dc := dc_base + str_mod
+	var save_roll := _roll_attack_die(20, false, attack_context)
+	return (save_roll + con_mod) < dc
 
 
 func _coerce_damage_outcome(resolved_damage_input) -> Dictionary:
@@ -1332,6 +1485,66 @@ func _build_applied_damage_result(
 	result["shield_broken"] = shield_broken
 	result["fully_absorbed_by_shield"] = hp_damage <= 0 and shield_absorbed > 0
 	return result
+
+
+func _trigger_last_stand(target_unit: BattleUnitState, source_unit: BattleUnitState = null) -> bool:
+	var death_ward_entry = target_unit.get_status_effect(&"death_ward")
+	if death_ward_entry == null:
+		return false
+	var source_skill_id := ProgressionDataUtils.to_string_name(death_ward_entry.params.get("source_skill_id", ""))
+	var skill_level := int(death_ward_entry.params.get("skill_level", 0))
+	var skill_def = _skill_defs.get(source_skill_id) if _skill_defs != null else null
+	if skill_def == null or skill_def.combat_profile == null:
+		return false
+	var passive_effect_defs: Array = skill_def.combat_profile.passive_effect_defs if skill_def.combat_profile.has_method("get") else []
+	if passive_effect_defs.is_empty():
+		return false
+	var fatal_status_id := ProgressionDataUtils.to_string_name(death_ward_entry.status_id)
+	for effect_def in passive_effect_defs:
+		if effect_def == null:
+			continue
+		if effect_def.trigger_condition != &"on_fatal_damage":
+			continue
+		var required_status_id := ProgressionDataUtils.to_string_name(effect_def.trigger_status_id)
+		if required_status_id != &"" and required_status_id != fatal_status_id:
+			continue
+		var min_level := maxi(int(effect_def.min_skill_level), 0)
+		var max_level := int(effect_def.max_skill_level)
+		if skill_level < min_level:
+			continue
+		if max_level >= 0 and skill_level > max_level:
+			continue
+		var runtime_effect_def: CombatEffectDef = effect_def.duplicate_for_runtime() if effect_def.has_method("duplicate_for_runtime") else effect_def.duplicate(true)
+		if runtime_effect_def == null:
+			continue
+		if runtime_effect_def.params == null:
+			runtime_effect_def.params = {}
+		runtime_effect_def.params["skill_level"] = skill_level
+		resolve_effects(target_unit, target_unit, [runtime_effect_def])
+	var triggered := target_unit.current_hp > 0
+	if triggered:
+		_record_last_stand_mastery(target_unit, source_unit, &"last_stand_triggered", 50)
+	return triggered
+
+
+func _resolve_heal_fatal_amount(target_unit: BattleUnitState, effect_def) -> int:
+	if effect_def == null or target_unit == null:
+		return 0
+	var params: Dictionary = effect_def.params if effect_def.params != null else {}
+	var base_heal := int(params.get("base_heal", 8))
+	var heal_per_level := int(params.get("heal_per_level", 4))
+	var con_mod_base := int(params.get("con_mod_base", 2))
+	var con_mod_per_2_levels := int(params.get("con_mod_per_2_levels", 1))
+	var skill_level := maxi(int(params.get("skill_level", 0)), 0)
+
+	var con_value := 0
+	if target_unit.attribute_snapshot != null:
+		con_value = int(target_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
+	var con_mod := int(floor((con_value - 10) / 2.0))
+
+	var heal_amount := base_heal + heal_per_level * (skill_level - 1)
+	heal_amount += con_mod * (con_mod_base + int(floor((skill_level - 1) / 2.0)) * con_mod_per_2_levels)
+	return maxi(heal_amount, 1)
 
 
 func _apply_status_effect(target_unit: BattleUnitState, source_unit: BattleUnitState, effect_def) -> void:
@@ -1392,10 +1605,9 @@ func _get_target_incoming_damage_multiplier(target_unit: BattleUnitState) -> flo
 		if status_entry == null or status_entry.params == null:
 			continue
 		var params: Dictionary = status_entry.params
-		var status_multiplier := float(params.get(
-			"incoming_damage_multiplier",
-			params.get(&"incoming_damage_multiplier", 1.0)
-		))
+		var status_multiplier := float(
+			_get_status_param_string_key(params, &"incoming_damage_multiplier", 1.0)
+		)
 		if status_multiplier > multiplier:
 			multiplier = status_multiplier
 	return maxf(multiplier, 1.0)
@@ -1411,10 +1623,9 @@ func _get_source_outgoing_damage_multiplier(source_unit: BattleUnitState) -> flo
 		if status_entry == null or status_entry.params == null:
 			continue
 		var params: Dictionary = status_entry.params
-		var status_multiplier := float(params.get(
-			"outgoing_damage_multiplier",
-			params.get(&"outgoing_damage_multiplier", 1.0)
-		))
+		var status_multiplier := float(
+			_get_status_param_string_key(params, &"outgoing_damage_multiplier", 1.0)
+		)
 		if status_multiplier <= 0.0:
 			continue
 		multiplier *= status_multiplier
@@ -1438,9 +1649,19 @@ func _unit_has_status_bool_param(unit_state: BattleUnitState, param_key: StringN
 		if status_entry == null or status_entry.params == null:
 			continue
 		var params: Dictionary = status_entry.params
-		if bool(params.get(String(param_key), params.get(param_key, false))):
+		if bool(_get_status_param_string_key(params, param_key, false)):
 			return true
 	return false
+
+
+func _get_status_param_string_key(params: Dictionary, param_key: StringName, fallback: Variant) -> Variant:
+	if params == null or param_key == &"":
+		return fallback
+	var param_name := String(param_key)
+	for key_variant in params.keys():
+		if key_variant is String and String(key_variant) == param_name:
+			return params[key_variant]
+	return fallback
 
 
 func _try_apply_reverse_fate_amulet(source_unit: BattleUnitState) -> bool:

@@ -39,7 +39,7 @@ func get_states() -> Array[EnemyAiStateDef]:
 	return result
 
 
-func validate_schema() -> Array[String]:
+func validate_schema(skill_defs: Dictionary = {}) -> Array[String]:
 	var errors: Array[String] = []
 	if brain_id == &"":
 		errors.append("Enemy brain is missing brain_id.")
@@ -77,7 +77,7 @@ func validate_schema() -> Array[String]:
 			seen_state_ids[state.state_id] = true
 		if state.state_id == default_state_id:
 			default_state_found = true
-		errors.append_array(state.validate_schema(brain_id))
+		errors.append_array(state.validate_schema(brain_id, skill_defs))
 	if default_state_id != &"" and not default_state_found:
 		errors.append("Enemy brain %s default_state_id %s is not declared in states." % [String(brain_id), String(default_state_id)])
 	return errors

@@ -274,13 +274,13 @@ func _build_enemy_template_with_mixed_loot(template_id: StringName):
 	template.display_name = "战利品荒狼"
 	var drop_entries: Array[Dictionary] = [
 		{
-			"drop_id": "weapon_roll",
+			"drop_entry_id": "weapon_roll",
 			"drop_type": "random_equipment",
 			"item_id": "bronze_sword",
 			"quantity": 1,
 		},
 		{
-			"drop_id": "hide_bundle",
+			"drop_entry_id": "hide_bundle",
 			"drop_type": "item",
 			"item_id": "beast_hide",
 			"quantity": 2,
@@ -296,7 +296,7 @@ func _build_enemy_template_with_random_equipment_only(template_id: StringName):
 	template.display_name = "中立掉落荒狼"
 	var drop_entries: Array[Dictionary] = [
 		{
-			"drop_id": "weapon_roll",
+			"drop_entry_id": "weapon_roll",
 			"drop_type": "random_equipment",
 			"item_id": "bronze_sword",
 			"quantity": 1,

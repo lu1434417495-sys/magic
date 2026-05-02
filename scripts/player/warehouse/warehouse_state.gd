@@ -56,25 +56,36 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary) -> WarehouseState:
+static func from_dict(data: Variant) -> WarehouseState:
+	if data is not Dictionary:
+		return null
+	var payload := data as Dictionary
+	if payload.size() != 2:
+		return null
+	if not payload.has("stacks") or not payload.has("equipment_instances"):
+		return null
+
 	var state := WAREHOUSE_STATE_SCRIPT.new()
 
-	var stacks_data: Variant = data.get("stacks", [])
-	if stacks_data is Array:
-		for stack_data in stacks_data:
-			if stack_data is not Dictionary:
-				continue
-			var stack = WAREHOUSE_STACK_STATE_SCRIPT.from_dict(stack_data)
-			if stack == null or stack.is_empty():
-				continue
-			state.stacks.append(stack)
+	var stacks_data: Variant = payload["stacks"]
+	if stacks_data is not Array:
+		return null
+	for stack_data in stacks_data:
+		var stack = WAREHOUSE_STACK_STATE_SCRIPT.from_dict(stack_data)
+		if stack == null or stack.is_empty():
+			return null
+		state.stacks.append(stack)
 
-	var instances_data: Variant = data.get("equipment_instances", [])
-	if instances_data is Array:
-		for inst_data in instances_data:
-			var inst = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(inst_data)
-			if inst == null or inst.instance_id == &"" or inst.item_id == &"":
-				continue
-			state.equipment_instances.append(inst)
+	var instances_data: Variant = payload["equipment_instances"]
+	if instances_data is not Array:
+		return null
+	for inst_data in instances_data:
+		var validation_error := EQUIPMENT_INSTANCE_STATE_SCRIPT.get_payload_validation_error(inst_data)
+		if not validation_error.is_empty():
+			return null
+		var inst = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(inst_data)
+		if inst == null or inst.instance_id == &"" or inst.item_id == &"":
+			return null
+		state.equipment_instances.append(inst)
 
 	return state

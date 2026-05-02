@@ -44,7 +44,7 @@ Required fields on `CombatSkillDef`:
 | `attack_roll_bonus` | Hit check modifier |
 | `level_overrides` | Dict keyed by min level; values can override ap/stamina/mp/aura/cooldown |
 | `mastery_trigger_mode` | `skill_damage_dice_max` / `weapon_attack_quality` / `damage_dealt` / `status_applied` / `effect_applied` |
-| `mastery_amount_mode` | Currently only `per_target_rank` |
+| `mastery_amount_mode` | `per_target_rank` / `per_cast_hp_ratio` |
 | `effect_defs` | Array of `CombatEffectDef`; use `min_skill_level`/`max_skill_level` for tiered unlocks |
 
 ### Step 3: Design Effect Chain (`CombatEffectDef`)
@@ -52,9 +52,13 @@ Required fields on `CombatSkillDef`:
 Supported `effect_type` values:
 - `damage`: `power`, `damage_tag`, `params.add_weapon_dice`, `params.requires_weapon`
 - `status`: `status_id`, `duration_tu`, `power`, `trigger_event`
-- `heal` / `shield`: `power`, `effect_target_team_filter`
+- `heal` / `shield`: `power`, `effect_target_team_filter`; heal supports `params.dice_count/dice_sides`
+- `stamina_restore`: `power`, `effect_target_team_filter`; supports `params.dice_count/dice_sides`
+- `charge`: `params.skill_id`, `params.base_distance`, `params.distance_by_level`
+- `forced_move`: `forced_move_mode`, `forced_move_distance`
 - `repeat_attack_until_fail`: Controller effect; see references for param schema
-- `terrain` / `terrain_replace`: Ground mutation
+- `terrain` / `terrain_effect` / `terrain_replace` / `terrain_replace_to`: Ground mutation
+- `apply_status`: Alias for `status`
 
 Level-tier effects: set `min_skill_level` and/or `max_skill_level` on each `CombatEffectDef`.
 
@@ -66,6 +70,8 @@ Level-tier effects: set `min_skill_level` and/or `max_skill_level` on each `Comb
 | New follow-up cost model | `scripts/systems/battle_repeat_attack_resolver.gd` | `follow_up_fixed_cost`, `follow_up_cost_addition` |
 | New mastery bonus logic | `scripts/systems/battle_runtime_module.gd` + resolver | `record_skill_mastery_bonus` |
 | New trigger mode | `scripts/systems/battle_runtime_module.gd` | `_is_skill_mastery_qualifying_result` |
+| New amount mode | `scripts/systems/battle/runtime/battle_skill_mastery_service.gd` + `skill_content_registry.gd` | `_resolve_skill_mastery_target_amount` |
+| New effect type | `scripts/systems/battle/rules/battle_damage_resolver.gd` + `battle_skill_resolution_rules.gd` | match branch in `_apply_effect_to_target` |
 
 **Rule**: Prefer adding optional `params` entries. Keep backward compatibility so existing skills are untouched.
 

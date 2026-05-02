@@ -78,9 +78,9 @@ static func _build_skill_dice_range(effect_def: CombatEffectDef) -> Dictionary:
 	if effect_def == null or effect_def.params == null:
 		return _build_empty_dice_range()
 	var params := effect_def.params
-	var dice_count := maxi(int(params.get("dice_count", params.get("damage_dice_count", 0))), 0)
-	var dice_sides := maxi(int(params.get("dice_sides", params.get("damage_dice_sides", 0))), 0)
-	var dice_bonus := int(params.get("dice_bonus", params.get("damage_dice_bonus", 0)))
+	var dice_count := maxi(int(params.get("dice_count", 0)), 0)
+	var dice_sides := maxi(int(params.get("dice_sides", 0)), 0)
+	var dice_bonus := int(params.get("dice_bonus", 0))
 	return _build_dice_range(dice_count, dice_sides, dice_bonus)
 
 

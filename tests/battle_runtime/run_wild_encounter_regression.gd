@@ -39,6 +39,7 @@ func _run() -> void:
 	_test_enemy_content_registry_reports_missing_roster_template_reference()
 	_test_formal_enemy_templates_do_not_use_legacy_weapon_attribute_overrides()
 	_test_enemy_template_validation_rejects_legacy_weapon_attribute_overrides()
+	_test_enemy_template_validation_rejects_legacy_drop_entry_schema()
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaults()
@@ -46,14 +47,17 @@ func _run() -> void:
 	_test_non_beast_template_without_attack_equipment_validates_error_but_runtime_uses_unarmed()
 	_test_enemy_content_registry_registers_second_formal_roster()
 	_test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema()
+	_test_encounter_roster_builder_rejects_bad_drop_entry_schema()
 	_test_encounter_roster_builder_builds_mixed_mist_hollow_units()
 	_test_wild_encounter_units_always_include_six_base_attributes()
 	_test_enemy_template_base_attributes_drive_derived_stamina()
+	_test_encounter_roster_builder_unlocks_caster_mp_resources()
+	_test_fallback_enemy_basic_attack_is_affordable()
 	_test_wild_encounter_growth_respects_suppression_window()
 	_test_game_runtime_facade_move_advances_world_step()
 	_test_test_preset_uses_same_battle_terrain_profile_as_small_preset()
 	_test_main_world_wilds_use_canyon_battle_terrain_profile()
-	_test_formal_wolf_den_battle_prefers_close_in_over_wait_when_far()
+	_test_formal_wolf_den_battle_prefers_charge_over_wait_when_far()
 	_test_world_spawn_explicitly_maps_south_wilds_to_mist_hollow()
 	_test_game_runtime_facade_battle_requires_confirm_before_tu_advances()
 	_test_game_runtime_facade_commit_battle_loot_records_overflow_entries()
@@ -113,11 +117,11 @@ func _test_formal_enemy_templates_do_not_use_legacy_weapon_attribute_overrides()
 		if template == null:
 			continue
 		_assert_true(
-			not _dictionary_has_key(template.attribute_overrides, &"weapon_attack_range"),
+			not _has_unsupported_attribute_override_key(template.attribute_overrides, &"weapon_attack_range"),
 			"正式敌人模板 %s 不应再写 attribute_overrides.weapon_attack_range。" % String(template.template_id)
 		)
 		_assert_true(
-			not _dictionary_has_key(template.attribute_overrides, &"weapon_physical_damage_tag"),
+			not _has_unsupported_attribute_override_key(template.attribute_overrides, &"weapon_physical_damage_tag"),
 			"正式敌人模板 %s 不应再写 attribute_overrides.weapon_physical_damage_tag。" % String(template.template_id)
 		)
 	game_session.free()
@@ -125,32 +129,84 @@ func _test_formal_enemy_templates_do_not_use_legacy_weapon_attribute_overrides()
 
 func _test_enemy_template_validation_rejects_legacy_weapon_attribute_overrides() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
-	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
-	template.template_id = &"legacy_weapon_override_template"
-	template.display_name = "旧武器字段敌人"
-	template.brain_id = &"melee_aggressor"
-	template.attack_equipment_item_id = &"watchman_mace"
-	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
-		template.base_attribute_overrides[attribute_id] = 8
-	template.attribute_overrides = {
-		"hp_max": 10,
-		"action_points": 1,
-		"attack_bonus": 4,
-		"armor_class": 10,
-		"weapon_attack_range": 2,
-		"weapon_physical_damage_tag": "physical_slash",
-	}
-
-	var validation_errors: Array[String] = template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
+	var string_key_template = _build_weapon_override_template(
+		&"legacy_weapon_override_string_key_template",
+		"旧 String 武器字段敌人"
+	)
+	string_key_template.attribute_overrides["weapon_attack_range"] = 2
+	string_key_template.attribute_overrides["weapon_physical_damage_tag"] = "physical_slash"
+	var string_key_errors: Array[String] = string_key_template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
 	_assert_true(
-		_errors_contain_fragment(validation_errors, "must not declare attribute_overrides.weapon_attack_range"),
-		"敌人模板校验应拒绝旧 attribute_overrides.weapon_attack_range。"
+		_errors_contain_fragment(string_key_errors, "must not declare attribute_overrides.weapon_attack_range"),
+		"敌人模板校验应拒绝 String key 旧 attribute_overrides.weapon_attack_range。"
 	)
 	_assert_true(
-		_errors_contain_fragment(validation_errors, "must not declare attribute_overrides.weapon_physical_damage_tag"),
-		"敌人模板校验应拒绝旧 attribute_overrides.weapon_physical_damage_tag。"
+		_errors_contain_fragment(string_key_errors, "must not declare attribute_overrides.weapon_physical_damage_tag"),
+		"敌人模板校验应拒绝 String key 旧 attribute_overrides.weapon_physical_damage_tag。"
+	)
+
+	var string_name_key_template = _build_weapon_override_template(
+		&"legacy_weapon_override_string_name_key_template",
+		"旧 StringName 武器字段敌人"
+	)
+	string_name_key_template.attribute_overrides[&"weapon_attack_range"] = 2
+	string_name_key_template.attribute_overrides[&"weapon_physical_damage_tag"] = &"physical_slash"
+	var string_name_key_errors: Array[String] = string_name_key_template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
+	_assert_true(
+		_errors_contain_fragment(string_name_key_errors, "must not declare attribute_overrides.weapon_attack_range"),
+		"敌人模板校验应拒绝 StringName key 旧 attribute_overrides.weapon_attack_range。"
+	)
+	_assert_true(
+		_errors_contain_fragment(string_name_key_errors, "must not declare attribute_overrides.weapon_physical_damage_tag"),
+		"敌人模板校验应拒绝 StringName key 旧 attribute_overrides.weapon_physical_damage_tag。"
 	)
 	game_session.free()
+
+
+func _test_enemy_template_validation_rejects_legacy_drop_entry_schema() -> void:
+	var legacy_drop_template = _build_drop_template(
+		&"legacy_enemy_drop_schema",
+		"旧掉落字段敌人",
+		[{
+			"drop_id": "wolf_hide",
+			"drop_type": "item",
+			"item_id": "beast_hide",
+			"quantity": 1,
+		}]
+	)
+	var legacy_errors: Array[String] = legacy_drop_template.validate_schema()
+	_assert_true(
+		_errors_contain_fragment(legacy_errors, "drop_id is not supported"),
+		"EnemyTemplateDef.validate_schema() 应拒绝旧 drop_id 字段。"
+	)
+
+	var string_quantity_template = _build_drop_template(
+		&"string_quantity_enemy_drop_schema",
+		"字符串数量敌人",
+		[_build_canonical_enemy_drop_entry("wolf_hide", "1")]
+	)
+	var string_quantity_errors: Array[String] = string_quantity_template.validate_schema()
+	_assert_true(
+		_errors_contain_fragment(string_quantity_errors, "quantity must be int"),
+		"EnemyTemplateDef.validate_schema() 不应把字符串 quantity 转成 int。"
+	)
+
+	var extra_field_template = _build_drop_template(
+		&"extra_enemy_drop_schema",
+		"额外掉落字段敌人",
+		[{
+			"drop_entry_id": "wolf_hide",
+			"drop_type": "item",
+			"item_id": "beast_hide",
+			"quantity": 1,
+			"legacy_weight": 100,
+		}]
+	)
+	var extra_field_errors: Array[String] = extra_field_template.validate_schema()
+	_assert_true(
+		_errors_contain_fragment(extra_field_errors, "must contain exactly drop_entry_id, drop_type, item_id, quantity"),
+		"EnemyTemplateDef.validate_schema() 应拒绝 drop entry 额外旧字段。"
+	)
 
 
 func _test_encounter_anchor_round_trip_preserves_growth_fields() -> void:
@@ -265,13 +321,13 @@ func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
 
 	var harrier = _build_single_template_unit(builder, game_session, &"mist_harrier")
 	if harrier != null:
-		_assert_eq(String(harrier.weapon_profile_kind), "equipped", "mist_harrier 应投影真实攻击装备。")
-		_assert_eq(String(harrier.weapon_item_id), "militia_axe", "mist_harrier 应携带配置的真实攻击装备。")
-		_assert_eq(String(harrier.weapon_profile_type_id), "handaxe", "militia_axe 应投影 handaxe weapon profile。")
-		_assert_eq(_weapon_dice_signature(harrier.weapon_one_handed_dice), [1, 6, 0], "militia_axe 应投影真实武器骰 1D6。")
-		_assert_true(harrier.weapon_two_handed_dice.is_empty(), "militia_axe 不应投影双手骰。")
-		_assert_true(not harrier.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE), "非 beast 攻击装备射程不应写回 attribute_snapshot。")
-		_assert_eq(String(harrier.weapon_physical_damage_tag), "physical_slash", "militia_axe 应投影 slash 伤害类型。")
+		_assert_eq(String(harrier.weapon_profile_kind), "natural", "mist_harrier 应投影远程天生武器。")
+		_assert_eq(String(harrier.weapon_profile_type_id), "natural_weapon", "mist_harrier 应使用 natural_weapon profile。")
+		_assert_eq(harrier.weapon_attack_range, 5, "mist_harrier 的 archer 行动应使用可覆盖压制距离带的自然武器射程。")
+		_assert_eq(_weapon_dice_signature(harrier.weapon_one_handed_dice), [1, 6, 0], "mist_harrier natural weapon 伤害骰应为 1D6。")
+		_assert_true(harrier.weapon_two_handed_dice.is_empty(), "mist_harrier natural weapon 不应投影双手骰。")
+		_assert_true(not harrier.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE), "beast 自然武器射程不应写回 attribute_snapshot。")
+		_assert_eq(String(harrier.weapon_physical_damage_tag), "physical_pierce", "mist_harrier natural weapon 应投影 pierce 伤害类型。")
 
 	var shaman_anchor = _build_template_encounter_anchor(&"wolf_shaman_loot_projection", &"wolf_shaman")
 	var shaman_loot_entries: Array = builder.build_loot_entries(shaman_anchor, {})
@@ -332,21 +388,91 @@ func _test_enemy_content_registry_registers_second_formal_roster() -> void:
 
 
 func _test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema() -> void:
-	var game_session = GAME_SESSION_SCRIPT.new()
 	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
-	builder.setup(game_session.get_wild_encounter_rosters(), game_session.get_enemy_templates())
+	var template = _build_drop_template(
+		&"canonical_drop_template",
+		"荒狼掉落测试",
+		[_build_canonical_enemy_drop_entry("wolf_hide_bundle", 1)]
+	)
+	template.enemy_count = 2
+	builder.setup({}, {template.template_id: template})
 
-	var encounter_anchor = _build_settlement_encounter_anchor(&"wolf_den_drop_schema", Vector2i(6, 6))
+	var encounter_anchor = _build_template_encounter_anchor(&"wolf_den_drop_schema", template.template_id)
 	var loot_entries: Array = builder.build_loot_entries(encounter_anchor, {})
-	_assert_eq(loot_entries.size(), 1, "wolf_den 应暴露 1 条正式掉落 schema。")
+	_assert_eq(loot_entries.size(), 1, "canonical enemy template 应暴露 1 条正式掉落 schema。")
 	if not loot_entries.is_empty():
 		var loot_entry: Dictionary = loot_entries[0]
-		_assert_eq(String(loot_entry.get("drop_source_kind", "")), "encounter_roster", "掉落 schema 应标记来源类型。")
-		_assert_eq(String(loot_entry.get("drop_source_id", "")), "wolf_den", "掉落 schema 应保留稳定 roster 标识。")
-		_assert_eq(String(loot_entry.get("drop_entry_id", "")), "encounter_roster_wolf_den_beast_hide", "掉落 schema 应保留稳定 entry 标识。")
-		_assert_eq(String(loot_entry.get("item_id", "")), "beast_hide", "wolf_den 掉落应指向正式物品标识。")
-		_assert_eq(int(loot_entry.get("quantity", 0)), 2, "wolf_den 掉落数量应保持稳定。")
-	game_session.free()
+		_assert_true(not loot_entry.has("drop_id"), "掉落 schema 不应继续暴露旧 drop_id alias。")
+		_assert_eq(String(loot_entry.get("drop_source_kind", "")), "enemy_template", "掉落 schema 应标记来源类型。")
+		_assert_eq(String(loot_entry.get("drop_source_id", "")), "canonical_drop_template", "掉落 schema 应保留稳定来源标识。")
+		_assert_eq(String(loot_entry.get("drop_source_label", "")), "荒狼掉落测试", "掉落 schema 应保留显式来源标签。")
+		_assert_eq(String(loot_entry.get("drop_entry_id", "")), "wolf_hide_bundle", "掉落 schema 应保留稳定 entry 标识。")
+		_assert_eq(String(loot_entry.get("item_id", "")), "beast_hide", "canonical enemy template 掉落应指向正式物品标识。")
+		_assert_eq(int(loot_entry.get("quantity", 0)), 2, "canonical enemy template 掉落数量应保持稳定。")
+
+
+func _test_encounter_roster_builder_rejects_bad_drop_entry_schema() -> void:
+	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	var legacy_template = _build_drop_template(
+		&"legacy_drop_template",
+		"旧掉落字段敌人",
+		[
+			_build_canonical_enemy_drop_entry("valid_hide", 1),
+			{
+				"drop_id": "legacy_hide",
+				"drop_type": "item",
+				"item_id": "beast_hide",
+				"quantity": 1,
+			},
+		]
+	)
+	builder.setup({}, {legacy_template.template_id: legacy_template})
+	var legacy_anchor = _build_template_encounter_anchor(&"legacy_drop_schema", legacy_template.template_id)
+	_assert_true(
+		builder.build_loot_entries(legacy_anchor, {}).is_empty(),
+		"包含旧 drop_id 的掉落配置不应跳过坏 entry 后继续生成部分 loot。"
+	)
+
+	var string_quantity_template = _build_drop_template(
+		&"string_quantity_drop_template",
+		"字符串数量敌人",
+		[_build_canonical_enemy_drop_entry("string_quantity_hide", "1")]
+	)
+	builder.setup({}, {string_quantity_template.template_id: string_quantity_template})
+	var string_quantity_anchor = _build_template_encounter_anchor(&"string_quantity_drop_schema", string_quantity_template.template_id)
+	_assert_true(
+		builder.build_loot_entries(string_quantity_anchor, {}).is_empty(),
+		"quantity 为字符串数字时不应宽松转换成正式 loot。"
+	)
+
+	var numeric_item_template = _build_drop_template(
+		&"numeric_item_drop_template",
+		"数字 item 敌人",
+		[{
+			"drop_entry_id": "numeric_item_hide",
+			"drop_type": "item",
+			"item_id": 1001,
+			"quantity": 1,
+		}]
+	)
+	builder.setup({}, {numeric_item_template.template_id: numeric_item_template})
+	var numeric_item_anchor = _build_template_encounter_anchor(&"numeric_item_drop_schema", numeric_item_template.template_id)
+	_assert_true(
+		builder.build_loot_entries(numeric_item_anchor, {}).is_empty(),
+		"item_id 为数字时不应宽松转换成正式 loot。"
+	)
+
+	var missing_label_template = _build_drop_template(
+		&"missing_label_drop_template",
+		"",
+		[_build_canonical_enemy_drop_entry("missing_label_hide", 1)]
+	)
+	builder.setup({}, {missing_label_template.template_id: missing_label_template})
+	var missing_label_anchor = _build_template_encounter_anchor(&"missing_label_drop_schema", missing_label_template.template_id)
+	_assert_true(
+		builder.build_loot_entries(missing_label_anchor, {}).is_empty(),
+		"缺少 drop_source_label 时不应从 id 默认回退生成正式 loot。"
+	)
 
 
 func _test_encounter_roster_builder_builds_mixed_mist_hollow_units() -> void:
@@ -481,6 +607,51 @@ func _test_enemy_template_base_attributes_drive_derived_stamina() -> void:
 	game_session.free()
 
 
+func _test_encounter_roster_builder_unlocks_caster_mp_resources() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	builder.setup(game_session.get_wild_encounter_rosters(), game_session.get_enemy_templates())
+	for template_id in [&"mist_beast", &"mist_weaver", &"wolf_shaman"]:
+		var unit = _build_single_template_unit(builder, game_session, template_id)
+		_assert_true(unit != null, "%s caster resource visibility 回归应能构建单位。" % String(template_id))
+		if unit == null:
+			continue
+		_assert_true(int(unit.current_mp) > 0, "%s 模板应带有真实 MP 池。" % String(template_id))
+		_assert_true(
+			unit.has_combat_resource_unlocked(&"mp"),
+			"%s 通过 EncounterRosterBuilder 入场时应解锁 MP 资源显示。" % String(template_id)
+		)
+	game_session.free()
+
+
+func _test_fallback_enemy_basic_attack_is_affordable() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
+	builder.setup({}, {})
+	var encounter_anchor = _build_template_encounter_anchor(&"missing_template_fallback", &"missing_template")
+	var enemy_units: Array = builder.build_enemy_units(encounter_anchor, {
+		"skill_defs": game_session.get_skill_defs(),
+		"enemy_templates": {},
+		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
+	})
+	_assert_true(not enemy_units.is_empty(), "缺失正式模板时仍应构建 fallback 敌方单位。")
+	if enemy_units.is_empty():
+		game_session.free()
+		return
+	var unit = enemy_units[0]
+	var basic_attack_stamina := _resolve_basic_attack_stamina_cost(game_session)
+	_assert_true(unit.known_active_skill_ids.has(&"basic_attack"), "fallback 敌人应持有 basic_attack。")
+	_assert_true(
+		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)) >= basic_attack_stamina,
+		"fallback 敌人的 stamina_max 应至少支付 basic_attack。"
+	)
+	_assert_true(
+		int(unit.current_stamina) >= basic_attack_stamina,
+		"fallback 敌人的 current_stamina 应至少支付 basic_attack，避免入场后只能 wait。"
+	)
+	game_session.free()
+
+
 func _test_wild_encounter_growth_respects_suppression_window() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var world_time_system = WORLD_TIME_SYSTEM_SCRIPT.new()
@@ -526,6 +697,15 @@ func _test_wild_encounter_growth_respects_suppression_window() -> void:
 		game_session.get_wild_encounter_rosters()
 	)
 	_assert_eq(encounter_anchor.growth_stage, 1, "压制期结束后，聚落类野怪应重新按成长间隔恢复增长。")
+
+	for bad_world_data in [
+		{"encounter_anchors": [encounter_anchor]},
+		{"world_step": "0", "encounter_anchors": [encounter_anchor]},
+		{"world_step": -1, "encounter_anchors": [encounter_anchor]},
+	]:
+		var rejected_advance: Dictionary = world_time_system.advance(bad_world_data, 1)
+		_assert_eq(String(rejected_advance.get("error_code", "")), "invalid_world_step", "WorldTimeSystem 不应把缺失、字符串或负数 world_step 兼容成 0。")
+		_assert_eq(int(rejected_advance.get("new_step", 0)), -1, "WorldTimeSystem 拒绝坏 world_step 时不应推进时间。")
 	game_session.free()
 
 
@@ -631,7 +811,7 @@ func _test_main_world_wilds_use_canyon_battle_terrain_profile() -> void:
 	_cleanup_test_session(game_session)
 
 
-func _test_formal_wolf_den_battle_prefers_close_in_over_wait_when_far() -> void:
+func _test_formal_wolf_den_battle_prefers_charge_over_wait_when_far() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
@@ -695,17 +875,22 @@ func _test_formal_wolf_den_battle_prefers_close_in_over_wait_when_far() -> void:
 	_assert_true(decision != null and decision.command != null, "正式狼巢 AI 接敌回归应产出合法 AI 指令。")
 	_assert_eq(
 		String(decision.action_id if decision != null else &""),
-		"wolf_close_in",
-		"正式狼巢中的远距离荒狼应优先走 wolf_close_in，而不是直接待机。"
+		"wolf_charge_open",
+		"正式狼巢中的远距离荒狼应优先走 wolf_charge_open，而不是直接待机。"
 	)
 	_assert_eq(
 		String(decision.command.command_type if decision != null and decision.command != null else &""),
-		String(BATTLE_COMMAND_SCRIPT.TYPE_MOVE),
-		"正式狼巢中的远距离荒狼应生成移动指令，而不是待机。"
+		String(BATTLE_COMMAND_SCRIPT.TYPE_SKILL),
+		"正式狼巢中的远距离荒狼应生成正式冲锋技能指令，而不是待机。"
+	)
+	_assert_eq(
+		String(decision.command.skill_id if decision != null and decision.command != null else &""),
+		"charge",
+		"正式狼巢中的 wolf_charge_open 应使用正式 charge 技能。"
 	)
 	_assert_true(
-		decision != null and decision.score_input != null and decision.score_input.position_objective_kind == &"distance_band_progress",
-		"正式狼巢中的 wolf_close_in 评分应使用 progress 型距离带评分。"
+		decision != null and decision.score_input != null and decision.score_input.position_objective_kind == &"distance_band",
+		"正式狼巢中的 wolf_charge_open 评分应按冲锋落点与目标距离带取分。"
 	)
 
 	_cleanup_test_session(game_session)
@@ -1139,6 +1324,43 @@ func _force_party_storage_capacity(party_state, capacity: int) -> void:
 		first_member_assigned = true
 
 
+func _build_weapon_override_template(template_id: StringName, display_name: String):
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = template_id
+	template.display_name = display_name
+	template.brain_id = &"melee_aggressor"
+	template.attack_equipment_item_id = &"watchman_mace"
+	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+		template.base_attribute_overrides[String(attribute_id)] = 8
+	template.attribute_overrides = {
+		"hp_max": 10,
+		"action_points": 1,
+		"attack_bonus": 4,
+		"armor_class": 10,
+	}
+	return template
+
+
+func _build_drop_template(template_id: StringName, display_name: String, drop_entry_variants: Array):
+	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
+	template.template_id = template_id
+	template.display_name = display_name
+	for drop_entry_variant in drop_entry_variants:
+		if drop_entry_variant is not Dictionary:
+			continue
+		template.drop_entries.append((drop_entry_variant as Dictionary).duplicate(true))
+	return template
+
+
+func _build_canonical_enemy_drop_entry(drop_entry_id: String, quantity: Variant = 1) -> Dictionary:
+	return {
+		"drop_entry_id": drop_entry_id,
+		"drop_type": "item",
+		"item_id": "beast_hide",
+		"quantity": quantity,
+	}
+
+
 func _build_formal_beast_hide_loot_entry(quantity: int) -> Dictionary:
 	return {
 		"drop_type": "item",
@@ -1325,10 +1547,18 @@ func _errors_contain_fragment(errors: Array[String], fragment: String) -> bool:
 	return false
 
 
-func _dictionary_has_key(data: Dictionary, key: StringName) -> bool:
-	if data.has(key):
-		return true
-	return data.has(String(key))
+func _has_unsupported_attribute_override_key(data: Dictionary, key: StringName) -> bool:
+	return data.has(String(key)) or data.has(key)
+
+
+func _resolve_basic_attack_stamina_cost(game_session) -> int:
+	if game_session == null:
+		return 5
+	var skill_def = game_session.get_skill_defs().get(&"basic_attack")
+	if skill_def == null or skill_def.combat_profile == null:
+		return 5
+	var costs: Dictionary = skill_def.combat_profile.get_effective_resource_costs(1)
+	return maxi(int(costs.get("stamina_cost", skill_def.combat_profile.stamina_cost)), 0)
 
 
 func _expected_template_stamina_max(template) -> int:

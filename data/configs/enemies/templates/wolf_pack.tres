@@ -21,7 +21,7 @@ base_attribute_overrides = {
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 drop_entries = Array[Dictionary]([{
-"drop_id": &"wolf_hide",
+"drop_entry_id": &"wolf_hide",
 "drop_type": &"item",
 "item_id": &"beast_hide",
 "quantity": 1

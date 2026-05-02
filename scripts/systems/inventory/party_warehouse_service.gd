@@ -104,16 +104,19 @@ func get_inventory_entries() -> Array[Dictionary]:
 			continue
 		entries.append(_build_inventory_entry(stack.item_id, int(stack.quantity), &"stack"))
 
-	var equipment_counts: Dictionary = {}
+	var equipment_entries: Array[Dictionary] = []
 	for inst in warehouse_state.get_non_empty_instances():
 		if inst == null or inst.item_id == &"":
 			continue
-		var item_id := ProgressionDataUtils.to_string_name(inst.item_id)
-		equipment_counts[item_id] = int(equipment_counts.get(item_id, 0)) + 1
+		equipment_entries.append(_build_inventory_entry(inst.item_id, 1, &"instance", inst))
 
-	for item_id_str in ProgressionDataUtils.sorted_string_keys(equipment_counts):
-		var item_id := StringName(item_id_str)
-		entries.append(_build_inventory_entry(item_id, int(equipment_counts.get(item_id, 0)), &"instance"))
+	equipment_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_key := "%s:%s" % [String(a.get("item_id", "")), String(a.get("instance_id", ""))]
+		var b_key := "%s:%s" % [String(b.get("item_id", "")), String(b.get("instance_id", ""))]
+		return a_key < b_key
+	)
+	for entry in equipment_entries:
+		entries.append(entry)
 
 	return entries
 
@@ -147,20 +150,31 @@ func remove_item(item_id: StringName, quantity: int) -> Dictionary:
 			"used_slots_after": used_slots_before,
 			"free_slots_after": maxi(get_total_capacity() - used_slots_before, 0),
 			"is_over_capacity": used_slots_before > get_total_capacity(),
+			"error_code": "",
 		}
 
 	var remaining_quantity := requested_quantity
 	var item_def = get_item_def(normalized_item_id)
 
 	if item_def != null and item_def.is_equipment():
-		# 装备类：只从 equipment_instances 移除。
-		var i: int = warehouse_state.equipment_instances.size() - 1
-		while i >= 0 and remaining_quantity > 0:
-			var inst = warehouse_state.equipment_instances[i]
-			if inst != null and inst.item_id == normalized_item_id:
-				warehouse_state.equipment_instances.remove_at(i)
-				remaining_quantity -= 1
-			i -= 1
+		# 装备类 item-only 移除只允许唯一匹配的便利路径，避免正式路径在重复实例中随意拿第一件。
+		var matching_indexes := _find_equipment_instance_indexes_by_item(warehouse_state, normalized_item_id)
+		if requested_quantity == 1 and matching_indexes.size() == 1:
+			warehouse_state.equipment_instances.remove_at(int(matching_indexes[0]))
+			remaining_quantity = 0
+		else:
+			var used_slots_after_reject: int = get_used_slots()
+			return {
+				"item_id": String(normalized_item_id),
+				"requested_quantity": requested_quantity,
+				"removed_quantity": 0,
+				"remaining_quantity": requested_quantity,
+				"used_slots_before": used_slots_before,
+				"used_slots_after": used_slots_after_reject,
+				"free_slots_after": maxi(get_total_capacity() - used_slots_after_reject, 0),
+				"is_over_capacity": used_slots_after_reject > get_total_capacity(),
+				"error_code": "equipment_instance_id_required",
+			}
 	else:
 		# 非装备类：只从 stacks 移除。
 		for index in range(warehouse_state.stacks.size() - 1, -1, -1):
@@ -186,6 +200,7 @@ func remove_item(item_id: StringName, quantity: int) -> Dictionary:
 		"used_slots_after": used_slots_after,
 		"free_slots_after": maxi(get_total_capacity() - used_slots_after, 0),
 		"is_over_capacity": used_slots_after > get_total_capacity(),
+		"error_code": "",
 	}
 
 
@@ -201,17 +216,121 @@ func commit_batch_swap(items_to_withdraw: Array[StringName], items_to_deposit: A
 	return _run_batch_swap_transaction(items_to_withdraw, items_to_deposit, true)
 
 
+func preview_batch_swap_entries(items_to_withdraw: Array, items_to_deposit: Array) -> Dictionary:
+	return _run_batch_swap_transaction(items_to_withdraw, items_to_deposit, false)
+
+
+func commit_batch_swap_entries(items_to_withdraw: Array, items_to_deposit: Array) -> Dictionary:
+	return _run_batch_swap_transaction(items_to_withdraw, items_to_deposit, true)
+
+
+func get_equipment_instance_by_id(instance_id: StringName, expected_item_id: StringName = &""):
+	var normalized_instance_id := ProgressionDataUtils.to_string_name(instance_id)
+	var normalized_item_id := ProgressionDataUtils.to_string_name(expected_item_id)
+	if normalized_instance_id == &"":
+		return null
+	for inst in _get_warehouse_state().get_non_empty_instances():
+		if inst == null:
+			continue
+		if ProgressionDataUtils.to_string_name(inst.instance_id) != normalized_instance_id:
+			continue
+		if normalized_item_id != &"" and ProgressionDataUtils.to_string_name(inst.item_id) != normalized_item_id:
+			return null
+		return EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(inst.to_dict())
+	return null
+
+
+func has_equipment_instance(instance_id: StringName, expected_item_id: StringName = &"") -> bool:
+	return get_equipment_instance_by_id(instance_id, expected_item_id) != null
+
+
 ## 从仓库取出第一个匹配 item_id 的装备实例并返回；若无匹配实例则返回 null。
 ## 调用方须在调用前通过 preview_equip / preview_batch_swap 确认仓库中存在该实例。
 func take_equipment_instance_by_item(item_id: StringName):
 	var normalized := ProgressionDataUtils.to_string_name(item_id)
 	var warehouse_state = _ensure_warehouse_state()
+	var matching_indexes := _find_equipment_instance_indexes_by_item(warehouse_state, normalized)
+	if matching_indexes.size() != 1:
+		return null
+	var idx := int(matching_indexes[0])
+	var inst = warehouse_state.equipment_instances[idx]
+	warehouse_state.equipment_instances.remove_at(idx)
+	return inst
+
+
+func take_equipment_instance_by_instance_id(instance_id: StringName, expected_item_id: StringName = &""):
+	var normalized_instance_id := ProgressionDataUtils.to_string_name(instance_id)
+	var normalized_item_id := ProgressionDataUtils.to_string_name(expected_item_id)
+	if normalized_instance_id == &"":
+		return null
+	var warehouse_state = _ensure_warehouse_state()
 	for idx in range(warehouse_state.equipment_instances.size()):
 		var inst = warehouse_state.equipment_instances[idx]
-		if inst != null and inst.item_id == normalized:
-			warehouse_state.equipment_instances.remove_at(idx)
-			return inst
+		if inst == null:
+			continue
+		if ProgressionDataUtils.to_string_name(inst.instance_id) != normalized_instance_id:
+			continue
+		if normalized_item_id != &"" and ProgressionDataUtils.to_string_name(inst.item_id) != normalized_item_id:
+			return null
+		warehouse_state.equipment_instances.remove_at(idx)
+		return inst
 	return null
+
+
+func remove_equipment_instance(item_id: StringName, instance_id: StringName) -> Dictionary:
+	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id)
+	var normalized_instance_id := ProgressionDataUtils.to_string_name(instance_id)
+	var warehouse_state = _ensure_warehouse_state()
+	_compact_state(warehouse_state)
+	var used_slots_before: int = get_used_slots()
+	var item_def = get_item_def(normalized_item_id)
+	var result := {
+		"item_id": String(normalized_item_id),
+		"instance_id": String(normalized_instance_id),
+		"requested_quantity": 1,
+		"removed_quantity": 0,
+		"remaining_quantity": 1,
+		"used_slots_before": used_slots_before,
+		"used_slots_after": used_slots_before,
+		"free_slots_after": maxi(get_total_capacity() - used_slots_before, 0),
+		"is_over_capacity": used_slots_before > get_total_capacity(),
+		"error_code": "",
+	}
+	if normalized_item_id == &"" or item_def == null:
+		result["error_code"] = "item_not_found"
+		return result
+	if not item_def.is_equipment():
+		result["error_code"] = "item_not_equipment"
+		return result
+	if normalized_instance_id == &"":
+		result["error_code"] = "equipment_instance_id_required"
+		return result
+	var matched_any_instance := false
+	for inst in warehouse_state.get_non_empty_instances():
+		if inst == null:
+			continue
+		if ProgressionDataUtils.to_string_name(inst.instance_id) != normalized_instance_id:
+			continue
+		matched_any_instance = true
+		if ProgressionDataUtils.to_string_name(inst.item_id) != normalized_item_id:
+			result["error_code"] = "equipment_instance_item_mismatch"
+			return result
+		break
+	if not matched_any_instance:
+		result["error_code"] = "warehouse_missing_instance"
+		return result
+	var removed_instance = take_equipment_instance_by_instance_id(normalized_instance_id, normalized_item_id)
+	if removed_instance == null:
+		result["error_code"] = "warehouse_missing_instance"
+		return result
+	_compact_state(warehouse_state)
+	var used_slots_after: int = get_used_slots()
+	result["removed_quantity"] = 1
+	result["remaining_quantity"] = 0
+	result["used_slots_after"] = used_slots_after
+	result["free_slots_after"] = maxi(get_total_capacity() - used_slots_after, 0)
+	result["is_over_capacity"] = used_slots_after > get_total_capacity()
+	return result
 
 
 ## 将已有装备实例按共享背包容量规则存入仓库。
@@ -272,25 +391,59 @@ func deposit_equipment_instance(instance) -> void:
 
 
 func _execute_batch_swap(
-	items_to_withdraw: Array[StringName],
-	items_to_deposit: Array[StringName],
+	items_to_withdraw: Array,
+	items_to_deposit: Array,
 	consume_allocator: bool
 ) -> Dictionary:
-	for item_id in items_to_withdraw:
-		var r := remove_item(item_id, 1)
+	for withdraw_variant in items_to_withdraw:
+		var withdraw_entry := _normalize_batch_item_entry(withdraw_variant)
+		var item_id := ProgressionDataUtils.to_string_name(withdraw_entry.get("item_id", ""))
+		var instance_id := ProgressionDataUtils.to_string_name(withdraw_entry.get("instance_id", ""))
+		var item_def = get_item_def(item_id)
+		var r: Dictionary = {}
+		if item_def != null and item_def.is_equipment() and instance_id != &"":
+			r = remove_equipment_instance(item_id, instance_id)
+		else:
+			r = remove_item(item_id, 1)
 		if int(r.get("removed_quantity", 0)) <= 0:
-			return {"allowed": false, "error_code": "warehouse_missing_item", "blocked_item_id": String(item_id)}
-	for item_id in items_to_deposit:
+			return {
+				"allowed": false,
+				"error_code": String(r.get("error_code", "warehouse_missing_item")) if not String(r.get("error_code", "")).is_empty() else "warehouse_missing_item",
+				"blocked_item_id": String(item_id),
+				"blocked_instance_id": String(instance_id),
+			}
+	for deposit_variant in items_to_deposit:
+		var deposit_entry := _normalize_batch_item_entry(deposit_variant)
+		var item_id := ProgressionDataUtils.to_string_name(deposit_entry.get("item_id", ""))
 		var preview := preview_add_item(item_id, 1)
 		if int(preview.get("remaining_quantity", 0)) > 0:
-			return {"allowed": false, "error_code": "warehouse_blocked_swap", "blocked_item_id": String(item_id)}
-		_process_add(item_id, 1, true, consume_allocator)
-	return {"allowed": true, "error_code": "", "blocked_item_id": ""}
+			return {
+				"allowed": false,
+				"error_code": "warehouse_blocked_swap",
+				"blocked_item_id": String(item_id),
+				"blocked_instance_id": String(ProgressionDataUtils.to_string_name(deposit_entry.get("instance_id", ""))),
+			}
+		var equipment_instance_variant: Variant = deposit_entry.get("equipment_instance", null)
+		if equipment_instance_variant != null:
+			var instance = equipment_instance_variant
+			if equipment_instance_variant is Dictionary:
+				instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(equipment_instance_variant)
+			var add_instance_result: Dictionary = add_equipment_instance(instance, false)
+			if int(add_instance_result.get("added_quantity", 0)) <= 0:
+				return {
+					"allowed": false,
+					"error_code": String(add_instance_result.get("error_code", "warehouse_blocked_swap")),
+					"blocked_item_id": String(item_id),
+					"blocked_instance_id": String(ProgressionDataUtils.to_string_name(deposit_entry.get("instance_id", ""))),
+				}
+		else:
+			_process_add(item_id, 1, true, consume_allocator)
+	return {"allowed": true, "error_code": "", "blocked_item_id": "", "blocked_instance_id": ""}
 
 
 func _run_batch_swap_transaction(
-	items_to_withdraw: Array[StringName],
-	items_to_deposit: Array[StringName],
+	items_to_withdraw: Array,
+	items_to_deposit: Array,
 	commit_on_success: bool
 ) -> Dictionary:
 	var baseline_state = _get_warehouse_state().duplicate_state()
@@ -308,6 +461,24 @@ func _run_batch_swap_transaction(
 
 	_set_transaction_warehouse_state(original_state)
 	return result
+
+
+func _normalize_batch_item_entry(entry_variant: Variant) -> Dictionary:
+	if entry_variant is Dictionary:
+		var entry: Dictionary = entry_variant
+		var item_id := ProgressionDataUtils.to_string_name(entry.get("item_id", ""))
+		var instance_id := ProgressionDataUtils.to_string_name(entry.get("instance_id", ""))
+		var result := {
+			"item_id": item_id,
+			"instance_id": instance_id,
+		}
+		if entry.has("equipment_instance"):
+			result["equipment_instance"] = entry["equipment_instance"]
+		return result
+	return {
+		"item_id": ProgressionDataUtils.to_string_name(entry_variant),
+		"instance_id": &"",
+	}
 
 
 func _process_add(item_id: StringName, quantity: int, mutate: bool, consume_allocator: bool) -> Dictionary:
@@ -444,6 +615,20 @@ func _equipment_instance_id_exists(instance_id: StringName, target_state = null)
 	return false
 
 
+func _find_equipment_instance_indexes_by_item(warehouse_state, item_id: StringName) -> Array[int]:
+	var result: Array[int] = []
+	if warehouse_state == null:
+		return result
+	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id)
+	for idx in range(warehouse_state.equipment_instances.size()):
+		var inst = warehouse_state.equipment_instances[idx]
+		if inst == null:
+			continue
+		if ProgressionDataUtils.to_string_name(inst.item_id) == normalized_item_id:
+			result.append(idx)
+	return result
+
+
 func _ensure_warehouse_state():
 	if _party_backpack_view != null:
 		return _party_backpack_view
@@ -491,12 +676,12 @@ func _compact_state(warehouse_state) -> void:
 	warehouse_state.equipment_instances = warehouse_state.get_non_empty_instances()
 
 
-func _build_inventory_entry(item_id: StringName, quantity: int, storage_mode: StringName) -> Dictionary:
+func _build_inventory_entry(item_id: StringName, quantity: int, storage_mode: StringName, equipment_instance = null) -> Dictionary:
 	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id)
 	var resolved_quantity := maxi(int(quantity), 0)
 	var item_def: ItemDef = get_item_def(normalized_item_id) as ItemDef
 	var granted_skill_id: StringName = item_def.granted_skill_id if item_def != null else &""
-	return {
+	var entry := {
 		"item_id": String(normalized_item_id),
 		"display_name": item_def.display_name if item_def != null and not item_def.display_name.is_empty() else String(normalized_item_id),
 		"description": item_def.description if item_def != null else "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
@@ -510,3 +695,10 @@ func _build_inventory_entry(item_id: StringName, quantity: int, storage_mode: St
 		"granted_skill_id": String(granted_skill_id),
 		"storage_mode": String(storage_mode),
 	}
+	if equipment_instance != null:
+		entry["instance_id"] = String(ProgressionDataUtils.to_string_name(equipment_instance.instance_id))
+		entry["rarity"] = int(equipment_instance.rarity)
+		entry["current_durability"] = int(equipment_instance.current_durability)
+		entry["armor_wear_progress"] = float(equipment_instance.armor_wear_progress)
+		entry["weapon_wear_progress"] = float(equipment_instance.weapon_wear_progress)
+	return entry

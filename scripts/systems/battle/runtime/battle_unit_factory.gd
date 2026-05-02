@@ -10,10 +10,15 @@ const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attri
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
+const EquipmentRules = preload("res://scripts/player/equipment/equipment_rules.gd")
+const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const BASIC_ATTACK_SKILL_ID: StringName = &"basic_attack"
 const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
 const STATUS_VAJRA_BODY: StringName = &"vajra_body"
 const VAJRA_BODY_NON_CORE_MAX_LEVEL := 9
+const LAST_STAND_SKILL_ID: StringName = &"warrior_last_stand"
+const STATUS_DEATH_WARD: StringName = &"death_ward"
+const LAST_STAND_NON_CORE_MAX_LEVEL := 5
 const DEFAULT_ENEMY_MELEE_DAMAGE_TAG: StringName = &"physical_slash"
 
 var _runtime_ref: WeakRef = null
@@ -96,6 +101,7 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
 	_sync_unlocked_resources_from_progression(unit_state, member_state.progression)
+	_filter_skills_by_equipment_requirements(unit_state)
 	_ensure_basic_attack_skill(unit_state)
 	_sync_passive_battle_statuses(unit_state, member_state.progression)
 	unit_state.refresh_footprint()
@@ -113,6 +119,7 @@ func refresh_known_skills(unit_state: BattleUnitState) -> void:
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
 	_sync_unlocked_resources_from_progression(unit_state, member_state.progression)
+	_filter_skills_by_equipment_requirements(unit_state)
 	_ensure_basic_attack_skill(unit_state)
 	_sync_passive_battle_statuses(unit_state, member_state.progression)
 
@@ -146,7 +153,7 @@ func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
 		if explicit_enemy_units is Array and not explicit_enemy_units.is_empty():
 			return _normalize_unit_payloads(explicit_enemy_units)
 	var enemy_count := maxi(int(context.get("enemy_unit_count", 1)), 1)
-	var monster_name := String(context.get("monster_display_name", encounter_anchor.display_name if encounter_anchor != null else "敌人"))
+	var monster_name := String(encounter_anchor.display_name if encounter_anchor != null else "敌人")
 	var units: Array = []
 	for index in range(enemy_count):
 		units.append(_build_runtime_enemy_unit(encounter_anchor, monster_name, index, context))
@@ -223,6 +230,7 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression if member_state != null else null)
 	_sync_unlocked_resources_from_progression(unit_state, member_state.progression if member_state != null else null)
 	_sync_passive_battle_statuses(unit_state, member_state.progression if member_state != null else null)
+	_filter_skills_by_equipment_requirements(unit_state)
 	unit_state.movement_tags = _extract_movement_tags(context.get("ally_movement_tags", []))
 	if unit_state.known_active_skill_ids.is_empty():
 		var default_skills: Variant = context.get("default_active_skill_ids", [])
@@ -294,6 +302,7 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 		for skill_id in unit_state.known_active_skill_ids:
 			unit_state.known_skill_level_map[skill_id] = 1
 	_ensure_basic_attack_skill(unit_state)
+	_ensure_enemy_basic_attack_affordability(unit_state)
 	_sync_enemy_unlocked_resources(unit_state)
 	return unit_state
 
@@ -333,8 +342,37 @@ func _is_valid_enemy_skill(skill_def: SkillDef) -> bool:
 	return skill_def.combat_profile.target_team_filter == &"enemy"
 
 
+func _filter_skills_by_equipment_requirements(unit_state: BattleUnitState) -> void:
+	if unit_state == null:
+		return
+	var filtered: Array[StringName] = []
+	for skill_id in unit_state.known_active_skill_ids:
+		var skill_def := _skill_def_from_runtime(skill_id)
+		if skill_def == null or skill_def.combat_profile == null:
+			continue
+		if bool(skill_def.combat_profile.requires_equipped_shield):
+			if not _unit_has_equipped_shield(unit_state):
+				continue
+		filtered.append(skill_id)
+	unit_state.known_active_skill_ids = filtered
+
+
+func _unit_has_equipped_shield(unit_state: BattleUnitState) -> bool:
+	var equipment_view = unit_state.get_equipment_view()
+	if equipment_view == null:
+		return false
+	var offhand_item_id: StringName = equipment_view.get_equipped_item_id(EquipmentRules.OFF_HAND)
+	if offhand_item_id == &"":
+		return false
+	var item_defs: Dictionary = _runtime.get_item_defs() if _runtime != null else {}
+	var item_def := item_defs.get(offhand_item_id) as ItemDef
+	if item_def == null:
+		return false
+	return item_def.get_tags().has(&"shield")
+
+
 func _extract_ally_member_ids(context: Dictionary) -> Array:
-	var member_ids: Variant = context.get("ally_member_ids", context.get("battle_member_ids", context.get("member_ids", [])))
+	var member_ids: Variant = context.get("ally_member_ids", [])
 	if member_ids is Array:
 		return member_ids
 	return []
@@ -468,6 +506,25 @@ func _ensure_basic_attack_skill(unit_state: BattleUnitState) -> void:
 		unit_state.known_skill_level_map[BASIC_ATTACK_SKILL_ID] = 1
 
 
+func _ensure_enemy_basic_attack_affordability(unit_state: BattleUnitState) -> void:
+	if unit_state == null or not unit_state.known_active_skill_ids.has(BASIC_ATTACK_SKILL_ID):
+		return
+	var basic_attack := _skill_def_from_runtime(BASIC_ATTACK_SKILL_ID)
+	if basic_attack == null or basic_attack.combat_profile == null:
+		return
+	var skill_level := maxi(int(unit_state.known_skill_level_map.get(BASIC_ATTACK_SKILL_ID, 1)), 1)
+	var costs: Dictionary = basic_attack.combat_profile.get_effective_resource_costs(skill_level)
+	var stamina_cost := maxi(int(costs.get("stamina_cost", basic_attack.combat_profile.stamina_cost)), 0)
+	if stamina_cost <= 0:
+		return
+	if unit_state.attribute_snapshot != null:
+		var stamina_max := int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX))
+		if stamina_max < stamina_cost:
+			unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, stamina_cost)
+	if int(unit_state.current_stamina) < stamina_cost:
+		unit_state.current_stamina = stamina_cost
+
+
 func _sync_unlocked_resources_from_progression(unit_state: BattleUnitState, progression_state) -> void:
 	if unit_state == null:
 		return
@@ -578,6 +635,7 @@ func _sync_passive_battle_statuses(unit_state: BattleUnitState, progression_stat
 	if unit_state == null:
 		return
 	_sync_vajra_body_status(unit_state, progression_state)
+	_sync_last_stand_status(unit_state, progression_state)
 
 
 func _sync_vajra_body_status(unit_state: BattleUnitState, progression_state) -> void:
@@ -606,6 +664,58 @@ func _sync_vajra_body_status(unit_state: BattleUnitState, progression_state) -> 
 	status_entry.status_id = STATUS_VAJRA_BODY
 	status_entry.source_unit_id = unit_state.unit_id
 	status_entry.power = passive_reduction
+	status_entry.stacks = 1
+	status_entry.duration = -1
+	status_entry.params = params
+	unit_state.set_status_effect(status_entry)
+
+
+func _sync_last_stand_status(unit_state: BattleUnitState, progression_state) -> void:
+	var skill_progress = progression_state.get_skill_progress(LAST_STAND_SKILL_ID) if progression_state != null else null
+	if skill_progress == null or not bool(skill_progress.is_learned):
+		unit_state.erase_status_effect(STATUS_DEATH_WARD)
+		return
+	var max_status_level := 7 if bool(skill_progress.is_core) else LAST_STAND_NON_CORE_MAX_LEVEL
+	var skill_level := clampi(int(skill_progress.skill_level), 0, max_status_level)
+	var skill_def: SkillDef = _skill_def_from_runtime(LAST_STAND_SKILL_ID)
+	if skill_def != null and skill_def.combat_profile != null:
+		for effect_def in skill_def.combat_profile.passive_effect_defs:
+			if effect_def == null:
+				continue
+			if effect_def.trigger_condition != &"battle_start":
+				continue
+			var min_level := maxi(int(effect_def.min_skill_level), 0)
+			var max_level := int(effect_def.max_skill_level)
+			if skill_level < min_level:
+				continue
+			if max_level >= 0 and skill_level > max_level:
+				continue
+			if effect_def.effect_type == &"status" or effect_def.effect_type == &"apply_status":
+				if effect_def.status_id == &"":
+					continue
+				var status_entry = BATTLE_STATUS_EFFECT_STATE_SCRIPT.new()
+				status_entry.status_id = effect_def.status_id
+				status_entry.source_unit_id = unit_state.unit_id
+				status_entry.power = effect_def.power
+				status_entry.stacks = 1
+				status_entry.duration = -1
+				var params := {}
+				if effect_def.params != null:
+					params = effect_def.params.duplicate(true)
+				params["source_skill_id"] = String(LAST_STAND_SKILL_ID)
+				params["skill_level"] = skill_level
+				status_entry.params = params
+				unit_state.set_status_effect(status_entry)
+				return
+	# Fallback: hard-coded death_ward if resource config is missing or invalid
+	var params := {
+		"source_skill_id": String(LAST_STAND_SKILL_ID),
+		"skill_level": skill_level,
+	}
+	var status_entry = BATTLE_STATUS_EFFECT_STATE_SCRIPT.new()
+	status_entry.status_id = STATUS_DEATH_WARD
+	status_entry.source_unit_id = unit_state.unit_id
+	status_entry.power = skill_level
 	status_entry.stacks = 1
 	status_entry.duration = -1
 	status_entry.params = params

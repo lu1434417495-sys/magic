@@ -40,6 +40,7 @@ script = ExtResource("3_effect")
 effect_type = &"damage"
 power = 0
 min_skill_level = 3
+max_skill_level = -1
 damage_tag = &"physical_blunt"
 params = {
 "add_weapon_dice": true,
@@ -56,15 +57,16 @@ power = 1
 min_skill_level = 3
 max_skill_level = 3
 status_id = &"armor_break"
-duration_tu = 90
+duration_tu = 40
 
 [sub_resource type="Resource" id="Resource_heavy_armor_l4"]
 script = ExtResource("3_effect")
 effect_type = &"status"
 power = 1
 min_skill_level = 4
+max_skill_level = -1
 status_id = &"armor_break"
-duration_tu = 120
+duration_tu = 70
 
 [sub_resource type="Resource" id="Resource_heavy_stagger_l5"]
 script = ExtResource("3_effect")
@@ -83,10 +85,12 @@ ap_cost = 1
 stamina_cost = 30
 attack_roll_bonus = -1
 level_overrides = {
-"2": {
+2: {
 "stamina_cost": 20
 }
 }
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
 effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_luwcv"), SubResource("Resource_mwbl7"), SubResource("Resource_7t5lc"), SubResource("Resource_eju8k"), SubResource("Resource_heavy_armor_l4"), SubResource("Resource_heavy_stagger_l5")])
 
 [resource]
@@ -94,7 +98,48 @@ script = ExtResource("1_skill")
 skill_id = &"warrior_heavy_strike"
 display_name = "重击"
 icon_id = &"warrior_heavy_strike"
-description = "基础近战技能。使用当前近战武器重击目标；所有等级攻击检定 -1。0级追加 1d4 技能骰，1级追加 1d6 技能骰，2级起体力消耗降为 20，3级追加 1d8 技能骰并命中附加破甲，4级延长破甲时间，5级大成功时附加失衡。满级核心后提供力量+40、体质+20的属性成长进度。"
+description = "基础近战技能。使用当前近战武器重击目标，攻击检定-1。命中时追加随等级成长的技能伤害骰，高等级附加破甲与失衡效果。"
+level_description_template = "攻击检定{attack}，追加{skill_dice}技能骰。体力消耗{stamina}{{?armor_break}}，命中附加破甲（{armor_duration}TU）{{/armor_break}}{{?stagger}}，大成功时失衡（{stagger_duration}TU）{{/stagger}}"
+level_description_configs = {
+"0": {
+"attack": "-1",
+"skill_dice": "1D4",
+"stamina": "30"
+},
+"1": {
+"attack": "-1",
+"skill_dice": "1D6",
+"stamina": "30"
+},
+"2": {
+"attack": "-1",
+"skill_dice": "1D6",
+"stamina": "20"
+},
+"3": {
+"attack": "-1",
+"skill_dice": "1D8",
+"stamina": "20",
+"armor_break": "true",
+"armor_duration": "40"
+},
+"4": {
+"attack": "-1",
+"skill_dice": "1D8",
+"stamina": "20",
+"armor_break": "true",
+"armor_duration": "70"
+},
+"5": {
+"attack": "-1",
+"skill_dice": "1D8",
+"stamina": "20",
+"armor_break": "true",
+"armor_duration": "120",
+"stagger": "true",
+"stagger_duration": "60"
+}
+}
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)

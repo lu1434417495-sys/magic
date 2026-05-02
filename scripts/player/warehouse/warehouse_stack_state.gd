@@ -28,8 +28,30 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary) -> WarehouseStackState:
+static func from_dict(data: Variant) -> WarehouseStackState:
+	if data is not Dictionary:
+		return null
+	var payload := data as Dictionary
+	if payload.size() != 2:
+		return null
+	if not payload.has("item_id") or not payload.has("quantity"):
+		return null
+	var item_id_variant: Variant = payload["item_id"]
+	if not _is_string_name_payload_value(item_id_variant):
+		return null
+	var quantity_variant: Variant = payload["quantity"]
+	if quantity_variant is not int:
+		return null
+	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id_variant)
+	var quantity_value := int(quantity_variant)
+	if normalized_item_id == &"" or quantity_value <= 0:
+		return null
 	var stack := WAREHOUSE_STACK_STATE_SCRIPT.new()
-	stack.item_id = ProgressionDataUtils.to_string_name(data.get("item_id", ""))
-	stack.quantity = maxi(int(data.get("quantity", 0)), 0)
+	stack.item_id = normalized_item_id
+	stack.quantity = quantity_value
 	return stack
+
+
+static func _is_string_name_payload_value(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type == TYPE_STRING or value_type == TYPE_STRING_NAME

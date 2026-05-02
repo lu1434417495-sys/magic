@@ -126,6 +126,7 @@ func build_repeat_attack_preview(
 	var normalized_stage_count := mini(maxi(resolved_stage_count, 1), REPEAT_ATTACK_PREVIEW_STAGE_GUARD)
 	var stage_checks: Array[Dictionary] = []
 	var stage_hit_rates: Array[int] = []
+	var stage_success_rates: Array[int] = []
 	var stage_base_hit_rates: Array[int] = []
 	var stage_required_rolls: Array[int] = []
 	var stage_preview_texts: Array[String] = []
@@ -138,8 +139,10 @@ func build_repeat_attack_preview(
 			repeat_attack_effect,
 			stage_index
 		)
+		var stage_success_rate := int(attack_check.get("success_rate_percent", 0))
 		stage_checks.append(attack_check.duplicate(true))
-		stage_hit_rates.append(int(attack_check.get("hit_rate_percent", 0)))
+		stage_hit_rates.append(stage_success_rate)
+		stage_success_rates.append(stage_success_rate)
 		stage_base_hit_rates.append(int(attack_check.get("base_hit_rate_percent", 0)))
 		stage_required_rolls.append(int(attack_check.get("display_required_roll", 20)))
 		stage_preview_texts.append(String(attack_check.get("preview_text", "")))
@@ -147,11 +150,12 @@ func build_repeat_attack_preview(
 		"summary_text": _format_repeat_attack_preview_summary(stage_checks),
 		"stage_checks": stage_checks,
 		"stage_hit_rates": stage_hit_rates,
-		"stage_success_rates": stage_hit_rates.duplicate(),
+		"stage_success_rates": stage_success_rates,
 		"stage_base_hit_rates": stage_base_hit_rates,
 		"stage_required_rolls": stage_required_rolls,
 		"stage_preview_texts": stage_preview_texts,
-		"hit_rate_percent": int(round(float(_average_ints(stage_hit_rates)))),
+		"hit_rate_percent": int(round(float(_average_ints(stage_success_rates)))),
+		"success_rate_percent": int(round(float(_average_ints(stage_success_rates)))),
 		"base_hit_rate_percent": int(round(float(_average_ints(stage_base_hit_rates)))),
 		"base_attack_bonus": int(repeat_attack_effect.params.get("base_attack_bonus", 0)) if repeat_attack_effect.params != null else 0,
 		"follow_up_attack_penalty": int(repeat_attack_effect.params.get("follow_up_attack_penalty", 0)) if repeat_attack_effect.params != null else 0,
@@ -175,19 +179,19 @@ func build_skill_attack_preview(
 		target_unit,
 		build_skill_attack_check(active_unit, target_unit, skill_def)
 	)
-	var hit_rate := int(attack_check.get("hit_rate_percent", 0))
-	var base_hit_rate := int(attack_check.get("base_hit_rate_percent", hit_rate))
+	var success_rate := int(attack_check.get("success_rate_percent", 0))
+	var base_hit_rate := int(attack_check.get("base_hit_rate_percent", success_rate))
 	var preview_text := String(attack_check.get("preview_text", ""))
 	return {
 		"summary_text": "预计命中率 %s" % preview_text,
 		"stage_checks": [attack_check.duplicate(true)],
-		"stage_hit_rates": [hit_rate],
-		"stage_success_rates": [hit_rate],
+		"stage_hit_rates": [success_rate],
+		"stage_success_rates": [success_rate],
 		"stage_base_hit_rates": [base_hit_rate],
 		"stage_required_rolls": [int(attack_check.get("display_required_roll", NATURAL_HIT_ROLL))],
 		"stage_preview_texts": [preview_text],
-		"hit_rate_percent": hit_rate,
-		"success_rate_percent": hit_rate,
+		"hit_rate_percent": success_rate,
+		"success_rate_percent": success_rate,
 		"base_hit_rate_percent": base_hit_rate,
 	}
 
@@ -257,6 +261,7 @@ func build_skill_attack_check(
 		"required_roll": required_roll,
 		"display_required_roll": _get_display_required_roll(required_roll),
 		"hit_rate_percent": hit_rate_percent,
+		"success_rate_percent": hit_rate_percent,
 		"natural_one_auto_miss": true,
 		"natural_twenty_auto_hit": true,
 	}
@@ -324,9 +329,19 @@ func _unit_has_status_bool_param(unit_state: BattleUnitState, param_key: StringN
 		if status_entry == null or status_entry.params == null:
 			continue
 		var params: Dictionary = status_entry.params
-		if bool(params.get(String(param_key), params.get(param_key, false))):
+		if bool(_get_status_param_string_key(params, param_key, false)):
 			return true
 	return false
+
+
+func _get_status_param_string_key(params: Dictionary, param_key: StringName, fallback: Variant) -> Variant:
+	if params == null or param_key == &"":
+		return fallback
+	var param_name := String(param_key)
+	for key_variant in params.keys():
+		if key_variant is String and String(key_variant) == param_name:
+			return params[key_variant]
+	return fallback
 
 
 func roll_attack_check(battle_state: BattleState, attack_check: Dictionary) -> Dictionary:
@@ -338,6 +353,7 @@ func roll_attack_check(battle_state: BattleState, attack_check: Dictionary) -> D
 			"required_roll": ATTACK_CHECK_TARGET,
 			"display_required_roll": _get_display_required_roll(ATTACK_CHECK_TARGET),
 			"hit_rate_percent": 0,
+			"success_rate_percent": 0,
 			"natural_one_auto_miss": true,
 			"natural_twenty_auto_hit": true,
 			"roll_disposition": empty_disposition,
@@ -367,17 +383,19 @@ func roll_hit_rate(battle_state: BattleState, hit_rate_percent: int) -> Dictiona
 			"required_roll": synthetic_required_roll,
 			"display_required_roll": _get_display_required_roll(synthetic_required_roll),
 			"hit_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
+			"success_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
 			"preview_text": format_attack_check_preview({
 				"required_roll": synthetic_required_roll,
 				"display_required_roll": _get_display_required_roll(synthetic_required_roll),
 				"hit_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
+				"success_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
 			}),
 		}
 	)
 
 
 func format_attack_check_preview(attack_check: Dictionary) -> String:
-	var hit_rate_percent := int(attack_check.get("hit_rate_percent", 0))
+	var hit_rate_percent := int(attack_check.get("success_rate_percent", 0))
 	var required_roll := int(attack_check.get("required_roll", ATTACK_CHECK_TARGET))
 	return "%d%%（%s）" % [hit_rate_percent, _format_required_roll_text(required_roll)]
 
@@ -483,8 +501,10 @@ func _build_fate_aware_attack_check_preview(
 	var resolved_check: Dictionary = attack_check.duplicate(true)
 	var base_hit_rate_percent := int(attack_check.get("hit_rate_percent", 0))
 	resolved_check["base_hit_rate_percent"] = base_hit_rate_percent
+	if not resolved_check.has("success_rate_percent"):
+		resolved_check["success_rate_percent"] = 0
 	if battle_state == null or active_unit == null or target_unit == null:
-		resolved_check["preview_text"] = format_attack_check_preview(attack_check)
+		resolved_check["preview_text"] = format_attack_check_preview(resolved_check)
 		return resolved_check
 
 	var is_disadvantage := battle_state.is_attack_disadvantage(active_unit, target_unit)
@@ -520,7 +540,7 @@ func _build_fate_aware_attack_check_preview(
 
 
 func _format_fate_aware_attack_check_preview(attack_check: Dictionary) -> String:
-	var success_rate_percent := int(attack_check.get("success_rate_percent", attack_check.get("hit_rate_percent", 0)))
+	var success_rate_percent := int(attack_check.get("success_rate_percent", 0))
 	var required_roll_text := _format_required_roll_text(int(attack_check.get("required_roll", ATTACK_CHECK_TARGET)))
 	var base_hit_rate_percent := int(attack_check.get("base_hit_rate_percent", success_rate_percent))
 	if success_rate_percent <= base_hit_rate_percent:

@@ -81,6 +81,17 @@ class BlockingEquipmentPreviewCallback:
 		return result
 
 
+class UnequipSignalRecorder:
+	extends RefCounted
+
+	var slot_ids: Array[StringName] = []
+	var instance_ids: Array[StringName] = []
+
+	func record(slot_id: StringName, instance_id: StringName) -> void:
+		slot_ids.append(slot_id)
+		instance_ids.append(instance_id)
+
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -88,7 +99,10 @@ func _initialize() -> void:
 func _run() -> void:
 	await _test_multi_unit_hud_copy_and_selection_state()
 	_test_focus_resource_rows_hide_locked_mp_and_aura()
+	await _test_battle_panel_uses_formal_hud_snapshot_fields()
+	await _test_battle_panel_does_not_recover_legacy_hud_snapshot_fields()
 	await _test_equipment_preview_cache_reuses_stable_snapshot_results()
+	await _test_large_equipment_preview_cache_reuses_stable_snapshot_results()
 	await _test_equipment_preview_uses_default_failure_message_for_silent_preview()
 	await _test_repeat_attack_hud_preview_matches_runtime_resolver()
 	await _test_single_hit_hud_preview_matches_runtime_resolver()
@@ -102,6 +116,7 @@ func _run() -> void:
 	await _test_fate_preview_badges_surface_high_threat_and_mercy_states()
 	await _test_force_hit_no_crit_skill_hides_standard_fate_badges()
 	await _test_hybrid_multi_unit_skill_uses_shared_fate_policy()
+	await _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target()
 	_test_battle_state_log_buffer_enforces_entry_cap()
 	await _test_runtime_log_dock_syncs_battle_entries()
 	await _test_battle_panel_flushes_to_ultrawide_edges()
@@ -175,6 +190,124 @@ func _test_focus_resource_rows_hide_locked_mp_and_aura() -> void:
 	_assert_true(bool(unlocked_aura.get("visible", false)), "解锁斗气后 HUD 应展示斗气行。")
 
 
+func _test_battle_panel_uses_formal_hud_snapshot_fields() -> void:
+	var game_session := await _install_mock_game_session()
+	game_session.item_defs = ItemContentRegistry.new().get_item_defs()
+
+	var state := _build_state()
+	state.phase = &"unit_acting"
+	state.modal_state = &""
+	var active_unit := state.units.get(state.active_unit_id) as BattleUnitState
+	_assert_true(active_unit != null, "正式 HUD snapshot 字段回归前置：测试状态应存在当前行动单位。")
+	if active_unit == null:
+		game_session.queue_free()
+		await process_frame
+		return
+	active_unit.control_mode = &"manual"
+	active_unit.current_ap = 7
+	active_unit.current_move_points = 1
+	var equipment_view = active_unit.get_equipment_view()
+	var occupied_slots: Array[StringName] = [&"main_hand"]
+	_assert_true(
+		bool(equipment_view.set_equipped_entry(
+			&"main_hand",
+			&"bronze_sword",
+			occupied_slots,
+			EquipmentInstanceState.create(&"bronze_sword", &"ui_formal_equipped_sword_001")
+		)),
+		"正式 HUD snapshot 字段回归前置：应能为当前单位写入 battle-local 装备入口。"
+	)
+	var backpack := WarehouseState.new()
+	backpack.equipment_instances = [
+		EquipmentInstanceState.create(&"bronze_sword", &"ui_formal_backpack_sword_001"),
+	]
+	state.set_party_backpack_view(backpack)
+
+	var snapshot := BattleHudAdapter.new().build_snapshot(state, Vector2i(0, 0))
+	var focus := snapshot.get("focus_unit", {}) as Dictionary
+	_assert_true(focus.has("move_current") and focus.has("move_max"), "BattleHudAdapter 应提供正式 move_current/move_max 字段。")
+	var equipment_panel := snapshot.get("equipment_panel", {}) as Dictionary
+	var main_hand_entry := _find_equipment_slot_entry(equipment_panel, "main_hand")
+	_assert_eq(String(main_hand_entry.get("entry_slot_id", "")), "main_hand", "BattleHudAdapter 应提供正式 entry_slot_id 字段。")
+	var backpack_entry := _find_backpack_entry(equipment_panel, "ui_formal_backpack_sword_001")
+	_assert_eq(String(backpack_entry.get("display_name", "")), "青铜短剑", "BattleHudAdapter 应提供正式 display_name 字段。")
+
+	var panel := BattlePanelScene.instantiate() as BattleMapPanel
+	root.add_child(panel)
+	await process_frame
+	panel.size = VIEWPORT_SIZE
+	panel._apply_snapshot(snapshot)
+	await process_frame
+	_assert_eq(panel.ap_dot_container.get_child_count(), BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN, "正式 move snapshot 应按移动点上限渲染行动点亮点。")
+	_assert_eq(_count_filled_ap_dots(panel), 1, "正式 move snapshot 应按 move_current 渲染亮点数量，而不是 current_ap。")
+
+	var recorder := UnequipSignalRecorder.new()
+	panel.battle_equipment_unequip_requested.connect(Callable(recorder, "record"))
+	panel._open_battle_equipment_panel()
+	await process_frame
+	_assert_true(
+		panel._battle_equipment_backpack_list != null and panel._battle_equipment_backpack_list.item_count > 0,
+		"正式装备 snapshot 应在战中背包列表渲染装备实例。"
+	)
+	if panel._battle_equipment_backpack_list != null and panel._battle_equipment_backpack_list.item_count > 0:
+		_assert_true(
+			panel._battle_equipment_backpack_list.get_item_text(0).contains("青铜短剑"),
+			"正式装备 snapshot 应使用 display_name 渲染背包条目。"
+		)
+	var unequip_button := _find_button_with_text(panel._battle_equipment_slot_list, "卸下")
+	_assert_true(unequip_button != null, "正式装备 snapshot 应渲染卸装按钮。")
+	if unequip_button != null:
+		_assert_true(not unequip_button.disabled, "正式 entry_slot_id 存在时卸装按钮应可触发请求。")
+		unequip_button.emit_signal("pressed")
+		_assert_eq(recorder.slot_ids.size(), 1, "正式 entry_slot_id 存在时应发出卸装请求。")
+		if not recorder.slot_ids.is_empty():
+			_assert_eq(recorder.slot_ids[0], &"main_hand", "卸装请求应使用正式 entry_slot_id。")
+
+	panel.queue_free()
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_battle_panel_does_not_recover_legacy_hud_snapshot_fields() -> void:
+	var panel := BattlePanelScene.instantiate() as BattleMapPanel
+	root.add_child(panel)
+	await process_frame
+	panel.size = VIEWPORT_SIZE
+
+	panel._apply_snapshot(_build_legacy_missing_field_panel_snapshot())
+	await process_frame
+	_assert_eq(
+		panel.ap_dot_container.get_child_count(),
+		BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN,
+		"缺 move_current/move_max 时不应从 ap_current/ap_max 恢复行动点上限。"
+	)
+	_assert_eq(_count_filled_ap_dots(panel), 0, "缺 move_current 时不应从 ap_current 恢复亮点数量。")
+	_assert_true(not panel.ap_value_label.text.contains("7/12"), "缺 move 字段时不应显示旧 AP fallback 的 7/12。")
+
+	var recorder := UnequipSignalRecorder.new()
+	panel.battle_equipment_unequip_requested.connect(Callable(recorder, "record"))
+	panel._open_battle_equipment_panel()
+	await process_frame
+	_assert_true(
+		panel._battle_equipment_backpack_list != null and panel._battle_equipment_backpack_list.item_count == 1,
+		"缺旧字段回归前置：legacy snapshot 应渲染 1 条背包装备。"
+	)
+	if panel._battle_equipment_backpack_list != null and panel._battle_equipment_backpack_list.item_count == 1:
+		var item_text := panel._battle_equipment_backpack_list.get_item_text(0)
+		var tooltip_text := panel._battle_equipment_backpack_list.get_item_tooltip(0)
+		_assert_true(not item_text.contains("legacy_item_id"), "缺 display_name 时背包列表不应回退显示 item_id。")
+		_assert_true(not tooltip_text.contains("legacy_item_id"), "缺 display_name 时背包 tooltip 不应回退显示 item_id。")
+	var unequip_button := _find_button_with_text(panel._battle_equipment_slot_list, "卸下")
+	_assert_true(unequip_button != null, "缺 entry_slot_id 回归前置：legacy snapshot 应渲染卸装按钮。")
+	if unequip_button != null:
+		_assert_true(not unequip_button.disabled, "缺 entry_slot_id 回归前置：按钮可点击时才能验证信号 payload。")
+		unequip_button.emit_signal("pressed")
+		_assert_true(recorder.slot_ids.is_empty(), "缺 entry_slot_id 时不应从 slot_id 恢复并发出卸装请求。")
+
+	panel.queue_free()
+	await process_frame
+
+
 func _test_equipment_preview_cache_reuses_stable_snapshot_results() -> void:
 	var game_session := await _install_mock_game_session()
 	game_session.item_defs = ItemContentRegistry.new().get_item_defs()
@@ -218,6 +351,50 @@ func _test_equipment_preview_cache_reuses_stable_snapshot_results() -> void:
 	active_unit.current_ap = 3
 	adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
 	_assert_eq(preview_callback.call_count, 4, "当前行动单位 AP 变化后应让装备 preview cache 失效并重算。")
+
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_large_equipment_preview_cache_reuses_stable_snapshot_results() -> void:
+	var game_session := await _install_mock_game_session()
+	game_session.item_defs = ItemContentRegistry.new().get_item_defs()
+
+	var adapter := BattleHudAdapter.new()
+	var state := _build_state()
+	state.phase = &"unit_acting"
+	state.modal_state = &""
+	var active_unit := state.units.get(state.active_unit_id) as BattleUnitState
+	_assert_true(active_unit != null, "大背包装备预览缓存回归前置：测试状态应存在当前行动单位。")
+	if active_unit == null:
+		game_session.queue_free()
+		await process_frame
+		return
+	active_unit.control_mode = &"manual"
+	active_unit.current_ap = 4
+
+	var backpack := WarehouseState.new()
+	for index in range(64):
+		var item_id: StringName = &"bronze_sword" if index % 2 == 0 else &"leather_cap"
+		backpack.equipment_instances.append(
+			EquipmentInstanceState.create(item_id, StringName("ui_large_cache_%03d" % index))
+		)
+	state.set_party_backpack_view(backpack)
+
+	var preview_callback := CountingEquipmentPreviewCallback.new()
+	var callback := Callable(preview_callback, "preview")
+	var first_snapshot := adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	var first_panel := first_snapshot.get("equipment_panel", {}) as Dictionary
+	var first_entries := first_panel.get("backpack_entries", []) as Array
+	_assert_eq(first_entries.size(), 64, "大背包装备预览缓存回归前置：HUD 应看到全部 battle-local 背包装备。")
+	_assert_eq(preview_callback.call_count, 64, "首次构建大背包 HUD 时应只对每件实例执行一次 preview。")
+
+	adapter.build_snapshot(state, Vector2i(1, 1), &"", "", "", [], 0, [], &"", callback)
+	_assert_eq(preview_callback.call_count, 64, "稳定装备状态的悬停 / overlay 重建应复用大背包装备 preview cache。")
+
+	active_unit.current_ap = 3
+	adapter.build_snapshot(state, Vector2i(1, 1), &"", "", "", [], 0, [], &"", callback)
+	_assert_eq(preview_callback.call_count, 128, "当前行动单位 AP 变化后大背包装备 preview cache 应失效并按实例重算。")
 
 	game_session.queue_free()
 	await process_frame
@@ -977,6 +1154,82 @@ func _test_hybrid_multi_unit_skill_uses_shared_fate_policy() -> void:
 	await process_frame
 
 
+func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() -> void:
+	var skill_def := _get_skill_def(ARCHER_MULTISHOT_SKILL_ID)
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "multi-unit hover 预览回归前置：archer_multishot 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+	var state := _build_hybrid_multi_unit_fate_preview_state()
+	var enemy_a := state.units.get(&"hybrid_enemy_a") as BattleUnitState
+	var enemy_b := state.units.get(&"hybrid_enemy_b") as BattleUnitState
+	_assert_true(enemy_a != null and enemy_b != null, "multi-unit hover 预览回归前置：测试状态应包含两个敌方目标。")
+	if enemy_a == null or enemy_b == null:
+		game_session.queue_free()
+		await process_frame
+		return
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 90)
+
+	var adapter := BattleHudAdapter.new()
+	var expected_hover_snapshot := adapter.build_snapshot(
+		state,
+		enemy_b.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"连珠箭",
+		[],
+		3,
+		[],
+		ARCHER_MULTISHOT_VARIANT_ID
+	)
+	var queued_first_snapshot := adapter.build_snapshot(
+		state,
+		enemy_a.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"连珠箭",
+		[enemy_a.coord],
+		3,
+		[enemy_a.unit_id],
+		ARCHER_MULTISHOT_VARIANT_ID
+	)
+	var hover_after_queue_snapshot := adapter.build_snapshot(
+		state,
+		enemy_b.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"连珠箭",
+		[enemy_a.coord],
+		3,
+		[enemy_a.unit_id],
+		ARCHER_MULTISHOT_VARIANT_ID
+	)
+	var expected_hover_text := String(expected_hover_snapshot.get("selected_skill_hit_preview_text", ""))
+	var queued_first_text := String(queued_first_snapshot.get("selected_skill_hit_preview_text", ""))
+	var hover_after_queue_text := String(hover_after_queue_snapshot.get("selected_skill_hit_preview_text", ""))
+	_assert_true(not expected_hover_text.is_empty(), "multi-unit hover 预览应能为悬停目标生成命中摘要。")
+	_assert_true(
+		not queued_first_text.is_empty() and queued_first_text != expected_hover_text,
+		"multi-unit hover 预览回归前置：两个目标需要有可区分命中摘要。 queued=%s hover=%s" % [
+			queued_first_text,
+			expected_hover_text,
+		]
+	)
+	_assert_eq(
+		hover_after_queue_text,
+		expected_hover_text,
+		"已有 queued target 时，HUD 命中浮标应跟随当前悬停目标，而不是复用第一个 queued target。"
+	)
+
+	game_session.queue_free()
+	await process_frame
+
+
 func _test_battle_state_log_buffer_enforces_entry_cap() -> void:
 	var state := BattleState.new()
 	for index in range(BattleState.LOG_ENTRY_LIMIT + 25):
@@ -1413,6 +1666,116 @@ func _find_first_label(node: Node) -> Label:
 		if nested != null:
 			return nested
 	return null
+
+
+func _find_button_with_text(node: Node, button_text: String) -> Button:
+	if node == null:
+		return null
+	for child in node.get_children():
+		var button := child as Button
+		if button != null and button.text == button_text:
+			return button
+		var nested := _find_button_with_text(child, button_text)
+		if nested != null:
+			return nested
+	return null
+
+
+func _count_filled_ap_dots(panel: BattleMapPanel) -> int:
+	if panel == null or panel.ap_dot_container == null:
+		return 0
+	var filled_count := 0
+	for child in panel.ap_dot_container.get_children():
+		var dot := child as ColorRect
+		if dot != null and dot.color.a > 0.9:
+			filled_count += 1
+	return filled_count
+
+
+func _find_equipment_slot_entry(equipment_panel: Dictionary, slot_id: String) -> Dictionary:
+	var slots_variant: Variant = equipment_panel.get("slots", [])
+	var slots: Array = slots_variant if slots_variant is Array else []
+	for slot_variant in slots:
+		if slot_variant is not Dictionary:
+			continue
+		var slot := slot_variant as Dictionary
+		if String(slot.get("slot_id", "")) == slot_id:
+			return slot
+	return {}
+
+
+func _find_backpack_entry(equipment_panel: Dictionary, instance_id: String) -> Dictionary:
+	var entries_variant: Variant = equipment_panel.get("backpack_entries", [])
+	var entries: Array = entries_variant if entries_variant is Array else []
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry := entry_variant as Dictionary
+		if String(entry.get("instance_id", "")) == instance_id:
+			return entry
+	return {}
+
+
+func _build_legacy_missing_field_panel_snapshot() -> Dictionary:
+	return {
+		"header_title": "战斗地图",
+		"round_badge": "TU 0\nREADY 1",
+		"mode_text": "手动",
+		"focus_unit": {
+			"name": "旧字段单位",
+			"role_text": "我方  ·  手动  ·  体型 1",
+			"hp_current": 10,
+			"hp_max": 10,
+			"stamina_current": 6,
+			"stamina_max": 10,
+			"mp_current": 0,
+			"mp_max": 1,
+			"aura_current": 0,
+			"aura_max": 1,
+			"ap_current": 7,
+			"ap_max": 12,
+		},
+		"skill_slots": [],
+		"skill_subtitle": "",
+		"selected_skill_fate_badges": [],
+		"equipment_panel": {
+			"title": "队伍共享背包（战斗局部）",
+			"meta": "legacy fallback regression",
+			"active_unit_id": "ally_ui",
+			"active_unit_name": "旧字段单位",
+			"ap_cost": 2,
+			"can_change_equipment": true,
+			"disabled_reason": "",
+			"summary_text": "legacy snapshot",
+			"slots": [
+				{
+					"slot_id": "main_hand",
+					"slot_label": "主手",
+					"is_filled": true,
+					"is_entry_slot": true,
+					"item_id": "legacy_sword",
+					"item_display_name": "旧字段短剑",
+					"instance_id": "legacy_equipped_001",
+					"occupied_slot_ids": ["main_hand"],
+					"occupied_slot_labels": ["主手"],
+					"can_unequip": true,
+					"disabled_reason": "",
+				},
+			],
+			"backpack_entries": [
+				{
+					"instance_id": "legacy_backpack_001",
+					"item_id": "legacy_item_id",
+					"description": "旧字段物品说明",
+					"allowed_slot_ids": ["main_hand"],
+					"allowed_slot_labels": ["主手"],
+					"default_slot_id": "main_hand",
+					"can_equip": true,
+					"disabled_reason": "",
+				},
+			],
+		},
+	}
 
 
 func _get_layer_cell_image(layer: TileMapLayer, coord: Vector2i) -> Image:

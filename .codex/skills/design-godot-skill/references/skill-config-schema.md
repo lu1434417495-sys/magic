@@ -16,6 +16,8 @@ non_core_max_level: int
 mastery_curve: PackedInt32Array  # size must equal max_level
 growth_tier: StringName  # basic(60) / intermediate(120) / advanced(180) / ultimate(240)
 attribute_growth_progress: Dictionary  # { "strength": 40, "constitution": 20 }
+attribute_requirements: Dictionary  # { "willpower": 12 }
+attribute_modifiers: Array[AttributeModifier]
 tags: Array[StringName]
 learn_source: StringName  # innate / book / profession
 unlock_mode: StringName  # composite_upgrade (optional)
@@ -23,6 +25,9 @@ upgrade_source_skill_ids: Array[StringName]  # for composite_upgrade
 knowledge_requirements: Array[StringName]
 skill_level_requirements: Dictionary  # { "source_skill_id": 5 }
 achievement_requirements: Array[StringName]
+level_descriptions: Dictionary  # { "1": "desc at lv1" }
+level_description_template: String  # template with {vars} and {{?key}}...{{/key}} blocks
+level_description_configs: Dictionary  # { "1": { "var": "value" } }
 combat_profile: CombatSkillDef
 ```
 
@@ -41,15 +46,15 @@ aura_cost: int
 cooldown_tu: int
 attack_roll_bonus: int
 level_overrides: Dictionary  # { "2": { "stamina_cost": 20 } }
-mastery_trigger_mode: StringName  # skill_damage_dice_max / weapon_attack_quality / damage_dealt / status_applied / effect_applied
-mastery_amount_mode: StringName  # per_target_rank
+mastery_trigger_mode: StringName  # skill_damage_dice_max / weapon_attack_quality / damage_dealt / status_applied / effect_applied / incoming_physical_hit
+mastery_amount_mode: StringName  # per_target_rank / per_cast_hp_ratio
 effect_defs: Array[CombatEffectDef]
 ```
 
 ## CombatEffectDef Fields
 
 ```gdscript
-effect_type: StringName  # damage / status / heal / shield / repeat_attack_until_fail / terrain / terrain_replace
+effect_type: StringName  # damage / status / heal / shield / stamina_restore / charge / forced_move / repeat_attack_until_fail / terrain / terrain_effect / terrain_replace / terrain_replace_to / height / height_delta / apply_status
 tick_effect_type: StringName
 power: int
 min_skill_level: int  # 0 = available immediately
@@ -58,6 +63,8 @@ damage_tag: StringName
 status_id: StringName
 duration_tu: int
 params: Dictionary  # effect-specific parameters
+forced_move_mode: StringName  # push / pull / swap / teleport
+forced_move_distance: int
 ```
 
 ## Common Params by Effect Type
@@ -96,10 +103,41 @@ params = {
 }
 ```
 
-### status
+### status / apply_status
 ```gdscript
 params = {
     "trigger_event": "critical_hit",  # only apply on crit
+}
+```
+
+### stamina_restore
+```gdscript
+params = {
+    "dice_count": 1,      # optional dice count
+    "dice_sides": 6,      # optional dice sides
+}
+```
+
+### forced_move
+```gdscript
+# Uses top-level fields, not params:
+forced_move_mode = &"push"   # push / pull / swap / teleport
+forced_move_distance = 2
+```
+
+### charge
+```gdscript
+params = {
+    "skill_id": &"charge",
+    "base_distance": 3,
+    "distance_by_level": {
+        "1": 4,
+        "3": 5,
+        "5": 6
+    },
+    "collision_base_damage": 10,
+    "collision_size_gap_damage": 10,
+    "trap_immunity_level": 7
 }
 ```
 

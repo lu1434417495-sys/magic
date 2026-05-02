@@ -15,7 +15,7 @@ func get_actions() -> Array:
 	return result
 
 
-func validate_schema(brain_id: StringName = &"") -> Array[String]:
+func validate_schema(brain_id: StringName = &"", skill_defs: Dictionary = {}) -> Array[String]:
 	var errors: Array[String] = []
 	var context_label := "Enemy state"
 	if brain_id != &"":
@@ -46,4 +46,7 @@ func validate_schema(brain_id: StringName = &"") -> Array[String]:
 				seen_action_ids[action_id] = true
 		for action_error in action_variant.validate_schema():
 			errors.append("%s %s: %s" % [context_label, String(state_id), action_error])
+		if action_variant.has_method("validate_skill_references"):
+			for action_skill_error in action_variant.validate_skill_references(skill_defs):
+				errors.append("%s %s: %s" % [context_label, String(state_id), action_skill_error])
 	return errors

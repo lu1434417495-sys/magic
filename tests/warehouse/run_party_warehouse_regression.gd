@@ -6,10 +6,12 @@ extends SceneTree
 
 const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
+const PartyWarehouseWindowScene = preload("res://scenes/ui/party_warehouse_window.tscn")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
@@ -24,6 +26,7 @@ const PartyWarehouseService = preload("res://scripts/systems/inventory/party_war
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const PartyItemUseService = preload("res://scripts/systems/inventory/party_item_use_service.gd")
 const SaveSerializer = preload("res://scripts/systems/persistence/save_serializer.gd")
+const SettlementShopService = preload("res://scripts/systems/settlement/settlement_shop_service.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 const NEW_CONSUMABLE_ITEM_QUANTITIES := {
@@ -61,11 +64,14 @@ func _run() -> void:
 	await _test_world_level_equipment_instance_ids_are_incremental()
 	await _test_party_backpack_view_binding_is_battle_local()
 	await _test_inventory_entries_include_equipment_instances()
+	await _test_equipment_instance_remove_requires_instance_id()
 	await _test_weapon_profile_equipment_instances_stack_round_trip()
 	await _test_batch_swap_commit_is_atomic()
 	await _test_quest_reward_item_materializer()
 	await _test_skill_book_generation_and_use_rules()
 	await _test_party_state_requires_current_schema()
+	await _test_warehouse_state_rejects_bad_schema()
+	await _test_party_warehouse_window_display_field_contract()
 	await _test_item_registry_validation()
 	await _test_new_consumable_seed_warehouse_schema()
 	await _test_material_seed_warehouse_schema()
@@ -301,6 +307,256 @@ func _test_party_state_requires_current_schema() -> void:
 	_assert_true(party_state == null, "缺少当前 warehouse_state schema 的 PartyState 不再支持。")
 
 
+func _test_warehouse_state_rejects_bad_schema() -> void:
+	var valid_state = WarehouseState.from_dict({
+		"stacks": [
+			_make_stack_payload("healing_herb", 2),
+		],
+		"equipment_instances": [
+			EquipmentInstanceState.create(&"bronze_sword", &"eq_schema_warehouse_bronze").to_dict(),
+		],
+	})
+	_assert_true(valid_state != null, "当前 warehouse_state schema 应可读取。")
+
+	_assert_warehouse_state_rejects(
+		{"equipment_instances": []},
+		"warehouse_state 缺少 stacks 字段应拒绝。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": []},
+		"warehouse_state 缺少 equipment_instances 字段应拒绝。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": {}, "equipment_instances": []},
+		"warehouse_state.stacks 错类型应拒绝。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": [], "equipment_instances": {}},
+		"warehouse_state.equipment_instances 错类型应拒绝。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": [], "equipment_instances": [], "legacy_capacity": 12},
+		"warehouse_state 含额外旧字段应拒绝。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": ["healing_herb"], "equipment_instances": []},
+		"warehouse_state.stacks 内非字典条目应拒绝。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": [{"item_id": "healing_herb"}], "equipment_instances": []},
+		"warehouse stack 缺少 quantity 应拒绝。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": [_make_stack_payload("healing_herb", "2")], "equipment_instances": []},
+		"warehouse stack 的字符串 quantity 不应兼容转换。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": [_make_stack_payload("healing_herb", 0)], "equipment_instances": []},
+		"warehouse stack 的空数量不应静默丢弃。"
+	)
+	_assert_warehouse_state_rejects(
+		{"stacks": [_make_stack_payload(17, 2)], "equipment_instances": []},
+		"warehouse stack 的非字符串 item_id 不应兼容转换。"
+	)
+	var extra_stack_field := _make_stack_payload("healing_herb", 2)
+	extra_stack_field["legacy_stack_id"] = "stack_1"
+	_assert_warehouse_state_rejects(
+		{"stacks": [extra_stack_field], "equipment_instances": []},
+		"warehouse stack 含额外旧字段应拒绝。"
+	)
+
+	var missing_rarity_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_schema_missing_rarity").to_dict()
+	missing_rarity_instance.erase("rarity")
+	_assert_warehouse_state_rejects(
+		{"stacks": [], "equipment_instances": [missing_rarity_instance]},
+		"warehouse_state.equipment_instances 内坏装备实例应拒绝，而不是跳过。"
+	)
+	var extra_equipment_field := EquipmentInstanceState.create(&"bronze_sword", &"eq_schema_extra_field").to_dict()
+	extra_equipment_field["legacy_instance_level"] = 3
+	_assert_warehouse_state_rejects(
+		{"stacks": [], "equipment_instances": [extra_equipment_field]},
+		"equipment instance 含额外旧字段应拒绝。"
+	)
+
+
+func _test_party_warehouse_window_display_field_contract() -> void:
+	var warehouse = PartyWarehouseWindowScene.instantiate()
+	root.add_child(warehouse)
+	await process_frame
+
+	var window_data := {
+		"title": "共享仓库",
+		"meta": "字段契约测试",
+		"summary_text": "测试数据",
+		"status_text": "",
+		"entries": [
+			{
+				"item_id": "iron_ore",
+				"display_name": "铁矿石",
+				"description": "正式展示条目。",
+				"quantity": 2,
+				"total_quantity": 5,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+			},
+			{
+				"item_id": "legacy_probe_item",
+				"description": "缺少 display_name / total_quantity 的坏展示条目。",
+				"quantity": 4,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+			},
+			{
+				"item_id": "legacy_skill_book_item",
+				"display_name": "旧字段技能书",
+				"description": "缺少 granted_skill_name 的技能书展示条目。",
+				"quantity": 1,
+				"total_quantity": 1,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+				"is_skill_book": true,
+				"granted_skill_id": "legacy_skill_id_should_not_render",
+			},
+		],
+		"target_members": [
+			{"member_id": "reader", "display_name": "读者"},
+		],
+		"default_target_member_id": "reader",
+	}
+	warehouse.show_warehouse(window_data)
+	await process_frame
+
+	var stack_list := warehouse.get_node("CenterContainer/Panel/MarginContainer/Content/Body/ListColumn/StackList") as ItemList
+	var details_label := warehouse.get_node("CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/ItemRow/DetailsLabel") as RichTextLabel
+	var target_member_selector := warehouse.get_node(
+		"CenterContainer/Panel/MarginContainer/Content/Body/Controls/TargetMemberSelector"
+	) as OptionButton
+	_assert_true(stack_list != null, "仓库窗口字段契约测试应能读取 StackList。")
+	_assert_true(details_label != null, "仓库窗口字段契约测试应能读取 DetailsLabel。")
+	_assert_true(target_member_selector != null, "仓库窗口字段契约测试应能读取 TargetMemberSelector。")
+	if stack_list == null or details_label == null or target_member_selector == null:
+		warehouse.queue_free()
+		await process_frame
+		return
+
+	_assert_eq(stack_list.get_item_text(0), "铁矿石  x2  |  堆栈 2/20", "正式展示条目应使用显式 display_name 与 quantity。")
+	_assert_true(details_label.text.contains("物品：铁矿石"), "正式展示条目详情应显示显式 display_name。")
+	_assert_true(details_label.text.contains("同类总数：5"), "正式展示条目详情应显示显式 total_quantity。")
+
+	stack_list.select(1)
+	stack_list.emit_signal("item_selected", 1)
+	await process_frame
+	var missing_display_details := String(details_label.text)
+	_assert_true(not stack_list.get_item_text(1).contains("legacy_probe_item"), "缺少 display_name 时列表不应回退显示 item_id。")
+	_assert_true(not missing_display_details.contains("物品：legacy_probe_item"), "缺少 display_name 时详情名称不应回退显示 item_id。")
+	_assert_true(not missing_display_details.contains("同类总数：4"), "缺少 total_quantity 时详情不应回退显示 quantity。")
+	_assert_true(missing_display_details.contains("同类总数：0"), "缺少 total_quantity 时详情应按缺字段显示 0。")
+
+	stack_list.select(2)
+	stack_list.emit_signal("item_selected", 2)
+	await process_frame
+	var missing_skill_name_details := String(details_label.text)
+	_assert_true(
+		not missing_skill_name_details.contains("legacy_skill_id_should_not_render"),
+		"缺少 granted_skill_name 时技能书效果不应回退显示 granted_skill_id。"
+	)
+	_assert_true(
+		missing_skill_name_details.contains("技能书效果：使目标角色学会 。"),
+		"缺少 granted_skill_name 时技能书效果应保留为空展示，不用旧字段恢复。"
+	)
+	_assert_eq(target_member_selector.get_item_text(0), "读者", "正式目标成员应显示显式 display_name。")
+	_assert_true(missing_skill_name_details.contains("当前目标：读者"), "正式目标成员详情应显示显式 display_name。")
+
+	var bad_target_member_window_data := {
+		"title": "共享仓库",
+		"meta": "目标成员字段契约测试",
+		"summary_text": "测试数据",
+		"status_text": "",
+		"entries": [
+			{
+				"item_id": "skill_book_archer_aimed_shot",
+				"display_name": "精准射击 技能书",
+				"description": "使角色学会精准射击。",
+				"quantity": 1,
+				"total_quantity": 1,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+				"is_skill_book": true,
+				"granted_skill_id": "archer_aimed_shot",
+				"granted_skill_name": "精准射击",
+			},
+		],
+		"target_members": [
+			{"member_id": "missing_target"},
+			{"member_id": "empty_target", "display_name": ""},
+			{"member_id": "wrong_type_target", "display_name": 17},
+		],
+		"default_target_member_id": "missing_target",
+	}
+	warehouse.show_warehouse(bad_target_member_window_data)
+	await process_frame
+	_assert_eq(target_member_selector.item_count, 3, "坏目标成员夹具应保留三个可观察选项。")
+	if target_member_selector.item_count >= 3:
+		_assert_eq(target_member_selector.get_item_text(0), "", "缺少目标成员 display_name 时 selector 不应回退显示 member_id。")
+		_assert_eq(target_member_selector.get_item_text(1), "", "目标成员 display_name 为空时 selector 不应回退显示 member_id。")
+		_assert_eq(target_member_selector.get_item_text(2), "", "目标成员 display_name 错类型时 selector 不应把错类型值或 member_id 当显示名。")
+
+		var bad_member_ids := ["missing_target", "empty_target", "wrong_type_target"]
+		for index in range(bad_member_ids.size()):
+			target_member_selector.select(index)
+			target_member_selector.emit_signal("item_selected", index)
+			await process_frame
+			var bad_target_details := String(details_label.text)
+			_assert_true(
+				not bad_target_details.contains(String(bad_member_ids[index])),
+				"坏目标成员 display_name 不应在详情中回退显示 member_id。"
+			)
+
+	var formal_skill_window_data := {
+		"title": "共享仓库",
+		"meta": "正式字段测试",
+		"summary_text": "测试数据",
+		"status_text": "",
+		"entries": [
+			{
+				"item_id": "skill_book_archer_aimed_shot",
+				"display_name": "精准射击 技能书",
+				"description": "使角色学会精准射击。",
+				"quantity": 1,
+				"total_quantity": 1,
+				"is_stackable": true,
+				"stack_limit": 20,
+				"storage_mode": "stack",
+				"is_skill_book": true,
+				"granted_skill_id": "archer_aimed_shot",
+				"granted_skill_name": "精准射击",
+			},
+		],
+		"target_members": [
+			{"member_id": "reader", "display_name": "读者"},
+		],
+		"default_target_member_id": "reader",
+	}
+	warehouse.show_warehouse(formal_skill_window_data)
+	await process_frame
+	_assert_eq(stack_list.get_item_text(0), "精准射击 技能书  x1  |  堆栈 1/20", "正式技能书条目应正常显示显式字段。")
+	_assert_true(details_label.text.contains("物品：精准射击 技能书"), "正式技能书详情应显示显式 display_name。")
+	_assert_true(details_label.text.contains("同类总数：1"), "正式技能书详情应显示显式 total_quantity。")
+	_assert_true(
+		details_label.text.contains("技能书效果：使目标角色学会 精准射击。"),
+		"正式技能书详情应显示显式 granted_skill_name。"
+	)
+	_assert_eq(target_member_selector.get_item_text(0), "读者", "正式技能书目标成员 selector 应正常显示显式 display_name。")
+	_assert_true(details_label.text.contains("当前目标：读者"), "正式技能书目标成员详情应正常显示显式 display_name。")
+
+	warehouse.queue_free()
+	await process_frame
+
+
 func _test_batch_swap_commit_is_atomic() -> void:
 	var item_defs: Dictionary = _game_session.get_item_defs()
 	var party := _build_party_with_members([
@@ -413,17 +669,86 @@ func _test_inventory_entries_include_equipment_instances() -> void:
 	service.add_item(&"healing_herb", 7)
 
 	var entries := service.get_inventory_entries()
-	var sword_entry := _find_inventory_entry(entries, "bronze_sword")
+	var sword_entries := _find_inventory_entries(entries, "bronze_sword")
+	var sword_entry := sword_entries[0] if not sword_entries.is_empty() else {}
 	var herb_entry := _find_inventory_entry(entries, "healing_herb")
 
-	_assert_true(not sword_entry.is_empty(), "展示条目中应包含装备实例聚合项。")
-	_assert_eq(int(sword_entry.get("quantity", 0)), 2, "装备实例聚合项应反映实例数量。")
+	_assert_eq(sword_entries.size(), 2, "展示条目中应为每个装备实例提供独立条目。")
+	_assert_true(sword_entry.has("display_name") and not String(sword_entry.get("display_name", "")).is_empty(), "正式展示条目应显式提供 display_name。")
+	_assert_true(sword_entry.has("quantity"), "正式展示条目应显式提供 quantity。")
+	_assert_true(sword_entry.has("total_quantity"), "正式展示条目应显式提供 total_quantity。")
+	_assert_true(sword_entry.has("instance_id") and not String(sword_entry.get("instance_id", "")).is_empty(), "装备展示条目应显式提供 instance_id。")
+	_assert_eq(int(sword_entry.get("quantity", 0)), 1, "装备实例条目的当前数量应为 1。")
+	_assert_eq(int(sword_entry.get("total_quantity", 0)), 2, "装备实例条目应保留同类总数。")
 	_assert_eq(String(sword_entry.get("storage_mode", "")), "instance", "装备条目应标记为 instance 存储模式。")
 	_assert_true(not bool(sword_entry.get("is_stackable", true)), "装备条目不应被误标为可堆叠。")
 
 	_assert_true(not herb_entry.is_empty(), "展示条目中应保留普通堆叠物品。")
+	_assert_true(herb_entry.has("display_name") and not String(herb_entry.get("display_name", "")).is_empty(), "普通堆叠展示条目应显式提供 display_name。")
+	_assert_true(herb_entry.has("quantity"), "普通堆叠展示条目应显式提供 quantity。")
+	_assert_true(herb_entry.has("total_quantity"), "普通堆叠展示条目应显式提供 total_quantity。")
 	_assert_eq(int(herb_entry.get("quantity", 0)), 7, "普通堆叠物品应保留堆叠数量。")
 	_assert_eq(String(herb_entry.get("storage_mode", "")), "stack", "普通物品条目应标记为 stack 存储模式。")
+
+
+func _test_equipment_instance_remove_requires_instance_id() -> void:
+	var item_defs: Dictionary = _game_session.get_item_defs()
+	var party := _build_party_with_members([
+		_build_member_state(&"porter", "搬运员", 4),
+	])
+	var common_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_remove_common_sword")
+	common_instance.rarity = EquipmentInstanceState.RarityTier.COMMON
+	common_instance.current_durability = 9
+	var rare_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_remove_rare_sword")
+	rare_instance.rarity = EquipmentInstanceState.RarityTier.RARE
+	rare_instance.current_durability = 31
+	var mismatch_instance := EquipmentInstanceState.create(&"scout_charm", &"eq_remove_wrong_item")
+	party.warehouse_state.equipment_instances = [common_instance, rare_instance, mismatch_instance]
+	var service := PartyWarehouseService.new()
+	service.setup(party, item_defs)
+
+	var item_only_remove := service.remove_item(&"bronze_sword", 1)
+	_assert_eq(int(item_only_remove.get("removed_quantity", -1)), 0, "重复装备实例的 item_id-only remove 不应删除任意一件。")
+	_assert_eq(String(item_only_remove.get("error_code", "")), "equipment_instance_id_required", "重复装备实例 remove 应要求 instance_id。")
+	_assert_true(service.has_equipment_instance(&"eq_remove_common_sword", &"bronze_sword"), "item_id-only remove 失败后 common 实例应保留。")
+	_assert_true(service.has_equipment_instance(&"eq_remove_rare_sword", &"bronze_sword"), "item_id-only remove 失败后 rare 实例应保留。")
+
+	var mismatch_remove := service.remove_equipment_instance(&"bronze_sword", &"eq_remove_wrong_item")
+	_assert_eq(int(mismatch_remove.get("removed_quantity", -1)), 0, "错 item 的 instance_id 不应删除装备。")
+	_assert_eq(String(mismatch_remove.get("error_code", "")), "equipment_instance_item_mismatch", "错 item 的 instance_id 应返回 mismatch。")
+
+	var missing_remove := service.remove_equipment_instance(&"bronze_sword", &"eq_remove_missing")
+	_assert_eq(int(missing_remove.get("removed_quantity", -1)), 0, "不存在的 instance_id 不应删除装备。")
+	_assert_eq(String(missing_remove.get("error_code", "")), "warehouse_missing_instance", "不存在的 instance_id 应返回 missing_instance。")
+
+	var rare_remove := service.remove_equipment_instance(&"bronze_sword", &"eq_remove_rare_sword")
+	_assert_eq(int(rare_remove.get("removed_quantity", 0)), 1, "指定 rare instance_id 应删除对应装备。")
+	_assert_true(service.has_equipment_instance(&"eq_remove_common_sword", &"bronze_sword"), "删除 rare 后 common 实例应保留。")
+	_assert_true(not service.has_equipment_instance(&"eq_remove_rare_sword", &"bronze_sword"), "删除 rare 后该实例应离开仓库。")
+
+	var sell_party := _build_party_with_members([
+		_build_member_state(&"seller", "出售测试员", 4),
+	])
+	var sell_common := EquipmentInstanceState.create(&"bronze_sword", &"eq_sell_common_sword")
+	sell_common.rarity = EquipmentInstanceState.RarityTier.COMMON
+	sell_common.current_durability = 8
+	var sell_rare := EquipmentInstanceState.create(&"bronze_sword", &"eq_sell_rare_sword")
+	sell_rare.rarity = EquipmentInstanceState.RarityTier.RARE
+	sell_rare.current_durability = 27
+	sell_party.warehouse_state.equipment_instances = [sell_common, sell_rare]
+	var sell_service := PartyWarehouseService.new()
+	sell_service.setup(sell_party, item_defs)
+	var shop_service := SettlementShopService.new()
+	var settlement_state := {}
+	var ambiguous_sell := shop_service.sell("service_local_trade", {}, settlement_state, item_defs, sell_service, sell_party, &"bronze_sword", 1)
+	_assert_true(not bool(ambiguous_sell.get("success", true)), "重复装备实例出售缺少 instance_id 时应失败。")
+	_assert_true(String(ambiguous_sell.get("message", "")).contains("请选择要出售"), "重复装备实例出售失败文案应要求选择实例。")
+	_assert_true(sell_service.has_equipment_instance(&"eq_sell_common_sword", &"bronze_sword"), "出售失败后 common 实例应保留。")
+	_assert_true(sell_service.has_equipment_instance(&"eq_sell_rare_sword", &"bronze_sword"), "出售失败后 rare 实例应保留。")
+	var explicit_sell := shop_service.sell("service_local_trade", {}, settlement_state, item_defs, sell_service, sell_party, &"bronze_sword", 1, &"eq_sell_rare_sword")
+	_assert_true(bool(explicit_sell.get("success", false)), "指定 rare instance_id 出售应成功。")
+	_assert_true(sell_service.has_equipment_instance(&"eq_sell_common_sword", &"bronze_sword"), "出售 rare 后 common 实例应保留。")
+	_assert_true(not sell_service.has_equipment_instance(&"eq_sell_rare_sword", &"bronze_sword"), "出售 rare 后该实例应离开仓库。")
 
 
 func _test_weapon_profile_equipment_instances_stack_round_trip() -> void:
@@ -455,10 +780,14 @@ func _test_weapon_profile_equipment_instances_stack_round_trip() -> void:
 	_assert_eq(_instance_signature(party), ["bronze_sword", "bronze_sword"], "带 weapon_profile 武器应写入 equipment_instances。")
 
 	var entries := service.get_inventory_entries()
-	var sword_entry := _find_inventory_entry(entries, "bronze_sword")
+	var sword_entries := _find_inventory_entries(entries, "bronze_sword")
+	var sword_entry := sword_entries[0] if not sword_entries.is_empty() else {}
 	var herb_entry := _find_inventory_entry(entries, "healing_herb")
 	_assert_eq(String(sword_entry.get("storage_mode", "")), "instance", "带 weapon_profile 武器展示条目应保持 instance 模式。")
-	_assert_eq(int(sword_entry.get("quantity", 0)), 2, "带 weapon_profile 武器展示数量应聚合装备实例。")
+	_assert_eq(sword_entries.size(), 2, "带 weapon_profile 武器应按实例展示为两个条目。")
+	_assert_eq(int(sword_entry.get("quantity", 0)), 1, "带 weapon_profile 武器单条展示数量应为 1。")
+	_assert_eq(int(sword_entry.get("total_quantity", 0)), 2, "带 weapon_profile 武器展示条目应保留同类总数。")
+	_assert_true(not String(sword_entry.get("instance_id", "")).is_empty(), "带 weapon_profile 武器展示条目应提供 instance_id。")
 	_assert_eq(String(herb_entry.get("storage_mode", "")), "stack", "普通物品展示条目应保持 stack 模式。")
 	_assert_eq(int(herb_entry.get("quantity", 0)), 7, "普通物品展示数量应保持堆叠数量。")
 
@@ -484,6 +813,27 @@ func _test_skill_book_generation_and_use_rules() -> void:
 		return
 	_assert_true(item_def.is_skill_book(), "自动生成的技能书物品应带有技能书分类。")
 	_assert_eq(item_def.granted_skill_id, &"archer_aimed_shot", "技能书物品应指向正确的技能 ID。")
+	_assert_eq(item_def.display_name, "精准射击 技能书", "技能书文案应使用 SkillDef.display_name。")
+	_assert_true(item_def.description.contains("精准射击"), "技能书说明应使用 SkillDef.display_name。")
+	_assert_true(not item_def.display_name.contains("archer_aimed_shot"), "技能书显示名不应回退显示 skill_id。")
+	_assert_true(not item_def.description.contains("archer_aimed_shot"), "技能书说明不应回退显示 skill_id。")
+
+	var missing_name_skill := SkillDef.new()
+	missing_name_skill.skill_id = &"factory_missing_display_name_skill"
+	missing_name_skill.display_name = ""
+	missing_name_skill.learn_source = &"book"
+	missing_name_skill.skill_type = &"passive"
+	missing_name_skill.max_level = 1
+	missing_name_skill.mastery_curve = PackedInt32Array([1])
+	var missing_name_skill_defs := {}
+	missing_name_skill_defs[missing_name_skill.skill_id] = missing_name_skill
+	var generated_without_name := SkillBookItemFactory.new().build_generated_item_defs(missing_name_skill_defs)
+	var missing_name_item_id := SkillBookItemFactory.build_item_id_for_skill(missing_name_skill.skill_id)
+	_assert_true(generated_without_name.is_empty(), "缺少 display_name 的 book 技能不应生成技能书物品。")
+	_assert_true(
+		not generated_without_name.has(missing_name_item_id),
+		"缺少 display_name 时不应生成带 skill_id 文案的技能书。"
+	)
 
 	var party := _build_party_with_members([
 		_build_member_state(&"reader", "读者", 3),
@@ -747,6 +1097,29 @@ func _test_world_map_entry_paths() -> void:
 	await process_frame
 	_assert_true(warehouse.visible, "队伍管理窗口应能打开共享仓库。")
 	_assert_true(not management.visible, "打开共享仓库后不应与队伍管理窗口并存。")
+	var warehouse_stack_list := warehouse.get_node(
+		"CenterContainer/Panel/MarginContainer/Content/Body/ListColumn/StackList"
+	) as ItemList
+	var warehouse_details_label := warehouse.get_node(
+		"CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/ItemRow/DetailsLabel"
+	) as RichTextLabel
+	var skill_book_list_index := _find_item_list_entry_index_by_item_id(warehouse_stack_list, String(skill_book_item_id))
+	_assert_true(skill_book_list_index >= 0, "正式仓库窗口列表应包含技能书展示条目。")
+	if skill_book_list_index >= 0:
+		warehouse_stack_list.select(skill_book_list_index)
+		warehouse_stack_list.emit_signal("item_selected", skill_book_list_index)
+		await process_frame
+		var skill_book_item_def := _game_session.get_item_defs().get(skill_book_item_id) as ItemDef
+		var skill_def := _game_session.get_skill_defs().get(target_skill_id) as SkillDef
+		_assert_true(
+			skill_book_item_def != null and warehouse_stack_list.get_item_text(skill_book_list_index).contains(skill_book_item_def.display_name),
+			"正式仓库窗口列表应显示 entry.display_name。"
+		)
+		_assert_true(warehouse_details_label.text.contains("同类总数：1"), "正式仓库窗口详情应显示 entry.total_quantity。")
+		_assert_true(
+			skill_def != null and warehouse_details_label.text.contains("技能书效果：使目标角色学会 %s。" % skill_def.display_name),
+			"正式仓库窗口详情应显示 entry.granted_skill_name。"
+		)
 	var use_button := warehouse.get_node(
 		"CenterContainer/Panel/MarginContainer/Content/Body/Controls/UseButton"
 	) as Button
@@ -901,6 +1274,13 @@ func _build_stack(item_id: StringName, quantity: int) -> WarehouseStackState:
 	return stack
 
 
+func _make_stack_payload(item_id: Variant, quantity: Variant) -> Dictionary:
+	return {
+		"item_id": item_id,
+		"quantity": quantity,
+	}
+
+
 func _extract_item_reward_quantity(item_reward_variants, item_id: String) -> int:
 	if item_reward_variants is not Array:
 		return 0
@@ -959,6 +1339,30 @@ func _find_inventory_entry(entries: Array, item_id: String) -> Dictionary:
 	return {}
 
 
+func _find_inventory_entries(entries: Array, item_id: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry: Dictionary = entry_variant
+		if String(entry.get("item_id", "")) == item_id:
+			result.append(entry)
+	return result
+
+
+func _find_item_list_entry_index_by_item_id(stack_list: ItemList, item_id: String) -> int:
+	if stack_list == null:
+		return -1
+	for index in range(stack_list.item_count):
+		var metadata = stack_list.get_item_metadata(index)
+		if metadata is not Dictionary:
+			continue
+		var entry: Dictionary = metadata
+		if String(entry.get("item_id", "")) == item_id:
+			return index
+	return -1
+
+
 func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) -> Dictionary:
 	if game_session == null:
 		return {}
@@ -989,6 +1393,10 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
 		_failures.append(message)
+
+
+func _assert_warehouse_state_rejects(payload: Variant, message: String) -> void:
+	_assert_true(WarehouseState.from_dict(payload) == null, message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:

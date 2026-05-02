@@ -360,10 +360,18 @@ func _get_battle_member_ids(store: Dictionary, battle_id: StringName) -> Array[S
 	var battle_members_variant: Variant = store.get(battle_id, {})
 	if battle_members_variant is not Dictionary:
 		return member_ids
-	for member_key in ProgressionDataUtils.sorted_string_keys(battle_members_variant):
-		var member_id := StringName(member_key)
-		if bool((battle_members_variant as Dictionary).get(member_id, (battle_members_variant as Dictionary).get(member_key, false))):
+	var battle_members: Dictionary = battle_members_variant as Dictionary
+	for member_key_variant in battle_members.keys():
+		if member_key_variant is not StringName:
+			continue
+		var member_id := ProgressionDataUtils.to_string_name(member_key_variant)
+		if member_id == &"":
+			continue
+		if bool(battle_members.get(member_key_variant, false)):
 			member_ids.append(member_id)
+	member_ids.sort_custom(func(left: StringName, right: StringName) -> bool:
+		return String(left) < String(right)
+	)
 	return member_ids
 
 

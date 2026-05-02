@@ -146,7 +146,7 @@ const STAMINA_RESTING_RECOVERY_MULTIPLIER := 2
 const DEFAULT_TICK_INTERVAL_SECONDS := 1.0
 const BATTLE_START_PLACEMENT_MAX_ATTEMPTS := 8
 const BATTLE_START_TERRAIN_RETRY_SEED_STEP := 7919
-const CHANGE_EQUIPMENT_AP_COST := 2
+const CHANGE_EQUIPMENT_AP_COST := BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT.CHANGE_EQUIPMENT_AP_COST
 
 ## 字段说明：缓存角色网关实例，会参与运行时状态流转、系统协作和存档恢复。
 var _character_gateway: Object = null
@@ -225,6 +225,8 @@ func setup(
 ) -> void:
 	_character_gateway = character_gateway
 	_skill_defs = skill_defs if skill_defs != null else {}
+	if _damage_resolver != null and _damage_resolver.has_method("set_skill_defs"):
+		_damage_resolver.set_skill_defs(_skill_defs)
 	_item_defs = item_defs if item_defs != null else {}
 	if _item_defs.is_empty() and _character_gateway != null and _character_gateway.has_method("get_item_defs"):
 		var gateway_item_defs = _character_gateway.call("get_item_defs")
@@ -240,7 +242,7 @@ func setup(
 	_terrain_effect_system.setup(self)
 	_battle_rating_system.setup(self, _skill_mastery_service)
 	_unit_factory.setup(self)
-	_charge_resolver.setup(self)
+	_charge_resolver.setup(self, _skill_mastery_service)
 	_repeat_attack_resolver.setup(self, _skill_mastery_service)
 	_skill_mastery_service.clear()
 	_fortune_service.setup(_character_gateway, get_fate_event_bus())
@@ -283,6 +285,9 @@ func start_battle(
 		var terrain_data := _unit_factory.build_terrain_data(encounter_anchor, terrain_seed, context)
 		if terrain_data.is_empty():
 			continue
+		var terrain_profile_id := _resolve_formal_terrain_profile_id(terrain_data)
+		if terrain_profile_id == &"":
+			continue
 
 		_state = BATTLE_STATE_SCRIPT.new()
 		_state.battle_id = ProgressionDataUtils.to_string_name("%s_%d" % [String(encounter_anchor.entity_id), seed])
@@ -291,9 +296,7 @@ func start_battle(
 		_state.map_size = terrain_data.get("map_size", Vector2i.ZERO)
 		_state.world_coord = context.get("world_coord", encounter_anchor.world_coord if encounter_anchor != null else Vector2i.ZERO)
 		_state.encounter_anchor_id = ProgressionDataUtils.to_string_name(encounter_anchor.entity_id if encounter_anchor != null else "")
-		_state.terrain_profile_id = ProgressionDataUtils.to_string_name(
-			terrain_data.get("terrain_profile_id", context.get("battle_terrain_profile", "default"))
-		)
+		_state.terrain_profile_id = terrain_profile_id
 		_state.cells = terrain_data.get("cells", {})
 		_state.cell_columns = terrain_data.get("cell_columns", BattleCellState.build_columns_from_surface_cells(_state.cells))
 		_state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.new()
@@ -328,6 +331,15 @@ func start_battle(
 
 	_state = null
 	return BATTLE_STATE_SCRIPT.new()
+
+
+func _resolve_formal_terrain_profile_id(terrain_data: Dictionary) -> StringName:
+	if not terrain_data.has("terrain_profile_id"):
+		return &""
+	var terrain_profile_variant = terrain_data["terrain_profile_id"]
+	if terrain_profile_variant is not String and terrain_profile_variant is not StringName:
+		return &""
+	return ProgressionDataUtils.to_string_name(terrain_profile_variant)
 
 
 func advance(delta_seconds: float) -> BattleEventBatch:
@@ -743,7 +755,7 @@ func _ensure_sidecars_ready() -> void:
 	_terrain_effect_system.setup(self)
 	_battle_rating_system.setup(self, _skill_mastery_service)
 	_unit_factory.setup(self)
-	_charge_resolver.setup(self)
+	_charge_resolver.setup(self, _skill_mastery_service)
 	_repeat_attack_resolver.setup(self, _skill_mastery_service)
 	_change_equipment_resolver.setup(self)
 	_loot_resolver.setup(self)
@@ -2049,10 +2061,12 @@ func _apply_unit_skill_result(
 ) -> bool:
 	var result := _resolve_unit_skill_effect_result(active_unit, target_unit, skill_def, effect_defs)
 	_skill_mastery_service.record_target_result(active_unit, target_unit, skill_def, result, effect_defs)
+	_flush_last_stand_mastery_records(batch)
 	var guard_mastery_grant := _skill_mastery_service.build_guard_mastery_grant_from_incoming_hit(
 		active_unit,
 		target_unit,
 		effect_defs,
+		result,
 		_skill_defs
 	)
 	var shield_roll_context := {}
@@ -2461,8 +2475,6 @@ func _apply_forced_move_effect(
 		return 0
 	var move_distance := maxi(int(effect_def.forced_move_distance), 0)
 	if move_distance <= 0:
-		move_distance = maxi(int(effect_def.params.get("distance", 0)), 0)
-	if move_distance <= 0:
 		return 0
 	if _blocks_enemy_forced_move(source_unit, unit_state):
 		if batch != null:
@@ -2471,7 +2483,7 @@ func _apply_forced_move_effect(
 
 	var mode := effect_def.forced_move_mode
 	if mode == &"":
-		mode = ProgressionDataUtils.to_string_name(effect_def.params.get("mode", "retreat"))
+		return 0
 
 	var moved_steps := 0
 	for _step in range(move_distance):
@@ -2701,7 +2713,7 @@ func _get_effect_forced_move_mode(effect_def: CombatEffectDef) -> StringName:
 		return &""
 	if effect_def.forced_move_mode != &"":
 		return effect_def.forced_move_mode
-	return ProgressionDataUtils.to_string_name(effect_def.params.get("mode", ""))
+	return &""
 
 
 func _build_ground_effect_coords(
@@ -2803,8 +2815,11 @@ func _apply_ground_unit_effects(
 		_record_vajra_body_mastery_from_incoming_damage(source_unit, target_unit, skill_def, result, batch)
 		mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		var attack_resolved := result.has("attack_success")
-		var unit_applied := bool(result.get("applied", false)) or bool(shield_result.get("applied", false)) or attack_resolved
+		var attack_hit := attack_resolved and bool(result.get("attack_success", false))
+		var unit_applied := bool(result.get("applied", false)) or bool(shield_result.get("applied", false)) or attack_hit
 		if not unit_applied:
+			if attack_resolved:
+				_append_result_report_entry(batch, result)
 			continue
 
 		applied = true
@@ -2851,6 +2866,7 @@ func _apply_ground_unit_effects(
 		if source_unit != null and target_unit != null:
 			_record_effect_metrics(source_unit, target_unit, damage, healing, 1 if not target_unit.is_alive else 0)
 
+	_flush_last_stand_mastery_records(batch)
 	if applied and source_unit != null:
 		_battle_rating_system.record_skill_effect_result(source_unit, total_damage, total_healing, total_kill_count)
 	return {
@@ -3050,6 +3066,7 @@ func _apply_ground_cell_effect(
 				_clear_defeated_unit(occupant_unit, batch)
 				batch.log_lines.append("%s 被击倒。" % occupant_unit.display_name)
 
+	_flush_last_stand_mastery_records(batch)
 	return cell_applied
 
 
@@ -3408,7 +3425,7 @@ func _grant_skill_mastery_if_needed(active_unit: BattleUnitState, skill_def: Ski
 
 
 func _apply_skill_mastery_grant(unit_state: BattleUnitState, grant: Dictionary, batch: BattleEventBatch) -> void:
-	if unit_state == null or grant.is_empty() or _character_gateway == null:
+	if grant.is_empty() or _character_gateway == null:
 		return
 	var member_id := ProgressionDataUtils.to_string_name(grant.get("member_id", ""))
 	var skill_id := ProgressionDataUtils.to_string_name(grant.get("skill_id", ""))
@@ -3432,6 +3449,16 @@ func _apply_skill_mastery_grant(unit_state: BattleUnitState, grant: Dictionary, 
 		bool(grant.get("allow_unlocks", true))
 	)
 	_append_progression_delta_to_batch(unit_state, delta, batch)
+
+
+func _flush_last_stand_mastery_records(batch: BattleEventBatch) -> void:
+	if _damage_resolver == null:
+		return
+	var records := _damage_resolver.get_and_clear_last_stand_mastery_records()
+	for record in records:
+		var member_id := ProgressionDataUtils.to_string_name(record.get("member_id", ""))
+		var unit_state := _find_unit_by_member_id(member_id) if member_id != &"" else null
+		_apply_skill_mastery_grant(unit_state, record, batch)
 
 
 func _append_progression_delta_to_batch(unit_state: BattleUnitState, delta, batch: BattleEventBatch) -> void:

@@ -7,15 +7,20 @@ extends SceneTree
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+const GameRuntimeBattleLootCommitService = preload("res://scripts/systems/game_runtime/game_runtime_battle_loot_commit_service.gd")
 const BattleSessionFacade = preload("res://scripts/systems/game_runtime/battle_session_facade.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
 const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
@@ -52,6 +57,36 @@ class _FakeBattleRuntimeWithoutResult extends RefCounted:
 
 	func consume_battle_resolution_result():
 		return null
+
+
+class _FakeLootCommitGameSession extends RefCounted:
+	var item_defs: Dictionary = {}
+	var _next_equipment_instance_serial := 1
+
+	func get_item_defs() -> Dictionary:
+		return item_defs
+
+	func allocate_equipment_instance_id() -> StringName:
+		var allocated_id := StringName("eq_contract_%06d" % _next_equipment_instance_serial)
+		_next_equipment_instance_serial += 1
+		return allocated_id
+
+
+class _FakeLootCommitRuntime extends RefCounted:
+	var _party_state = null
+	var _party_warehouse_service = null
+	var _game_session = null
+
+	func _setup_party_warehouse_service(service, party_state, item_defs: Dictionary = {}) -> void:
+		if service == null or not service.has_method("setup"):
+			return
+		service.setup(party_state, item_defs, Callable(_game_session, "allocate_equipment_instance_id"))
+
+	func _get_item_display_name(item_id: StringName) -> String:
+		var item_def = _game_session.get_item_defs().get(item_id) if _game_session != null else null
+		if item_def != null and not item_def.display_name.is_empty():
+			return item_def.display_name
+		return String(item_id)
 
 
 class _FakeRuntimeBridge extends RefCounted:
@@ -152,6 +187,12 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_battle_resolution_result_round_trip()
+	_test_battle_resolution_rejects_bad_top_level_schema()
+	_test_battle_resolution_rejects_bad_drop_entry_schema()
+	_test_battle_resolution_rejects_bad_equipment_drop_schema()
+	_test_battle_resolution_rejects_bad_nested_array_entries()
+	_test_battle_resolution_rejects_loot_alias_only_payloads()
+	_test_battle_loot_commit_rejects_equipment_instance_data_alias()
 	_test_battle_runtime_builds_resolution_result_on_battle_end()
 	_test_battle_runtime_draws_when_both_sides_are_cleared()
 	_test_battle_runtime_battle_end_integration_uses_real_character_gateway()
@@ -208,6 +249,275 @@ func _test_battle_resolution_result_round_trip() -> void:
 		round_tripped.pending_character_rewards[0] is PendingCharacterReward,
 		"pending_character_rewards 的元素在 round trip 后应仍是正式角色奖励。"
 	)
+
+
+func _test_battle_resolution_rejects_bad_top_level_schema() -> void:
+	var payload := _build_strict_battle_resolution_payload()
+
+	var missing_terrain := payload.duplicate(true)
+	missing_terrain.erase("terrain_profile_id")
+	_assert_true(
+		BattleResolutionResult.from_dict(missing_terrain) == null,
+		"缺少 terrain_profile_id 时，BattleResolutionResult.from_dict() 不应回退到 default。"
+	)
+
+	for array_field_name in [
+		"loot_entries",
+		"overflow_entries",
+		"pending_character_rewards",
+		"quest_progress_events",
+		"world_mutations",
+	]:
+		var missing_array := payload.duplicate(true)
+		missing_array.erase(array_field_name)
+		_assert_true(
+			BattleResolutionResult.from_dict(missing_array) == null,
+			"缺少数组字段 %s 时，BattleResolutionResult.from_dict() 不应按空数组恢复。" % array_field_name
+		)
+
+		var wrong_array_type := payload.duplicate(true)
+		wrong_array_type[array_field_name] = {}
+		_assert_true(
+			BattleResolutionResult.from_dict(wrong_array_type) == null,
+			"数组字段 %s 类型错误时，BattleResolutionResult.from_dict() 应拒绝 payload。" % array_field_name
+		)
+
+	var wrong_world_coord := payload.duplicate(true)
+	wrong_world_coord["world_coord"] = {"x": 4, "y": 9}
+	_assert_true(
+		BattleResolutionResult.from_dict(wrong_world_coord) == null,
+		"world_coord 类型错误时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var extra_top_level_field := payload.duplicate(true)
+	extra_top_level_field["legacy_resolution"] = "player"
+	_assert_true(
+		BattleResolutionResult.from_dict(extra_top_level_field) == null,
+		"包含额外顶层字段时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var empty_battle_id := payload.duplicate(true)
+	empty_battle_id["battle_id"] = ""
+	_assert_true(
+		BattleResolutionResult.from_dict(empty_battle_id) == null,
+		"battle_id 为空时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var empty_encounter_anchor_id := payload.duplicate(true)
+	empty_encounter_anchor_id["encounter_anchor_id"] = ""
+	_assert_true(
+		BattleResolutionResult.from_dict(empty_encounter_anchor_id) == null,
+		"encounter_anchor_id 为空时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var empty_terrain := payload.duplicate(true)
+	empty_terrain["terrain_profile_id"] = ""
+	_assert_true(
+		BattleResolutionResult.from_dict(empty_terrain) == null,
+		"terrain_profile_id 为空时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var empty_winner := payload.duplicate(true)
+	empty_winner["winner_faction_id"] = ""
+	_assert_true(
+		BattleResolutionResult.from_dict(empty_winner) == null,
+		"winner_faction_id 为空时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var empty_resolution := payload.duplicate(true)
+	empty_resolution["encounter_resolution"] = ""
+	_assert_true(
+		BattleResolutionResult.from_dict(empty_resolution) == null,
+		"encounter_resolution 为空时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var missing_party_resource_commit := payload.duplicate(true)
+	missing_party_resource_commit.erase("party_resource_commit")
+	_assert_true(
+		BattleResolutionResult.from_dict(missing_party_resource_commit) == null,
+		"缺少 party_resource_commit 时，BattleResolutionResult.from_dict() 不应按空字典恢复。"
+	)
+
+	var wrong_party_resource_commit := payload.duplicate(true)
+	wrong_party_resource_commit["party_resource_commit"] = []
+	_assert_true(
+		BattleResolutionResult.from_dict(wrong_party_resource_commit) == null,
+		"party_resource_commit 类型错误时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+
+func _test_battle_resolution_rejects_bad_drop_entry_schema() -> void:
+	var non_dictionary_loot := _build_strict_battle_resolution_payload()
+	non_dictionary_loot["loot_entries"] = [_build_raw_loot_entry(), "bad_loot"]
+	_assert_true(
+		BattleResolutionResult.from_dict(non_dictionary_loot) == null,
+		"loot_entries 含非 Dictionary 元素时，BattleResolutionResult.from_dict() 应拒绝整个 payload。"
+	)
+
+	var non_dictionary_overflow := _build_strict_battle_resolution_payload()
+	non_dictionary_overflow["overflow_entries"] = [_build_raw_overflow_entry(), "bad_overflow"]
+	_assert_true(
+		BattleResolutionResult.from_dict(non_dictionary_overflow) == null,
+		"overflow_entries 含非 Dictionary 元素时，BattleResolutionResult.from_dict() 应拒绝整个 payload。"
+	)
+
+	var missing_item_id := _build_strict_battle_resolution_payload()
+	var missing_item_entry := _build_raw_loot_entry()
+	missing_item_entry.erase("item_id")
+	missing_item_id["loot_entries"] = [missing_item_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(missing_item_id) == null,
+		"loot entry 缺少正式必需字段时，BattleResolutionResult.from_dict() 应拒绝整个 payload。"
+	)
+
+	var string_quantity := _build_strict_battle_resolution_payload()
+	var string_quantity_entry := _build_raw_loot_entry()
+	string_quantity_entry["quantity"] = "2"
+	string_quantity["loot_entries"] = [string_quantity_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(string_quantity) == null,
+		"loot entry quantity 为字符串数字时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var item_entry_with_equipment := _build_strict_battle_resolution_payload()
+	var item_entry := _build_raw_loot_entry()
+	item_entry["equipment_instance"] = _build_persisted_equipment_instance_payload()
+	item_entry_with_equipment["loot_entries"] = [item_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(item_entry_with_equipment) == null,
+		"普通 item loot entry 携带 equipment_instance 时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+
+func _test_battle_resolution_rejects_bad_equipment_drop_schema() -> void:
+	var missing_payload := _build_strict_battle_resolution_payload()
+	var missing_payload_entry := _build_persisted_equipment_instance_loot_entry()
+	missing_payload_entry.erase("equipment_instance")
+	missing_payload["loot_entries"] = [missing_payload_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(missing_payload) == null,
+		"equipment_instance 掉落缺少 equipment_instance payload 时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var bad_payload := _build_strict_battle_resolution_payload()
+	var bad_payload_entry := _build_persisted_equipment_instance_loot_entry()
+	bad_payload_entry["equipment_instance"] = {"item_id": "bronze_sword"}
+	bad_payload["loot_entries"] = [bad_payload_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(bad_payload) == null,
+		"equipment_instance payload 不是有效 EquipmentInstanceState 字典时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var mismatch_payload := _build_strict_battle_resolution_payload()
+	var mismatch_entry := _build_persisted_equipment_instance_loot_entry()
+	var equipment_payload: Dictionary = mismatch_entry["equipment_instance"]
+	equipment_payload["item_id"] = "iron_sword"
+	mismatch_entry["equipment_instance"] = equipment_payload
+	mismatch_payload["loot_entries"] = [mismatch_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(mismatch_payload) == null,
+		"loot entry item_id 与 equipment_instance.item_id 不一致时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var wrong_quantity_payload := _build_strict_battle_resolution_payload()
+	var wrong_quantity_entry := _build_persisted_equipment_instance_loot_entry()
+	wrong_quantity_entry["quantity"] = 2
+	wrong_quantity_payload["loot_entries"] = [wrong_quantity_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(wrong_quantity_payload) == null,
+		"equipment_instance 掉落 quantity 不是 1 时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+
+func _test_battle_resolution_rejects_bad_nested_array_entries() -> void:
+	var bad_reward_entry := _build_strict_battle_resolution_payload()
+	bad_reward_entry["pending_character_rewards"] = [_build_canonical_reward(&"hero", &"battle_skill").to_dict(), "bad_reward"]
+	_assert_true(
+		BattleResolutionResult.from_dict(bad_reward_entry) == null,
+		"pending_character_rewards 含非 Dictionary 元素时，BattleResolutionResult.from_dict() 应拒绝整个 payload。"
+	)
+
+	var invalid_reward := _build_strict_battle_resolution_payload()
+	var reward_payload := _build_canonical_reward(&"hero", &"battle_skill").to_dict()
+	reward_payload.erase("entries")
+	invalid_reward["pending_character_rewards"] = [reward_payload]
+	_assert_true(
+		BattleResolutionResult.from_dict(invalid_reward) == null,
+		"pending_character_rewards 含无效奖励字典时，BattleResolutionResult.from_dict() 应拒绝整个 payload。"
+	)
+
+	var scalar_quest_event := _build_strict_battle_resolution_payload()
+	scalar_quest_event["quest_progress_events"] = [{"quest_id": "quest_contract"}, "bad_event"]
+	_assert_true(
+		BattleResolutionResult.from_dict(scalar_quest_event) == null,
+		"quest_progress_events 含标量元素时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var scalar_world_mutation := _build_strict_battle_resolution_payload()
+	scalar_world_mutation["world_mutations"] = [{"kind": "clear_anchor"}, 12]
+	_assert_true(
+		BattleResolutionResult.from_dict(scalar_world_mutation) == null,
+		"world_mutations 含标量元素时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+
+func _test_battle_resolution_rejects_loot_alias_only_payloads() -> void:
+	var result := BattleResolutionResult.new()
+	result.set_loot_entries([_build_drop_id_alias_only_loot_entry()])
+	_assert_eq(result.loot_entries.size(), 0, "只提供旧 drop_id alias 的 battle loot payload 不应归一化为正式掉落。")
+
+	result.set_loot_entries([_build_missing_source_label_loot_entry()])
+	_assert_eq(result.loot_entries.size(), 0, "缺少正式 drop_source_label 的 battle loot payload 不应从 drop_source_id 回退。")
+
+	result.set_loot_entries([_build_equipment_instance_data_alias_loot_entry()])
+	_assert_eq(result.loot_entries.size(), 0, "只提供旧 equipment_instance_data alias 的装备掉落不应归一化为正式掉落。")
+
+	result.set_loot_entries([_build_formal_equipment_instance_loot_entry()])
+	_assert_eq(result.loot_entries.size(), 1, "正式 equipment_instance 掉落 payload 应继续通过归一化。")
+	if result.loot_entries.size() > 0 and result.loot_entries[0] is Dictionary:
+		var loot_entry := result.loot_entries[0] as Dictionary
+		_assert_true(loot_entry.has("equipment_instance"), "正式装备掉落应保留 equipment_instance 字段。")
+		_assert_true(not loot_entry.has("equipment_instance_data"), "正式装备掉落不应暴露 equipment_instance_data alias。")
+		var equipment_payload: Dictionary = loot_entry.get("equipment_instance", {}) if loot_entry.get("equipment_instance", {}) is Dictionary else {}
+		_assert_eq(String(equipment_payload.get("item_id", "")), "bronze_sword", "正式装备掉落应保留 equipment_instance.item_id。")
+
+
+func _test_battle_loot_commit_rejects_equipment_instance_data_alias() -> void:
+	var runtime = _build_loot_commit_runtime()
+	var service := GameRuntimeBattleLootCommitService.new()
+	service.setup(runtime)
+	var formal_result := BattleResolutionResult.new()
+	formal_result.winner_faction_id = &"player"
+	formal_result.set_loot_entries([_build_formal_equipment_instance_loot_entry()])
+
+	var commit_result: Dictionary = service.commit_battle_loot_to_shared_warehouse(formal_result)
+	_assert_true(bool(commit_result.get("ok", false)), "正式 equipment_instance battle loot 应能提交到共享仓库。")
+	_assert_eq(int(commit_result.get("committed_item_count", -1)), 1, "正式 equipment_instance battle loot 应提交 1 件装备。")
+	_assert_eq(runtime._party_state.warehouse_state.equipment_instances.size(), 1, "正式 equipment_instance battle loot 应写入仓库装备实例。")
+	if runtime._party_state.warehouse_state.equipment_instances.size() > 0:
+		var committed_instance = runtime._party_state.warehouse_state.equipment_instances[0]
+		_assert_eq(String(committed_instance.item_id), "bronze_sword", "提交后的装备实例应保留正式 item_id。")
+		_assert_true(String(committed_instance.instance_id).begins_with("eq_contract_"), "提交后的装备实例应走 world-level instance_id 分配。")
+
+	runtime = _build_loot_commit_runtime()
+	service = GameRuntimeBattleLootCommitService.new()
+	service.setup(runtime)
+	var alias_direct_commit_result: Dictionary = service._commit_equipment_instance_loot_entry(_build_equipment_instance_data_alias_loot_entry())
+	_assert_true(not bool(alias_direct_commit_result.get("ok", true)), "提交服务不应直接接受 equipment_instance_data alias-only payload。")
+	_assert_eq(
+		String(alias_direct_commit_result.get("error_code", "")),
+		"battle_loot_equipment_instance_missing_payload",
+		"equipment_instance_data alias-only payload 应被报告为缺少正式 equipment_instance。"
+	)
+	_assert_eq(runtime._party_state.warehouse_state.equipment_instances.size(), 0, "被拒绝的 equipment_instance_data alias-only payload 不应写入仓库。")
+
+	var alias_public_result := BattleResolutionResult.new()
+	alias_public_result.winner_faction_id = &"player"
+	alias_public_result.loot_entries = [_build_equipment_instance_data_alias_loot_entry()]
+	var public_commit_result: Dictionary = service.commit_battle_loot_to_shared_warehouse(alias_public_result)
+	_assert_true(bool(public_commit_result.get("ok", false)), "public commit 遇到 alias-only loot 时应按空掉落完成结算。")
+	_assert_eq(int(public_commit_result.get("committed_item_count", -1)), 0, "public commit 不应提交 alias-only equipment_instance_data payload。")
+	_assert_eq(alias_public_result.loot_entries.size(), 0, "public commit 应把 alias-only loot payload 归一化为空。")
 
 
 func _test_battle_runtime_builds_resolution_result_on_battle_end() -> void:
@@ -374,13 +684,31 @@ func _build_resolution_result_with_reward(reward: PendingCharacterReward) -> Bat
 	return result
 
 
+func _build_strict_battle_resolution_payload() -> Dictionary:
+	var result := BattleResolutionResult.new()
+	result.battle_id = &"battle_schema_contract"
+	result.seed = 88
+	result.world_coord = Vector2i(5, 10)
+	result.encounter_anchor_id = &"encounter_schema_contract"
+	result.terrain_profile_id = &"canyon"
+	result.winner_faction_id = &"player"
+	result.encounter_resolution = &"player_victory"
+	result.set_loot_entries([_build_raw_loot_entry()])
+	result.set_overflow_entries([_build_raw_overflow_entry()])
+	result.pending_character_rewards = [_build_canonical_reward(&"hero", &"battle_skill")]
+	result.quest_progress_events = [{"quest_id": "quest_contract", "amount": 1}]
+	result.world_mutations = [{"kind": "clear_anchor"}]
+	result.party_resource_commit = {"gold_delta": 3}
+	return result.to_dict()
+
+
 func _build_raw_loot_entry() -> Dictionary:
 	return {
 		"drop_type": &"item",
 		"drop_source_kind": &"encounter_roster",
 		"drop_source_id": &"wolf_den",
 		"drop_source_label": "荒狼巢穴",
-		"drop_id": &"wolf_den_hide_bundle",
+		"drop_entry_id": &"wolf_den_hide_bundle",
 		"item_id": &"beast_hide",
 		"quantity": 2,
 		"debug_only_flag": true,
@@ -397,6 +725,110 @@ func _build_raw_overflow_entry() -> Dictionary:
 		"item_id": &"beast_hide",
 		"quantity": 1,
 		"debug_only_flag": true,
+	}
+
+
+func _build_drop_id_alias_only_loot_entry() -> Dictionary:
+	var loot_entry := _build_raw_loot_entry()
+	loot_entry.erase("drop_entry_id")
+	loot_entry["drop_id"] = &"wolf_den_hide_bundle"
+	return loot_entry
+
+
+func _build_missing_source_label_loot_entry() -> Dictionary:
+	var loot_entry := _build_raw_loot_entry()
+	loot_entry.erase("drop_source_label")
+	return loot_entry
+
+
+func _build_formal_equipment_instance_loot_entry() -> Dictionary:
+	return {
+		"drop_type": &"equipment_instance",
+		"drop_source_kind": &"enemy_unit",
+		"drop_source_id": &"wolf_unit",
+		"drop_source_label": "荒狼",
+		"drop_entry_id": &"wolf_unit_bronze_sword",
+		"item_id": &"bronze_sword",
+		"quantity": 1,
+		"equipment_instance": _build_transient_equipment_instance_payload(),
+	}
+
+
+func _build_persisted_equipment_instance_loot_entry() -> Dictionary:
+	return {
+		"drop_type": &"equipment_instance",
+		"drop_source_kind": &"enemy_unit",
+		"drop_source_id": &"wolf_unit",
+		"drop_source_label": "荒狼",
+		"drop_entry_id": &"wolf_unit_bronze_sword",
+		"item_id": &"bronze_sword",
+		"quantity": 1,
+		"equipment_instance": _build_persisted_equipment_instance_payload(),
+	}
+
+
+func _build_equipment_instance_data_alias_loot_entry() -> Dictionary:
+	var loot_entry := _build_formal_equipment_instance_loot_entry()
+	loot_entry["equipment_instance_data"] = loot_entry.get("equipment_instance", {}).duplicate(true)
+	loot_entry.erase("equipment_instance")
+	return loot_entry
+
+
+func _build_transient_equipment_instance_payload() -> Dictionary:
+	return {
+		"instance_id": "",
+		"item_id": "bronze_sword",
+		"rarity": EquipmentInstanceState.RarityTier.RARE,
+		"current_durability": -1,
+		"armor_wear_progress": 0.0,
+		"weapon_wear_progress": 0.0,
+	}
+
+
+func _build_persisted_equipment_instance_payload() -> Dictionary:
+	var payload := _build_transient_equipment_instance_payload()
+	payload["instance_id"] = "eq_contract_000001"
+	return payload
+
+
+func _build_loot_commit_runtime():
+	var game_session := _FakeLootCommitGameSession.new()
+	game_session.item_defs = _build_loot_commit_item_defs()
+	var runtime := _FakeLootCommitRuntime.new()
+	runtime._party_state = PartyState.new()
+	runtime._party_state.warehouse_state = WarehouseState.new()
+	var hero := PartyMemberState.new()
+	hero.member_id = &"hero"
+	hero.display_name = "Hero"
+	hero.progression.unit_id = hero.member_id
+	hero.progression.display_name = hero.display_name
+	hero.progression.unit_base_attributes.custom_stats[&"storage_space"] = 4
+	runtime._party_state.set_member_state(hero)
+	runtime._party_state.active_member_ids = [&"hero"]
+	runtime._party_state.leader_member_id = &"hero"
+	runtime._party_warehouse_service = PartyWarehouseService.new()
+	runtime._game_session = game_session
+	runtime._setup_party_warehouse_service(runtime._party_warehouse_service, runtime._party_state, game_session.get_item_defs())
+	return runtime
+
+
+func _build_loot_commit_item_defs() -> Dictionary:
+	var hide := ItemDef.new()
+	hide.item_id = &"beast_hide"
+	hide.display_name = "Beast Hide"
+	hide.is_stackable = true
+	hide.max_stack = 30
+
+	var sword := ItemDef.new()
+	sword.item_id = &"bronze_sword"
+	sword.display_name = "Bronze Sword"
+	sword.is_stackable = false
+	sword.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	sword.equipment_slot_ids = ["main_hand"]
+	sword.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	return {
+		hide.item_id: hide,
+		sword.item_id: sword,
 	}
 
 

@@ -6,6 +6,44 @@ class_name BattleTerrainEffectState
 extends RefCounted
 
 const BATTLE_TERRAIN_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
+const _SERIALIZED_FIELD_NAMES := [
+	"field_instance_id",
+	"effect_id",
+	"effect_type",
+	"source_unit_id",
+	"source_skill_id",
+	"target_team_filter",
+	"power",
+	"damage_tag",
+	"remaining_tu",
+	"tick_interval_tu",
+	"next_tick_at_tu",
+	"stack_behavior",
+	"params",
+]
+const _REQUIRED_NON_EMPTY_STRING_FIELDS := [
+	"field_instance_id",
+	"effect_id",
+	"effect_type",
+	"target_team_filter",
+	"stack_behavior",
+]
+const _OPTIONAL_STRING_FIELDS := [
+	"source_unit_id",
+	"source_skill_id",
+	"damage_tag",
+]
+const _INTEGER_FIELDS := [
+	"power",
+	"remaining_tu",
+	"tick_interval_tu",
+	"next_tick_at_tu",
+]
+const _NON_NEGATIVE_INTEGER_FIELDS := [
+	"remaining_tu",
+	"tick_interval_tu",
+	"next_tick_at_tu",
+]
 
 ## 字段说明：记录字段实例唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var field_instance_id: StringName = &""
@@ -53,21 +91,43 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(data: Dictionary):
+static func from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
+	var typed_data: Dictionary = data
+	if not _has_exact_serialized_fields(typed_data):
+		return null
+	for field_name in _REQUIRED_NON_EMPTY_STRING_FIELDS:
+		if not _is_string_like(typed_data[field_name]):
+			return null
+		if String(typed_data[field_name]).is_empty():
+			return null
+	for field_name in _OPTIONAL_STRING_FIELDS:
+		if not _is_string_like(typed_data[field_name]):
+			return null
+	for field_name in _INTEGER_FIELDS:
+		if typed_data[field_name] is not int:
+			return null
+	for field_name in _NON_NEGATIVE_INTEGER_FIELDS:
+		if int(typed_data[field_name]) < 0:
+			return null
+	if typed_data["params"] is not Dictionary:
+		return null
+
 	var effect_state := BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.new()
-	effect_state.field_instance_id = StringName(String(data.get("field_instance_id", "")))
-	effect_state.effect_id = StringName(String(data.get("effect_id", "")))
-	effect_state.effect_type = StringName(String(data.get("effect_type", "damage")))
-	effect_state.source_unit_id = StringName(String(data.get("source_unit_id", "")))
-	effect_state.source_skill_id = StringName(String(data.get("source_skill_id", "")))
-	effect_state.target_team_filter = StringName(String(data.get("target_team_filter", "any")))
-	effect_state.power = int(data.get("power", 0))
-	effect_state.damage_tag = StringName(String(data.get("damage_tag", "")))
-	effect_state.remaining_tu = maxi(int(data.get("remaining_tu", 0)), 0)
-	effect_state.tick_interval_tu = maxi(int(data.get("tick_interval_tu", 0)), 0)
-	effect_state.next_tick_at_tu = maxi(int(data.get("next_tick_at_tu", 0)), 0)
-	effect_state.stack_behavior = StringName(String(data.get("stack_behavior", "refresh")))
-	effect_state.params = data.get("params", {}).duplicate(true)
+	effect_state.field_instance_id = StringName(typed_data["field_instance_id"])
+	effect_state.effect_id = StringName(typed_data["effect_id"])
+	effect_state.effect_type = StringName(typed_data["effect_type"])
+	effect_state.source_unit_id = StringName(typed_data["source_unit_id"])
+	effect_state.source_skill_id = StringName(typed_data["source_skill_id"])
+	effect_state.target_team_filter = StringName(typed_data["target_team_filter"])
+	effect_state.power = typed_data["power"]
+	effect_state.damage_tag = StringName(typed_data["damage_tag"])
+	effect_state.remaining_tu = typed_data["remaining_tu"]
+	effect_state.tick_interval_tu = typed_data["tick_interval_tu"]
+	effect_state.next_tick_at_tu = typed_data["next_tick_at_tu"]
+	effect_state.stack_behavior = StringName(typed_data["stack_behavior"])
+	effect_state.params = typed_data["params"].duplicate(true)
 	return effect_state
 
 
@@ -81,14 +141,35 @@ static func to_dict_array(effect_states: Array) -> Array[Dictionary]:
 	return payloads
 
 
-static func from_dict_array(values: Variant) -> Array[BattleTerrainEffectState]:
+static func from_dict_array(values: Variant):
+	if values is not Array:
+		return null
 	var effect_states: Array[BattleTerrainEffectState] = []
-	if values is Array:
-		for value in values:
-			if value is Dictionary:
-				effect_states.append(from_dict(value))
+	for value in values:
+		if value is not Dictionary:
+			return null
+		var effect_state := from_dict(value) as BattleTerrainEffectState
+		if effect_state == null:
+			return null
+		effect_states.append(effect_state)
 	return effect_states
 
 
 static func duplicate_array(effect_states: Array) -> Array[BattleTerrainEffectState]:
-	return from_dict_array(to_dict_array(effect_states))
+	var duplicated = from_dict_array(to_dict_array(effect_states))
+	if duplicated is Array:
+		return duplicated
+	return []
+
+
+static func _has_exact_serialized_fields(data: Dictionary) -> bool:
+	if data.size() != _SERIALIZED_FIELD_NAMES.size():
+		return false
+	for field_name in _SERIALIZED_FIELD_NAMES:
+		if not data.has(field_name):
+			return false
+	return true
+
+
+static func _is_string_like(value: Variant) -> bool:
+	return value is String or value is StringName

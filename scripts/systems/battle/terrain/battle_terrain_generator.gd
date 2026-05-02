@@ -1541,12 +1541,15 @@ func _resolve_holdout_push_map_size(encounter_context: Dictionary) -> Vector2i:
 
 func _resolve_terrain_profile_id(encounter_anchor_or_context, context: Dictionary) -> StringName:
 	var raw_profile_id := ""
+	var has_explicit_profile := false
 	if context.has("battle_terrain_profile"):
 		raw_profile_id = String(context.get("battle_terrain_profile", ""))
+		has_explicit_profile = not raw_profile_id.strip_edges().is_empty()
 	elif encounter_anchor_or_context is Dictionary:
 		var encounter_context: Dictionary = encounter_anchor_or_context
 		if encounter_context.has("battle_terrain_profile"):
 			raw_profile_id = String(encounter_context.get("battle_terrain_profile", ""))
+			has_explicit_profile = not raw_profile_id.strip_edges().is_empty()
 		else:
 			var monster: Variant = encounter_context.get("monster", {})
 			if monster is Dictionary:
@@ -1556,7 +1559,25 @@ func _resolve_terrain_profile_id(encounter_anchor_or_context, context: Dictionar
 		if encounter_anchor != null:
 			raw_profile_id = String(encounter_anchor.region_tag)
 
-	return _normalize_terrain_profile_id(raw_profile_id)
+	if raw_profile_id.strip_edges().is_empty():
+		raw_profile_id = _resolve_region_tag_from_context(encounter_anchor_or_context)
+	var terrain_profile_id := _normalize_terrain_profile_id(raw_profile_id)
+	if terrain_profile_id == &"" and not has_explicit_profile:
+		return PROFILE_DEFAULT
+	return terrain_profile_id
+
+
+func _resolve_region_tag_from_context(encounter_anchor_or_context) -> String:
+	if encounter_anchor_or_context is Dictionary:
+		var encounter_context: Dictionary = encounter_anchor_or_context
+		var monster: Variant = encounter_context.get("monster", {})
+		if monster is Dictionary:
+			return String(monster.get("region_tag", ""))
+		return String(encounter_context.get("region_tag", ""))
+	var encounter_anchor = encounter_anchor_or_context
+	if encounter_anchor != null:
+		return String(encounter_anchor.region_tag)
+	return ""
 
 
 func _normalize_terrain_profile_id(raw_profile_id: String) -> StringName:

@@ -90,20 +90,19 @@ script = ExtResource("4_rsi8s")
 skill_id = &"warrior_guard"
 target_team_filter = &"ally"
 range_value = 0
+ap_cost = 1
 stamina_cost = 50
 cooldown_tu = 120
 attack_roll_bonus = 0
 level_overrides = {
-"2": {
+2: {
 "stamina_cost": 40
 },
-"4": {
-"stamina_cost": 35,
-"cooldown_tu": 100
+4: {
+"stamina_cost": 35
 },
-"5": {
-"stamina_cost": 30,
-"cooldown_tu": 80
+5: {
+"stamina_cost": 30
 }
 }
 mastery_trigger_mode = &"incoming_physical_hit"
@@ -116,7 +115,7 @@ script = ExtResource("5_omw41")
 skill_id = &"warrior_guard"
 display_name = "格挡"
 icon_id = &"warrior_guard"
-description = "进入防御姿态，降低受到的固定物理伤害，但移动力受限。"
+description = "进入防御姿态，减少受到的固定物理伤害，但移动力受限。高等级提升减伤幅度并解除移动力惩罚。"
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(300, 750, 1650, 3000, 4800)
@@ -124,13 +123,48 @@ growth_tier = &"basic"
 attribute_growth_progress = {
 "constitution": 60
 }
-level_descriptions = {
-"0": "guarding 物理伤害减1，移动力-1，持续40TU",
-"1": "guarding 物理伤害减1，移动力-1，持续50TU",
-"2": "guarding 物理伤害减1，移动力-1，持续60TU，体力消耗40",
-"3": "guarding 物理伤害减2，移动力-1，持续60TU，体力消耗40",
-"4": "guarding 物理伤害减2，持续60TU，体力消耗35，冷却100TU",
-"5": "guarding 物理伤害减3，持续60TU，体力消耗30，冷却80TU"
+level_description_template = "guarding 物理伤害减{guard_power}{{?slow_power}}，移动力-{slow_power}{{/slow_power}}，持续{duration}TU，体力消耗{stamina}，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"guard_power": "1",
+"slow_power": "1",
+"duration": "40",
+"stamina": "50",
+"cooldown": "120"
+},
+"1": {
+"guard_power": "1",
+"slow_power": "1",
+"duration": "50",
+"stamina": "50",
+"cooldown": "120"
+},
+"2": {
+"guard_power": "1",
+"slow_power": "1",
+"duration": "60",
+"stamina": "40",
+"cooldown": "120"
+},
+"3": {
+"guard_power": "2",
+"slow_power": "1",
+"duration": "60",
+"stamina": "40",
+"cooldown": "120"
+},
+"4": {
+"guard_power": "2",
+"duration": "60",
+"stamina": "35",
+"cooldown": "120"
+},
+"5": {
+"guard_power": "3",
+"duration": "60",
+"stamina": "30",
+"cooldown": "120"
+}
 }
 tags = Array[StringName]([&"warrior", &"melee", &"defense"])
 combat_profile = SubResource("Resource_bwvrn")

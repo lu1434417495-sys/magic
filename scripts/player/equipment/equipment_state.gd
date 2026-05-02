@@ -159,21 +159,38 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Variant) -> EquipmentState:
 	if data is not Dictionary:
 		return null
-	var slot_data: Variant = data.get("equipped_slots", null)
+	if data.size() != 1 or not data.has("equipped_slots"):
+		return null
+	var slot_data: Variant = data["equipped_slots"]
 	if slot_data is not Dictionary:
 		return null
 
 	var state := EQUIPMENT_STATE_SCRIPT.new()
+	var seen_entry_slots: Dictionary = {}
+	var used_occupied_slots: Dictionary = {}
 
 	for key in slot_data.keys():
+		if not _is_string_name_payload_value(key):
+			return null
 		var slot_id := ProgressionDataUtils.to_string_name(key)
-		if not EQUIPMENT_RULES_SCRIPT.is_valid_slot(slot_id):
-			continue
+		if slot_id == &"" or not EQUIPMENT_RULES_SCRIPT.is_valid_slot(slot_id):
+			return null
+		if seen_entry_slots.has(slot_id):
+			return null
 
-		var entry = EQUIPMENT_ENTRY_STATE_SCRIPT.from_dict(slot_data.get(key))
+		var entry = EQUIPMENT_ENTRY_STATE_SCRIPT.from_dict(slot_data[key])
 		if entry == null or entry.is_empty():
-			continue
-		state._store_entry(slot_id, entry)
+			return null
+		if not entry.occupied_slot_ids.has(slot_id):
+			return null
+		for occupied_slot_id in entry.occupied_slot_ids:
+			if used_occupied_slots.has(occupied_slot_id):
+				return null
+			used_occupied_slots[occupied_slot_id] = slot_id
+
+		seen_entry_slots[slot_id] = true
+		state.equipped_slots[slot_id] = entry
+		state._register_entry_slots(slot_id, entry)
 
 	return state
 
@@ -255,3 +272,8 @@ func _rebuild_slot_lookup() -> void:
 		if entry == null:
 			continue
 		_register_entry_slots(entry_slot_id, entry)
+
+
+static func _is_string_name_payload_value(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type == TYPE_STRING or value_type == TYPE_STRING_NAME

@@ -42,6 +42,13 @@ target_selector = &"nearest_enemy"
 desired_min_distance = 4
 desired_max_distance = 5
 
+[sub_resource type="Resource" id="Action_melee_fallback_move"]
+script = ExtResource("5_move")
+action_id = &"harrier_close_for_basic_attack"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+
 [sub_resource type="Resource" id="Action_wait"]
 script = ExtResource("6_wait")
 action_id = &"harrier_wait"
@@ -49,12 +56,12 @@ action_id = &"harrier_wait"
 [sub_resource type="Resource" id="State_engage"]
 script = ExtResource("2_state")
 state_id = &"engage"
-actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Action_pressure_pin"), SubResource("Action_engage_move"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Action_pressure_pin"), SubResource("Action_engage_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
 
 [sub_resource type="Resource" id="State_pressure"]
 script = ExtResource("2_state")
 state_id = &"pressure"
-actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Action_pressure_pin"), SubResource("Action_pressure_move"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Action_pressure_pin"), SubResource("Action_pressure_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
 
 [sub_resource type="Resource" id="Action_retreat_cover"]
 script = ExtResource("4_unit")

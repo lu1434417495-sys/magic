@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_charge_variant"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_charge_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_charge_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_charge_skill"]
+
+[sub_resource type="Resource" id="Resource_charge_effect"]
+script = ExtResource("3_charge_effect")
+effect_type = &"charge"
+params = {
+"base_distance": 3,
+"collision_base_damage": 0,
+"collision_size_gap_damage": 0,
+"distance_by_level": {
+"1": 4,
+"3": 5,
+"5": 6,
+"7": 7
+},
+"skill_id": &"charge",
+"trap_immunity_level": 7
+}
+
+[sub_resource type="Resource" id="Resource_charge_line"]
+script = ExtResource("2_charge_variant")
+variant_id = &"charge_line"
+display_name = "直线冲锋"
+description = "选择同一行或同一列的目标格，沿该方向逐格冲锋。"
+effect_defs = Array[ExtResource("3_charge_effect")]([SubResource("Resource_charge_effect")])
+
+[sub_resource type="Resource" id="Resource_charge_combat"]
+script = ExtResource("4_charge_combat")
+skill_id = &"charge"
+target_mode = &"ground"
+target_team_filter = &"any"
+range_value = 6
+ap_cost = 1
+stamina_cost = 40
+cooldown_tu = 50
+level_overrides = {
+2: {
+"stamina_cost": 35
+},
+4: {
+"stamina_cost": 30
+},
+6: {
+"stamina_cost": 25
+}
+}
+cast_variants = Array[ExtResource("2_charge_variant")]([SubResource("Resource_charge_line")])
+
+[resource]
+script = ExtResource("5_charge_skill")
+skill_id = &"charge"
+display_name = "冲锋"
+icon_id = &"charge"
+description = "朝四个正交方向发起位移。基础距离 3，1/3/5/7 级各加 1；2/4/6 级降低体力消耗；7 级免疫陷阱。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600, 2350, 3250)
+growth_tier = &"intermediate"
+attribute_requirements = {
+"agility": 14,
+"strength": 12
+}
+attribute_growth_progress = {
+"agility": 100,
+"strength": 20
+}
+tags = Array[StringName]([&"melee", &"mobility", &"charge"])
+mastery_sources = Array[StringName]([&"training", &"battle"])
+combat_profile = SubResource("Resource_charge_combat")

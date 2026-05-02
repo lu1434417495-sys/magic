@@ -241,6 +241,7 @@ func is_unit_effect(effect_def: CombatEffectDef) -> bool:
 		return false
 	return effect_def.effect_type == &"damage" \
 		or effect_def.effect_type == &"heal" \
+		or effect_def.effect_type == &"stamina_restore" \
 		or effect_def.effect_type == &"shield" \
 		or effect_def.effect_type == &"status" \
 		or effect_def.effect_type == &"apply_status"

@@ -9,8 +9,9 @@ display_name = "雾沼猎压者"
 brain_id = &"ranged_suppressor"
 initial_state_id = &"pressure"
 action_threshold = 30
-tags = Array[StringName]([&"mist", &"harrier"])
-attack_equipment_item_id = &"militia_axe"
+tags = Array[StringName]([&"beast", &"mist", &"harrier"])
+natural_weapon_damage_tag = &"physical_pierce"
+natural_weapon_attack_range = 5
 base_attribute_overrides = {
 "strength": 5,
 "agility": 7,

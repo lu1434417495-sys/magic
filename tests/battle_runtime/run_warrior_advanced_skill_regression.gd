@@ -8,6 +8,7 @@ const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_s
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd")
 const BattleSkillMasteryService = preload("res://scripts/systems/battle/runtime/battle_skill_mastery_service.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
@@ -36,6 +37,42 @@ class FakeRepeatAttackDamageResolver:
 			"resolution_text": "100%（测试命中）" if success else "0%（测试未命中）",
 			"applied": success,
 			"damage": 0,
+			"healing": 0,
+			"status_effect_ids": [],
+			"source_status_effect_ids": [],
+		}
+
+
+class StageOutcomeDamageResolver extends BattleDamageResolver:
+	var stage_successes: Array[bool] = []
+	var stage_damage: Array[int] = []
+	var call_count := 0
+
+	func resolve_attack_effects(_source_unit, target_unit, _stage_effects: Array, _attack_check: Dictionary, _attack_context: Dictionary = {}) -> Dictionary:
+		var success := bool(stage_successes[call_count]) if call_count < stage_successes.size() else false
+		var damage := int(stage_damage[call_count]) if call_count < stage_damage.size() else 0
+		call_count += 1
+		if not success:
+			return {
+				"attack_success": false,
+				"attack_resolution": &"miss",
+				"hit_roll": 1,
+				"applied": false,
+				"damage": 0,
+				"healing": 0,
+				"status_effect_ids": [],
+				"source_status_effect_ids": [],
+			}
+		if target_unit != null and damage > 0:
+			target_unit.current_hp = maxi(int(target_unit.current_hp) - damage, 0)
+			if target_unit.current_hp <= 0:
+				target_unit.is_alive = false
+		return {
+			"attack_success": true,
+			"attack_resolution": &"hit",
+			"hit_roll": 10,
+			"applied": true,
+			"damage": damage,
 			"healing": 0,
 			"status_effect_ids": [],
 			"source_status_effect_ids": [],
@@ -119,7 +156,10 @@ func _run() -> void:
 	_test_whirlwind_slash_runtime_repeats_hits_across_steps()
 	_test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_settlement()
 	_test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful_follow_up()
+	_test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss()
 	_test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry()
+	_test_same_faction_support_mastery_counts_status_or_effect_applied()
+	_test_skill_mastery_ignores_legacy_hp_damage_without_formal_damage()
 	if _failures.is_empty():
 		print("Warrior advanced skill regression: PASS")
 		quit(0)
@@ -218,17 +258,39 @@ func _test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_set
 
 func _test_whirlwind_slash_runtime_repeats_hits_across_steps() -> void:
 	var runtime := _build_runtime()
-	var state := _build_state(Vector2i(6, 3))
+	var skill_def := runtime._skill_defs.get(&"warrior_whirlwind_slash") as SkillDef
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "旋风斩执行回归需要有效技能定义。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+	var cast_variant := skill_def.combat_profile.get_cast_variant(&"whirlwind_charge")
+	var path_step_aoe := _get_effect_def(cast_variant.effect_defs if cast_variant != null else [], &"path_step_aoe")
+	_assert_true(path_step_aoe != null, "旋风斩执行回归需要路径 AOE 效果。")
+	if path_step_aoe == null:
+		return
+	path_step_aoe.params["step_radius"] = 3
+
+	var state := _build_state(Vector2i(8, 5))
 	state.timeline = BattleTimelineState.new()
 	var warrior := _build_unit(&"whirlwind_user", Vector2i(0, 1), 2)
-	warrior.current_stamina = 35
-	warrior.current_aura = 2
+	warrior.current_stamina = 60
+	warrior.current_aura = 100
 	warrior.known_active_skill_ids = [&"warrior_whirlwind_slash"]
-	warrior.known_skill_level_map = {&"warrior_whirlwind_slash": 1}
-	var repeated_target := _build_unit(&"whirlwind_repeat_target", Vector2i(2, 1), 2)
+	warrior.known_skill_level_map = {&"warrior_whirlwind_slash": 9}
+	var repeated_target := _build_unit(&"whirlwind_repeat_target", Vector2i(3, 2), 2)
+	repeated_target.current_hp = 999
+	repeated_target.attribute_snapshot.set_value(&"hp_max", 999)
+	repeated_target.body_size = 3
+	repeated_target.set_anchor_coord(Vector2i(3, 2))
 	repeated_target.faction_id = &"enemy"
-	var far_target := _build_unit(&"whirlwind_far_target", Vector2i(5, 1), 2)
+	var far_target := _build_unit(&"whirlwind_far_target", Vector2i(7, 1), 2)
 	far_target.faction_id = &"enemy"
+	var existing_stagger := BattleStatusEffectState.new()
+	existing_stagger.status_id = &"staggered"
+	existing_stagger.source_unit_id = &"older_stagger_source"
+	existing_stagger.power = 1
+	existing_stagger.stacks = 1
+	existing_stagger.duration = 15
+	repeated_target.set_status_effect(existing_stagger)
 
 	_add_unit(runtime, state, warrior)
 	_add_unit(runtime, state, repeated_target)
@@ -243,12 +305,16 @@ func _test_whirlwind_slash_runtime_repeats_hits_across_steps() -> void:
 	command.unit_id = warrior.unit_id
 	command.skill_id = &"warrior_whirlwind_slash"
 	command.skill_variant_id = &"whirlwind_charge"
-	command.target_coord = Vector2i(3, 1)
+	command.target_coord = Vector2i(5, 1)
 
 	var hp_before := repeated_target.current_hp
 	var batch := runtime.issue_command(command)
-	_assert_eq(warrior.coord, Vector2i(3, 1), "旋风斩执行后施法者应停在最终冲锋落点。")
-	_assert_true(repeated_target.current_hp <= hp_before - 18, "旋风斩应让同一目标在不同步段被重复命中。 before=%d after=%d" % [hp_before, repeated_target.current_hp])
+	_assert_eq(warrior.coord, Vector2i(5, 1), "旋风斩执行后施法者应停在最终冲锋落点。")
+	_assert_true(repeated_target.current_hp < hp_before, "旋风斩应让同一目标在不同步段被重复命中。 before=%d after=%d" % [hp_before, repeated_target.current_hp])
+	var stagger_entry = repeated_target.get_status_effect(&"staggered")
+	_assert_true(stagger_entry != null, "Lv9 旋风斩连续命中超过阈值后应刷新 staggered。")
+	_assert_eq(int(stagger_entry.duration) if stagger_entry != null else -1, 60, "Lv9 旋风斩 staggered 应持续 60 TU。")
+	_assert_eq(int(stagger_entry.stacks) if stagger_entry != null else -1, 1, "Lv9 旋风斩 staggered 应按 refresh 语义保持单层。")
 	_assert_true(
 		batch != null and batch.log_lines.any(func(line): return String(line).contains("沿途触发")),
 		"旋风斩日志应汇总沿途旋斩触发次数。 log=%s" % [str(batch.log_lines)]
@@ -360,9 +426,13 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 	_assert_eq(stage_preview_texts.size(), 2, "圣剑连斩预览应按当前 Aura 暴露可支付的 shared resolver 文案。")
 	_assert_eq(
 		preview.hit_preview.get("stage_required_rolls", []),
-		[2, 3],
+		[2, 2],
 		"命中预览应按当前 Aura 上限把 100 命中/0 闪避夹具换算为 d20 required roll。"
 	)
+	var forced_resolver := StageOutcomeDamageResolver.new()
+	forced_resolver.stage_successes.assign([true, false])
+	forced_resolver.stage_damage.assign([12, 0])
+	runtime.configure_damage_resolver_for_tests(forced_resolver)
 	var batch := runtime.issue_command(command)
 	_assert_eq(warrior.current_aura, 0, "圣剑连斩第二段即使未命中也应扣除尝试所需 Aura。")
 	_assert_true(enemy.current_hp == hp_before - 12, "圣剑连斩第二段未命中时应只保留首段伤害。 before=%d after=%d" % [hp_before, enemy.current_hp])
@@ -434,8 +504,109 @@ func _test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry() -> void:
 	_assert_eq(runtime.damage_resolver.call_count, 5, "连击段数熟练度回归应固定进入第五段后 miss。")
 	_assert_eq(
 		mastery_service.resolve_active_skill_mastery_amount(),
+		0,
+		"连击熟练度 bonus 必须在对应段命中后发放，第五段 miss 不应给 bonus。"
+	)
+
+	var hit_runtime := FakeRepeatAttackRuntime.new()
+	hit_runtime.damage_resolver.stage_successes.assign([true, true, true, true, true, false])
+	var hit_mastery_service := BattleSkillMasteryService.new()
+	var hit_resolver := BattleRepeatAttackResolver.new()
+	hit_resolver.setup(hit_runtime, hit_mastery_service)
+	target_unit.current_hp = 999
+	var hit_executed := hit_resolver.apply_repeat_attack_skill_result(
+		active_unit,
+		target_unit,
+		skill_def,
+		combat_profile.effect_defs,
+		repeat_effect,
+		BattleEventBatch.new()
+	)
+	_assert_true(hit_executed, "连击段数熟练度回归前置：命中夹具应执行。")
+	_assert_eq(hit_runtime.damage_resolver.call_count, 6, "命中夹具应在第五段命中后继续进入第六段 miss。")
+	_assert_eq(
+		hit_mastery_service.resolve_active_skill_mastery_amount(),
 		1,
-		"连击熟练度 bonus 应从第五段入场开始，第四段不应提前给 bonus。"
+		"第五段命中后应发放 1 点连击段数 bonus。"
+	)
+
+
+func _test_same_faction_support_mastery_counts_status_or_effect_applied() -> void:
+	var mastery_service := BattleSkillMasteryService.new()
+	var source_unit := _build_unit(&"support_mastery_source", Vector2i(1, 1), 2)
+	source_unit.source_member_id = &"hero"
+	var ally_unit := _build_unit(&"support_mastery_ally", Vector2i(1, 2), 2)
+	ally_unit.faction_id = source_unit.faction_id
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"support_mastery_contract"
+	skill_def.display_name = "支援熟练度契约"
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.skill_id = skill_def.skill_id
+	combat_profile.target_team_filter = &"ally"
+	combat_profile.mastery_amount_mode = &"per_target_rank"
+	combat_profile.mastery_trigger_mode = &"status_applied"
+	skill_def.combat_profile = combat_profile
+
+	mastery_service.record_target_result(
+		source_unit,
+		ally_unit,
+		skill_def,
+		{
+			"applied": true,
+			"status_effect_ids": [&"attack_up"],
+		}
+	)
+	_assert_eq(
+		mastery_service.resolve_active_skill_mastery_amount(),
+		1,
+		"same-faction support 技能成功施加状态时，per_target_rank 不应直接归零。"
+	)
+
+
+func _test_skill_mastery_ignores_legacy_hp_damage_without_formal_damage() -> void:
+	var mastery_service := BattleSkillMasteryService.new()
+	var source_unit := _build_unit(&"legacy_hp_damage_mastery_source", Vector2i(1, 1), 2)
+	source_unit.source_member_id = &"hero"
+	var target_unit := _build_unit(&"legacy_hp_damage_mastery_target", Vector2i(2, 1), 2)
+	target_unit.faction_id = &"enemy"
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"legacy_hp_damage_mastery_contract"
+	skill_def.display_name = "旧 hp_damage 熟练度契约"
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.skill_id = skill_def.skill_id
+	combat_profile.mastery_amount_mode = &"per_target_rank"
+	combat_profile.mastery_trigger_mode = &"damage_dealt"
+	skill_def.combat_profile = combat_profile
+
+	mastery_service.record_target_result(
+		source_unit,
+		target_unit,
+		skill_def,
+		{
+			"hp_damage": 9,
+			"shield_absorbed": 0,
+		}
+	)
+	_assert_eq(
+		mastery_service.resolve_active_skill_mastery_amount(),
+		0,
+		"只带旧 hp_damage、缺正式 damage 的结果不应触发主动技能熟练度。"
+	)
+
+	mastery_service.record_target_result(
+		source_unit,
+		target_unit,
+		skill_def,
+		{
+			"damage": 9,
+			"hp_damage": 9,
+			"shield_absorbed": 0,
+		}
+	)
+	_assert_eq(
+		mastery_service.resolve_active_skill_mastery_amount(),
+		1,
+		"正式 damage 结果仍应触发主动技能熟练度。"
 	)
 
 

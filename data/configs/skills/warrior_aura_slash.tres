@@ -47,10 +47,10 @@ cooldown_tu = 10
 aura_cost = 1
 attack_roll_bonus = 1
 level_overrides = {
-"4": {
+4: {
 "cooldown_tu": 5
 },
-"5": {
+5: {
 "ap_cost": 1
 }
 }

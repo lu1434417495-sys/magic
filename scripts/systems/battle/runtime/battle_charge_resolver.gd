@@ -8,6 +8,8 @@ const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
@@ -17,6 +19,7 @@ const ProgressionDataUtils = preload("res://scripts/player/progression/progressi
 const CHARGE_EFFECT_TYPE: StringName = &"charge"
 const PATH_STEP_AOE_EFFECT_TYPE: StringName = &"path_step_aoe"
 const TRAP_EFFECT_PREFIX = "trap_"
+const WHIRLWIND_STAGGER_DURATION_TU := 60
 
 var _runtime_ref: WeakRef = null
 var _runtime: Object = null:
@@ -25,9 +28,12 @@ var _runtime: Object = null:
 	set(value):
 		_runtime_ref = weakref(value) if value != null else null
 
+var _skill_mastery_service = null
 
-func setup(runtime) -> void:
+
+func setup(runtime, skill_mastery_service = null) -> void:
 	_runtime = runtime
+	_skill_mastery_service = skill_mastery_service
 
 
 func dispose() -> void:
@@ -55,6 +61,7 @@ func handle_charge_skill_command(
 	var path_step_trigger_count = 0
 	var path_step_hit_count = 0
 	var path_step_seen_unit_ids: Dictionary = {}
+	var total_unit_hit_counts: Dictionary = {}
 	var trap_result: Dictionary = {"triggered": false}
 	var stop_reason = ""
 
@@ -92,18 +99,36 @@ func handle_charge_skill_command(
 		if bool(step_aoe_result.get("triggered", false)):
 			path_step_trigger_count += 1
 			path_step_hit_count += int(step_aoe_result.get("hit_count", 0))
+			var step_unit_hits: Dictionary = step_aoe_result.get("unit_hit_counts", {})
+			for unit_id in step_unit_hits.keys():
+				total_unit_hit_counts[unit_id] = int(total_unit_hit_counts.get(unit_id, 0)) + int(step_unit_hits[unit_id])
 
 		trap_result = _trigger_charge_trap(active_unit)
 		if bool(trap_result.get("triggered", false)):
 			var trap_coord: Vector2i = trap_result.get("coord", active_unit.coord)
-			_runtime.append_changed_coord(charge_batch, trap_coord)
-			charge_batch.log_lines.append("%s 在 (%d, %d) 触发陷阱，冲锋被中断。" % [
-				active_unit.display_name,
-				trap_coord.x,
-				trap_coord.y,
-			])
-			stop_reason = "trap"
-			break
+			var skill_level := 0
+			if skill_def != null and _has_runtime():
+				skill_level = int(_runtime.get_unit_skill_level(active_unit, skill_def.skill_id))
+			var charge_effect := get_charge_effect_def(cast_variant)
+			var trap_immunity_level := 999
+			if charge_effect != null:
+				trap_immunity_level = int(charge_effect.params.get("trap_immunity_level", 999))
+			if skill_level >= trap_immunity_level:
+				_runtime.append_changed_coord(charge_batch, trap_coord)
+				charge_batch.log_lines.append("%s 在 (%d, %d) 踩中陷阱，但 7 级冲锋免疫中断。" % [
+					active_unit.display_name,
+					trap_coord.x,
+					trap_coord.y,
+				])
+			else:
+				_runtime.append_changed_coord(charge_batch, trap_coord)
+				charge_batch.log_lines.append("%s 在 (%d, %d) 触发陷阱，冲锋被中断。" % [
+					active_unit.display_name,
+					trap_coord.x,
+					trap_coord.y,
+				])
+				stop_reason = "trap"
+				break
 
 	_runtime.merge_batch(batch, charge_batch)
 	if moved_steps > 0:
@@ -119,6 +144,20 @@ func handle_charge_skill_command(
 				path_step_trigger_count,
 				path_step_hit_count,
 			])
+		var skill_level := int(_runtime.get_unit_skill_level(active_unit, skill_def.skill_id)) if skill_def != null else 0
+		if skill_level >= 9:
+			for unit_id in total_unit_hit_counts.keys():
+				if int(total_unit_hit_counts[unit_id]) > 3:
+					var target_unit: BattleUnitState = _runtime.get_state().units.get(unit_id) as BattleUnitState
+					if target_unit != null and target_unit.is_alive:
+						_apply_whirlwind_stagger(active_unit, target_unit)
+						_runtime.append_changed_unit_id(batch, target_unit.unit_id)
+						batch.log_lines.append("%s 被旋风斩连续命中 %d 次，陷入踉跄。" % [
+							target_unit.display_name,
+							total_unit_hit_counts[unit_id],
+						])
+		if _skill_mastery_service != null and skill_def != null:
+			_skill_mastery_service.record_mastery_amount(skill_def, moved_steps)
 		return true
 	if not charge_batch.log_lines.is_empty() or not stop_reason.is_empty():
 		batch.log_lines.append("%s 使用 %s，但在起步时被拦下。" % [
@@ -127,6 +166,23 @@ func handle_charge_skill_command(
 		])
 		return true
 	return false
+
+
+func _apply_whirlwind_stagger(active_unit: BattleUnitState, target_unit: BattleUnitState) -> void:
+	if active_unit == null or target_unit == null:
+		return
+	var staggered_effect := CombatEffectDef.new()
+	staggered_effect.effect_type = &"status"
+	staggered_effect.status_id = &"staggered"
+	staggered_effect.power = 1
+	staggered_effect.duration_tu = WHIRLWIND_STAGGER_DURATION_TU
+	var staggered_state: BattleStatusEffectState = BattleStatusSemanticTable.merge_status(
+		staggered_effect,
+		active_unit.unit_id,
+		target_unit.get_status_effect(&"staggered")
+	)
+	if staggered_state != null:
+		target_unit.set_status_effect(staggered_state)
 
 
 func validate_charge_command(
@@ -301,10 +357,11 @@ func _apply_charge_path_step_aoe_effects(
 	var total_damage = 0
 	var total_healing = 0
 	var total_kill_count = 0
+	var unit_hit_counts: Dictionary = {}
 	var target_filter: StringName = _runtime.resolve_effect_target_filter(skill_def, path_step_aoe_effect)
 	var stage_effect = path_step_aoe_effect.duplicate_for_runtime()
 	if stage_effect == null:
-		return {"triggered": false, "hit_count": 0}
+		return {"triggered": false, "hit_count": 0, "unit_hit_counts": {}}
 	stage_effect.effect_type = &"damage"
 
 	for target_unit in _runtime.collect_units_in_coords(effect_coords):
@@ -314,13 +371,28 @@ func _apply_charge_path_step_aoe_effects(
 			continue
 		seen_unit_ids[target_unit.unit_id] = true
 
-		var result: Dictionary = _runtime.get_damage_resolver().resolve_effects(active_unit, target_unit, [stage_effect])
+		var resolve_as_weapon_attack := bool(stage_effect.params.get("resolve_as_weapon_attack", false))
+		var result: Dictionary
+		if resolve_as_weapon_attack:
+			var attack_check: Dictionary = _runtime.get_hit_resolver().build_skill_attack_check(active_unit, target_unit, skill_def)
+			result = _runtime.get_damage_resolver().resolve_attack_effects(
+				active_unit,
+				target_unit,
+				[stage_effect],
+				attack_check,
+				{"battle_state": _runtime.get_state()}
+			)
+			if _skill_mastery_service != null:
+				_skill_mastery_service.record_target_result(active_unit, target_unit, skill_def, result, [stage_effect])
+		else:
+			result = _runtime.get_damage_resolver().resolve_effects(active_unit, target_unit, [stage_effect])
 		_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		_runtime.append_result_source_status_effects(batch, active_unit, result)
 		if not bool(result.get("applied", false)):
 			continue
 
 		hit_count += 1
+		unit_hit_counts[target_unit.unit_id] = int(unit_hit_counts.get(target_unit.unit_id, 0)) + 1
 		_runtime.append_changed_unit_id(batch, target_unit.unit_id)
 		_runtime.append_changed_unit_coords(batch, target_unit)
 		var damage = int(result.get("damage", 0))
@@ -354,6 +426,7 @@ func _apply_charge_path_step_aoe_effects(
 	return {
 		"triggered": true,
 		"hit_count": hit_count,
+		"unit_hit_counts": unit_hit_counts,
 	}
 
 

@@ -12,6 +12,7 @@ const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/system
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
 const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_skill_resolution_rules.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_change_equipment_resolver.gd")
 const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
@@ -23,7 +24,7 @@ const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/un
 const QUEUE_ENTRY_LIMIT := 7
 const SKILL_GRID_SIZE := 20
 const TARGET_SELECTION_MULTI_UNIT := &"multi_unit"
-const CHANGE_EQUIPMENT_AP_COST := 2
+const CHANGE_EQUIPMENT_AP_COST := BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT.CHANGE_EQUIPMENT_AP_COST
 const EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE := "该实例当前不能装备。"
 
 ## 字段说明：按键缓存队列就绪查找表，便于在较多对象中快速定位目标并减少重复遍历。
@@ -112,7 +113,7 @@ func build_snapshot(
 		"tile_text": _build_tile_text(selected_coord, selected_cell, selected_unit),
 		"selected_skill_hit_preview_text": String(hit_preview.get("summary_text", "")),
 		"selected_skill_hit_badge_text": _build_selected_skill_hit_badge_text(hit_preview),
-		"selected_skill_hit_stage_rates": (hit_preview.get("stage_hit_rates", []) as Array).duplicate(true),
+		"selected_skill_hit_stage_rates": (hit_preview.get("stage_success_rates", []) as Array).duplicate(true),
 		"selected_skill_damage_preview_text": String(damage_preview.get("summary_text", "")),
 		"selected_skill_damage_min": int(damage_preview.get("min_damage", 0)),
 		"selected_skill_damage_max": int(damage_preview.get("max_damage", 0)),
@@ -1089,11 +1090,16 @@ func _build_selected_skill_hit_preview(
 	)
 	if target_unit == null:
 		return {}
+	var preview_target_unit_ids := _build_selected_skill_preview_target_unit_ids(
+		selected_skill_target_unit_ids,
+		target_unit,
+		skill_def
+	)
 	var resolution_policy := _skill_resolution_rules.build_skill_resolution_policy(
 		skill_def,
 		active_unit,
 		selected_skill_variant_id,
-		selected_skill_target_unit_ids,
+		preview_target_unit_ids,
 		target_unit
 	)
 	if not bool(resolution_policy.get("routes_to_unit_targeting", false)):
@@ -1149,11 +1155,16 @@ func _build_selected_skill_damage_preview(
 	)
 	if target_unit == null:
 		return {}
+	var preview_target_unit_ids := _build_selected_skill_preview_target_unit_ids(
+		selected_skill_target_unit_ids,
+		target_unit,
+		skill_def
+	)
 	var resolution_policy := _skill_resolution_rules.build_skill_resolution_policy(
 		skill_def,
 		active_unit,
 		selected_skill_variant_id,
-		selected_skill_target_unit_ids,
+		preview_target_unit_ids,
 		target_unit
 	)
 	var effect_defs: Array[CombatEffectDef] = []
@@ -1190,11 +1201,16 @@ func _build_selected_skill_fate_preview(
 	)
 	if target_unit == null:
 		return {}
+	var preview_target_unit_ids := _build_selected_skill_preview_target_unit_ids(
+		selected_skill_target_unit_ids,
+		target_unit,
+		skill_def
+	)
 	var resolution_policy := _skill_resolution_rules.build_skill_resolution_policy(
 		skill_def,
 		active_unit,
 		selected_skill_variant_id,
-		selected_skill_target_unit_ids,
+		preview_target_unit_ids,
 		target_unit
 	)
 	if not bool(resolution_policy.get("uses_fate_attack", false)):
@@ -1308,6 +1324,9 @@ func _resolve_selected_skill_preview_target_unit(
 	selected_skill_target_unit_ids: Array[StringName],
 	skill_def
 ) -> BattleUnitState:
+	var focused_target := _get_unit_at_coord(battle_state, selected_coord)
+	if _can_preview_skill_target_unit(active_unit, focused_target, skill_def):
+		return focused_target
 	for target_unit_id in selected_skill_target_unit_ids:
 		var queued_target := battle_state.units.get(target_unit_id) as BattleUnitState
 		if _can_preview_skill_target_unit(active_unit, queued_target, skill_def):
@@ -1316,10 +1335,23 @@ func _resolve_selected_skill_preview_target_unit(
 		var queued_coord_target := _get_unit_at_coord(battle_state, target_coord)
 		if _can_preview_skill_target_unit(active_unit, queued_coord_target, skill_def):
 			return queued_coord_target
-	var focused_target := _get_unit_at_coord(battle_state, selected_coord)
-	if _can_preview_skill_target_unit(active_unit, focused_target, skill_def):
-		return focused_target
 	return null
+
+
+func _build_selected_skill_preview_target_unit_ids(
+	selected_skill_target_unit_ids: Array[StringName],
+	target_unit: BattleUnitState,
+	skill_def
+) -> Array[StringName]:
+	var target_unit_ids: Array[StringName] = selected_skill_target_unit_ids.duplicate()
+	if target_unit == null or skill_def == null or skill_def.combat_profile == null:
+		return target_unit_ids
+	if StringName(skill_def.combat_profile.target_selection_mode) != TARGET_SELECTION_MULTI_UNIT:
+		return target_unit_ids
+	if target_unit_ids.has(target_unit.unit_id):
+		return target_unit_ids
+	target_unit_ids.push_front(target_unit.unit_id)
+	return target_unit_ids
 
 
 func _can_preview_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def) -> bool:
@@ -1362,9 +1394,7 @@ func _build_selected_skill_hit_badge_text(hit_preview: Dictionary) -> String:
 		return ""
 	var success_rate := int(hit_preview.get("success_rate_percent", -1))
 	if success_rate < 0:
-		success_rate = int(hit_preview.get("hit_rate_percent", -1))
-	if success_rate < 0:
-		var stage_rates := hit_preview.get("stage_hit_rates", []) as Array
+		var stage_rates := hit_preview.get("stage_success_rates", []) as Array
 		if not stage_rates.is_empty():
 			success_rate = int(stage_rates[0])
 	if success_rate < 0:

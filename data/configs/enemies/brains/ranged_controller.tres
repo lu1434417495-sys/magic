@@ -35,6 +35,13 @@ target_selector = &"nearest_enemy"
 desired_min_distance = 3
 desired_max_distance = 4
 
+[sub_resource type="Resource" id="Action_melee_fallback_move"]
+script = ExtResource("5_move")
+action_id = &"mist_close_for_basic_attack"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+
 [sub_resource type="Resource" id="Action_wait"]
 script = ExtResource("6_wait")
 action_id = &"mist_wait"
@@ -42,12 +49,12 @@ action_id = &"mist_wait"
 [sub_resource type="Resource" id="State_engage"]
 script = ExtResource("2_state")
 state_id = &"engage"
-actions = Array[Resource]([SubResource("Action_pressure_aoe"), SubResource("Action_pressure_single"), SubResource("Action_pressure_move"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_pressure_aoe"), SubResource("Action_pressure_single"), SubResource("Action_pressure_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
 
 [sub_resource type="Resource" id="State_pressure"]
 script = ExtResource("2_state")
 state_id = &"pressure"
-actions = Array[Resource]([SubResource("Action_pressure_aoe"), SubResource("Action_pressure_single"), SubResource("Action_pressure_move"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_pressure_aoe"), SubResource("Action_pressure_single"), SubResource("Action_pressure_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
 
 [sub_resource type="Resource" id="Action_support_heal"]
 script = ExtResource("4_unit")
@@ -82,7 +89,7 @@ distance_reference = &"target_unit"
 [sub_resource type="Resource" id="State_support"]
 script = ExtResource("2_state")
 state_id = &"support"
-actions = Array[Resource]([SubResource("Action_support_heal"), SubResource("Action_support_aoe"), SubResource("Action_support_single"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_support_heal"), SubResource("Action_support_aoe"), SubResource("Action_support_single"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
 
 [sub_resource type="Resource" id="Action_retreat"]
 script = ExtResource("7_retreat")

@@ -764,8 +764,8 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		Color(0.88, 0.52, 0.96, 1.0)
 	)
 	_rebuild_ap_dots(
-		int(focus_unit.get("move_current", focus_unit.get("ap_current", 0))),
-		int(focus_unit.get("move_max", focus_unit.get("ap_max", 2)))
+		int(focus_unit.get("move_current", 0)),
+		int(focus_unit.get("move_max", 2))
 	)
 	_set_resource_row_visible(mp_bar, mp_value_label, _is_resource_visible(resource_info, "mp"))
 	_set_resource_row_visible(aura_bar, aura_value_label, _is_resource_visible(resource_info, "aura"))
@@ -1181,7 +1181,7 @@ func _create_battle_equipment_slot_row(slot: Dictionary) -> Control:
 	button.disabled = not can_unequip
 	button.tooltip_text = "" if can_unequip else _resolve_unequip_disabled_reason(slot, panel_disabled_reason)
 	button.pressed.connect(_on_battle_equipment_unequip_pressed.bind(
-		StringName(slot.get("entry_slot_id", slot.get("slot_id", ""))),
+		StringName(slot.get("entry_slot_id", "")),
 		StringName(instance_id)
 	))
 	layout.add_child(button)
@@ -1220,7 +1220,7 @@ func _rebuild_battle_equipment_backpack_list() -> void:
 		var entry: Dictionary = entry_variant
 		var item_status := "可装备" if bool(entry.get("can_equip", false)) else "不可用"
 		var item_index := _battle_equipment_backpack_list.add_item("%s  ·  %s" % [
-			String(entry.get("display_name", entry.get("item_id", ""))),
+			String(entry.get("display_name", "")),
 			item_status,
 		])
 		_battle_equipment_backpack_list.set_item_metadata(item_index, entry.duplicate(true))
@@ -1241,7 +1241,7 @@ func _rebuild_battle_equipment_backpack_list() -> void:
 
 func _build_backpack_entry_tooltip(entry: Dictionary) -> String:
 	var lines: Array[String] = [
-		String(entry.get("display_name", entry.get("item_id", ""))),
+		String(entry.get("display_name", "")),
 		"实例：%s" % String(entry.get("instance_id", "")),
 		BATTLE_EQUIPMENT_SOURCE_HINT,
 	]
@@ -1301,7 +1301,7 @@ func _refresh_battle_equipment_backpack_details() -> void:
 
 	var detail_lines: Array[String] = [
 		"%s  |  物品 %s  |  实例 %s" % [
-			String(entry.get("display_name", entry.get("item_id", ""))),
+			String(entry.get("display_name", "")),
 			String(entry.get("item_id", "")),
 			String(entry.get("instance_id", "")),
 		],

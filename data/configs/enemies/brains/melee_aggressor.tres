@@ -11,6 +11,7 @@
 [sub_resource type="Resource" id="Action_engage_charge"]
 script = ExtResource("3_charge")
 action_id = &"wolf_charge_open"
+score_bucket_id = &"charge_open"
 skill_id = &"charge"
 target_selector = &"nearest_enemy"
 

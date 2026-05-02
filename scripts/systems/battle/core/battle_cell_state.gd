@@ -20,6 +20,23 @@ const TERRAIN_MUD := &"mud"
 const TERRAIN_SPIKE := &"spike"
 const MIN_RUNTIME_HEIGHT := -5
 const MAX_RUNTIME_HEIGHT := 8
+const REQUIRED_DICT_KEYS := [
+	"coord",
+	"stack_layer",
+	"base_terrain",
+	"base_height",
+	"height_offset",
+	"current_height",
+	"passable",
+	"move_cost",
+	"occupant_unit_id",
+	"prop_ids",
+	"terrain_effect_ids",
+	"timed_terrain_effects",
+	"flow_direction",
+	"edge_feature_east",
+	"edge_feature_south",
+]
 
 ## 字段说明：记录对象当前使用的网格坐标，供绘制、寻路或占位计算使用。
 var coord: Vector2i = Vector2i.ZERO
@@ -135,24 +152,78 @@ func to_dict() -> Dictionary:
 		"terrain_effect_ids": _string_name_array_to_strings(terrain_effect_ids),
 		"timed_terrain_effects": BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.to_dict_array(timed_terrain_effects),
 		"flow_direction": flow_direction,
-		"edge_feature_east": edge_feature_east.to_dict() if edge_feature_east != null else {},
-		"edge_feature_south": edge_feature_south.to_dict() if edge_feature_south != null else {},
+		"edge_feature_east": _edge_feature_to_dict(edge_feature_east),
+		"edge_feature_south": _edge_feature_to_dict(edge_feature_south),
 	}
 
 
-static func from_dict(data: Dictionary) -> BattleCellState:
+static func from_dict(data: Variant) -> BattleCellState:
+	if data is not Dictionary:
+		return null
+	var payload := data as Dictionary
+	if not _has_exact_required_keys(payload):
+		return null
+	if payload.get("coord") is not Vector2i:
+		return null
+	if payload.get("flow_direction") is not Vector2i:
+		return null
+	if not _is_int_value(payload.get("stack_layer")):
+		return null
+	if not _is_int_value(payload.get("base_height")):
+		return null
+	if not _is_int_value(payload.get("height_offset")):
+		return null
+	if not _is_int_value(payload.get("current_height")):
+		return null
+	if not _is_int_value(payload.get("move_cost")):
+		return null
+	if int(payload.get("move_cost")) <= 0:
+		return null
+	if not _is_non_empty_string_like(payload.get("base_terrain")):
+		return null
+	var normalized_terrain := BattleTerrainRules.normalize_terrain_id(StringName(String(payload.get("base_terrain"))))
+	if String(normalized_terrain).is_empty():
+		return null
+	if not _is_string_like(payload.get("occupant_unit_id")):
+		return null
+	if payload.get("passable") is not bool:
+		return null
+	var parsed_prop_ids: Variant = _strings_to_string_name_array(payload.get("prop_ids"))
+	if parsed_prop_ids == null:
+		return null
+	var parsed_terrain_effect_ids: Variant = _strings_to_string_name_array(payload.get("terrain_effect_ids"))
+	if parsed_terrain_effect_ids == null:
+		return null
+	var parsed_timed_terrain_effects: Variant = _terrain_effects_from_payload(payload.get("timed_terrain_effects"))
+	if parsed_timed_terrain_effects == null:
+		return null
+	if payload.get("edge_feature_east") is not Dictionary:
+		return null
+	if payload.get("edge_feature_south") is not Dictionary:
+		return null
+	var east_feature := BattleEdgeFeatureState.from_dict(payload.get("edge_feature_east"))
+	if east_feature == null:
+		return null
+	var south_feature := BattleEdgeFeatureState.from_dict(payload.get("edge_feature_south"))
+	if south_feature == null:
+		return null
+
 	var cell_state := BATTLE_CELL_STATE_SCRIPT.new()
-	cell_state.coord = data.get("coord", Vector2i.ZERO)
-	cell_state.base_terrain = BattleTerrainRules.normalize_terrain_id(StringName(String(data.get("base_terrain", "land"))))
-	cell_state.base_height = int(data.get("base_height", 0))
-	cell_state.height_offset = int(data.get("height_offset", 0))
-	cell_state.occupant_unit_id = StringName(String(data.get("occupant_unit_id", "")))
-	cell_state.prop_ids = _strings_to_string_name_array(data.get("prop_ids", []))
-	cell_state.terrain_effect_ids = _strings_to_string_name_array(data.get("terrain_effect_ids", []))
-	cell_state.timed_terrain_effects = BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.from_dict_array(data.get("timed_terrain_effects", []))
-	cell_state.flow_direction = data.get("flow_direction", Vector2i.ZERO)
-	cell_state.edge_feature_east = _normalize_edge_feature(BattleEdgeFeatureState.from_dict(data.get("edge_feature_east", {})))
-	cell_state.edge_feature_south = _normalize_edge_feature(BattleEdgeFeatureState.from_dict(data.get("edge_feature_south", {})))
+	cell_state.coord = payload.get("coord")
+	cell_state.stack_layer = int(payload.get("stack_layer"))
+	cell_state.base_terrain = normalized_terrain
+	cell_state.base_height = int(payload.get("base_height"))
+	cell_state.height_offset = int(payload.get("height_offset"))
+	cell_state.current_height = int(payload.get("current_height"))
+	cell_state.passable = bool(payload.get("passable"))
+	cell_state.move_cost = int(payload.get("move_cost"))
+	cell_state.occupant_unit_id = StringName(String(payload.get("occupant_unit_id")))
+	cell_state.prop_ids = parsed_prop_ids
+	cell_state.terrain_effect_ids = parsed_terrain_effect_ids
+	cell_state.timed_terrain_effects = parsed_timed_terrain_effects
+	cell_state.flow_direction = payload.get("flow_direction")
+	cell_state.edge_feature_east = _normalize_edge_feature(east_feature)
+	cell_state.edge_feature_south = _normalize_edge_feature(south_feature)
 	cell_state.recalculate_runtime_values()
 	return cell_state
 
@@ -164,12 +235,62 @@ static func _string_name_array_to_strings(values: Array[StringName]) -> Array[St
 	return results
 
 
-static func _strings_to_string_name_array(values: Variant) -> Array[StringName]:
+static func _strings_to_string_name_array(values: Variant) -> Variant:
 	var results: Array[StringName] = []
-	if values is Array:
-		for value in values:
-			results.append(StringName(String(value)))
+	if values is not Array:
+		return null
+	for value in values:
+		if not _is_non_empty_string_like(value):
+			return null
+		results.append(StringName(String(value)))
 	return results
+
+
+static func _terrain_effects_from_payload(values: Variant) -> Variant:
+	if values is not Array:
+		return null
+	for value in values:
+		if value is not Dictionary:
+			return null
+	var effect_states: Variant = BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.from_dict_array(values)
+	if effect_states == null:
+		return null
+	if effect_states is not Array:
+		return null
+	if effect_states.size() != values.size():
+		return null
+	for effect_state in effect_states:
+		if effect_state == null or effect_state is not BattleTerrainEffectState:
+			return null
+	return effect_states
+
+
+static func _edge_feature_to_dict(feature_state: BattleEdgeFeatureState) -> Dictionary:
+	var normalized_feature := _normalize_edge_feature(feature_state)
+	return normalized_feature.to_dict()
+
+
+static func _has_exact_required_keys(data: Dictionary) -> bool:
+	if data.size() != REQUIRED_DICT_KEYS.size():
+		return false
+	for key in REQUIRED_DICT_KEYS:
+		if not data.has(key):
+			return false
+	return true
+
+
+static func _is_int_value(value: Variant) -> bool:
+	return typeof(value) == TYPE_INT
+
+
+static func _is_string_like(value: Variant) -> bool:
+	return value is String or value is StringName
+
+
+static func _is_non_empty_string_like(value: Variant) -> bool:
+	if not _is_string_like(value):
+		return false
+	return not String(value).is_empty()
 
 
 static func _normalize_edge_feature(feature_state: BattleEdgeFeatureState) -> BattleEdgeFeatureState:

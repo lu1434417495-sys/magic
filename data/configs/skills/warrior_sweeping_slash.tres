@@ -59,10 +59,10 @@ stamina_cost = 30
 cooldown_tu = 5
 attack_roll_bonus = 0
 level_overrides = {
-"2": {
+2: {
 "stamina_cost": 25
 },
-"4": {
+4: {
 "cooldown_tu": 0
 }
 }

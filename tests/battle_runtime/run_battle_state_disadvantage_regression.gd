@@ -2,6 +2,7 @@ extends SceneTree
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 
 var _failures: Array[String] = []
@@ -62,10 +63,7 @@ func _test_attack_disadvantage_triggers_on_strong_attack_debuff() -> void:
 	var state := BattleState.new()
 	var attacker := _build_unit(&"debuffed_attacker", &"player", Vector2i(1, 1))
 	var defender := _build_unit(&"debuffed_defender", &"enemy", Vector2i(3, 1))
-	attacker.status_effects[&"frozen"] = {
-		"status_id": &"frozen",
-		"duration": 15,
-	}
+	_set_status(attacker, &"frozen", 15)
 
 	_add_units(state, [attacker, defender])
 	_assert_true(
@@ -103,10 +101,7 @@ func _test_attack_disadvantage_does_not_trigger_on_wrong_element_target() -> voi
 	var state := BattleState.new()
 	var attacker := _build_unit(&"wrong_element_attacker", &"player", Vector2i(1, 1))
 	var defender := _build_unit(&"wrong_element_defender", &"enemy", Vector2i(3, 1))
-	defender.status_effects[&"prismatic_barrier"] = {
-		"status_id": &"prismatic_barrier",
-		"duration": 15,
-	}
+	_set_status(defender, &"prismatic_barrier", 15)
 
 	_add_units(state, [attacker, defender])
 	_assert_false(
@@ -120,10 +115,7 @@ func _test_attack_disadvantage_does_not_trigger_on_bad_tactical_choice() -> void
 	var attacker := _build_unit(&"bad_choice_attacker", &"player", Vector2i(1, 1))
 	var defender := _build_unit(&"bad_choice_defender", &"enemy", Vector2i(3, 1))
 	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 100)
-	defender.status_effects[&"dodge_bonus_up"] = {
-		"status_id": &"dodge_bonus_up",
-		"duration": 15,
-	}
+	_set_status(defender, &"dodge_bonus_up", 15)
 
 	_add_units(state, [attacker, defender])
 	_assert_false(
@@ -151,10 +143,7 @@ func _test_attack_disadvantage_does_not_trigger_on_soft_debuff() -> void:
 	var state := BattleState.new()
 	var attacker := _build_unit(&"soft_debuff_attacker", &"player", Vector2i(1, 1))
 	var defender := _build_unit(&"soft_debuff_defender", &"enemy", Vector2i(3, 1))
-	attacker.status_effects[&"slow"] = {
-		"status_id": &"slow",
-		"duration": 15,
-	}
+	_set_status(attacker, &"slow", 15)
 
 	_add_units(state, [attacker, defender])
 	_assert_false(
@@ -192,6 +181,15 @@ func _add_units(state: BattleState, units: Array[BattleUnitState]) -> void:
 			state.enemy_unit_ids.append(unit.unit_id)
 		else:
 			state.ally_unit_ids.append(unit.unit_id)
+
+
+func _set_status(unit: BattleUnitState, status_id: StringName, duration_tu: int) -> void:
+	var status := BattleStatusEffectState.new()
+	status.status_id = status_id
+	status.duration = duration_tu
+	status.power = 1
+	status.stacks = 1
+	unit.set_status_effect(status)
 
 
 func _assert_true(condition: bool, message: String) -> void:

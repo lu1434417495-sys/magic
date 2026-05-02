@@ -22,11 +22,43 @@ func validate_schema() -> Array[String]:
 	return _collect_base_validation_errors()
 
 
+func get_declared_skill_ids() -> Array[StringName]:
+	var results: Array[StringName] = []
+	var seen: Dictionary = {}
+	_append_declared_skill_id(results, seen, get("skill_id"))
+	var skill_ids_variant = get("skill_ids")
+	if skill_ids_variant is Array:
+		for raw_skill_id in skill_ids_variant:
+			_append_declared_skill_id(results, seen, raw_skill_id)
+	return results
+
+
+func validate_skill_references(skill_defs: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	for skill_id in get_declared_skill_ids():
+		if skill_id == &"":
+			errors.append("AI action %s references an empty skill_id." % String(action_id))
+			continue
+		if not skill_defs.has(skill_id):
+			errors.append("AI action %s references missing skill %s." % [String(action_id), String(skill_id)])
+	return errors
+
+
 func _collect_base_validation_errors() -> Array[String]:
 	var errors: Array[String] = []
 	if action_id == &"":
 		errors.append("AI action is missing action_id.")
 	return errors
+
+
+func _append_declared_skill_id(results: Array[StringName], seen: Dictionary, raw_skill_id: Variant) -> void:
+	if raw_skill_id is not String and raw_skill_id is not StringName:
+		return
+	var skill_id := ProgressionDataUtils.to_string_name(raw_skill_id)
+	if seen.has(skill_id):
+		return
+	seen[skill_id] = true
+	results.append(skill_id)
 
 
 func _create_decision(command, reason_text: String = "") -> BattleAiDecision:

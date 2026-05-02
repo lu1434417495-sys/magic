@@ -242,8 +242,6 @@ func _is_target_low_hp(effect_def: CombatEffectDef, target_unit: BattleUnitState
 	if effect_def != null and effect_def.params != null:
 		if effect_def.params.has("hp_ratio_threshold"):
 			threshold_ratio = clampf(float(effect_def.params.get("hp_ratio_threshold", threshold_ratio)), 0.0, 1.0)
-		elif effect_def.params.has("low_hp_ratio"):
-			threshold_ratio = clampf(float(effect_def.params.get("low_hp_ratio", threshold_ratio)), 0.0, 1.0)
 	return float(target_unit.current_hp) <= float(max_hp) * threshold_ratio
 
 
@@ -312,16 +310,8 @@ func _resolve_estimated_hit_rate_percent(preview) -> int:
 		for hit_rate_variant in stage_success_rates:
 			total += int(hit_rate_variant)
 		return maxi(int(round(float(total) / float(stage_success_rates.size()))), 0)
-	var stage_hit_rates: Array = preview.hit_preview.get("stage_hit_rates", [])
-	if stage_hit_rates is Array and not stage_hit_rates.is_empty():
-		var total := 0
-		for hit_rate_variant in stage_hit_rates:
-			total += int(hit_rate_variant)
-		return maxi(int(round(float(total) / float(stage_hit_rates.size()))), 0)
 	if preview.hit_preview.has("success_rate_percent"):
 		return maxi(int(preview.hit_preview.get("success_rate_percent", 100)), 0)
-	if preview.hit_preview.has("hit_rate_percent"):
-		return maxi(int(preview.hit_preview.get("hit_rate_percent", 100)), 0)
 	return 100
 
 

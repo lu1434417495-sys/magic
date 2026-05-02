@@ -59,11 +59,11 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Variant) -> EquipmentInstanceState:
-	return _from_dict(data, false, true, SAVE_PAYLOAD_LABEL)
+	return _from_dict(data, false, SAVE_PAYLOAD_LABEL)
 
 
 static func from_transient_loot_dict(data: Variant) -> EquipmentInstanceState:
-	return _from_dict(data, true, false, TRANSIENT_LOOT_PAYLOAD_LABEL)
+	return _from_dict(data, true, TRANSIENT_LOOT_PAYLOAD_LABEL)
 
 
 static func get_payload_validation_error(data: Variant, allow_empty_instance_id: bool = false) -> String:
@@ -73,23 +73,20 @@ static func get_payload_validation_error(data: Variant, allow_empty_instance_id:
 static func _from_dict(
 	data: Variant,
 	allow_empty_instance_id: bool,
-	crash_on_invalid: bool,
 	payload_label: String
 ) -> EquipmentInstanceState:
 	var validation_error := _get_payload_validation_error(data, allow_empty_instance_id, payload_label)
 	if not validation_error.is_empty():
 		push_error(validation_error)
-		if crash_on_invalid:
-			_crash_due_to_corrupt_save(validation_error)
 		return null
 	var payload := data as Dictionary
 	var inst := SCRIPT.new()
-	inst.instance_id = ProgressionDataUtils.to_string_name(payload.get("instance_id", ""))
-	inst.item_id = ProgressionDataUtils.to_string_name(payload.get("item_id", ""))
-	inst.rarity = int(payload.get("rarity", RarityTier.COMMON))
-	inst.current_durability = int(payload.get("current_durability", -1))
-	inst.armor_wear_progress = float(payload.get("armor_wear_progress", 0.0))
-	inst.weapon_wear_progress = float(payload.get("weapon_wear_progress", 0.0))
+	inst.instance_id = ProgressionDataUtils.to_string_name(payload["instance_id"])
+	inst.item_id = ProgressionDataUtils.to_string_name(payload["item_id"])
+	inst.rarity = int(payload["rarity"])
+	inst.current_durability = int(payload["current_durability"])
+	inst.armor_wear_progress = float(payload["armor_wear_progress"])
+	inst.weapon_wear_progress = float(payload["weapon_wear_progress"])
 	return inst
 
 
@@ -112,9 +109,36 @@ static func _get_payload_validation_error(
 	for field_name in required_fields:
 		if not payload.has(field_name):
 			return "Corrupt %s: missing required field '%s'." % [payload_label, field_name]
-	var instance_id := ProgressionDataUtils.to_string_name(payload.get("instance_id", ""))
-	var item_id := ProgressionDataUtils.to_string_name(payload.get("item_id", ""))
-	var rarity_value := int(payload.get("rarity", RarityTier.COMMON))
+	if payload.size() != required_fields.size():
+		return "Corrupt %s: expected exactly current equipment instance fields." % payload_label
+	for key_variant in payload.keys():
+		if key_variant is not String or not required_fields.has(key_variant):
+			return "Corrupt %s: unsupported field '%s'." % [payload_label, String(key_variant)]
+	var instance_id_variant: Variant = payload["instance_id"]
+	if not _is_string_name_payload_value(instance_id_variant):
+		return "Corrupt %s: instance_id must be String or StringName." % payload_label
+	var item_id_variant: Variant = payload["item_id"]
+	if not _is_string_name_payload_value(item_id_variant):
+		return "Corrupt %s: item_id must be String or StringName." % payload_label
+	var rarity_variant: Variant = payload["rarity"]
+	if rarity_variant is not int:
+		return "Corrupt %s: rarity must be int." % payload_label
+	var current_durability_variant: Variant = payload["current_durability"]
+	if current_durability_variant is not int:
+		return "Corrupt %s: current_durability must be int." % payload_label
+	var armor_wear_progress_variant: Variant = payload["armor_wear_progress"]
+	if armor_wear_progress_variant is not float:
+		return "Corrupt %s: armor_wear_progress must be float." % payload_label
+	var weapon_wear_progress_variant: Variant = payload["weapon_wear_progress"]
+	if weapon_wear_progress_variant is not float:
+		return "Corrupt %s: weapon_wear_progress must be float." % payload_label
+
+	var instance_id := ProgressionDataUtils.to_string_name(instance_id_variant)
+	var item_id := ProgressionDataUtils.to_string_name(item_id_variant)
+	var rarity_value := int(rarity_variant)
+	var current_durability := int(current_durability_variant)
+	var armor_wear_progress := float(armor_wear_progress_variant)
+	var weapon_wear_progress := float(weapon_wear_progress_variant)
 	if instance_id == &"" and not allow_empty_instance_id:
 		return "Corrupt %s: instance_id is required." % payload_label
 	if item_id == &"":
@@ -125,16 +149,29 @@ static func _get_payload_validation_error(
 			rarity_value,
 			String(instance_id),
 		]
+	if current_durability < -1:
+		return "Corrupt %s: invalid current_durability %d for instance '%s'." % [
+			payload_label,
+			current_durability,
+			String(instance_id),
+		]
+	if armor_wear_progress < 0.0:
+		return "Corrupt %s: armor_wear_progress must be non-negative for instance '%s'." % [
+			payload_label,
+			String(instance_id),
+		]
+	if weapon_wear_progress < 0.0:
+		return "Corrupt %s: weapon_wear_progress must be non-negative for instance '%s'." % [
+			payload_label,
+			String(instance_id),
+		]
 	return ""
-
-
-static func _crash_due_to_corrupt_save(message: String) -> void:
-	if OS.has_method("crash"):
-		OS.call("crash", message)
-	var main_loop := Engine.get_main_loop()
-	if main_loop != null and main_loop.has_method("quit"):
-		main_loop.call("quit", 1)
 
 
 static func is_valid_rarity(value: int) -> bool:
 	return value >= RarityTier.COMMON and value <= RarityTier.LEGENDARY
+
+
+static func _is_string_name_payload_value(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type == TYPE_STRING or value_type == TYPE_STRING_NAME

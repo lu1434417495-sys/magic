@@ -6,68 +6,149 @@
 
 [sub_resource type="Resource" id="Resource_recovery_l0"]
 script = ExtResource("3_hefuc")
-effect_type = &"heal"
-power = 10
+effect_type = &"stamina_restore"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+params = {
+"base_sides": 3,
+"con_mod_sides": 1,
+"will_mod_sides": 1
+}
+
+[sub_resource type="Resource" id="Resource_recovery_l1"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+power = 2
+min_skill_level = 1
 max_skill_level = 1
 effect_target_team_filter = &"ally"
+params = {
+"base_sides": 3,
+"con_mod_sides": 1,
+"will_mod_sides": 1
+}
 
 [sub_resource type="Resource" id="Resource_recovery_l2"]
 script = ExtResource("3_hefuc")
-effect_type = &"heal"
-power = 14
+effect_type = &"stamina_restore"
+power = 4
 min_skill_level = 2
 max_skill_level = 2
 effect_target_team_filter = &"ally"
+params = {
+"base_sides": 3,
+"con_mod_sides": 1,
+"will_mod_sides": 1
+}
 
 [sub_resource type="Resource" id="Resource_recovery_l3"]
 script = ExtResource("3_hefuc")
-effect_type = &"heal"
-power = 18
+effect_type = &"stamina_restore"
+power = 6
 min_skill_level = 3
+max_skill_level = 3
+effect_target_team_filter = &"ally"
+params = {
+"base_sides": 3,
+"con_mod_sides": 1,
+"will_mod_sides": 1
+}
+
+[sub_resource type="Resource" id="Resource_recovery_l4"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+power = 8
+min_skill_level = 4
 max_skill_level = 4
 effect_target_team_filter = &"ally"
+params = {
+"base_sides": 3,
+"con_mod_sides": 1,
+"will_mod_sides": 1
+}
 
 [sub_resource type="Resource" id="Resource_recovery_l5"]
 script = ExtResource("3_hefuc")
-effect_type = &"heal"
-power = 24
+effect_type = &"stamina_restore"
+power = 10
 min_skill_level = 5
 effect_target_team_filter = &"ally"
+params = {
+"base_sides": 3,
+"con_mod_sides": 1,
+"will_mod_sides": 1
+}
+
+[sub_resource type="Resource" id="Resource_heal_l5"]
+script = ExtResource("3_hefuc")
+effect_type = &"heal"
+power = 2
+min_skill_level = 5
+effect_target_team_filter = &"ally"
+params = {
+"base_sides": 3,
+"con_mod_sides": 1,
+"will_mod_sides": 1
+}
 
 [sub_resource type="Resource" id="Resource_j1thy"]
 script = ExtResource("4_k1cg4")
 skill_id = &"warrior_battle_recovery"
 target_team_filter = &"ally"
 range_value = 0
-stamina_cost = 20
-cooldown_tu = 20
+ap_cost = 1
+stamina_cost = 0
+cooldown_tu = 120
 attack_roll_bonus = 0
-level_overrides = {
-"2": {
-"cooldown_tu": 15
-},
-"4": {
-"cooldown_tu": 10
-}
-}
 mastery_trigger_mode = &"effect_applied"
-mastery_amount_mode = &"per_target_rank"
+mastery_amount_mode = &"per_cast_hp_ratio"
 target_selection_mode = &"self"
-effect_defs = Array[ExtResource("3_hefuc")]([SubResource("Resource_recovery_l0"), SubResource("Resource_recovery_l2"), SubResource("Resource_recovery_l3"), SubResource("Resource_recovery_l5")])
+effect_defs = Array[ExtResource("3_hefuc")]([SubResource("Resource_recovery_l0"), SubResource("Resource_recovery_l1"), SubResource("Resource_recovery_l2"), SubResource("Resource_recovery_l3"), SubResource("Resource_recovery_l4"), SubResource("Resource_recovery_l5"), SubResource("Resource_heal_l5")])
 
 [resource]
 script = ExtResource("5_wpb1n")
 skill_id = &"warrior_battle_recovery"
 display_name = "战斗回复"
 icon_id = &"warrior_battle_recovery"
-description = "稳定恢复自身生命。"
+description = "通过意志集中恢复自身体力，骰子数量随等级增加，骰子面数由体质与意志决定。Lv5额外恢复生命。"
+level_description_template = "恢复体力{dice_count}D{dice_sides}{{?heal}}，并恢复生命{heal}D{dice_sides}{{/heal}}。冷却{cooldown}TU。"
+level_description_configs = {
+"0": {
+"dice_count": "1",
+"cooldown": "120"
+},
+"1": {
+"dice_count": "2",
+"cooldown": "120"
+},
+"2": {
+"dice_count": "4",
+"cooldown": "120"
+},
+"3": {
+"dice_count": "6",
+"cooldown": "120"
+},
+"4": {
+"dice_count": "8",
+"cooldown": "120"
+},
+"5": {
+"dice_count": "10",
+"heal": "2",
+"cooldown": "120"
+}
+}
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
 growth_tier = &"basic"
+attribute_requirements = {
+"willpower": 12
+}
 attribute_growth_progress = {
-"constitution": 40,
-"willpower": 20
+"willpower": 60
 }
 tags = Array[StringName]([&"warrior", &"melee", &"recovery"])
 combat_profile = SubResource("Resource_j1thy")

@@ -66,11 +66,12 @@ range_value = 1
 area_pattern = &"single"
 area_value = 0
 max_target_count = 1
+ap_cost = 1
 stamina_cost = 30
 cooldown_tu = 120
 attack_roll_bonus = 0
 level_overrides = {
-"5": {
+5: {
 "area_pattern": "front_arc",
 "area_value": 1,
 "max_target_count": 3
@@ -94,13 +95,32 @@ attribute_growth_progress = {
 "constitution": 30,
 "willpower": 30
 }
-level_descriptions = {
-"0": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续30TU",
-"1": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续45TU",
-"2": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续45TU",
-"3": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续60TU",
-"4": "对身边相邻一格的敌人嘲讽，使其攻击非来源单位时处于劣势，持续60TU",
-"5": "对身边相邻一格横向3格内的敌人嘲讽，使其攻击非来源单位时处于劣势，持续90TU"
+level_description_template = "{{?range_desc}}{range_desc}{{/range_desc}}，使其攻击非来源单位时处于劣势，持续{duration}TU"
+level_description_configs = {
+"0": {
+"range_desc": "对身边相邻一格的敌人嘲讽",
+"duration": "30"
+},
+"1": {
+"range_desc": "对身边相邻一格的敌人嘲讽",
+"duration": "45"
+},
+"2": {
+"range_desc": "对身边相邻一格的敌人嘲讽",
+"duration": "45"
+},
+"3": {
+"range_desc": "对身边相邻一格的敌人嘲讽",
+"duration": "60"
+},
+"4": {
+"range_desc": "对身边相邻一格的敌人嘲讽",
+"duration": "60"
+},
+"5": {
+"range_desc": "对身边相邻一格横向3格内的敌人嘲讽",
+"duration": "90"
+}
 }
 tags = Array[StringName]([&"warrior", &"melee", &"control"])
 combat_profile = SubResource("Resource_8rkps")
