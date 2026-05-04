@@ -26,7 +26,38 @@ script = ExtResource("5_8txyi")
 skill_id = &"mage_soul_cage"
 display_name = "灵魂囚笼"
 icon_id = &"mage_soul_cage"
-description = "禁止目标在 `120 TU` 内获得治疗或复活类收益；对精英和首领战很有价值。"
+description = "禁止目标在 120 TU 内获得治疗或复活类收益；对精英和首领战很有价值。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])

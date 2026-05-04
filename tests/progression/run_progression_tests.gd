@@ -37,6 +37,7 @@ func _run() -> void:
 	_test_seed_achievement_registry_validates()
 	_test_seed_profession_catalog_includes_class_archetypes()
 	_test_archer_book_skill_catalog_registers_and_is_learnable()
+	_test_manual_skill_learning_rejects_grant_only_sources()
 	_test_new_game_random_skill_tier_mapping_uses_representative_defs()
 	_test_random_start_skill_pool_excludes_composite_upgrade_skills()
 	_test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_status()
@@ -46,6 +47,7 @@ func _run() -> void:
 	_test_core_max_skill_queues_attribute_progress_once()
 	_test_core_max_skill_ignores_string_name_attribute_growth_key()
 	_test_non_core_skill_max_level_cap_lifts_when_core()
+	_test_aura_slash_max_level_uses_transformation_count()
 	_test_attribute_growth_progress_round_trip_persists()
 	_test_unit_progress_from_dict_requires_top_level_schema_fields()
 	_test_unit_progress_from_dict_rejects_attribute_and_reputation_schema_defaults()
@@ -163,6 +165,40 @@ func _test_archer_book_skill_catalog_registers_and_is_learnable() -> void:
 			_assert_true(skill_def.can_use_in_combat(), "主动技能 %s 应具备战斗配置。" % String(skill_id))
 
 
+func _test_manual_skill_learning_rejects_grant_only_sources() -> void:
+	var skill_defs: Dictionary = {
+		&"book_manual_skill": _make_test_learn_source_skill(&"book_manual_skill", &"book"),
+		&"innate_manual_skill": _make_test_learn_source_skill(&"innate_manual_skill", &"innate"),
+		&"profession_grant_skill": _make_test_learn_source_skill(&"profession_grant_skill", &"profession"),
+		&"race_grant_skill": _make_test_learn_source_skill(&"race_grant_skill", &"race"),
+		&"subrace_grant_skill": _make_test_learn_source_skill(&"subrace_grant_skill", &"subrace"),
+		&"ascension_grant_skill": _make_test_learn_source_skill(&"ascension_grant_skill", &"ascension"),
+		&"bloodline_grant_skill": _make_test_learn_source_skill(&"bloodline_grant_skill", &"bloodline"),
+	}
+	var progress := UnitProgress.new()
+	var service := ProgressionService.new()
+	service.setup(progress, skill_defs, {})
+
+	_assert_true(service.learn_skill(&"book_manual_skill"), "book 来源技能应仍可走手动学习链。")
+	_assert_true(service.learn_skill(&"innate_manual_skill"), "既有 innate 来源技能应保持原手动学习行为。")
+
+	for blocked_skill_id in [
+		&"profession_grant_skill",
+		&"race_grant_skill",
+		&"subrace_grant_skill",
+		&"ascension_grant_skill",
+		&"bloodline_grant_skill",
+	]:
+		_assert_true(
+			not service.learn_skill(blocked_skill_id),
+			"%s 不应能通过手动学习链写入 learned 状态。" % String(blocked_skill_id)
+		)
+		_assert_true(
+			progress.get_skill_progress(blocked_skill_id) == null,
+			"%s 被手动学习拒绝后不应创建技能进度。" % String(blocked_skill_id)
+		)
+
+
 func _test_new_game_random_skill_tier_mapping_uses_representative_defs() -> void:
 	var session := GameSession.new()
 	var skill_defs := session.get_skill_defs()
@@ -220,6 +256,7 @@ func _test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_statu
 		return
 	_assert_eq(skill_def.skill_type, &"passive", "金刚不坏应是被动技能。")
 	_assert_eq(skill_def.max_level, 10, "金刚不坏应支持最高 10 级。")
+	_assert_eq(skill_def.non_core_max_level, 9, "金刚不坏非核心状态应最多升到 9 级。")
 	_assert_eq(int(skill_def.attribute_requirements.get("strength", 0)), 13, "金刚不坏应要求力量 13。")
 	_assert_eq(int(skill_def.attribute_requirements.get("constitution", 0)), 14, "金刚不坏应要求体质 14。")
 	_assert_eq(int(skill_def.attribute_requirements.get("willpower", 0)), 14, "金刚不坏应要求意志 14。")
@@ -523,6 +560,37 @@ func _test_non_core_skill_max_level_cap_lifts_when_core() -> void:
 	_assert_true(service.set_skill_core(skill_def.skill_id, true), "测试技能应能锁定为核心。")
 	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
 	_assert_eq(int(skill_progress.skill_level), 5, "锁定为核心后应允许提升到 max_level 5。")
+
+
+func _test_aura_slash_max_level_uses_transformation_count() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"warrior_aura_slash"
+	skill_def.display_name = "斗气斩"
+	skill_def.icon_id = &"warrior_aura_slash"
+	skill_def.max_level = 7
+	skill_def.non_core_max_level = 5
+	skill_def.dynamic_max_level_stat_id = &"aura_transformation_count"
+	skill_def.dynamic_max_level_base = 7
+	skill_def.dynamic_max_level_per_stat = 2
+	skill_def.mastery_curve = PackedInt32Array([1, 1, 1, 1, 1, 1, 1])
+
+	var service := ProgressionService.new()
+	service.setup(progress, {skill_def.skill_id: skill_def}, {})
+	_assert_true(service.learn_skill(skill_def.skill_id), "斗气斩测试技能应能学习。")
+	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
+	var skill_progress = progress.get_skill_progress(skill_def.skill_id)
+	_assert_eq(int(skill_progress.skill_level), 5, "斗气斩非核心状态应被限制在 5 级。")
+
+	_assert_true(service.set_skill_core(skill_def.skill_id, true), "斗气斩应能锁定为核心。")
+	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
+	_assert_eq(int(skill_progress.skill_level), 7, "斗气斩核心状态默认最大等级应为 7。")
+
+	progress.unit_base_attributes.set_attribute_value(&"aura_transformation_count", 2)
+	service.refresh_runtime_state()
+	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
+	_assert_eq(int(skill_progress.skill_level), 11, "斗气斩每次斗气质变应将核心最大等级提高 2。")
 
 
 func _test_attribute_growth_progress_round_trip_persists() -> void:
@@ -2526,6 +2594,18 @@ func _make_test_growth_skill(
 	skill_def.mastery_curve = PackedInt32Array([1, 1, 1])
 	skill_def.growth_tier = growth_tier
 	skill_def.attribute_growth_progress = attribute_growth_progress.duplicate(true)
+	return skill_def
+
+
+func _make_test_learn_source_skill(skill_id: StringName, learn_source: StringName) -> SkillDef:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = String(skill_id)
+	skill_def.icon_id = skill_id
+	skill_def.skill_type = &"passive"
+	skill_def.learn_source = learn_source
+	skill_def.max_level = 1
+	skill_def.mastery_curve = PackedInt32Array([10])
 	return skill_def
 
 

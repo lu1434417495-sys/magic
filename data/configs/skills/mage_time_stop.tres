@@ -23,7 +23,34 @@ script = ExtResource("5_yns36")
 skill_id = &"mage_time_stop"
 display_name = "瞬时停界"
 icon_id = &"mage_time_stop"
-description = "法师获得一次极短额外操作窗口；建议只允许移动、布阵或释放低阶技能，避免破坏节奏上限。"
+description = "使法师获得极短额外操作窗口，可移动、布阵或释放低阶技能。"
+level_description_template = "获得额外操作窗口。消耗{ap}AP/{mp}法力/{aura}Aura，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "5"
+},
+"1": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "5"
+},
+"2": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "5"
+},
+"3": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "5"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])

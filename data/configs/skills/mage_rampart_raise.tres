@@ -41,7 +41,34 @@ script = ExtResource("5_dv31k")
 skill_id = &"mage_rampart_raise"
 display_name = "升墙术"
 icon_id = &"mage_rampart_raise"
-description = "建议做成 `cast_variants`，提供“短墙 / 单柱高地 / 双格掩体”三种形态，用于切线和保后排。"
+description = "升起地形屏障，提供短墙、单柱高地或双格掩体三种形态，用于切线与保护后排。"
+level_description_template = "升起地形屏障，可在短墙、单柱高地或双格掩体中选择形态。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

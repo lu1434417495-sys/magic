@@ -47,7 +47,46 @@ script = ExtResource("5_i5ogj")
 skill_id = &"mage_spellward"
 display_name = "法术结界"
 icon_id = &"mage_spellward"
-description = "为范围内友军施加持续 `60 TU` 的结界：法术 / 能量伤害减半，`负能量` 伤害无效。"
+description = "为范围内友军施加持续 60 TU 的结界：法术 / 能量伤害减半，负能量 伤害无效。"
+level_description_template = "为范围内友军施加法术结界与死亡守护（持续{duration}TU）。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"status": "spellward",
+"duration": "60",
+"duration2": "60"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"status": "spellward",
+"duration": "60",
+"duration2": "60"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"status": "spellward",
+"duration": "60",
+"duration2": "60"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"status": "spellward",
+"duration": "60",
+"duration2": "60"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])

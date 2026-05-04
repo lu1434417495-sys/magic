@@ -29,7 +29,42 @@ script = ExtResource("5_iy0se")
 skill_id = &"mage_color_spray"
 display_name = "七色炫光"
 icon_id = &"mage_color_spray"
-description = "近距离扇面幻光压制；随机使敌人 `blinded`、`staggered` 或 `感电`。"
+description = "近距离扇面幻光压制，随机使敌人目盲、失衡或感电。"
+level_description_template = "自身扇形范围，幻光伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "9",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "9",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "9",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "9",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])

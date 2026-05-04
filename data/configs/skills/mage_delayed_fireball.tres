@@ -49,7 +49,42 @@ script = ExtResource("5_epdtn")
 skill_id = &"mage_delayed_fireball"
 display_name = "延爆火球"
 icon_id = &"mage_delayed_fireball"
-description = "建议使用 `cast_variants` 实现即时引爆与延后 `60 TU` 引爆两种形态；延后形态额外施加 `灼烧`。"
+description = "可选择即时引爆或延后60TU引爆，延后形态额外施加灼烧。"
+level_description_template = "射程{range}，火伤{dmg}，范围{area}格，可选延爆。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "17",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"1": {
+"dmg": "17",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"2": {
+"dmg": "17",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"3": {
+"dmg": "17",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "20"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

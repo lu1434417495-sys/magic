@@ -30,7 +30,42 @@ script = ExtResource("5_u1rin")
 skill_id = &"mage_sunflare_bomb"
 display_name = "日耀焚弹"
 icon_id = &"mage_sunflare_bomb"
-description = "火焰与强光并发；命中的敌人获得 `blinded`，是火系招牌清场与拆阵技能。"
+description = "火焰与强光并发；命中的敌人获得 blinded，是火系招牌清场与拆阵技能。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力/{aura}Aura，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "12"
+},
+"1": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "12"
+},
+"2": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "12"
+},
+"3": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "12"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

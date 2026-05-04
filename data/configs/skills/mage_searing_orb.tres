@@ -29,7 +29,38 @@ script = ExtResource("5_0sheu")
 skill_id = &"mage_searing_orb"
 display_name = "灼热法珠"
 icon_id = &"mage_searing_orb"
-description = "轻量范围技；中心目标若已 `寒蚀`，则本次额外触发一次 `40%` 爆燃伤害。"
+description = "轻量范围技；中心目标若已 寒蚀，则本次额外触发一次 40% 爆燃伤害。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"1": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"2": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"3": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

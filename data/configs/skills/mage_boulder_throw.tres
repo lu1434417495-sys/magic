@@ -26,7 +26,38 @@ script = ExtResource("5_c3yg8")
 skill_id = &"mage_boulder_throw"
 display_name = "巨岩投射"
 icon_id = &"mage_boulder_throw"
-description = "朴素但扎实的土石高伤单体技；命中后附带小幅击退。"
+description = "朴素但扎实的土石高伤单体技，命中后附带小幅击退。"
+level_description_template = "射程{range}，土石伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "13",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "13",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "13",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "13",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

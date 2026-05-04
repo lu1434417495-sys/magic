@@ -13,6 +13,7 @@ const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/pr
 const PROFESSION_RULE_SERVICE_SCRIPT = preload("res://scripts/systems/progression/profession_rule_service.gd")
 const PROFESSION_ASSIGNMENT_SERVICE_SCRIPT = preload("res://scripts/systems/progression/profession_assignment_service.gd")
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/progression/skill_merge_service.gd")
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
@@ -1063,7 +1064,7 @@ func _enqueue_core_max_attribute_growth_reward(
 		return
 	if bool(skill_progress.core_max_growth_claimed):
 		return
-	if int(skill_progress.skill_level) < int(skill_def.max_level):
+	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, member_state.progression):
 		return
 
 	var attribute_keys: Array[String] = []

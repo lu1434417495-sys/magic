@@ -29,7 +29,42 @@ script = ExtResource("5_bvm7g")
 skill_id = &"mage_confusion_wave"
 display_name = "乱心波"
 icon_id = &"mage_confusion_wave"
-description = "扇形精神扰动；命中的敌人在接下来的 `60 TU` 内优先攻击最近目标或失去最佳技能选择。"
+description = "扇形精神扰动，命中的敌人在接下来60TU内优先攻击最近目标或失去最佳技能选择。"
+level_description_template = "射程{range}，扇形范围，精神伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])

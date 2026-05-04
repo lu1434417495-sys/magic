@@ -1904,11 +1904,12 @@ func _validate_unit_skill_targets(
 		return result
 
 	var target_unit_ids := _normalize_target_unit_ids(command)
+	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
 	var min_target_count := 1
 	var max_target_count := 1
 	if _is_multi_unit_skill(skill_def):
 		min_target_count = maxi(int(skill_def.combat_profile.min_target_count), 1)
-		max_target_count = maxi(int(skill_def.combat_profile.max_target_count), min_target_count)
+		max_target_count = maxi(int(skill_def.combat_profile.get_effective_max_target_count(skill_level)), min_target_count)
 	if target_unit_ids.is_empty():
 		return result
 	if target_unit_ids.size() < min_target_count:
@@ -1939,7 +1940,6 @@ func _validate_unit_skill_targets(
 	result.message = ""
 	result.target_unit_ids = target_unit_ids
 	result.target_units = target_units
-	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
 	var collected_target_coords := _target_collection_service.collect_combat_profile_target_coords(
 		_state,
 		_grid_service,
@@ -2483,6 +2483,10 @@ func _apply_forced_move_effect(
 
 	var mode := effect_def.forced_move_mode
 	if mode == &"":
+		return 0
+	if mode == &"jump":
+		# 跳跃位移由 _apply_ground_jump_relocation 在 precast 阶段处理（含 can_jump_arc 校验）；
+		# 这里不做逐格推动，避免落地后再被推一格。
 		return 0
 
 	var moved_steps := 0
@@ -3558,6 +3562,8 @@ func _validate_ground_skill_command(
 	if _charge_resolver.is_charge_variant(cast_variant):
 		return _charge_resolver.validate_charge_command(active_unit, skill_def, cast_variant, normalized_coords, result)
 
+	var jump_effect_def := _get_ground_jump_effect_def(skill_def, cast_variant)
+	var effective_skill_range := _get_effective_skill_range(active_unit, skill_def)
 	var seen_coords: Dictionary = {}
 	for target_coord in normalized_coords:
 		var coord: Vector2i = target_coord
@@ -3568,7 +3574,9 @@ func _validate_ground_skill_command(
 		if not _grid_service.is_inside(_state, coord):
 			result.message = "存在超出战场范围的目标地格。"
 			return result
-		if _grid_service.get_distance_from_unit_to_coord(active_unit, coord) > _get_effective_skill_range(active_unit, skill_def):
+		var target_distance: int = _grid_service.get_chebyshev_distance(active_unit.coord, coord) \
+			if jump_effect_def != null else _grid_service.get_distance_from_unit_to_coord(active_unit, coord)
+		if target_distance > effective_skill_range:
 			result.message = "目标地格超出技能施放距离。"
 			return result
 		var cell := _grid_service.get_cell(_state, coord)
@@ -3618,7 +3626,8 @@ func _get_ground_special_effect_validation_message(
 	cast_variant: CombatCastVariantDef,
 	target_coords: Array[Vector2i]
 ) -> String:
-	if _get_ground_jump_effect_def(skill_def, cast_variant) == null:
+	var jump_effect_def := _get_ground_jump_effect_def(skill_def, cast_variant)
+	if jump_effect_def == null:
 		return ""
 	if active_unit == null or _state == null:
 		return "跳跃落点无效。"
@@ -3628,7 +3637,7 @@ func _get_ground_special_effect_validation_message(
 		return "跳跃落点无效。"
 
 	var landing_coord := target_coords[0]
-	if not _grid_service.can_place_unit(_state, active_unit, landing_coord, true):
+	if not _grid_service.can_jump_arc(_state, active_unit, landing_coord, jump_effect_def):
 		return "目标地格无法作为跳跃落点。"
 	return ""
 

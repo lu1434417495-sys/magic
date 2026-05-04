@@ -26,8 +26,35 @@ script = ExtResource("5_ixoac")
 skill_id = &"mage_phantom_cage"
 display_name = "幻牢术"
 icon_id = &"mage_phantom_cage"
-description = "把目标封在幻象牢笼里；目标获得 `rooted`，并失去反击资格。"
+description = "把目标封在幻象牢笼里，目标获得rooted并失去反击资格。"
 max_level = 3
+level_description_template = "造成{dmg}伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "7",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "7",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "7",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "7",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])
 combat_profile = SubResource("Resource_qys78")

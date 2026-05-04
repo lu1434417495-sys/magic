@@ -29,7 +29,42 @@ script = ExtResource("5_mi6ca")
 skill_id = &"archer_suppressive_fire"
 display_name = "压制射击"
 icon_id = &"archer_suppressive_fire"
-description = "对一条直线区域持续覆盖；被命中的敌人获得 `压制`，该路径在接下来的 `60 TU` 内移动成本 `+1`。"
+description = "对一条直线区域持续覆盖；被命中的敌人获得 压制，该路径在接下来的 60 TU 内移动成本 +1。"
+level_description_template = "造成{dmg}伤害，射程{range}，直线范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "line",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "line",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "line",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "line",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])

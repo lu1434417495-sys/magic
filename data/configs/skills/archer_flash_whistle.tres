@@ -29,7 +29,42 @@ script = ExtResource("5_3ugen")
 skill_id = &"archer_flash_whistle"
 display_name = "炫目鸣镝"
 icon_id = &"archer_flash_whistle"
-description = "爆出刺耳鸣响，范围内敌人获得持续 `60 TU` 的 `命中 -15%`，并失去反击资格。"
+description = "爆出刺耳鸣响，范围内敌人获得持续 60 TU 的 命中 -15%，并失去反击资格。"
+level_description_template = "造成{dmg}伤害，射程{range}，半径范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"dmg": "7",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])

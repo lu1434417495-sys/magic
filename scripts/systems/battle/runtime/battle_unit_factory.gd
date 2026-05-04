@@ -252,7 +252,7 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.display_name = monster_name if index == 0 else "%s·从属%d" % [monster_name, index + 1]
 	unit_state.faction_id = StringName(String(encounter_anchor.faction_id)) if encounter_anchor != null and String(encounter_anchor.faction_id) != "" else &"hostile"
 	unit_state.control_mode = &"ai"
-	unit_state.body_size = 1
+	unit_state.body_size = BattleUnitState.BODY_SIZE_MEDIUM
 	unit_state.refresh_footprint()
 	var hp_max := int(context.get("default_enemy_hp", 12))
 	var mp_max := int(context.get("default_enemy_mp", 0))

@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_terrain"]
+script = ExtResource("3_effect")
+effect_type = &"terrain_effect"
+terrain_effect_id = &"sand_fire_trap"
+duration_tu = 120
+tick_interval_tu = 40
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_sand_fire_trap"
+target_mode = &"ground"
+range_value = 3
+ap_cost = 1
+aura_cost = 20
+cooldown_tu = 120
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_terrain")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_sand_fire_trap"
+display_name = "沙火陷阱"
+icon_id = &"warrior_sand_fire_trap"
+description = "在指定格布置沙火陷阱，敌人进入后受到伤害并燃烧。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "willpower": 80, "agility": 40 }
+tags = Array[StringName]([&"warrior", &"melee", &"fire", &"trap"])
+combat_profile = SubResource("Resource_combat")

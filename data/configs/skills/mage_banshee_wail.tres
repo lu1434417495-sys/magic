@@ -29,7 +29,42 @@ script = ExtResource("5_ganhp")
 skill_id = &"mage_banshee_wail"
 display_name = "女妖哀嚎"
 icon_id = &"mage_banshee_wail"
-description = "近距离群体压制；命中的敌人获得 `staggered`，并优先后退。"
+description = "近距离群体压制，命中的敌人获得失衡，并优先后退。"
+level_description_template = "自身扇形范围，负能量伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "10",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "10",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "10",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "10",
+"range": "0",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])

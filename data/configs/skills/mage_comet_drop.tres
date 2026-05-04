@@ -30,7 +30,46 @@ script = ExtResource("5_12ucy")
 skill_id = &"mage_comet_drop"
 display_name = "焰星坠"
 icon_id = &"mage_comet_drop"
-description = "高阶落点爆破技；中心敌人额外承受 `+25%` 伤害。"
+description = "高阶落点爆破技，中心敌人额外承受+25%伤害。"
+level_description_template = "射程{range}，攻击检定{hit}，火伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "15",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "15",
+},
+"1": {
+"dmg": "15",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "15",
+},
+"2": {
+"dmg": "15",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "15",
+},
+"3": {
+"dmg": "15",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

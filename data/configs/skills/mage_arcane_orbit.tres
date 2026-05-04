@@ -29,7 +29,38 @@ script = ExtResource("5_fk61v")
 skill_id = &"mage_arcane_orbit"
 display_name = "轨道法珠"
 icon_id = &"mage_arcane_orbit"
-description = "在自身周围生成 `2` 枚法珠；首次受到近战接触时自动反击。"
+description = "在自身周围生成法珠，首次受到近战接触时自动反击。"
+level_description_template = "自身增益，法珠环绕自动反击。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "8",
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "8",
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "8",
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "8",
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])

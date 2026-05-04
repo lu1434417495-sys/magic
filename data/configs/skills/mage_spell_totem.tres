@@ -22,7 +22,34 @@ script = ExtResource("5_n4wfq")
 skill_id = &"mage_spell_totem"
 display_name = "咒能图腾"
 icon_id = &"mage_spell_totem"
-description = "图腾周围友军获得 `咏唱` 或小幅 `mp` 回复；适合阵地战。"
+description = "图腾周围友军获得 咏唱 或小幅 mp 回复；适合阵地战。"
+level_description_template = "召唤咒能图腾，为周围友军提供增益。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

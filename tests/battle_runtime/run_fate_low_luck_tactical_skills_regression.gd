@@ -328,7 +328,19 @@ func _test_ground_variant_multi_unit_skill_routes_through_fate_attack_resolution
 	caster.known_active_skill_ids = [ARCHER_MULTISHOT_SKILL_ID]
 	caster.known_skill_level_map = {ARCHER_MULTISHOT_SKILL_ID: 1}
 	caster.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, -5)
-	caster.current_stamina = 20
+	caster.current_stamina = 60
+	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
+	caster.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "fate_test_bow",
+		"weapon_profile_type_id": "test_bow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 5,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
 	var first_enemy := _build_unit(&"ground_route_enemy_a", "左翼敌人", &"enemy", Vector2i(2, 1), 1)
 	first_enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var second_enemy := _build_unit(&"ground_route_enemy_b", "中路敌人", &"enemy", Vector2i(3, 1), 1)

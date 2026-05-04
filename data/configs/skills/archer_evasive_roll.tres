@@ -35,7 +35,42 @@ script = ExtResource("5_oyb7v")
 skill_id = &"archer_evasive_roll"
 display_name = "翻滚卸力"
 icon_id = &"archer_evasive_roll"
-description = "向更安全的位置位移 `2` 格，并获得持续 `60 TU` 的 `闪避 +20%`，适合脱离贴身威胁。"
+description = "向更安全的位置位移 2 格，并获得持续 60 TU 的 闪避 +20%，适合脱离贴身威胁。"
+level_description_template = "获得{status}（{duration}TU），位移{move}格，自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])

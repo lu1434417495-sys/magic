@@ -29,7 +29,38 @@ script = ExtResource("5_ur7yv")
 skill_id = &"mage_scorch_wave"
 display_name = "灼流波"
 icon_id = &"mage_scorch_wave"
-description = "中距离扇面清场技；对 `blinded` 目标额外 `+15%` 伤害。"
+description = "中距离扇面清场技；对 blinded 目标额外 +15% 伤害。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

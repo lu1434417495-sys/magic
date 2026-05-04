@@ -42,8 +42,39 @@ script = ExtResource("5_pknfv")
 skill_id = &"mage_grand_conjuration"
 display_name = "大型召唤"
 icon_id = &"mage_grand_conjuration"
-description = "建议做成 `cast_variants`，在傀儡、元素兽、图腾组三类大型召唤间切换。"
+description = "在傀儡、元素兽、图腾三类大型召唤间切换召唤。"
 max_level = 3
+level_description_template = "召唤大型单位，范围{area}。消耗{ap}AP/{mp}法力{{?aura}}/{aura}斗气{{/aura}}，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"area": "半径1格",
+"aura": "1",
+"cooldown": "5",
+"mp": "3"
+},
+"1": {
+"ap": "3",
+"area": "半径1格",
+"aura": "1",
+"cooldown": "5",
+"mp": "3"
+},
+"2": {
+"ap": "3",
+"area": "半径1格",
+"aura": "1",
+"cooldown": "5",
+"mp": "3"
+},
+"3": {
+"ap": "3",
+"area": "半径1格",
+"aura": "1",
+"cooldown": "5",
+"mp": "3"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])
 combat_profile = SubResource("Resource_acr7m")

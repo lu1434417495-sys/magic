@@ -23,6 +23,10 @@ const COMBAT_RESOURCE_HP: StringName = &"hp"
 const COMBAT_RESOURCE_STAMINA: StringName = &"stamina"
 const COMBAT_RESOURCE_MP: StringName = &"mp"
 const COMBAT_RESOURCE_AURA: StringName = &"aura"
+const BODY_SIZE_SMALL := 1
+const BODY_SIZE_MEDIUM := 2
+const BODY_SIZE_LARGE := 3
+const BODY_SIZE_HUGE := 4
 const TO_DICT_FIELDS: Array[String] = [
 	"unit_id",
 	"source_member_id",
@@ -111,8 +115,8 @@ var ai_state_id: StringName = &""
 var ai_blackboard: Dictionary = {}
 ## 字段说明：记录对象当前使用的网格坐标，供绘制、寻路或占位计算使用。
 var coord: Vector2i = Vector2i.ZERO
-## 字段说明：记录体型尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
-var body_size := 1
+## 字段说明：记录体型尺寸枚举（1=small, 2=medium, 3=large, 4=huge），战斗与跳跃模块按此分档读取。
+var body_size := BODY_SIZE_MEDIUM
 ## 字段说明：记录占位尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
 var footprint_size: Vector2i = Vector2i.ONE
 ## 字段说明：保存占用坐标列表，供范围判定、占位刷新、批量渲染或目标选择复用。
@@ -417,7 +421,7 @@ func erase_status_effect(status_id: StringName) -> void:
 
 
 static func get_footprint_size_for_body_size(size_value: int) -> Vector2i:
-	return Vector2i(2, 2) if maxi(size_value, 1) >= 3 else Vector2i.ONE
+	return Vector2i(2, 2) if maxi(size_value, BODY_SIZE_SMALL) >= BODY_SIZE_LARGE else Vector2i.ONE
 
 
 func to_dict() -> Dictionary:

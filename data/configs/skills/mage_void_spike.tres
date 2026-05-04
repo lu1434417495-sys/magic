@@ -30,6 +30,37 @@ skill_id = &"mage_void_spike"
 display_name = "虚蚀尖刺"
 icon_id = &"mage_void_spike"
 description = "奥术与虚无混合的穿刺线伤；对法盾和召唤物有额外克制。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "13"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "13"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "13"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "13"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])

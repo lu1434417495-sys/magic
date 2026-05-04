@@ -26,8 +26,35 @@ script = ExtResource("5_fwaj5")
 skill_id = &"mage_mirror_shard"
 display_name = "棱镜碎反"
 icon_id = &"mage_mirror_shard"
-description = "命中后可对与其相邻的另一目标折射一次 `60%` 奥术伤害。"
+description = "命中后可对与其相邻的另一目标折射一次60%奥术伤害。"
 max_level = 3
+level_description_template = "造成{dmg}伤害，可折射60%伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "10",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "10",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "10",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "10",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])
 combat_profile = SubResource("Resource_tab1s")

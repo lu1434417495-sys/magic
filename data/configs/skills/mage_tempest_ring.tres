@@ -30,6 +30,33 @@ skill_id = &"mage_tempest_ring"
 display_name = "风暴环"
 icon_id = &"mage_tempest_ring"
 description = "以自身为中心向外释放电弧；对试图包围法师的敌人压制力极强。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "9"
+},
+"1": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "9"
+},
+"2": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "9"
+},
+"3": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "9"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

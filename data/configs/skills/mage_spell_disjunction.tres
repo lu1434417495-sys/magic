@@ -51,7 +51,38 @@ script = ExtResource("5_iuvjb")
 skill_id = &"mage_spell_disjunction"
 display_name = "裂解术"
 icon_id = &"mage_spell_disjunction"
-description = "单体法术伤害附带装备破坏定义语义；当前运行时仅稳定执行首段法术伤害。"
+description = "单体法术伤害，附带破坏目标装备的效果。"
+level_description_template = "造成{dmg}点伤害，并尝试破坏装备。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "11"
+},
+"1": {
+"ap": "2",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "11"
+},
+"2": {
+"ap": "2",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "11"
+},
+"3": {
+"ap": "2",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "11"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane", &"breaker"])

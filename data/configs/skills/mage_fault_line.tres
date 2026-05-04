@@ -29,7 +29,42 @@ script = ExtResource("5_3cfad")
 skill_id = &"mage_fault_line"
 display_name = "地裂线"
 icon_id = &"mage_fault_line"
-description = "沿直线撕开地面；命中的敌人获得 `staggered`，可与弓手远程集火配合。"
+description = "沿直线撕开地面，命中的敌人获得失衡，可与远程集火配合。"
+level_description_template = "射程{range}，土石伤{dmg}，直线范围。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

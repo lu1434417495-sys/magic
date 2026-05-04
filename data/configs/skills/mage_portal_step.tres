@@ -10,7 +10,7 @@
 script = ExtResource("2_cprul")
 variant_id = &"coord_pair"
 display_name = "双点门径"
-description = "在两格之间建立短时门户，供一名友军穿越。"
+description = "双点门径"
 
 [sub_resource type="Resource" id="Resource_xkdrh"]
 script = ExtResource("4_nnu2u")
@@ -30,8 +30,31 @@ script = ExtResource("5_w01t6")
 skill_id = &"mage_portal_step"
 display_name = "门径跨越"
 icon_id = &"mage_portal_step"
-description = "建议做成双点 `cast_variant`；在两格之间建立短时门户，供一名友军穿越。"
+description = "在两格之间建立短时门户，供一名友军穿越。"
 max_level = 3
+level_description_template = "建立门户供友军穿越。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_xkdrh")

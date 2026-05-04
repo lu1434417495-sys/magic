@@ -30,6 +30,41 @@ skill_id = &"archer_blast_arrow"
 display_name = "爆裂箭"
 icon_id = &"archer_blast_arrow"
 description = "在落点爆开冲击；对轻型掩体、召唤物或低护甲后排有较高压制价值。"
+level_description_template = "造成{dmg}伤害，射程{range}，半径范围，消耗{ap}AP/{aura}斗气，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "10",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"aura": "1",
+		"cooldown": "15"
+	},
+	"1": {
+		"dmg": "10",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"aura": "1",
+		"cooldown": "15"
+	},
+	"2": {
+		"dmg": "10",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"aura": "1",
+		"cooldown": "15"
+	},
+	"3": {
+		"dmg": "10",
+		"range": "5",
+		"area_pattern": "radius",
+		"ap": "2",
+		"aura": "1",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])

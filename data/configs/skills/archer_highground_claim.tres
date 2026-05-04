@@ -31,7 +31,42 @@ script = ExtResource("5_b5ixq")
 skill_id = &"archer_highground_claim"
 display_name = "抢高位"
 icon_id = &"archer_highground_claim"
-description = "向指定高低差合法格位移动最多 `3` 格；若落点为高地，额外获得 `预瞄`。"
+description = "向指定高低差合法格位移动最多 3 格；若落点为高地，额外获得 预瞄。"
+level_description_template = "向指定格位移最多{range}格，获得{status}（{duration}TU），自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])

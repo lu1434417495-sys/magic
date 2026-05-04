@@ -33,6 +33,37 @@ skill_id = &"archer_double_nock"
 display_name = "双弦连射"
 icon_id = &"archer_double_nock"
 description = "连续射出两箭；第一箭未命中时不触发第二箭。"
+level_description_template = "射出两箭，各造成{dmg}伤害，射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])

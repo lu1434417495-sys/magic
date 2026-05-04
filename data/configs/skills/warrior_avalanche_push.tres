@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_dmg"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+power = 0
+damage_tag = &"physical_blunt"
+params = { "add_weapon_dice": true, "requires_weapon": true, "use_weapon_physical_damage_tag": true }
+
+[sub_resource type="Resource" id="Resource_push"]
+script = ExtResource("3_effect")
+effect_type = &"forced_move"
+forced_move_mode = &"retreat"
+forced_move_distance = 2
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_avalanche_push"
+range_value = 1
+ap_cost = 1
+stamina_cost = 14
+cooldown_tu = 40
+attack_roll_bonus = 0
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_dmg"), SubResource("Resource_push")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_avalanche_push"
+display_name = "山崩推击"
+icon_id = &"warrior_avalanche_push"
+description = "强力推击，将目标击退两格。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"basic"
+attribute_growth_progress = { "strength": 60 }
+tags = Array[StringName]([&"warrior", &"melee", &"control", &"displacement"])
+combat_profile = SubResource("Resource_combat")

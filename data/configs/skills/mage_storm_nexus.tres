@@ -30,7 +30,42 @@ script = ExtResource("5_3yfik")
 skill_id = &"mage_storm_nexus"
 display_name = "暴风核心"
 icon_id = &"mage_storm_nexus"
-description = "生成持续 `120 TU` 的雷暴核心；每 `60 TU` 自动对最近的 `2` 名敌人触发小型连锁闪击。"
+description = "生成持续 120 TU 的雷暴核心；每 60 TU 自动对最近的 2 名敌人触发小型连锁闪击。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力/{aura}Aura，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "8"
+},
+"1": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "8"
+},
+"2": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "8"
+},
+"3": {
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+"range": "5",
+"dmg": "8"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

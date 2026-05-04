@@ -22,8 +22,35 @@ script = ExtResource("5_g3otk")
 skill_id = &"mage_null_zone"
 display_name = "禁魔区"
 icon_id = &"mage_null_zone"
-description = "区域内敌人下一个技能消耗 `+1`，并使施法类动作命中 `-15%`。"
+description = "区域内敌人下一个技能消耗+1，并使施法类动作命中-15%。"
 max_level = 3
+level_description_template = "范围{area}禁魔。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])
 combat_profile = SubResource("Resource_he5sn")

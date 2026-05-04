@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_status"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"guarding"
+power = 2
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_shield_wall"
+target_mode = &"ground"
+target_team_filter = &"ally"
+range_value = 0
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 160
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_status")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_shield_wall"
+display_name = "护盾墙"
+icon_id = &"warrior_shield_wall"
+description = "为周围友军提供防御增益，减少受到的伤害。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"basic"
+attribute_growth_progress = { "constitution": 60 }
+tags = Array[StringName]([&"warrior", &"melee", &"defense", &"team"])
+combat_profile = SubResource("Resource_combat")

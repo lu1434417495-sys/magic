@@ -29,7 +29,42 @@ script = ExtResource("5_fikvj")
 skill_id = &"mage_ball_lightning"
 display_name = "球形闪电"
 icon_id = &"mage_ball_lightning"
-description = "生成持续 `120 TU` 的游走电球；每 `60 TU` 电击附近敌人并施加 `感电`。"
+description = "生成持续120TU的游走电球，每60TU电击附近敌人并施加感电。"
+level_description_template = "射程{range}，雷伤{dmg}，范围{area}格，召唤电球。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

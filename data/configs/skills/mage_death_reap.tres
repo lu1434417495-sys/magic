@@ -37,7 +37,38 @@ script = ExtResource("5_ycucy")
 skill_id = &"mage_death_reap"
 display_name = "死亡收割"
 icon_id = &"mage_death_reap"
-description = "高耗魔单体收割技，命中后可记录击杀返 AP 与免费移动额度的定义语义。"
+description = "高耗魔单体收割技，击杀目标后返还AP与免费移动额度。"
+level_description_template = "射程{range}，负能量伤{dmg}，击杀返AP与移动力。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "14",
+"range": "5",
+"ap": "2",
+"mp": "3",
+"cooldown": "15",
+},
+"1": {
+"dmg": "14",
+"range": "5",
+"ap": "2",
+"mp": "3",
+"cooldown": "15",
+},
+"2": {
+"dmg": "14",
+"range": "5",
+"ap": "2",
+"mp": "3",
+"cooldown": "15",
+},
+"3": {
+"dmg": "14",
+"range": "5",
+"ap": "2",
+"mp": "3",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"finisher"])

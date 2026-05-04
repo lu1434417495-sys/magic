@@ -29,8 +29,39 @@ script = ExtResource("5_cdcxv")
 skill_id = &"mage_glitter_dust"
 display_name = "炫尘术"
 icon_id = &"mage_glitter_dust"
-description = "扬起闪耀粉尘；命中敌人获得 `blinded`，并揭示隐身或潜伏单位。"
+description = "扬起闪耀粉尘，命中敌人使其blinded，并揭示隐身或潜伏单位。"
 max_level = 3
+level_description_template = "造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "5",
+"dmg": "7",
+"mp": "1"
+},
+"1": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "5",
+"dmg": "7",
+"mp": "1"
+},
+"2": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "5",
+"dmg": "7",
+"mp": "1"
+},
+"3": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "5",
+"dmg": "7",
+"mp": "1"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])
 combat_profile = SubResource("Resource_7w06q")

@@ -22,8 +22,39 @@ script = ExtResource("5_p8fxu")
 skill_id = &"mage_force_wall"
 display_name = "力场墙"
 icon_id = &"mage_force_wall"
-description = "生成持续 `120 TU` 的不可穿越力场；专门用来切割阵型。"
+description = "在目标直线区域生成不可穿越的力场墙，持续120TU，用于切割战场阵型。"
 max_level = 3
+level_description_template = "生成持续{duration}TU的力场墙，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_lhwai")

@@ -22,6 +22,25 @@ skill_id = &"mage_summon_familiar"
 display_name = "召唤魔宠"
 icon_id = &"mage_summon_familiar"
 description = "召唤小型辅助单位；提供视野、补刀或触发器效果。"
+level_description_template = "召唤小型魔宠提供辅助。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"mp": "1",
+"cooldown": "15"
+},
+"1": {
+"mp": "1",
+"cooldown": "15"
+},
+"2": {
+"mp": "1",
+"cooldown": "15"
+},
+"3": {
+"mp": "1",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

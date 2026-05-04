@@ -80,6 +80,9 @@ func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillD
 		return "体力不足，无法施放该技能。"
 	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
+	if not combat_profile.required_weapon_families.is_empty() \
+		and not unit_matches_required_weapon_families(active_unit, combat_profile.required_weapon_families):
+		return "需要装备指定武器家族，无法施放该技能。"
 	if requires_melee_weapon(skill_def) and not unit_has_melee_weapon(active_unit):
 		return "需要装备有效武器，无法施放该技能。"
 	if combat_profile.excluded_weapon_families.size() > 0 and active_unit.weapon_family in combat_profile.excluded_weapon_families:
@@ -113,6 +116,10 @@ func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillD
 
 func unit_has_melee_weapon(active_unit: BattleUnitState) -> bool:
 	return BATTLE_RANGE_SERVICE_SCRIPT.unit_has_melee_weapon(active_unit)
+
+
+func unit_matches_required_weapon_families(active_unit: BattleUnitState, required_weapon_families: Array) -> bool:
+	return BATTLE_RANGE_SERVICE_SCRIPT.unit_matches_required_weapon_families(active_unit, required_weapon_families)
 
 
 func requires_melee_weapon(skill_def: SkillDef) -> bool:

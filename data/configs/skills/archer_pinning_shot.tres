@@ -32,7 +32,46 @@ script = ExtResource("5_td5j2")
 skill_id = &"archer_pinning_shot"
 display_name = "钉射"
 icon_id = &"archer_pinning_shot"
-description = "单体伤害并施加 pinned。"
+description = "造成伤害，并附加定身。"
+level_description_template = "造成{dmg}伤害，命中附加{status}（{duration}TU），射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "10",
+		"status": "定身",
+		"duration": "90",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "10",
+		"status": "定身",
+		"duration": "90",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "10",
+		"status": "定身",
+		"duration": "90",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "10",
+		"status": "定身",
+		"duration": "90",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])

@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_status"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"attack_up"
+power = 2
+duration_tu = 40
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_vanguard_pardon"
+target_mode = &"unit"
+target_team_filter = &"ally"
+range_value = 4
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 160
+attack_roll_bonus = 0
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_status")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_vanguard_pardon"
+display_name = "先锋赦令"
+icon_id = &"warrior_vanguard_pardon"
+description = "赦令友军全力进攻，提升伤害但降低防御。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "strength": 60, "willpower": 60 }
+tags = Array[StringName]([&"warrior", &"melee", &"team", &"buff"])
+combat_profile = SubResource("Resource_combat")

@@ -10,7 +10,7 @@ display_name = "Missing Template Id"
 brain_id = "melee_aggressor"
 initial_state_id = "engage"
 enemy_count = 1
-body_size = 1
+body_size = 2
 
 [resource]
 script = ExtResource("1_seed")

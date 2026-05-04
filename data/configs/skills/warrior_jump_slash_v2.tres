@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_dmg"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+power = 8
+damage_tag = &"physical_slash"
+params = { "add_weapon_dice": false }
+
+[sub_resource type="Resource" id="Resource_jump"]
+script = ExtResource("3_effect")
+effect_type = &"forced_move"
+forced_move_mode = &"jump"
+forced_move_distance = 3
+jump_base_budget = 2
+jump_str_scale = 0.3
+jump_arc_ratio = 0.4
+jump_range_multiplier = 1
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_jump_slash_v2"
+target_mode = &"ground"
+range_value = 2
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 2
+stamina_cost = 18
+cooldown_tu = 80
+attack_roll_bonus = 0
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_dmg"), SubResource("Resource_jump")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_jump_slash_v2"
+display_name = "跳斩"
+icon_id = &"warrior_jump_slash"
+description = "跳跃到目标区域，落地时对周围敌人造成伤害。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "strength": 60, "agility": 60 }
+tags = Array[StringName]([&"warrior", &"melee", &"mobility", &"aoe"])
+combat_profile = SubResource("Resource_combat")

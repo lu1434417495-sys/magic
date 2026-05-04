@@ -21,7 +21,34 @@ script = ExtResource("5_uve3t")
 skill_id = &"mage_blink"
 display_name = "闪现术"
 icon_id = &"mage_blink"
-description = "立即位移最多 `3` 格；不穿重障碍，但可快速脱离近战。"
+description = "立即位移最多3格，不穿重障碍，但可快速脱离近战。"
+level_description_template = "自身位移最多3格。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"range": "0",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"1": {
+"range": "0",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"2": {
+"range": "0",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"3": {
+"range": "0",
+"ap": "1",
+"mp": "1",
+"cooldown": "5"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])

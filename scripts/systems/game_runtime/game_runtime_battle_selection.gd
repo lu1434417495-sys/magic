@@ -565,14 +565,15 @@ func _is_next_ground_target_coord_selectable(
 
 func _are_ground_target_coords_individually_valid(
 	active_unit: BattleUnitState,
-	skill_def,
-	cast_variant,
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
 	target_coords: Array
 ) -> bool:
 	var battle_state = _get_battle_state()
 	var battle_grid_service = _get_battle_grid_service()
 	if battle_state == null or battle_grid_service == null or active_unit == null or skill_def == null or skill_def.combat_profile == null or cast_variant == null:
 		return false
+	var jump_effect_def := _resolve_ground_jump_effect_def(skill_def, cast_variant)
 	var seen_coords: Dictionary = {}
 	for coord_variant in target_coords:
 		if coord_variant is not Vector2i:
@@ -583,7 +584,9 @@ func _are_ground_target_coords_individually_valid(
 		seen_coords[coord] = true
 		if not battle_state.cells.has(coord):
 			return false
-		if battle_grid_service.get_distance_from_unit_to_coord(active_unit, coord) > _get_effective_skill_range(active_unit, skill_def):
+		var target_distance: int = battle_grid_service.get_chebyshev_distance(active_unit.coord, coord) \
+			if jump_effect_def != null else battle_grid_service.get_distance_from_unit_to_coord(active_unit, coord)
+		if target_distance > _get_effective_skill_range(active_unit, skill_def):
 			return false
 		var cell = battle_state.cells.get(coord)
 		if cell == null:
@@ -599,7 +602,22 @@ func _are_ground_target_coords_individually_valid(
 				return false
 		if _is_crown_break_skill(skill_def) and not _is_crown_break_target_eligible(active_unit, _get_runtime_unit_at_coord(coord)):
 			return false
+		if jump_effect_def != null:
+			if not battle_grid_service.can_jump_arc(battle_state, active_unit, coord, jump_effect_def):
+				return false
 	return true
+
+
+func _resolve_ground_jump_effect_def(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> CombatEffectDef:
+	if cast_variant != null:
+		for effect_def in cast_variant.effect_defs:
+			if effect_def != null and effect_def.effect_type == &"forced_move" and effect_def.forced_move_mode == &"jump":
+				return effect_def
+	if skill_def != null and skill_def.combat_profile != null:
+		for effect_def in skill_def.combat_profile.effect_defs:
+			if effect_def != null and effect_def.effect_type == &"forced_move" and effect_def.forced_move_mode == &"jump":
+				return effect_def
+	return null
 
 
 func _is_ground_target_combo_allowed(active_unit: BattleUnitState, skill_def, cast_variant, target_coords: Array) -> bool:

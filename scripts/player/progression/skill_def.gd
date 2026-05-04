@@ -21,6 +21,12 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var max_level := 1
 ## 字段说明：非核心状态下的有效等级上限；0 表示不低于 max_level 另行限制。
 @export var non_core_max_level := 0
+## 字段说明：动态等级上限读取的属性或 custom stat；为空时使用静态 max_level。
+@export var dynamic_max_level_stat_id: StringName = &""
+## 字段说明：动态等级上限基础值；配置 dynamic_max_level_stat_id 后作为公式起点。
+@export var dynamic_max_level_base := 0
+## 字段说明：动态等级上限随 stat 每点增加的等级数；配置 dynamic_max_level_stat_id 后必须为正数。
+@export var dynamic_max_level_per_stat := 0
 ## 字段说明：在编辑器中暴露熟练度曲线配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var mastery_curve: PackedInt32Array = PackedInt32Array()
 ## 字段说明：在编辑器中暴露标签集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
@@ -64,9 +70,17 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 
 
 func get_mastery_required_for_level(level: int) -> int:
-	if level < 0 or level >= mastery_curve.size():
+	if level < 0:
 		return 0
-	return mastery_curve[level]
+	if level < mastery_curve.size():
+		return mastery_curve[level]
+	if mastery_curve.size() <= 0:
+		return 0
+	if mastery_curve.size() == 1:
+		return int(mastery_curve[0])
+	var last_index := mastery_curve.size() - 1
+	var delta := maxi(int(mastery_curve[last_index]) - int(mastery_curve[last_index - 1]), 1)
+	return int(mastery_curve[last_index]) + delta * (level - last_index)
 
 func is_profession_skill() -> bool:
 	return learn_source == &"profession"

@@ -64,12 +64,18 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var passive_effect_defs: Array[CombatEffectDef] = []
 ## 字段说明：在编辑器中暴露施放变体集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var cast_variants: Array[CombatCastVariantDef] = []
+## 字段说明：必须使用的武器家族列表；非空时单位必须装备对应家族的有效武器才能施放该技能。
+@export var required_weapon_families: Array[StringName] = []
 ## 字段说明：禁止使用的武器家族列表；如果当前武器家族在此列表中，则无法施放该技能。
 @export var excluded_weapon_families: Array[StringName] = []
 ## 字段说明：禁止使用的武器类型ID列表；如果当前武器类型ID在此列表中，则无法施放该技能。
 @export var excluded_weapon_type_ids: Array[StringName] = []
 ## 字段说明：是否需要装备盾牌；为 true 时单位必须在 off_hand 槽位装备带有 shield 标签的物品才能施放该技能。
 @export var requires_equipped_shield: bool = false
+## 字段说明：目标生命值低于阈值时，该目标提供的熟练度倍率；默认 1 表示无额外加成。
+@export var mastery_low_hp_bonus_multiplier: int = 1
+## 字段说明：触发低血熟练度加成的生命值百分比阈值；默认 50 表示低于 50% 最大生命时触发。
+@export var mastery_low_hp_threshold_percent: int = 50
 
 
 func get_cast_variant(variant_id: StringName) -> CombatCastVariantDef:

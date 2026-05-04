@@ -19,7 +19,34 @@ script = ExtResource("5_4j0wa")
 skill_id = &"mage_dimension_swap"
 display_name = "移形换位"
 icon_id = &"mage_dimension_swap"
-description = "与友军或敌方互换站位；把目标换进 `mud`、火墙或包夹点的收益很高。"
+description = "与友军或敌方互换站位，把目标换进不利地形收益很高。"
+level_description_template = "射程{range}，与目标换位。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])

@@ -20,7 +20,34 @@ script = ExtResource("5_kbfxb")
 skill_id = &"mage_astral_page"
 display_name = "星界书页"
 icon_id = &"mage_astral_page"
-description = "召唤漂浮书页协助施法；使相邻友军首次施法消耗 `-1 mp`。"
+description = "召唤漂浮书页协助施法，使相邻友军首次施法消耗-1法力。"
+level_description_template = "射程{range}，召唤书页辅助。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"1": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"2": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"3": {
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

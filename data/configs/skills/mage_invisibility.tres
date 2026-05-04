@@ -20,8 +20,31 @@ script = ExtResource("5_3ndqs")
 skill_id = &"mage_invisibility"
 display_name = "隐形术"
 icon_id = &"mage_invisibility"
-description = "直到攻击前提升闪避与走位安全性；适合保法师或辅助突击职业切入。"
+description = "令友军进入隐身直到攻击前，提升闪避与走位安全性。"
 max_level = 3
+level_description_template = "令目标隐身。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])
 combat_profile = SubResource("Resource_3fyf5")

@@ -33,7 +33,42 @@ script = ExtResource("5_63rsa")
 skill_id = &"mage_prismatic_barrier"
 display_name = "棱彩屏障"
 icon_id = &"mage_prismatic_barrier"
-description = "给友军附加持续 `60 TU` 的棱彩抗性，使 `火焰 / 冰霜 / 闪电 / 负能量` 伤害减半。"
+description = "给友军附加持续 60 TU 的棱彩抗性，使 火焰 / 冰霜 / 闪电 / 负能量 伤害减半。"
+level_description_template = "为友方施加棱彩屏障（持续{duration}TU），减免火焰/冰霜/闪电/负能量伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "3",
+"status": "prismatic_barrier",
+"duration": "60"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "3",
+"status": "prismatic_barrier",
+"duration": "60"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "3",
+"status": "prismatic_barrier",
+"duration": "60"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "3",
+"status": "prismatic_barrier",
+"duration": "60"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])

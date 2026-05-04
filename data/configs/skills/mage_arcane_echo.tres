@@ -22,7 +22,34 @@ script = ExtResource("5_6x8qc")
 skill_id = &"mage_arcane_echo"
 display_name = "奥术回响"
 icon_id = &"mage_arcane_echo"
-description = "令下一个单体法术以 `50%` 威力再触发一次；适合配合高价值点杀术。"
+description = "令下一个单体法术以50%威力再触发一次，适合配合高价值点杀术。"
+level_description_template = "自身增益，令下一单体法术50%威力再触发。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"1": {
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"2": {
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"3": {
+"range": "0",
+"ap": "2",
+"mp": "2",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])

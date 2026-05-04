@@ -5,6 +5,8 @@
 class_name SkillMergeService
 extends RefCounted
 
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
+
 ## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var _unit_progress: UnitProgress
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -296,7 +298,10 @@ func _get_or_create_result_skill_progress(
 
 	var result_skill_def := _skill_defs.get(result_skill_id) as SkillDef
 	if result_skill_def != null:
-		source_max_level = min(source_max_level, result_skill_def.max_level)
+		source_max_level = min(
+			source_max_level,
+			SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(result_skill_def, result_progress, _unit_progress)
+		)
 
 	result_progress.skill_level = source_max_level
 	result_progress.current_mastery = source_current_mastery

@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_dmg"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+power = 5
+damage_tag = &"fire"
+params = { "add_weapon_dice": false }
+
+[sub_resource type="Resource" id="Resource_terrain"]
+script = ExtResource("3_effect")
+effect_type = &"terrain_effect"
+terrain_effect_id = &"prairie_fire"
+duration_tu = 80
+tick_interval_tu = 40
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_prairie_fire_order"
+target_mode = &"ground"
+range_value = 3
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 2
+aura_cost = 40
+cooldown_tu = 200
+attack_roll_bonus = 0
+mastery_trigger_mode = &"status_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_dmg"), SubResource("Resource_terrain")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_prairie_fire_order"
+display_name = "燎原号令"
+icon_id = &"warrior_prairie_fire_order"
+description = "大范围火焰领域，区域内敌人持续受到燃烧伤害。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"advanced"
+attribute_growth_progress = { "strength": 60, "willpower": 120 }
+tags = Array[StringName]([&"warrior", &"melee", &"fire", &"aoe", &"terrain"])
+combat_profile = SubResource("Resource_combat")

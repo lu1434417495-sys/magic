@@ -30,6 +30,41 @@ skill_id = &"mage_fireball"
 display_name = "火球术"
 icon_id = &"mage_fireball"
 description = "向指定地格投掷火球，对菱形小范围内目标造成火焰伤害。"
+level_description_template = "射程{range}，火伤{dmg}，菱形范围{area}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "13",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "13",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "13",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "13",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

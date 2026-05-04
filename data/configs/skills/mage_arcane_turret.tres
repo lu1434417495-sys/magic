@@ -27,7 +27,38 @@ script = ExtResource("5_q4h26")
 skill_id = &"mage_arcane_turret"
 display_name = "奥术炮台"
 icon_id = &"mage_arcane_turret"
-description = "固定炮台型召唤物；优先攻击带 `奥脆` 的目标。"
+description = "固定炮台型召唤物，优先攻击带奥术脆弱的目标。"
+level_description_template = "射程{range}，奥术伤{dmg}，召唤炮台。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"1": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"2": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"3": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

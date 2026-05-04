@@ -27,7 +27,38 @@ script = ExtResource("5_6islm")
 skill_id = &"mage_ember_mine"
 display_name = "灰烬雷"
 icon_id = &"mage_ember_mine"
-description = "在指定地格埋下火种；首个踩入的敌人受到伤害并获得 `灼烧`。"
+description = "在指定地格埋下火种，首个踩入的敌人受到伤害并获得灼烧。"
+level_description_template = "射程{range}，火伤{dmg}，埋设地雷。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+},
+"1": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+},
+"2": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+},
+"3": {
+"dmg": "9",
+"range": "4",
+"ap": "2",
+"mp": "1",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

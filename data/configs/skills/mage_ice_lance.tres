@@ -32,8 +32,39 @@ script = ExtResource("5_3cxk2")
 skill_id = &"mage_ice_lance"
 display_name = "冰枪术"
 icon_id = &"mage_ice_lance"
-description = "远距离点杀并施加 frozen。"
+description = "远距离点杀并施加frozen。"
 max_level = 3
+level_description_template = "造成{dmg}冰冻伤害{{?status}}，附加frozen（{duration}TU）{{/status}}。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"cooldown": "5",
+"dmg": "11",
+"duration": "90",
+"mp": "1",
+"status": "true"
+},
+"1": {
+"cooldown": "5",
+"dmg": "11",
+"duration": "90",
+"mp": "1",
+"status": "true"
+},
+"2": {
+"cooldown": "5",
+"dmg": "11",
+"duration": "90",
+"mp": "1",
+"status": "true"
+},
+"3": {
+"cooldown": "5",
+"dmg": "11",
+"duration": "90",
+"mp": "1",
+"status": "true"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])
 combat_profile = SubResource("Resource_x3sk0")

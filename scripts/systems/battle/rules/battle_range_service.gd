@@ -20,6 +20,20 @@ static func unit_has_melee_weapon(unit_state: BattleUnitState) -> bool:
 		and ProgressionDataUtils.to_string_name(unit_state.weapon_physical_damage_tag if unit_state != null else &"") != &""
 
 
+static func unit_matches_required_weapon_families(unit_state: BattleUnitState, required_weapon_families: Array) -> bool:
+	if required_weapon_families.is_empty():
+		return true
+	if not unit_has_melee_weapon(unit_state):
+		return false
+	var current_family := ProgressionDataUtils.to_string_name(unit_state.weapon_family)
+	if current_family == &"":
+		return false
+	for family in required_weapon_families:
+		if ProgressionDataUtils.to_string_name(family) == current_family:
+			return true
+	return false
+
+
 static func get_effective_skill_range(unit_state: BattleUnitState, skill_def) -> int:
 	if skill_def == null or skill_def.combat_profile == null:
 		return 0
@@ -31,6 +45,8 @@ static func get_effective_skill_range(unit_state: BattleUnitState, skill_def) ->
 static func requires_current_melee_weapon(skill_def) -> bool:
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
+	if not skill_def.combat_profile.required_weapon_families.is_empty():
+		return true
 	for effect_def in skill_def.combat_profile.effect_defs:
 		if effect_requires_weapon(effect_def):
 			return true
@@ -49,6 +65,8 @@ static func is_weapon_range_skill(skill_def) -> bool:
 
 static func resolve_base_skill_range(unit_state: BattleUnitState, skill_def) -> int:
 	var configured_range := maxi(int(skill_def.combat_profile.range_value), 0)
+	if is_ground_jump_skill(skill_def):
+		return configured_range
 	if requires_current_melee_weapon(skill_def):
 		return get_weapon_attack_range(unit_state)
 	if is_weapon_range_skill(skill_def):
@@ -58,6 +76,23 @@ static func resolve_base_skill_range(unit_state: BattleUnitState, skill_def) -> 
 		if _skill_has_tag(skill_def, &"melee"):
 			return 1
 	return configured_range
+
+
+static func is_ground_jump_skill(skill_def) -> bool:
+	if skill_def == null or skill_def.combat_profile == null:
+		return false
+	if ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_mode) != &"ground":
+		return false
+	for effect_def in skill_def.combat_profile.effect_defs:
+		if _is_jump_forced_move_effect(effect_def):
+			return true
+	for cast_variant in skill_def.combat_profile.cast_variants:
+		if cast_variant == null:
+			continue
+		for effect_def in cast_variant.effect_defs:
+			if _is_jump_forced_move_effect(effect_def):
+				return true
+	return false
 
 
 static func _get_range_modifier_bonus(unit_state: BattleUnitState, _skill_def) -> int:
@@ -79,6 +114,12 @@ static func effect_requires_weapon(effect_def) -> bool:
 	return effect_def != null \
 		and effect_def.params != null \
 		and bool(effect_def.params.get("requires_weapon", false))
+
+
+static func _is_jump_forced_move_effect(effect_def) -> bool:
+	return effect_def != null \
+		and ProgressionDataUtils.to_string_name(effect_def.effect_type) == &"forced_move" \
+		and ProgressionDataUtils.to_string_name(effect_def.forced_move_mode) == &"jump"
 
 
 static func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:

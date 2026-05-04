@@ -22,8 +22,39 @@ script = ExtResource("5_rvlti")
 skill_id = &"mage_mana_font"
 display_name = "法泉术"
 icon_id = &"mage_mana_font"
-description = "生成持续 `120 TU` 的法泉；友军在其中结束行动时回复少量 `mp`。"
+description = "生成持续120TU的法泉，友军在其中结束行动时回复少量mp。"
 max_level = 3
+level_description_template = "生成持续{duration}TU的法泉，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"duration": "120",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_8epna")

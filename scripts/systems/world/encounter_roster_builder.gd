@@ -557,7 +557,7 @@ func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build
 		]
 		unit_state.faction_id = encounter_anchor.faction_id if encounter_anchor != null else &"hostile"
 		unit_state.control_mode = &"ai"
-		unit_state.body_size = 1
+		unit_state.body_size = BattleUnitState.BODY_SIZE_MEDIUM
 		unit_state.refresh_footprint()
 		unit_state.attribute_snapshot = _build_enemy_snapshot(index, fallback_stamina_max)
 		unit_state.current_hp = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)

@@ -79,6 +79,13 @@ class StageOutcomeDamageResolver extends BattleDamageResolver:
 		}
 
 
+class FixedSecondarySaveRollDamageResolver extends BattleDamageResolver:
+	var save_roll := 1
+
+	func _roll_attack_die(_die_size: int, _is_disadvantage: bool, _attack_context: Dictionary) -> int:
+		return save_roll
+
+
 class FakeRepeatAttackHitResolver:
 	extends RefCounted
 
@@ -159,6 +166,7 @@ func _run() -> void:
 	_test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss()
 	_test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry()
 	_test_same_faction_support_mastery_counts_status_or_effect_applied()
+	_test_control_save_bonus_status_modifies_secondary_hit()
 	_test_skill_mastery_ignores_legacy_hp_damage_without_formal_damage()
 	if _failures.is_empty():
 		print("Warrior advanced skill regression: PASS")
@@ -192,6 +200,21 @@ func _test_whirlwind_slash_path_aoe_can_repeat_hits_across_steps() -> void:
 	_assert_true(
 		bool(path_step_aoe.params.get("apply_on_successful_step_only", false)),
 		"旋风斩路径 AOE 应只在成功前进一步时触发。"
+	)
+	_assert_eq(
+		String(path_step_aoe.params.get("repeat_hit_status_id", "")),
+		"staggered",
+		"旋风斩连续命中后的控制状态应由 path_step_aoe params 声明。"
+	)
+	_assert_eq(
+		int(path_step_aoe.params.get("repeat_hit_status_min_skill_level", -1)),
+		9,
+		"旋风斩连续命中控制状态的解锁等级应由 params 声明。"
+	)
+	_assert_eq(
+		int(path_step_aoe.params.get("repeat_hit_status_threshold", -1)),
+		4,
+		"旋风斩连续命中控制状态的命中次数阈值应由 params 声明。"
 	)
 
 	var state := _build_state(Vector2i(5, 3))
@@ -560,6 +583,31 @@ func _test_same_faction_support_mastery_counts_status_or_effect_applied() -> voi
 		mastery_service.resolve_active_skill_mastery_amount(),
 		1,
 		"same-faction support 技能成功施加状态时，per_target_rank 不应直接归零。"
+	)
+
+
+func _test_control_save_bonus_status_modifies_secondary_hit() -> void:
+	var resolver := FixedSecondarySaveRollDamageResolver.new()
+	resolver.save_roll = 8
+	var source_unit := _build_unit(&"secondary_hit_source", Vector2i(1, 1), 2)
+	var target_unit := _build_unit(&"secondary_hit_target", Vector2i(2, 1), 2)
+	source_unit.attribute_snapshot.set_value(&"strength", 10)
+	target_unit.attribute_snapshot.set_value(&"constitution", 10)
+
+	_assert_true(
+		resolver._resolve_secondary_hit(source_unit, target_unit, {}, 10),
+		"无控制豁免加值时，固定 d20=8 应低于 DC10 并触发 secondary_hit。"
+	)
+
+	var save_bonus_status := BattleStatusEffectState.new()
+	save_bonus_status.status_id = &"test_control_save_bonus"
+	save_bonus_status.power = 1
+	save_bonus_status.stacks = 1
+	save_bonus_status.params = {"control_save_bonus": 3}
+	target_unit.set_status_effect(save_bonus_status)
+	_assert_true(
+		not resolver._resolve_secondary_hit(source_unit, target_unit, {}, 10),
+		"状态 params.control_save_bonus 应提高目标二次豁免，阻止同一固定掷骰触发 secondary_hit。"
 	)
 
 

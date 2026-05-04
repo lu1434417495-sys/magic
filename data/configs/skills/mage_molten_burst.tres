@@ -29,8 +29,39 @@ script = ExtResource("5_pwu4a")
 skill_id = &"mage_molten_burst"
 display_name = "熔爆术"
 icon_id = &"mage_molten_burst"
-description = "对已带 `灼烧` 的敌人追加一次 `50%` 火焰余震；适合作为火系中段爆发点。"
+description = "对已带灼烧的敌人追加一次50%火焰余震，适合作为火系中段爆发点。"
 max_level = 3
+level_description_template = "造成{dmg}火焰伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])
 combat_profile = SubResource("Resource_oewuj")

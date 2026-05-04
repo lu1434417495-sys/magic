@@ -406,7 +406,18 @@ func _resolve_skill_mastery_target_amount(
 	if amount_mode != &"per_target_rank":
 		return 0
 	if source_unit.faction_id == target_unit.faction_id:
-		return 1 if _is_same_faction_support_mastery_target(skill_def) else 0
+		if not _is_same_faction_support_mastery_target(skill_def):
+			return 0
+		var base_amount := 1
+		var combat_profile = skill_def.combat_profile if skill_def != null else null
+		if combat_profile != null and target_unit.attribute_snapshot != null:
+			var multiplier := maxi(int(combat_profile.mastery_low_hp_bonus_multiplier), 1)
+			var threshold_percent := clampi(int(combat_profile.mastery_low_hp_threshold_percent), 1, 100)
+			if multiplier > 1:
+				var hp_max := maxi(int(target_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 1)
+				if target_unit.current_hp * 100 < hp_max * threshold_percent:
+					base_amount = multiplier
+		return base_amount
 	if target_unit.faction_id != &"enemy":
 		return 0
 	if _is_boss_target(target_unit):

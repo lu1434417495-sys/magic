@@ -27,7 +27,38 @@ script = ExtResource("5_xfyga")
 skill_id = &"mage_ember_wisp"
 display_name = "余烬灵"
 icon_id = &"mage_ember_wisp"
-description = "召出火焰精灵；每 `60 TU` 优先攻击最近敌人并施加 `灼烧`。"
+description = "召出火焰精灵，每60TU优先攻击最近敌人并施加灼烧。"
+level_description_template = "射程{range}，火伤{dmg}，召唤火焰精灵。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "8",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"1": {
+"dmg": "8",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"2": {
+"dmg": "8",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"3": {
+"dmg": "8",
+"range": "4",
+"ap": "2",
+"mp": "2",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

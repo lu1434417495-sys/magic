@@ -45,7 +45,38 @@ script = ExtResource("5_6ora7")
 skill_id = &"mage_chain_lightning"
 display_name = "链式闪击"
 icon_id = &"mage_chain_lightning"
-description = "按文档改为单体锁定的链式闪电定义，并保留可被当前运行时识别的首段伤害与感电效果。"
+description = "单体锁定的链式闪电，首段命中造成雷电伤害并施加感电，可连锁弹射。"
+level_description_template = "射程{range}，雷伤{dmg}，可弹射连锁。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

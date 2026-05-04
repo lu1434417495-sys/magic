@@ -29,7 +29,38 @@ script = ExtResource("5_ilrpo")
 skill_id = &"mage_quicksand"
 display_name = "流沙陷区"
 icon_id = &"mage_quicksand"
-description = "生成小型流沙区；敌人首次进入时立即停止移动并获得 `寒蚀` 或 `浸湿` 中的任一软控标签。"
+description = "生成小型流沙区；敌人首次进入时立即停止移动并获得 寒蚀 或 浸湿 中的任一软控标签。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "6"
+},
+"1": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "6"
+},
+"2": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "6"
+},
+"3": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "6"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

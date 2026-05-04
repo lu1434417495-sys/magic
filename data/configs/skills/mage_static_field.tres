@@ -29,7 +29,38 @@ script = ExtResource("5_bjxtm")
 skill_id = &"mage_static_field"
 display_name = "静电场"
 icon_id = &"mage_static_field"
-description = "形成短时电场；区域内敌人获得 `shocked`，适合为连锁闪电铺路。"
+description = "形成短时电场；区域内敌人获得 shocked，适合为连锁闪电铺路。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "8"
+},
+"1": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "8"
+},
+"2": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "8"
+},
+"3": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "8"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

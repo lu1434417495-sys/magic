@@ -27,7 +27,42 @@ script = ExtResource("5_bnxtv")
 skill_id = &"archer_long_draw"
 display_name = "满弦狙击"
 icon_id = &"archer_long_draw"
-description = "高蓄力狙杀技；若本回合已移动，则伤害降为 `135%`。"
+description = "高蓄力狙杀技；若本回合已移动，则伤害降为 135%。"
+level_description_template = "造成{dmg}伤害，射程{range}，攻击检定+{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "16",
+		"range": "6",
+		"attack": "+3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"dmg": "16",
+		"range": "6",
+		"attack": "+3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"dmg": "16",
+		"range": "6",
+		"attack": "+3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"dmg": "16",
+		"range": "6",
+		"attack": "+3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])

@@ -26,8 +26,35 @@ script = ExtResource("5_uaryx")
 skill_id = &"mage_glacial_prison"
 display_name = "冰牢术"
 icon_id = &"mage_glacial_prison"
-description = "以冰棱封住目标；优先施加 `rooted`，若目标已 `寒蚀` 则改为 `frozen 1`。"
+description = "以冰棱封住目标，优先施加rooted，若目标已寒蚀则改为frozen。"
 max_level = 3
+level_description_template = "造成{dmg}冰冻伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "8",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "8",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "8",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "8",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])
 combat_profile = SubResource("Resource_2y5bj")

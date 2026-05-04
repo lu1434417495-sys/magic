@@ -29,7 +29,38 @@ script = ExtResource("5_1aarx")
 skill_id = &"mage_snowblind"
 display_name = "雪幕致盲"
 icon_id = &"mage_snowblind"
-description = "冰晶碎雪扰乱视线；命中敌人获得 `blinded` 与 `寒蚀`。"
+description = "冰晶碎雪扰乱视线；命中敌人获得 blinded 与 寒蚀。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "4",
+"dmg": "8"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "4",
+"dmg": "8"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "4",
+"dmg": "8"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "4",
+"dmg": "8"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])

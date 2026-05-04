@@ -29,6 +29,33 @@ display_name = "蚀法孢子"
 icon_id = &"mage_mana_leech"
 description = "召唤会吸取敌方法力与法盾的小型孢子体，主打消耗战。"
 max_level = 3
+level_description_template = "造成{dmg}伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])
 combat_profile = SubResource("Resource_do0w4")

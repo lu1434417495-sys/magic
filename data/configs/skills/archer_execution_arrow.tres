@@ -27,6 +27,37 @@ skill_id = &"archer_execution_arrow"
 display_name = "猎手终结"
 icon_id = &"archer_execution_arrow"
 description = "根据目标已损失生命提高伤害；目标生命越低，终结收益越高。"
+level_description_template = "造成{dmg}伤害，射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "14",
+		"range": "5",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"dmg": "14",
+		"range": "5",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"dmg": "14",
+		"range": "5",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"dmg": "14",
+		"range": "5",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])

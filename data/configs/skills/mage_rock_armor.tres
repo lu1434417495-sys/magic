@@ -19,7 +19,30 @@ script = ExtResource("5_fb6qg")
 skill_id = &"mage_rock_armor"
 display_name = "岩甲术"
 icon_id = &"mage_rock_armor"
-description = "给友军施加 `法盾` 与物理减伤，适合保护前排或炮台召唤物。"
+description = "给友军施加 法盾 与物理减伤，适合保护前排或炮台召唤物。"
+level_description_template = "为友方施加岩甲与物理减伤。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"mp": "1",
+"cooldown": "10",
+"range": "3"
+},
+"1": {
+"mp": "1",
+"cooldown": "10",
+"range": "3"
+},
+"2": {
+"mp": "1",
+"cooldown": "10",
+"range": "3"
+},
+"3": {
+"mp": "1",
+"cooldown": "10",
+"range": "3"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

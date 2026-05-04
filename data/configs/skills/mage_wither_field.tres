@@ -29,7 +29,38 @@ script = ExtResource("5_ywjs3")
 skill_id = &"mage_wither_field"
 display_name = "枯朽领域"
 icon_id = &"mage_wither_field"
-description = "持续 `120 TU` 削弱区域内敌人的生命回复与防御。"
+description = "持续 120 TU 削弱区域内敌人的生命回复与防御。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"1": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"2": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"3": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])

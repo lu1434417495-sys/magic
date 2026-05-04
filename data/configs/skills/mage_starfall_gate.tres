@@ -29,7 +29,38 @@ script = ExtResource("5_342yt")
 skill_id = &"mage_starfall_gate"
 display_name = "星门陨落"
 icon_id = &"mage_starfall_gate"
-description = "以短暂星门投放奥术碎星；若目标带有 `奥脆`，则额外返还 `1` 点 `mp`。"
+description = "以短暂星门投放奥术碎星；若目标带有 奥脆，则额外返还 1 点 mp。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "12"
+},
+"1": {
+"ap": "3",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "12"
+},
+"2": {
+"ap": "3",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "12"
+},
+"3": {
+"ap": "3",
+"mp": "3",
+"cooldown": "15",
+"range": "5",
+"dmg": "12"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])

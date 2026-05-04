@@ -27,7 +27,38 @@ script = ExtResource("5_xy212")
 skill_id = &"mage_storm_sprite"
 display_name = "雷灵"
 icon_id = &"mage_storm_sprite"
-description = "召唤会自动施加 `感电` 的雷灵，适合作为链式闪电的跳板。"
+description = "召唤会自动施加 感电 的雷灵，适合作为链式闪电的跳板。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

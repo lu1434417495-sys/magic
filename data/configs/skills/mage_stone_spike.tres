@@ -29,7 +29,38 @@ script = ExtResource("5_urtcc")
 skill_id = &"mage_stone_spike"
 display_name = "岩刺术"
 icon_id = &"mage_stone_spike"
-description = "沿直线突起石刺；对被 `rooted` 或站在 `mud` 中的目标额外伤害。"
+description = "沿直线突起石刺；对被 rooted 或站在 mud 中的目标额外伤害。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"1": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"2": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"3": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

@@ -25,8 +25,31 @@ script = ExtResource("5_3cjfk")
 skill_id = &"mage_frost_bolt"
 display_name = "霜击术"
 icon_id = &"mage_frost_bolt"
-description = "低耗冰系基础法术；命中施加 `寒蚀`，给队友近战和弓箭补伤口。"
+description = "低耗冰系基础法术，攻击检定+2，命中造成冰冻伤害并施加寒蚀。"
 max_level = 3
+level_description_template = "攻击检定+{hit}，造成{dmg}冰冻伤害。消耗{mp}法力"
+level_description_configs = {
+"0": {
+"dmg": "9",
+"hit": "+2",
+"mp": "1"
+},
+"1": {
+"dmg": "9",
+"hit": "+2",
+"mp": "1"
+},
+"2": {
+"dmg": "9",
+"hit": "+2",
+"mp": "1"
+},
+"3": {
+"dmg": "9",
+"hit": "+2",
+"mp": "1"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])
 combat_profile = SubResource("Resource_42ml5")

@@ -30,6 +30,33 @@ skill_id = &"mage_terra_pulse"
 display_name = "地脉脉冲"
 icon_id = &"mage_terra_pulse"
 description = "以自身为中心扩散地脉震波；可把靠近的敌人推出关键格位。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "10"
+},
+"1": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "10"
+},
+"2": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "10"
+},
+"3": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

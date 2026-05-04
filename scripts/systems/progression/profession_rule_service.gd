@@ -5,6 +5,8 @@
 class_name ProfessionRuleService
 extends RefCounted
 
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
+
 ## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var _unit_progress: UnitProgress = null
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -362,7 +364,7 @@ func _is_skill_eligible_for_profession(
 	var skill_def: SkillDef = _get_skill_def(skill_id)
 	if skill_def == null:
 		return false
-	if not skill_progress.is_max_level(skill_def.max_level):
+	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, _unit_progress):
 		return false
 
 	if skill_progress.assigned_profession_id == &"":
@@ -417,7 +419,11 @@ func _matches_skill_state(skill_progress: Variant, skill_def: SkillDef, tag_rule
 		TagRequirement.SKILL_STATE_CORE:
 			return skill_progress.is_core
 		TagRequirement.SKILL_STATE_CORE_MAX:
-			return skill_progress.is_core and skill_progress.is_max_level(skill_def.max_level)
+			return skill_progress.is_core and SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(
+				skill_def,
+				skill_progress,
+				_unit_progress
+			)
 		_:
 			return false
 

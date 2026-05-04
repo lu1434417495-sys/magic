@@ -5,6 +5,9 @@
 class_name CombatEffectDef
 extends Resource
 
+## 常量说明：跳跃技能保底弧高占比的最小值；schema 校验在 mode=jump 时强制 jump_arc_ratio >= 此值。
+const MIN_JUMP_ARC_RATIO := 0.15
+
 ## 字段说明：在编辑器中暴露效果类型配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var effect_type: StringName = &""
 ## 字段说明：在编辑器中暴露跳点效果类型配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
@@ -31,8 +34,16 @@ extends Resource
 @export var height_delta := 0
 ## 字段说明：在编辑器中暴露强制位移模式配置，用于表达击退、拉拽、跳斩等位移效果。
 @export var forced_move_mode: StringName = &""
-## 字段说明：在编辑器中暴露强制位移距离配置，用于表达击退、拉拽等位移数值。
+## 字段说明：在编辑器中暴露强制位移距离配置；mode=jump 时复用为 max_range 硬上限（0 = 不设上限）。
 @export var forced_move_distance := 0
+## 字段说明：跳跃 budget 的基础值，不依赖 STR；策划用于设定"小白也能用"的最小跳跃量。
+@export var jump_base_budget := 0
+## 字段说明：跳跃 budget 的 STR 系数；effective STR × scale 加到 budget 上。
+@export var jump_str_scale := 0.0
+## 字段说明：跳跃 budget 中保底弧高的占比；mode=jump 时校验 ≥ MIN_JUMP_ARC_RATIO。
+@export var jump_arc_ratio := 0.0
+## 字段说明：跳跃距离换算系数；range_budget × multiplier 得到格数上限（高度成本固定 1:1）。
+@export var jump_range_multiplier := 1
 ## 字段说明：在编辑器中暴露持续时间TU参数，便于直接调整尺寸、范围、间距或视图表现。
 @export var duration_tu := 0
 ## 字段说明：在编辑器中暴露跳点间隔TU配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

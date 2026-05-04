@@ -81,11 +81,14 @@ func _run() -> void:
 	_test_seed_skill_resources_scan_and_validate()
 	_test_progression_registry_uses_skill_resources_only()
 	_test_attribute_growth_progress_schema_validation()
+	_test_dynamic_max_level_schema_validation()
 	_test_level_override_key_schema_validation()
+	_test_required_weapon_family_schema_validation()
 	_test_requires_weapon_param_schema_validation()
 	_test_duration_param_schema_validation()
 	_test_damage_dice_alias_param_schema_validation()
 	_test_damage_resolver_alias_param_schema_validation()
+	_test_path_step_repeat_status_schema_validation()
 	_test_forced_move_param_schema_validation()
 	_test_supported_effect_type_schema_validation()
 	_test_unknown_effect_type_schema_validation()
@@ -109,6 +112,8 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	var charge := skill_defs.get(&"charge") as SkillDef
 	var heavy_strike := skill_defs.get(&"warrior_heavy_strike") as SkillDef
 	var sweeping_slash := skill_defs.get(&"warrior_sweeping_slash") as SkillDef
+	var aura_slash := skill_defs.get(&"warrior_aura_slash") as SkillDef
+	var archer_multishot := skill_defs.get(&"archer_multishot") as SkillDef
 	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
 
 	_assert_true(registry.validate().is_empty(), "SkillContentRegistry 的正式技能资源当前不应报告校验错误。")
@@ -153,6 +158,42 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
+	_assert_true(archer_multishot != null, "连珠箭资源应成功转成 SkillDef。")
+	if archer_multishot != null and archer_multishot.combat_profile != null:
+		_assert_eq(int(archer_multishot.max_level), 5, "连珠箭应使用 5 级上限。")
+		_assert_eq(int(archer_multishot.non_core_max_level), 3, "连珠箭非核心上限应显式覆盖 3 级。")
+		_assert_eq(Array(archer_multishot.mastery_curve), [300, 750, 1650, 3000, 4800], "连珠箭熟练度曲线应为重击的 3 倍。")
+		_assert_eq(archer_multishot.growth_tier, &"basic", "连珠箭应使用 basic 成长档。")
+		_assert_eq(int(archer_multishot.attribute_growth_progress.get("agility", 0)), 40, "连珠箭满级应提供 40 点敏捷成长进度。")
+		_assert_eq(int(archer_multishot.attribute_growth_progress.get("strength", 0)), 20, "连珠箭满级应提供 20 点力量成长进度。")
+		_assert_eq(int(archer_multishot.attribute_growth_progress.get("perception", 0)), 0, "连珠箭不应再提供感知成长进度。")
+		_assert_eq(archer_multishot.combat_profile.mastery_trigger_mode, &"weapon_attack_quality", "连珠箭应按武器满骰或暴击触发熟练度。")
+		_assert_eq(archer_multishot.combat_profile.mastery_amount_mode, &"per_target_rank", "连珠箭应按每个目标阶级计算熟练度。")
+		_assert_eq(Array(archer_multishot.combat_profile.required_weapon_families), [&"bow"], "连珠箭应要求当前装备弓类武器。")
+		_assert_eq(int(archer_multishot.combat_profile.ap_cost), 1, "连珠箭应消耗 1 AP。")
+		_assert_eq(int(archer_multishot.combat_profile.stamina_cost), 40, "连珠箭应消耗 40 体力。")
+		_assert_eq(int(archer_multishot.combat_profile.cooldown_tu), 0, "连珠箭不应配置冷却。")
+		_assert_eq(int(archer_multishot.combat_profile.min_target_count), 1, "连珠箭应允许单目标施放。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_max_target_count(0)), 2, "连珠箭 0 级最多 2 个目标。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_max_target_count(1)), 3, "连珠箭 1 级最多 3 个目标。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_max_target_count(3)), 4, "连珠箭 3 级最多 4 个目标。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_max_target_count(5)), 5, "连珠箭 5 级最多 5 个目标。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(0)), -1, "连珠箭 0 级应保留多目标攻击检定惩罚。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(2)), 0, "连珠箭 2 级应移除攻击检定惩罚。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(4)), 1, "连珠箭 4 级应获得攻击检定加值。")
+		var multishot_variant = archer_multishot.combat_profile.get_cast_variant(&"multishot_volley")
+		_assert_true(multishot_variant != null, "连珠箭应保留 multishot_volley 施放变体。")
+		if multishot_variant != null:
+			_assert_eq(int(multishot_variant.effect_defs.size()), 1, "连珠箭应只保留一条武器攻击伤害效果。")
+			if multishot_variant.effect_defs.size() >= 1:
+				var multishot_damage = multishot_variant.effect_defs[0]
+				_assert_eq(int(multishot_damage.power), 0, "连珠箭不应配置固定技能伤害。")
+				_assert_true(bool(multishot_damage.params.get("add_weapon_dice", false)), "连珠箭应使用当前弓的武器骰。")
+				_assert_true(bool(multishot_damage.params.get("use_weapon_physical_damage_tag", false)), "连珠箭应使用当前弓的物理伤害类型。")
+				_assert_true(bool(multishot_damage.params.get("resolve_as_weapon_attack", false)), "连珠箭每个目标应按武器攻击命中结算。")
+				_assert_true(not bool(multishot_damage.params.get("requires_weapon", false)), "连珠箭应由 required_weapon_families 表达弓类门槛。")
+				_assert_true(not multishot_damage.params.has("dice_count"), "连珠箭不应配置额外技能伤害骰。")
+				_assert_true(not multishot_damage.params.has("dice_sides"), "连珠箭不应配置额外技能伤害骰。")
 	_assert_resource_backed_skill_ids(skill_defs, _collect_mage_skill_ids(skill_defs), &"mage", "法师")
 	_assert_true(skill_defs.has(&"warrior_heavy_strike"), "SkillContentRegistry 应扫描到已迁移的重击资源。")
 	_assert_true(heavy_strike != null, "重击资源应成功转成 SkillDef。")
@@ -226,7 +267,68 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_true(bool(sweeping_damage.params.get("resolve_as_weapon_attack", false)), "横扫每个目标应按武器攻击命中结算。")
 		_assert_eq(int(sweeping_level_three_damage.params.get("dice_sides", 0)), 4, "横扫 3-4 级应追加 1d4 技能骰。")
 		_assert_eq(int(sweeping_level_five_damage.params.get("dice_sides", 0)), 6, "横扫 5 级应追加 1d6 技能骰。")
+	_assert_true(aura_slash != null, "斗气斩资源应成功转成 SkillDef。")
+	if aura_slash != null and aura_slash.combat_profile != null:
+		_assert_eq(int(aura_slash.max_level), 7, "斗气斩资源默认核心上限应为 7。")
+		_assert_eq(int(aura_slash.non_core_max_level), 5, "斗气斩非核心上限应为 5。")
+		_assert_eq(aura_slash.dynamic_max_level_stat_id, &"aura_transformation_count", "斗气斩动态上限应从斗气质变次数读取。")
+		_assert_eq(int(aura_slash.dynamic_max_level_base), 7, "斗气斩动态上限基础值应为 7。")
+		_assert_eq(int(aura_slash.dynamic_max_level_per_stat), 2, "斗气斩每次斗气质变应提高 2 级上限。")
+		_assert_eq(Array(aura_slash.mastery_curve), [240, 600, 1320, 2400, 3840, 5640, 7800], "斗气斩默认熟练度曲线应覆盖 7 级。")
+		_assert_eq(int(aura_slash.combat_profile.aura_cost), 1, "斗气斩应消耗 1 点斗气。")
+		_assert_eq(int(aura_slash.combat_profile.get_effective_resource_costs(5).get("ap_cost", 0)), 1, "斗气斩 5 级起 AP 消耗应降为 1。")
+		_assert_eq(int(aura_slash.combat_profile.effect_defs.size()), 3, "斗气斩应保留三段伤害效果。")
+		var aura_level_five_damage = aura_slash.combat_profile.effect_defs[2]
+		_assert_eq(int(aura_level_five_damage.min_skill_level), 5, "斗气斩最终伤害档应从 5 级起生效。")
+		_assert_eq(int(aura_level_five_damage.params.get("dice_sides", 0)), 10, "斗气斩 5 级起应使用 1d10 技能骰。")
 	_assert_cast_variant_compat_shape(fossil_to_mud, "SkillContentRegistry")
+
+
+func _test_dynamic_max_level_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var valid_skill := _make_minimal_schema_skill(&"valid_dynamic_max_level_skill")
+	valid_skill.dynamic_max_level_stat_id = &"aura_transformation_count"
+	valid_skill.dynamic_max_level_base = 7
+	valid_skill.dynamic_max_level_per_stat = 2
+	var valid_errors: Array[String] = []
+	registry._append_skill_validation_errors(valid_errors, valid_skill.skill_id, valid_skill)
+	_assert_true(valid_errors.is_empty(), "合法动态等级上限配置应通过 SkillContentRegistry 校验。")
+
+	var missing_stat_skill := _make_minimal_schema_skill(&"missing_dynamic_max_level_stat_skill")
+	missing_stat_skill.dynamic_max_level_base = 7
+	missing_stat_skill.dynamic_max_level_per_stat = 2
+	var missing_stat_errors: Array[String] = []
+	registry._append_skill_validation_errors(missing_stat_errors, missing_stat_skill.skill_id, missing_stat_skill)
+	_assert_true(
+		_has_error_containing(missing_stat_errors, "dynamic_max_level_base requires dynamic_max_level_stat_id"),
+		"动态上限基础值缺少 stat id 时应被静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(missing_stat_errors, "dynamic_max_level_per_stat requires dynamic_max_level_stat_id"),
+		"动态上限增量缺少 stat id 时应被静态拒绝。"
+	)
+
+	var invalid_base_skill := _make_minimal_schema_skill(&"invalid_dynamic_max_level_base_skill")
+	invalid_base_skill.dynamic_max_level_stat_id = &"aura_transformation_count"
+	invalid_base_skill.dynamic_max_level_base = 0
+	invalid_base_skill.dynamic_max_level_per_stat = 2
+	var invalid_base_errors: Array[String] = []
+	registry._append_skill_validation_errors(invalid_base_errors, invalid_base_skill.skill_id, invalid_base_skill)
+	_assert_true(
+		_has_error_containing(invalid_base_errors, "dynamic_max_level_base must be >= 1"),
+		"动态上限基础值必须为正数。"
+	)
+
+	var invalid_per_stat_skill := _make_minimal_schema_skill(&"invalid_dynamic_max_level_per_stat_skill")
+	invalid_per_stat_skill.dynamic_max_level_stat_id = &"aura_transformation_count"
+	invalid_per_stat_skill.dynamic_max_level_base = 7
+	invalid_per_stat_skill.dynamic_max_level_per_stat = 0
+	var invalid_per_stat_errors: Array[String] = []
+	registry._append_skill_validation_errors(invalid_per_stat_errors, invalid_per_stat_skill.skill_id, invalid_per_stat_skill)
+	_assert_true(
+		_has_error_containing(invalid_per_stat_errors, "dynamic_max_level_per_stat must be >= 1"),
+		"动态上限每点增量必须为正数。"
+	)
 
 
 func _test_progression_registry_uses_skill_resources_only() -> void:
@@ -343,6 +445,26 @@ func _test_level_override_key_schema_validation() -> void:
 	_assert_true(
 		_has_error_containing(string_key_errors, "level override key 2 must be an int"),
 		"combat_profile.level_overrides 字符串数字 key 应被 SkillContentRegistry 静态拒绝。"
+	)
+
+
+func _test_required_weapon_family_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var valid_profile := CombatSkillDef.new()
+	valid_profile.skill_id = &"valid_required_weapon_family_skill"
+	valid_profile.required_weapon_families = [&"bow"]
+	var valid_errors: Array[String] = []
+	registry._append_combat_profile_validation_errors(valid_errors, valid_profile.skill_id, valid_profile)
+	_assert_true(valid_errors.is_empty(), "required_weapon_families 应允许非空 StringName 武器家族。")
+
+	var empty_family_profile := CombatSkillDef.new()
+	empty_family_profile.skill_id = &"empty_required_weapon_family_skill"
+	empty_family_profile.required_weapon_families = [&""]
+	var empty_family_errors: Array[String] = []
+	registry._append_combat_profile_validation_errors(empty_family_errors, empty_family_profile.skill_id, empty_family_profile)
+	_assert_true(
+		_has_error_containing(empty_family_errors, "combat_profile.required_weapon_families[0] must be non-empty"),
+		"required_weapon_families 应拒绝空武器家族。"
 	)
 
 
@@ -508,6 +630,44 @@ func _test_damage_resolver_alias_param_schema_validation() -> void:
 	)
 
 
+func _test_path_step_repeat_status_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var valid_effect := CombatEffectDef.new()
+	valid_effect.effect_type = &"path_step_aoe"
+	valid_effect.params = {
+		"repeat_hit_status_id": "staggered",
+		"repeat_hit_status_threshold": 2,
+		"repeat_hit_status_min_skill_level": 0,
+		"repeat_hit_status_power": 1,
+		"repeat_hit_status_duration_tu": 60,
+	}
+	var valid_errors: Array[String] = []
+	registry._append_effect_validation_errors(valid_errors, &"valid_repeat_status_skill", valid_effect, "test_effect")
+	_assert_true(valid_errors.is_empty(), "path_step_aoe repeat-hit 状态配置必须带正数 TU 时长并通过 schema。")
+
+	var missing_duration_effect := CombatEffectDef.new()
+	missing_duration_effect.effect_type = &"path_step_aoe"
+	missing_duration_effect.params = valid_effect.params.duplicate(true)
+	missing_duration_effect.params.erase("repeat_hit_status_duration_tu")
+	var missing_duration_errors: Array[String] = []
+	registry._append_effect_validation_errors(missing_duration_errors, &"missing_repeat_status_duration_skill", missing_duration_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(missing_duration_errors, "requires params.repeat_hit_status_duration_tu"),
+		"repeat-hit 状态配置缺少 duration_tu 时应被 SkillContentRegistry 静态拒绝。"
+	)
+
+	var zero_duration_effect := CombatEffectDef.new()
+	zero_duration_effect.effect_type = &"path_step_aoe"
+	zero_duration_effect.params = valid_effect.params.duplicate(true)
+	zero_duration_effect.params["repeat_hit_status_duration_tu"] = 0
+	var zero_duration_errors: Array[String] = []
+	registry._append_effect_validation_errors(zero_duration_errors, &"zero_repeat_status_duration_skill", zero_duration_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(zero_duration_errors, "must be a positive multiple"),
+		"repeat-hit 状态配置的 duration_tu=0 会形成永久状态，应被静态拒绝。"
+	)
+
+
 func _test_forced_move_param_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_effect := CombatEffectDef.new()
@@ -669,6 +829,17 @@ func _assert_cast_variant_compat_shape(skill_def: SkillDef, source_label: String
 	_assert_cast_variant_compat_entry(skill_def, 1, &"lower_single_1", &"single", 1, source_label)
 	_assert_cast_variant_compat_entry(skill_def, 2, &"lower_line2_1", &"line2", 2, source_label)
 	_assert_cast_variant_compat_entry(skill_def, 3, &"mud_square2", &"square2", 4, source_label)
+
+
+func _make_minimal_schema_skill(skill_id: StringName) -> SkillDef:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = String(skill_id)
+	skill_def.icon_id = skill_id
+	skill_def.skill_type = &"passive"
+	skill_def.max_level = 1
+	skill_def.mastery_curve = PackedInt32Array([1])
+	return skill_def
 
 
 func _make_growth_schema_skill(

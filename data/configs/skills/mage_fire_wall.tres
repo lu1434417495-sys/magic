@@ -29,7 +29,42 @@ script = ExtResource("5_nuq4k")
 skill_id = &"mage_fire_wall"
 display_name = "火墙术"
 icon_id = &"mage_fire_wall"
-description = "生成持续 `120 TU` 的火墙；穿越或在其上结束行动的敌人承受火焰伤害并获得 `灼烧`。"
+description = "生成持续120TU的火墙，穿越或在其上结束行动的敌人承受火焰伤害并获得灼烧。"
+level_description_template = "射程{range}，火伤{dmg}，直线火墙持续120TU。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"1": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"2": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+},
+"3": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "15"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

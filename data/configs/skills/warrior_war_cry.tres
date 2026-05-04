@@ -8,9 +8,19 @@
 script = ExtResource("3_cwvtw")
 effect_type = &"status"
 power = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+status_id = &"attack_roll_bonus_up"
+duration_tu = 30
+
+[sub_resource type="Resource" id="Resource_warcry_l1"]
+script = ExtResource("3_cwvtw")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
 max_skill_level = 2
 effect_target_team_filter = &"ally"
-status_id = &"attack_up"
+status_id = &"attack_roll_bonus_up"
 duration_tu = 60
 
 [sub_resource type="Resource" id="Resource_warcry_l3"]
@@ -20,7 +30,7 @@ power = 1
 min_skill_level = 3
 max_skill_level = 4
 effect_target_team_filter = &"ally"
-status_id = &"attack_up"
+status_id = &"attack_roll_bonus_up"
 duration_tu = 90
 
 [sub_resource type="Resource" id="Resource_warcry_l5"]
@@ -28,9 +38,31 @@ script = ExtResource("3_cwvtw")
 effect_type = &"status"
 power = 2
 min_skill_level = 5
+max_skill_level = 6
 effect_target_team_filter = &"ally"
-status_id = &"attack_up"
+status_id = &"attack_roll_bonus_up"
 duration_tu = 90
+
+[sub_resource type="Resource" id="Resource_warcry_l7"]
+script = ExtResource("3_cwvtw")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"attack_roll_bonus_up"
+duration_tu = 120
+
+[sub_resource type="Resource" id="Resource_warcry_l7_willpower"]
+script = ExtResource("3_cwvtw")
+effect_type = &"status"
+power = 1
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 120
+params = {
+"control_save_bonus": 1
+}
 
 [sub_resource type="Resource" id="Resource_l5rb2"]
 script = ExtResource("4_w0qp1")
@@ -40,35 +72,84 @@ target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"radius"
 area_value = 1
-ap_cost = 2
-stamina_cost = 25
-cooldown_tu = 20
+ap_cost = 1
+stamina_cost = 30
+cooldown_tu = 150
 attack_roll_bonus = 0
 level_overrides = {
-3: {
-"ap_cost": 1
+2: {
+"stamina_cost": 25
 },
 4: {
-"cooldown_tu": 10
+"stamina_cost": 20
+},
+6: {
+"stamina_cost": 15
 }
 }
 mastery_trigger_mode = &"status_applied"
 mastery_amount_mode = &"per_target_rank"
-effect_defs = Array[ExtResource("3_cwvtw")]([SubResource("Resource_warcry_l0"), SubResource("Resource_warcry_l3"), SubResource("Resource_warcry_l5")])
+mastery_low_hp_bonus_multiplier = 2
+mastery_low_hp_threshold_percent = 50
+effect_defs = Array[ExtResource("3_cwvtw")]([SubResource("Resource_warcry_l0"), SubResource("Resource_warcry_l1"), SubResource("Resource_warcry_l3"), SubResource("Resource_warcry_l5"), SubResource("Resource_warcry_l7"), SubResource("Resource_warcry_l7_willpower")])
 
 [resource]
 script = ExtResource("5_08i4o")
 skill_id = &"warrior_war_cry"
 display_name = "战吼"
 icon_id = &"warrior_war_cry"
-description = "为近身盟友提供攻击增益。"
-max_level = 5
-non_core_max_level = 3
-mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600)
+description = "鼓舞自身及周围1格友军，提升攻击检定。冷却较长但AP与体力消耗低廉，对生命值低于一半的同伴效果更显著（熟练度获取翻倍）。高等级延长增益并降低体力消耗，7级时额外赋予意志检定加值。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600, 3800, 5300)
+level_description_template = "攻击检定+{hit}，持续{duration}TU，消耗1AP/{stamina}体力，冷却150TU。{{?willpower}}额外意志检定+{willpower}。{{/willpower}}"
+level_description_configs = {
+"0": {
+"hit": "+1",
+"duration": "30",
+"stamina": "30"
+},
+"1": {
+"hit": "+1",
+"duration": "60",
+"stamina": "30"
+},
+"2": {
+"hit": "+1",
+"duration": "60",
+"stamina": "25"
+},
+"3": {
+"hit": "+1",
+"duration": "90",
+"stamina": "25"
+},
+"4": {
+"hit": "+1",
+"duration": "90",
+"stamina": "20"
+},
+"5": {
+"hit": "+2",
+"duration": "90",
+"stamina": "20"
+},
+"6": {
+"hit": "+2",
+"duration": "90",
+"stamina": "15"
+},
+"7": {
+"hit": "+3",
+"duration": "120",
+"stamina": "15",
+"willpower": "1"
+}
+}
 growth_tier = &"intermediate"
 attribute_growth_progress = {
-"strength": 60,
-"willpower": 60
+"strength": 30,
+"willpower": 90
 }
 tags = Array[StringName]([&"warrior", &"melee", &"support"])
 combat_profile = SubResource("Resource_l5rb2")

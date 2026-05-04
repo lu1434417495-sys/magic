@@ -29,7 +29,38 @@ script = ExtResource("5_x7oth")
 skill_id = &"mage_silence_orb"
 display_name = "寂声法球"
 icon_id = &"mage_silence_orb"
-description = "区域内敌方施法类技能命中 `-20%`，并更难触发高阶连锁。"
+description = "区域内敌方施法类技能命中 -20%，并更难触发高阶连锁。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "6"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "6"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "6"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "6"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])

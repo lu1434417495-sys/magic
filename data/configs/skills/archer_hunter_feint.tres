@@ -25,7 +25,38 @@ script = ExtResource("5_6iten")
 skill_id = &"archer_hunter_feint"
 display_name = "猎步佯退"
 icon_id = &"archer_hunter_feint"
-description = "轻伤试探并附加 `标记`；命中后可免费移动 `1` 格。"
+description = "轻伤试探并附加 标记；命中后可免费移动 1 格。"
+level_description_template = "造成{dmg}伤害，射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "8",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "8",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "8",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "8",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])

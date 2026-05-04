@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_dmg"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+power = 4
+damage_tag = &"physical_blunt"
+params = { "add_weapon_dice": false }
+
+[sub_resource type="Resource" id="Resource_status"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"hex_of_frailty"
+power = 1
+duration_tu = 40
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_stone_blind"
+target_mode = &"ground"
+range_value = 1
+area_pattern = &"cone"
+area_value = 1
+ap_cost = 1
+stamina_cost = 12
+cooldown_tu = 80
+attack_roll_bonus = 0
+mastery_trigger_mode = &"status_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_dmg"), SubResource("Resource_status")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_stone_blind"
+display_name = "石屑盲击"
+icon_id = &"warrior_stone_blind"
+description = "扇形喷射石屑，伤害并干扰敌人远程命中。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"basic"
+attribute_growth_progress = { "strength": 30, "agility": 30 }
+tags = Array[StringName]([&"warrior", &"melee", &"debuff", &"aoe"])
+combat_profile = SubResource("Resource_combat")

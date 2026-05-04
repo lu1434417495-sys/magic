@@ -30,6 +30,41 @@ skill_id = &"archer_fan_volley"
 display_name = "扇幕齐射"
 icon_id = &"archer_fan_volley"
 description = "中距离扇面清线技，对近距离多前排组合威胁较高。"
+level_description_template = "造成{dmg}伤害，射程{range}，锥形范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "9",
+		"range": "4",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "9",
+		"range": "4",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "9",
+		"range": "4",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "9",
+		"range": "4",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])

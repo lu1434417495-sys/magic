@@ -29,7 +29,42 @@ script = ExtResource("5_8my3o")
 skill_id = &"mage_arc_net"
 display_name = "电网术"
 icon_id = &"mage_arc_net"
-description = "在一条直线上挂起电网；首个穿过的敌人被 `rooted` 并附加 `感电`。"
+description = "在一条直线上挂起电网，首个穿过的敌人被定身并附加感电。"
+level_description_template = "射程{range}，雷伤{dmg}，直线范围。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "8",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

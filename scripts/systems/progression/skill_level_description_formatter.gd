@@ -15,11 +15,12 @@ static func build_level_description(skill_def: SkillDef, level: int, runtime_con
 
 	var key := str(level)
 	var raw_config: Variant = skill_def.level_description_configs.get(key, null)
-	if raw_config is not Dictionary:
-		return ""
-
-	var config := (raw_config as Dictionary).duplicate()
+	var config := {}
+	if raw_config is Dictionary:
+		config = (raw_config as Dictionary).duplicate()
 	_merge_matching_effect_params(config, skill_def, level)
+	_merge_level_overrides(config, skill_def, level)
+	_resolve_charge_distance(config, level)
 	for ctx_key in runtime_context.keys():
 		config[ctx_key] = runtime_context[ctx_key]
 	_apply_description_derived_fields(config)
@@ -76,7 +77,12 @@ static func render_template(template: String, config: Dictionary) -> String:
 static func _merge_matching_effect_params(config: Dictionary, skill_def: SkillDef, level: int) -> void:
 	if skill_def == null or skill_def.combat_profile == null:
 		return
-	for effect_def in skill_def.combat_profile.effect_defs:
+	var all_effect_defs: Array = []
+	all_effect_defs.append_array(skill_def.combat_profile.effect_defs)
+	for cast_variant in skill_def.combat_profile.cast_variants:
+		if cast_variant != null and cast_variant.effect_defs != null:
+			all_effect_defs.append_array(cast_variant.effect_defs)
+	for effect_def in all_effect_defs:
 		if effect_def == null or effect_def.params == null:
 			continue
 		var min_level := maxi(int(effect_def.min_skill_level), 0)
@@ -90,15 +96,62 @@ static func _merge_matching_effect_params(config: Dictionary, skill_def: SkillDe
 				config[param_key] = effect_def.params[param_key]
 
 
-static func _apply_description_derived_fields(config: Dictionary) -> void:
-	if not config.has("base_sides") or not config.has("con_mod_sides") or not config.has("will_mod_sides"):
+static func _merge_level_overrides(config: Dictionary, skill_def: SkillDef, level: int) -> void:
+	if skill_def == null or skill_def.combat_profile == null:
 		return
-	var base_sides := int(config.get("base_sides", 4))
-	var con_mod := int(config.get("con_mod", 0))
-	var will_mod := int(config.get("will_mod", 0))
-	var con_mod_sides := int(config.get("con_mod_sides", 2))
-	var will_mod_sides := int(config.get("will_mod_sides", 1))
-	config["dice_sides"] = maxi(base_sides + con_mod * con_mod_sides + will_mod * will_mod_sides, 4)
+	var profile = skill_def.combat_profile
+	var override = profile.get_level_override(level)
+
+	var fields = {
+		"ap_cost": profile.ap_cost,
+		"mp_cost": profile.mp_cost,
+		"stamina_cost": profile.stamina_cost,
+		"cooldown_tu": profile.cooldown_tu,
+		"attack_roll_bonus": profile.attack_roll_bonus,
+		"aura_cost": profile.aura_cost,
+		"range_value": profile.range_value,
+		"area_value": profile.area_value,
+	}
+
+	for field in fields.keys():
+		if config.has(field):
+			continue
+		var value = override.get(field, fields[field])
+		config[field] = value
+
+
+static func _resolve_charge_distance(config: Dictionary, level: int) -> void:
+	if config.has("distance"):
+		return
+	if not config.has("base_distance") and not config.has("distance_by_level"):
+		return
+	var base_distance = config.get("base_distance", 0)
+	var distance_by_level = config.get("distance_by_level", {})
+	if distance_by_level is not Dictionary:
+		config["distance"] = base_distance
+		return
+	var distance = base_distance
+	var keys = distance_by_level.keys()
+	keys.sort()
+	for key in keys:
+		if int(key) > level:
+			break
+		distance = distance_by_level[key]
+	config["distance"] = distance
+
+
+static func _apply_description_derived_fields(config: Dictionary) -> void:
+	if config.has("base_sides") and config.has("con_mod_sides") and config.has("will_mod_sides"):
+		var base_sides := int(config.get("base_sides", 4))
+		var con_mod := int(config.get("con_mod", 0))
+		var will_mod := int(config.get("will_mod", 0))
+		var con_mod_sides := int(config.get("con_mod_sides", 2))
+		var will_mod_sides := int(config.get("will_mod_sides", 1))
+		config["dice_sides"] = maxi(base_sides + con_mod * con_mod_sides + will_mod * will_mod_sides, 4)
+
+	# NOTE: 如需为 attack_roll_bonus 等字段添加正负号显示，请在具体技能的
+	# level_description_configs 中手动覆盖（如 "attack_roll_bonus": "+1"），
+	# 或让模板直接引用原始数值变量。
 
 
 static func _eval_expression(expr_str: String, variables: Dictionary) -> String:

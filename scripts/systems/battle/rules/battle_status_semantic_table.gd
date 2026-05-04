@@ -16,6 +16,7 @@ const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
 const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
 const STATUS_ATTACK_UP: StringName = &"attack_up"
+const STATUS_ATTACK_ROLL_BONUS_UP: StringName = &"attack_roll_bonus_up"
 const STATUS_BURNING: StringName = &"burning"
 const STATUS_DEATH_WARD: StringName = &"death_ward"
 const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
@@ -39,6 +40,7 @@ const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
 const STATUS_LAST_STAND_ACTIVE: StringName = &"last_stand_active"
+const STATUS_WILLPOWER_SAVE_BONUS_UP: StringName = &"willpower_save_bonus_up"
 
 
 static func has_semantic(status_id: StringName) -> bool:
@@ -55,7 +57,7 @@ static func is_harmful_status(status_id: StringName) -> bool:
 
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_DODGE_BONUS_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD, STATUS_LAST_STAND_ACTIVE:
+		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ATTACK_UP, STATUS_ATTACK_ROLL_BONUS_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_DODGE_BONUS_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD, STATUS_LAST_STAND_ACTIVE, STATUS_WILLPOWER_SAVE_BONUS_UP:
 			return _build_refresh_timeline_semantic()
 		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT:
 			return _build_refresh_timeline_semantic()

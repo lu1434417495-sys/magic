@@ -29,7 +29,42 @@ script = ExtResource("5_665r2")
 skill_id = &"mage_cold_snap"
 display_name = "霜爆回响"
 icon_id = &"mage_cold_snap"
-description = "若区域内存在带 `寒蚀` 的敌人，则对其追加一次 `50%` 碎裂伤害。"
+description = "若区域内存在带寒蚀的敌人，则对其追加一次50%碎裂伤害。"
+level_description_template = "射程{range}，冰伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "10",
+"range": "4",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])

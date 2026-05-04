@@ -7,11 +7,17 @@ extends RefCounted
 
 const SELECTION_KEY_QUALIFIER_SKILL_IDS := "selected_qualifier_skill_ids"
 const SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS := "selected_assigned_core_skill_ids"
-const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
-const VAJRA_BODY_NON_CORE_MAX_LEVEL := 9
+const MANUAL_LEARN_BLOCKED_SOURCES := {
+	&"profession": true,
+	&"race": true,
+	&"subrace": true,
+	&"ascension": true,
+	&"bloodline": true,
+}
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/progression/skill_merge_service.gd")
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 
 ## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var _unit_progress: UnitProgress = null
@@ -80,7 +86,7 @@ func learn_skill(skill_id: StringName) -> bool:
 		return false
 	if is_skill_relearn_blocked(skill_id):
 		return false
-	if skill_def.learn_source == &"profession":
+	if _is_manual_skill_learn_source_blocked(skill_def.learn_source):
 		return false
 	if not _can_learn_skill_requirements(skill_def.learn_requirements):
 		return false
@@ -293,6 +299,10 @@ func is_skill_relearn_blocked(skill_id: StringName) -> bool:
 	return _unit_progress.is_skill_relearn_blocked(skill_id)
 
 
+func _is_manual_skill_learn_source_blocked(learn_source: StringName) -> bool:
+	return MANUAL_LEARN_BLOCKED_SOURCES.has(learn_source)
+
+
 func _index_skill_defs(skill_defs: Variant) -> Dictionary:
 	var indexed_defs: Dictionary = {}
 
@@ -349,15 +359,7 @@ func _normalize_skill_levels_to_effective_max() -> void:
 
 
 func _get_effective_skill_max_level(skill_def: SkillDef, skill_progress) -> int:
-	if skill_def == null:
-		return 0
-	var absolute_max := maxi(int(skill_def.max_level), 0)
-	var configured_non_core_max := int(skill_def.non_core_max_level)
-	if configured_non_core_max > 0 and (skill_progress == null or not bool(skill_progress.is_core)):
-		return mini(absolute_max, configured_non_core_max)
-	if skill_def.skill_id == VAJRA_BODY_SKILL_ID and (skill_progress == null or not bool(skill_progress.is_core)):
-		return mini(absolute_max, VAJRA_BODY_NON_CORE_MAX_LEVEL)
-	return absolute_max
+	return SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(skill_def, skill_progress, _unit_progress)
 
 
 func _get_profession_def(profession_id: StringName) -> ProfessionDef:
@@ -577,7 +579,7 @@ func _is_required_skill_id_selectable(
 		return false
 	if not skill_progress.is_core:
 		return false
-	if not skill_progress.is_max_level(skill_def.max_level):
+	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, _unit_progress):
 		return false
 	if skill_progress.assigned_profession_id == &"":
 		return allow_unassigned

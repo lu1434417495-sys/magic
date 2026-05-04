@@ -29,7 +29,42 @@ script = ExtResource("5_lhpqj")
 skill_id = &"archer_fearsignal_shot"
 display_name = "惊禽哨箭"
 icon_id = &"archer_fearsignal_shot"
-description = "扇形压制射击，命中敌人获得 `压制`；若目标本就带有 `标记`，额外后退 `1` 格。"
+description = "扇形压制射击，命中敌人获得 压制；若目标本就带有 标记，额外后退 1 格。"
+level_description_template = "造成{dmg}伤害，射程{range}，锥形范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])

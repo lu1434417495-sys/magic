@@ -30,6 +30,33 @@ skill_id = &"mage_shadow_double"
 display_name = "阴影分身"
 icon_id = &"mage_shadow_double"
 description = "复制施法者的上一个单体技能一次低配版本，适合作为节奏延伸器。"
+level_description_template = "复制施法者上一个单体技能的低配版本。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"dmg": "8"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"dmg": "8"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"dmg": "8"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"dmg": "8"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

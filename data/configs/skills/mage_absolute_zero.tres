@@ -31,7 +31,50 @@ script = ExtResource("5_pnasf")
 skill_id = &"mage_absolute_zero"
 display_name = "绝零坍缩"
 icon_id = &"mage_absolute_zero"
-description = "冰系招牌终极技；对已 `浸湿` 的目标优先结算 `frozen`。"
+description = "冰系招牌终极技，对范围内敌人造成极寒伤害；对已浸湿的目标优先结算冰冻。"
+level_description_template = "射程{range}，攻击检定{hit}，极寒伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力{{?aura}}/{aura}斗气{{/aura}}，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "17",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+},
+"1": {
+"dmg": "17",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+},
+"2": {
+"dmg": "17",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20",
+},
+"3": {
+"dmg": "17",
+"hit": "-2",
+"range": "5",
+"area": "2",
+"ap": "3",
+"mp": "3",
+"aura": "1",
+"cooldown": "20"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])

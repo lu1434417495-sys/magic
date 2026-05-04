@@ -29,8 +29,39 @@ script = ExtResource("5_c1cjq")
 skill_id = &"mage_phoenix_arc"
 display_name = "凤焰弧"
 icon_id = &"mage_phoenix_arc"
-description = "火焰掠过路径时优先打击血量最低的目标；若击杀，施法者获得 `咏唱`。"
+description = "火焰掠过路径时优先打击血量最低的目标，若击杀则施法者获得咏唱。"
 max_level = 3
+level_description_template = "造成{dmg}火焰伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "12",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])
 combat_profile = SubResource("Resource_unfl3")

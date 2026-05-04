@@ -64,9 +64,12 @@ skill_id = &"warrior_aura_slash"
 display_name = "斗气斩"
 icon_id = &"warrior_aura_slash"
 description = "圣剑连斩的来源技能之一。"
-max_level = 5
-non_core_max_level = 3
-mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840)
+max_level = 7
+non_core_max_level = 5
+dynamic_max_level_stat_id = &"aura_transformation_count"
+dynamic_max_level_base = 7
+dynamic_max_level_per_stat = 2
+mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840, 5640, 7800)
 growth_tier = &"advanced"
 attribute_growth_progress = {
 "strength": 90,

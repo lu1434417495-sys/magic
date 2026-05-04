@@ -29,8 +29,39 @@ script = ExtResource("5_bs38l")
 skill_id = &"mage_living_meteor"
 display_name = "活化陨核"
 icon_id = &"mage_living_meteor"
-description = "召出会缓慢滚动的熔核；沿途对敌人造成火土混合伤害。"
+description = "召出会缓慢滚动的熔核，沿途对敌人造成火土混合伤害。"
 max_level = 3
+level_description_template = "造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"area": "半径1格",
+"cooldown": "20",
+"dmg": "11",
+"mp": "3"
+},
+"1": {
+"ap": "3",
+"area": "半径1格",
+"cooldown": "20",
+"dmg": "11",
+"mp": "3"
+},
+"2": {
+"ap": "3",
+"area": "半径1格",
+"cooldown": "20",
+"dmg": "11",
+"mp": "3"
+},
+"3": {
+"ap": "3",
+"area": "半径1格",
+"cooldown": "20",
+"dmg": "11",
+"mp": "3"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])
 combat_profile = SubResource("Resource_h5olw")

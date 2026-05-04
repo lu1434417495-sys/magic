@@ -26,7 +26,42 @@ script = ExtResource("5_jl5r8")
 skill_id = &"mage_bone_chill"
 display_name = "骨寒术"
 icon_id = &"mage_bone_chill"
-description = "目标获得 `寒蚀` 与治疗效率下降效果，对奶量体系很克制。"
+description = "目标获得寒蚀与治疗效率下降效果，对奶量体系很克制。"
+level_description_template = "射程{range}，攻击检定{hit}，负能量伤{dmg}。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "8",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"1": {
+"dmg": "8",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"2": {
+"dmg": "8",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"3": {
+"dmg": "8",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])

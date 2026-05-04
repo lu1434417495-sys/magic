@@ -29,8 +29,39 @@ script = ExtResource("5_t5ukx")
 skill_id = &"mage_prism_spray"
 display_name = "棱镜喷射"
 icon_id = &"mage_prism_spray"
-description = "扇形混合伤害技；随机附带 `blinded`、`奥脆` 或 `感电` 之一。"
+description = "扇形混合伤害技，随机附带blinded、奥脆或感电之一。"
 max_level = 3
+level_description_template = "造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "11",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "11",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "11",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "11",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])
 combat_profile = SubResource("Resource_gpe5d")

@@ -28,6 +28,33 @@ display_name = "生命虹吸"
 icon_id = &"mage_life_drain"
 description = "造成伤害并按比例回复自身生命，是法师少数能自我续航的术式。"
 max_level = 3
+level_description_template = "造成{dmg}负能量伤害并回复生命。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "10",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "10",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "10",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "10",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
 combat_profile = SubResource("Resource_plji0")

@@ -79,8 +79,35 @@ script = ExtResource("5_d2mrt")
 skill_id = &"mage_fossil_to_mud"
 display_name = "化石为泥"
 icon_id = &"mage_fossil_to_mud"
-description = "将指定平地或地刺改造成泥沼；随等级解锁单格降层、连续双格降层与 2x2 泥沼改造。"
+description = "将指定平地或地刺改造成泥沼；随等级解锁单格降层、连续双格降层与2x2泥沼改造。"
 max_level = 5
+level_description_template = "改造地形为泥沼。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"cooldown": "5",
+"mp": "2"
+},
+"1": {
+"cooldown": "5",
+"mp": "2"
+},
+"2": {
+"cooldown": "5",
+"mp": "2"
+},
+"3": {
+"cooldown": "5",
+"mp": "2"
+},
+"4": {
+"cooldown": "5",
+"mp": "2"
+},
+"5": {
+"cooldown": "5",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(20, 30, 45, 60, 80)
 tags = Array[StringName]([&"mage", &"magic", &"earth", &"terrain"])
 combat_profile = SubResource("Resource_sjstb")

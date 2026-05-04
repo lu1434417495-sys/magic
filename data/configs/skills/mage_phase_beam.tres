@@ -29,8 +29,39 @@ script = ExtResource("5_2yoto")
 skill_id = &"mage_phase_beam"
 display_name = "相位射线"
 icon_id = &"mage_phase_beam"
-description = "穿透直线法术；若路径上存在召唤物或掩体，则优先无视其阻挡。"
+description = "穿透直线法术，若路径上存在召唤物或掩体则优先无视其阻挡。"
 max_level = 3
+level_description_template = "造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "14",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "14",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "14",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"dmg": "14",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])
 combat_profile = SubResource("Resource_nwxjt")

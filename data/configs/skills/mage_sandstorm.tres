@@ -29,7 +29,38 @@ script = ExtResource("5_oobsk")
 skill_id = &"mage_sandstorm"
 display_name = "沙暴术"
 icon_id = &"mage_sandstorm"
-description = "低伤高扰乱法术；区域内敌人获得 `blinded`，远程单位尤其难受。"
+description = "低伤高扰乱法术；区域内敌人获得 blinded，远程单位尤其难受。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+},
+"1": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+},
+"2": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+},
+"3": {
+"ap": "3",
+"mp": "2",
+"cooldown": "15",
+"range": "5",
+"dmg": "8"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])

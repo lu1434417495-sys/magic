@@ -87,6 +87,8 @@ const STATUS_CROWN_BREAK_BROKEN_FANG: StringName = &"crown_break_broken_fang"
 const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const BLACK_STAR_BRAND_GUARD_IGNORE_FLAT := 4
+const STATUS_PARAM_CONTROL_SAVE_BONUS: StringName = &"control_save_bonus"
+const STATUS_PARAM_SECONDARY_HIT_SAVE_BONUS: StringName = &"secondary_hit_save_bonus"
 
 var _fate_event_bus: BattleFateEventBus = BATTLE_FATE_EVENT_BUS_SCRIPT.new()
 var _fate_attack_rules = BATTLE_FATE_ATTACK_RULES_SCRIPT.new()
@@ -1436,7 +1438,28 @@ func _resolve_secondary_hit(source_unit: BattleUnitState, target_unit: BattleUni
 
 	var dc := dc_base + str_mod
 	var save_roll := _roll_attack_die(20, false, attack_context)
-	return (save_roll + con_mod) < dc
+	var save_bonus := _get_target_secondary_hit_save_bonus(target_unit)
+	return (save_roll + con_mod + save_bonus) < dc
+
+
+func _get_target_secondary_hit_save_bonus(target_unit: BattleUnitState) -> int:
+	if target_unit == null:
+		return 0
+	var bonus := 0
+	for status_id_variant in target_unit.status_effects.keys():
+		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
+		var status_entry = target_unit.get_status_effect(status_id)
+		if status_entry == null or status_entry.params == null:
+			continue
+		bonus = maxi(
+			bonus,
+			int(_get_status_param_string_key(status_entry.params, STATUS_PARAM_CONTROL_SAVE_BONUS, 0))
+		)
+		bonus = maxi(
+			bonus,
+			int(_get_status_param_string_key(status_entry.params, STATUS_PARAM_SECONDARY_HIT_SAVE_BONUS, 0))
+		)
+	return bonus
 
 
 func _coerce_damage_outcome(resolved_damage_input) -> Dictionary:

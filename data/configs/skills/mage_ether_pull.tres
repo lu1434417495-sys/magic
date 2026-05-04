@@ -26,7 +26,42 @@ script = ExtResource("5_tf341")
 skill_id = &"mage_ether_pull"
 display_name = "以太牵引"
 icon_id = &"mage_ether_pull"
-description = "轻伤并把目标拉近或推远 `1` 格；用于把敌人拖进 `fire_wall`、`mud` 或 `null_zone`。"
+description = "轻伤并把目标拉近或推远1格，用于把敌人拖进不利地形。"
+level_description_template = "射程{range}，攻击检定{hit}，奥术伤{dmg}，拉近/推远1格。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "6",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"1": {
+"dmg": "6",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"2": {
+"dmg": "6",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5",
+},
+"3": {
+"dmg": "6",
+"hit": "+2",
+"range": "5",
+"ap": "1",
+"mp": "1",
+"cooldown": "5"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])

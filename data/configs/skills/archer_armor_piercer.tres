@@ -33,6 +33,45 @@ skill_id = &"archer_armor_piercer"
 display_name = "破甲箭"
 icon_id = &"archer_armor_piercer"
 description = "命中后附加破甲，作为后续集火开口。"
+level_description_template = "造成{dmg}伤害，命中附加{status}（{duration}TU），射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "11",
+		"status": "破甲",
+		"duration": "180",
+		"range": "5",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "11",
+		"status": "破甲",
+		"duration": "180",
+		"range": "5",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "11",
+		"status": "破甲",
+		"duration": "180",
+		"range": "5",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "11",
+		"status": "破甲",
+		"duration": "180",
+		"range": "5",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])

@@ -26,7 +26,38 @@ script = ExtResource("5_kl3no")
 skill_id = &"mage_black_flame"
 display_name = "冥火术"
 icon_id = &"mage_black_flame"
-description = "施加不可被普通净化立刻清除的暗焰 `灼烧`；对高回复敌人特别克制。"
+description = "施加不可被普通净化立刻清除的暗焰灼烧，对高回复敌人特别克制。"
+level_description_template = "射程{range}，负能量伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"1": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"2": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+},
+"3": {
+"dmg": "12",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])

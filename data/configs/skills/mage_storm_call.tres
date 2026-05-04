@@ -29,7 +29,38 @@ script = ExtResource("5_hmqbi")
 skill_id = &"mage_storm_call"
 display_name = "唤雷术"
 icon_id = &"mage_storm_call"
-description = "从空中落下直击雷；对高地或空旷地格额外 `+10%` 伤害。"
+description = "从空中落下直击雷；对高地或空旷地格额外 +10% 伤害。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "12"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "12"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "12"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"range": "5",
+"dmg": "12"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

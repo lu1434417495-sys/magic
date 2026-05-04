@@ -28,6 +28,37 @@ skill_id = &"mage_warding_skull"
 display_name = "守望颅骨"
 icon_id = &"mage_warding_skull"
 description = "侦测型召唤物；揭示潜行单位，并在敌人接近时发射诅咒光束。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "15",
+"range": "4",
+"dmg": "7"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

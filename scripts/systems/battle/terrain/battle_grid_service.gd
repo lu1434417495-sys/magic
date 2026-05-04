@@ -22,6 +22,10 @@ const TERRAIN_MUD := &"mud"
 const TERRAIN_SPIKE := &"spike"
 const MIN_RUNTIME_HEIGHT := -5
 const MAX_RUNTIME_HEIGHT := 8
+const JUMP_REDISTRIBUTION_FACTOR := 0.7
+const JUMP_SIZE_STR_COST := 2
+const JUMP_SMALL_AGILITY_BONUS := 1
+const JUMP_STRENGTH_ATTRIBUTE: StringName = &"strength"
 var _edge_service: BattleEdgeService = BATTLE_EDGE_SERVICE_SCRIPT.new()
 
 
@@ -960,3 +964,146 @@ func _build_move_anchor_path(
 		current_state_key = String(previous_state_keys.get(current_state_key, ""))
 	reversed_path.reverse()
 	return reversed_path
+
+
+func get_chebyshev_distance(from_coord: Vector2i, to_coord: Vector2i) -> int:
+	return maxi(absi(to_coord.x - from_coord.x), absi(to_coord.y - from_coord.y))
+
+
+func compute_jump_params(unit_state: BattleUnitState, effect_def: CombatEffectDef) -> Dictionary:
+	if unit_state == null or effect_def == null:
+		return {}
+	var jump_str := _get_jump_effective_str(unit_state)
+	var budget := float(effect_def.jump_base_budget) + float(effect_def.jump_str_scale) * float(jump_str)
+	var arc_ratio_raw := float(effect_def.jump_arc_ratio)
+	var arc_ratio := clampf(arc_ratio_raw, CombatEffectDef.MIN_JUMP_ARC_RATIO, 1.0)
+	var range_multiplier := maxi(int(effect_def.jump_range_multiplier), 1)
+	var min_arc := maxi(1, int(round(budget * arc_ratio)))
+	var range_budget := maxf(0.0, budget * (1.0 - arc_ratio))
+	var max_range := maxi(1, int(round(range_budget * float(range_multiplier))))
+	if int(effect_def.forced_move_distance) > 0:
+		max_range = mini(max_range, int(effect_def.forced_move_distance))
+	return {
+		"budget": budget,
+		"min_arc": min_arc,
+		"range_budget": range_budget,
+		"max_range": max_range,
+		"arc_ratio": arc_ratio,
+		"range_multiplier": range_multiplier,
+	}
+
+
+func compute_jump_arc_height_for_range(params: Dictionary, actual_range: int) -> int:
+	if params.is_empty() or actual_range < 1:
+		return 0
+	var range_multiplier := maxi(int(params.get("range_multiplier", 1)), 1)
+	var distance_cost := float(actual_range) / float(range_multiplier)
+	var range_budget := float(params.get("range_budget", 0.0))
+	var saved_budget := maxf(0.0, range_budget - distance_cost)
+	var extra_arc := int(round(saved_budget * JUMP_REDISTRIBUTION_FACTOR))
+	return int(params.get("min_arc", 0)) + extra_arc
+
+
+func can_jump_arc(
+	state: BattleState,
+	unit_state: BattleUnitState,
+	target_coord: Vector2i,
+	effect_def: CombatEffectDef
+) -> bool:
+	if state == null or unit_state == null or effect_def == null:
+		return false
+	if target_coord == unit_state.coord:
+		return false
+	if not is_inside(state, target_coord):
+		return false
+	var params := compute_jump_params(unit_state, effect_def)
+	if params.is_empty():
+		return false
+	var max_range := int(params.get("max_range", 0))
+	var actual_range := get_chebyshev_distance(unit_state.coord, target_coord)
+	if actual_range < 1 or actual_range > max_range:
+		return false
+	if not can_place_unit(state, unit_state, target_coord, true):
+		return false
+	var from_cell := get_cell(state, unit_state.coord)
+	var to_cell := get_cell(state, target_coord)
+	if from_cell == null or to_cell == null:
+		return false
+	var arc_height := compute_jump_arc_height_for_range(params, actual_range)
+	var h0 := int(from_cell.current_height)
+	var h1 := int(to_cell.current_height)
+	var apex := float(maxi(h0, h1) + arc_height)
+	var path := _supercover_jump_path(unit_state.coord, target_coord)
+	var path_n := path.size() - 1
+	if path_n <= 1:
+		return true
+	for i in range(1, path_n):
+		var t := float(i) / float(path_n)
+		var chord_h := lerpf(float(h0), float(h1), t)
+		var arc_h_at_t := chord_h + 4.0 * (apex - chord_h) * t * (1.0 - t)
+		var cell := get_cell(state, path[i])
+		if cell == null:
+			return false
+		var blocker_h := int(cell.current_height)
+		if cell.occupant_unit_id != &"" and cell.occupant_unit_id != unit_state.unit_id:
+			var occupant := state.units.get(cell.occupant_unit_id) as BattleUnitState
+			if occupant != null:
+				blocker_h += _get_unit_presence_height(occupant)
+		if arc_h_at_t <= float(blocker_h):
+			return false
+	return true
+
+
+func _supercover_jump_path(from_coord: Vector2i, to_coord: Vector2i) -> Array[Vector2i]:
+	var path: Array[Vector2i] = []
+	var dx := to_coord.x - from_coord.x
+	var dy := to_coord.y - from_coord.y
+	var steps := maxi(absi(dx), absi(dy))
+	if steps <= 0:
+		path.append(from_coord)
+		return path
+	var prev := Vector2i(-99999, -99999)
+	for i in range(steps + 1):
+		var t := float(i) / float(steps)
+		var x := int(round(float(from_coord.x) + float(dx) * t))
+		var y := int(round(float(from_coord.y) + float(dy) * t))
+		var current := Vector2i(x, y)
+		if current != prev:
+			path.append(current)
+			prev = current
+	if path.is_empty() or path[path.size() - 1] != to_coord:
+		path.append(to_coord)
+	return path
+
+
+func _get_jump_effective_str(unit_state: BattleUnitState) -> int:
+	var raw_str := 0
+	if unit_state != null and unit_state.attribute_snapshot != null:
+		raw_str = int(unit_state.attribute_snapshot.get_value(JUMP_STRENGTH_ATTRIBUTE))
+	var modifier := _get_jump_size_str_modifier(unit_state)
+	return maxi(0, raw_str + modifier)
+
+
+func _get_jump_size_str_modifier(unit_state: BattleUnitState) -> int:
+	if unit_state == null:
+		return 0
+	match int(unit_state.body_size):
+		BattleUnitState.BODY_SIZE_SMALL:
+			return JUMP_SMALL_AGILITY_BONUS
+		BattleUnitState.BODY_SIZE_MEDIUM:
+			return 0
+		BattleUnitState.BODY_SIZE_LARGE:
+			return -JUMP_SIZE_STR_COST * 2
+		BattleUnitState.BODY_SIZE_HUGE:
+			return -JUMP_SIZE_STR_COST * 5
+		_:
+			return 0
+
+
+func _get_unit_presence_height(unit_state: BattleUnitState) -> int:
+	if unit_state == null:
+		return 1
+	var fp := unit_state.footprint_size
+	if fp == Vector2i.ZERO:
+		fp = BattleUnitState.get_footprint_size_for_body_size(unit_state.body_size)
+	return mini(maxi(fp.x, 1), maxi(fp.y, 1))

@@ -29,7 +29,34 @@ script = ExtResource("5_8xbe2")
 skill_id = &"mage_thunderclap"
 display_name = "雷暴震响"
 icon_id = &"mage_thunderclap"
-description = "近身反制型法术；命中的敌人获得 `staggered`，适合拆贴身战士的节奏。"
+description = "近身反制型法术；命中的敌人获得 staggered，适合拆贴身战士的节奏。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"dmg": "10"
+},
+"1": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"dmg": "10"
+},
+"2": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"dmg": "10"
+},
+"3": {
+"ap": "2",
+"mp": "2",
+"cooldown": "10",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"lightning"])

@@ -19,7 +19,6 @@ const ProgressionDataUtils = preload("res://scripts/player/progression/progressi
 const CHARGE_EFFECT_TYPE: StringName = &"charge"
 const PATH_STEP_AOE_EFFECT_TYPE: StringName = &"path_step_aoe"
 const TRAP_EFFECT_PREFIX = "trap_"
-const WHIRLWIND_STAGGER_DURATION_TU := 60
 
 var _runtime_ref: WeakRef = null
 var _runtime: Object = null:
@@ -132,6 +131,7 @@ func handle_charge_skill_command(
 
 	_runtime.merge_batch(batch, charge_batch)
 	if moved_steps > 0:
+		var path_step_aoe_effect := get_charge_path_step_aoe_effect_def(cast_variant, skill_def, active_unit)
 		batch.log_lines.append("%s 使用 %s，向%s冲锋 %d 格。" % [
 			active_unit.display_name,
 			_runtime.format_skill_variant_label(skill_def, cast_variant),
@@ -139,23 +139,13 @@ func handle_charge_skill_command(
 			moved_steps,
 		])
 		if path_step_trigger_count > 0:
-			batch.log_lines.append("%s 沿途触发 %d 次旋斩，共命中 %d 个单位。" % [
+			batch.log_lines.append("%s 沿途触发 %d 次%s，共命中 %d 个单位。" % [
 				active_unit.display_name,
 				path_step_trigger_count,
+				_get_path_step_log_label(path_step_aoe_effect),
 				path_step_hit_count,
 			])
-		var skill_level := int(_runtime.get_unit_skill_level(active_unit, skill_def.skill_id)) if skill_def != null else 0
-		if skill_level >= 9:
-			for unit_id in total_unit_hit_counts.keys():
-				if int(total_unit_hit_counts[unit_id]) > 3:
-					var target_unit: BattleUnitState = _runtime.get_state().units.get(unit_id) as BattleUnitState
-					if target_unit != null and target_unit.is_alive:
-						_apply_whirlwind_stagger(active_unit, target_unit)
-						_runtime.append_changed_unit_id(batch, target_unit.unit_id)
-						batch.log_lines.append("%s 被旋风斩连续命中 %d 次，陷入踉跄。" % [
-							target_unit.display_name,
-							total_unit_hit_counts[unit_id],
-						])
+		_apply_repeat_hit_status_effects(active_unit, skill_def, path_step_aoe_effect, total_unit_hit_counts, batch)
 		if _skill_mastery_service != null and skill_def != null:
 			_skill_mastery_service.record_mastery_amount(skill_def, moved_steps)
 		return true
@@ -168,21 +158,96 @@ func handle_charge_skill_command(
 	return false
 
 
-func _apply_whirlwind_stagger(active_unit: BattleUnitState, target_unit: BattleUnitState) -> void:
-	if active_unit == null or target_unit == null:
+func _apply_repeat_hit_status_effects(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	path_step_aoe_effect: CombatEffectDef,
+	total_unit_hit_counts: Dictionary,
+	batch: BattleEventBatch
+) -> void:
+	if active_unit == null or skill_def == null or path_step_aoe_effect == null or batch == null:
 		return
-	var staggered_effect := CombatEffectDef.new()
-	staggered_effect.effect_type = &"status"
-	staggered_effect.status_id = &"staggered"
-	staggered_effect.power = 1
-	staggered_effect.duration_tu = WHIRLWIND_STAGGER_DURATION_TU
-	var staggered_state: BattleStatusEffectState = BattleStatusSemanticTable.merge_status(
-		staggered_effect,
-		active_unit.unit_id,
-		target_unit.get_status_effect(&"staggered")
-	)
-	if staggered_state != null:
-		target_unit.set_status_effect(staggered_state)
+	var params: Dictionary = path_step_aoe_effect.params if path_step_aoe_effect.params != null else {}
+	var status_id := ProgressionDataUtils.to_string_name(params.get("repeat_hit_status_id", ""))
+	if status_id == &"":
+		return
+	var min_skill_level := maxi(int(params.get("repeat_hit_status_min_skill_level", 0)), 0)
+	var skill_level := int(_runtime.get_unit_skill_level(active_unit, skill_def.skill_id)) if _has_runtime() else 0
+	if skill_level < min_skill_level:
+		return
+	var hit_threshold := maxi(int(params.get("repeat_hit_status_threshold", 1)), 1)
+	var status_power := maxi(int(params.get("repeat_hit_status_power", 1)), 1)
+	var status_duration_tu := int(params.get("repeat_hit_status_duration_tu", 0))
+	if status_duration_tu <= 0:
+		return
+	var extra_status_params: Dictionary = {}
+	var raw_extra_params = params.get("repeat_hit_status_params", {})
+	if raw_extra_params is Dictionary:
+		extra_status_params = (raw_extra_params as Dictionary).duplicate(true)
+
+	for unit_id in total_unit_hit_counts.keys():
+		var hit_count := int(total_unit_hit_counts[unit_id])
+		if hit_count < hit_threshold:
+			continue
+		var target_unit: BattleUnitState = _runtime.get_state().units.get(unit_id) as BattleUnitState
+		if target_unit == null or not target_unit.is_alive:
+			continue
+		var status_effect := CombatEffectDef.new()
+		status_effect.effect_type = &"status"
+		status_effect.status_id = status_id
+		status_effect.power = status_power
+		status_effect.duration_tu = status_duration_tu
+		status_effect.params = extra_status_params.duplicate(true)
+		var status_entry: BattleStatusEffectState = BattleStatusSemanticTable.merge_status(
+			status_effect,
+			active_unit.unit_id,
+			target_unit.get_status_effect(status_id)
+		)
+		if status_entry == null:
+			continue
+		target_unit.set_status_effect(status_entry)
+		_runtime.append_changed_unit_id(batch, target_unit.unit_id)
+		var log_line := _format_repeat_hit_status_log(params, target_unit, skill_def, hit_count, status_id)
+		if not log_line.is_empty():
+			batch.log_lines.append(log_line)
+
+
+func _format_repeat_hit_status_log(
+	params: Dictionary,
+	target_unit: BattleUnitState,
+	skill_def: SkillDef,
+	hit_count: int,
+	status_id: StringName
+) -> String:
+	if target_unit == null or skill_def == null:
+		return ""
+	var template := String(params.get("repeat_hit_status_log_template", ""))
+	if template.strip_edges().is_empty():
+		return "%s 被 %s 连续命中 %d 次，受到 %s。" % [
+			target_unit.display_name,
+			skill_def.display_name,
+			hit_count,
+			String(status_id),
+		]
+	return template \
+		.replace("{target}", target_unit.display_name) \
+		.replace("{skill}", skill_def.display_name) \
+		.replace("{hit_count}", str(hit_count)) \
+		.replace("{status_id}", String(status_id))
+
+
+func _get_path_step_log_label(path_step_aoe_effect: CombatEffectDef) -> String:
+	if path_step_aoe_effect == null or path_step_aoe_effect.params == null:
+		return "路径攻击"
+	var label := String(path_step_aoe_effect.params.get("path_step_log_label", "路径攻击")).strip_edges()
+	if label.is_empty():
+		return "路径攻击"
+	return label
+
+
+func _get_path_step_result_label(path_step_aoe_effect: CombatEffectDef) -> String:
+	var label := _get_path_step_log_label(path_step_aoe_effect)
+	return "沿途%s" % label
 
 
 func validate_charge_command(
@@ -359,6 +424,7 @@ func _apply_charge_path_step_aoe_effects(
 	var total_kill_count = 0
 	var unit_hit_counts: Dictionary = {}
 	var target_filter: StringName = _runtime.resolve_effect_target_filter(skill_def, path_step_aoe_effect)
+	var path_step_result_label := _get_path_step_result_label(path_step_aoe_effect)
 	var stage_effect = path_step_aoe_effect.duplicate_for_runtime()
 	if stage_effect == null:
 		return {"triggered": false, "hit_count": 0, "unit_hit_counts": {}}
@@ -401,17 +467,19 @@ func _apply_charge_path_step_aoe_effects(
 		total_healing += healing
 		_runtime.append_damage_result_log_lines(
 			batch,
-			"%s 的 %s 沿途旋斩" % [
+			"%s 的 %s %s" % [
 				active_unit.display_name,
 				skill_def.display_name,
+				path_step_result_label,
 			],
 			target_unit.display_name,
 			result
 		)
 		if healing > 0:
-			batch.log_lines.append("%s 的 %s 沿途旋斩为 %s 恢复 %d 点生命。" % [
+			batch.log_lines.append("%s 的 %s %s为 %s 恢复 %d 点生命。" % [
 				active_unit.display_name,
 				skill_def.display_name,
+				path_step_result_label,
 				target_unit.display_name,
 				healing,
 			])

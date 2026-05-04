@@ -35,9 +35,11 @@ func _run() -> void:
 	_test_shield_bash_reduces_target_ap_on_next_turn()
 	_test_guard_applies_only_guarding_status()
 	_test_guard_reduces_incoming_damage()
-	_test_war_cry_increases_ally_damage()
+	_test_war_cry_applies_attack_roll_bonus()
 	_test_heavy_strike_level_scaling_data_applies()
 	_test_jump_slash_repositions_before_landing_burst()
+	_test_jump_slash_ground_range_ignores_weapon_range()
+	_test_jump_slash_diagonal_landing_uses_jump_distance()
 	_test_execution_cleave_deals_more_damage_to_low_hp_targets()
 	_test_taunt_redirects_ai_target()
 	_test_aura_slash_requires_and_consumes_aura()
@@ -203,10 +205,10 @@ func _test_guard_applies_only_guarding_status() -> void:
 	_assert_true(not warrior.has_status_effect(&"damage_reduction_up"), "warrior_guard 不应再顺带施加 damage_reduction_up。")
 
 
-func _test_war_cry_increases_ally_damage() -> void:
+func _test_war_cry_applies_attack_roll_bonus() -> void:
 	var baseline_damage := _measure_max_buffed_ally_strike_damage(false)
 	var buffed_damage := _measure_max_buffed_ally_strike_damage(true)
-	_assert_true(buffed_damage > baseline_damage, "战吼后的友军输出应高于未受鼓舞时。 baseline=%d buffed=%d" % [baseline_damage, buffed_damage])
+	_assert_true(buffed_damage >= baseline_damage, "战吼不应降低友军输出。 baseline=%d buffed=%d" % [baseline_damage, buffed_damage])
 
 
 func _test_heavy_strike_level_scaling_data_applies() -> void:
@@ -242,6 +244,7 @@ func _test_jump_slash_repositions_before_landing_burst() -> void:
 	var state := _build_skill_test_state(Vector2i(6, 4))
 	var warrior := _build_unit(&"jump_slash_user", Vector2i(1, 1), 2)
 	warrior.current_stamina = 35
+	warrior.attribute_snapshot.set_value(&"strength", 12)
 	warrior.known_active_skill_ids = [&"warrior_jump_slash"]
 	warrior.known_skill_level_map = {&"warrior_jump_slash": 1}
 	var enemy_a := _build_unit(&"jump_slash_target_a", Vector2i(3, 2), 2)
@@ -318,6 +321,63 @@ func _test_jump_slash_repositions_before_landing_burst() -> void:
 	_assert_true(
 		blocked_batch.log_lines.any(func(line): return String(line).contains("跳跃落点")),
 		"preview 拒绝的跳斩应把阻断原因带回 issue_command。 log=%s" % [str(blocked_batch.log_lines)]
+	)
+
+
+func _test_jump_slash_ground_range_ignores_weapon_range() -> void:
+	var runtime := _build_runtime()
+	var state := _build_skill_test_state(Vector2i(5, 4))
+	var warrior := _build_unit(&"jump_slash_short_weapon_user", Vector2i(1, 1), 2)
+	warrior.current_stamina = 35
+	warrior.attribute_snapshot.set_value(&"strength", 12)
+	warrior.known_active_skill_ids = [&"warrior_jump_slash"]
+	warrior.known_skill_level_map = {&"warrior_jump_slash": 1}
+	_apply_test_equipped_weapon(warrior, 1)
+
+	_add_unit(runtime, state, warrior)
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = []
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = warrior.unit_id
+	command.skill_id = &"warrior_jump_slash"
+	command.target_coord = Vector2i(3, 1)
+
+	var preview := runtime.preview_command(command)
+	_assert_true(
+		preview != null and preview.allowed,
+		"跳斩地面落点范围应使用技能配置，不应被 1 格短武器射程压缩。 log=%s" % [str(preview.log_lines if preview != null else [])]
+	)
+
+
+func _test_jump_slash_diagonal_landing_uses_jump_distance() -> void:
+	var runtime := _build_runtime()
+	var state := _build_skill_test_state(Vector2i(6, 6))
+	var warrior := _build_unit(&"jump_slash_diagonal_user", Vector2i(1, 1), 2)
+	warrior.current_stamina = 35
+	warrior.attribute_snapshot.set_value(&"strength", 12)
+	warrior.known_active_skill_ids = [&"warrior_jump_slash"]
+	warrior.known_skill_level_map = {&"warrior_jump_slash": 1}
+
+	_add_unit(runtime, state, warrior)
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = []
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = warrior.unit_id
+	command.skill_id = &"warrior_jump_slash"
+	command.target_coord = Vector2i(3, 3)
+
+	var preview := runtime.preview_command(command)
+	_assert_true(
+		preview != null and preview.allowed,
+		"跳斩斜向落点应按跳跃 Chebyshev 距离校验，而不是被曼哈顿距离拒绝。 log=%s" % [str(preview.log_lines if preview != null else [])]
 	)
 
 
@@ -469,7 +529,7 @@ func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool, attempt_index:
 	runtime.configure_damage_resolver_for_tests(DeterministicHitMaxDamageResolver.new())
 	var state := _build_skill_test_state(Vector2i(5, 4))
 	var buffer := _build_unit(StringName("war_cry_user_%d" % attempt_index), Vector2i(1, 1), 2)
-	buffer.current_stamina = 25
+	buffer.current_stamina = 30
 	buffer.known_active_skill_ids = [&"warrior_war_cry"]
 	buffer.known_skill_level_map = {&"warrior_war_cry": 1}
 	var striker := _build_unit(StringName("war_cry_striker_%d" % attempt_index), Vector2i(1, 2), 2)
@@ -495,7 +555,7 @@ func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool, attempt_index:
 		buff_command.skill_id = &"warrior_war_cry"
 		buff_command.target_coord = buffer.coord
 		runtime.issue_command(buff_command)
-		_assert_true(striker.status_effects.has(&"attack_up"), "战吼应为半径内友军挂上 attack_up。")
+		_assert_true(striker.status_effects.has(&"attack_roll_bonus_up"), "战吼应为半径内友军挂上 attack_roll_bonus_up。")
 
 	var hp_before := enemy.current_hp
 	state.phase = &"unit_acting"

@@ -177,6 +177,7 @@ func _append_skill_validation_errors(
 		errors.append(
 			"Skill %s mastery_curve size must match max_level." % String(skill_id)
 		)
+	_append_dynamic_max_level_validation_errors(errors, skill_id, skill_def)
 	for mastery_threshold in skill_def.mastery_curve:
 		if int(mastery_threshold) <= 0:
 			errors.append("Skill %s has a non-positive mastery threshold." % String(skill_id))
@@ -188,6 +189,25 @@ func _append_skill_validation_errors(
 
 	if skill_def.combat_profile != null:
 		_append_combat_profile_validation_errors(errors, skill_id, skill_def.combat_profile)
+
+
+func _append_dynamic_max_level_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_def: SkillDef
+) -> void:
+	var has_dynamic_stat := skill_def.dynamic_max_level_stat_id != &""
+	if not has_dynamic_stat:
+		if skill_def.dynamic_max_level_base != 0:
+			errors.append("Skill %s dynamic_max_level_base requires dynamic_max_level_stat_id." % String(skill_id))
+		if skill_def.dynamic_max_level_per_stat != 0:
+			errors.append("Skill %s dynamic_max_level_per_stat requires dynamic_max_level_stat_id." % String(skill_id))
+		return
+
+	if skill_def.dynamic_max_level_base <= 0:
+		errors.append("Skill %s dynamic_max_level_base must be >= 1." % String(skill_id))
+	if skill_def.dynamic_max_level_per_stat <= 0:
+		errors.append("Skill %s dynamic_max_level_per_stat must be >= 1." % String(skill_id))
 
 
 func _append_attribute_growth_validation_errors(
@@ -258,6 +278,9 @@ func _append_combat_profile_validation_errors(
 		errors.append("Skill %s combat_profile costs must be >= 0." % String(skill_id))
 	if not _is_valid_tu_value(int(combat_profile.cooldown_tu)):
 		errors.append("Skill %s combat_profile cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), TU_GRANULARITY])
+	_append_string_name_array_validation_errors(errors, skill_id, "combat_profile.required_weapon_families", combat_profile.required_weapon_families)
+	_append_string_name_array_validation_errors(errors, skill_id, "combat_profile.excluded_weapon_families", combat_profile.excluded_weapon_families)
+	_append_string_name_array_validation_errors(errors, skill_id, "combat_profile.excluded_weapon_type_ids", combat_profile.excluded_weapon_type_ids)
 	for override_level_key in combat_profile.level_overrides.keys():
 		if typeof(override_level_key) != TYPE_INT:
 			errors.append("Skill %s combat_profile level override key %s must be an int." % [String(skill_id), str(override_level_key)])
@@ -526,7 +549,9 @@ func _append_effect_validation_errors(
 						context_label,
 					]
 				)
-			if int(effect_def.forced_move_distance) <= 0:
+			if effect_def.forced_move_mode == &"jump":
+				_append_jump_effect_validation_errors(errors, skill_id, effect_def, context_label)
+			elif int(effect_def.forced_move_distance) <= 0:
 				errors.append(
 					"Skill %s forced_move effect in %s must have forced_move_distance >= 1." % [
 						String(skill_id),
@@ -541,6 +566,147 @@ func _append_effect_validation_errors(
 						context_label,
 						]
 				)
+		&"path_step_aoe":
+			_append_path_step_aoe_validation_errors(errors, skill_id, effect_def, context_label)
+
+
+func _append_path_step_aoe_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	effect_def: CombatEffectDef,
+	context_label: String
+) -> void:
+	if effect_def == null or effect_def.params == null:
+		return
+	var params: Dictionary = effect_def.params
+	if params.has("path_step_log_label") and String(params.get("path_step_log_label", "")).strip_edges().is_empty():
+		errors.append(
+			"Skill %s path_step_aoe effect in %s params.path_step_log_label must be non-empty when set." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if not _has_repeat_hit_status_config(params):
+		return
+	var status_id := ProgressionDataUtils.to_string_name(params.get("repeat_hit_status_id", ""))
+	if status_id == &"":
+		errors.append(
+			"Skill %s path_step_aoe effect in %s repeat-hit status config requires params.repeat_hit_status_id." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if int(params.get("repeat_hit_status_threshold", 0)) < 1:
+		errors.append(
+			"Skill %s path_step_aoe effect in %s params.repeat_hit_status_threshold must be >= 1." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if int(params.get("repeat_hit_status_min_skill_level", 0)) < 0:
+		errors.append(
+			"Skill %s path_step_aoe effect in %s params.repeat_hit_status_min_skill_level must be >= 0." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if int(params.get("repeat_hit_status_power", 1)) < 1:
+		errors.append(
+			"Skill %s path_step_aoe effect in %s params.repeat_hit_status_power must be >= 1." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if not params.has("repeat_hit_status_duration_tu"):
+		errors.append(
+			"Skill %s path_step_aoe effect in %s repeat-hit status config requires params.repeat_hit_status_duration_tu." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	else:
+		var repeat_hit_status_duration_tu := int(params.get("repeat_hit_status_duration_tu", 0))
+		if repeat_hit_status_duration_tu <= 0 or not _is_valid_tu_value(repeat_hit_status_duration_tu):
+			errors.append(
+				"Skill %s path_step_aoe effect in %s params.repeat_hit_status_duration_tu must be a positive multiple of %d." % [
+					String(skill_id),
+					context_label,
+					TU_GRANULARITY,
+				]
+			)
+	if params.has("repeat_hit_status_params") and params.get("repeat_hit_status_params") is not Dictionary:
+		errors.append(
+			"Skill %s path_step_aoe effect in %s params.repeat_hit_status_params must be a Dictionary." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+
+
+func _has_repeat_hit_status_config(params: Dictionary) -> bool:
+	for key in [
+		"repeat_hit_status_id",
+		"repeat_hit_status_threshold",
+		"repeat_hit_status_min_skill_level",
+		"repeat_hit_status_power",
+		"repeat_hit_status_duration_tu",
+		"repeat_hit_status_params",
+		"repeat_hit_status_log_template",
+	]:
+		if params.has(key):
+			return true
+	return false
+
+
+func _append_jump_effect_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	effect_def: CombatEffectDef,
+	context_label: String
+) -> void:
+	if int(effect_def.forced_move_distance) < 0:
+		errors.append(
+			"Skill %s jump effect in %s must have forced_move_distance >= 0 (0 = no max_range cap)." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if float(effect_def.jump_arc_ratio) < CombatEffectDef.MIN_JUMP_ARC_RATIO:
+		errors.append(
+			"Skill %s jump effect in %s requires jump_arc_ratio >= %.2f; jump must lift the unit." % [
+				String(skill_id),
+				context_label,
+				CombatEffectDef.MIN_JUMP_ARC_RATIO,
+			]
+		)
+	if float(effect_def.jump_arc_ratio) > 1.0:
+		errors.append(
+			"Skill %s jump effect in %s requires jump_arc_ratio <= 1.0." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if int(effect_def.jump_base_budget) < 0:
+		errors.append(
+			"Skill %s jump effect in %s must have jump_base_budget >= 0." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if float(effect_def.jump_str_scale) < 0.0:
+		errors.append(
+			"Skill %s jump effect in %s must have jump_str_scale >= 0." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if int(effect_def.jump_range_multiplier) < 1:
+		errors.append(
+			"Skill %s jump effect in %s must have jump_range_multiplier >= 1." % [
+				String(skill_id),
+				context_label,
+			]
+		)
 
 
 func _append_weapon_param_validation_errors(
@@ -573,6 +739,21 @@ func _append_weapon_param_validation_errors(
 					context_label,
 				]
 			)
+
+
+func _append_string_name_array_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	field_label: String,
+	values: Array
+) -> void:
+	for index in range(values.size()):
+		var value = values[index]
+		if typeof(value) != TYPE_STRING_NAME:
+			errors.append("Skill %s %s[%d] must be a StringName." % [String(skill_id), field_label, index])
+			continue
+		if ProgressionDataUtils.to_string_name(value) == &"":
+			errors.append("Skill %s %s[%d] must be non-empty." % [String(skill_id), field_label, index])
 
 
 func _is_valid_tu_value(value: int) -> bool:

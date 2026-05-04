@@ -28,6 +28,37 @@ skill_id = &"mage_temporal_rewind"
 display_name = "时序回溯"
 icon_id = &"mage_temporal_rewind"
 description = "以时序魔法为射程内一名友军回复生命值。"
+level_description_template = "为友方回复{heal}点生命。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"heal": "12"
+},
+"1": {
+"ap": "2",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"heal": "12"
+},
+"2": {
+"ap": "2",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"heal": "12"
+},
+"3": {
+"ap": "2",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"heal": "12"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])

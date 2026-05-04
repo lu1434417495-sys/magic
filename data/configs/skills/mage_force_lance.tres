@@ -27,7 +27,42 @@ script = ExtResource("5_cqxl6")
 skill_id = &"mage_force_lance"
 display_name = "力场矛"
 icon_id = &"mage_force_lance"
-description = "奥术直刺；对 `armor_break` 目标额外 `+20%` 伤害。"
+description = "奥术直刺，对破甲目标额外+20%伤害。"
+level_description_template = "射程{range}，攻击检定{hit}，奥术伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "12",
+"hit": "+1",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+},
+"1": {
+"dmg": "12",
+"hit": "+1",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+},
+"2": {
+"dmg": "12",
+"hit": "+1",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+},
+"3": {
+"dmg": "12",
+"hit": "+1",
+"range": "5",
+"ap": "2",
+"mp": "2",
+"cooldown": "5"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])

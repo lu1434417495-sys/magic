@@ -29,7 +29,42 @@ script = ExtResource("5_3nhyl")
 skill_id = &"mage_flame_spear"
 display_name = "炎枪术"
 icon_id = &"mage_flame_spear"
-description = "火焰沿直线贯穿最多 `2` 名敌人；若路径上存在 `mud`，额外留下持续 `60 TU` 的燃烧地格。"
+description = "火焰沿直线贯穿最多2名敌人，若路径上存在泥浆则留下燃烧地格。"
+level_description_template = "射程{range}，火伤{dmg}，直线贯穿。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+},
+"1": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+},
+"2": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "5",
+},
+"3": {
+"dmg": "12",
+"range": "5",
+"area": "1",
+"ap": "2",
+"mp": "2",
+"cooldown": "5"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"fire"])

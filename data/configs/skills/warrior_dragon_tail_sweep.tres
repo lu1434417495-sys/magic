@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_dmg"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+power = 8
+damage_tag = &"magic"
+params = { "add_weapon_dice": false }
+
+[sub_resource type="Resource" id="Resource_push"]
+script = ExtResource("3_effect")
+effect_type = &"forced_move"
+forced_move_mode = &"retreat"
+forced_move_distance = 1
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_dragon_tail_sweep"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 0
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 1
+aura_cost = 25
+cooldown_tu = 120
+attack_roll_bonus = 0
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_dmg"), SubResource("Resource_push")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_dragon_tail_sweep"
+display_name = "龙尾扫阵"
+icon_id = &"warrior_dragon_tail_sweep"
+description = "扫击周围敌人，将其击退。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "strength": 100, "constitution": 20 }
+tags = Array[StringName]([&"warrior", &"melee", &"qi", &"aoe", &"displacement"])
+combat_profile = SubResource("Resource_combat")

@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_status"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"attack_roll_bonus_up"
+power = 2
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_focus_mind"
+target_mode = &"self"
+target_team_filter = &"ally"
+target_selection_mode = &"self"
+range_value = 0
+ap_cost = 1
+stamina_cost = 8
+cooldown_tu = 120
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_status")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_focus_mind"
+display_name = "集中精神"
+icon_id = &"warrior_focus_mind"
+description = "提升自身命中与专注，持续2回合。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"basic"
+attribute_growth_progress = { "willpower": 50, "agility": 10 }
+tags = Array[StringName]([&"warrior", &"melee", &"buff"])
+combat_profile = SubResource("Resource_combat")

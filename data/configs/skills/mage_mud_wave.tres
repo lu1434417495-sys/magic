@@ -29,8 +29,39 @@ script = ExtResource("5_mgib3")
 skill_id = &"mage_mud_wave"
 display_name = "泥潮术"
 icon_id = &"mage_mud_wave"
-description = "向前推送泥流；若前方已有 `mud` 地格，则范围 `+1`。"
+description = "向前推送泥流，若前方已有mud地格则范围+1。"
 max_level = 3
+level_description_template = "造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "扇形1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])
 combat_profile = SubResource("Resource_bxig6")

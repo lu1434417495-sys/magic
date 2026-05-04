@@ -29,7 +29,38 @@ script = ExtResource("5_vft77")
 skill_id = &"mage_rime_burst"
 display_name = "冻雾爆"
 icon_id = &"mage_rime_burst"
-description = "落点扩散冰雾；区域内敌人移动力 `-1`，持续 `60 TU`。"
+description = "落点扩散冰雾；区域内敌人移动力 -1，持续 60 TU。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"1": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"2": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+},
+"3": {
+"ap": "2",
+"mp": "1",
+"cooldown": "5",
+"range": "4",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])

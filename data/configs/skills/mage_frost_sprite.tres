@@ -29,6 +29,33 @@ display_name = "霜灵"
 icon_id = &"mage_frost_sprite"
 description = "召唤擅长减速和冻结补刀的小型冰灵。"
 max_level = 3
+level_description_template = "召唤冰灵，造成{dmg}冰冻伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "15",
+"dmg": "6",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])
 combat_profile = SubResource("Resource_ktogt")

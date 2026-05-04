@@ -28,6 +28,37 @@ skill_id = &"mage_runic_golem"
 display_name = "符文傀儡"
 icon_id = &"mage_runic_golem"
 description = "较硬的召唤前排；适合给法师争取安全施法位。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"dmg": "10"
+},
+"1": {
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"dmg": "10"
+},
+"2": {
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"dmg": "10"
+},
+"3": {
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+"range": "3",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

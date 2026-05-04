@@ -137,6 +137,7 @@ func _run() -> void:
 	_test_large_unit_charge_trap_stops_after_first_step()
 	_test_ground_line_and_cone_skills_follow_caster_facing()
 	_test_archer_multishot_uses_target_unit_ids_in_manual_order()
+	_test_archer_multishot_level_scaled_target_limits()
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
 	_test_weapon_skill_range_uses_weapon_attack_range_not_skill_range()
@@ -144,6 +145,7 @@ func _run() -> void:
 	_test_weapon_skill_damage_tag_uses_current_weapon_type()
 	_test_weapon_damage_tag_override_does_not_require_weapon()
 	_test_requires_weapon_rejects_unarmed_and_natural_weapons()
+	_test_required_weapon_families_restricts_equipped_weapon_family()
 	_test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 	_test_ground_jump_precast_failure_does_not_consume_costs()
 	_test_issue_command_flushes_battle_end_logs_to_state()
@@ -1612,10 +1614,21 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 
 	var state := _build_skill_test_state(Vector2i(4, 1))
 	var archer := _build_unit(&"archer_multishot_user", Vector2i(0, 0), 3)
-	archer.current_stamina = 20
+	archer.current_stamina = 60
 	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	archer.known_active_skill_ids = [&"archer_multishot"]
 	archer.known_skill_level_map = {&"archer_multishot": 1}
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "runtime_test_bow",
+		"weapon_profile_type_id": "test_bow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 5,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
 	var enemy_a := _build_enemy_unit(&"enemy_a", Vector2i(1, 0))
 	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var enemy_b := _build_enemy_unit(&"enemy_b", Vector2i(2, 0))
@@ -1653,12 +1666,82 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(archer.unit_id), "连珠箭应记录施法者变更。")
-	_assert_eq(archer.current_stamina, 18, "连珠箭应只按一次施放消耗体力。")
+	_assert_eq(archer.current_stamina, 20, "连珠箭应只按一次施放消耗 40 体力。")
 	_assert_eq(
 		_extract_string_name_array(batch.changed_unit_ids),
 		[String(archer.unit_id), String(enemy_c.unit_id), String(enemy_a.unit_id), String(enemy_b.unit_id)],
 		"连珠箭应按玩家选择顺序依次解析目标；天然 1 未造成伤害时也应标记目标变更。"
 	)
+
+
+func _test_archer_multishot_level_scaled_target_limits() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, registry.get_skill_defs(), {}, {})
+
+	var state := _build_skill_test_state(Vector2i(6, 1))
+	var archer := _build_unit(&"archer_multishot_limit_user", Vector2i(0, 0), 3)
+	archer.current_stamina = 80
+	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	archer.known_active_skill_ids = [&"archer_multishot"]
+	archer.known_skill_level_map = {&"archer_multishot": 0}
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "runtime_limit_test_bow",
+		"weapon_profile_type_id": "test_bow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 6,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+	var enemies: Array[BattleUnitState] = []
+	for index in range(5):
+		var enemy := _build_enemy_unit(ProgressionDataUtils.to_string_name("multishot_limit_enemy_%d" % index), Vector2i(index + 1, 0))
+		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+		enemies.append(enemy)
+
+	state.units = {archer.unit_id: archer}
+	state.ally_unit_ids = [archer.unit_id]
+	state.enemy_unit_ids = []
+	_assert_true(runtime._grid_service.place_unit(state, archer, archer.coord, true), "连珠箭目标上限测试弓手应能成功放入战场。")
+	for enemy in enemies:
+		state.units[enemy.unit_id] = enemy
+		state.enemy_unit_ids.append(enemy.unit_id)
+		_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "连珠箭目标上限测试敌人应能成功放入战场。")
+	state.active_unit_id = archer.unit_id
+	runtime._state = state
+
+	var single_target_command := _build_archer_multishot_command(archer.unit_id, [enemies[0]])
+	var single_target_preview := runtime.preview_command(single_target_command)
+	_assert_true(single_target_preview.allowed, "连珠箭 0 级应允许只选择 1 个目标施放。")
+
+	var level_zero_over_cap_command := _build_archer_multishot_command(archer.unit_id, [enemies[0], enemies[1], enemies[2]])
+	var level_zero_over_cap_preview := runtime.preview_command(level_zero_over_cap_command)
+	_assert_true(not level_zero_over_cap_preview.allowed, "连珠箭 0 级不应允许超过 2 个目标。")
+
+	archer.known_skill_level_map[&"archer_multishot"] = 5
+	var level_five_command := _build_archer_multishot_command(archer.unit_id, enemies)
+	var level_five_preview := runtime.preview_command(level_five_command)
+	_assert_true(level_five_preview.allowed, "连珠箭 5 级应允许一次锁定 5 个目标。")
+	_assert_eq(level_five_preview.target_unit_ids.size(), 5, "连珠箭 5 级预览应保留 5 个目标。")
+
+
+func _build_archer_multishot_command(caster_unit_id: StringName, targets: Array[BattleUnitState]) -> BattleCommand:
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = caster_unit_id
+	command.skill_id = &"archer_multishot"
+	command.skill_variant_id = &"multishot_volley"
+	for target in targets:
+		if target == null:
+			continue
+		command.target_unit_ids.append(target.unit_id)
+	if not targets.is_empty() and targets[0] != null:
+		command.target_unit_id = targets[0].unit_id
+		command.target_coord = targets[0].coord
+	return command
 
 
 func _test_multi_unit_skill_uses_stable_target_order() -> void:
@@ -1980,6 +2063,99 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	_assert_true(equipped_batch.changed_unit_ids.has(attacker.unit_id), "装备武器应满足 requires_weapon 并正常结算。")
 	_assert_eq(attacker.current_ap, 1, "装备武器满足 requires_weapon 后应正常扣除 AP。")
 	_assert_true(target.current_hp < target_hp_before, "装备武器满足 requires_weapon 后应造成伤害。")
+
+
+func _test_required_weapon_families_restricts_equipped_weapon_family() -> void:
+	var skill := _build_direct_damage_skill(&"required_bow_family_contract", 1)
+	skill.tags = [&"archer", &"bow"]
+	skill.combat_profile.required_weapon_families = [&"bow"]
+	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
+	damage_effect.damage_tag = &"physical_pierce"
+	damage_effect.params = {
+		"add_weapon_dice": true,
+		"resolve_as_weapon_attack": true,
+		"use_weapon_physical_damage_tag": true,
+	}
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {skill.skill_id: skill}, {}, {})
+	runtime.configure_damage_resolver_for_tests(FixedHitOneDamageResolver.new())
+
+	var state := _build_skill_test_state(Vector2i(2, 1))
+	var attacker := _build_unit(&"required_bow_family_user", Vector2i(0, 0), 2)
+	attacker.known_active_skill_ids = [skill.skill_id]
+	attacker.known_skill_level_map = {skill.skill_id: 1}
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	var target := _build_enemy_unit(&"required_bow_family_target", Vector2i(1, 0))
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	state.units = {
+		attacker.unit_id: attacker,
+		target.unit_id: target,
+	}
+	state.ally_unit_ids = [attacker.unit_id]
+	state.enemy_unit_ids = [target.unit_id]
+	state.active_unit_id = attacker.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, attacker, attacker.coord, true), "required_weapon_families 测试攻击者应能放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, target, target.coord, true), "required_weapon_families 测试目标应能放入战场。")
+	runtime._state = state
+
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = attacker.unit_id
+	command.skill_id = skill.skill_id
+	command.target_unit_id = target.unit_id
+	command.target_coord = target.coord
+
+	var target_hp_before := target.current_hp
+	var no_weapon_batch := runtime.issue_command(command)
+	_assert_true(
+		not no_weapon_batch.log_lines.is_empty() and String(no_weapon_batch.log_lines[-1]).contains("指定武器家族"),
+		"未装备武器不应满足 required_weapon_families。 log=%s" % [str(no_weapon_batch.log_lines)]
+	)
+	_assert_eq(attacker.current_ap, 2, "未装备指定武器家族时不应扣除 AP。")
+	_assert_eq(target.current_hp, target_hp_before, "未装备指定武器家族时不应结算伤害。")
+
+	attacker.set_natural_weapon_projection(&"natural_bow_like", &"physical_pierce", 1, {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0}, &"bow")
+	var natural_batch := runtime.issue_command(command)
+	_assert_true(
+		not natural_batch.log_lines.is_empty() and String(natural_batch.log_lines[-1]).contains("指定武器家族"),
+		"天生武器即使家族名相同也不应满足 required_weapon_families。 log=%s" % [str(natural_batch.log_lines)]
+	)
+	_assert_eq(attacker.current_ap, 2, "天生武器被 required_weapon_families 阻断时不应扣除 AP。")
+	_assert_eq(target.current_hp, target_hp_before, "天生武器被 required_weapon_families 阻断时不应结算伤害。")
+
+	attacker.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "contract_blade",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_family": "sword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_physical_damage_tag": "physical_slash",
+	})
+	var sword_batch := runtime.issue_command(command)
+	_assert_true(
+		not sword_batch.log_lines.is_empty() and String(sword_batch.log_lines[-1]).contains("指定武器家族"),
+		"非弓装备武器不应满足 required_weapon_families。 log=%s" % [str(sword_batch.log_lines)]
+	)
+	_assert_eq(attacker.current_ap, 2, "非弓武器被 required_weapon_families 阻断时不应扣除 AP。")
+	_assert_eq(target.current_hp, target_hp_before, "非弓武器被 required_weapon_families 阻断时不应结算伤害。")
+
+	attacker.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "contract_bow",
+		"weapon_profile_type_id": "shortbow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 4,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+	var bow_batch := runtime.issue_command(command)
+	_assert_true(bow_batch.changed_unit_ids.has(attacker.unit_id), "装备弓类武器应满足 required_weapon_families 并正常结算。")
+	_assert_eq(attacker.current_ap, 1, "装备弓类武器满足 required_weapon_families 后应正常扣除 AP。")
+	_assert_true(target.current_hp < target_hp_before, "装备弓类武器满足 required_weapon_families 后应造成伤害。")
 
 
 func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank() -> void:

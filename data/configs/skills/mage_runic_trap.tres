@@ -27,7 +27,38 @@ script = ExtResource("5_2c60e")
 skill_id = &"mage_runic_trap"
 display_name = "符印陷阱"
 icon_id = &"mage_runic_trap"
-description = "在指定地格布置奥术印记；被触发时爆发奥术伤害并施加 `奥脆`。"
+description = "在指定地格布置奥术印记；被触发时爆发奥术伤害并施加 奥脆。"
+level_description_template = "造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "10"
+},
+"1": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "10"
+},
+"2": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "10"
+},
+"3": {
+"ap": "2",
+"mp": "1",
+"cooldown": "10",
+"range": "4",
+"dmg": "10"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"arcane"])

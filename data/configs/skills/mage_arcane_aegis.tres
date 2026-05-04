@@ -22,7 +22,38 @@ script = ExtResource("5_shcgr")
 skill_id = &"mage_arcane_aegis"
 display_name = "奥术圣域"
 icon_id = &"mage_arcane_aegis"
-description = "范围内友军获得 `法盾`、净化一层负面效果，并提高法术命中。"
+description = "范围内友军获得法盾、净化一层负面效果，并提高法术命中。"
+level_description_template = "射程{range}，范围{area}格友军。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"range": "4",
+"area": "1",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"1": {
+"range": "4",
+"area": "1",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"2": {
+"range": "4",
+"area": "1",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"3": {
+"range": "4",
+"area": "1",
+"ap": "3",
+"mp": "3",
+"cooldown": "20"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])

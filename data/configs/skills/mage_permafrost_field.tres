@@ -29,8 +29,43 @@ script = ExtResource("5_dms7r")
 skill_id = &"mage_permafrost_field"
 display_name = "永冻地面"
 icon_id = &"mage_permafrost_field"
-description = "生成持续 `120 TU` 的冰面领域；敌人穿过区域时移动成本 `+1`，并在其中结束行动时再承受一次寒伤。"
+description = "生成持续120TU的冰面领域，敌人穿过时移动成本+1，在其中结束行动时再承受一次寒伤。"
 max_level = 3
+level_description_template = "造成{dmg}冰冻伤害，生成持续{duration}TU的冰面领域（{area}）。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "7",
+"duration": "120",
+"mp": "2"
+},
+"1": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "7",
+"duration": "120",
+"mp": "2"
+},
+"2": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "7",
+"duration": "120",
+"mp": "2"
+},
+"3": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "7",
+"duration": "120",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"ice"])
 combat_profile = SubResource("Resource_eb40i")

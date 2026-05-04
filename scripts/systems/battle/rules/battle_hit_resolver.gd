@@ -29,6 +29,7 @@ const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_DODGE_BONUS_UP: StringName = &"dodge_bonus_up"
+const STATUS_ATTACK_ROLL_BONUS_UP: StringName = &"attack_roll_bonus_up"
 const BLACK_STAR_BRAND_ATTACK_BONUS_DELTA := -3
 
 var _fate_attack_rules = BATTLE_FATE_ATTACK_RULES_SCRIPT.new()
@@ -310,6 +311,9 @@ func _get_attacker_status_attack_bonus_delta(active_unit: BattleUnitState) -> in
 		return 0
 	if active_unit.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE):
 		return BLACK_STAR_BRAND_ATTACK_BONUS_DELTA
+	var status_entry = active_unit.get_status_effect(STATUS_ATTACK_ROLL_BONUS_UP)
+	if status_entry != null:
+		return maxi(int(status_entry.power), int(status_entry.stacks))
 	return 0
 
 

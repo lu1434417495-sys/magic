@@ -30,7 +30,7 @@ var current_mp := 0
 ## 字段说明：记录该成员是否已经永久死亡；死亡后不再参与队伍编成与战斗。
 var is_dead := false
 ## 字段说明：记录体型尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
-var body_size := 1
+var body_size := 2
 
 
 func get_hidden_luck_at_birth() -> int:

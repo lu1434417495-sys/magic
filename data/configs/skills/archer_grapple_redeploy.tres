@@ -30,7 +30,42 @@ script = ExtResource("5_x3p2b")
 skill_id = &"archer_grapple_redeploy"
 display_name = "索钩转位"
 icon_id = &"archer_grapple_redeploy"
-description = "牵引至高地、障碍物边缘或己方布置点附近；转位后下一个弓技射程 `+1`。"
+description = "牵引至高地、障碍物边缘或己方布置点附近；转位后下一个弓技射程 +1。"
+level_description_template = "牵引至目标点，获得{status}（{duration}TU），自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+	"1": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+	"2": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+	"3": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])

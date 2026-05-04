@@ -5,6 +5,8 @@
 class_name ProfessionAssignmentService
 extends RefCounted
 
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
+
 ## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var _unit_progress: UnitProgress = null
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -29,7 +31,7 @@ func assign_core_skill_to_profession(skill_id: StringName, profession_id: String
 		return false
 	if not skill_progress.is_core:
 		return false
-	if not skill_progress.is_max_level(skill_def.max_level):
+	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, _unit_progress):
 		return false
 	if skill_progress.assigned_profession_id != &"" and skill_progress.assigned_profession_id != profession_id:
 		return false
@@ -84,7 +86,7 @@ func can_promote_non_core_to_core(skill_id: StringName, profession_id: StringNam
 		return false
 	if skill_progress.assigned_profession_id != &"":
 		return false
-	if not skill_progress.is_max_level(skill_def.max_level):
+	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, _unit_progress):
 		return false
 
 	var accepted_tags: Array[StringName] = _get_profession_accepted_tags(profession_def)

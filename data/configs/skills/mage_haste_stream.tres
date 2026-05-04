@@ -20,8 +20,31 @@ script = ExtResource("5_jkxm5")
 skill_id = &"mage_haste_stream"
 display_name = "急速流"
 icon_id = &"mage_haste_stream"
-description = "赋予友军短时加速；非常适合战士冲锋和弓手转线。"
+description = "赋予友军短时加速，非常适合战士冲锋和弓手转线。"
 max_level = 3
+level_description_template = "赋予友军加速。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "10",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "10",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "10",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "10",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_aascj")

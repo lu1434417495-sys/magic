@@ -28,7 +28,42 @@ script = ExtResource("5_1o11f")
 skill_id = &"archer_tripwire_arrow"
 display_name = "绊索箭"
 icon_id = &"archer_tripwire_arrow"
-description = "在直线 `3` 格上布置绊索带；首个穿过的敌人立即停止移动并获得 `压制`。"
+description = "在直线 3 格上布置绊索带；首个穿过的敌人立即停止移动并获得 压制。"
+level_description_template = "造成{dmg}伤害，射程{range}，直线范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "6",
+		"range": "4",
+		"area_pattern": "line",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "6",
+		"range": "4",
+		"area_pattern": "line",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "6",
+		"range": "4",
+		"area_pattern": "line",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "6",
+		"range": "4",
+		"area_pattern": "line",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])

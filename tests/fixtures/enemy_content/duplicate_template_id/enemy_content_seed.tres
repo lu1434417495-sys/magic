@@ -11,7 +11,7 @@ display_name = "Duplicate Enemy A"
 brain_id = "melee_aggressor"
 initial_state_id = "engage"
 enemy_count = 1
-body_size = 1
+body_size = 2
 
 [sub_resource type="Resource" id="Resource_duplicate_template_b"]
 script = ExtResource("3_template")
@@ -20,7 +20,7 @@ display_name = "Duplicate Enemy B"
 brain_id = "melee_aggressor"
 initial_state_id = "engage"
 enemy_count = 1
-body_size = 1
+body_size = 2
 
 [resource]
 script = ExtResource("1_seed")

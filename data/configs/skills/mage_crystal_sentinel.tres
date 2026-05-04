@@ -28,6 +28,37 @@ skill_id = &"mage_crystal_sentinel"
 display_name = "晶盾守卫"
 icon_id = &"mage_crystal_sentinel"
 description = "召唤偏护卫型的水晶构装体，可为相邻友军提供减伤。"
+level_description_template = "射程{range}，召唤晶盾守卫。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"dmg": "8",
+"range": "3",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"1": {
+"dmg": "8",
+"range": "3",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"2": {
+"dmg": "8",
+"range": "3",
+"ap": "3",
+"mp": "3",
+"cooldown": "20",
+},
+"3": {
+"dmg": "8",
+"range": "3",
+"ap": "3",
+"mp": "3",
+"cooldown": "20"
+}
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"summon"])

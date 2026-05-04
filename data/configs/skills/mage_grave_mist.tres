@@ -29,8 +29,39 @@ script = ExtResource("5_2caml")
 skill_id = &"mage_grave_mist"
 display_name = "墓雾"
 icon_id = &"mage_grave_mist"
-description = "范围内敌人攻击下降、命中下降，并更容易被幻术控制。"
+description = "释放墓雾，范围内敌人攻击下降、命中下降，并更容易被幻术控制。"
 max_level = 3
+level_description_template = "造成{dmg}负能量伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"dmg": "8",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
 combat_profile = SubResource("Resource_k7pav")

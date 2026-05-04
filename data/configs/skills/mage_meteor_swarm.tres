@@ -31,8 +31,47 @@ script = ExtResource("5_3cig6")
 skill_id = &"mage_meteor_swarm"
 display_name = "陨星雨"
 icon_id = &"mage_meteor_swarm"
-description = "火土复合型禁咒；落点中心额外降低地形高度或生成燃烧残坑。"
+description = "火土复合型禁咒，落点中心额外降低地形高度或生成燃烧残坑。"
 max_level = 3
+level_description_template = "攻击检定{hit}，造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力{{?aura}}/{aura}斗气{{/aura}}，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"area": "半径2格",
+"aura": "2",
+"cooldown": "5",
+"dmg": "18",
+"hit": "-2",
+"mp": "3"
+},
+"1": {
+"ap": "3",
+"area": "半径2格",
+"aura": "2",
+"cooldown": "5",
+"dmg": "18",
+"hit": "-2",
+"mp": "3"
+},
+"2": {
+"ap": "3",
+"area": "半径2格",
+"aura": "2",
+"cooldown": "5",
+"dmg": "18",
+"hit": "-2",
+"mp": "3"
+},
+"3": {
+"ap": "3",
+"area": "半径2格",
+"aura": "2",
+"cooldown": "5",
+"dmg": "18",
+"hit": "-2",
+"mp": "3"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"earth"])
 combat_profile = SubResource("Resource_4gqym")

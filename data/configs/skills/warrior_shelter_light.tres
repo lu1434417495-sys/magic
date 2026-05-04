@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_heal"]
+script = ExtResource("3_effect")
+effect_type = &"heal"
+power = 2
+params = { "base_sides": 4, "con_mod_sides": 1 }
+
+[sub_resource type="Resource" id="Resource_shield"]
+script = ExtResource("3_effect")
+effect_type = &"shield"
+power = 6
+params = { "base_sides": 4, "con_mod_sides": 1 }
+duration_tu = 40
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_shelter_light"
+target_mode = &"unit"
+target_team_filter = &"ally"
+range_value = 2
+ap_cost = 1
+aura_cost = 25
+cooldown_tu = 160
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_heal"), SubResource("Resource_shield")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_shelter_light"
+display_name = "庇护余辉"
+icon_id = &"warrior_shelter_light"
+description = "为友军恢复生命并提供护盾。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "willpower": 80, "constitution": 40 }
+tags = Array[StringName]([&"warrior", &"melee", &"heal", &"defense", &"team"])
+combat_profile = SubResource("Resource_combat")

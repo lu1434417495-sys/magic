@@ -29,8 +29,39 @@ script = ExtResource("5_qdre5")
 skill_id = &"mage_hallucinatory_field"
 display_name = "蜃景场"
 icon_id = &"mage_hallucinatory_field"
-description = "区域内敌人命中 `-15%`，移动成本 `+1`，对 AI 路径选择也应造成扰乱。"
+description = "制造大范围蜃景，区域内敌人命中-15%，移动成本+1，扰乱AI路径选择。"
 max_level = 3
+level_description_template = "造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "5",
+"mp": "2"
+},
+"1": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "5",
+"mp": "2"
+},
+"2": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "5",
+"mp": "2"
+},
+"3": {
+"ap": "3",
+"area": "半径2格",
+"cooldown": "15",
+"dmg": "5",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])
 combat_profile = SubResource("Resource_ja1p2")

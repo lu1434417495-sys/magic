@@ -22,8 +22,31 @@ script = ExtResource("5_sd56d")
 skill_id = &"mage_mirror_image"
 display_name = "镜影术"
 icon_id = &"mage_mirror_image"
-description = "生成镜像分身吸收攻击；优先用于应对高爆发远程或刺客切入。"
+description = "生成镜像分身吸收攻击，优先用于应对高爆发远程或刺客切入。"
 max_level = 3
+level_description_template = "生成镜像分身。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"1": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"2": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+},
+"3": {
+"ap": "2",
+"cooldown": "15",
+"mp": "2"
+}
+}
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"mage", &"magic", &"illusion"])
 combat_profile = SubResource("Resource_3cvim")
