@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"common_human"
+parent_race_id = &"human"
+display_name = "Common Human"
+description = "Minimal official subrace seed content for registry loading."
+body_size_override = 0
+speed_bonus = 0
+trait_ids = Array[StringName]([&"brave"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"human"])
+racial_trait_summary = Array[String](["Brave"])

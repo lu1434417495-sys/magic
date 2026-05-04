@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"human_versatility"
+display_name = "Human Versatility"
+description = "Minimal seed trait used to prove identity registry loading."
+trigger_type = &"passive"
+effect_type = &"human_versatility"
+params = {
+"proficiency_choices": 1
+}

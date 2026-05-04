@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AscensionDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/ascension_def.gd" id="1_ascension"]
+
+[resource]
+script = ExtResource("1_ascension")
+ascension_id = &"empty_ascension"
+display_name = "Empty Ascension"
+description = "Minimal nullable seed proving ascension content may load without stages or restrictions."
+stage_ids = Array[StringName]([])
+trait_ids = Array[StringName]([])
+racial_granted_skills = Array[Resource]([])
+allowed_race_ids = Array[StringName]([])
+allowed_subrace_ids = Array[StringName]([])
+allowed_bloodline_ids = Array[StringName]([])
+trait_summary = Array[String]([])
+replaces_age_growth = false
+suppresses_original_race_traits = false

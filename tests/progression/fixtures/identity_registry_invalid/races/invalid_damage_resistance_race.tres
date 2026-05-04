@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"invalid_damage_resistance_race"
+display_name = "Invalid Damage Resistance Race"
+description = "Fixture covering unsupported damage resistance tags and tiers."
+age_profile_id = &"human_age_profile"
+default_subrace_id = &"common_human"
+subrace_ids = Array[StringName]([&"common_human"])
+body_size = 2
+base_speed = 6
+damage_resistances = {
+&"cold": &"half",
+&"fire": &"resist",
+123: &"half",
+&"poison": true
+}

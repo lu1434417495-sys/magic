@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"human"
+display_name = "Human"
+description = "Minimal official race seed for identity registry loading."
+age_profile_id = &"human_age_profile"
+default_subrace_id = &"common_human"
+subrace_ids = Array[StringName]([&"common_human"])
+body_size = 2
+base_speed = 6
+trait_ids = Array[StringName]([&"human_versatility", &"darkvision"])
+proficiency_tags = Array[StringName]([&"civilian"])
+vision_tags = Array[StringName]([&"normal_vision"])
+dialogue_tags = Array[StringName]([&"human"])
+racial_trait_summary = Array[String](["Versatile heritage.", "Darkvision."])

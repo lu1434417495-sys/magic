@@ -24,6 +24,10 @@ const SKILL_INVALID_DIRECTORY := "res://tests/progression/fixtures/skill_registr
 const PROFESSION_INVALID_DIRECTORY := "res://tests/progression/fixtures/profession_registry_invalid"
 const ITEM_INVALID_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_invalid"
 const RECIPE_INVALID_DIRECTORY := "res://tests/fixtures/resource_validation/recipe_registry_invalid"
+const IDENTITY_INVALID_RACE_DIRECTORY := "res://tests/progression/fixtures/identity_registry_invalid/races"
+const IDENTITY_INVALID_SUBRACE_DIRECTORY := "res://tests/progression/fixtures/identity_registry_invalid/subraces"
+const IDENTITY_INVALID_RACE_TRAIT_DIRECTORY := "res://tests/progression/fixtures/identity_registry_invalid/race_traits"
+const IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY := "res://tests/progression/fixtures/identity_registry_invalid/stage_advancements"
 const ENEMY_MISSING_ID_SEED_PATH := "res://tests/fixtures/enemy_content/missing_template_id/enemy_content_seed.tres"
 const ENEMY_DUPLICATE_ID_SEED_PATH := "res://tests/fixtures/enemy_content/duplicate_template_id/enemy_content_seed.tres"
 const ENEMY_INVALID_REFERENCE_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres"
@@ -49,6 +53,7 @@ func _run() -> void:
 	var official_report := validation_runner.build_run_report("official_content", [
 		validation_runner.validate_skill_directory(OFFICIAL_SKILL_DIRECTORY),
 		validation_runner.validate_profession_directory(OFFICIAL_PROFESSION_DIRECTORY, skill_defs),
+		validation_runner.validate_identity_content("official_identity", skill_defs),
 		validation_runner.validate_item_directory(OFFICIAL_ITEM_DIRECTORY),
 		validation_runner.validate_recipe_directory(OFFICIAL_RECIPE_DIRECTORY, item_defs),
 		validation_runner.validate_enemy_seed(OFFICIAL_ENEMY_SEED_PATH),
@@ -66,6 +71,17 @@ func _run() -> void:
 
 	var skill_result := validation_runner.validate_skill_directory(SKILL_INVALID_DIRECTORY, true)
 	var profession_result := validation_runner.validate_profession_directory(PROFESSION_INVALID_DIRECTORY, skill_defs)
+	var identity_result := validation_runner.validate_identity_directories(
+		"invalid_identity_directories",
+		["res://data/configs/races", IDENTITY_INVALID_RACE_DIRECTORY],
+		["res://data/configs/subraces", IDENTITY_INVALID_SUBRACE_DIRECTORY],
+		["res://data/configs/race_traits", IDENTITY_INVALID_RACE_TRAIT_DIRECTORY],
+		["res://data/configs/age_profiles"],
+		["res://data/configs/bloodlines"],
+		["res://data/configs/ascensions"],
+		["res://data/configs/stage_advancements", IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY],
+		skill_defs
+	)
 	var item_result := validation_runner.validate_item_directory(ITEM_INVALID_DIRECTORY)
 	var recipe_result := validation_runner.validate_recipe_directory(RECIPE_INVALID_DIRECTORY, item_defs)
 	var enemy_missing_result := validation_runner.validate_enemy_seed(ENEMY_MISSING_ID_SEED_PATH)
@@ -87,6 +103,7 @@ func _run() -> void:
 	var invalid_fixture_report := validation_runner.build_run_report("invalid_fixture_coverage", [
 		skill_result,
 		profession_result,
+		identity_result,
 		item_result,
 		recipe_result,
 		enemy_missing_result,
@@ -104,6 +121,15 @@ func _run() -> void:
 	_assert_domain_has_fragment(profession_result, "is missing profession_id", "职业 validation runner 应覆盖缺失 profession_id。")
 	_assert_domain_has_fragment(profession_result, "Duplicate profession_id registered: duplicate_profession", "职业 validation runner 应覆盖重复 profession_id。")
 	_assert_domain_has_fragment(profession_result, "references missing skill missing_skill", "职业 validation runner 应覆盖非法技能引用。")
+
+	_assert_domain_has_fragment(identity_result, "is missing race_id", "身份 validation runner 应覆盖缺失 race_id。")
+	_assert_domain_has_fragment(identity_result, "Duplicate race_id registered: duplicate_identity_race", "身份 validation runner 应覆盖重复 race_id。")
+	_assert_domain_has_fragment(identity_result, "references missing age_profile missing_age_profile", "身份 validation runner 应覆盖非法 age_profile 引用。")
+	_assert_domain_has_fragment(identity_result, "references missing parent_race missing_parent_race", "身份 validation runner 应覆盖非法 parent_race 引用。")
+	_assert_domain_has_fragment(identity_result, "uses unsupported trigger_type not_a_trigger", "身份 validation runner 应覆盖非法 trigger_type。")
+	_assert_domain_has_fragment(identity_result, "uses unsupported target_axis unlisted_axis", "身份 validation runner 应覆盖非法 target_axis。")
+	_assert_domain_has_fragment(identity_result, "unsupported damage tag cold", "身份 validation runner 应覆盖非法 damage resistance tag。")
+	_assert_domain_has_fragment(identity_result, "uses unsupported mitigation tier resist", "身份 validation runner 应覆盖非法 damage resistance tier。")
 
 	_assert_domain_has_fragment(item_result, "is missing item_id", "物品 validation runner 应覆盖缺失 item_id。")
 	_assert_domain_has_fragment(item_result, "Duplicate item_id registered: duplicate_item", "物品 validation runner 应覆盖重复 item_id。")

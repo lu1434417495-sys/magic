@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"duplicate_identity_race"
+display_name = "Duplicate Identity Race A"
+description = "Fixture covering duplicate race_id."
+age_profile_id = &"human_age_profile"
+default_subrace_id = &"common_human"
+subrace_ids = Array[StringName]([&"common_human"])
+body_size = 2
+base_speed = 6

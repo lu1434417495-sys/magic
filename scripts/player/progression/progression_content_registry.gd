@@ -7,6 +7,13 @@ extends RefCounted
 
 const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
 const PROFESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/profession_content_registry.gd")
+const RACE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/race_content_registry.gd")
+const SUBRACE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/subrace_content_registry.gd")
+const RACE_TRAIT_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/race_trait_content_registry.gd")
+const AGE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/age_content_registry.gd")
+const BLOODLINE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/bloodline_content_registry.gd")
+const ASCENSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ascension_content_registry.gd")
+const STAGE_ADVANCEMENT_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/stage_advancement_content_registry.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
@@ -20,7 +27,12 @@ const VALID_SKILL_TYPES := {
 const VALID_LEARN_SOURCES := {
 	&"book": true,
 	&"innate": true,
+	&"player": true,
 	&"profession": true,
+	&"race": true,
+	&"subrace": true,
+	&"ascension": true,
+	&"bloodline": true,
 }
 const VALID_UNLOCK_MODES := {
 	&"standard": true,
@@ -29,6 +41,34 @@ const VALID_UNLOCK_MODES := {
 const VALID_CORE_SKILL_TRANSITION_MODES := {
 	&"inherit": true,
 	&"replace_sources_with_result": true,
+}
+const VALID_DAMAGE_TAGS := {
+	&"physical_slash": true,
+	&"physical_pierce": true,
+	&"physical_blunt": true,
+	&"fire": true,
+	&"freeze": true,
+	&"lightning": true,
+	&"negative_energy": true,
+	&"magic": true,
+	&"acid": true,
+	&"poison": true,
+}
+const VALID_MITIGATION_TIERS := {
+	&"normal": true,
+	&"half": true,
+	&"double": true,
+	&"immune": true,
+}
+const BODY_SIZE_SMALL := 1
+const BODY_SIZE_MEDIUM := 2
+const BODY_SIZE_LARGE := 3
+const BODY_SIZE_HUGE := 4
+const VALID_BODY_SIZES := {
+	BODY_SIZE_SMALL: true,
+	BODY_SIZE_MEDIUM: true,
+	BODY_SIZE_LARGE: true,
+	BODY_SIZE_HUGE: true,
 }
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -39,10 +79,26 @@ var _profession_defs: Dictionary = {}
 var _achievement_defs: Dictionary = {}
 ## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
 var _quest_defs: Dictionary = {}
+var _race_defs: Dictionary = {}
+var _subrace_defs: Dictionary = {}
+var _race_trait_defs: Dictionary = {}
+var _age_profile_defs: Dictionary = {}
+var _bloodline_defs: Dictionary = {}
+var _bloodline_stage_defs: Dictionary = {}
+var _ascension_defs: Dictionary = {}
+var _ascension_stage_defs: Dictionary = {}
+var _stage_advancement_defs: Dictionary = {}
 ## 字段说明：记录技能内容注册表，会参与运行时状态流转、系统协作和静态校验。
 var _skill_content_registry = SKILL_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：记录职业内容注册表，会参与运行时状态流转、系统协作和静态校验。
 var _profession_content_registry = PROFESSION_CONTENT_REGISTRY_SCRIPT.new()
+var _race_content_registry = RACE_CONTENT_REGISTRY_SCRIPT.new()
+var _subrace_content_registry = SUBRACE_CONTENT_REGISTRY_SCRIPT.new()
+var _race_trait_content_registry = RACE_TRAIT_CONTENT_REGISTRY_SCRIPT.new()
+var _age_content_registry = AGE_CONTENT_REGISTRY_SCRIPT.new()
+var _bloodline_content_registry = BLOODLINE_CONTENT_REGISTRY_SCRIPT.new()
+var _ascension_content_registry = ASCENSION_CONTENT_REGISTRY_SCRIPT.new()
+var _stage_advancement_content_registry = STAGE_ADVANCEMENT_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：收集配置校验阶段发现的错误信息，便于启动时统一报告和定位问题。
 var _validation_errors: Array[String] = []
 
@@ -56,6 +112,15 @@ func rebuild() -> void:
 	_profession_defs.clear()
 	_achievement_defs.clear()
 	_quest_defs.clear()
+	_race_defs.clear()
+	_subrace_defs.clear()
+	_race_trait_defs.clear()
+	_age_profile_defs.clear()
+	_bloodline_defs.clear()
+	_bloodline_stage_defs.clear()
+	_ascension_defs.clear()
+	_ascension_stage_defs.clear()
+	_stage_advancement_defs.clear()
 	_validation_errors.clear()
 
 	_skill_content_registry.rebuild()
@@ -65,9 +130,32 @@ func rebuild() -> void:
 	# Profession seed ownership lives in resource files under data/configs/professions.
 	_profession_content_registry.setup(_skill_defs)
 	_profession_defs = _profession_content_registry.get_profession_defs()
+	_race_content_registry.rebuild()
+	_race_defs = _race_content_registry.get_race_defs().duplicate()
+	_subrace_content_registry.rebuild()
+	_subrace_defs = _subrace_content_registry.get_subrace_defs().duplicate()
+	_race_trait_content_registry.rebuild()
+	_race_trait_defs = _race_trait_content_registry.get_race_trait_defs().duplicate()
+	_age_content_registry.rebuild()
+	_age_profile_defs = _age_content_registry.get_age_profile_defs().duplicate()
+	_bloodline_content_registry.rebuild()
+	_bloodline_defs = _bloodline_content_registry.get_bloodline_defs().duplicate()
+	_bloodline_stage_defs = _bloodline_content_registry.get_bloodline_stage_defs().duplicate()
+	_ascension_content_registry.rebuild()
+	_ascension_defs = _ascension_content_registry.get_ascension_defs().duplicate()
+	_ascension_stage_defs = _ascension_content_registry.get_ascension_stage_defs().duplicate()
+	_stage_advancement_content_registry.rebuild()
+	_stage_advancement_defs = _stage_advancement_content_registry.get_stage_advancement_defs().duplicate()
 	_register_seed_achievements()
 	_register_seed_quests()
 	_validation_errors.append_array(_profession_content_registry.validate())
+	_validation_errors.append_array(_race_content_registry.validate())
+	_validation_errors.append_array(_subrace_content_registry.validate())
+	_validation_errors.append_array(_race_trait_content_registry.validate())
+	_validation_errors.append_array(_age_content_registry.validate())
+	_validation_errors.append_array(_bloodline_content_registry.validate())
+	_validation_errors.append_array(_ascension_content_registry.validate())
+	_validation_errors.append_array(_stage_advancement_content_registry.validate())
 	_validation_errors.append_array(_collect_validation_errors())
 
 
@@ -87,27 +175,92 @@ func get_quest_defs() -> Dictionary:
 	return _quest_defs
 
 
+func get_race_defs() -> Dictionary:
+	return _race_defs
+
+
+func get_subrace_defs() -> Dictionary:
+	return _subrace_defs
+
+
+func get_race_trait_defs() -> Dictionary:
+	return _race_trait_defs
+
+
+func get_age_profile_defs() -> Dictionary:
+	return _age_profile_defs
+
+
+func get_bloodline_defs() -> Dictionary:
+	return _bloodline_defs
+
+
+func get_bloodline_stage_defs() -> Dictionary:
+	return _bloodline_stage_defs
+
+
+func get_ascension_defs() -> Dictionary:
+	return _ascension_defs
+
+
+func get_ascension_stage_defs() -> Dictionary:
+	return _ascension_stage_defs
+
+
+func get_stage_advancement_defs() -> Dictionary:
+	return _stage_advancement_defs
+
+
 func get_bundle() -> Dictionary:
 	return {
 		"skill_defs": _skill_defs,
 		"profession_defs": _profession_defs,
 		"achievement_defs": _achievement_defs,
 		"quest_defs": _quest_defs,
+		"race": _race_defs,
+		"subrace": _subrace_defs,
+		"race_trait": _race_trait_defs,
+		"age_profile": _age_profile_defs,
+		"bloodline": _bloodline_defs,
+		"bloodline_stage": _bloodline_stage_defs,
+		"ascension": _ascension_defs,
+		"ascension_stage": _ascension_stage_defs,
+		"stage_advancement": _stage_advancement_defs,
+		"race_defs": _race_defs,
+		"subrace_defs": _subrace_defs,
+		"race_trait_defs": _race_trait_defs,
+		"age_profile_defs": _age_profile_defs,
+		"bloodline_defs": _bloodline_defs,
+		"bloodline_stage_defs": _bloodline_stage_defs,
+		"ascension_defs": _ascension_defs,
+		"ascension_stage_defs": _ascension_stage_defs,
+		"stage_advancement_defs": _stage_advancement_defs,
 	}
 
 
 func validate() -> Array[String]:
 	var errors := _validation_errors.duplicate()
-	for validation_error in _skill_content_registry.validate():
-		if not errors.has(validation_error):
-			errors.append(validation_error)
-	for validation_error in _profession_content_registry.validate():
-		if not errors.has(validation_error):
-			errors.append(validation_error)
+	_append_registry_validation_errors(errors, _skill_content_registry)
+	_append_registry_validation_errors(errors, _profession_content_registry)
+	_append_registry_validation_errors(errors, _race_content_registry)
+	_append_registry_validation_errors(errors, _subrace_content_registry)
+	_append_registry_validation_errors(errors, _race_trait_content_registry)
+	_append_registry_validation_errors(errors, _age_content_registry)
+	_append_registry_validation_errors(errors, _bloodline_content_registry)
+	_append_registry_validation_errors(errors, _ascension_content_registry)
+	_append_registry_validation_errors(errors, _stage_advancement_content_registry)
 	for validation_error in _collect_validation_errors():
 		if not errors.has(validation_error):
 			errors.append(validation_error)
 	return errors
+
+
+func _append_registry_validation_errors(errors: Array[String], registry) -> void:
+	if registry == null or not registry.has_method("validate"):
+		return
+	for validation_error in registry.validate():
+		if not errors.has(validation_error):
+			errors.append(validation_error)
 
 
 func _register_seed_achievements() -> void:
@@ -551,7 +704,462 @@ func _collect_validation_errors() -> Array[String]:
 		var quest_def := _quest_defs.get(quest_id) as QuestDef
 		_append_invalid_quest_errors(errors, quest_id, quest_def)
 
+	_append_identity_phase2_validation_errors(errors)
+
 	return errors
+
+
+func _append_identity_phase2_validation_errors(errors: Array[String]) -> void:
+	_append_global_stage_id_errors(errors)
+
+	for race_key in ProgressionDataUtils.sorted_string_keys(_race_defs):
+		var race_id := StringName(race_key)
+		_append_race_phase2_errors(errors, race_id, _race_defs.get(race_id) as RaceDef)
+
+	for subrace_key in ProgressionDataUtils.sorted_string_keys(_subrace_defs):
+		var subrace_id := StringName(subrace_key)
+		_append_subrace_phase2_errors(errors, subrace_id, _subrace_defs.get(subrace_id) as SubraceDef)
+
+	for profile_key in ProgressionDataUtils.sorted_string_keys(_age_profile_defs):
+		var profile_id := StringName(profile_key)
+		_append_age_profile_phase2_errors(errors, profile_id, _age_profile_defs.get(profile_id) as AgeProfileDef)
+
+	for bloodline_key in ProgressionDataUtils.sorted_string_keys(_bloodline_defs):
+		var bloodline_id := StringName(bloodline_key)
+		_append_bloodline_phase2_errors(errors, bloodline_id, _bloodline_defs.get(bloodline_id) as BloodlineDef)
+
+	for stage_key in ProgressionDataUtils.sorted_string_keys(_bloodline_stage_defs):
+		var stage_id := StringName(stage_key)
+		_append_bloodline_stage_phase2_errors(errors, stage_id, _bloodline_stage_defs.get(stage_id) as BloodlineStageDef)
+
+	for ascension_key in ProgressionDataUtils.sorted_string_keys(_ascension_defs):
+		var ascension_id := StringName(ascension_key)
+		_append_ascension_phase2_errors(errors, ascension_id, _ascension_defs.get(ascension_id) as AscensionDef)
+
+	for stage_key in ProgressionDataUtils.sorted_string_keys(_ascension_stage_defs):
+		var stage_id := StringName(stage_key)
+		_append_ascension_stage_phase2_errors(errors, stage_id, _ascension_stage_defs.get(stage_id) as AscensionStageDef)
+
+	for modifier_key in ProgressionDataUtils.sorted_string_keys(_stage_advancement_defs):
+		var modifier_id := StringName(modifier_key)
+		_append_stage_advancement_phase2_errors(
+			errors,
+			modifier_id,
+			_stage_advancement_defs.get(modifier_id) as StageAdvancementModifier
+		)
+
+
+func _append_race_phase2_errors(errors: Array[String], race_id: StringName, race_def: RaceDef) -> void:
+	if race_def == null:
+		return
+	var owner_label := "Race %s" % String(race_id)
+	_append_body_size_error(errors, owner_label, "body_size", race_def.body_size, false)
+	_append_damage_resistance_errors(errors, owner_label, race_def.damage_resistances)
+	_append_trait_reference_errors(errors, owner_label, race_def.trait_ids, "trait_ids")
+	_append_racial_granted_skill_reference_errors(errors, owner_label, race_def.racial_granted_skills, &"race")
+
+	if race_def.age_profile_id != &"" and not _age_profile_defs.has(race_def.age_profile_id):
+		errors.append("%s references missing age_profile %s." % [owner_label, String(race_def.age_profile_id)])
+
+	if race_def.default_subrace_id != &"":
+		if not _subrace_defs.has(race_def.default_subrace_id):
+			errors.append("%s references missing default_subrace %s." % [owner_label, String(race_def.default_subrace_id)])
+		elif not race_def.subrace_ids.has(race_def.default_subrace_id):
+			errors.append(
+				"%s default_subrace %s must be listed in subrace_ids." % [
+					owner_label,
+					String(race_def.default_subrace_id),
+				]
+			)
+
+	for subrace_id in race_def.subrace_ids:
+		if subrace_id == &"":
+			continue
+		var subrace_def := _subrace_defs.get(subrace_id) as SubraceDef
+		if subrace_def == null:
+			errors.append("%s references missing subrace %s." % [owner_label, String(subrace_id)])
+			continue
+		if subrace_def.parent_race_id != race_id:
+			errors.append(
+				"%s subrace %s parent_race_id must be %s, got %s." % [
+					owner_label,
+					String(subrace_id),
+					String(race_id),
+					String(subrace_def.parent_race_id),
+				]
+			)
+
+
+func _append_subrace_phase2_errors(errors: Array[String], subrace_id: StringName, subrace_def: SubraceDef) -> void:
+	if subrace_def == null:
+		return
+	var owner_label := "Subrace %s" % String(subrace_id)
+	_append_body_size_error(errors, owner_label, "body_size_override", subrace_def.body_size_override, true)
+	_append_damage_resistance_errors(errors, owner_label, subrace_def.damage_resistances)
+	_append_trait_reference_errors(errors, owner_label, subrace_def.trait_ids, "trait_ids")
+	_append_racial_granted_skill_reference_errors(errors, owner_label, subrace_def.racial_granted_skills, &"subrace")
+
+	if subrace_def.parent_race_id == &"":
+		return
+	var parent_race := _race_defs.get(subrace_def.parent_race_id) as RaceDef
+	if parent_race == null:
+		errors.append("%s references missing parent_race %s." % [owner_label, String(subrace_def.parent_race_id)])
+		return
+	if not parent_race.subrace_ids.has(subrace_id):
+		errors.append(
+			"%s parent_race %s must list this subrace in subrace_ids." % [
+				owner_label,
+				String(subrace_def.parent_race_id),
+			]
+		)
+
+
+func _append_age_profile_phase2_errors(errors: Array[String], profile_id: StringName, profile_def: AgeProfileDef) -> void:
+	if profile_def == null:
+		return
+	var owner_label := "AgeProfile %s" % String(profile_id)
+	if profile_def.race_id != &"":
+		var race_def := _race_defs.get(profile_def.race_id) as RaceDef
+		if race_def == null:
+			errors.append("%s references missing race %s." % [owner_label, String(profile_def.race_id)])
+		elif race_def.age_profile_id != profile_id:
+			errors.append(
+				"%s race %s must reference this profile as age_profile_id." % [
+					owner_label,
+					String(profile_def.race_id),
+				]
+			)
+	if profile_def.stage_rules.is_empty():
+		errors.append("%s must declare at least one stage_rules entry." % owner_label)
+
+	var stage_ids := _collect_age_profile_stage_ids(profile_def)
+	for stage_id in profile_def.creation_stage_ids:
+		if stage_id != &"" and not stage_ids.has(stage_id):
+			errors.append("%s creation_stage_ids references missing stage %s." % [owner_label, String(stage_id)])
+	for stage_key_variant in profile_def.default_age_by_stage.keys():
+		var stage_id := _strict_to_string_name(stage_key_variant)
+		if stage_id != &"" and not stage_ids.has(stage_id):
+			errors.append("%s default_age_by_stage references missing stage %s." % [owner_label, String(stage_id)])
+	for stage_rule in profile_def.stage_rules:
+		if stage_rule == null:
+			continue
+		_append_trait_reference_errors(
+			errors,
+			"%s stage %s" % [owner_label, String(stage_rule.stage_id)],
+			stage_rule.trait_ids,
+			"trait_ids"
+		)
+
+
+func _append_bloodline_phase2_errors(errors: Array[String], bloodline_id: StringName, bloodline_def: BloodlineDef) -> void:
+	if bloodline_def == null:
+		return
+	var owner_label := "Bloodline %s" % String(bloodline_id)
+	_append_trait_reference_errors(errors, owner_label, bloodline_def.trait_ids, "trait_ids")
+	_append_racial_granted_skill_reference_errors(errors, owner_label, bloodline_def.racial_granted_skills, &"bloodline")
+	for stage_id in bloodline_def.stage_ids:
+		if stage_id == &"":
+			continue
+		var stage_def := _bloodline_stage_defs.get(stage_id) as BloodlineStageDef
+		if stage_def == null:
+			errors.append("%s references missing bloodline_stage %s." % [owner_label, String(stage_id)])
+			continue
+		if stage_def.bloodline_id != bloodline_id:
+			errors.append(
+				"%s stage %s bloodline_id must be %s, got %s." % [
+					owner_label,
+					String(stage_id),
+					String(bloodline_id),
+					String(stage_def.bloodline_id),
+				]
+			)
+
+
+func _append_bloodline_stage_phase2_errors(errors: Array[String], stage_id: StringName, stage_def: BloodlineStageDef) -> void:
+	if stage_def == null:
+		return
+	var owner_label := "BloodlineStage %s" % String(stage_id)
+	_append_trait_reference_errors(errors, owner_label, stage_def.trait_ids, "trait_ids")
+	_append_racial_granted_skill_reference_errors(errors, owner_label, stage_def.racial_granted_skills, &"bloodline")
+	if stage_def.bloodline_id == &"":
+		return
+	var bloodline_def := _bloodline_defs.get(stage_def.bloodline_id) as BloodlineDef
+	if bloodline_def == null:
+		errors.append("%s references missing bloodline %s." % [owner_label, String(stage_def.bloodline_id)])
+		return
+	if not bloodline_def.stage_ids.has(stage_id):
+		errors.append(
+			"%s bloodline %s must list this stage in stage_ids." % [
+				owner_label,
+				String(stage_def.bloodline_id),
+			]
+		)
+
+
+func _append_ascension_phase2_errors(errors: Array[String], ascension_id: StringName, ascension_def: AscensionDef) -> void:
+	if ascension_def == null:
+		return
+	var owner_label := "Ascension %s" % String(ascension_id)
+	_append_trait_reference_errors(errors, owner_label, ascension_def.trait_ids, "trait_ids")
+	_append_racial_granted_skill_reference_errors(errors, owner_label, ascension_def.racial_granted_skills, &"ascension")
+	_append_id_reference_errors(errors, owner_label, ascension_def.allowed_race_ids, "allowed_race_ids", _race_defs, "race")
+	_append_id_reference_errors(errors, owner_label, ascension_def.allowed_subrace_ids, "allowed_subrace_ids", _subrace_defs, "subrace")
+	_append_id_reference_errors(errors, owner_label, ascension_def.allowed_bloodline_ids, "allowed_bloodline_ids", _bloodline_defs, "bloodline")
+
+	for stage_id in ascension_def.stage_ids:
+		if stage_id == &"":
+			continue
+		var stage_def := _ascension_stage_defs.get(stage_id) as AscensionStageDef
+		if stage_def == null:
+			errors.append("%s references missing ascension_stage %s." % [owner_label, String(stage_id)])
+			continue
+		if stage_def.ascension_id != ascension_id:
+			errors.append(
+				"%s stage %s ascension_id must be %s, got %s." % [
+					owner_label,
+					String(stage_id),
+					String(ascension_id),
+					String(stage_def.ascension_id),
+				]
+			)
+
+
+func _append_ascension_stage_phase2_errors(errors: Array[String], stage_id: StringName, stage_def: AscensionStageDef) -> void:
+	if stage_def == null:
+		return
+	var owner_label := "AscensionStage %s" % String(stage_id)
+	_append_body_size_error(errors, owner_label, "body_size_override", stage_def.body_size_override, true)
+	_append_trait_reference_errors(errors, owner_label, stage_def.trait_ids, "trait_ids")
+	_append_racial_granted_skill_reference_errors(errors, owner_label, stage_def.racial_granted_skills, &"ascension")
+	if stage_def.ascension_id == &"":
+		return
+	var ascension_def := _ascension_defs.get(stage_def.ascension_id) as AscensionDef
+	if ascension_def == null:
+		errors.append("%s references missing ascension %s." % [owner_label, String(stage_def.ascension_id)])
+		return
+	if not ascension_def.stage_ids.has(stage_id):
+		errors.append(
+			"%s ascension %s must list this stage in stage_ids." % [
+				owner_label,
+				String(stage_def.ascension_id),
+			]
+		)
+
+
+func _append_stage_advancement_phase2_errors(
+	errors: Array[String],
+	modifier_id: StringName,
+	modifier: StageAdvancementModifier
+) -> void:
+	if modifier == null:
+		return
+	var owner_label := "StageAdvancement %s" % String(modifier_id)
+	if not StageAdvancementModifier.VALID_TARGET_AXES.has(modifier.target_axis):
+		errors.append("%s uses unsupported target_axis %s." % [owner_label, String(modifier.target_axis)])
+	_append_id_reference_errors(errors, owner_label, modifier.applies_to_race_ids, "applies_to_race_ids", _race_defs, "race")
+	_append_id_reference_errors(errors, owner_label, modifier.applies_to_subrace_ids, "applies_to_subrace_ids", _subrace_defs, "subrace")
+	_append_id_reference_errors(errors, owner_label, modifier.applies_to_bloodline_ids, "applies_to_bloodline_ids", _bloodline_defs, "bloodline")
+	_append_id_reference_errors(errors, owner_label, modifier.applies_to_ascension_ids, "applies_to_ascension_ids", _ascension_defs, "ascension")
+	_append_stage_advancement_max_stage_error(errors, owner_label, modifier)
+
+
+func _append_stage_advancement_max_stage_error(
+	errors: Array[String],
+	owner_label: String,
+	modifier: StageAdvancementModifier
+) -> void:
+	if modifier.max_stage_id == &"":
+		return
+	match modifier.target_axis:
+		StageAdvancementModifier.TARGET_AXIS_BLOODLINE:
+			if not _bloodline_stage_defs.has(modifier.max_stage_id):
+				errors.append("%s max_stage_id references missing bloodline_stage %s." % [owner_label, String(modifier.max_stage_id)])
+		StageAdvancementModifier.TARGET_AXIS_DIVINE:
+			if not _ascension_stage_defs.has(modifier.max_stage_id):
+				errors.append("%s max_stage_id references missing ascension_stage %s." % [owner_label, String(modifier.max_stage_id)])
+		_:
+			var known_stage_ids := _collect_known_identity_stage_ids()
+			if not known_stage_ids.has(modifier.max_stage_id):
+				errors.append("%s max_stage_id references missing stage %s." % [owner_label, String(modifier.max_stage_id)])
+
+
+func _append_global_stage_id_errors(errors: Array[String]) -> void:
+	var stage_sources: Dictionary = {}
+	for stage_key in ProgressionDataUtils.sorted_string_keys(_bloodline_stage_defs):
+		_append_global_stage_id(errors, stage_sources, StringName(stage_key), "bloodline_stage")
+	for stage_key in ProgressionDataUtils.sorted_string_keys(_ascension_stage_defs):
+		_append_global_stage_id(errors, stage_sources, StringName(stage_key), "ascension_stage")
+
+
+func _append_global_stage_id(
+	errors: Array[String],
+	stage_sources: Dictionary,
+	stage_id: StringName,
+	stage_source: String
+) -> void:
+	if stage_id == &"":
+		return
+	if stage_sources.has(stage_id):
+		errors.append(
+			"Stage id %s must be globally unique across bloodline_stage and ascension_stage; declared by %s and %s." % [
+				String(stage_id),
+				String(stage_sources.get(stage_id, "")),
+				stage_source,
+			]
+		)
+		return
+	stage_sources[stage_id] = stage_source
+
+
+func _append_trait_reference_errors(
+	errors: Array[String],
+	owner_label: String,
+	trait_ids: Array[StringName],
+	field_label: String
+) -> void:
+	for trait_id in trait_ids:
+		if trait_id == &"":
+			continue
+		if not _race_trait_defs.has(trait_id):
+			errors.append("%s %s references missing trait %s." % [owner_label, field_label, String(trait_id)])
+
+
+func _append_racial_granted_skill_reference_errors(
+	errors: Array[String],
+	owner_label: String,
+	granted_skills: Array[RacialGrantedSkill],
+	expected_learn_source: StringName
+) -> void:
+	for index in range(granted_skills.size()):
+		var granted_skill := granted_skills[index] as RacialGrantedSkill
+		if granted_skill == null or granted_skill.skill_id == &"":
+			continue
+		var skill_def := _skill_defs.get(granted_skill.skill_id) as SkillDef
+		if skill_def == null:
+			errors.append(
+				"%s racial_granted_skills[%d] references missing skill %s." % [
+					owner_label,
+					index,
+					String(granted_skill.skill_id),
+				]
+			)
+			continue
+		if skill_def.learn_source != expected_learn_source:
+			errors.append(
+				"%s racial_granted_skills[%d] skill %s learn_source must be %s, got %s." % [
+					owner_label,
+					index,
+					String(granted_skill.skill_id),
+					String(expected_learn_source),
+					String(skill_def.learn_source),
+				]
+			)
+
+
+func _append_id_reference_errors(
+	errors: Array[String],
+	owner_label: String,
+	values: Array[StringName],
+	field_label: String,
+	target_defs: Dictionary,
+	target_label: String
+) -> void:
+	for value_id in values:
+		if value_id == &"":
+			continue
+		if not target_defs.has(value_id):
+			errors.append(
+				"%s %s references missing %s %s." % [
+					owner_label,
+					field_label,
+					target_label,
+					String(value_id),
+				]
+			)
+
+
+func _append_damage_resistance_errors(errors: Array[String], owner_label: String, damage_resistances: Dictionary) -> void:
+	for key_variant in damage_resistances.keys():
+		var damage_tag := _strict_to_string_name(key_variant)
+		if damage_tag == &"":
+			errors.append("%s damage_resistances key %s must be a non-empty String or StringName." % [owner_label, str(key_variant)])
+			continue
+		if not VALID_DAMAGE_TAGS.has(damage_tag):
+			errors.append("%s damage_resistances references unsupported damage tag %s." % [owner_label, String(damage_tag)])
+		var mitigation_tier := _strict_to_string_name(damage_resistances.get(key_variant, null))
+		if mitigation_tier == &"":
+			errors.append(
+				"%s damage_resistances[%s] must be a non-empty String or StringName." % [
+					owner_label,
+					String(damage_tag),
+				]
+			)
+			continue
+		if not VALID_MITIGATION_TIERS.has(mitigation_tier):
+			errors.append(
+				"%s damage_resistances[%s] uses unsupported mitigation tier %s." % [
+					owner_label,
+					String(damage_tag),
+					String(mitigation_tier),
+				]
+			)
+
+
+func _append_body_size_error(
+	errors: Array[String],
+	owner_label: String,
+	field_label: String,
+	value: Variant,
+	allow_zero: bool
+) -> void:
+	if typeof(value) != TYPE_INT:
+		errors.append("%s %s must be an int body_size value." % [owner_label, field_label])
+		return
+	var size_value := int(value)
+	if size_value == 0:
+		if not allow_zero:
+			errors.append("%s %s must be a non-zero body_size." % [owner_label, field_label])
+		return
+	if not VALID_BODY_SIZES.has(size_value):
+		errors.append(
+			"%s %s uses unsupported body_size %d." % [
+				owner_label,
+				field_label,
+				size_value,
+			]
+		)
+
+
+func _collect_age_profile_stage_ids(profile_def: AgeProfileDef) -> Dictionary:
+	var stage_ids: Dictionary = {}
+	if profile_def == null:
+		return stage_ids
+	for stage_rule in profile_def.stage_rules:
+		if stage_rule != null and stage_rule.stage_id != &"":
+			stage_ids[stage_rule.stage_id] = true
+	return stage_ids
+
+
+func _collect_known_identity_stage_ids() -> Dictionary:
+	var stage_ids: Dictionary = {}
+	for profile_key in ProgressionDataUtils.sorted_string_keys(_age_profile_defs):
+		var profile_def := _age_profile_defs.get(StringName(profile_key)) as AgeProfileDef
+		for stage_id in _collect_age_profile_stage_ids(profile_def).keys():
+			stage_ids[stage_id] = true
+	for stage_key in ProgressionDataUtils.sorted_string_keys(_bloodline_stage_defs):
+		stage_ids[StringName(stage_key)] = true
+	for stage_key in ProgressionDataUtils.sorted_string_keys(_ascension_stage_defs):
+		stage_ids[StringName(stage_key)] = true
+	return stage_ids
+
+
+func _strict_to_string_name(value: Variant) -> StringName:
+	if typeof(value) != TYPE_STRING and typeof(value) != TYPE_STRING_NAME:
+		return &""
+	var normalized := String(value).strip_edges()
+	if normalized.is_empty():
+		return &""
+	return StringName(normalized)
 
 
 func _append_invalid_skill_errors(
@@ -582,6 +1190,7 @@ func _append_invalid_skill_errors(
 		errors.append("Skill %s non_core_max_level must be <= max_level." % String(skill_id))
 	if skill_def.mastery_curve.size() != skill_def.max_level:
 		errors.append("Skill %s mastery_curve size must match max_level." % String(skill_id))
+	_append_dynamic_max_level_errors(errors, skill_id, skill_def)
 	_append_skill_attribute_growth_errors(errors, skill_id, skill_def)
 
 	_append_skill_requirement_errors(errors, skill_id, skill_def.learn_requirements, "learn_requirements")
@@ -594,6 +1203,25 @@ func _append_invalid_skill_errors(
 
 	if skill_def.unlock_mode == &"composite_upgrade" and skill_def.upgrade_source_skill_ids.is_empty():
 		errors.append("Skill %s is composite_upgrade but missing upgrade_source_skill_ids." % String(skill_id))
+
+
+func _append_dynamic_max_level_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_def: SkillDef
+) -> void:
+	var has_dynamic_stat := skill_def.dynamic_max_level_stat_id != &""
+	if not has_dynamic_stat:
+		if skill_def.dynamic_max_level_base != 0:
+			errors.append("Skill %s dynamic_max_level_base requires dynamic_max_level_stat_id." % String(skill_id))
+		if skill_def.dynamic_max_level_per_stat != 0:
+			errors.append("Skill %s dynamic_max_level_per_stat requires dynamic_max_level_stat_id." % String(skill_id))
+		return
+
+	if skill_def.dynamic_max_level_base <= 0:
+		errors.append("Skill %s dynamic_max_level_base must be >= 1." % String(skill_id))
+	if skill_def.dynamic_max_level_per_stat <= 0:
+		errors.append("Skill %s dynamic_max_level_per_stat must be >= 1." % String(skill_id))
 
 
 func _append_skill_attribute_growth_errors(

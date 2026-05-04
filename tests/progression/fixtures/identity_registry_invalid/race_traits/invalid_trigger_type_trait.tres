@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"invalid_trigger_type_trait"
+display_name = "Invalid Trigger Type Trait"
+description = "Fixture covering unsupported trigger_type."
+trigger_type = &"not_a_trigger"
+effect_type = &"darkvision"

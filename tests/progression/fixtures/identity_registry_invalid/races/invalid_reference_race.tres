@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"invalid_reference_race"
+display_name = "Invalid Reference Race"
+description = "Fixture covering missing age, subrace, and trait references."
+age_profile_id = &"missing_age_profile"
+default_subrace_id = &"missing_subrace"
+subrace_ids = Array[StringName]([&"missing_subrace"])
+body_size = 2
+base_speed = 6
+trait_ids = Array[StringName]([&"missing_trait"])

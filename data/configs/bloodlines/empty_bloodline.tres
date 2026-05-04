@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="BloodlineDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/bloodline_def.gd" id="1_bloodline"]
+
+[resource]
+script = ExtResource("1_bloodline")
+bloodline_id = &"empty_bloodline"
+display_name = "Empty Bloodline"
+description = "Minimal nullable seed proving bloodline content may load without stages."
+stage_ids = Array[StringName]([])
+trait_ids = Array[StringName]([])
+racial_granted_skills = Array[Resource]([])
+attribute_modifiers = Array[Resource]([])
+trait_summary = Array[String]([])

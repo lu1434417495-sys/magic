@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"darkvision"
+display_name = "Darkvision"
+description = "A compact seed trait proving passive vision traits load."
+trigger_type = &"passive"
+effect_type = &"darkvision"
+params = {
+&"range": 12
+}

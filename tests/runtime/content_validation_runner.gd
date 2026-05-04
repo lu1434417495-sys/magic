@@ -6,6 +6,13 @@ const ProgressionContentRegistry = preload("res://scripts/player/progression/pro
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
 const ProfessionContentRegistry = preload("res://scripts/player/progression/profession_content_registry.gd")
+const RaceContentRegistry = preload("res://scripts/player/progression/race_content_registry.gd")
+const SubraceContentRegistry = preload("res://scripts/player/progression/subrace_content_registry.gd")
+const RaceTraitContentRegistry = preload("res://scripts/player/progression/race_trait_content_registry.gd")
+const AgeContentRegistry = preload("res://scripts/player/progression/age_content_registry.gd")
+const BloodlineContentRegistry = preload("res://scripts/player/progression/bloodline_content_registry.gd")
+const AscensionContentRegistry = preload("res://scripts/player/progression/ascension_content_registry.gd")
+const StageAdvancementContentRegistry = preload("res://scripts/player/progression/stage_advancement_content_registry.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
@@ -95,6 +102,66 @@ func validate_profession_directory(directory_path: String, skill_defs: Dictionar
 	registry._scan_directory(directory_path)
 	registry._validation_errors.append_array(registry._collect_validation_errors())
 	return _build_domain_result("profession", directory_path, registry.validate())
+
+
+func validate_identity_content(label: String, skill_defs: Dictionary = {}) -> Dictionary:
+	return validate_identity_directories(
+		label,
+		[RaceContentRegistry.RACE_CONFIG_DIRECTORY],
+		[SubraceContentRegistry.SUBRACE_CONFIG_DIRECTORY],
+		[RaceTraitContentRegistry.RACE_TRAIT_CONFIG_DIRECTORY],
+		[AgeContentRegistry.AGE_PROFILE_CONFIG_DIRECTORY],
+		[BloodlineContentRegistry.BLOODLINE_CONFIG_DIRECTORY],
+		[AscensionContentRegistry.ASCENSION_CONFIG_DIRECTORY],
+		[StageAdvancementContentRegistry.STAGE_ADVANCEMENT_CONFIG_DIRECTORY],
+		skill_defs
+	)
+
+
+func validate_identity_directories(
+	label: String,
+	race_directories: Array[String],
+	subrace_directories: Array[String],
+	race_trait_directories: Array[String],
+	age_profile_directories: Array[String],
+	bloodline_directories: Array[String],
+	ascension_directories: Array[String],
+	stage_advancement_directories: Array[String],
+	skill_defs: Dictionary = {}
+) -> Dictionary:
+	var race_registry := _build_race_registry(race_directories)
+	var subrace_registry := _build_subrace_registry(subrace_directories)
+	var race_trait_registry := _build_race_trait_registry(race_trait_directories)
+	var age_registry := _build_age_registry(age_profile_directories)
+	var bloodline_registry := _build_bloodline_registry(bloodline_directories)
+	var ascension_registry := _build_ascension_registry(ascension_directories)
+	var stage_advancement_registry := _build_stage_advancement_registry(stage_advancement_directories)
+
+	var errors: Array[String] = []
+	_append_unique_errors(errors, race_registry.validate())
+	_append_unique_errors(errors, subrace_registry.validate())
+	_append_unique_errors(errors, race_trait_registry.validate())
+	_append_unique_errors(errors, age_registry.validate())
+	_append_unique_errors(errors, bloodline_registry.validate())
+	_append_unique_errors(errors, ascension_registry.validate())
+	_append_unique_errors(errors, stage_advancement_registry.validate())
+
+	var progression_registry := ProgressionContentRegistry.new()
+	_prepare_identity_phase2_registry(
+		progression_registry,
+		skill_defs,
+		race_registry,
+		subrace_registry,
+		race_trait_registry,
+		age_registry,
+		bloodline_registry,
+		ascension_registry,
+		stage_advancement_registry
+	)
+	var phase2_errors: Array[String] = []
+	progression_registry._append_identity_phase2_validation_errors(phase2_errors)
+	_append_unique_errors(errors, phase2_errors)
+	return _build_domain_result("identity", label, errors)
 
 
 func validate_item_directory(directory_path: String) -> Dictionary:
@@ -256,6 +323,111 @@ func _append_quest_reward_reference_errors(
 								String(target_id),
 							]
 						)
+
+
+func _build_race_registry(directory_paths: Array[String]) -> RaceContentRegistry:
+	var registry := RaceContentRegistry.new()
+	registry._race_defs.clear()
+	registry._validation_errors.clear()
+	for directory_path in directory_paths:
+		registry._scan_directory(directory_path)
+	registry._validation_errors.append_array(registry._collect_validation_errors())
+	return registry
+
+
+func _build_subrace_registry(directory_paths: Array[String]) -> SubraceContentRegistry:
+	var registry := SubraceContentRegistry.new()
+	registry._subrace_defs.clear()
+	registry._validation_errors.clear()
+	for directory_path in directory_paths:
+		registry._scan_directory(directory_path)
+	registry._validation_errors.append_array(registry._collect_validation_errors())
+	return registry
+
+
+func _build_race_trait_registry(directory_paths: Array[String]) -> RaceTraitContentRegistry:
+	var registry := RaceTraitContentRegistry.new()
+	registry._race_trait_defs.clear()
+	registry._validation_errors.clear()
+	for directory_path in directory_paths:
+		registry._scan_directory(directory_path)
+	registry._validation_errors.append_array(registry._collect_validation_errors())
+	return registry
+
+
+func _build_age_registry(directory_paths: Array[String]) -> AgeContentRegistry:
+	var registry := AgeContentRegistry.new()
+	registry._age_profile_defs.clear()
+	registry._validation_errors.clear()
+	for directory_path in directory_paths:
+		registry._scan_directory(directory_path)
+	registry._validation_errors.append_array(registry._collect_validation_errors())
+	return registry
+
+
+func _build_bloodline_registry(directory_paths: Array[String]) -> BloodlineContentRegistry:
+	var registry := BloodlineContentRegistry.new()
+	registry._bloodline_defs.clear()
+	registry._bloodline_stage_defs.clear()
+	registry._validation_errors.clear()
+	for directory_path in directory_paths:
+		registry._scan_directory(directory_path)
+	registry._validation_errors.append_array(registry._collect_validation_errors())
+	return registry
+
+
+func _build_ascension_registry(directory_paths: Array[String]) -> AscensionContentRegistry:
+	var registry := AscensionContentRegistry.new()
+	registry._ascension_defs.clear()
+	registry._ascension_stage_defs.clear()
+	registry._validation_errors.clear()
+	for directory_path in directory_paths:
+		registry._scan_directory(directory_path)
+	registry._validation_errors.append_array(registry._collect_validation_errors())
+	return registry
+
+
+func _build_stage_advancement_registry(directory_paths: Array[String]) -> StageAdvancementContentRegistry:
+	var registry := StageAdvancementContentRegistry.new()
+	registry._stage_advancement_defs.clear()
+	registry._validation_errors.clear()
+	for directory_path in directory_paths:
+		registry._scan_directory(directory_path)
+	registry._validation_errors.append_array(registry._collect_validation_errors())
+	return registry
+
+
+func _prepare_identity_phase2_registry(
+	progression_registry: ProgressionContentRegistry,
+	skill_defs: Dictionary,
+	race_registry: RaceContentRegistry,
+	subrace_registry: SubraceContentRegistry,
+	race_trait_registry: RaceTraitContentRegistry,
+	age_registry: AgeContentRegistry,
+	bloodline_registry: BloodlineContentRegistry,
+	ascension_registry: AscensionContentRegistry,
+	stage_advancement_registry: StageAdvancementContentRegistry
+) -> void:
+	progression_registry._validation_errors.clear()
+	progression_registry._skill_defs = skill_defs.duplicate()
+	progression_registry._profession_defs.clear()
+	progression_registry._achievement_defs.clear()
+	progression_registry._quest_defs.clear()
+	progression_registry._race_defs = race_registry.get_race_defs().duplicate()
+	progression_registry._subrace_defs = subrace_registry.get_subrace_defs().duplicate()
+	progression_registry._race_trait_defs = race_trait_registry.get_race_trait_defs().duplicate()
+	progression_registry._age_profile_defs = age_registry.get_age_profile_defs().duplicate()
+	progression_registry._bloodline_defs = bloodline_registry.get_bloodline_defs().duplicate()
+	progression_registry._bloodline_stage_defs = bloodline_registry.get_bloodline_stage_defs().duplicate()
+	progression_registry._ascension_defs = ascension_registry.get_ascension_defs().duplicate()
+	progression_registry._ascension_stage_defs = ascension_registry.get_ascension_stage_defs().duplicate()
+	progression_registry._stage_advancement_defs = stage_advancement_registry.get_stage_advancement_defs().duplicate()
+
+
+func _append_unique_errors(errors: Array[String], additional_errors: Array[String]) -> void:
+	for error_message in additional_errors:
+		if not errors.has(error_message):
+			errors.append(error_message)
 
 
 func _build_domain_result(domain: String, label: String, error_messages: Array[String]) -> Dictionary:

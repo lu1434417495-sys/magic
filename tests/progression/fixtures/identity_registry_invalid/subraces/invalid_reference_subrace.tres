@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"invalid_reference_subrace"
+parent_race_id = &"missing_parent_race"
+display_name = "Invalid Reference Subrace"
+description = "Fixture covering missing parent race and trait references."
+trait_ids = Array[StringName]([&"missing_trait"])
