@@ -32,8 +32,10 @@ __pycache__/
 
 # Local temp and editor state
 .tmp/
+tmp/
 .vscode/
 .claude/settings.local.json
+.claude/*.lock
 *.uid
 
 # Runtime save files; keep committed fixtures explicit
