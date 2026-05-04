@@ -9,6 +9,8 @@ const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
+const BattleUiTheme = preload("res://scripts/ui/battle_ui_theme.gd")
+const BattleSkillSlotButton = preload("res://scripts/ui/battle_skill_slot_button.gd")
 const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
 
 ## 信号说明：当战斗格子被点击时发出的信号，供外层接管选择、移动或交互逻辑。
@@ -26,44 +28,25 @@ signal battle_equipment_unequip_requested(slot_id: StringName, instance_id: Stri
 ## 信号说明：当 battle 首帧准备状态变化时发出的信号，供外层切图遮罩同步黑屏与进度条。
 signal battle_loading_state_changed(is_loading: bool, progress_value: float)
 
-const HUD_PANEL_BG := Color(0.16, 0.06, 0.03, 0.9)
-const HUD_PANEL_BG_ALT := Color(0.2, 0.08, 0.04, 0.92)
-const HUD_PANEL_EDGE := Color(0.82, 0.63, 0.35, 0.96)
-const HUD_PANEL_EDGE_SOFT := Color(0.56, 0.39, 0.18, 0.92)
-const HUD_TEXT_PRIMARY := Color(0.98, 0.93, 0.82, 1.0)
-const HUD_TEXT_SECONDARY := Color(0.92, 0.82, 0.66, 0.94)
-const HUD_TEXT_MUTED := Color(0.78, 0.66, 0.54, 0.86)
-const HUD_DARK := Color(0.08, 0.03, 0.02, 0.9)
-const HUD_FATE_CALM_BG := Color(0.12, 0.28, 0.25, 0.94)
-const HUD_FATE_CALM_EDGE := Color(0.36, 0.76, 0.7, 0.98)
-const HUD_FATE_GATE_BG := Color(0.17, 0.19, 0.28, 0.94)
-const HUD_FATE_GATE_EDGE := Color(0.61, 0.69, 0.92, 0.98)
-const HUD_FATE_WARNING_BG := Color(0.35, 0.18, 0.08, 0.96)
-const HUD_FATE_WARNING_EDGE := Color(0.96, 0.7, 0.3, 1.0)
-const HUD_FATE_DANGER_BG := Color(0.4, 0.1, 0.11, 0.96)
-const HUD_FATE_DANGER_EDGE := Color(0.94, 0.36, 0.34, 1.0)
-const HUD_FATE_HIGH_THREAT_BG := Color(0.4, 0.29, 0.06, 0.96)
-const HUD_FATE_HIGH_THREAT_EDGE := Color(0.98, 0.88, 0.42, 1.0)
-const HUD_FATE_MERCY_BG := Color(0.11, 0.26, 0.36, 0.96)
-const HUD_FATE_MERCY_EDGE := Color(0.44, 0.84, 0.98, 1.0)
 const LOADING_PROGRESS_PREPARE := 12.0
 const LOADING_PROGRESS_DRAW_REQUESTED := 48.0
 const LOADING_PROGRESS_FRAME_QUEUED := 82.0
 const LOADING_PROGRESS_READY := 100.0
 const MIN_BATTLE_LOADING_DURATION_SECONDS := 0.35
 const MAX_BATTLE_RENDER_READY_FRAMES := 12
-const HUD_PANEL_CONTENT_MARGIN := 10
 const BATTLE_BACKGROUND_COLOR := Color.BLACK
 const BATTLE_EQUIPMENT_EMPTY_TEXT := "战中队伍共享背包暂无可装备实例。"
 const BATTLE_EQUIPMENT_SOURCE_HINT := "来源：战斗局部队伍共享背包（不是据点共享仓库）。"
 const BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT := "战斗换装入口尚未连接运行时。"
 const AP_DOT_MAX_PIPS := 8
 const AP_DOT_SIZE := Vector2(10, 10)
-const AP_DOT_FILL_COLOR := Color(0.96, 0.78, 0.28, 1.0)
-const AP_DOT_EMPTY_COLOR := Color(0.96, 0.78, 0.28, 0.22)
+const SKILL_ICON_DIR := "res://assets/main/battle/skills/"
+const SKILL_ICON_DISABLED_MODULATE := Color(1.0, 1.0, 1.0, 0.45)
 
 ## 字段说明：记录战斗界面适配，作为界面刷新、输入处理和窗口联动的重要依据。
 var _hud_adapter := BattleHudAdapter.new()
+## 字段说明：技能图标缓存（icon_key -> Texture2D 或 null），避免每帧 ResourceLoader.exists()。
+var _skill_icon_cache: Dictionary = {}
 ## 字段说明：缓存地图子视口节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 var _map_subviewport: SubViewport = null
 ## 字段说明：缓存战斗棋盘子视口底色节点，确保棋盘外露区域不会透出世界地图背景。
@@ -115,6 +98,8 @@ var _battle_equipment_close_button: Button = null
 @onready var bottom_panel: PanelContainer = %BottomPanel
 ## 字段说明：缓存头部标题标签节点。
 @onready var header_title_label: Label = %HeaderTitleLabel
+## 字段说明：顶栏行动队列容器，承载 queue_entries 渲染出的迷你头像 + HP 带。
+@onready var timeline_row: HBoxContainer = %TimelineRow
 ## 字段说明：缓存回合徽标外层 chip。
 @onready var round_chip: PanelContainer = %RoundChip
 ## 字段说明：缓存回合标签节点。
@@ -368,7 +353,8 @@ func _refresh_internal(
 		selected_skill_required_coord_count,
 		selected_skill_target_unit_ids,
 		selected_skill_variant_id,
-		_resolve_battle_command_preview_callable()
+		_resolve_battle_command_preview_callable(),
+		_resolve_encounter_display_name()
 	)
 	_apply_snapshot(snapshot)
 	if _battle_board != null:
@@ -641,25 +627,67 @@ func _request_map_viewport_update() -> void:
 
 
 func _apply_static_skin() -> void:
-	add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+	add_theme_color_override("font_color", BattleUiTheme.TEXT_PRIMARY)
 
+	# 大底板：地图 / 底部面板。无圆角 / 无阴影，1px 冷色描边贴合视口边缘。
 	for panel in [map_frame, bottom_panel]:
-		panel.add_theme_stylebox_override("panel", _build_panel_style(HUD_PANEL_BG, HUD_PANEL_EDGE))
-	for padded_panel in [top_bar, unit_card, skill_panel]:
-		padded_panel.add_theme_stylebox_override(
+		panel.add_theme_stylebox_override(
 			"panel",
-			_build_panel_style(HUD_PANEL_BG, HUD_PANEL_EDGE, 20, 2, Color(0.0, 0.0, 0.0, 0.34), HUD_PANEL_CONTENT_MARGIN)
+			_build_panel_style(
+				BattleUiTheme.PANEL_BG,
+				BattleUiTheme.PANEL_EDGE_SOFT,
+				BattleUiTheme.PANEL_RADIUS_LARGE,
+				BattleUiTheme.PANEL_BORDER,
+				Color(0, 0, 0, 0)
+			)
 		)
 
-	portrait_frame.add_theme_stylebox_override("panel", _build_panel_style(Color(0.3, 0.14, 0.08, 1.0), HUD_PANEL_EDGE, 18, 2))
+	# 顶栏贴顶：直角，仅底边描边表示与地图分隔；阴影关闭以避免在地图上拉出灰带。
+	top_bar.add_theme_stylebox_override(
+		"panel",
+		_build_panel_style(
+			BattleUiTheme.PANEL_BG,
+			BattleUiTheme.PANEL_EDGE_SOFT,
+			BattleUiTheme.TOPBAR_RADIUS,
+			BattleUiTheme.PANEL_BORDER,
+			Color(0, 0, 0, 0),
+			BattleUiTheme.PANEL_CONTENT_MARGIN
+		)
+	)
 
-	_style_header_label(header_title_label, 20, HUD_TEXT_PRIMARY)
-	_style_header_label(round_label, 13, HUD_TEXT_PRIMARY)
-	_style_header_label(mode_value_label, 13, HUD_TEXT_PRIMARY)
-	_style_header_label(unit_name_label, 20, HUD_TEXT_PRIMARY)
-	_style_header_label(unit_role_label, 12, HUD_TEXT_SECONDARY)
-	_style_header_label(skill_subtitle_label, 13, HUD_TEXT_SECONDARY)
-	_style_header_label(portrait_glyph_label, 30, Color(1.0, 0.96, 0.9, 0.98))
+	# 单位卡 / 技能面板：中等圆角 + 软描边，不再单独投影。
+	for padded_panel in [unit_card, skill_panel]:
+		padded_panel.add_theme_stylebox_override(
+			"panel",
+			_build_panel_style(
+				BattleUiTheme.PANEL_BG_ALT,
+				BattleUiTheme.PANEL_EDGE_SOFT,
+				BattleUiTheme.PANEL_RADIUS_MEDIUM,
+				BattleUiTheme.PANEL_BORDER,
+				Color(0, 0, 0, 0),
+				BattleUiTheme.PANEL_CONTENT_MARGIN
+			)
+		)
+
+	portrait_frame.add_theme_stylebox_override(
+		"panel",
+		_build_panel_style(
+			BattleUiTheme.PANEL_BG_DEEP,
+			BattleUiTheme.PANEL_EDGE,
+			BattleUiTheme.PANEL_RADIUS_SMALL,
+			BattleUiTheme.PANEL_BORDER
+		)
+	)
+
+	# 顶栏标题承载真实 encounter 名（GameRuntimeFacade._active_battle_encounter_name），
+	# 占位 "战斗地图" 仍走同一节点；FONT_HEADING 让玩家在场景切换时第一眼看到当前遭遇。
+	_style_header_label(header_title_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
+	_style_header_label(round_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
+	_style_header_label(mode_value_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
+	_style_header_label(unit_name_label, BattleUiTheme.FONT_TITLE, BattleUiTheme.TEXT_PRIMARY)
+	_style_header_label(unit_role_label, BattleUiTheme.FONT_LABEL, BattleUiTheme.TEXT_SECONDARY)
+	_style_header_label(skill_subtitle_label, BattleUiTheme.FONT_LABEL, BattleUiTheme.TEXT_SECONDARY)
+	_style_header_label(portrait_glyph_label, BattleUiTheme.FONT_GLYPH, BattleUiTheme.TEXT_PRIMARY)
 	_style_stat_label(hp_value_label)
 	_style_stat_label(stamina_value_label)
 	_style_stat_label(mp_value_label)
@@ -667,13 +695,13 @@ func _apply_static_skin() -> void:
 	_style_ap_value_label(ap_value_label)
 	_style_ap_prefix_label()
 
-	_apply_chip_skin(round_chip, HUD_PANEL_EDGE_SOFT)
-	_apply_chip_skin(mode_chip, HUD_PANEL_EDGE_SOFT)
+	_apply_chip_skin(round_chip, BattleUiTheme.PANEL_EDGE_SOFT)
+	_apply_chip_skin(mode_chip, BattleUiTheme.PANEL_EDGE_SOFT)
 
-	_apply_progress_bar_skin(hp_bar, Color(0.62, 0.86, 0.24, 1.0))
-	_apply_progress_bar_skin(stamina_bar, Color(0.92, 0.76, 0.32, 1.0))
-	_apply_progress_bar_skin(mp_bar, Color(0.32, 0.74, 0.96, 1.0))
-	_apply_progress_bar_skin(aura_bar, Color(0.88, 0.52, 0.96, 1.0))
+	_apply_progress_bar_skin(hp_bar, BattleUiTheme.RESOURCE_HP)
+	_apply_progress_bar_skin(stamina_bar, BattleUiTheme.RESOURCE_STAMINA)
+	_apply_progress_bar_skin(mp_bar, BattleUiTheme.RESOURCE_MP)
+	_apply_progress_bar_skin(aura_bar, BattleUiTheme.RESOURCE_AURA)
 
 
 func _set_placeholder_state() -> void:
@@ -700,6 +728,7 @@ func _set_placeholder_state() -> void:
 	skill_subtitle_label.tooltip_text = ""
 	_rebuild_fate_badges([])
 	_rebuild_skill_grid([])
+	_rebuild_timeline_row([])
 	_refresh_battle_equipment_ui()
 
 
@@ -710,6 +739,7 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	round_label.text = String(snapshot.get("round_badge", "TU --\nREADY 0")).replace("\n", " · ")
 	mode_value_label.text = String(snapshot.get("mode_text", "手动"))
 	_refresh_focus_unit_card(snapshot.get("focus_unit", {}))
+	_rebuild_timeline_row(snapshot.get("queue_entries", []))
 	_rebuild_skill_grid(snapshot.get("skill_slots", []))
 	skill_subtitle_label.text = String(snapshot.get("skill_subtitle", ""))
 	var preview_tooltip_text := String(snapshot.get("selected_skill_preview_tooltip_text", ""))
@@ -719,12 +749,16 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 
 
 func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
-	var edge_color := focus_unit.get("edge_color", HUD_PANEL_EDGE) as Color
-	var primary_color := focus_unit.get("primary_color", Color(0.42, 0.3, 0.22, 1.0)) as Color
-	var secondary_color := focus_unit.get("secondary_color", HUD_DARK) as Color
+	var edge_color := focus_unit.get("edge_color", BattleUiTheme.PANEL_EDGE) as Color
+	var primary_color := focus_unit.get("primary_color", BattleUiTheme.PANEL_BG_ALT) as Color
 	portrait_frame.add_theme_stylebox_override(
 		"panel",
-		_build_panel_style(primary_color.darkened(0.16), edge_color, 18, 2, secondary_color)
+		_build_panel_style(
+			primary_color.darkened(0.18),
+			edge_color,
+			BattleUiTheme.PANEL_RADIUS_SMALL,
+			BattleUiTheme.PANEL_BORDER
+		)
 	)
 	portrait_glyph_label.text = String(focus_unit.get("glyph", "?"))
 	unit_name_label.text = String(focus_unit.get("name", "待命"))
@@ -737,7 +771,7 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		int(focus_unit.get("hp_current", 0)),
 		int(focus_unit.get("hp_max", 1)),
 		"HP",
-		Color(0.64, 0.9, 0.28, 1.0)
+		BattleUiTheme.RESOURCE_HP
 	)
 	_set_progress_bar_values(
 		stamina_bar,
@@ -745,7 +779,7 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		int(focus_unit.get("stamina_current", _get_resource_current(resource_info, "stamina"))),
 		int(focus_unit.get("stamina_max", _get_resource_max(resource_info, "stamina"))),
 		"体力",
-		Color(0.92, 0.76, 0.32, 1.0)
+		BattleUiTheme.RESOURCE_STAMINA
 	)
 	_set_progress_bar_values(
 		mp_bar,
@@ -753,7 +787,7 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		int(focus_unit.get("mp_current", 0)),
 		int(focus_unit.get("mp_max", 1)),
 		"MP",
-		Color(0.32, 0.78, 0.98, 1.0)
+		BattleUiTheme.RESOURCE_MP
 	)
 	_set_progress_bar_values(
 		aura_bar,
@@ -761,7 +795,7 @@ func _refresh_focus_unit_card(focus_unit: Dictionary) -> void:
 		int(focus_unit.get("aura_current", _get_resource_current(resource_info, "aura"))),
 		int(focus_unit.get("aura_max", _get_resource_max(resource_info, "aura"))),
 		"斗气",
-		Color(0.88, 0.52, 0.96, 1.0)
+		BattleUiTheme.RESOURCE_AURA
 	)
 	_rebuild_ap_dots(
 		int(focus_unit.get("move_current", 0)),
@@ -789,10 +823,19 @@ func _is_resource_visible(resource_info: Dictionary, resource_key: String) -> bo
 func _apply_chip_skin(panel: PanelContainer, edge: Color) -> void:
 	if panel == null:
 		return
-	panel.add_theme_stylebox_override(
-		"panel",
-		_build_panel_style(Color(0.12, 0.05, 0.03, 0.9), edge, 8, 1)
+	# 顶栏 chip：深石板底 + 1px 软描边 + 4px 圆角，独立呼吸不抢镜。
+	var chip_style := _build_panel_style(
+		BattleUiTheme.CHIP_BG,
+		edge,
+		BattleUiTheme.PANEL_RADIUS_SMALL,
+		BattleUiTheme.PANEL_BORDER,
+		Color(0, 0, 0, 0)
 	)
+	chip_style.content_margin_left = 10
+	chip_style.content_margin_right = 10
+	chip_style.content_margin_top = 4
+	chip_style.content_margin_bottom = 4
+	panel.add_theme_stylebox_override("panel", chip_style)
 
 
 func _set_resource_row_visible(bar: ProgressBar, label: Label, is_visible: bool) -> void:
@@ -806,7 +849,7 @@ func _style_ap_value_label(label: Label) -> void:
 	if label == null:
 		return
 	label.add_theme_font_size_override("font_size", 11)
-	label.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+	label.add_theme_color_override("font_color", BattleUiTheme.TEXT_PRIMARY)
 
 
 func _style_ap_prefix_label() -> void:
@@ -814,7 +857,7 @@ func _style_ap_prefix_label() -> void:
 	if prefix == null:
 		return
 	prefix.add_theme_font_size_override("font_size", 11)
-	prefix.add_theme_color_override("font_color", HUD_TEXT_SECONDARY)
+	prefix.add_theme_color_override("font_color", BattleUiTheme.TEXT_SECONDARY)
 
 
 func _rebuild_ap_dots(current: int, max_value: int) -> void:
@@ -841,7 +884,7 @@ func _rebuild_ap_dots(current: int, max_value: int) -> void:
 func _create_ap_dot(is_filled: bool) -> Control:
 	var dot := ColorRect.new()
 	dot.custom_minimum_size = AP_DOT_SIZE
-	dot.color = AP_DOT_FILL_COLOR if is_filled else AP_DOT_EMPTY_COLOR
+	dot.color = BattleUiTheme.AP_DOT_FILL if is_filled else BattleUiTheme.AP_DOT_EMPTY
 	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	return dot
 
@@ -890,7 +933,7 @@ func _ensure_battle_equipment_ui() -> void:
 	panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	panel.add_theme_stylebox_override(
 		"panel",
-		_build_panel_style(HUD_PANEL_BG_ALT, HUD_PANEL_EDGE, 18, 2, Color(0.0, 0.0, 0.0, 0.48), 14)
+		_build_panel_style(BattleUiTheme.PANEL_BG_ALT, BattleUiTheme.PANEL_EDGE, 18, 2, Color(0.0, 0.0, 0.0, 0.48), 14)
 	)
 	center.add_child(panel)
 
@@ -911,13 +954,13 @@ func _ensure_battle_equipment_ui() -> void:
 
 	_battle_equipment_title_label = Label.new()
 	_battle_equipment_title_label.name = "BattleEquipmentTitleLabel"
-	_style_header_label(_battle_equipment_title_label, 22, HUD_TEXT_PRIMARY)
+	_style_header_label(_battle_equipment_title_label, 22, BattleUiTheme.TEXT_PRIMARY)
 	title_stack.add_child(_battle_equipment_title_label)
 
 	_battle_equipment_meta_label = Label.new()
 	_battle_equipment_meta_label.name = "BattleEquipmentMetaLabel"
 	_battle_equipment_meta_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_style_header_label(_battle_equipment_meta_label, 12, HUD_TEXT_SECONDARY)
+	_style_header_label(_battle_equipment_meta_label, 12, BattleUiTheme.TEXT_SECONDARY)
 	title_stack.add_child(_battle_equipment_meta_label)
 
 	_battle_equipment_close_button = Button.new()
@@ -931,7 +974,7 @@ func _ensure_battle_equipment_ui() -> void:
 	_battle_equipment_summary_label = Label.new()
 	_battle_equipment_summary_label.name = "BattleEquipmentSummaryLabel"
 	_battle_equipment_summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_style_header_label(_battle_equipment_summary_label, 13, HUD_TEXT_SECONDARY)
+	_style_header_label(_battle_equipment_summary_label, 13, BattleUiTheme.TEXT_SECONDARY)
 	content.add_child(_battle_equipment_summary_label)
 
 	var body := HBoxContainer.new()
@@ -977,7 +1020,7 @@ func _ensure_battle_equipment_ui() -> void:
 	_battle_equipment_details_label.custom_minimum_size = Vector2(0, 86)
 	_battle_equipment_details_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_battle_equipment_details_label.add_theme_font_size_override("font_size", 12)
-	_battle_equipment_details_label.add_theme_color_override("font_color", HUD_TEXT_SECONDARY)
+	_battle_equipment_details_label.add_theme_color_override("font_color", BattleUiTheme.TEXT_SECONDARY)
 	backpack_layout.add_child(_battle_equipment_details_label)
 
 	var command_row := HBoxContainer.new()
@@ -1003,7 +1046,7 @@ func _ensure_battle_equipment_ui() -> void:
 	_battle_equipment_status_label = Label.new()
 	_battle_equipment_status_label.name = "BattleEquipmentStatusLabel"
 	_battle_equipment_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_style_header_label(_battle_equipment_status_label, 12, HUD_TEXT_SECONDARY)
+	_style_header_label(_battle_equipment_status_label, 12, BattleUiTheme.TEXT_SECONDARY)
 	content.add_child(_battle_equipment_status_label)
 
 
@@ -1028,7 +1071,7 @@ func _create_equipment_section_panel(section_name: String) -> PanelContainer:
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.add_theme_stylebox_override(
 		"panel",
-		_build_panel_style(Color(0.1, 0.04, 0.025, 0.9), HUD_PANEL_EDGE_SOFT, 10, 1, Color(0.0, 0.0, 0.0, 0.22), 10)
+		_build_panel_style(Color(0.1, 0.04, 0.025, 0.9), BattleUiTheme.PANEL_EDGE_SOFT, 10, 1, Color(0.0, 0.0, 0.0, 0.22), 10)
 	)
 	return panel
 
@@ -1047,7 +1090,7 @@ func _create_equipment_section_title(title: String) -> Label:
 	var label := Label.new()
 	label.text = title
 	label.add_theme_font_size_override("font_size", 14)
-	label.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+	label.add_theme_color_override("font_color", BattleUiTheme.TEXT_PRIMARY)
 	return label
 
 
@@ -1108,7 +1151,7 @@ func _rebuild_battle_equipment_slot_rows() -> void:
 		var empty_label := Label.new()
 		empty_label.text = "当前行动单位暂无 battle-local 装备视图。"
 		empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		empty_label.add_theme_color_override("font_color", HUD_TEXT_MUTED)
+		empty_label.add_theme_color_override("font_color", BattleUiTheme.TEXT_MUTED)
 		_battle_equipment_slot_list.add_child(empty_label)
 		return
 	for slot_variant in slots:
@@ -1148,7 +1191,7 @@ func _create_battle_equipment_slot_row(slot: Dictionary) -> Control:
 	]
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.add_theme_font_size_override("font_size", 12)
-	title.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+	title.add_theme_color_override("font_color", BattleUiTheme.TEXT_PRIMARY)
 	text_stack.add_child(title)
 
 	var detail := Label.new()
@@ -1167,7 +1210,7 @@ func _create_battle_equipment_slot_row(slot: Dictionary) -> Control:
 	detail.text = "  |  ".join(PackedStringArray(detail_lines))
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.add_theme_font_size_override("font_size", 11)
-	detail.add_theme_color_override("font_color", HUD_TEXT_MUTED)
+	detail.add_theme_color_override("font_color", BattleUiTheme.TEXT_MUTED)
 	text_stack.add_child(detail)
 
 	var button := Button.new()
@@ -1452,6 +1495,18 @@ func _resolve_battle_command_preview_callable() -> Callable:
 	return Callable()
 
 
+func _resolve_encounter_display_name() -> String:
+	# 通过既有的 host 探测找到 GameRuntimeFacade，再读其 _active_battle_encounter_name。
+	# 找不到 host / runtime 时返回空串，由 adapter 回退到占位标题。
+	var host := _find_battle_runtime_host()
+	if host == null:
+		return ""
+	var runtime = _read_object_property(host, "_runtime")
+	if runtime == null or not (runtime is Object) or not runtime.has_method("get_active_battle_encounter_name"):
+		return ""
+	return String(runtime.call("get_active_battle_encounter_name"))
+
+
 func _read_object_property(object: Object, property_name: String) -> Variant:
 	if object == null:
 		return null
@@ -1511,6 +1566,118 @@ func _rebuild_fate_badges(badges: Array) -> void:
 		fate_badge_row.add_child(_create_fate_badge(badge_variant))
 
 
+func _rebuild_timeline_row(entries: Array) -> void:
+	_clear_container(timeline_row)
+	timeline_row.visible = not entries.is_empty()
+	if entries.is_empty():
+		return
+	for entry_variant in entries:
+		if entry_variant is not Dictionary:
+			continue
+		var entry := entry_variant as Dictionary
+		if bool(entry.get("is_overflow", false)):
+			timeline_row.add_child(_create_timeline_overflow(entry))
+		else:
+			timeline_row.add_child(_create_timeline_entry(entry))
+
+
+func _create_timeline_entry(entry: Dictionary) -> Control:
+	var is_active := bool(entry.get("is_active", false))
+	var is_ready := bool(entry.get("is_ready", false))
+	var is_enemy := bool(entry.get("is_enemy", false))
+	var hp_ratio := clampf(float(entry.get("hp_ratio", 1.0)), 0.0, 1.0)
+	var ring_color := BattleUiTheme.TIMELINE_ENEMY_RING if is_enemy else BattleUiTheme.TIMELINE_ALLY_RING
+	if is_active:
+		ring_color = BattleUiTheme.TIMELINE_ACTIVE_RING
+
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 2)
+	stack.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	stack.tooltip_text = "%s\n%s\n%s" % [
+		String(entry.get("name", "?")),
+		String(entry.get("hp_text", "")),
+		String(entry.get("ap_text", "")),
+	]
+	if not is_ready and not is_active:
+		stack.modulate = Color(1.0, 1.0, 1.0, BattleUiTheme.TIMELINE_INACTIVE_ALPHA)
+
+	# 头像方块：深底 + 角色环色描边，active 加粗到 2px。
+	var portrait := PanelContainer.new()
+	portrait.custom_minimum_size = Vector2(BattleUiTheme.TIMELINE_ENTRY_SIZE, BattleUiTheme.TIMELINE_ENTRY_SIZE)
+	portrait.add_theme_stylebox_override(
+		"panel",
+		_build_panel_style(
+			BattleUiTheme.PANEL_BG_DEEP,
+			ring_color,
+			BattleUiTheme.PANEL_RADIUS_TINY,
+			2 if is_active else 1,
+			Color(0, 0, 0, 0)
+		)
+	)
+	stack.add_child(portrait)
+
+	var glyph_label := Label.new()
+	glyph_label.text = String(entry.get("glyph", "?"))
+	glyph_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	glyph_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	glyph_label.add_theme_font_size_override("font_size", BattleUiTheme.FONT_LABEL)
+	glyph_label.add_theme_color_override(
+		"font_color",
+		BattleUiTheme.TEXT_ACCENT if is_active else BattleUiTheme.TEXT_PRIMARY
+	)
+	portrait.add_child(glyph_label)
+
+	# HP 带：26×3 用 Control 作根，背景 + 填充用 ColorRect 锚点定位（避免 Container 重置子节点 anchor）。
+	var hp_band := Control.new()
+	hp_band.custom_minimum_size = Vector2(BattleUiTheme.TIMELINE_ENTRY_SIZE, BattleUiTheme.TIMELINE_HP_BAND_HEIGHT)
+	hp_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(hp_band)
+
+	var hp_bg := ColorRect.new()
+	hp_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_bg.anchor_left = 0.0
+	hp_bg.anchor_top = 0.0
+	hp_bg.anchor_right = 1.0
+	hp_bg.anchor_bottom = 1.0
+	hp_bg.color = BattleUiTheme.PANEL_BG_DEEP
+	hp_band.add_child(hp_bg)
+
+	var hp_fill := ColorRect.new()
+	hp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_fill.anchor_left = 0.0
+	hp_fill.anchor_top = 0.0
+	hp_fill.anchor_right = hp_ratio
+	hp_fill.anchor_bottom = 1.0
+	hp_fill.color = BattleUiTheme.RESOURCE_HP if not is_enemy else BattleUiTheme.TIMELINE_ENEMY_RING
+	hp_band.add_child(hp_fill)
+	return stack
+
+
+func _create_timeline_overflow(entry: Dictionary) -> Control:
+	var chip := PanelContainer.new()
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	chip.custom_minimum_size = Vector2(0, BattleUiTheme.TIMELINE_ENTRY_SIZE)
+	var chip_style := _build_panel_style(
+		BattleUiTheme.CHIP_BG,
+		BattleUiTheme.PANEL_EDGE_SOFT,
+		BattleUiTheme.PANEL_RADIUS_SMALL,
+		BattleUiTheme.PANEL_BORDER,
+		Color(0, 0, 0, 0)
+	)
+	chip_style.content_margin_left = 6
+	chip_style.content_margin_right = 6
+	chip.add_theme_stylebox_override("panel", chip_style)
+
+	var label := Label.new()
+	label.text = String(entry.get("overflow_text", "+"))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", BattleUiTheme.FONT_CAPTION)
+	label.add_theme_color_override("font_color", BattleUiTheme.TEXT_SECONDARY)
+	chip.add_child(label)
+	return chip
+
+
 func _create_fate_badge(badge: Dictionary) -> Control:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -1529,28 +1696,39 @@ func _create_fate_badge(badge: Dictionary) -> Control:
 
 	var label := Label.new()
 	label.text = String(badge.get("text", ""))
-	label.add_theme_font_size_override("font_size", 11)
-	label.add_theme_color_override("font_color", Color(0.99, 0.96, 0.9, 1.0))
+	label.add_theme_font_size_override("font_size", BattleUiTheme.FONT_LABEL)
+	label.add_theme_color_override("font_color", BattleUiTheme.TEXT_PRIMARY)
 	margin.add_child(label)
 	return panel
 
 
 func _create_skill_slot(slot: Dictionary) -> Control:
+	# 方向 B 槽位结构：
+	#   PanelContainer (深底 + 1px 描边)
+	#   ├─ MarginContainer (6px)
+	#   │  └─ VBoxContainer
+	#   │     ├─ HBox: hotkey 角标(左) + CD 角标(右)
+	#   │     └─ glyph: 居中字形（未来替换为图标）
+	#   ├─ ColorRect (3px 命运光带，docked 到底边；空槽 / 禁用 / 隐藏)
+	#   └─ Button (PRESET_FULL_RECT 透明命中层)
+	var is_empty := bool(slot.get("is_empty", false))
+	var is_disabled := bool(slot.get("is_disabled", false))
+
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(88, 88)
+	panel.custom_minimum_size = Vector2(BattleUiTheme.SKILL_SLOT_SIZE, BattleUiTheme.SKILL_SLOT_SIZE)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.add_theme_stylebox_override("panel", _build_skill_slot_style(slot))
 	panel.tooltip_text = _build_skill_slot_tooltip(slot)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_left", 6)
+	margin.add_theme_constant_override("margin_top", 4)
+	margin.add_theme_constant_override("margin_right", 6)
 	margin.add_theme_constant_override("margin_bottom", 6)
 	panel.add_child(margin)
 
 	var layout := VBoxContainer.new()
-	layout.add_theme_constant_override("separation", 2)
+	layout.add_theme_constant_override("separation", 0)
 	margin.add_child(layout)
 
 	var hotkey_row := HBoxContainer.new()
@@ -1559,38 +1737,41 @@ func _create_skill_slot(slot: Dictionary) -> Control:
 	var hotkey_label := Label.new()
 	hotkey_label.text = String(slot.get("hotkey", ""))
 	hotkey_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hotkey_label.add_theme_font_size_override("font_size", 11)
-	hotkey_label.add_theme_color_override("font_color", HUD_TEXT_SECONDARY)
+	hotkey_label.add_theme_font_size_override("font_size", BattleUiTheme.FONT_CAPTION)
+	hotkey_label.add_theme_color_override("font_color", BattleUiTheme.TEXT_MUTED)
 	hotkey_row.add_child(hotkey_label)
 
 	var cd_value := int(slot.get("cooldown", 0))
-	var hotkey_corner_label := Label.new()
-	hotkey_corner_label.text = "CD %d" % cd_value if cd_value > 0 else ""
-	hotkey_corner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hotkey_corner_label.add_theme_font_size_override("font_size", 11)
-	hotkey_corner_label.add_theme_color_override("font_color", HUD_TEXT_MUTED)
-	hotkey_row.add_child(hotkey_corner_label)
+	var cd_label := Label.new()
+	cd_label.text = "CD %d" % cd_value if cd_value > 0 else ""
+	cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cd_label.add_theme_font_size_override("font_size", BattleUiTheme.FONT_CAPTION)
+	cd_label.add_theme_color_override("font_color", BattleUiTheme.TEXT_ACCENT)
+	hotkey_row.add_child(cd_label)
 
-	var glyph_label := Label.new()
-	glyph_label.text = "--" if bool(slot.get("is_empty", false)) else String(slot.get("short_name", "--"))
-	glyph_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	glyph_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	glyph_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	glyph_label.add_theme_font_size_override("font_size", 20)
-	glyph_label.add_theme_color_override(
-		"font_color",
-		HUD_TEXT_MUTED if bool(slot.get("is_empty", false)) else Color(1.0, 0.96, 0.9, 0.98)
-	)
-	layout.add_child(glyph_label)
+	var glyph_node := _create_skill_glyph_node(slot, is_empty, is_disabled)
+	layout.add_child(glyph_node)
 
-	var footer_label := Label.new()
-	footer_label.text = "" if bool(slot.get("is_empty", false)) else String(slot.get("footer_text", ""))
-	footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	footer_label.add_theme_font_size_override("font_size", 11)
-	footer_label.add_theme_color_override("font_color", HUD_TEXT_MUTED)
-	layout.add_child(footer_label)
+	if not is_empty:
+		var glow_band := ColorRect.new()
+		glow_band.name = "FateGlow"
+		glow_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		glow_band.layout_mode = 1
+		glow_band.anchor_left = 0.0
+		glow_band.anchor_right = 1.0
+		glow_band.anchor_top = 1.0
+		glow_band.anchor_bottom = 1.0
+		glow_band.offset_top = -BattleUiTheme.SKILL_GLOW_BAND_HEIGHT
+		glow_band.offset_left = 0.0
+		glow_band.offset_right = 0.0
+		glow_band.offset_bottom = 0.0
+		var accent_color := slot.get("accent_color", BattleUiTheme.FATE_GATE) as Color
+		if is_disabled:
+			accent_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.32)
+		glow_band.color = accent_color
+		panel.add_child(glow_band)
 
-	var click_target := Button.new()
+	var click_target := BattleSkillSlotButton.new()
 	click_target.flat = true
 	click_target.focus_mode = Control.FOCUS_NONE
 	click_target.layout_mode = 1
@@ -1599,10 +1780,18 @@ func _create_skill_slot(slot: Dictionary) -> Control:
 	click_target.anchor_bottom = 1.0
 	click_target.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	click_target.grow_vertical = Control.GROW_DIRECTION_BOTH
-	click_target.disabled = bool(slot.get("is_empty", false)) or bool(slot.get("is_disabled", false))
+	click_target.disabled = is_empty or is_disabled
 	click_target.text = ""
 	click_target.mouse_default_cursor_shape = CURSOR_POINTING_HAND
-	click_target.tooltip_text = panel.tooltip_text
+	# 引擎需要非空 tooltip_text 才会触发 _make_custom_tooltip；空槽不挂 tooltip。
+	if not is_empty:
+		click_target.tooltip_text = String(slot.get("display_name", ""))
+		click_target.skill_display_name = String(slot.get("display_name", ""))
+		click_target.skill_description = String(slot.get("description", ""))
+		click_target.skill_footer_text = String(slot.get("footer_text", ""))
+		click_target.skill_disabled_reason = String(slot.get("disabled_reason", ""))
+		click_target.skill_cooldown = int(slot.get("cooldown", 0))
+		click_target.skill_accent_color = slot.get("accent_color", BattleUiTheme.FATE_GATE) as Color
 	click_target.pressed.connect(_on_skill_slot_pressed.bind(int(slot.get("index", -1))))
 	panel.add_child(click_target)
 
@@ -1635,83 +1824,117 @@ func _clear_container(container: Node) -> void:
 		child.queue_free()
 
 
+func _create_skill_glyph_node(slot: Dictionary, is_empty: bool, is_disabled: bool) -> Control:
+	# 优先用 PNG 图标（assets/main/battle/skills/{icon_key}.png），找不到再回退到中文首字 Label。
+	# 空槽不渲染任何字形 / 图标，仅留虚线框背景。
+	if is_empty:
+		var spacer := Control.new()
+		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return spacer
+
+	var icon_key := String(slot.get("icon_key", ""))
+	var texture := _resolve_skill_icon(icon_key)
+	if texture != null:
+		var icon := TextureRect.new()
+		icon.texture = texture
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if is_disabled:
+			icon.modulate = SKILL_ICON_DISABLED_MODULATE
+		return icon
+
+	var glyph_label := Label.new()
+	glyph_label.text = String(slot.get("short_name", "--"))
+	glyph_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	glyph_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	glyph_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	glyph_label.add_theme_font_size_override("font_size", BattleUiTheme.FONT_TITLE)
+	glyph_label.add_theme_color_override(
+		"font_color",
+		BattleUiTheme.TEXT_MUTED if is_disabled else BattleUiTheme.TEXT_PRIMARY
+	)
+	return glyph_label
+
+
+func _resolve_skill_icon(icon_key: String) -> Texture2D:
+	if icon_key.is_empty():
+		return null
+	if _skill_icon_cache.has(icon_key):
+		return _skill_icon_cache[icon_key] as Texture2D
+	var path := "%s%s.png" % [SKILL_ICON_DIR, icon_key]
+	var texture: Texture2D = null
+	if ResourceLoader.exists(path, "Texture2D"):
+		var loaded = load(path)
+		if loaded is Texture2D:
+			texture = loaded
+	# 缓存 null 结果，避免每次刷新重复探测找不到的资源。
+	_skill_icon_cache[icon_key] = texture
+	return texture
+
+
 func _apply_button_skin(button: Button, is_compact: bool, is_primary: bool = false) -> void:
-	button.add_theme_font_size_override("font_size", 12 if is_compact else 14)
-	button.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
-	button.add_theme_color_override("font_focus_color", HUD_TEXT_PRIMARY)
+	# 方向 B 按钮：深石板底 + 1px 描边；primary 改用 PANEL_EDGE_GLOW 高亮描边。
+	var radius := BattleUiTheme.PANEL_RADIUS_SMALL if is_compact else BattleUiTheme.PANEL_RADIUS_MEDIUM
+	var primary_edge := BattleUiTheme.PANEL_EDGE_GLOW
+	var normal_bg := BattleUiTheme.CHIP_BG if not is_primary else BattleUiTheme.PANEL_BG_ALT
+	var normal_edge := BattleUiTheme.PANEL_EDGE_SOFT if not is_primary else primary_edge
+	button.add_theme_font_size_override("font_size", BattleUiTheme.FONT_BODY if is_compact else BattleUiTheme.FONT_HEADING)
+	button.add_theme_color_override("font_color", BattleUiTheme.TEXT_PRIMARY)
+	button.add_theme_color_override("font_focus_color", BattleUiTheme.TEXT_PRIMARY)
 	button.add_theme_stylebox_override(
 		"normal",
-		_build_button_style(
-			Color(0.28, 0.09, 0.04, 0.96) if not is_primary else Color(0.46, 0.14, 0.08, 0.98),
-			HUD_PANEL_EDGE,
-			18 if is_compact else 16
-		)
+		_build_button_style(normal_bg, normal_edge, radius, BattleUiTheme.PANEL_BORDER)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_build_button_style(
-			Color(0.38, 0.12, 0.06, 0.98) if not is_primary else Color(0.56, 0.18, 0.09, 0.98),
-			HUD_PANEL_EDGE.lightened(0.08),
-			18 if is_compact else 16
-		)
+		_build_button_style(normal_bg.lightened(0.06), normal_edge.lightened(0.18), radius, BattleUiTheme.PANEL_BORDER)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_build_button_style(
-			Color(0.2, 0.06, 0.03, 0.98),
-			HUD_PANEL_EDGE.darkened(0.12),
-			18 if is_compact else 16
-		)
+		_build_button_style(BattleUiTheme.PANEL_BG_DEEP, normal_edge.darkened(0.12), radius, BattleUiTheme.PANEL_BORDER)
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		_build_button_style(
-			Color(0.14, 0.06, 0.04, 0.82),
-			HUD_PANEL_EDGE_SOFT.darkened(0.24),
-			18 if is_compact else 16
-		)
+		_build_button_style(BattleUiTheme.PANEL_BG_DEEP, BattleUiTheme.PANEL_EDGE_SOFT, radius, BattleUiTheme.PANEL_BORDER)
 	)
 
 
 func _build_skill_slot_style(slot: Dictionary) -> StyleBoxFlat:
+	# 方向 B：槽底统一中性深色，命运色仅用于底部光带（在 _create_skill_slot 里加 ColorRect）。
+	# selected → 2px 金色描边；disabled → 软描边 + bg 暗化；empty → 极暗 + 1px 极淡描边。
+	var radius := BattleUiTheme.PANEL_RADIUS_TINY
 	if bool(slot.get("is_empty", false)):
-		return _build_panel_style(Color(0.09, 0.05, 0.03, 0.78), Color(0.24, 0.15, 0.1, 0.72), 10, 1)
-
-	var accent_color := slot.get("accent_color", Color(0.96, 0.78, 0.3, 1.0)) as Color
-	var dark_color := slot.get("accent_dark", accent_color.darkened(0.5)) as Color
-	var edge_color := slot.get("edge_color", accent_color.lightened(0.12)) as Color
-	if bool(slot.get("is_disabled", false)):
-		return _build_panel_style(dark_color.darkened(0.26), edge_color.darkened(0.22), 10, 2)
+		var empty_edge := Color(BattleUiTheme.PANEL_EDGE_SOFT.r, BattleUiTheme.PANEL_EDGE_SOFT.g, BattleUiTheme.PANEL_EDGE_SOFT.b, 0.4)
+		return _build_panel_style(BattleUiTheme.PANEL_BG_DEEP, empty_edge, radius, 1, Color(0, 0, 0, 0))
 	if bool(slot.get("is_selected", false)):
-		return _build_panel_style(accent_color.darkened(0.34), HUD_PANEL_EDGE.lightened(0.06), 10, 2)
-	return _build_panel_style(dark_color, edge_color, 10, 2)
+		return _build_panel_style(BattleUiTheme.PANEL_BG_ALT, BattleUiTheme.TEXT_ACCENT, radius, 2, Color(0, 0, 0, 0))
+	if bool(slot.get("is_disabled", false)):
+		var dim_bg := Color(BattleUiTheme.PANEL_BG_DEEP.r, BattleUiTheme.PANEL_BG_DEEP.g, BattleUiTheme.PANEL_BG_DEEP.b, 0.78)
+		return _build_panel_style(dim_bg, BattleUiTheme.PANEL_EDGE_SOFT, radius, 1, Color(0, 0, 0, 0))
+	return _build_panel_style(BattleUiTheme.PANEL_BG_DEEP, BattleUiTheme.PANEL_EDGE_SOFT, radius, 1, Color(0, 0, 0, 0))
 
 
 func _build_fate_badge_style(tone: StringName) -> StyleBoxFlat:
-	match tone:
-		&"calm":
-			return _build_button_style(HUD_FATE_CALM_BG, HUD_FATE_CALM_EDGE, 999, 1)
-		&"warning":
-			return _build_button_style(HUD_FATE_WARNING_BG, HUD_FATE_WARNING_EDGE, 999, 1)
-		&"danger":
-			return _build_button_style(HUD_FATE_DANGER_BG, HUD_FATE_DANGER_EDGE, 999, 1)
-		&"high_threat":
-			return _build_button_style(HUD_FATE_HIGH_THREAT_BG, HUD_FATE_HIGH_THREAT_EDGE, 999, 1)
-		&"mercy":
-			return _build_button_style(HUD_FATE_MERCY_BG, HUD_FATE_MERCY_EDGE, 999, 1)
-		_:
-			return _build_button_style(HUD_FATE_GATE_BG, HUD_FATE_GATE_EDGE, 999, 1)
+	# 方向 B：底色使用深 chip 底叠加 18% 命运色调，边框使用纯命运色形成高光环。
+	# 同时保证不同命运 tone 的 bg_color 仍可彼此区分（测试也以此验证语义色差异）。
+	var accent := BattleUiTheme.fate_color(tone)
+	var tinted_bg := BattleUiTheme.CHIP_BG.lerp(accent, 0.18)
+	return _build_button_style(tinted_bg, accent, 999, 1)
 
 
 func _apply_progress_bar_skin(progress_bar: ProgressBar, fill_color: Color) -> void:
 	progress_bar.show_percentage = false
 	progress_bar.add_theme_stylebox_override(
 		"background",
-		_build_button_style(Color(0.08, 0.03, 0.02, 0.96), Color(0.3, 0.18, 0.1, 0.92), 6, 1)
+		_build_button_style(BattleUiTheme.PANEL_BG_DEEP, BattleUiTheme.PANEL_EDGE_SOFT, 4, 1)
 	)
 	progress_bar.add_theme_stylebox_override(
 		"fill",
-		_build_button_style(fill_color.darkened(0.12), fill_color.lightened(0.04), 6, 1)
+		_build_button_style(fill_color.darkened(0.05), fill_color.lightened(0.08), 4, 0)
 	)
 
 
@@ -1721,16 +1944,16 @@ func _style_header_label(label: Label, font_size: int, font_color: Color) -> voi
 
 
 func _style_stat_label(label: Label) -> void:
-	label.add_theme_font_size_override("font_size", 12)
-	label.add_theme_color_override("font_color", HUD_TEXT_PRIMARY)
+	label.add_theme_font_size_override("font_size", BattleUiTheme.FONT_BODY)
+	label.add_theme_color_override("font_color", BattleUiTheme.TEXT_PRIMARY)
 
 
 func _build_panel_style(
 	background_color: Color,
 	border_color: Color,
-	radius: int = 20,
-	border_width: int = 2,
-	shadow_color: Color = Color(0.0, 0.0, 0.0, 0.34),
+	radius: int = BattleUiTheme.PANEL_RADIUS_LARGE,
+	border_width: int = BattleUiTheme.PANEL_BORDER,
+	shadow_color: Color = Color(0.0, 0.0, 0.0, 0.0),
 	content_margin: int = 0
 ) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -1745,7 +1968,7 @@ func _build_panel_style(
 	style.corner_radius_bottom_right = radius
 	style.corner_radius_bottom_left = radius
 	style.shadow_color = shadow_color
-	style.shadow_size = 10
+	style.shadow_size = 0 if shadow_color.a == 0.0 else 8
 	if content_margin > 0:
 		style.content_margin_left = content_margin
 		style.content_margin_top = content_margin

@@ -46,7 +46,8 @@ func build_snapshot(
 	selected_skill_required_coord_count: int = 0,
 	selected_skill_target_unit_ids: Array[StringName] = [],
 	selected_skill_variant_id: StringName = &"",
-	change_equipment_preview_callback: Callable = Callable()
+	change_equipment_preview_callback: Callable = Callable(),
+	encounter_display_name: String = ""
 ) -> Dictionary:
 	if battle_state == null:
 		return {}
@@ -91,8 +92,9 @@ func build_snapshot(
 	)
 	var preview_tooltip_text := _build_selected_skill_preview_tooltip(hit_preview, fate_preview, damage_preview)
 
+	var resolved_header_title := encounter_display_name if not encounter_display_name.strip_edges().is_empty() else "战斗地图"
 	return {
-		"header_title": "战斗地图",
+		"header_title": resolved_header_title,
 		"header_subtitle": _build_header_subtitle(battle_state, active_unit),
 		"round_badge": _build_round_badge(battle_state),
 		"mode_text": _format_control_mode(active_unit.control_mode if active_unit != null else &"manual"),
@@ -430,11 +432,16 @@ func _build_skill_slots(active_unit: BattleUnitState, selected_skill_id: StringN
 			var icon_key := _get_skill_icon_key(skill_def, skill_id)
 			var accent_color := _build_skill_color(icon_key, display_name)
 			var slot_state := _build_skill_slot_state(active_unit, skill_def, skill_id)
+			var description := ""
+			if skill_def != null and "description" in skill_def:
+				description = String(skill_def.description).strip_edges()
 			skill_slots.append({
 				"index": index,
 				"is_empty": false,
 				"display_name": display_name,
 				"short_name": _build_skill_short_name(display_name),
+				"description": description,
+				"icon_key": icon_key,
 				"hotkey": str(index + 1) if index < 9 else "",
 				"footer_text": String(slot_state.get("footer_text", "")),
 				"is_selected": skill_id == selected_skill_id,

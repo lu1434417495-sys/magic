@@ -23,7 +23,9 @@ const LOG_DOCK_DESIGN_TOP_MARGIN := 60.0
 const LOG_DOCK_DESIGN_BOTTOM_MARGIN := 60.0
 const LOG_DOCK_DESIGN_RIGHT_MARGIN := 12.0
 const LOG_DOCK_MIN_HEIGHT := 360.0
-const LOG_DOCK_BATTLE_TOP_MARGIN := 92.0
+const LOG_DOCK_MAX_HEIGHT := 520.0
+# 战斗态 TopBar 现在 88px（TU 行 + Timeline 行），加 8px 缓冲让日志面板不会盖住时间轴。
+const LOG_DOCK_BATTLE_TOP_MARGIN := 96.0
 const LOG_DOCK_BATTLE_BOTTOM_MARGIN := 184.0
 
 @onready var world_map_view = $MapViewport/WorldMapView
@@ -155,10 +157,13 @@ func _update_responsive_log_layout() -> void:
 	var top_margin := LOG_DOCK_BATTLE_TOP_MARGIN if is_battle_active else LOG_DOCK_DESIGN_TOP_MARGIN
 	var bottom_margin := LOG_DOCK_BATTLE_BOTTOM_MARGIN if is_battle_active else LOG_DOCK_DESIGN_BOTTOM_MARGIN
 	var available_height := viewport_size.y - top_margin - bottom_margin
-	var panel_size := Vector2(
-		design_panel_size.x,
-		runtime_log_dock.get_preferred_height(available_height, LOG_DOCK_MIN_HEIGHT)
-	)
+	# 折叠态保持自身的 collapsed_height；战斗态在 [MIN, MAX] 之间 clamp，
+	# 防止大显示器上日志面板拉满全高盖住时间轴 / 技能格。
+	# 世界态保留 design height（600），由共享窗口测试锁定，不在此处压缩。
+	var preferred_height: float = runtime_log_dock.get_preferred_height(available_height, LOG_DOCK_MIN_HEIGHT)
+	if is_battle_active and not runtime_log_dock.is_collapsed():
+		preferred_height = clampf(preferred_height, LOG_DOCK_MIN_HEIGHT, LOG_DOCK_MAX_HEIGHT)
+	var panel_size := Vector2(design_panel_size.x, preferred_height)
 
 	runtime_log_dock.anchor_left = 1.0
 	runtime_log_dock.anchor_top = 0.0

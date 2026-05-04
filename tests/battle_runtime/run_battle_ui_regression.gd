@@ -1483,12 +1483,13 @@ func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
 		3,
 		0
 	)
-	archer.current_stamina = 20
-	archer.attribute_snapshot.set_value(&"stamina_max", 20)
+	archer.current_stamina = 60
+	archer.attribute_snapshot.set_value(&"stamina_max", 60)
 	archer.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
 		"weapon_item_id": "ui_test_bow",
 		"weapon_profile_type_id": "test_bow",
+		"weapon_family": "bow",
 		"weapon_current_grip": "one_handed",
 		"weapon_attack_range": 4,
 		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},

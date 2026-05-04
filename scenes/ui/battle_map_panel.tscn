@@ -27,7 +27,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 64.0
+offset_top = 96.0
 offset_bottom = -132.0
 grow_horizontal = 2
 grow_vertical = 2
@@ -52,47 +52,72 @@ unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 12.0
-offset_bottom = 52.0
+offset_top = 0.0
+offset_bottom = 88.0
 grow_horizontal = 2
 
-[node name="TopLayout" type="HBoxContainer" parent="HudRoot/TopBar" unique_id=1929772257]
+[node name="TopLayoutVbox" type="VBoxContainer" parent="HudRoot/TopBar" unique_id=1929772257]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 6
 
-[node name="HeaderTitleLabel" type="Label" parent="HudRoot/TopBar/TopLayout" unique_id=85907835]
+[node name="TopRow" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LeftCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+alignment = 0
+
+[node name="HeaderTitleLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/LeftCell" unique_id=85907835]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 text = "战斗地图"
 
-[node name="HeaderSpacer" type="Control" parent="HudRoot/TopBar/TopLayout"]
+[node name="CenterCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+alignment = 1
 
-[node name="RoundChip" type="PanelContainer" parent="HudRoot/TopBar/TopLayout" unique_id=2143009001]
+[node name="RoundChip" type="PanelContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell" unique_id=2143009001]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 
-[node name="RoundLabel" type="Label" parent="HudRoot/TopBar/TopLayout/RoundChip" unique_id=2023688852]
+[node name="RoundLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell/RoundChip" unique_id=2023688852]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "TU -- · READY 0"
 horizontal_alignment = 1
 
-[node name="ModeChip" type="PanelContainer" parent="HudRoot/TopBar/TopLayout" unique_id=2143009002]
+[node name="RightCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+alignment = 2
+
+[node name="ModeChip" type="PanelContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/RightCell" unique_id=2143009002]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 
-[node name="ModeValueLabel" type="Label" parent="HudRoot/TopBar/TopLayout/ModeChip" unique_id=830634616]
+[node name="ModeValueLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/RightCell/ModeChip" unique_id=830634616]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 text = "手动"
 horizontal_alignment = 1
+
+[node name="TimelineRow" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+theme_override_constants/separation = 4
 
 [node name="BottomPanel" type="PanelContainer" parent="HudRoot" unique_id=812677194]
 unique_name_in_owner = true
@@ -150,7 +175,7 @@ text = "未选中单位"
 
 [node name="HpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=2131968737]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 16)
+custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 
@@ -161,7 +186,7 @@ text = "HP 0/1"
 
 [node name="StaminaBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 12)
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 show_percentage = false
 
@@ -172,7 +197,7 @@ text = "体力 0/1"
 
 [node name="MpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=788448658]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 12)
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 show_percentage = false
 
@@ -183,7 +208,7 @@ text = "MP 0/1"
 
 [node name="AuraBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 12)
+custom_minimum_size = Vector2(0, 14)
 layout_mode = 2
 show_percentage = false
 
@@ -260,4 +285,4 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
-columns = 5
+columns = 6

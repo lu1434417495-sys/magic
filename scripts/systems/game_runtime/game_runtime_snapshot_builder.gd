@@ -396,7 +396,8 @@ func _build_battle_snapshot() -> Dictionary:
 		_runtime.get_selected_battle_skill_required_coord_count(),
 		_runtime.get_selected_battle_skill_target_unit_ids(),
 		_runtime.get_selected_battle_skill_variant_id(),
-		Callable(_runtime, "preview_battle_command") if _runtime.has_method("preview_battle_command") else Callable()
+		Callable(_runtime, "preview_battle_command") if _runtime.has_method("preview_battle_command") else Callable(),
+		_runtime.get_active_battle_encounter_name()
 	)
 	var units: Array[Dictionary] = []
 	for unit_id_str in ProgressionDataUtils.sorted_string_keys(battle_state.units):
