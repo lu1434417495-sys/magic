@@ -11,6 +11,17 @@ This skill provides the complete workflow for designing a combat skill in the pr
 
 ## Workflow
 
+### Step 0: Existing Skill Optimization Preview
+
+When optimizing or refactoring an existing skill config, do not edit `.tres`, scripts, docs, or tests immediately unless the user explicitly asks for direct implementation. First inspect the current resource and relevant runtime/test context, then present detailed information and wait for user confirmation.
+
+The preview must include:
+- Current implementation: `skill_id`, display name, role, target mode, range, costs, cooldown, effect chain, level rewards, mastery trigger, attribute growth, and existing tests.
+- Problems or design gaps found in the current config.
+- Proposed field-level changes: effects, `level_overrides`, costs, cooldowns, mastery, tags, growth, and whether engine code is needed.
+- Validation plan and regression commands.
+- Open decisions that need user approval.
+
 ### Step 1: Skill Positioning
 
 Decide before writing any config:
@@ -45,6 +56,7 @@ Required fields on `CombatSkillDef`:
 | `level_overrides` | Dict keyed by min level; values can override ap/stamina/mp/aura/cooldown |
 | `mastery_trigger_mode` | `skill_damage_dice_max` / `weapon_attack_quality` / `damage_dealt` / `status_applied` / `effect_applied` |
 | `mastery_amount_mode` | `per_target_rank` / `per_cast_hp_ratio` |
+| `required_weapon_families` | Optional positive weapon-family gate such as `[&"bow"]`; use this instead of `params.requires_weapon` when the skill must require a specific equipped weapon family |
 | `effect_defs` | Array of `CombatEffectDef`; use `min_skill_level`/`max_skill_level` for tiered unlocks |
 
 ### Step 3: Design Effect Chain (`CombatEffectDef`)
@@ -61,6 +73,8 @@ Supported `effect_type` values:
 - `apply_status`: Alias for `status`
 
 Level-tier effects: set `min_skill_level` and/or `max_skill_level` on each `CombatEffectDef`.
+
+Use `CombatSkillDef.required_weapon_families` for specific equipped-weapon gates. For example, a bow-only skill should set `required_weapon_families = [&"bow"]` and should not also set damage params `requires_weapon = true`; the family gate already implies an equipped valid weapon.
 
 ### Step 4: Decide Whether Engine Code Needs Changing
 

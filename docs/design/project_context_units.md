@@ -1,6 +1,6 @@
 # 当前 Godot 项目的最优上下文单元
 
-更新日期：`2026-05-02`
+更新日期：`2026-05-03`
 
 ## 目的
 
@@ -29,6 +29,13 @@
   - `data/configs/items_templates/*.tres`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
+  - `data/configs/races/*.tres`
+  - `data/configs/subraces/*.tres`
+  - `data/configs/race_traits/*.tres`
+  - `data/configs/age_profiles/*.tres`
+  - `data/configs/bloodlines/*.tres`
+  - `data/configs/ascensions/*.tres`
+  - `data/configs/stage_advancements/*.tres`
   - `data/configs/enemies/**/*.tres`
   - `assets/main/battle/terrain/canyon/*.png`
 - 自动化与辅助：
@@ -85,6 +92,9 @@ GameSession
   -> ProgressionContentRegistry
       -> SkillContentRegistry
       -> ProfessionContentRegistry
+      -> RaceContentRegistry / SubraceContentRegistry / RaceTraitContentRegistry
+      -> AgeContentRegistry / BloodlineContentRegistry / AscensionContentRegistry
+      -> StageAdvancementContentRegistry
   -> ItemContentRegistry
   -> EnemyContentRegistry
 
@@ -254,10 +264,10 @@ HeadlessGameTestSession
   - 缓存后的 `skill_defs` / `profession_defs` / `achievement_defs` / `item_defs` / `recipe_defs` / `enemy_templates` / `enemy_ai_brains`。
 - 主要职责：
   - 创建新存档、读取现有存档。
-  - 管理 `user://saves/index.dat` 与 slot payload，当前全局 `SAVE_VERSION = 5`。
+  - 管理 `user://saves/index.dat` 与 slot payload，当前全局 `SAVE_VERSION = 5`，`SAVE_INDEX_VERSION = 3`。
   - 统一持久化 `world_data + party_state`。
   - `GameLogService` 现在作为开发侧 sidecar 挂在 `GameSession` 下，默认只维护内存 ring buffer；只有显式开启文件输出时才把结构化运行日志追加到 `user://logs/*.jsonl`。create/load/unload world 会显式轮转日志会话边界。它不是存档真相源，也不参与 `SAVE_VERSION`。
-  - `SaveSerializer` 负责 save payload、V5 解码、save meta、world/party 归一化和 save index 的编码格式；save meta 和 save index 数值字段不接受字符串 / 布尔转换，save index 只接受当前 `{version, saves}` 顶层结构与完整 base64 entry 字段，旧 top-level array / 缺字段 entry 视为无效缓存，只允许从正式 save payload 重建。
+  - `SaveSerializer` 负责 save payload、V5 解码、save meta、world/party 归一化和 save index 的编码格式；正式 slot payload 和 `index.dat` 都用 Godot Variant 二进制 + ZSTD 压缩写盘，写盘前会递归把 `String` key / value 转成 `StringName`，读取时先恢复为运行时 schema 使用的 `String` 形态；save meta 和 save index 数值字段不接受字符串 / 布尔转换，save index 只接受当前 `{version, saves}` 顶层结构与完整压缩二进制 entry 字段，未压缩 Variant / JSON / base64 entry / 旧 top-level array / 缺字段 entry 视为无效缓存，只允许从正式 save payload 重建。
   - 为运行时仓库、角色奖励和战利品提交路径提供 world-level 装备实例 ID 分配入口；不要在 `EquipmentInstanceState`、掉落服务或仓库预览里自行随机生成持久 ID。
   - 提供 progression / item / recipe / enemy 内容注册表的统一访问口。
   - 提供战斗中的 save lock。
@@ -700,6 +710,7 @@ HeadlessGameTestSession
   - 正式角色奖励结构。
   - `PartyMemberState -> UnitBaseAttributes.get_drop_luck()` 是正式掉落幸运值来源；当前 battle loot 改为按击杀者逐次读取，`PartyState` 不再持有整场战斗共用的掉落承担者字段。
   - `UnitBaseAttributes.ACTION_THRESHOLD` / `AttributeService.ACTION_THRESHOLD` 是友军行动阈值的角色侧属性入口；角色快照缺省值为 `30 TU`，战斗单位不再只吃 battle 层默认值。
+  - `UnitBaseAttributes.custom_stats[&"aura_transformation_count"]` 是斗气质变次数的角色侧记录；未设置时按 0 次处理，供 CU-14 计算斗气斩核心等级上限。
   - `UnitProgress.unlocked_combat_resource_ids` 是角色侧 HP / 体力 / MP / 斗气 HUD 展示解锁的正式记录；HP 与体力默认解锁，MP / 斗气由 progression 规则按已学习技能消耗写入。
 - 主要职责：
   - 定义 party / member / progression / reward 数据模型。
@@ -796,7 +807,26 @@ HeadlessGameTestSession
   - `scripts/player/progression/profession_active_condition.gd`
   - `scripts/player/progression/profession_promotion_record.gd`
   - `scripts/player/progression/profession_content_registry.gd`
+  - `scripts/player/progression/identity_content_registry_base.gd`
+  - `scripts/player/progression/race_content_registry.gd`
+  - `scripts/player/progression/subrace_content_registry.gd`
+  - `scripts/player/progression/race_trait_content_registry.gd`
+  - `scripts/player/progression/age_content_registry.gd`
+  - `scripts/player/progression/bloodline_content_registry.gd`
+  - `scripts/player/progression/ascension_content_registry.gd`
+  - `scripts/player/progression/stage_advancement_content_registry.gd`
   - `scripts/player/progression/attribute_modifier.gd`
+  - `scripts/player/progression/race_def.gd`
+  - `scripts/player/progression/subrace_def.gd`
+  - `scripts/player/progression/race_trait_def.gd`
+  - `scripts/player/progression/racial_granted_skill.gd`
+  - `scripts/player/progression/age_profile_def.gd`
+  - `scripts/player/progression/age_stage_rule.gd`
+  - `scripts/player/progression/bloodline_def.gd`
+  - `scripts/player/progression/bloodline_stage_def.gd`
+  - `scripts/player/progression/ascension_def.gd`
+  - `scripts/player/progression/ascension_stage_def.gd`
+  - `scripts/player/progression/stage_advancement_modifier.gd`
   - `scripts/player/progression/derived_attribute_rule.gd`
   - `scripts/player/progression/achievement_def.gd`
   - `scripts/player/progression/achievement_reward_def.gd`
@@ -805,15 +835,27 @@ HeadlessGameTestSession
   - `scripts/player/progression/progression_data_utils.gd`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
+  - `data/configs/races/*.tres`
+  - `data/configs/subraces/*.tres`
+  - `data/configs/race_traits/*.tres`
+  - `data/configs/age_profiles/*.tres`
+  - `data/configs/bloodlines/*.tres`
+  - `data/configs/ascensions/*.tres`
+  - `data/configs/stage_advancements/*.tres`
 - 真相源：
   - 技能、职业、条件、修正器、achievement、quest 的静态定义与 seed 内容。
+  - 种族、亚种族、共用身份 trait、种族授予技能、年龄阶段、血脉、升华与长期阶段推进修正器的静态定义。
 - 主要职责：
   - 定义 progression 语义，不直接执行业务流程。
+  - 身份内容资源只持有 Godot Resource 配置字段；不拥有 `PartyMemberState`、存档 schema、UI、battle runtime 或正式 `.tres` 内容。
   - `SkillContentRegistry` 负责扫描 `data/configs/skills/*.tres`，并报告 skill_id、嵌套战斗资源结构与基础 schema 相关的静态错误；warrior / archer / mage 正式技能 seed 现在都以这些 SkillDef 资源为真相源，`DesignSkillCatalog` 代码承载路径已全部下线。
   - `SkillDef` 只持有 `level_description_template + level_description_configs` 等描述配置数据；等级说明渲染由 CU-14 的 `SkillLevelDescriptionFormatter` 承担，避免资源类反向承载 UI 文本生成逻辑。
   - `CombatSkillDef` 的命中修正字段是 `attack_roll_bonus`，并可通过 `level_overrides` 按技能等级覆盖消耗 / 冷却；战斗熟练度触发方式由 `mastery_trigger_mode` / `mastery_amount_mode` 配置，runtime 只读取配置和本次结算结果判断是否入账；`CombatEffectDef` 可用 `min_skill_level` / `max_skill_level` 表达分级效果，可用 `trigger_event` 表达大成功等结算事件条件，不再持有攻击 / 防御属性缩放字段，伤害类型通过 `damage_tag` 表达，完全免疫、减半与易伤等承伤档位通过状态参数 `mitigation_tier` 表达，实际命中、触发过滤与伤害公式归 CU-16 执行。
+  - `SkillDef.dynamic_max_level_stat_id / dynamic_max_level_base / dynamic_max_level_per_stat` 配置运行时动态等级上限；`SkillDef.get_mastery_required_for_level()` 在动态技能上限超过 `mastery_curve` 时按最后两个熟练度阈值的差值继续外推；常规技能仍由 `max_level == mastery_curve.size()` 的资源校验约束。
   - `ProfessionContentRegistry` 负责扫描 `data/configs/professions/*.tres`，并报告 profession_id、技能/职业引用与 rank requirement 相关的静态错误。
-  - `ProgressionContentRegistry` 负责聚合 skill/profession registry，并汇总 skill/profession registry 的静态校验结果；主动技能内容必须由 `data/configs/skills/*.tres` 的 `SkillDef` 资源提供，`charge` 不再由 registry 代码构造注入。
+  - `ProgressionContentRegistry` 负责聚合 skill/profession registry 与身份子 registry，并汇总这些 registry 的静态校验结果；主动技能内容必须由 `data/configs/skills/*.tres` 的 `SkillDef` 资源提供，`charge` 不再由 registry 代码构造注入。
+  - `ProgressionContentRegistry` 也是身份内容 Phase 2 跨表校验 owner：校验 race / subrace / age / trait / racial_granted_skill 引用、identity grant skill learn_source 匹配、bloodline / ascension stage 互引与全局 stage_id 唯一、ascension.allowed_bloodline_ids、stage_advancement applies_to_* / max_stage_id、damage_resistances 与 body_size_category。不要把这些 sibling registry 交叉引用规则下沉到身份子 registry。
+  - 身份子 registry 只负责目录扫描和 Phase 1 本表内校验：id 非空、重复 id、字段类型、数组元素类型与资源自有枚举值；它们不查询 sibling registry，不做跨表引用校验。
   - Fortuna guidance 这类剧情门票 achievement 现在允许无奖励定义；正式效果由 rank gate 或剧情脚本消费，不强制进入 reward queue。
   - 做静态内容校验。
 - 邻接单元：
@@ -838,6 +880,7 @@ HeadlessGameTestSession
   - `scripts/systems/progression\profession_rule_service.gd`
   - `scripts/systems/progression\profession_assignment_service.gd`
   - `scripts/systems/progression\skill_merge_service.gd`
+  - `scripts/systems/progression\skill_effective_max_level_rules.gd`
   - `scripts/systems/progression\skill_level_description_formatter.gd`
   - `scripts/systems/attributes\attribute_service.gd`
   - `scripts/systems/progression\attribute_growth_service.gd`
@@ -857,6 +900,7 @@ HeadlessGameTestSession
   - `AttributeService` 的战斗属性真相源是 `attack_bonus`、单一展示用 `armor_class`，以及内部 AC 组件 `armor_ac_bonus / shield_ac_bonus / dodge_bonus / deflection_bonus`；旧物理 / 魔法攻击、防御、命中、闪避属性不再进入正式快照。
   - `AttributeService` 会把 `action_threshold` 纳入角色 attribute snapshot，默认角色行动阈值为 `30 TU`，并按 `5 TU` 粒度归一，供战斗时间轴直接消费。
   - `AttributeService.STAMINA_MAX` 的正式公式是 `24 + 5*constitution + strength + agility`；`ProgressionService.refresh_runtime_state()` 会按已学习 / 职业授予技能的有效 MP / Aura 消耗同步 `UnitProgress.unlocked_combat_resource_ids`。
+  - `SkillEffectiveMaxLevelRules` 统一计算技能有效最大等级：先按 `SkillDef.dynamic_max_level_*` 算核心动态上限，再应用 `SkillDef.non_core_max_level`；斗气斩资源配置为 `7 + 2 * UnitBaseAttributes.custom_stats[&"aura_transformation_count"]`。
   - `CharacterCreationService` 持有建卡 reroll → `hidden_luck_at_birth` 的纯函数映射，以及通过 `AttributeService` 写回受保护 custom stat 的最小烘焙入口。
 - 邻接单元：
   - CU-11
@@ -941,7 +985,7 @@ HeadlessGameTestSession
   - `BattleRuntimeModule.start_battle()` 只从 terrain generator 输出的非空 `terrain_profile_id` 初始化 `BattleState.terrain_profile_id`；`battle_terrain_profile` 是开战 context 传给 generator 的输入，不作为 state 字段回填来源。
   - `BattleUnitFactory` 构建 / 刷新友军单位时先把 `PartyMemberState.equipment_state` 复制到 `BattleUnitState.equipment_view`，后续 attribute snapshot 与 weapon projection 刷新都以这份 battle-local 装备 view 为输入；友军构建 context 只接受 `ally_member_ids`，`action_threshold` 仍写入 `BattleUnitState.action_threshold`，正式主角初始默认值为 `30 TU`。
   - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
-  - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有 battle-local `equipment_view`、武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足 `requires_weapon`，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前近战武器伤害类型的近战技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
+  - 武器技能射程由 `BattleRangeService` 统一从 `BattleUnitState.weapon_attack_range` 读取，并由 `BattleRuntimeModule` / selection / HUD / spawn reachability 共用；`BattleUnitState` 同时持有 battle-local `equipment_view`、武器来源 kind（无武器 / 空手 / 天生武器 / 装备武器）、`weapon_profile_type_id`、一手骰、双手骰、versatile、当前握法与 `weapon_physical_damage_tag`。技能效果 `params.requires_weapon = true` 表达“必须装备任意有效武器”；`CombatSkillDef.required_weapon_families` 表达“必须装备指定武器家族”，非空时同时要求装备武器且当前 `weapon_family` 命中列表；空手与天生武器可以提供攻击射程 / 伤害类型投影，但不能满足这些装备武器门槛，不参与武器熟练 / 武器精通；`params.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。需要当前武器伤害类型的技能不再从技能资源、1 格保底或旧 attribute snapshot 字段推断可施放距离；`archer_range_up` 这类状态修正只在有效射程读取层叠加，不写回武器投影或 weapon profile。
   - `BattleState.party_backpack_view` 是开战时从 `PartyState.warehouse_state` 复制出的 battle-local 队伍共享背包 view；`BattleUnitState.equipment_view` 是每个友军开战时从 `PartyMemberState.equipment_state` 复制出的 battle-local 装备 view，并保留 `entry_slot -> EquipmentEntryState(occupied_slot_ids, equipment_instance)` 结构。战斗内后续背包 / 换装命令必须只改这两份 view，不直接访问据点共享仓库或直接 mutate party 背包 / 成员装备状态；`BattleRuntimeModule` 的 `TYPE_CHANGE_EQUIPMENT` 事务从 `ItemDef` 解析主手双手武器、副手装备与 versatile 握法联动，在副本 view 上完成容量与实例唯一所有权校验，并移动完整 `EquipmentInstanceState` 以保留稀有度 / 耐久 / 磨损字段，成功后才提交并按一次命令扣 `2 AP`。当前仍不扩 battle save payload，战斗中存档继续依赖现有 save lock 不支持；`GameSession.save_game_state()` 在 lock 中只标记 dirty，`flush_game_state()` 返回 busy，解锁后再统一持久化。
   - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
   - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
@@ -1039,7 +1083,7 @@ HeadlessGameTestSession
   - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，且只有 `params.add_weapon_dice = true` 的 damage effect 才额外读取当前武器骰。`physical` damage 不会自动加武器骰，旧裸武器字段也没有 fallback。之后再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 或 `params.use_weapon_physical_damage_tag` 的当前武器投影提供；状态伤害匹配、DR 绕过与低血倍率只读取正式 `params.damage_tag / dr_bypass_tag / hp_ratio_threshold`。
   - `BattleDamageResolver` 对暴击采用额外再掷一组 weapon dice / skill dice 的语义；带 `CombatEffectDef.trigger_event` 的效果会在当前结算上下文中先做事件过滤，例如 `critical_hit` 只在大成功命中后应用；`damage_dice_high_total_roll`、`skill_damage_dice_is_max`、`weapon_damage_dice_is_max` 及其 reason 都按每个 damage event 独立计算，没有对应骰组时必须为 false，不能因 `0 == 0` 触发。
   - `forced_move` effect 的位移模式与距离只读取 `CombatEffectDef.forced_move_mode / forced_move_distance`；旧 `params.mode / params.distance` 属于无效 skill schema，不再作为运行时 fallback。
-  - `params.requires_weapon = true` 才表达“必须装备武器”；空手与天生武器可以提供攻击射程 / 伤害骰，但不能满足 `requires_weapon`，也不参与武器熟练 / 武器精通。
+  - `params.requires_weapon = true` 表达“必须装备任意有效武器”；`CombatSkillDef.required_weapon_families` 表达“必须装备指定武器家族”。空手与天生武器可以提供攻击射程 / 伤害骰，但不能满足这些装备武器门槛，也不参与武器熟练 / 武器精通。
   - `BattleDamagePreviewRangeService` 只负责纯预览的非暴击基础伤害范围：按 `power + add_weapon_dice 当前武器骰 + 技能骰 + dice_bonus` 汇总多段 damage effect；技能骰来源只接受 `params.dice_count / dice_sides / dice_bonus`，旧 `params.damage_dice_count / damage_dice_sides / damage_dice_bonus` 属于无效 skill schema；不调用 `BattleDamageResolver`，不消费 RNG，也不读取 target/status/shield/mastery/report。
   - `BattleDamageResolver` 现在还消费 `LowLuckRelicRules` 的 battle-local 遗物逻辑：逆命护符会把首次 `critical_fail` 降级为普通 miss 并施加 2 回合输出下降，黑星楔钉会在首击忽视部分 guard 后于未击杀时给自己挂 1 回合 exposed，血债披肩会在低血时减伤；这些 battle-local 首次触发锁不要散写到 skill / item resource。
 - `BattleFateAttackRules` 现在是 battle attack roll 语义的共享 helper，负责统一“命中线 / 封暴击状态 / d20 是否命中”的纯判定；`BattleDamageResolver` 与 `BattleHitResolver` 都必须复用它，避免 runtime 执行与 preview/AI 评分再次分叉。
@@ -1211,6 +1255,10 @@ HeadlessGameTestSession
   - `tests/progression/run_skill_schema_regression.gd`
   - `tests/progression/run_level_description_template_regression.gd`
   - `tests/progression/run_profession_schema_regression.gd`
+  - `tests/progression/run_identity_sub_registry_schema_regression.gd`
+  - `tests/progression/run_identity_registry_phase1_regression.gd`
+  - `tests/progression/run_identity_registry_phase2_regression.gd`
+  - `tests/progression/run_race_trait_content_registry_regression.gd`
   - `tests/progression/run_luck_getter_regression.gd`
   - `tests/progression/run_protected_custom_stat_regression.gd`
   - `tests/progression/run_party_state_fate_regression.gd`
@@ -1292,6 +1340,7 @@ HeadlessGameTestSession
     - 暴击额外骰、weapon / skill / high-total dice event 语义
     - versatile / 双手 / 空手 / 天生武器投影
     - `params.requires_weapon` 只接受 equipped weapon，不接受 unarmed / natural weapon
+    - `CombatSkillDef.required_weapon_families` 可把技能施放限制到 bow / sword 等指定装备武器家族
   - battle spawn reachability：
     - `BattleSpawnReachabilityService` 脚本存在性
     - 深水完全隔断时敌方出生点判定 invalid 并返回可定位 details
@@ -1324,6 +1373,7 @@ HeadlessGameTestSession
     - achievement registry seed 校验
     - 建卡 reroll -> `hidden_luck_at_birth` 档位边界与溢出回退
     - profession / combat skill seed 内容
+    - identity 子 registry Phase 1 本表 schema 与 `ProgressionContentRegistry` Phase 2 跨表引用校验
     - member-scoped achievement progress
     - pending character reward 顺序与序列化
     - character reward 序列化与展示
@@ -1333,7 +1383,7 @@ HeadlessGameTestSession
     - battle / quest runtime 桥的最小回写链
     - runtime snapshot / text snapshot 的日志分段稳定性
   - resource validation runner：
-    - 统一汇总 profession / skill / enemy / item / recipe / quest 的静态校验输出
+    - 统一汇总 profession / skill / identity / enemy / item / recipe / quest 的静态校验输出
     - 统一汇总 world preset / settlement bundle / facility / wild spawn 静态校验输出
     - 覆盖 missing id / duplicate id / invalid reference 三类夹具回归
     - 输出按 domain 分组，便于 headless 回归与本地排障直接复用
