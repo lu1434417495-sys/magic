@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
+const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 
 var _failures: Array[String] = []
 
@@ -133,7 +134,7 @@ func _overwrite_active_save_payload(game_session, payload: Dictionary) -> int:
 	var save_path: String = game_session.get_active_save_path()
 	if save_path.is_empty():
 		return ERR_INVALID_PARAMETER
-	var save_file := FileAccess.open(save_path, FileAccess.WRITE)
+	var save_file := FileAccess.open_compressed(save_path, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
 	if save_file == null:
 		return FileAccess.get_open_error()
 	save_file.store_var(payload, false)

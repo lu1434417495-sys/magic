@@ -31,7 +31,8 @@ const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/
 const SAVE_DIRECTORY := "user://saves"
 const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
 const SAVE_VERSION := 5
-const SAVE_INDEX_VERSION := 1
+const SAVE_INDEX_VERSION := 3
+const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 const MAX_ACTIVE_MEMBER_COUNT := 4
 const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "item", "recipe", "enemy", "world"]
 const RANDOM_START_SKILL_TIER_BASIC: StringName = &"basic"
@@ -576,7 +577,7 @@ func _persist_game_state() -> int:
 		now
 	)
 
-	var save_file := FileAccess.open(_active_save_path, FileAccess.WRITE)
+	var save_file := FileAccess.open_compressed(_active_save_path, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
 	if save_file == null:
 		var open_error := FileAccess.get_open_error()
 		_push_session_error("session.save.persist.open_failed", "Failed to open save file %s. Error: %s" % [_active_save_path, open_error], {
@@ -705,7 +706,7 @@ func _read_save_payload(save_path: String, emit_errors: bool = true) -> Dictiona
 			})
 		return {"error": ERR_DOES_NOT_EXIST}
 
-	var save_file := FileAccess.open(save_path, FileAccess.READ)
+	var save_file := FileAccess.open_compressed(save_path, FileAccess.READ, SAVE_FILE_COMPRESSION_MODE)
 	if save_file == null:
 		var open_error := FileAccess.get_open_error()
 		if emit_errors:
@@ -745,9 +746,12 @@ func _load_save_index_entries() -> Array[Dictionary]:
 	if not FileAccess.file_exists(SAVE_INDEX_PATH):
 		return _rebuild_save_index_entries_from_save_files()
 
-	var index_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.READ)
+	var index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.READ, SAVE_FILE_COMPRESSION_MODE)
 	if index_file == null:
-		return _rebuild_save_index_entries_from_save_files()
+		var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
+		if not rebuilt_entries.is_empty():
+			_write_save_index(rebuilt_entries)
+		return rebuilt_entries
 
 	var raw_payload = _read_save_index_payload(index_file)
 	index_file.close()
@@ -756,7 +760,7 @@ func _load_save_index_entries() -> Array[Dictionary]:
 	if typeof(raw_payload) == TYPE_DICTIONARY:
 		var raw_payload_dict: Dictionary = raw_payload
 		var index_version_variant: Variant = raw_payload_dict.get("version", null)
-		if not _is_save_index_json_integer_value(index_version_variant) \
+		if not _is_save_index_integer_value(index_version_variant) \
 			or int(index_version_variant) != SAVE_INDEX_VERSION \
 			or typeof(raw_payload_dict.get("saves", null)) != TYPE_ARRAY:
 			var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
@@ -783,30 +787,19 @@ func _write_save_index(entries: Array[Dictionary]) -> int:
 	if ensure_dir_error != OK:
 		return ensure_dir_error
 
-	var index_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.WRITE)
+	var index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
 	if index_file == null:
 		# Save files remain authoritative; the index is a rebuildable cache.
 		return OK
 
 	var normalized_entries := _normalize_save_index_entries(entries)
-	index_file.store_string(JSON.stringify({
-		"version": SAVE_INDEX_VERSION,
-		"saves": _serialize_save_index_entries(normalized_entries),
-	}))
+	index_file.store_var(_build_save_index_payload(normalized_entries), false)
 	index_file.close()
 	return OK
 
 
 func _read_save_index_payload(index_file: FileAccess) -> Variant:
 	return _save_serializer.read_save_index_payload(index_file)
-
-
-func _is_ascii_save_index_buffer(raw_bytes: PackedByteArray) -> bool:
-	return _save_serializer.is_ascii_save_index_buffer(raw_bytes)
-
-
-func _ascii_buffer_to_string(raw_bytes: PackedByteArray) -> String:
-	return _save_serializer.ascii_buffer_to_string(raw_bytes)
 
 
 func _normalize_save_index_entries(raw_entries: Array) -> Array[Dictionary]:
@@ -828,24 +821,16 @@ func _serialize_save_index_entries(entries: Array[Dictionary]) -> Array[Dictiona
 	return _save_serializer.serialize_save_index_entries(entries)
 
 
+func _build_save_index_payload(entries: Array[Dictionary]) -> Dictionary:
+	return _save_serializer.build_save_index_payload(entries)
+
+
 func _deserialize_save_index_entry(raw_entry: Dictionary) -> Dictionary:
 	return _save_serializer.deserialize_save_index_entry(raw_entry)
 
 
-func _is_save_index_json_integer_value(value: Variant) -> bool:
-	return _save_serializer.is_save_index_json_integer_value(value)
-
-
-func _encode_save_index_string(value: String) -> String:
-	if value.is_empty():
-		return ""
-	return Marshalls.raw_to_base64(value.to_utf8_buffer())
-
-
-func _decode_save_index_string(value: String) -> String:
-	if value.is_empty():
-		return ""
-	return Marshalls.base64_to_raw(value).get_string_from_utf8()
+func _is_save_index_integer_value(value: Variant) -> bool:
+	return _save_serializer.is_save_index_integer_value(value)
 
 
 func _rebuild_save_index_entries_from_save_files() -> Array[Dictionary]:
@@ -1054,7 +1039,7 @@ func _build_default_member_state(
 	member_state.control_mode = &"manual"
 	member_state.current_hp = current_hp
 	member_state.current_mp = current_mp
-	member_state.body_size = 1
+	member_state.body_size = 2
 
 	var progression = UNIT_PROGRESS_SCRIPT.new()
 	progression.unit_id = member_id

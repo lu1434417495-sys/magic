@@ -5,6 +5,8 @@ const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_sess
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SAVE_DIRECTORY := "user://saves"
 const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
+const SAVE_INDEX_VERSION := 3
+const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 
 var _failures: Array[String] = []
 
@@ -61,8 +63,12 @@ func _test_corrupt_save_index_recovers_cleanly() -> void:
 		var raw_bytes := index_file.get_buffer(index_file.get_length())
 		index_file.close()
 		_assert_true(not raw_bytes.is_empty(), "恢复后的 save index 不应为空文件。")
-		for byte_value in raw_bytes:
-			_assert_true(int(byte_value) >= 0 and int(byte_value) <= 127, "恢复后的 save index 应写成 ASCII-only JSON。")
+		_assert_true(not _looks_like_json_text(raw_bytes), "恢复后的 save index 不应写成 JSON 文本。")
+		var restored_index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.READ, SAVE_FILE_COMPRESSION_MODE)
+		if restored_index_file != null:
+			var raw_index_payload = restored_index_file.get_var(false)
+			restored_index_file.close()
+			_assert_true(raw_index_payload is Dictionary, "恢复后的 save index 应写成 Godot Variant 二进制 Dictionary。")
 
 	var cleanup_error := int(game_session.clear_persisted_game())
 	_assert_eq(cleanup_error, OK, "测试结束后应能清理 save 目录。")
@@ -133,10 +139,10 @@ func _test_save_index_schema_rejects_old_entry_shapes() -> void:
 	)
 
 	var missing_display_entry := valid_entry.duplicate(true)
-	missing_display_entry.erase("display_name_b64")
+	missing_display_entry.erase("display_name")
 	_assert_true(
 		serializer.deserialize_save_index_entry(missing_display_entry).is_empty(),
-		"缺失 display_name_b64 的旧 save index entry 应直接拒绝。"
+		"缺失 display_name 的 save index entry 应直接拒绝。"
 	)
 
 	var missing_world_size_axis_entry := valid_entry.duplicate(true)
@@ -170,20 +176,20 @@ func _test_save_index_schema_rejects_old_entry_shapes() -> void:
 		"save index entry 不应接受字符串 world_size_cells 轴值。"
 	)
 
-	var non_string_b64_entry := valid_entry.duplicate(true)
-	non_string_b64_entry["display_name_b64"] = 123
+	var non_string_display_entry := valid_entry.duplicate(true)
+	non_string_display_entry["display_name"] = 123
 	_assert_true(
-		serializer.deserialize_save_index_entry(non_string_b64_entry).is_empty(),
-		"save index entry 不应把非字符串 base64 字段转成正式字段。"
+		serializer.deserialize_save_index_entry(non_string_display_entry).is_empty(),
+		"save index entry 不应把非字符串 display_name 字段转成正式字段。"
 	)
 
-	var bad_entry_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.WRITE)
+	var bad_entry_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
 	_assert_true(bad_entry_file != null, "应能写入坏 save index entry 夹具。")
 	if bad_entry_file != null:
-		bad_entry_file.store_string(JSON.stringify({
-			"version": 1,
+		bad_entry_file.store_var(serializer.minimize_save_payload_strings({
+			"version": SAVE_INDEX_VERSION,
 			"saves": [string_timestamp_entry],
-		}))
+		}), false)
 		bad_entry_file.close()
 
 	var rebuilt_from_bad_entry_slots := game_session.list_save_slots()
@@ -200,13 +206,13 @@ func _test_save_index_schema_rejects_old_entry_shapes() -> void:
 	_assert_true(not save_slots.is_empty(), "旧 top-level Array index 被拒绝后，应能从正式 save payload 重建列表。")
 	_assert_save_index_file_uses_current_schema("旧 top-level Array index 被拒绝后")
 
-	var string_version_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.WRITE)
+	var string_version_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
 	_assert_true(string_version_file != null, "应能写入字符串 version 的 save index 夹具。")
 	if string_version_file != null:
-		string_version_file.store_string(JSON.stringify({
-			"version": "1",
+		string_version_file.store_var(serializer.minimize_save_payload_strings({
+			"version": str(SAVE_INDEX_VERSION),
 			"saves": serialized_entries,
-		}))
+		}), false)
 		string_version_file.close()
 
 	var string_version_slots := game_session.list_save_slots()
@@ -234,23 +240,41 @@ func _assert_save_index_file_uses_current_schema(context: String) -> void:
 	_assert_true(index_file != null, "%s应能读取 save index。" % context)
 	if index_file == null:
 		return
-	var raw_text := index_file.get_as_text()
-	index_file.close()
-	var json := JSON.new()
-	_assert_eq(json.parse(raw_text), OK, "%s重建后的 save index 应是 JSON。" % context)
-	if json.data is not Dictionary:
-		_failures.append("%s重建后的 save index 不应继续保持旧 top-level Array shape。" % context)
+	var raw_bytes := index_file.get_buffer(index_file.get_length())
+	_assert_true(not raw_bytes.is_empty(), "%s重建后的 save index 不应为空。" % context)
+	_assert_true(not _looks_like_json_text(raw_bytes), "%s重建后的 save index 不应是 JSON 文本。" % context)
+	index_file.seek(0)
+	var compressed_index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.READ, SAVE_FILE_COMPRESSION_MODE)
+	_assert_true(compressed_index_file != null, "%s重建后的 save index 应能以压缩格式打开。" % context)
+	if compressed_index_file == null:
+		index_file.close()
 		return
-	var index_payload := json.data as Dictionary
-	var version_variant: Variant = index_payload.get("version", null)
+	var index_payload_variant = compressed_index_file.get_var(false)
+	compressed_index_file.close()
+	index_file.close()
+	if index_payload_variant is not Dictionary:
+		_failures.append("%s重建后的 save index 应是 Godot Variant 二进制 Dictionary。" % context)
+		return
+	var index_payload := index_payload_variant as Dictionary
+	var version_variant: Variant = index_payload.get(&"version", null)
 	_assert_true(version_variant is not String, "%s重建后的 save index version 不应保留字符串数字。" % context)
-	_assert_eq(int(version_variant), 1, "%s重建后的 save index 应写入当前 version。" % context)
-	_assert_true(index_payload.get("saves", null) is Array, "%s重建后的 save index 应使用当前 saves 数组字段。" % context)
-	for raw_entry in index_payload.get("saves", []):
+	_assert_eq(int(version_variant), SAVE_INDEX_VERSION, "%s重建后的 save index 应写入当前 version。" % context)
+	_assert_true(index_payload.get(&"saves", null) is Array, "%s重建后的 save index 应使用当前 saves 数组字段。" % context)
+	for raw_entry in index_payload.get(&"saves", []):
 		if raw_entry is not Dictionary:
 			_failures.append("%s重建后的 save index saves 只能包含 Dictionary entry。" % context)
 			continue
 		var entry := raw_entry as Dictionary
-		_assert_true(entry.has("display_name_b64"), "%s重建后的 save index 不应保留缺字段 entry。" % context)
-		_assert_true(entry.get("created_at_unix_time") is not String, "%s重建后的 save index 不应保留字符串 created_at。" % context)
-		_assert_true(entry.get("updated_at_unix_time") is not String, "%s重建后的 save index 不应保留字符串 updated_at。" % context)
+		_assert_true(entry.has(&"display_name"), "%s重建后的 save index 不应保留缺字段 entry。" % context)
+		_assert_true(not entry.has(&"display_name_b64"), "%s重建后的 save index 不应继续使用 base64 JSON 字段。" % context)
+		_assert_true(entry.get(&"created_at_unix_time") is not String, "%s重建后的 save index 不应保留字符串 created_at。" % context)
+		_assert_true(entry.get(&"updated_at_unix_time") is not String, "%s重建后的 save index 不应保留字符串 updated_at。" % context)
+
+
+func _looks_like_json_text(raw_bytes: PackedByteArray) -> bool:
+	for byte_value in raw_bytes:
+		var byte_int := int(byte_value)
+		if byte_int == 9 or byte_int == 10 or byte_int == 13 or byte_int == 32:
+			continue
+		return byte_int == 123 or byte_int == 91
+	return false

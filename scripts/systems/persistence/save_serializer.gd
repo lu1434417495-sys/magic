@@ -16,11 +16,11 @@ const SAVE_META_REQUIRED_KEYS := [
 	"updated_at_unix_time",
 ]
 const SAVE_INDEX_REQUIRED_KEYS := [
-	"save_id_b64",
-	"display_name_b64",
-	"world_preset_id_b64",
-	"world_preset_name_b64",
-	"generation_config_path_b64",
+	"save_id",
+	"display_name",
+	"world_preset_id",
+	"world_preset_name",
+	"generation_config_path",
 	"world_size_cells",
 	"created_at_unix_time",
 	"updated_at_unix_time",
@@ -31,7 +31,7 @@ var _world_preset_registry = null
 var _party_state_script = null
 var _encounter_anchor_script = null
 var _save_version := 5
-var _save_index_version := 1
+var _save_index_version := 3
 var _max_active_member_count := 4
 
 
@@ -41,7 +41,7 @@ func setup(
 	party_state_script,
 	encounter_anchor_script,
 	save_version: int = 5,
-	save_index_version: int = 1,
+	save_index_version: int = 3,
 	max_active_member_count: int = 4
 ) -> void:
 	_progression_serialization = progression_serialization
@@ -70,7 +70,7 @@ func build_save_payload(
 	party_state,
 	saved_at_unix_time: int
 ) -> Dictionary:
-	return {
+	var payload := {
 		"version": _save_version,
 		"save_id": active_save_id,
 		"generation_config_path": generation_config_path,
@@ -79,6 +79,7 @@ func build_save_payload(
 		"meta": _build_meta_payload(saved_at_unix_time),
 		"save_slot_meta": active_save_meta.duplicate(true),
 	}
+	return minimize_save_payload_strings(payload)
 
 
 func _build_world_state_payload(world_data: Dictionary, player_coord: Vector2i, player_faction_id: String) -> Dictionary:
@@ -102,13 +103,14 @@ func decode_v5_payload(
 	generation_config,
 	_save_meta: Dictionary
 ) -> Dictionary:
-	if not payload.has("version") or payload.get("version") is not int:
+	var payload_data := restore_minimized_save_payload_strings(payload)
+	if not payload_data.has("version") or payload_data.get("version") is not int:
 		return {"error": ERR_INVALID_DATA}
-	var save_version := int(payload.get("version"))
+	var save_version := int(payload_data.get("version"))
 	if save_version != _save_version:
 		return {"error": ERR_INVALID_DATA}
 
-	var world_state_data = payload.get("world_state", {})
+	var world_state_data = payload_data.get("world_state", {})
 	if typeof(world_state_data) != TYPE_DICTIONARY:
 		return {"error": ERR_INVALID_DATA}
 	var world_state: Dictionary = world_state_data
@@ -122,18 +124,18 @@ func decode_v5_payload(
 	if world_data.is_empty():
 		return {"error": ERR_INVALID_DATA}
 
-	if not payload.has("save_id") or payload.get("save_id") is not String:
+	if not payload_data.has("save_id") or payload_data.get("save_id") is not String:
 		return {"error": ERR_INVALID_DATA}
-	var payload_save_id := String(payload.get("save_id", "")).strip_edges()
+	var payload_save_id := String(payload_data.get("save_id", "")).strip_edges()
 	if payload_save_id.is_empty():
 		return {"error": ERR_INVALID_DATA}
-	if not payload.has("generation_config_path") or payload.get("generation_config_path") is not String:
+	if not payload_data.has("generation_config_path") or payload_data.get("generation_config_path") is not String:
 		return {"error": ERR_INVALID_DATA}
-	var payload_generation_config_path := String(payload.get("generation_config_path", "")).strip_edges()
+	var payload_generation_config_path := String(payload_data.get("generation_config_path", "")).strip_edges()
 	if payload_generation_config_path.is_empty() or payload_generation_config_path != generation_config_path:
 		return {"error": ERR_INVALID_DATA}
 
-	var slot_meta_raw = payload.get("save_slot_meta", null)
+	var slot_meta_raw = payload_data.get("save_slot_meta", null)
 	if typeof(slot_meta_raw) != TYPE_DICTIONARY:
 		return {"error": ERR_INVALID_DATA}
 	var normalized_meta := normalize_save_meta(slot_meta_raw)
@@ -146,12 +148,12 @@ func decode_v5_payload(
 	var player_coord_variant: Variant = world_state.get("player_coord", null)
 	if not _is_supported_vector2i_value(player_coord_variant):
 		return {"error": ERR_INVALID_DATA}
-	if not world_state.has("player_faction_id") or world_state.get("player_faction_id") is not String:
+	if not world_state.has("player_faction_id") or not _is_supported_string_name_value(world_state.get("player_faction_id")):
 		return {"error": ERR_INVALID_DATA}
-	var player_faction_id := String(world_state.get("player_faction_id", "")).strip_edges()
+	var player_faction_id := String(ProgressionDataUtils.to_string_name(world_state.get("player_faction_id", ""))).strip_edges()
 	if player_faction_id.is_empty():
 		return {"error": ERR_INVALID_DATA}
-	var party_state_payload: Variant = payload.get("party_state", null)
+	var party_state_payload: Variant = payload_data.get("party_state", null)
 	if typeof(party_state_payload) != TYPE_DICTIONARY:
 		return {"error": ERR_INVALID_DATA}
 	var deserialized_party_state = _deserialize_party_state(party_state_payload)
@@ -194,19 +196,20 @@ func build_save_meta(
 
 
 func extract_save_meta_from_payload(payload: Dictionary) -> Dictionary:
-	if payload.is_empty():
+	var payload_data := restore_minimized_save_payload_strings(payload)
+	if payload_data.is_empty():
 		return {}
 
-	if not payload.has("save_id") or payload.get("save_id") is not String:
+	if not payload_data.has("save_id") or payload_data.get("save_id") is not String:
 		return {}
-	if not payload.has("generation_config_path") or payload.get("generation_config_path") is not String:
+	if not payload_data.has("generation_config_path") or payload_data.get("generation_config_path") is not String:
 		return {}
-	var save_id := String(payload.get("save_id", "")).strip_edges()
-	var generation_config_path := String(payload.get("generation_config_path", "")).strip_edges()
+	var save_id := String(payload_data.get("save_id", "")).strip_edges()
+	var generation_config_path := String(payload_data.get("generation_config_path", "")).strip_edges()
 	if save_id.is_empty() or generation_config_path.is_empty():
 		return {}
 
-	var raw_meta_variant = payload.get("save_slot_meta", null)
+	var raw_meta_variant = payload_data.get("save_slot_meta", null)
 	if typeof(raw_meta_variant) != TYPE_DICTIONARY:
 		return {}
 	var normalized_meta := normalize_save_meta(raw_meta_variant)
@@ -469,20 +472,7 @@ func serialize_save_index_entries(entries: Array[Dictionary]) -> Array[Dictionar
 		var normalized_entry := normalize_save_meta(entry)
 		if normalized_entry.is_empty():
 			continue
-		var world_size_cells := read_vector2i(normalized_entry.get("world_size_cells", Vector2i.ZERO))
-		serialized_entries.append({
-			"save_id_b64": _encode_save_index_string(String(normalized_entry.get("save_id", ""))),
-			"display_name_b64": _encode_save_index_string(String(normalized_entry.get("display_name", ""))),
-			"world_preset_id_b64": _encode_save_index_string(String(normalized_entry.get("world_preset_id", ""))),
-			"world_preset_name_b64": _encode_save_index_string(String(normalized_entry.get("world_preset_name", ""))),
-			"generation_config_path_b64": _encode_save_index_string(String(normalized_entry.get("generation_config_path", ""))),
-			"world_size_cells": {
-				"x": world_size_cells.x,
-				"y": world_size_cells.y,
-			},
-			"created_at_unix_time": int(normalized_entry.get("created_at_unix_time", 0)),
-			"updated_at_unix_time": int(normalized_entry.get("updated_at_unix_time", 0)),
-		})
+		serialized_entries.append(normalized_entry.duplicate(true))
 	return serialized_entries
 
 
@@ -492,40 +482,7 @@ func deserialize_save_index_entry(raw_entry: Dictionary) -> Dictionary:
 	for required_key in SAVE_INDEX_REQUIRED_KEYS:
 		if not raw_entry.has(required_key):
 			return {}
-	var save_id_variant: Variant = _decode_save_index_string_field(raw_entry, "save_id_b64", false)
-	if save_id_variant == null:
-		return {}
-	var display_name_variant: Variant = _decode_save_index_string_field(raw_entry, "display_name_b64", false)
-	if display_name_variant == null:
-		return {}
-	var world_preset_id_variant: Variant = _decode_save_index_string_field(raw_entry, "world_preset_id_b64", true)
-	if world_preset_id_variant == null:
-		return {}
-	var world_preset_name_variant: Variant = _decode_save_index_string_field(raw_entry, "world_preset_name_b64", false)
-	if world_preset_name_variant == null:
-		return {}
-	var generation_config_path_variant: Variant = _decode_save_index_string_field(raw_entry, "generation_config_path_b64", false)
-	if generation_config_path_variant == null:
-		return {}
-	var world_size_variant: Variant = _read_save_index_vector2i(raw_entry.get("world_size_cells", null))
-	if world_size_variant == null:
-		return {}
-	var created_at_variant: Variant = raw_entry.get("created_at_unix_time", null)
-	if not is_save_index_json_integer_value(created_at_variant):
-		return {}
-	var updated_at_variant: Variant = raw_entry.get("updated_at_unix_time", null)
-	if not is_save_index_json_integer_value(updated_at_variant):
-		return {}
-	return {
-		"save_id": String(save_id_variant),
-		"display_name": String(display_name_variant),
-		"world_preset_id": String(world_preset_id_variant),
-		"world_preset_name": String(world_preset_name_variant),
-		"generation_config_path": String(generation_config_path_variant),
-		"world_size_cells": world_size_variant,
-		"created_at_unix_time": int(created_at_variant),
-		"updated_at_unix_time": int(updated_at_variant),
-	}
+	return normalize_save_meta(raw_entry)
 
 
 func normalize_save_index_entries(raw_entries: Array) -> Array[Dictionary]:
@@ -573,45 +530,120 @@ func upsert_save_meta(entries: Array[Dictionary], save_meta: Dictionary) -> Arra
 	return updated_entries
 
 
+func build_save_index_payload(entries: Array[Dictionary]) -> Dictionary:
+	return minimize_save_payload_strings({
+		"version": _save_index_version,
+		"saves": serialize_save_index_entries(entries),
+	})
+
+
 func read_save_index_payload(index_file: FileAccess) -> Variant:
 	if index_file == null:
 		return null
-	var raw_bytes := index_file.get_buffer(index_file.get_length())
+	var file_length := int(index_file.get_length())
+	if file_length <= 0:
+		return {}
+	var raw_bytes := index_file.get_buffer(file_length)
 	if raw_bytes.is_empty():
 		return {}
-	if not is_ascii_save_index_buffer(raw_bytes):
+	if raw_bytes.size() < 8:
 		return null
-	var raw_text := ascii_buffer_to_string(raw_bytes).strip_edges()
-	if raw_text.is_empty():
+	if is_text_save_index_buffer(raw_bytes):
+		return null
+	index_file.seek(0)
+	var raw_payload = index_file.get_var(false)
+	if raw_payload is not Dictionary:
+		return null
+	return restore_minimized_save_payload_strings(raw_payload)
+
+
+func minimize_save_payload_strings(payload: Dictionary) -> Dictionary:
+	var minimized_payload = _minimize_save_payload_value(payload)
+	if minimized_payload is not Dictionary:
 		return {}
-	var json := JSON.new()
-	if json.parse(raw_text) != OK:
-		return null
-	if json.data is not Dictionary:
-		return null
-	return json.data
+	return minimized_payload
 
 
-func is_ascii_save_index_buffer(raw_bytes: PackedByteArray) -> bool:
+func restore_minimized_save_payload_strings(payload: Dictionary) -> Dictionary:
+	var restored_payload = _restore_minimized_save_payload_value(payload)
+	if restored_payload is not Dictionary:
+		return {}
+	return restored_payload
+
+
+func _minimize_save_payload_value(value: Variant) -> Variant:
+	if value is Dictionary:
+		return _minimize_save_payload_dictionary(value)
+	if value is Array:
+		return _minimize_save_payload_array(value)
+	if _is_supported_string_name_value(value):
+		return ProgressionDataUtils.to_string_name(value)
+	return value
+
+
+func _minimize_save_payload_dictionary(values: Dictionary) -> Dictionary:
+	var minimized_values: Dictionary = {}
+	for raw_key in values.keys():
+		var minimized_key = raw_key
+		if _is_supported_string_name_value(raw_key):
+			minimized_key = ProgressionDataUtils.to_string_name(raw_key)
+		minimized_values[minimized_key] = _minimize_save_payload_value(values[raw_key])
+	return minimized_values
+
+
+func _minimize_save_payload_array(values: Array) -> Array:
+	var minimized_values: Array = []
+	for item in values:
+		minimized_values.append(_minimize_save_payload_value(item))
+	return minimized_values
+
+
+func _restore_minimized_save_payload_value(value: Variant) -> Variant:
+	if value is Dictionary:
+		return _restore_minimized_save_payload_dictionary(value)
+	if value is Array:
+		return _restore_minimized_save_payload_array(value)
+	if typeof(value) == TYPE_STRING_NAME:
+		return String(value)
+	return value
+
+
+func _restore_minimized_save_payload_dictionary(values: Dictionary) -> Dictionary:
+	var restored_values: Dictionary = {}
+	for raw_key in values.keys():
+		var restored_key = raw_key
+		if typeof(raw_key) == TYPE_STRING_NAME:
+			restored_key = String(raw_key)
+		restored_values[restored_key] = _restore_minimized_save_payload_value(values[raw_key])
+	return restored_values
+
+
+func _restore_minimized_save_payload_array(values: Array) -> Array:
+	var restored_values: Array = []
+	for item in values:
+		restored_values.append(_restore_minimized_save_payload_value(item))
+	return restored_values
+
+
+func _is_supported_string_name_value(value: Variant) -> bool:
+	var value_type := typeof(value)
+	return value_type == TYPE_STRING or value_type == TYPE_STRING_NAME
+
+
+func is_text_save_index_buffer(raw_bytes: PackedByteArray) -> bool:
 	var saw_content := false
+	var all_printable_text := true
 	for byte_value in raw_bytes:
 		var byte_int := int(byte_value)
 		if byte_int == 9 or byte_int == 10 or byte_int == 13 or byte_int == 32:
 			continue
 		if not saw_content:
-			if byte_int != 123:
-				return false
+			if byte_int == 123 or byte_int == 91:
+				return true
 			saw_content = true
-		if byte_int < 0 or byte_int > 127:
-			return false
-	return saw_content
-
-
-func ascii_buffer_to_string(raw_bytes: PackedByteArray) -> String:
-	var builder := ""
-	for byte_value in raw_bytes:
-		builder += char(int(byte_value))
-	return builder
+		if byte_int < 32 or byte_int > 126:
+			all_printable_text = false
+	return saw_content and all_printable_text
 
 
 func read_vector2i(value: Variant, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
@@ -635,7 +667,7 @@ func _is_supported_vector2i_value(value: Variant) -> bool:
 	return false
 
 
-func is_save_index_json_integer_value(value: Variant) -> bool:
+func is_save_index_integer_value(value: Variant) -> bool:
 	if value is int:
 		return true
 	if value is float:
@@ -654,52 +686,6 @@ func sort_save_meta_newest_first(a: Dictionary, b: Dictionary) -> bool:
 			return String(a.get("save_id", "")) > String(b.get("save_id", ""))
 		return created_a > created_b
 	return updated_a > updated_b
-
-
-func _encode_save_index_string(value: String) -> String:
-	if value.is_empty():
-		return ""
-	return Marshalls.raw_to_base64(value.to_utf8_buffer())
-
-
-func _decode_save_index_string(value: String) -> String:
-	if value.is_empty():
-		return ""
-	return Marshalls.base64_to_raw(value).get_string_from_utf8()
-
-
-func _decode_save_index_string_field(raw_entry: Dictionary, key: String, allow_empty: bool) -> Variant:
-	var encoded_variant: Variant = raw_entry.get(key, null)
-	if encoded_variant is not String:
-		return null
-	var encoded := String(encoded_variant)
-	if encoded.is_empty():
-		return "" if allow_empty else null
-	var raw_bytes := Marshalls.base64_to_raw(encoded)
-	if raw_bytes.is_empty():
-		return null
-	var decoded := raw_bytes.get_string_from_utf8()
-	if decoded.is_empty() and not allow_empty:
-		return null
-	return decoded
-
-
-func _read_save_index_vector2i(value: Variant) -> Variant:
-	if value is Vector2i:
-		return value
-	if value is not Dictionary:
-		return null
-	var vector_dict := value as Dictionary
-	if not vector_dict.has("x") or not vector_dict.has("y"):
-		return null
-	var x_variant: Variant = vector_dict.get("x")
-	var y_variant: Variant = vector_dict.get("y")
-	if not is_save_index_json_integer_value(x_variant) or not is_save_index_json_integer_value(y_variant):
-		return null
-	var vector := Vector2i(int(x_variant), int(y_variant))
-	if vector.x <= 0 or vector.y <= 0:
-		return null
-	return vector
 
 
 func _build_save_file_path(save_id: String) -> String:
