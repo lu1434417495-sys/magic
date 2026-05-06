@@ -579,7 +579,8 @@ func resolve_unit_move_path(
 	from_coord: Vector2i,
 	to_coord: Vector2i,
 	max_move_points: int,
-	first_step_cost_discount: int = 0
+	first_step_cost_discount: int = 0,
+	move_cost_provider: Callable = Callable()
 ) -> Dictionary:
 	if state == null:
 		return {
@@ -650,6 +651,8 @@ func resolve_unit_move_path(
 			if not can_unit_step_between_anchors(state, unit_state, current_coord, neighbor_coord):
 				continue
 			var step_cost := get_unit_move_cost(state, unit_state, neighbor_coord)
+			if move_cost_provider.is_valid():
+				step_cost = int(move_cost_provider.call(unit_state, neighbor_coord))
 			if has_discount and first_step_cost_discount > 0:
 				step_cost = maxi(step_cost - first_step_cost_discount, 0)
 			var next_cost := current_cost + step_cost
@@ -696,7 +699,7 @@ func resolve_unit_move_path(
 			"allowed": false,
 			"cost": final_cost,
 			"path": anchor_path,
-			"message": "行动点不足，无法移动。",
+			"message": "移动力不足，无法移动。",
 		}
 	return {
 		"allowed": true,
@@ -1096,6 +1099,10 @@ func _get_jump_size_str_modifier(unit_state: BattleUnitState) -> int:
 			return -JUMP_SIZE_STR_COST * 2
 		BattleUnitState.BODY_SIZE_HUGE:
 			return -JUMP_SIZE_STR_COST * 5
+		BattleUnitState.BODY_SIZE_GARGANTUAN:
+			return -JUMP_SIZE_STR_COST * 8
+		BattleUnitState.BODY_SIZE_BOSS:
+			return -JUMP_SIZE_STR_COST * 8
 		_:
 			return 0
 

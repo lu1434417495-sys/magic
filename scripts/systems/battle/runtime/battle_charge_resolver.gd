@@ -360,7 +360,7 @@ func _duplicate_state_for_preview(state: BattleState) -> BattleState:
 		var unit_state = state.units.get(unit_id_variant) as BattleUnitState
 		if unit_state == null:
 			continue
-		cloned_state.units[unit_id_variant] = BattleUnitState.from_dict(unit_state.to_dict())
+		cloned_state.units[unit_id_variant] = unit_state.clone()
 	cloned_state.ally_unit_ids = state.ally_unit_ids.duplicate()
 	cloned_state.enemy_unit_ids = state.enemy_unit_ids.duplicate()
 	cloned_state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.from_dict(state.timeline.to_dict()) if state.timeline != null else BATTLE_TIMELINE_STATE_SCRIPT.new()

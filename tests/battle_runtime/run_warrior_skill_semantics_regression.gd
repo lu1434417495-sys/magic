@@ -235,7 +235,9 @@ func _test_heavy_strike_level_scaling_data_applies() -> void:
 	_assert_eq(level_three_effects.size(), 2, "3级重击应启用伤害和破甲效果。")
 	_assert_eq(int(level_three_effects[0].params.get("dice_sides", 0)), 8, "3级重击伤害应为 1d8。")
 	_assert_eq(level_three_effects[1].status_id, &"armor_break", "3级重击应启用 armor_break。")
-	_assert_eq(int(skill_def.combat_profile.attack_roll_bonus), -1, "重击所有等级应共享 -1 命中检定。")
+	_assert_eq(int(skill_def.combat_profile.attack_roll_bonus), 1, "0级重击命中检定应为 +1。")
+	_assert_eq(int(skill_def.combat_profile.get_effective_attack_roll_bonus(3)), 1, "3级重击命中检定应保持 +1。")
+	_assert_eq(int(skill_def.combat_profile.get_effective_attack_roll_bonus(5)), 3, "5级重击命中检定应为 +3。")
 	_assert_eq(int(skill_def.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 20, "2级重击体力消耗应降为 20。")
 
 

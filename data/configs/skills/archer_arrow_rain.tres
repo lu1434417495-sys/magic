@@ -6,86 +6,218 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_xmpv1"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8x0sa"]
 
-[sub_resource type="Resource" id="Resource_03erd"]
+[sub_resource type="Resource" id="Resource_dmg"]
 script = ExtResource("3_tx6ou")
 effect_type = &"damage"
-power = 8
+power = 0
 damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
 
-[sub_resource type="Resource" id="Resource_3p7rt"]
+[sub_resource type="Resource" id="Resource_suppression_l0"]
 script = ExtResource("3_tx6ou")
-effect_type = &"status"
-power = 1
-status_id = &"pinned"
-duration_tu = 90
+effect_type = &"terrain_effect"
+max_skill_level = 1
+terrain_effect_id = &"arrow_rain_suppression"
+tick_effect_type = &"movement_cost"
+duration_tu = 30
+tick_interval_tu = 5
+params = {
+"display_name": "箭雨压制",
+"does_not_stack_with_status_id": "slow",
+"move_cost_delta": 1
+}
 
-[sub_resource type="Resource" id="Resource_xkwnj"]
+[sub_resource type="Resource" id="Resource_suppression_l2"]
+script = ExtResource("3_tx6ou")
+effect_type = &"terrain_effect"
+min_skill_level = 2
+max_skill_level = 3
+terrain_effect_id = &"arrow_rain_suppression"
+tick_effect_type = &"movement_cost"
+duration_tu = 35
+tick_interval_tu = 5
+params = {
+"display_name": "箭雨压制",
+"does_not_stack_with_status_id": "slow",
+"move_cost_delta": 1
+}
+
+[sub_resource type="Resource" id="Resource_suppression_l4"]
+script = ExtResource("3_tx6ou")
+effect_type = &"terrain_effect"
+min_skill_level = 4
+max_skill_level = 5
+terrain_effect_id = &"arrow_rain_suppression"
+tick_effect_type = &"movement_cost"
+duration_tu = 40
+tick_interval_tu = 5
+params = {
+"display_name": "箭雨压制",
+"does_not_stack_with_status_id": "slow",
+"move_cost_delta": 1
+}
+
+[sub_resource type="Resource" id="Resource_suppression_l6"]
+script = ExtResource("3_tx6ou")
+effect_type = &"terrain_effect"
+min_skill_level = 6
+terrain_effect_id = &"arrow_rain_suppression"
+tick_effect_type = &"movement_cost"
+duration_tu = 45
+tick_interval_tu = 5
+params = {
+"display_name": "箭雨压制",
+"does_not_stack_with_status_id": "slow",
+"move_cost_delta": 1
+}
+
+[sub_resource type="Resource" id="Resource_v_tl"]
+script = ExtResource("2_382hj")
+variant_id = &"arrow_rain_tl"
+display_name = "左上分布"
+params = {
+"square2_corner": "top_left"
+}
+
+[sub_resource type="Resource" id="Resource_v_tr"]
+script = ExtResource("2_382hj")
+variant_id = &"arrow_rain_tr"
+display_name = "右上分布"
+params = {
+"square2_corner": "top_right"
+}
+
+[sub_resource type="Resource" id="Resource_v_bl"]
+script = ExtResource("2_382hj")
+variant_id = &"arrow_rain_bl"
+display_name = "左下分布"
+params = {
+"square2_corner": "bottom_left"
+}
+
+[sub_resource type="Resource" id="Resource_v_br"]
+script = ExtResource("2_382hj")
+variant_id = &"arrow_rain_br"
+display_name = "右下分布"
+params = {
+"square2_corner": "bottom_right"
+}
+
+[sub_resource type="Resource" id="Resource_v_full"]
+script = ExtResource("2_382hj")
+variant_id = &"arrow_rain_full"
+display_name = "完整范围"
+min_skill_level = 6
+
+[sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_xmpv1")
 skill_id = &"archer_arrow_rain"
 target_mode = &"ground"
-range_value = 5
+range_value = 0
 area_pattern = &"radius"
 area_value = 1
-ap_cost = 2
-stamina_cost = 2
-cooldown_tu = 15
+ap_cost = 1
+stamina_cost = 50
+cooldown_tu = 90
 attack_roll_bonus = -2
-effect_defs = Array[ExtResource("3_tx6ou")]([SubResource("Resource_03erd"), SubResource("Resource_3p7rt")])
+required_weapon_families = Array[StringName]([&"bow"])
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_tx6ou")]([SubResource("Resource_dmg"), SubResource("Resource_suppression_l0"), SubResource("Resource_suppression_l2"), SubResource("Resource_suppression_l4"), SubResource("Resource_suppression_l6")])
+cast_variants = Array[ExtResource("2_382hj")]([SubResource("Resource_v_tl"), SubResource("Resource_v_tr"), SubResource("Resource_v_bl"), SubResource("Resource_v_br"), SubResource("Resource_v_full")])
 
 [resource]
 script = ExtResource("5_8x0sa")
 skill_id = &"archer_arrow_rain"
 display_name = "箭雨"
 icon_id = &"archer_arrow_rain"
-description = "标准范围火力；命中的敌人额外获得 压制，适合拆散抱团站位。"
-level_description_template = "造成{dmg}伤害，命中附加{status}（{duration}TU），射程{range}，半径范围，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "向指定区域倾泻箭雨，对范围内敌人造成武器伤害，并在落点短暂留下压制地带。低等级时为4格方形分布，高等级后扩大为完整范围。"
+level_description_template = "造成{dmg}伤害，留下{zone}（敌方移动成本+1，{duration}TU），射程随武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
 level_description_configs = {
-	"0": {
-		"dmg": "8",
-		"status": "定身",
-		"duration": "90",
-		"range": "5",
-		"area_pattern": "radius",
-		"attack": "-2",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
-	"1": {
-		"dmg": "8",
-		"status": "定身",
-		"duration": "90",
-		"range": "5",
-		"area_pattern": "radius",
-		"attack": "-2",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
-	"2": {
-		"dmg": "8",
-		"status": "定身",
-		"duration": "90",
-		"range": "5",
-		"area_pattern": "radius",
-		"attack": "-2",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
-	"3": {
-		"dmg": "8",
-		"status": "定身",
-		"duration": "90",
-		"range": "5",
-		"area_pattern": "radius",
-		"attack": "-2",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
+"0": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "30",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
+},
+"1": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "30",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
+},
+"2": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "35",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
+},
+"3": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "35",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
+},
+"4": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "40",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
+},
+"5": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "40",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
+},
+"6": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "45",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
+},
+"7": {
+"dmg": "武器伤害",
+"zone": "箭雨压制",
+"duration": "45",
+"attack": "-2",
+"ap": "1",
+"stamina": "50",
+"cooldown": "90"
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+}
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(250, 600, 1200, 2100, 3400, 5000, 7000)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"agility": 80,
+"perception": 40
+}
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])
-combat_profile = SubResource("Resource_xkwnj")
+combat_profile = SubResource("Resource_combat")

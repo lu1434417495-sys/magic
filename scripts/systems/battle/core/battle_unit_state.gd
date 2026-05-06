@@ -8,8 +8,10 @@ extends RefCounted
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
+const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
 const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 const DEFAULT_MOVE_POINTS_PER_TURN := 2
 const DEFAULT_ACTION_THRESHOLD := 120
 const WEAPON_PROFILE_KIND_NONE: StringName = &"none"
@@ -23,10 +25,23 @@ const COMBAT_RESOURCE_HP: StringName = &"hp"
 const COMBAT_RESOURCE_STAMINA: StringName = &"stamina"
 const COMBAT_RESOURCE_MP: StringName = &"mp"
 const COMBAT_RESOURCE_AURA: StringName = &"aura"
-const BODY_SIZE_SMALL := 1
-const BODY_SIZE_MEDIUM := 2
-const BODY_SIZE_LARGE := 3
-const BODY_SIZE_HUGE := 4
+const BODY_SIZE_TINY := BodySizeRules.BODY_SIZE_TINY
+const BODY_SIZE_SMALL := BodySizeRules.BODY_SIZE_SMALL
+const BODY_SIZE_MEDIUM := BodySizeRules.BODY_SIZE_MEDIUM
+const BODY_SIZE_LARGE := BodySizeRules.BODY_SIZE_LARGE
+const BODY_SIZE_HUGE := BodySizeRules.BODY_SIZE_HUGE
+const BODY_SIZE_GARGANTUAN := BodySizeRules.BODY_SIZE_GARGANTUAN
+const BODY_SIZE_BOSS := BodySizeRules.BODY_SIZE_BOSS
+const MITIGATION_TIER_NORMAL: StringName = &"normal"
+const MITIGATION_TIER_HALF: StringName = &"half"
+const MITIGATION_TIER_DOUBLE: StringName = &"double"
+const MITIGATION_TIER_IMMUNE: StringName = &"immune"
+const VALID_MITIGATION_TIERS := {
+	MITIGATION_TIER_NORMAL: true,
+	MITIGATION_TIER_HALF: true,
+	MITIGATION_TIER_DOUBLE: true,
+	MITIGATION_TIER_IMMUNE: true,
+}
 const TO_DICT_FIELDS: Array[String] = [
 	"unit_id",
 	"source_member_id",
@@ -39,6 +54,7 @@ const TO_DICT_FIELDS: Array[String] = [
 	"ai_blackboard",
 	"coord",
 	"body_size",
+	"body_size_category",
 	"footprint_size",
 	"occupied_coords",
 	"is_alive",
@@ -55,6 +71,7 @@ const TO_DICT_FIELDS: Array[String] = [
 	"stamina_recovery_progress",
 	"is_resting",
 	"has_taken_action_this_turn",
+	"can_use_locked_move_points_this_turn",
 	"current_shield_hp",
 	"shield_max_hp",
 	"shield_duration",
@@ -62,12 +79,20 @@ const TO_DICT_FIELDS: Array[String] = [
 	"shield_source_unit_id",
 	"shield_source_skill_id",
 	"shield_params",
-	"current_free_move_points",
 	"action_progress",
 	"action_threshold",
 	"known_active_skill_ids",
 	"known_skill_level_map",
 	"movement_tags",
+	"vision_tags",
+	"proficiency_tags",
+	"save_advantage_tags",
+	"damage_resistances",
+	"race_trait_ids",
+	"subrace_trait_ids",
+	"ascension_trait_ids",
+	"bloodline_trait_ids",
+	"versatility_pick",
 	"weapon_profile_kind",
 	"weapon_item_id",
 	"weapon_profile_type_id",
@@ -103,6 +128,8 @@ var source_member_id: StringName = &""
 var enemy_template_id: StringName = &""
 ## 字段说明：用于界面展示的名称文本，主要服务于玩家阅读和调试观察，不直接参与数值判定。
 var display_name: String = ""
+## 字段说明：战斗渲染贴图，仅用于战斗棋盘上单位 token 显示；运行时由 roster builder / 工厂从模板复制，不参与存档与逻辑判定。
+var battle_sprite_texture: Texture2D = null
 ## 字段说明：记录阵营唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var faction_id: StringName = &""
 ## 字段说明：记录控制模式，用于在不同处理分支之间切换规则或交互方式。
@@ -117,6 +144,8 @@ var ai_blackboard: Dictionary = {}
 var coord: Vector2i = Vector2i.ZERO
 ## 字段说明：记录体型尺寸枚举（1=small, 2=medium, 3=large, 4=huge），战斗与跳跃模块按此分档读取。
 var body_size := BODY_SIZE_MEDIUM
+## 字段说明：记录身份层体型分类，是种族 / 亚种体型投影到战斗单位后的来源标签。
+var body_size_category: StringName = BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM
 ## 字段说明：记录占位尺寸，用于布局、碰撞、绘制或程序化生成时的尺寸计算。
 var footprint_size: Vector2i = Vector2i.ONE
 ## 字段说明：保存占用坐标列表，供范围判定、占位刷新、批量渲染或目标选择复用。
@@ -139,7 +168,7 @@ var current_stamina := 0
 var current_aura := 0
 ## 字段说明：记录当前行动点，会参与运行时状态流转、系统协作和存档恢复。
 var current_ap := 0
-## 字段说明：记录当前剩余行动点，仅供普通移动链路消耗，不再与技能 AP 共用预算。
+## 字段说明：记录当前剩余普通移动力；移动按路径成本扣除，行动或移动后会锁定使用通道，除非本回合获得行动后移动许可。
 var current_move_points := DEFAULT_MOVE_POINTS_PER_TURN
 ## 字段说明：记录战斗中已正式解锁并可在 HUD 展示的资源。
 var unlocked_combat_resource_ids: Array[StringName] = DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS.duplicate()
@@ -149,6 +178,8 @@ var stamina_recovery_progress := 0
 var is_resting := false
 ## 字段说明：标记当前行动窗口内是否已经执行过动作，用于区分直接跳过与行动后结束。
 var has_taken_action_this_turn := false
+## 字段说明：标记本行动窗口是否允许使用已被行动/移动锁定的普通移动力。
+var can_use_locked_move_points_this_turn := false
 ## 字段说明：记录当前剩余护盾值，供伤害在进入生命前优先吸收。
 var current_shield_hp := 0
 ## 字段说明：记录当前护盾池的原始最大值，供刷新、日志与调试使用。
@@ -163,8 +194,6 @@ var shield_source_unit_id: StringName = &""
 var shield_source_skill_id: StringName = &""
 ## 字段说明：为护盾扩展表现或附加参数预留字典，M1 不承载核心数值。
 var shield_params: Dictionary = {}
-## 字段说明：记录当前回合免费移动额度，用于承接击杀刷新等临时机动收益。
-var current_free_move_points := 0
 ## 字段说明：保存行动进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var action_progress := 0
 ## 字段说明：记录该单位进入行动队列所需的 TU 阈值。
@@ -175,6 +204,24 @@ var known_active_skill_ids: Array[StringName] = []
 var known_skill_level_map: Dictionary = {}
 ## 字段说明：记录单位移动标签，供战斗网格规则按地形动态修正通行性与移动消耗。
 var movement_tags: Array[StringName] = []
+## 字段说明：记录身份投影的视觉标签，例如 darkvision。
+var vision_tags: Array[StringName] = []
+## 字段说明：记录身份投影的熟练标签。
+var proficiency_tags: Array[StringName] = []
+## 字段说明：记录身份投影的豁免优势标签。
+var save_advantage_tags: Array[StringName] = []
+## 字段说明：记录身份投影的伤害承受档位，key 为 damage_tag，value 为 mitigation tier。
+var damage_resistances: Dictionary = {}
+## 字段说明：记录 race 来源 trait id。
+var race_trait_ids: Array[StringName] = []
+## 字段说明：记录 subrace 来源 trait id。
+var subrace_trait_ids: Array[StringName] = []
+## 字段说明：记录 ascension 来源 trait id。
+var ascension_trait_ids: Array[StringName] = []
+## 字段说明：记录 bloodline 来源 trait id。
+var bloodline_trait_ids: Array[StringName] = []
+## 字段说明：记录身份自选项投影。
+var versatility_pick: StringName = &""
 ## 字段说明：记录武器投影来源，区分无武器、空手、天生武器和装备武器。
 var weapon_profile_kind: StringName = WEAPON_PROFILE_KIND_NONE
 ## 字段说明：记录当前装备武器的物品标识；空手、天生武器或无武器时保持为空。
@@ -205,6 +252,12 @@ var last_turn_tu := -1
 var status_effects: Dictionary = {}
 ## 字段说明：缓存连击态字典，集中保存可按键查询的运行时数据。
 var combo_state: Dictionary = {}
+## 字段说明：记录每场战斗次数型资源，不进入 battle payload。
+var per_battle_charges: Dictionary = {}
+## 字段说明：记录每回合次数型资源，不进入 battle payload。
+var per_turn_charges: Dictionary = {}
+## 字段说明：记录每回合次数型资源的回合初恢复上限，不进入 battle payload。
+var per_turn_charge_limits: Dictionary = {}
 
 
 func _init() -> void:
@@ -230,6 +283,32 @@ func occupies_coord(target_coord: Vector2i) -> bool:
 
 func has_movement_tag(tag: StringName) -> bool:
 	return movement_tags.has(tag)
+
+
+func set_body_size_category(category: StringName) -> bool:
+	if not BodySizeRules.is_valid_body_size_category(category):
+		return false
+	body_size_category = category
+	body_size = BodySizeRules.get_body_size_for_category(category)
+	refresh_footprint()
+	return true
+
+
+func sync_body_size_category_from_body_size() -> void:
+	body_size_category = BodySizeRules.get_category_for_body_size(body_size)
+
+
+func normalize_body_size_projection() -> void:
+	if BodySizeRules.body_size_matches_category(body_size_category, body_size):
+		refresh_footprint()
+		return
+	if BodySizeRules.is_valid_body_size(body_size):
+		sync_body_size_category_from_body_size()
+	elif BodySizeRules.is_valid_body_size_category(body_size_category):
+		body_size = BodySizeRules.get_body_size_for_category(body_size_category)
+	else:
+		sync_body_size_category_from_body_size()
+	refresh_footprint()
 
 
 func has_status_effect(status_id: StringName) -> bool:
@@ -420,12 +499,32 @@ func erase_status_effect(status_id: StringName) -> void:
 		status_effects.erase(normalized)
 
 
+func reset_per_turn_charges() -> void:
+	per_turn_charges.clear()
+	for charge_key_variant in per_turn_charge_limits.keys():
+		var charge_key := ProgressionDataUtils.to_string_name(charge_key_variant)
+		var charge_limit := maxi(int(per_turn_charge_limits.get(charge_key_variant, 0)), 0)
+		if charge_key == &"" or charge_limit <= 0:
+			continue
+		per_turn_charges[charge_key] = charge_limit
+
+
+func clone() -> BattleUnitState:
+	var cloned_state = BATTLE_UNIT_STATE_SCRIPT.from_dict(to_dict()) as BattleUnitState
+	if cloned_state == null:
+		return null
+	cloned_state.per_battle_charges = per_battle_charges.duplicate(true)
+	cloned_state.per_turn_charges = per_turn_charges.duplicate(true)
+	cloned_state.per_turn_charge_limits = per_turn_charge_limits.duplicate(true)
+	return cloned_state
+
+
 static func get_footprint_size_for_body_size(size_value: int) -> Vector2i:
-	return Vector2i(2, 2) if maxi(size_value, BODY_SIZE_SMALL) >= BODY_SIZE_LARGE else Vector2i.ONE
+	return BodySizeRules.get_footprint_for_body_size(maxi(size_value, BODY_SIZE_SMALL))
 
 
 func to_dict() -> Dictionary:
-	refresh_footprint()
+	normalize_body_size_projection()
 	normalize_shield_state()
 	apply_weapon_projection(_build_current_weapon_projection_payload())
 	sync_default_combat_resource_unlocks()
@@ -448,6 +547,7 @@ func to_dict() -> Dictionary:
 		"ai_blackboard": ai_blackboard.duplicate(true),
 		"coord": coord,
 		"body_size": body_size,
+		"body_size_category": String(body_size_category),
 		"footprint_size": footprint_size,
 		"occupied_coords": occupied_coords.duplicate(),
 		"is_alive": is_alive,
@@ -464,6 +564,7 @@ func to_dict() -> Dictionary:
 		"stamina_recovery_progress": stamina_recovery_progress,
 		"is_resting": is_resting,
 		"has_taken_action_this_turn": has_taken_action_this_turn,
+		"can_use_locked_move_points_this_turn": can_use_locked_move_points_this_turn,
 		"current_shield_hp": current_shield_hp,
 		"shield_max_hp": shield_max_hp,
 		"shield_duration": shield_duration,
@@ -471,12 +572,20 @@ func to_dict() -> Dictionary:
 		"shield_source_unit_id": String(shield_source_unit_id),
 		"shield_source_skill_id": String(shield_source_skill_id),
 		"shield_params": shield_params.duplicate(true),
-		"current_free_move_points": current_free_move_points,
 		"action_progress": action_progress,
 		"action_threshold": action_threshold,
 		"known_active_skill_ids": _string_name_array_to_strings(known_active_skill_ids),
 		"known_skill_level_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_level_map),
 		"movement_tags": _string_name_array_to_strings(movement_tags),
+		"vision_tags": _string_name_array_to_strings(vision_tags),
+		"proficiency_tags": _string_name_array_to_strings(proficiency_tags),
+		"save_advantage_tags": _string_name_array_to_strings(save_advantage_tags),
+		"damage_resistances": _string_name_map_to_string_dict(damage_resistances),
+		"race_trait_ids": _string_name_array_to_strings(race_trait_ids),
+		"subrace_trait_ids": _string_name_array_to_strings(subrace_trait_ids),
+		"ascension_trait_ids": _string_name_array_to_strings(ascension_trait_ids),
+		"bloodline_trait_ids": _string_name_array_to_strings(bloodline_trait_ids),
+		"versatility_pick": String(versatility_pick),
 		"weapon_profile_kind": String(weapon_profile_kind),
 		"weapon_item_id": String(weapon_item_id),
 		"weapon_profile_type_id": String(weapon_profile_type_id),
@@ -506,12 +615,20 @@ static func from_dict(data: Variant):
 
 	var coord_value: Variant = payload["coord"]
 	var body_size_value: Variant = payload["body_size"]
+	var body_size_category_value: Variant = payload["body_size_category"]
 	var footprint_size_value: Variant = payload["footprint_size"]
 	var occupied_coords_value: Variant = payload["occupied_coords"]
 	if coord_value is not Vector2i or body_size_value is not int or footprint_size_value is not Vector2i:
 		return null
 	var body_size_int := int(body_size_value)
 	if body_size_int < 1:
+		return null
+	if not _is_non_empty_string_name_payload_value(body_size_category_value):
+		return null
+	var body_size_category := ProgressionDataUtils.to_string_name(body_size_category_value)
+	if not BodySizeRules.is_valid_body_size_category(body_size_category):
+		return null
+	if BodySizeRules.get_body_size_for_category(body_size_category) != body_size_int:
 		return null
 	var expected_footprint := get_footprint_size_for_body_size(body_size_int)
 	var expected_occupied := _build_occupied_coords(coord_value, expected_footprint)
@@ -548,6 +665,7 @@ static func from_dict(data: Variant):
 		"weapon_profile_type_id",
 		"weapon_family",
 		"weapon_physical_damage_tag",
+		"versatility_pick",
 	]
 	for field_name in optional_string_fields:
 		if not _is_string_name_payload_value(payload[field_name]):
@@ -565,7 +683,6 @@ static func from_dict(data: Variant):
 		"current_shield_hp",
 		"shield_max_hp",
 		"shield_duration",
-		"current_free_move_points",
 		"action_progress",
 		"action_threshold",
 		"weapon_attack_range",
@@ -581,6 +698,7 @@ static func from_dict(data: Variant):
 		"is_alive",
 		"is_resting",
 		"has_taken_action_this_turn",
+		"can_use_locked_move_points_this_turn",
 		"weapon_is_versatile",
 		"weapon_uses_two_hands",
 	]
@@ -599,6 +717,7 @@ static func from_dict(data: Variant):
 		"known_skill_level_map",
 		"status_effects",
 		"combo_state",
+		"damage_resistances",
 	]
 	for field_name in dict_fields:
 		if payload[field_name] is not Dictionary:
@@ -618,6 +737,30 @@ static func from_dict(data: Variant):
 		return null
 	var movement_tags: Variant = _unique_string_name_array_from_payload(payload["movement_tags"])
 	if movement_tags == null:
+		return null
+	var vision_tags: Variant = _unique_string_name_array_from_payload(payload["vision_tags"])
+	if vision_tags == null:
+		return null
+	var proficiency_tags: Variant = _unique_string_name_array_from_payload(payload["proficiency_tags"])
+	if proficiency_tags == null:
+		return null
+	var save_advantage_tags: Variant = _unique_string_name_array_from_payload(payload["save_advantage_tags"])
+	if save_advantage_tags == null:
+		return null
+	var race_trait_ids: Variant = _unique_string_name_array_from_payload(payload["race_trait_ids"])
+	if race_trait_ids == null:
+		return null
+	var subrace_trait_ids: Variant = _unique_string_name_array_from_payload(payload["subrace_trait_ids"])
+	if subrace_trait_ids == null:
+		return null
+	var ascension_trait_ids: Variant = _unique_string_name_array_from_payload(payload["ascension_trait_ids"])
+	if ascension_trait_ids == null:
+		return null
+	var bloodline_trait_ids: Variant = _unique_string_name_array_from_payload(payload["bloodline_trait_ids"])
+	if bloodline_trait_ids == null:
+		return null
+	var damage_resistances: Variant = _damage_resistance_map_from_dict(payload["damage_resistances"])
+	if damage_resistances == null:
 		return null
 
 	var weapon_profile_kind_value := ProgressionDataUtils.to_string_name(payload["weapon_profile_kind"])
@@ -652,6 +795,7 @@ static func from_dict(data: Variant):
 	unit_state.ai_blackboard = payload["ai_blackboard"].duplicate(true)
 	unit_state.coord = coord_value
 	unit_state.body_size = body_size_int
+	unit_state.body_size_category = body_size_category
 	unit_state.footprint_size = footprint_size_value
 	unit_state.occupied_coords = parsed_occupied_coords
 	unit_state.is_alive = payload["is_alive"]
@@ -669,6 +813,7 @@ static func from_dict(data: Variant):
 	unit_state.stamina_recovery_progress = int(payload["stamina_recovery_progress"])
 	unit_state.is_resting = payload["is_resting"]
 	unit_state.has_taken_action_this_turn = payload["has_taken_action_this_turn"]
+	unit_state.can_use_locked_move_points_this_turn = payload["can_use_locked_move_points_this_turn"]
 	unit_state.current_shield_hp = int(payload["current_shield_hp"])
 	unit_state.shield_max_hp = int(payload["shield_max_hp"])
 	unit_state.shield_duration = int(payload["shield_duration"])
@@ -676,12 +821,20 @@ static func from_dict(data: Variant):
 	unit_state.shield_source_unit_id = ProgressionDataUtils.to_string_name(payload["shield_source_unit_id"])
 	unit_state.shield_source_skill_id = ProgressionDataUtils.to_string_name(payload["shield_source_skill_id"])
 	unit_state.shield_params = payload["shield_params"].duplicate(true)
-	unit_state.current_free_move_points = int(payload["current_free_move_points"])
 	unit_state.action_progress = int(payload["action_progress"])
 	unit_state.action_threshold = int(payload["action_threshold"])
 	unit_state.known_active_skill_ids = known_active_skill_ids
 	unit_state.known_skill_level_map = known_skill_level_map
 	unit_state.movement_tags = movement_tags
+	unit_state.vision_tags = vision_tags
+	unit_state.proficiency_tags = proficiency_tags
+	unit_state.save_advantage_tags = save_advantage_tags
+	unit_state.damage_resistances = damage_resistances
+	unit_state.race_trait_ids = race_trait_ids
+	unit_state.subrace_trait_ids = subrace_trait_ids
+	unit_state.ascension_trait_ids = ascension_trait_ids
+	unit_state.bloodline_trait_ids = bloodline_trait_ids
+	unit_state.versatility_pick = ProgressionDataUtils.to_string_name(payload["versatility_pick"])
 	unit_state.weapon_profile_kind = weapon_profile_kind_value
 	unit_state.weapon_item_id = ProgressionDataUtils.to_string_name(payload["weapon_item_id"])
 	unit_state.weapon_profile_type_id = ProgressionDataUtils.to_string_name(payload["weapon_profile_type_id"])
@@ -780,6 +933,23 @@ static func _string_name_int_map_from_dict(data: Variant, require_non_empty_key:
 		if data[key] is not int:
 			return null
 		result[key_name] = int(data[key])
+	return result
+
+
+static func _damage_resistance_map_from_dict(data: Variant):
+	if data is not Dictionary:
+		return null
+	var result: Dictionary = {}
+	for key in data.keys():
+		if not _is_non_empty_string_name_payload_value(key):
+			return null
+		var damage_tag := ProgressionDataUtils.to_string_name(key)
+		if result.has(damage_tag):
+			return null
+		var mitigation_tier := ProgressionDataUtils.to_string_name(data[key])
+		if mitigation_tier == &"" or not VALID_MITIGATION_TIERS.has(mitigation_tier):
+			return null
+		result[damage_tag] = mitigation_tier
 	return result
 
 
@@ -899,6 +1069,13 @@ static func _string_name_array_to_strings(values: Array[StringName]) -> Array[St
 	var results: Array[String] = []
 	for value in values:
 		results.append(String(value))
+	return results
+
+
+static func _string_name_map_to_string_dict(values: Dictionary) -> Dictionary:
+	var results: Dictionary = {}
+	for key in values.keys():
+		results[String(key)] = String(values[key])
 	return results
 
 

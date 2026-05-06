@@ -185,7 +185,7 @@ func _test_selection_sidecar_executes_multistep_reachable_movement() -> void:
 	var click_mode := String(selection.attempt_battle_move_to(Vector2i(1, 1)))
 	_assert_eq(click_mode, "full", "点击两步内可达蓝色地格后应触发完整战斗刷新。")
 	_assert_eq(mover.coord, Vector2i(1, 1), "点击两步内可达蓝色地格后应真正移动到目标终点。")
-	_assert_eq(mover.current_move_points, 0, "多步移动后应累计扣除路径消耗。")
+	_assert_eq(mover.current_move_points, 0, "移动成功后应耗尽本回合移动力。")
 	_assert_eq(mover.current_ap, 2, "普通移动改走行动点后，不应再扣除 AP。")
 
 	_cleanup_test_session(game_session)

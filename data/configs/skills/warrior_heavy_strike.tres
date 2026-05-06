@@ -75,7 +75,7 @@ power = 1
 min_skill_level = 5
 status_id = &"staggered"
 duration_tu = 60
-trigger_event = &"critical_hit"
+trigger_event = &"secondary_hit"
 
 [sub_resource type="Resource" id="Resource_lbg6c"]
 script = ExtResource("2_combat")
@@ -83,10 +83,16 @@ skill_id = &"warrior_heavy_strike"
 range_value = 0
 ap_cost = 1
 stamina_cost = 30
-attack_roll_bonus = -1
+attack_roll_bonus = 1
 level_overrides = {
 2: {
 "stamina_cost": 20
+},
+4: {
+"attack_roll_bonus": 2
+},
+5: {
+"attack_roll_bonus": 3
 }
 }
 mastery_trigger_mode = &"skill_damage_dice_max"
@@ -98,40 +104,40 @@ script = ExtResource("1_skill")
 skill_id = &"warrior_heavy_strike"
 display_name = "重击"
 icon_id = &"warrior_heavy_strike"
-description = "基础近战技能。使用当前近战武器重击目标，攻击检定-1。命中时追加随等级成长的技能伤害骰，高等级附加破甲与失衡效果。"
-level_description_template = "攻击检定{attack}，追加{skill_dice}技能骰。体力消耗{stamina}{{?armor_break}}，命中附加破甲（{armor_duration}TU）{{/armor_break}}{{?stagger}}，大成功时失衡（{stagger_duration}TU）{{/stagger}}"
+description = "基础近战技能。使用当前近战武器重击目标，基础攻击检定+1，高等级提高命中。命中时追加随等级成长的技能伤害骰，高等级附加破甲与失衡效果。"
+level_description_template = "攻击检定{attack}，追加{skill_dice}技能骰。体力消耗{stamina}{{?armor_break}}，命中附加破甲（{armor_duration}TU）{{/armor_break}}{{?stagger}}，二次命中成功时失衡（{stagger_duration}TU）{{/stagger}}"
 level_description_configs = {
 "0": {
-"attack": "-1",
+"attack": "+1",
 "skill_dice": "1D4",
 "stamina": "30"
 },
 "1": {
-"attack": "-1",
+"attack": "+1",
 "skill_dice": "1D6",
 "stamina": "30"
 },
 "2": {
-"attack": "-1",
+"attack": "+1",
 "skill_dice": "1D6",
 "stamina": "20"
 },
 "3": {
-"attack": "-1",
+"attack": "+1",
 "skill_dice": "1D8",
 "stamina": "20",
 "armor_break": "true",
 "armor_duration": "40"
 },
 "4": {
-"attack": "-1",
+"attack": "+2",
 "skill_dice": "1D8",
 "stamina": "20",
 "armor_break": "true",
 "armor_duration": "70"
 },
 "5": {
-"attack": "-1",
+"attack": "+3",
 "skill_dice": "1D8",
 "stamina": "20",
 "armor_break": "true",

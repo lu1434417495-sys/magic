@@ -109,6 +109,8 @@ func _run() -> void:
 	_test_start_battle_accepts_explicit_holdout_push_profile()
 	_test_evaluate_move_rules_survive_stacked_columns()
 	_test_move_command_executes_normally_on_stacked_columns()
+	_test_action_locks_movement_until_post_action_permission()
+	_test_on_kill_move_points_gain_unlocks_post_action_movement()
 	_test_change_equipment_command_validates_target_ap_and_state_atomicity()
 	_test_change_equipment_command_all_slots_use_battle_local_views()
 	_test_change_equipment_preserves_full_instance_fields()
@@ -150,9 +152,10 @@ func _run() -> void:
 	_test_ground_jump_precast_failure_does_not_consume_costs()
 	_test_issue_command_flushes_battle_end_logs_to_state()
 	_test_timeline_tick_uses_per_unit_action_threshold()
+	_test_timeline_ready_units_sort_after_status_resolution()
 	_test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch()
 	_test_status_duration_serialization_preserves_tu_window()
-	_test_status_duration_blocks_target_turn_until_tu_expiry()
+	_test_status_duration_slow_expires_correctly()
 	if _failures.is_empty():
 		print("Battle runtime smoke: PASS")
 		quit(0)
@@ -456,11 +459,12 @@ func _test_move_command_executes_normally_on_stacked_columns() -> void:
 	var state := BattleState.new()
 	state.battle_id = &"move_command_smoke"
 	state.phase = &"unit_acting"
-	state.map_size = Vector2i(2, 1)
+	state.map_size = Vector2i(3, 1)
 	state.timeline = BattleTimelineState.new()
 	state.cells = {
 		Vector2i(0, 0): _build_cell(Vector2i(0, 0)),
 		Vector2i(1, 0): _build_cell(Vector2i(1, 0)),
+		Vector2i(2, 0): _build_cell(Vector2i(2, 0)),
 	}
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 
@@ -477,10 +481,121 @@ func _test_move_command_executes_normally_on_stacked_columns() -> void:
 	command.target_coord = Vector2i(1, 0)
 	var batch := runtime.issue_command(command)
 	_assert_true(unit.coord == Vector2i(1, 0), "issue_command(move) 在真堆叠列地图上仍应更新单位坐标。")
-	_assert_true(unit.current_move_points == 1, "issue_command(move) 在真堆叠列地图上仍应按移动消耗扣除行动点。")
+	_assert_true(unit.current_move_points == 1, "issue_command(move) 成功后应按实际成本扣除并保留剩余移动力。")
 	_assert_true(unit.current_ap == 3, "普通移动改走行动点后，不应再扣除 AP。")
 	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "移动批次仍应记录变更单位。")
 	_assert_true(state.cells[Vector2i(1, 0)].occupant_unit_id == unit.unit_id, "目标地格占位应在移动后同步更新。")
+	command.target_coord = Vector2i(2, 0)
+	var locked_preview := runtime.preview_command(command)
+	_assert_true(not locked_preview.allowed, "普通移动执行一次后，即使还有剩余移动力，也应锁定继续移动。")
+
+
+func _test_action_locks_movement_until_post_action_permission() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var skill := registry.get_skill_defs().get(&"basic_attack") as SkillDef
+	_assert_true(skill != null and skill.combat_profile != null, "行动后移动锁测试前置：basic_attack 应存在。")
+	if skill == null:
+		return
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {skill.skill_id: skill}, {}, {})
+	var state := _build_skill_test_state(Vector2i(4, 2))
+	var unit := _build_unit(&"post_action_move_lock_user", Vector2i(0, 0), 2)
+	unit.known_active_skill_ids = [skill.skill_id]
+	unit.known_skill_level_map = {skill.skill_id: 1}
+	var enemy := _build_enemy_unit(&"post_action_move_lock_enemy", Vector2i(1, 0))
+	state.units = {
+		unit.unit_id: unit,
+		enemy.unit_id: enemy,
+	}
+	state.ally_unit_ids = [unit.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = unit.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "行动后移动锁测试单位应成功放入起点。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "行动后移动锁测试敌人应成功放入目标点。")
+	runtime._state = state
+
+	var skill_command := BattleCommand.new()
+	skill_command.command_type = BattleCommand.TYPE_SKILL
+	skill_command.unit_id = unit.unit_id
+	skill_command.skill_id = skill.skill_id
+	skill_command.target_unit_id = enemy.unit_id
+	skill_command.target_coord = enemy.coord
+	runtime.issue_command(skill_command)
+	_assert_true(unit.has_taken_action_this_turn, "技能行动后应锁定普通移动窗口。")
+	_assert_true(unit.current_move_points > 0, "行动本身不应直接丢弃尚未使用的普通移动力。")
+
+	var move_command := BattleCommand.new()
+	move_command.command_type = BattleCommand.TYPE_MOVE
+	move_command.unit_id = unit.unit_id
+	move_command.target_coord = Vector2i(0, 1)
+	var locked_preview := runtime.preview_command(move_command)
+	_assert_true(not locked_preview.allowed, "先行动后没有特殊效果时不应允许普通移动。")
+	_assert_true(
+		locked_preview.log_lines.size() > 0 and String(locked_preview.log_lines[-1]).contains("移动力被锁定"),
+		"行动后移动被拒绝时应说明移动力已锁定。"
+	)
+
+	unit.can_use_locked_move_points_this_turn = true
+	var unlocked_preview := runtime.preview_command(move_command)
+	_assert_true(unlocked_preview.allowed, "获得行动后移动许可后，应允许使用被锁定的剩余移动力。")
+	runtime.issue_command(move_command)
+	_assert_true(unit.coord == Vector2i(0, 1), "行动后移动许可应能执行一次移动。")
+	_assert_true(unit.current_move_points == 1, "行动后移动成功后应按实际成本扣除并保留剩余普通移动力。")
+	_assert_true(unit.can_use_locked_move_points_this_turn, "行动后移动许可不应被普通移动力扣除。")
+
+
+func _test_on_kill_move_points_gain_unlocks_post_action_movement() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var skill := registry.get_skill_defs().get(&"mage_death_reap") as SkillDef
+	_assert_true(skill != null and skill.combat_profile != null, "行动后移动效果测试前置：mage_death_reap 应存在。")
+	if skill == null:
+		return
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {skill.skill_id: skill}, {}, {})
+	var state := _build_skill_test_state(Vector2i(4, 2))
+	var unit := _build_unit(&"death_reap_move_user", Vector2i(0, 0), 2)
+	unit.current_mp = 3
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 20)
+	unit.known_active_skill_ids = [skill.skill_id]
+	unit.known_skill_level_map = {skill.skill_id: 0}
+	var enemy := _build_enemy_unit(&"death_reap_move_enemy", Vector2i(1, 0))
+	enemy.current_hp = 1
+	var spare_enemy := _build_enemy_unit(&"death_reap_spare_enemy", Vector2i(3, 1))
+	state.units = {
+		unit.unit_id: unit,
+		enemy.unit_id: enemy,
+		spare_enemy.unit_id: spare_enemy,
+	}
+	state.ally_unit_ids = [unit.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id, spare_enemy.unit_id]
+	state.active_unit_id = unit.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "死亡收割行动后移动测试单位应成功放入起点。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "死亡收割行动后移动测试敌人应成功放入目标点。")
+	_assert_true(runtime._grid_service.place_unit(state, spare_enemy, spare_enemy.coord, true), "死亡收割行动后移动测试备用敌人应成功放入战场。")
+	runtime._state = state
+
+	var skill_command := BattleCommand.new()
+	skill_command.command_type = BattleCommand.TYPE_SKILL
+	skill_command.unit_id = unit.unit_id
+	skill_command.skill_id = skill.skill_id
+	skill_command.target_unit_id = enemy.unit_id
+	skill_command.target_coord = enemy.coord
+	var skill_batch := runtime.issue_command(skill_command)
+	_assert_true(unit.has_taken_action_this_turn, "死亡收割施放后应进入行动锁移动状态。 log=%s" % [str(skill_batch.log_lines)])
+	_assert_eq(unit.current_ap, 1, "死亡收割击杀后应返还 1 AP。 log=%s" % [str(skill_batch.log_lines)])
+	_assert_eq(unit.current_move_points, 4, "死亡收割击杀后应把奖励写入普通移动力。 log=%s" % [str(skill_batch.log_lines)])
+	_assert_true(unit.can_use_locked_move_points_this_turn, "死亡收割击杀后应授予行动后移动许可。 log=%s" % [str(skill_batch.log_lines)])
+
+	var move_command := BattleCommand.new()
+	move_command.command_type = BattleCommand.TYPE_MOVE
+	move_command.unit_id = unit.unit_id
+	move_command.target_coord = Vector2i(0, 1)
+	var preview := runtime.preview_command(move_command)
+	_assert_true(preview.allowed, "死亡收割获得的行动后移动额度应能解锁已锁定移动力。 log=%s" % [str(preview.log_lines)])
+	runtime.issue_command(move_command)
+	_assert_true(unit.coord == Vector2i(0, 1), "死亡收割行动后移动额度应允许移动。")
+	_assert_eq(unit.current_move_points, 3, "死亡收割行动后移动执行后应只扣普通移动力的实际路径成本。")
+	_assert_true(unit.can_use_locked_move_points_this_turn, "死亡收割行动后移动许可不应通过移动力数值扣除。")
 
 
 func _test_change_equipment_command_validates_target_ap_and_state_atomicity() -> void:
@@ -863,7 +978,7 @@ func _test_runtime_reports_multistep_reachable_move_coords() -> void:
 
 	var batch := runtime.issue_command(move_command)
 	_assert_true(unit.coord == Vector2i(1, 1), "issue_command(move) 应允许直接移动到两步内可达终点。")
-	_assert_true(unit.current_move_points == 0, "多步移动后应累计扣除整条路径消耗。")
+	_assert_true(unit.current_move_points == 0, "多步移动后应按整条路径成本扣除移动力。")
 	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "多步移动批次应记录变更单位。")
 	_assert_true(state.cells[Vector2i(1, 1)].occupant_unit_id == unit.unit_id, "多步移动后目标地格占位应同步更新。")
 
@@ -971,8 +1086,8 @@ func _test_movement_tags_override_water_traversal_rules() -> void:
 
 	var wade_unit := _build_unit(&"wade_water_unit", Vector2i.ZERO, 3)
 	wade_unit.movement_tags = [BattleTerrainRules.TAG_WADE]
-	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(1, 0)), 1, "涉水单位进入浅水应只消耗 1 点行动点。")
-	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(2, 0)), 2, "涉水单位进入流水应消耗 2 点行动点。")
+	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(1, 0)), 1, "涉水单位进入浅水应只消耗 1 点移动力。")
+	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(2, 0)), 2, "涉水单位进入流水应消耗 2 点移动力。")
 
 	var amphibious_state := BattleState.new()
 	amphibious_state.battle_id = &"amphibious_water_unit"
@@ -2173,6 +2288,8 @@ func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 	var elite := _build_enemy_unit(&"mastery_elite", Vector2i(2, 0))
 	elite.attribute_snapshot.set_value(&"fortune_mark_target", 1)
 	var boss := _build_enemy_unit(&"mastery_boss", Vector2i(3, 0))
+	normal.faction_id = &"hostile"
+	boss.faction_id = &"hostile"
 	boss.attribute_snapshot.set_value(&"fortune_mark_target", 2)
 	boss.attribute_snapshot.set_value(&"boss_target", 1)
 
@@ -2198,7 +2315,7 @@ func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 	_assert_true(batch.changed_unit_ids.has(caster.unit_id), "满骰熟练度技能应正常执行。")
 	_assert_eq(gateway.grants.size(), 1, "满伤害骰命中后应只提交一次聚合熟练度。")
 	if not gateway.grants.is_empty():
-		_assert_eq(int(gateway.grants[0].get("amount", 0)), 6, "普通/精英/BOSS 满骰命中应分别给 1/2/3 熟练度。")
+		_assert_eq(int(gateway.grants[0].get("amount", 0)), 6, "hostile/enemy 敌对阵营的普通/精英/BOSS 满骰命中应分别给 1/2/3 熟练度。")
 
 	var non_dice_skill := _build_ground_damage_dice_skill(&"mastery_no_dice_test", 1, 0, 0)
 	caster.current_ap = 3
@@ -2411,6 +2528,75 @@ func _test_timeline_tick_uses_per_unit_action_threshold() -> void:
 	_assert_true(not state.timeline.ready_unit_ids.has(second_unit.unit_id), "未达到自身阈值的单位不应留在 ready 队列。")
 
 
+func _test_timeline_ready_units_sort_after_status_resolution() -> void:
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, {}, {}, {})
+
+	var state := _build_skill_test_state(Vector2i(5, 1))
+	state.phase = &"timeline_running"
+	state.timeline.tick_interval_seconds = 1.0
+	state.timeline.tu_per_tick = 5
+	var doomed_fast_unit := _build_unit(&"aa_doomed_fast_unit", Vector2i(0, 0), 5)
+	var agile_unit := _build_unit(&"bb_agile_unit", Vector2i(1, 0), 1)
+	var action_unit := _build_unit(&"cc_action_unit", Vector2i(2, 0), 3)
+	var mobile_unit := _build_unit(&"dd_mobile_unit", Vector2i(3, 0), 2)
+	var baseline_unit := _build_unit(&"ee_baseline_unit", Vector2i(4, 0), 2)
+	for unit in [doomed_fast_unit, agile_unit, action_unit, mobile_unit, baseline_unit]:
+		unit.action_threshold = 5
+	_set_turn_priority_stats(doomed_fast_unit, 99, 5, 5)
+	_set_turn_priority_stats(agile_unit, 14, 1, 1)
+	_set_turn_priority_stats(action_unit, 12, 3, 1)
+	_set_turn_priority_stats(mobile_unit, 12, 2, 3)
+	_set_turn_priority_stats(baseline_unit, 12, 2, 1)
+	mobile_unit.faction_id = &"enemy"
+	baseline_unit.faction_id = &"enemy"
+	doomed_fast_unit.current_hp = 1
+	doomed_fast_unit.attribute_snapshot.set_value(&"hp_max", 1)
+	var burning_status := BattleStatusEffectState.new()
+	burning_status.status_id = &"burning"
+	burning_status.source_unit_id = action_unit.unit_id
+	burning_status.power = 1
+	burning_status.stacks = 1
+	burning_status.duration = 5
+	burning_status.tick_interval_tu = 5
+	burning_status.next_tick_at_tu = 5
+	doomed_fast_unit.set_status_effect(burning_status)
+
+	state.units = {
+		doomed_fast_unit.unit_id: doomed_fast_unit,
+		agile_unit.unit_id: agile_unit,
+		action_unit.unit_id: action_unit,
+		mobile_unit.unit_id: mobile_unit,
+		baseline_unit.unit_id: baseline_unit,
+	}
+	state.ally_unit_ids = [
+		doomed_fast_unit.unit_id,
+		agile_unit.unit_id,
+		action_unit.unit_id,
+	]
+	state.enemy_unit_ids = [
+		mobile_unit.unit_id,
+		baseline_unit.unit_id,
+	]
+	for unit_variant in state.units.values():
+		var unit_state := unit_variant as BattleUnitState
+		_assert_true(runtime._grid_service.place_unit(state, unit_state, unit_state.coord, true), "ready 排序测试单位应能成功放入战场：%s" % String(unit_state.unit_id))
+	runtime._state = state
+
+	runtime.advance(1.0)
+	_assert_true(not doomed_fast_unit.is_alive, "时间推进后应先结算持续状态，击倒单位不应进入行动排序。")
+	_assert_eq(state.active_unit_id, agile_unit.unit_id, "同一 tick 就绪时应先按敏捷高的单位行动。")
+	_assert_eq(
+		_extract_string_name_array(state.timeline.ready_unit_ids),
+		[
+			String(action_unit.unit_id),
+			String(mobile_unit.unit_id),
+			String(baseline_unit.unit_id),
+		],
+		"剩余 ready 队列应按行动力、移动力继续降序排序。"
+	)
+
+
 func _test_status_duration_serialization_preserves_tu_window() -> void:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
@@ -2485,46 +2671,40 @@ func _test_status_duration_serialization_preserves_tu_window() -> void:
 	_assert_true(not archer.has_status_effect(&"archer_pre_aim"), "TU 走完后，自施放状态应按时间轴移除。")
 
 
-func _test_status_duration_blocks_target_turn_until_tu_expiry() -> void:
-	var registry := ProgressionContentRegistry.new()
+func _test_status_duration_slow_expires_correctly() -> void:
 	var runtime := BattleRuntimeModule.new()
-	runtime.setup(null, registry.get_skill_defs(), {}, {})
+	runtime.setup(null, {}, {}, {})
 
 	var state := _build_skill_test_state(Vector2i(6, 3))
-	var archer := _build_unit(&"status_pinned_archer", Vector2i(1, 1), 2)
-	archer.current_mp = 6
-	archer.current_stamina = 6
-	archer.current_aura = 6
-	archer.known_active_skill_ids = [&"archer_arrow_rain"]
-	archer.known_skill_level_map = {&"archer_arrow_rain": 1}
-	var enemy := _build_enemy_unit(&"status_pinned_enemy", Vector2i(3, 1))
+	var ally := _build_unit(&"status_slow_ally", Vector2i(1, 1), 1)
+	var enemy := _build_enemy_unit(&"status_slow_enemy", Vector2i(3, 1))
 	enemy.current_ap = 1
+	var slow_status := BattleStatusEffectState.new()
+	slow_status.status_id = &"slow"
+	slow_status.source_unit_id = &"status_slow_source"
+	slow_status.power = 1
+	slow_status.stacks = 1
+	slow_status.duration = 40
+	enemy.set_status_effect(slow_status)
 
 	state.units = {
-		archer.unit_id: archer,
+		ally.unit_id: ally,
 		enemy.unit_id: enemy,
 	}
-	state.ally_unit_ids = [archer.unit_id]
+	state.ally_unit_ids = [ally.unit_id]
 	state.enemy_unit_ids = [enemy.unit_id]
-	state.active_unit_id = archer.unit_id
-	_assert_true(runtime._grid_service.place_unit(state, archer, archer.coord, true), "压制状态回归中的施法者应能成功放入战场。")
-	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "压制状态回归中的敌人应能成功放入战场。")
+	state.active_unit_id = enemy.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, ally, ally.coord, true), "减速状态回归中的友方锚点应能成功放入战场。")
+	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "减速状态回归中的敌人应能成功放入战场。")
 	runtime._state = state
-
-	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
-	command.unit_id = archer.unit_id
-	command.skill_id = &"archer_arrow_rain"
-	command.target_coord = enemy.coord
-	runtime.issue_command(command)
-	_assert_true(enemy.has_status_effect(&"pinned"), "箭雨命中后应把 pinned 写入正式 battle unit 状态。")
+	_assert_true(enemy.has_status_effect(&"slow"), "slow 状态夹具应先写入正式 battle unit 状态。")
 
 	var enemy_payload := enemy.to_dict()
 	var enemy_status_effects: Dictionary = enemy_payload.get("status_effects", {})
-	var pinned_payload: Dictionary = enemy_status_effects.get("pinned", {})
-	_assert_eq(int(pinned_payload.get("duration", -1)), 90, "被施加的 pinned 应带着正式 TU 持续时间进入序列化 payload。")
+	var slow_payload: Dictionary = enemy_status_effects.get("slow", {})
+	_assert_eq(int(slow_payload.get("duration", -1)), 40, "被施加的 slow 应带着正式 TU 持续时间进入序列化 payload。")
 	var restored_enemy := BattleUnitState.from_dict(enemy_payload) as BattleUnitState
-	_assert_true(restored_enemy != null and restored_enemy.has_status_effect(&"pinned"), "BattleUnitState.from_dict() 应恢复敌方 pinned 状态。")
+	_assert_true(restored_enemy != null and restored_enemy.has_status_effect(&"slow"), "BattleUnitState.from_dict() 应恢复敌方 slow 状态。")
 	if restored_enemy == null:
 		return
 	state.units[restored_enemy.unit_id] = restored_enemy
@@ -2535,27 +2715,17 @@ func _test_status_duration_blocks_target_turn_until_tu_expiry() -> void:
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(enemy.unit_id)
 	runtime.advance(0.0)
-	_assert_true(enemy.has_status_effect(&"pinned"), "目标进入行动窗口时，pinned 不应在 turn start 前被提前清除。")
-
-	var move_command := BattleCommand.new()
-	move_command.command_type = BattleCommand.TYPE_MOVE
-	move_command.unit_id = enemy.unit_id
-	move_command.target_coord = Vector2i(4, 1)
-	var move_preview := runtime.preview_command(move_command)
-	_assert_true(
-		move_preview != null and not move_preview.allowed and move_preview.log_lines.size() > 0 and String(move_preview.log_lines[-1]).contains("限制移动"),
-		"pinned 应在目标回合内稳定阻止移动。"
-	)
+	_assert_true(enemy.has_status_effect(&"slow"), "目标进入行动窗口时，slow 不应在 turn start 前被提前清除。")
 
 	var wait_command := BattleCommand.new()
 	wait_command.command_type = BattleCommand.TYPE_WAIT
 	wait_command.unit_id = enemy.unit_id
 	runtime.issue_command(wait_command)
-	_assert_true(enemy.has_status_effect(&"pinned"), "目标回合结束后，pinned 不应再因为 turn end 被移除。")
-	_advance_timeline_tu(runtime, state, 85)
-	_assert_true(enemy.has_status_effect(&"pinned"), "TU 未走完前，pinned 应保持生效。")
+	_assert_true(enemy.has_status_effect(&"slow"), "目标回合结束后，slow 不应再因为 turn end 被移除。")
+	_advance_timeline_tu(runtime, state, 35)
+	_assert_true(enemy.has_status_effect(&"slow"), "TU 未走完前，slow 应保持生效。")
 	_advance_timeline_tu(runtime, state, 5)
-	_assert_true(not enemy.has_status_effect(&"pinned"), "TU 走完后，pinned 应按时间轴移除。")
+	_assert_true(not enemy.has_status_effect(&"slow"), "TU 走完后，slow 应按时间轴移除。")
 
 
 func _count_explicit_props(state: BattleState) -> Dictionary:
@@ -2625,6 +2795,15 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	return unit
+
+
+func _set_turn_priority_stats(unit: BattleUnitState, agility: int, action_points: int, move_points: int) -> void:
+	if unit == null:
+		return
+	unit.attribute_snapshot.set_value(&"agility", agility)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, action_points)
+	unit.current_ap = action_points
+	unit.current_move_points = move_points
 
 
 func _build_change_equipment_fixture(

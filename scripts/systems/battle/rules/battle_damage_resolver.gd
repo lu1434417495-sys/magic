@@ -34,6 +34,8 @@ func _record_last_stand_mastery(target_unit: BattleUnitState, source_unit: Battl
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
+const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
+const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
 const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
 const BATTLE_REPORT_FORMATTER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_report_formatter.gd")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
@@ -42,6 +44,7 @@ const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/battle/fate/fa
 const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/fate/low_luck_relic_rules.gd")
 const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleFateEventBus = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
@@ -93,6 +96,7 @@ const STATUS_PARAM_SECONDARY_HIT_SAVE_BONUS: StringName = &"secondary_hit_save_b
 var _fate_event_bus: BattleFateEventBus = BATTLE_FATE_EVENT_BUS_SCRIPT.new()
 var _fate_attack_rules = BATTLE_FATE_ATTACK_RULES_SCRIPT.new()
 var _report_formatter: BattleReportFormatter = BATTLE_REPORT_FORMATTER_SCRIPT.new()
+var _trait_trigger_hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
 
 
 func resolve_skill(
@@ -165,6 +169,7 @@ func resolve_effects(
 	var status_effect_ids: Array[StringName] = []
 	var source_status_effect_ids: Array[StringName] = []
 	var terrain_effect_ids: Array[StringName] = []
+	var save_results: Array[Dictionary] = []
 	var total_height_delta := 0
 	var shield_broken := false
 	var applied := false
@@ -177,7 +182,11 @@ func resolve_effects(
 			continue
 		match effect_def.effect_type:
 			&"damage":
+				var damage_save_result := BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source_unit, target_unit, effect_def, damage_context)
+				if bool(damage_save_result.get("has_save", false)):
+					save_results.append(damage_save_result.duplicate(true))
 				var damage_outcome := _resolve_damage_outcome(source_unit, target_unit, effect_def, damage_context)
+				_apply_save_result_to_damage_outcome(damage_outcome, damage_save_result, effect_def)
 				var damage_result := _apply_damage_to_target(target_unit, damage_outcome, source_unit)
 				var hp_damage := int(damage_result.get("damage", 0))
 				total_damage += hp_damage
@@ -191,13 +200,8 @@ func resolve_effects(
 			&"heal":
 				var heal_amount := 0
 				if effect_def.params != null and effect_def.params.has("base_sides"):
-					var con_value := 0
-					var will_value := 0
-					if source_unit.attribute_snapshot != null:
-						con_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
-						will_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER))
-					var con_mod := int(floor((con_value - 10) / 2.0))
-					var will_mod := int(floor((will_value - 10) / 2.0))
+					var con_mod := _get_unit_base_attribute_modifier(source_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION)
+					var will_mod := _get_unit_base_attribute_modifier(source_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER)
 
 					var dice_count := maxi(effect_def.power, 1)
 					var base_sides := int(effect_def.params.get("base_sides", 4))
@@ -223,13 +227,8 @@ func resolve_effects(
 				total_healing += heal_amount
 				applied = true
 			&"stamina_restore":
-				var con_value := 0
-				var will_value := 0
-				if source_unit.attribute_snapshot != null:
-					con_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
-					will_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER))
-				var con_mod := int(floor((con_value - 10) / 2.0))
-				var will_mod := int(floor((will_value - 10) / 2.0))
+				var con_mod := _get_unit_base_attribute_modifier(source_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION)
+				var will_mod := _get_unit_base_attribute_modifier(source_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER)
 
 				var dice_count := maxi(effect_def.power, 1)
 				var base_sides := int(effect_def.params.get("base_sides", 4))
@@ -279,11 +278,17 @@ func resolve_effects(
 				if not removed_status_ids.is_empty():
 					applied = true
 			&"status", &"apply_status":
-				if effect_def.status_id != &"":
-					_apply_status_effect(target_unit, source_unit, effect_def)
-					if not status_effect_ids.has(effect_def.status_id):
-						status_effect_ids.append(effect_def.status_id)
-					applied = true
+				var status_save_result := BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source_unit, target_unit, effect_def, damage_context)
+				if bool(status_save_result.get("has_save", false)):
+					save_results.append(status_save_result.duplicate(true))
+				if _does_save_block_effect(status_save_result):
+					continue
+				var resolved_status_id := _resolve_status_id_for_save(effect_def, status_save_result)
+				if resolved_status_id != &"":
+					if _apply_status_effect(target_unit, source_unit, effect_def, resolved_status_id):
+						if not status_effect_ids.has(resolved_status_id):
+							status_effect_ids.append(resolved_status_id)
+						applied = true
 			&"terrain", &"terrain_effect":
 				if effect_def.terrain_effect_id != &"":
 					if not terrain_effect_ids.has(effect_def.terrain_effect_id):
@@ -311,6 +316,7 @@ func resolve_effects(
 		"status_effect_ids": status_effect_ids,
 		"source_status_effect_ids": source_status_effect_ids,
 		"terrain_effect_ids": terrain_effect_ids,
+		"save_results": save_results,
 		"height_delta": total_height_delta,
 	}
 	_attach_damage_event_aggregates(result)
@@ -375,6 +381,7 @@ func _resolve_attack_metadata(
 		"required_roll": required_roll,
 		"display_required_roll": int(attack_check.get("display_required_roll", clampi(required_roll, 2, NATURAL_HIT_ROLL))),
 		"hit_rate_percent": int(attack_check.get("hit_rate_percent", 0)),
+		"trait_trigger_results": [],
 	}
 	if force_hit_no_crit:
 		metadata["attack_resolution"] = ATTACK_RESOLUTION_HIT
@@ -394,6 +401,15 @@ func _resolve_attack_metadata(
 	# Step 2: roll the hit d20 after the gate die.
 	var hit_roll := _roll_attack_die(NATURAL_HIT_ROLL, is_disadvantage, attack_context)
 	metadata["hit_roll"] = hit_roll
+	var natural_one_trait_result := _resolve_natural_one_trait_reroll(
+		source_unit,
+		hit_roll,
+		attack_context
+	)
+	if bool(natural_one_trait_result.get("triggered", false)):
+		hit_roll = int(natural_one_trait_result.get("rerolled_roll", hit_roll))
+		metadata["hit_roll"] = hit_roll
+		_append_trait_trigger_result(metadata, natural_one_trait_result)
 
 	# Step 3: low-end rolls immediately become critical failures.
 	if hit_roll <= int(metadata.get("fumble_low_end", 1)):
@@ -428,6 +444,25 @@ func _resolve_attack_metadata(
 	return metadata
 
 
+func _resolve_natural_one_trait_reroll(
+	source_unit: BattleUnitState,
+	hit_roll: int,
+	attack_context: Dictionary
+) -> Dictionary:
+	if _trait_trigger_hooks == null:
+		return {}
+	var hook_result: Dictionary = _trait_trigger_hooks.on_natural_one(source_unit, {
+		"roll": hit_roll,
+		"die_size": NATURAL_HIT_ROLL,
+		"battle_state": attack_context.get("battle_state", null),
+	})
+	if not bool(hook_result.get("triggered", false)):
+		return hook_result
+	if bool(hook_result.get("reroll_die", false)):
+		hook_result["rerolled_roll"] = _roll_attack_die(NATURAL_HIT_ROLL, false, attack_context)
+	return hook_result
+
+
 func _resolve_attack_disadvantage(
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
@@ -444,11 +479,38 @@ func _resolve_attack_disadvantage(
 func _roll_attack_die(die_size: int, is_disadvantage: bool, attack_context: Dictionary) -> int:
 	var battle_state := attack_context.get("battle_state", null) as BattleState
 	var normalized_die_size := maxi(die_size, 1)
-	var first_roll := _roll_true_random_attack_range(1, normalized_die_size, battle_state)
+	var first_roll := _roll_attack_die_once(normalized_die_size, attack_context, battle_state)
 	if not is_disadvantage:
 		return first_roll
-	var second_roll := _roll_true_random_attack_range(1, normalized_die_size, battle_state)
+	var second_roll := _roll_attack_die_once(normalized_die_size, attack_context, battle_state)
 	return mini(first_roll, second_roll)
+
+
+func _roll_attack_die_once(die_size: int, attack_context: Dictionary, battle_state: BattleState) -> int:
+	var override_roll := _consume_attack_roll_override(attack_context, die_size)
+	if override_roll > 0:
+		if battle_state != null:
+			battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
+		return override_roll
+	return _roll_true_random_attack_range(1, die_size, battle_state)
+
+
+func _consume_attack_roll_override(attack_context: Dictionary, die_size: int) -> int:
+	if attack_context == null:
+		return 0
+	var normalized_die_size := maxi(die_size, 1)
+	if attack_context.has("attack_roll_overrides"):
+		var raw_overrides = attack_context.get("attack_roll_overrides", [])
+		if raw_overrides is Array and not raw_overrides.is_empty():
+			var override_values: Array = raw_overrides
+			var raw_value = override_values.pop_front()
+			attack_context["attack_roll_overrides"] = override_values
+			return clampi(int(raw_value), 1, normalized_die_size)
+	if attack_context.has("attack_roll_override"):
+		var raw_single = attack_context.get("attack_roll_override", 0)
+		attack_context.erase("attack_roll_override")
+		return clampi(int(raw_single), 1, normalized_die_size)
+	return 0
 
 
 func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state: BattleState) -> int:
@@ -484,6 +546,7 @@ func _build_attack_metadata_result(result: Dictionary, attack_metadata: Dictiona
 	merged["hit_rate_percent"] = int(attack_metadata.get("hit_rate_percent", 0))
 	merged["reverse_fate_downgraded"] = bool(attack_metadata.get("reverse_fate_downgraded", false))
 	merged["secondary_hit_success"] = bool(attack_metadata.get("secondary_hit_success", false))
+	merged["trait_trigger_results"] = attack_metadata.get("trait_trigger_results", [])
 	merged["fate_event_tags"] = ProgressionDataUtils.string_name_array_to_string_array(
 		_build_attack_event_tags(attack_metadata)
 	)
@@ -602,6 +665,15 @@ func _get_faith_luck_bonus(unit_state: BattleUnitState) -> int:
 	return int(unit_state.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS))
 
 
+func _get_unit_base_attribute_modifier(unit_state: BattleUnitState, attribute_id: StringName) -> int:
+	if unit_state == null or unit_state.attribute_snapshot == null or attribute_id == &"":
+		return 0
+	var modifier_id := ATTRIBUTE_SNAPSHOT_SCRIPT.get_base_attribute_modifier_id(attribute_id)
+	if modifier_id == &"":
+		return 0
+	return int(unit_state.attribute_snapshot.get_value(modifier_id))
+
+
 func _get_effective_luck(unit_state: BattleUnitState) -> int:
 	return clampi(
 		_get_hidden_luck_at_birth(unit_state) + _get_faith_luck_bonus(unit_state),
@@ -625,11 +697,21 @@ func _resolve_damage_outcome(
 		critical_damage_roll = _roll_damage_dice(effect_def, false, "critical_extra_damage_dice")
 	if critical_hit and not weapon_roll.is_empty():
 		critical_weapon_roll = _roll_weapon_dice(source_unit, effect_def, false, "critical_extra_weapon_damage_dice")
+	var trait_crit_result := _resolve_crit_trait_result(source_unit, target_unit, effect_def, critical_hit)
+	var trait_extra_weapon_roll := {}
+	if bool(trait_crit_result.get("triggered", false)):
+		trait_extra_weapon_roll = _roll_dice_pool(
+			maxi(int(trait_crit_result.get("extra_weapon_dice_count", 0)), 0),
+			maxi(int(trait_crit_result.get("extra_weapon_dice_sides", 0)), 0),
+			0,
+			"trait_extra_weapon_damage_dice"
+		)
 	var base_damage := maxi(int(effect_def.power) if effect_def != null else 0, 0)
 	base_damage += _get_roll_total_with_bonus(weapon_roll, "weapon_damage_dice")
 	base_damage += _get_roll_total_with_bonus(damage_roll, "damage_dice")
 	base_damage += _get_roll_total(critical_weapon_roll, "critical_extra_weapon_damage_dice")
 	base_damage += _get_roll_total(critical_damage_roll, "critical_extra_damage_dice")
+	base_damage += _get_roll_total(trait_extra_weapon_roll, "trait_extra_weapon_damage_dice")
 	var offense_multiplier := _build_offense_multiplier(source_unit, target_unit, effect_def)
 	var rolled_damage := maxi(int(round(float(base_damage) * offense_multiplier)), 0)
 	var damage_tag := _resolve_damage_tag(source_unit, effect_def)
@@ -689,6 +771,11 @@ func _resolve_damage_outcome(
 		"critical_extra_weapon_damage_dice_rolls": critical_weapon_roll.get("critical_extra_weapon_damage_dice_rolls", []),
 		"critical_extra_weapon_damage_dice_total": int(critical_weapon_roll.get("critical_extra_weapon_damage_dice_total", 0)),
 		"critical_extra_weapon_damage_dice_max_total": int(critical_weapon_roll.get("critical_extra_weapon_damage_dice_max_total", 0)),
+		"trait_extra_weapon_damage_dice_count": int(trait_extra_weapon_roll.get("trait_extra_weapon_damage_dice_count", 0)),
+		"trait_extra_weapon_damage_dice_sides": int(trait_extra_weapon_roll.get("trait_extra_weapon_damage_dice_sides", 0)),
+		"trait_extra_weapon_damage_dice_rolls": trait_extra_weapon_roll.get("trait_extra_weapon_damage_dice_rolls", []),
+		"trait_extra_weapon_damage_dice_total": int(trait_extra_weapon_roll.get("trait_extra_weapon_damage_dice_total", 0)),
+		"trait_extra_weapon_damage_dice_max_total": int(trait_extra_weapon_roll.get("trait_extra_weapon_damage_dice_max_total", 0)),
 		"offense_multiplier": offense_multiplier,
 		"rolled_damage": rolled_damage,
 		"tier_adjusted_damage": tier_adjusted_damage,
@@ -705,9 +792,66 @@ func _resolve_damage_outcome(
 		"fully_absorbed_by_mitigation": resolved_damage <= 0 \
 			and mitigation_tier != MITIGATION_TIER_IMMUNE \
 			and tier_adjusted_damage > 0,
+		"trait_trigger_results": [],
 	}
+	_append_trait_trigger_result(result, trait_crit_result)
 	_apply_damage_dice_event_flags(result, damage_dice_event_flags)
 	return result
+
+
+func _resolve_crit_trait_result(
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	effect_def,
+	critical_hit: bool
+) -> Dictionary:
+	if _trait_trigger_hooks == null or not critical_hit:
+		return {}
+	return _trait_trigger_hooks.on_crit(source_unit, target_unit, {
+		"critical_hit": critical_hit,
+		"add_weapon_dice": _should_add_weapon_dice(effect_def),
+		"weapon_attack_range": int(source_unit.weapon_attack_range) if source_unit != null else 0,
+		"weapon_dice": _get_current_weapon_damage_dice(source_unit),
+	})
+
+
+func _apply_save_result_to_damage_outcome(damage_outcome: Dictionary, save_result: Dictionary, effect_def) -> void:
+	if damage_outcome == null or save_result == null or not bool(save_result.get("has_save", false)):
+		return
+	damage_outcome["save_result"] = save_result.duplicate(true)
+	damage_outcome["save_success"] = bool(save_result.get("success", false))
+	damage_outcome["save_immune"] = bool(save_result.get("immune", false))
+	damage_outcome["save_partial_applied"] = false
+	damage_outcome["pre_save_damage"] = int(damage_outcome.get("resolved_damage", 0))
+	if not bool(save_result.get("success", false)):
+		damage_outcome["save_adjusted_damage"] = int(damage_outcome.get("resolved_damage", 0))
+		damage_outcome["fully_absorbed_by_save"] = false
+		return
+	var pre_save_damage := maxi(int(damage_outcome.get("resolved_damage", 0)), 0)
+	var adjusted_damage := 0
+	if effect_def != null and bool(effect_def.save_partial_on_success) and not bool(save_result.get("immune", false)):
+		adjusted_damage = int(floor(float(pre_save_damage) / 2.0))
+		damage_outcome["save_partial_applied"] = true
+	damage_outcome["resolved_damage"] = adjusted_damage
+	damage_outcome["save_adjusted_damage"] = adjusted_damage
+	damage_outcome["fully_absorbed_by_save"] = pre_save_damage > 0 and adjusted_damage <= 0
+
+
+func _does_save_block_effect(save_result: Dictionary) -> bool:
+	return save_result != null \
+		and bool(save_result.get("has_save", false)) \
+		and bool(save_result.get("success", false))
+
+
+func _resolve_status_id_for_save(effect_def, save_result: Dictionary) -> StringName:
+	if effect_def == null:
+		return &""
+	if save_result != null \
+			and bool(save_result.get("has_save", false)) \
+			and not bool(save_result.get("success", false)) \
+			and effect_def.save_failure_status_id != &"":
+		return ProgressionDataUtils.to_string_name(effect_def.save_failure_status_id)
+	return ProgressionDataUtils.to_string_name(effect_def.status_id)
 
 
 func _roll_damage_dice(effect_def, include_bonus: bool = true, field_prefix: String = "damage_dice") -> Dictionary:
@@ -811,6 +955,17 @@ func _build_damage_dice_event_flags(critical_hit: bool, skill_roll: Dictionary, 
 func _apply_damage_dice_event_flags(result: Dictionary, event_flags: Dictionary) -> void:
 	for key in event_flags.keys():
 		result[key] = event_flags[key]
+
+
+func _append_trait_trigger_result(target: Dictionary, trigger_result: Dictionary) -> void:
+	if target == null or trigger_result == null or not bool(trigger_result.get("triggered", false)):
+		return
+	var results: Array = []
+	var existing_results = target.get("trait_trigger_results", [])
+	if existing_results is Array:
+		results = existing_results.duplicate(true)
+	results.append(trigger_result.duplicate(true))
+	target["trait_trigger_results"] = results
 
 
 func _ensure_damage_dice_event_defaults(event: Dictionary) -> Dictionary:
@@ -954,6 +1109,7 @@ func _resolve_mitigation_tier_result(target_unit: BattleUnitState, damage_tag: S
 				half_sources.append(_build_mitigation_source(status_id, "mitigation_tier", 0, mitigation_tier))
 			MITIGATION_TIER_DOUBLE:
 				double_sources.append(_build_mitigation_source(status_id, "mitigation_tier", 0, mitigation_tier))
+	_append_damage_resistance_sources(target_unit, damage_tag, half_sources, double_sources, immune_sources)
 	if not immune_sources.is_empty():
 		return {
 			"tier": MITIGATION_TIER_IMMUNE,
@@ -981,6 +1137,32 @@ func _resolve_mitigation_tier_result(target_unit: BattleUnitState, damage_tag: S
 		"tier": MITIGATION_TIER_NORMAL,
 		"sources": [],
 	}
+
+
+func _append_damage_resistance_sources(
+	target_unit: BattleUnitState,
+	damage_tag: StringName,
+	half_sources: Array[Dictionary],
+	double_sources: Array[Dictionary],
+	immune_sources: Array[Dictionary]
+) -> void:
+	if target_unit == null or damage_tag == &"":
+		return
+	for raw_damage_tag in target_unit.damage_resistances.keys():
+		var resistance_damage_tag := ProgressionDataUtils.to_string_name(raw_damage_tag)
+		if resistance_damage_tag != damage_tag:
+			continue
+		var mitigation_tier := ProgressionDataUtils.to_string_name(target_unit.damage_resistances.get(raw_damage_tag, &""))
+		var source_id := StringName("damage_resistance_%s" % String(resistance_damage_tag))
+		match mitigation_tier:
+			MITIGATION_TIER_IMMUNE:
+				immune_sources.append(_build_mitigation_source(source_id, "damage_resistance", 0, mitigation_tier))
+			MITIGATION_TIER_HALF:
+				half_sources.append(_build_mitigation_source(source_id, "damage_resistance", 0, mitigation_tier))
+			MITIGATION_TIER_DOUBLE:
+				double_sources.append(_build_mitigation_source(source_id, "damage_resistance", 0, mitigation_tier))
+			_:
+				pass
 
 
 func _status_params_apply_to_damage_tag(params: Dictionary, damage_tag: StringName) -> bool:
@@ -1413,9 +1595,22 @@ func _apply_damage_to_target(target_unit: BattleUnitState, resolved_damage_input
 		if max_hp > 0 and hp_damage * 10 >= max_hp * 6:
 			_record_last_stand_mastery(target_unit, source_unit, &"critical_survival", 20)
 		var projected_hp := target_unit.current_hp - hp_damage
-		if projected_hp <= 0 and target_unit.has_status_effect(&"death_ward"):
-			target_unit.current_hp = 0
-			if not _trigger_last_stand(target_unit, source_unit):
+		if projected_hp <= 0:
+			var fatal_trait_result := _resolve_fatal_damage_trait_result(
+				target_unit,
+				source_unit,
+				damage_outcome,
+				hp_damage,
+				projected_hp
+			)
+			if bool(fatal_trait_result.get("triggered", false)) and int(fatal_trait_result.get("clamp_to_hp", 0)) > 0:
+				target_unit.current_hp = maxi(int(fatal_trait_result.get("clamp_to_hp", 1)), 1)
+				_append_trait_trigger_result(damage_outcome, fatal_trait_result)
+			elif target_unit.has_status_effect(&"death_ward"):
+				target_unit.current_hp = 0
+				if not _trigger_last_stand(target_unit, source_unit):
+					target_unit.current_hp = 0
+			else:
 				target_unit.current_hp = 0
 		else:
 			target_unit.current_hp = maxi(projected_hp, 0)
@@ -1423,18 +1618,27 @@ func _apply_damage_to_target(target_unit: BattleUnitState, resolved_damage_input
 	return _build_applied_damage_result(damage_outcome, hp_damage, shield_absorbed, shield_broken)
 
 
+func _resolve_fatal_damage_trait_result(
+	target_unit: BattleUnitState,
+	source_unit: BattleUnitState,
+	damage_outcome: Dictionary,
+	hp_damage: int,
+	projected_hp: int
+) -> Dictionary:
+	if _trait_trigger_hooks == null:
+		return {}
+	return _trait_trigger_hooks.on_fatal_damage(target_unit, source_unit, {
+		"damage_outcome": damage_outcome,
+		"hp_damage": hp_damage,
+		"projected_hp": projected_hp,
+	})
+
+
 func _resolve_secondary_hit(source_unit: BattleUnitState, target_unit: BattleUnitState, attack_context: Dictionary, dc_base: int = 10) -> bool:
 	if source_unit == null or target_unit == null:
 		return false
-	var str_value := 0
-	if source_unit.attribute_snapshot != null:
-		str_value = int(source_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.STRENGTH))
-	var str_mod := int(floor((str_value - 10) / 2.0))
-
-	var con_value := 0
-	if target_unit.attribute_snapshot != null:
-		con_value = int(target_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
-	var con_mod := int(floor((con_value - 10) / 2.0))
+	var str_mod := _get_unit_base_attribute_modifier(source_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.STRENGTH)
+	var con_mod := _get_unit_base_attribute_modifier(target_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION)
 
 	var dc := dc_base + str_mod
 	var save_roll := _roll_attack_die(20, false, attack_context)
@@ -1560,29 +1764,40 @@ func _resolve_heal_fatal_amount(target_unit: BattleUnitState, effect_def) -> int
 	var con_mod_per_2_levels := int(params.get("con_mod_per_2_levels", 1))
 	var skill_level := maxi(int(params.get("skill_level", 0)), 0)
 
-	var con_value := 0
-	if target_unit.attribute_snapshot != null:
-		con_value = int(target_unit.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION))
-	var con_mod := int(floor((con_value - 10) / 2.0))
+	var con_mod := _get_unit_base_attribute_modifier(target_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION)
 
 	var heal_amount := base_heal + heal_per_level * (skill_level - 1)
 	heal_amount += con_mod * (con_mod_base + int(floor((skill_level - 1) / 2.0)) * con_mod_per_2_levels)
 	return maxi(heal_amount, 1)
 
 
-func _apply_status_effect(target_unit: BattleUnitState, source_unit: BattleUnitState, effect_def) -> void:
-	if target_unit == null or effect_def == null or effect_def.status_id == &"":
-		return
+func _apply_status_effect(
+	target_unit: BattleUnitState,
+	source_unit: BattleUnitState,
+	effect_def,
+	status_id_override: StringName = &""
+) -> bool:
+	if target_unit == null or effect_def == null:
+		return false
+	var resolved_status_id := status_id_override if status_id_override != &"" else ProgressionDataUtils.to_string_name(effect_def.status_id)
+	if resolved_status_id == &"":
+		return false
 
-	if _is_crown_break_seal_status(effect_def.status_id):
-		_clear_other_crown_break_seals(target_unit, effect_def.status_id)
+	if _is_crown_break_seal_status(resolved_status_id):
+		_clear_other_crown_break_seals(target_unit, resolved_status_id)
+	var runtime_effect_def: CombatEffectDef = effect_def.duplicate_for_runtime() if effect_def.has_method("duplicate_for_runtime") else effect_def.duplicate(true)
+	if runtime_effect_def == null:
+		return false
+	runtime_effect_def.status_id = resolved_status_id
 	var status_entry = BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT.merge_status(
-		effect_def,
+		runtime_effect_def,
 		source_unit.unit_id if source_unit != null else &"",
-		target_unit.get_status_effect(effect_def.status_id)
+		target_unit.get_status_effect(resolved_status_id)
 	)
 	if status_entry != null:
 		target_unit.set_status_effect(status_entry)
+		return true
+	return false
 
 
 func _is_crown_break_seal_status(status_id: StringName) -> bool:

@@ -418,7 +418,7 @@ func _resolve_skill_mastery_target_amount(
 				if target_unit.current_hp * 100 < hp_max * threshold_percent:
 					base_amount = multiplier
 		return base_amount
-	if target_unit.faction_id != &"enemy":
+	if not _are_opposing_factions(source_unit, target_unit):
 		return 0
 	if _is_boss_target(target_unit):
 		return 3
@@ -446,15 +446,21 @@ func _resolve_incoming_skill_mastery_source_amount(
 		return 0
 	if _get_skill_mastery_amount_mode(skill_def) != &"per_target_rank":
 		return 0
-	if source_unit.faction_id == target_unit.faction_id:
-		return 0
-	if source_unit.faction_id != &"enemy":
+	if not _are_opposing_factions(source_unit, target_unit):
 		return 0
 	if _is_boss_target(source_unit):
 		return 3
 	if _is_elite_or_boss_target(source_unit):
 		return 2
 	return 1
+
+
+func _are_opposing_factions(source_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
+	if source_unit == null or target_unit == null:
+		return false
+	var source_faction := ProgressionDataUtils.to_string_name(source_unit.faction_id)
+	var target_faction := ProgressionDataUtils.to_string_name(target_unit.faction_id)
+	return source_faction != &"" and target_faction != &"" and source_faction != target_faction
 
 
 func _is_elite_or_boss_target(unit_state: BattleUnitState) -> bool:

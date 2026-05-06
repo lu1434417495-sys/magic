@@ -187,12 +187,12 @@ func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
 	var preview = runtime.preview_command(move_command)
 	_assert_true(preview != null and preview.allowed, "slow 状态下的相邻移动仍应合法。")
 	_assert_true(
-		preview != null and preview.log_lines.size() > 0 and String(preview.log_lines[0]).contains("消耗 2 点行动点"),
-		"slow 应把基础 1 点行动点的平地移动提升为 2 点行动点。"
+		preview != null and preview.log_lines.size() > 0 and String(preview.log_lines[0]).contains("距离消耗 2 点移动力"),
+		"slow 应把基础 1 点移动力的平地移动提升为 2 点移动力。"
 	)
 
 	runtime.issue_command(move_command)
-	_assert_eq(target.current_move_points, 0, "slow 提高移动消耗后，执行移动应实际多扣 1 点行动点。")
+	_assert_eq(target.current_move_points, 0, "移动成功后应耗尽本回合移动力，即使只移动 1 格。")
 	_assert_eq(target.current_ap, 3, "slow 只应抬高移动行动点消耗，不应继续扣除 AP。")
 	var wait_command := BattleCommand.new()
 	wait_command.command_type = BattleCommand.TYPE_WAIT

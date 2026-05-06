@@ -5,6 +5,7 @@ const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BodySizeRules = preload("res://scripts/systems/progression/body_size_rules.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
@@ -27,6 +28,12 @@ const BLACK_CONTRACT_PUSH_VARIANT_GUARD: StringName = &"guard_tithe"
 const BLACK_CONTRACT_PUSH_VARIANT_ACTION: StringName = &"action_tithe"
 const DOOM_SHIFT_SELF_DEBUFF_DURATION_TU := 60
 const BLACK_CONTRACT_PUSH_HP_COST := 10
+const IDENTITY_SKILL_LEARN_SOURCES := {
+	&"race": true,
+	&"subrace": true,
+	&"ascension": true,
+	&"bloodline": true,
+}
 const DEBUFF_STATUS_IDS := {
 	&"armor_break": true,
 	&"black_star_brand_elite": true,
@@ -47,6 +54,8 @@ const DEBUFF_STATUS_IDS := {
 	&"tendon_cut": true,
 }
 const TU_GRANULARITY := 5
+const STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE := "body_size_category_override"
+const STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY := "previous_body_size_category"
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -80,6 +89,9 @@ func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillD
 		return "体力不足，无法施放该技能。"
 	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
+	var racial_charge_block_reason := get_racial_skill_charge_block_reason(active_unit, skill_def)
+	if not racial_charge_block_reason.is_empty():
+		return racial_charge_block_reason
 	if not combat_profile.required_weapon_families.is_empty() \
 		and not unit_matches_required_weapon_families(active_unit, combat_profile.required_weapon_families):
 		return "需要装备指定武器家族，无法施放该技能。"
@@ -194,6 +206,8 @@ func consume_skill_costs(
 			if batch != null:
 				batch.log_lines.append(String(black_crown_seal_consume_result.get("message", "黑冠封印每战只能施放 1 次。")))
 			return false
+	if not consume_racial_skill_charge(active_unit, skill_def, batch):
+		return false
 	var combat_profile = skill_def.combat_profile
 	var costs := get_effective_skill_costs(active_unit, skill_def)
 	active_unit.current_ap = maxi(active_unit.current_ap - int(costs.get("ap_cost", combat_profile.ap_cost)), 0)
@@ -206,11 +220,64 @@ func consume_skill_costs(
 	return true
 
 
+func get_racial_skill_charge_block_reason(active_unit: BattleUnitState, skill_def: SkillDef) -> String:
+	if active_unit == null or not _is_identity_granted_skill(skill_def):
+		return ""
+	var charge_key := get_racial_skill_charge_key(skill_def.skill_id)
+	if active_unit.per_battle_charges.has(charge_key) and int(active_unit.per_battle_charges.get(charge_key, 0)) <= 0:
+		return "%s 的身份技能次数已用尽。" % _get_skill_display_name(skill_def)
+	if active_unit.per_turn_charges.has(charge_key) and int(active_unit.per_turn_charges.get(charge_key, 0)) <= 0:
+		return "%s 本回合无法再次使用。" % _get_skill_display_name(skill_def)
+	return ""
+
+
+func consume_racial_skill_charge(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	batch: BattleEventBatch = null
+) -> bool:
+	var block_reason := get_racial_skill_charge_block_reason(active_unit, skill_def)
+	if not block_reason.is_empty():
+		if batch != null:
+			batch.log_lines.append(block_reason)
+		return false
+	if active_unit == null or not _is_identity_granted_skill(skill_def):
+		return true
+	var charge_key := get_racial_skill_charge_key(skill_def.skill_id)
+	if active_unit.per_battle_charges.has(charge_key):
+		active_unit.per_battle_charges[charge_key] = maxi(int(active_unit.per_battle_charges.get(charge_key, 0)) - 1, 0)
+		return true
+	if active_unit.per_turn_charges.has(charge_key):
+		active_unit.per_turn_charges[charge_key] = maxi(int(active_unit.per_turn_charges.get(charge_key, 0)) - 1, 0)
+		return true
+	return true
+
+
+func get_racial_skill_charge_key(skill_id: StringName) -> StringName:
+	if skill_id == &"":
+		return &""
+	return StringName("racial_skill_%s" % String(skill_id))
+
+
 func get_effective_skill_costs(active_unit: BattleUnitState, skill_def: SkillDef) -> Dictionary:
 	if skill_def == null or skill_def.combat_profile == null:
 		return {}
 	var skill_level: int = _runtime._get_unit_skill_level(active_unit, skill_def.skill_id)
 	return skill_def.combat_profile.get_effective_resource_costs(skill_level)
+
+
+func _is_identity_granted_skill(skill_def: SkillDef) -> bool:
+	return skill_def != null and IDENTITY_SKILL_LEARN_SOURCES.has(ProgressionDataUtils.to_string_name(skill_def.learn_source))
+
+
+func _get_skill_display_name(skill_def: SkillDef) -> String:
+	if skill_def == null:
+		return "身份技能"
+	if not skill_def.display_name.strip_edges().is_empty():
+		return skill_def.display_name
+	if skill_def.skill_id != &"":
+		return String(skill_def.skill_id)
+	return "身份技能"
 
 
 func get_black_contract_push_variant_block_reason(
@@ -396,11 +463,12 @@ func apply_unit_status_periodic_ticks(
 	}
 
 
-func advance_unit_status_durations(unit_state: BattleUnitState, elapsed_tu: int) -> bool:
+func advance_unit_status_durations(unit_state: BattleUnitState, elapsed_tu: int, batch: BattleEventBatch = null) -> bool:
 	if unit_state == null:
 		return false
 	var changed := false
 	var expired_status_ids: Array[StringName] = []
+	var expired_status_entries: Dictionary = {}
 	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
 		var status_id := StringName(status_id_str)
 		var status_entry = unit_state.get_status_effect(status_id)
@@ -411,14 +479,50 @@ func advance_unit_status_durations(unit_state: BattleUnitState, elapsed_tu: int)
 		var duration_result: Dictionary = BattleStatusSemanticTable.advance_timeline_duration(status_entry, elapsed_tu)
 		if bool(duration_result.get("expired", false)):
 			expired_status_ids.append(status_id)
+			expired_status_entries[status_id] = status_entry
 			changed = true
 			continue
 		if bool(duration_result.get("changed", false)):
 			unit_state.set_status_effect(status_entry)
 			changed = true
 	for expired_status_id in expired_status_ids:
+		var expired_status_entry := expired_status_entries.get(expired_status_id) as BattleStatusEffectState
+		if _restore_body_size_category_override_if_needed(unit_state, expired_status_entry, batch):
+			changed = true
 		unit_state.erase_status_effect(expired_status_id)
 	return changed
+
+
+func _restore_body_size_category_override_if_needed(
+	unit_state: BattleUnitState,
+	status_entry: BattleStatusEffectState,
+	batch: BattleEventBatch = null
+) -> bool:
+	if unit_state == null or status_entry == null or status_entry.params == null:
+		return false
+	var params: Dictionary = status_entry.params
+	if not params.has(STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE):
+		return false
+	var previous_category := ProgressionDataUtils.to_string_name(params.get(STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY, ""))
+	if not BodySizeRules.is_valid_body_size_category(previous_category):
+		return false
+	if unit_state.body_size_category == previous_category:
+		return false
+
+	var previous_coords := unit_state.occupied_coords.duplicate()
+	var runtime = _runtime
+	var grid_service = runtime.get_grid_service() if runtime != null and runtime.has_method("get_grid_service") else null
+	var state = runtime.get_state() if runtime != null and runtime.has_method("get_state") else null
+	if grid_service != null and state != null:
+		grid_service.clear_unit_occupancy(state, unit_state)
+	unit_state.set_body_size_category(previous_category)
+	if grid_service != null and state != null:
+		grid_service.set_occupants(state, unit_state.occupied_coords, unit_state.unit_id)
+	if runtime != null and batch != null:
+		runtime._append_changed_coords(batch, previous_coords)
+		runtime._append_changed_unit_coords(batch, unit_state)
+		runtime._append_changed_unit_id(batch, unit_state.unit_id)
+	return true
 
 
 func get_effective_skill_range(active_unit: BattleUnitState, skill_def: SkillDef) -> int:

@@ -50,6 +50,12 @@ level_overrides = {
 },
 5: {
 "max_target_count": 5
+},
+6: {
+"attack_roll_bonus": 2
+},
+7: {
+"stamina_cost": 35
 }
 }
 mastery_trigger_mode = &"weapon_attack_quality"
@@ -105,15 +111,27 @@ level_description_configs = {
 		"attack": "+1",
 		"ap": "1",
 		"stamina": "40"
+	},
+	"6": {
+		"targets": "5",
+		"attack": "+2",
+		"ap": "1",
+		"stamina": "40"
+	},
+	"7": {
+		"targets": "5",
+		"attack": "+2",
+		"ap": "1",
+		"stamina": "35"
 	}
 }
-max_level = 5
-non_core_max_level = 3
-mastery_curve = PackedInt32Array(300, 750, 1650, 3000, 4800)
-growth_tier = &"basic"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(300, 750, 1650, 3000, 4800, 7050, 9750)
+growth_tier = &"intermediate"
 attribute_growth_progress = {
-"agility": 40,
-"strength": 20
+"agility": 80,
+"strength": 40
 }
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])
 combat_profile = SubResource("Resource_1xid3")

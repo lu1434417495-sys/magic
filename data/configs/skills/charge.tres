@@ -36,7 +36,7 @@ target_mode = &"ground"
 target_team_filter = &"any"
 range_value = 6
 ap_cost = 1
-stamina_cost = 40
+stamina_cost = 50
 cooldown_tu = 50
 level_overrides = {
 2: {
@@ -56,7 +56,7 @@ script = ExtResource("5_charge_skill")
 skill_id = &"charge"
 display_name = "冲锋"
 icon_id = &"charge"
-description = "朝四个正交方向发起位移。基础距离 3，1/3/5/7 级各加 1；2/4/6 级降低体力消耗；7 级免疫陷阱。"
+description = "朝四个正交方向发起位移。基础距离 3，0/1 级消耗 50 体力；2/4/6 级降低体力消耗；1/3/5/7 级各加 1 距离；7 级免疫陷阱。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600, 2350, 3250)

@@ -137,6 +137,7 @@ func _run() -> void:
 	_test_battle_local_views_write_back_to_party_state()
 	_test_battle_local_writeback_detects_instance_conflict_invariant()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
+	_test_battle_unit_factory_clones_explicit_unit_charge_state()
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh()
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
@@ -422,6 +423,7 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	factory.refresh_battle_unit(unit)
 
 	_assert_eq(unit.body_size, 3, "刷新桥接应从 member_state 回写 body_size。")
+	_assert_eq(String(unit.body_size_category), "large", "刷新桥接应从 member_state 回写 body_size_category。")
 	_assert_eq(unit.current_hp, 8, "刷新桥接应按属性快照上限回写 hp。")
 	_assert_eq(unit.current_mp, 5, "刷新桥接应按属性快照上限回写 mp。")
 	_assert_eq(unit.current_stamina, 7, "刷新桥接应按属性快照上限回写 stamina。")
@@ -445,6 +447,32 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_eq(unit.current_hp, 3, "仅刷新 known skills 时不应触碰运行时 HP。")
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "known skills 刷新也应走同一 runtime bridge。")
 	_assert_true(unit.known_active_skill_ids.has(&"basic_attack"), "known skills 刷新也应保留内建基础攻击。")
+
+
+func _test_battle_unit_factory_clones_explicit_unit_charge_state() -> void:
+	var factory := BattleUnitFactory.new()
+	var explicit_unit = BATTLE_UNIT_STATE_SCRIPT.new()
+	explicit_unit.unit_id = &"explicit_charge_unit"
+	explicit_unit.display_name = "Explicit Charge Unit"
+	explicit_unit.faction_id = &"player"
+	explicit_unit.control_mode = &"manual"
+	explicit_unit.body_size = 2
+	explicit_unit.body_size_category = &"medium"
+	explicit_unit.current_hp = 10
+	explicit_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 10)
+	explicit_unit.per_battle_charges = {&"dragon_breath": 1}
+	explicit_unit.per_turn_charges = {&"nimble_escape": 1}
+	explicit_unit.per_turn_charge_limits = {&"nimble_escape": 1}
+
+	var units: Array = factory.build_ally_units(null, {"battle_party": [explicit_unit]})
+	_assert_eq(units.size(), 1, "显式 BattleUnitState 输入应被正规化为 1 个单位。")
+	if units.is_empty():
+		return
+	var cloned_unit = units[0]
+	_assert_true(cloned_unit != explicit_unit, "显式 BattleUnitState 输入应通过 clone 复制，避免共享运行态。")
+	_assert_eq(int(cloned_unit.per_battle_charges.get(&"dragon_breath", -1)), 1, "显式 BattleUnitState clone 应保留 per_battle charge。")
+	_assert_eq(int(cloned_unit.per_turn_charges.get(&"nimble_escape", -1)), 1, "显式 BattleUnitState clone 应保留 per_turn charge。")
+	_assert_eq(int(cloned_unit.per_turn_charge_limits.get(&"nimble_escape", -1)), 1, "显式 BattleUnitState clone 应保留 per_turn charge limit。")
 
 
 func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> void:
@@ -913,6 +941,7 @@ func _make_member_state(member_id: StringName) -> PartyMemberState:
 	member_state.member_id = member_id
 	member_state.display_name = String(member_id).capitalize()
 	member_state.body_size = 3
+	member_state.body_size_category = &"large"
 	member_state.current_hp = 18
 	member_state.current_mp = 6
 	member_state.control_mode = &"manual"

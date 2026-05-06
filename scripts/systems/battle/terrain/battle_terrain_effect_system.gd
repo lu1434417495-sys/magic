@@ -12,9 +12,13 @@ const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd"
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 
 const TERRAIN_EFFECT_DAMAGE: StringName = &"damage"
+const TERRAIN_EFFECT_MOVEMENT_COST: StringName = &"movement_cost"
 const STACK_BEHAVIOR_REFRESH: StringName = &"refresh"
 const STACK_BEHAVIOR_STACK: StringName = &"stack"
 const STACK_BEHAVIOR_IGNORE_EXISTING: StringName = &"ignore_existing"
+const PARAM_MOVE_COST_DELTA := "move_cost_delta"
+const PARAM_DOES_NOT_STACK_WITH_STATUS_ID := "does_not_stack_with_status_id"
+const PARAM_DOES_NOT_STACK_WITH_STATUS_IDS := "does_not_stack_with_status_ids"
 const TU_GRANULARITY := 5
 
 var _runtime_ref: WeakRef = null
@@ -31,6 +35,37 @@ func setup(runtime) -> void:
 
 func dispose() -> void:
 	_runtime = null
+
+
+func get_move_cost_delta_for_unit_target(
+	unit_state: BattleUnitState,
+	target_coord: Vector2i
+) -> int:
+	if not _has_runtime() or unit_state == null:
+		return 0
+
+	var state = _runtime.get_state()
+	var grid_service = _runtime.get_grid_service()
+	if state == null or grid_service == null:
+		return 0
+
+	var max_delta := 0
+	for occupied_coord in grid_service.get_unit_target_coords(unit_state, target_coord):
+		var cell: BattleCellState = grid_service.get_cell(state, occupied_coord) as BattleCellState
+		if cell == null or cell.timed_terrain_effects.is_empty():
+			continue
+		for effect_variant in cell.timed_terrain_effects:
+			var effect_state := effect_variant as BattleTerrainEffectState
+			var move_cost_delta := _get_timed_terrain_move_cost_delta(effect_state)
+			if move_cost_delta <= 0:
+				continue
+			var source_unit: BattleUnitState = state.units.get(effect_state.source_unit_id) as BattleUnitState if effect_state.source_unit_id != &"" else null
+			if not _is_unit_valid_for_effect(source_unit, unit_state, effect_state.target_team_filter):
+				continue
+			if _is_blocked_by_nonstacking_status(unit_state, effect_state):
+				continue
+			max_delta = maxi(max_delta, move_cost_delta)
+	return max_delta
 
 
 func upsert_timed_terrain_effect(
@@ -126,6 +161,8 @@ func apply_timed_terrain_effect_tick(
 	batch: BattleEventBatch
 ) -> void:
 	if not _has_runtime():
+		return
+	if effect_state != null and (effect_state.effect_type == TERRAIN_EFFECT_MOVEMENT_COST or effect_state.effect_type == &"none"):
 		return
 
 	var state = _runtime.get_state()
@@ -224,6 +261,34 @@ func apply_timed_terrain_effect_tick(
 
 	if source_unit != null:
 		_runtime.record_skill_effect_result(source_unit, damage, healing, kill_count)
+
+
+func _get_timed_terrain_move_cost_delta(effect_state) -> int:
+	if effect_state == null or effect_state.remaining_tu <= 0:
+		return 0
+	return maxi(int(effect_state.params.get(PARAM_MOVE_COST_DELTA, 0)), 0)
+
+
+func _is_blocked_by_nonstacking_status(unit_state: BattleUnitState, effect_state) -> bool:
+	if unit_state == null or effect_state == null:
+		return false
+	if _unit_has_status_from_param(unit_state, effect_state.params.get(PARAM_DOES_NOT_STACK_WITH_STATUS_ID, "")):
+		return true
+	return _unit_has_status_from_param(unit_state, effect_state.params.get(PARAM_DOES_NOT_STACK_WITH_STATUS_IDS, []))
+
+
+func _unit_has_status_from_param(unit_state: BattleUnitState, value: Variant) -> bool:
+	if unit_state == null:
+		return false
+	if value is String or value is StringName:
+		var status_id := ProgressionDataUtils.to_string_name(value)
+		return status_id != &"" and unit_state.has_status_effect(status_id)
+	if value is Array:
+		for status_variant in value:
+			var status_id := ProgressionDataUtils.to_string_name(status_variant)
+			if status_id != &"" and unit_state.has_status_effect(status_id):
+				return true
+	return false
 
 
 func _build_timed_terrain_effect(

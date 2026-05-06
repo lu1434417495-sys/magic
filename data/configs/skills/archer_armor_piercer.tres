@@ -6,26 +6,76 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_12j4y"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_pb8ty"]
 
-[sub_resource type="Resource" id="Resource_jf3te"]
+[sub_resource type="Resource" id="Resource_dmg"]
 script = ExtResource("3_s7wfb")
 effect_type = &"damage"
 power = 11
 damage_tag = &"physical_pierce"
 
-[sub_resource type="Resource" id="Resource_8hluy"]
+[sub_resource type="Resource" id="Resource_ab_l0"]
 script = ExtResource("3_s7wfb")
 effect_type = &"status"
 power = 1
+max_skill_level = 0
 status_id = &"armor_break"
-duration_tu = 180
+duration_tu = 40
 
-[sub_resource type="Resource" id="Resource_2235m"]
+[sub_resource type="Resource" id="Resource_ab_l1"]
+script = ExtResource("3_s7wfb")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 1
+status_id = &"armor_break"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_ab_l2"]
+script = ExtResource("3_s7wfb")
+effect_type = &"status"
+power = 2
+min_skill_level = 2
+max_skill_level = 2
+status_id = &"armor_break"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_ab_l3"]
+script = ExtResource("3_s7wfb")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"armor_break"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_ab_l5"]
+script = ExtResource("3_s7wfb")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = -1
+status_id = &"armor_break"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_12j4y")
 skill_id = &"archer_armor_piercer"
-range_value = 5
-stamina_cost = 1
-cooldown_tu = 10
-effect_defs = Array[ExtResource("3_s7wfb")]([SubResource("Resource_jf3te"), SubResource("Resource_8hluy")])
+range_value = 0
+ap_cost = 1
+stamina_cost = 30
+cooldown_tu = 0
+attack_roll_bonus = 0
+required_weapon_families = Array[StringName]([&"bow"])
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+level_overrides = {
+4: {
+"attack_roll_bonus": 1
+},
+5: {
+"attack_roll_bonus": 2
+}
+}
+effect_defs = Array[ExtResource("3_s7wfb")]([SubResource("Resource_dmg"), SubResource("Resource_ab_l0"), SubResource("Resource_ab_l1"), SubResource("Resource_ab_l2"), SubResource("Resource_ab_l3"), SubResource("Resource_ab_l5")])
 
 [resource]
 script = ExtResource("5_pb8ty")
@@ -33,46 +83,64 @@ skill_id = &"archer_armor_piercer"
 display_name = "破甲箭"
 icon_id = &"archer_armor_piercer"
 description = "命中后附加破甲，作为后续集火开口。"
-level_description_template = "造成{dmg}伤害，命中附加{status}（{duration}TU），射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_template = "造成{dmg}伤害，命中附加{status}（{duration}TU），射程随武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，无冷却"
 level_description_configs = {
 	"0": {
 		"dmg": "11",
 		"status": "破甲",
-		"duration": "180",
-		"range": "5",
+		"duration": "40",
+		"attack": "—",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "30"
 	},
 	"1": {
 		"dmg": "11",
 		"status": "破甲",
-		"duration": "180",
-		"range": "5",
+		"duration": "60",
+		"attack": "—",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "30"
 	},
 	"2": {
 		"dmg": "11",
 		"status": "破甲",
-		"duration": "180",
-		"range": "5",
+		"duration": "60",
+		"attack": "—",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "30"
 	},
 	"3": {
 		"dmg": "11",
 		"status": "破甲",
-		"duration": "180",
-		"range": "5",
+		"duration": "80",
+		"attack": "—",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "30"
 	},
+	"4": {
+		"dmg": "11",
+		"status": "破甲",
+		"duration": "80",
+		"attack": "+1",
+		"ap": "1",
+		"stamina": "30"
+	},
+	"5": {
+		"dmg": "11",
+		"status": "破甲",
+		"duration": "100",
+		"attack": "+2",
+		"ap": "1",
+		"stamina": "30"
+	}
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"agility": 40,
+"perception": 20
+}
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])
-combat_profile = SubResource("Resource_2235m")
+combat_profile = SubResource("Resource_combat")

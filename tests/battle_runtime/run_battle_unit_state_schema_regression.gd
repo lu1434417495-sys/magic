@@ -2,6 +2,7 @@ extends SceneTree
 
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BodySizeRules = preload("res://scripts/systems/progression/body_size_rules.gd")
 
 var _failures: Array[String] = []
 
@@ -12,10 +13,13 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_valid_roundtrip_preserves_current_payload()
+	_test_clone_preserves_ephemeral_charge_state()
+	_test_extended_body_size_categories_roundtrip()
 	_test_rejects_non_dictionary_empty_missing_and_extra_fields()
 	_test_rejects_wrong_top_level_types()
 	_test_rejects_string_numeric_values()
 	_test_rejects_bad_string_name_arrays()
+	_test_rejects_bad_identity_projection_fields()
 	_test_rejects_bad_combat_resource_unlocks()
 	_test_rejects_bad_status_effect_entries()
 	_test_rejects_equipment_view_bad_payload()
@@ -36,7 +40,56 @@ func _test_valid_roundtrip_preserves_current_payload() -> void:
 	var restored = BattleUnitState.from_dict(payload) as BattleUnitState
 	_assert_true(restored != null, "当前 to_dict payload 应可由 from_dict 恢复。")
 	_assert_eq(restored.current_move_points if restored != null else -1, 5, "current_move_points 应保留大于默认值的 int。")
+	_assert_eq(String(restored.body_size_category if restored != null else &""), "large", "body_size_category 应随 body_size round-trip。")
+	_assert_eq(restored.vision_tags if restored != null else [], [&"darkvision"], "vision_tags 应 round-trip。")
+	_assert_eq(String(restored.damage_resistances.get(&"fire", &"") if restored != null else &""), "half", "damage_resistances 应 round-trip。")
 	_assert_eq(restored.to_dict() if restored != null else {}, payload, "BattleUnitState 应保持 to_dict/from_dict round-trip。")
+
+
+func _test_clone_preserves_ephemeral_charge_state() -> void:
+	var unit := _build_unit()
+	unit.per_battle_charges = {&"dragon_breath": 1}
+	unit.per_turn_charges = {&"nimble_escape": 1}
+	unit.per_turn_charge_limits = {&"nimble_escape": 1}
+	var cloned := unit.clone()
+	_assert_true(cloned != null, "BattleUnitState.clone() 应返回可用副本。")
+	if cloned == null:
+		return
+	_assert_eq(cloned.to_dict(), unit.to_dict(), "clone 应保留序列化字段。")
+	_assert_eq(int(cloned.per_battle_charges.get(&"dragon_breath", -1)), 1, "clone 应深拷贝 per_battle_charges。")
+	_assert_eq(int(cloned.per_turn_charges.get(&"nimble_escape", -1)), 1, "clone 应深拷贝 per_turn_charges。")
+	_assert_eq(int(cloned.per_turn_charge_limits.get(&"nimble_escape", -1)), 1, "clone 应深拷贝 per_turn_charge_limits。")
+	cloned.per_battle_charges[&"dragon_breath"] = 0
+	cloned.per_turn_charges[&"nimble_escape"] = 0
+	cloned.per_turn_charge_limits[&"nimble_escape"] = 0
+	_assert_eq(int(unit.per_battle_charges.get(&"dragon_breath", -1)), 1, "clone 不应共享 per_battle_charges 字典。")
+	_assert_eq(int(unit.per_turn_charges.get(&"nimble_escape", -1)), 1, "clone 不应共享 per_turn_charges 字典。")
+	_assert_eq(int(unit.per_turn_charge_limits.get(&"nimble_escape", -1)), 1, "clone 不应共享 per_turn_charge_limits 字典。")
+
+
+func _test_extended_body_size_categories_roundtrip() -> void:
+	var tiny := _build_unit()
+	_assert_true(tiny.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_TINY), "tiny category 应可设置。")
+	var tiny_payload := tiny.to_dict()
+	_assert_eq(String(tiny_payload.get("body_size_category", "")), "tiny", "to_dict 应保留 tiny category。")
+	_assert_eq(int(tiny_payload.get("body_size", 0)), BodySizeRules.BODY_SIZE_TINY, "tiny 应映射到 BodySizeRules 的 int。")
+	_assert_eq(tiny_payload.get("footprint_size", Vector2i.ZERO), Vector2i.ONE, "tiny footprint 应为 1x1。")
+	_assert_true(BattleUnitState.from_dict(tiny_payload) != null, "tiny payload 应可 round-trip。")
+
+	var gargantuan := _build_unit()
+	_assert_true(gargantuan.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_GARGANTUAN), "gargantuan category 应可设置。")
+	var gargantuan_payload := gargantuan.to_dict()
+	_assert_eq(int(gargantuan_payload.get("body_size", 0)), BodySizeRules.BODY_SIZE_GARGANTUAN, "gargantuan 应映射到 BodySizeRules 的 int。")
+	_assert_eq(gargantuan_payload.get("footprint_size", Vector2i.ZERO), Vector2i(3, 3), "gargantuan footprint 应为 3x3。")
+	_assert_eq((gargantuan_payload.get("occupied_coords", []) as Array).size(), 9, "gargantuan 应占 9 格。")
+	_assert_true(BattleUnitState.from_dict(gargantuan_payload) != null, "gargantuan payload 应可 round-trip。")
+
+	var boss := _build_unit()
+	_assert_true(boss.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_BOSS), "boss category 应可设置。")
+	var boss_payload := boss.to_dict()
+	_assert_eq(int(boss_payload.get("body_size", 0)), BodySizeRules.BODY_SIZE_BOSS, "boss 应映射到 BodySizeRules 的 int。")
+	_assert_eq(boss_payload.get("footprint_size", Vector2i.ZERO), Vector2i(3, 3), "boss footprint 应为 3x3。")
+	_assert_true(BattleUnitState.from_dict(boss_payload) != null, "boss payload 应可 round-trip。")
 
 
 func _test_rejects_non_dictionary_empty_missing_and_extra_fields() -> void:
@@ -109,6 +162,32 @@ func _test_rejects_bad_string_name_arrays() -> void:
 	var bad_movement_tag := _payload()
 	bad_movement_tag["movement_tags"] = ["grounded", 3]
 	_assert_rejected(bad_movement_tag, "movement_tags 非 String/StringName 元素应拒绝。")
+
+	var duplicate_trait_id := _payload()
+	duplicate_trait_id["race_trait_ids"] = ["brave", "brave"]
+	_assert_rejected(duplicate_trait_id, "race_trait_ids 重复元素应拒绝。")
+
+	var bad_save_advantage_tag := _payload()
+	bad_save_advantage_tag["save_advantage_tags"] = ["charm", ""]
+	_assert_rejected(bad_save_advantage_tag, "save_advantage_tags 空元素应拒绝。")
+
+
+func _test_rejects_bad_identity_projection_fields() -> void:
+	var category_mismatch := _payload()
+	category_mismatch["body_size_category"] = "medium"
+	_assert_rejected(category_mismatch, "body_size_category 与 body_size 不一致应拒绝。")
+
+	var invalid_category := _payload()
+	invalid_category["body_size_category"] = "colossal"
+	_assert_rejected(invalid_category, "非法 body_size_category 应拒绝。")
+
+	var bad_damage_key := _payload()
+	bad_damage_key["damage_resistances"][3] = "half"
+	_assert_rejected(bad_damage_key, "damage_resistances 非字符串 key 应拒绝。")
+
+	var bad_damage_value := _payload()
+	bad_damage_value["damage_resistances"]["fire"] = "quarter"
+	_assert_rejected(bad_damage_value, "damage_resistances 非法 mitigation tier 应拒绝。")
 
 
 func _test_rejects_bad_combat_resource_unlocks() -> void:
@@ -186,6 +265,7 @@ func _build_unit() -> BattleUnitState:
 	unit.ai_blackboard = {"target": "enemy_1"}
 	unit.coord = Vector2i(3, 4)
 	unit.body_size = 3
+	unit.body_size_category = &"large"
 	unit.current_hp = 21
 	unit.current_mp = 4
 	unit.current_stamina = 13
@@ -203,12 +283,20 @@ func _build_unit() -> BattleUnitState:
 	unit.shield_source_unit_id = &"schema_unit"
 	unit.shield_source_skill_id = &"ward_skill"
 	unit.shield_params = {"kind": "test"}
-	unit.current_free_move_points = 1
 	unit.action_progress = 20
 	unit.action_threshold = 140
 	unit.known_active_skill_ids = [&"slash"]
 	unit.known_skill_level_map = {&"slash": 2}
 	unit.movement_tags = [&"grounded"]
+	unit.vision_tags = [&"darkvision"]
+	unit.proficiency_tags = [&"light_armor"]
+	unit.save_advantage_tags = [&"charm"]
+	unit.damage_resistances = {&"fire": &"half"}
+	unit.race_trait_ids = [&"brave"]
+	unit.subrace_trait_ids = [&"fleet_of_foot"]
+	unit.ascension_trait_ids = [&"dragon_breath"]
+	unit.bloodline_trait_ids = [&"draconic_resilience"]
+	unit.versatility_pick = &"strength"
 	unit.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
 		"weapon_item_id": "training_longsword",

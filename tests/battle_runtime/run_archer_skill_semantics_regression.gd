@@ -16,7 +16,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_arrow_rain_applies_pinned_and_damage()
+	_test_arrow_rain_leaves_suppression_zone_and_damage()
 	_test_skirmish_step_repositions_and_grants_pre_aim()
 	_test_evasive_roll_repositions_and_grants_evasion()
 	if _failures.is_empty():
@@ -29,13 +29,19 @@ func _run() -> void:
 	quit(1)
 
 
-func _test_arrow_rain_applies_pinned_and_damage() -> void:
+func _test_arrow_rain_leaves_suppression_zone_and_damage() -> void:
 	var runtime := _build_runtime()
 	var state := _build_skill_test_state(Vector2i(6, 4))
 	var archer := _build_unit(&"archer_arrow_rain_user", Vector2i(1, 1), 6)
 	archer.current_mp = 6
-	archer.current_stamina = 6
+	archer.current_stamina = 60
 	archer.current_aura = 6
+	archer.weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED
+	archer.weapon_family = &"bow"
+	archer.weapon_attack_range = 5
+	archer.weapon_physical_damage_tag = &"pierce"
+	archer.weapon_one_handed_dice = {"dice_count": 1, "dice_sides": 6, "flat_bonus": 2}
+	archer.attribute_snapshot.set_value(&"attack_bonus", 100)
 	archer.known_active_skill_ids = [&"archer_arrow_rain"]
 	archer.known_skill_level_map = {&"archer_arrow_rain": 1}
 	var enemy := _build_unit(&"archer_arrow_rain_target", Vector2i(3, 1), 1)
@@ -53,6 +59,7 @@ func _test_arrow_rain_applies_pinned_and_damage() -> void:
 	command.command_type = BattleCommand.TYPE_SKILL
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_arrow_rain"
+	command.skill_variant_id = &"arrow_rain_tl"
 	command.target_coord = enemy.coord
 
 	var preview := runtime.preview_command(command)
@@ -62,7 +69,15 @@ func _test_arrow_rain_applies_pinned_and_damage() -> void:
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(enemy.unit_id), "箭雨应记录目标单位变更。")
 	_assert_true(enemy.current_hp < 30, "箭雨应对目标造成实际伤害。")
-	_assert_true(enemy.status_effects.has(&"pinned"), "箭雨应对目标施加压制状态。")
+	_assert_true(not enemy.status_effects.has(&"slow"), "路线B下箭雨不应再对目标写入单位 slow 状态。")
+	var target_cell := runtime._grid_service.get_cell(state, enemy.coord) as BattleCellState
+	var suppression = _find_timed_terrain_effect(target_cell, &"arrow_rain_suppression")
+	_assert_true(suppression != null, "箭雨应在命中区域留下 timed terrain 压制地带。")
+	if suppression != null:
+		_assert_true(int(suppression.remaining_tu) == 30, "1级箭雨压制地带应持续 30 TU。")
+		_assert_true(int(suppression.params.get("move_cost_delta", 0)) == 1, "箭雨压制地带应只提供 +1 移动成本。")
+	_assert_true(runtime._get_move_cost_for_unit_target(enemy, enemy.coord, false) == 2, "敌方位于箭雨压制地带时平地移动成本应从 1 提升到 2。")
+	_assert_true(runtime._get_move_cost_for_unit_target(archer, enemy.coord, false) == 1, "箭雨压制地带不应惩罚施法者友方。")
 
 
 func _test_skirmish_step_repositions_and_grants_pre_aim() -> void:
@@ -196,6 +211,15 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUnitState) -> void:
 	state.units[unit.unit_id] = unit
 	runtime._grid_service.place_unit(state, unit, unit.coord, true)
+
+
+func _find_timed_terrain_effect(cell: BattleCellState, effect_id: StringName):
+	if cell == null:
+		return null
+	for effect_variant in cell.timed_terrain_effects:
+		if effect_variant != null and effect_variant.effect_id == effect_id:
+			return effect_variant
+	return null
 
 
 func _assert_true(condition: bool, message: String) -> void:

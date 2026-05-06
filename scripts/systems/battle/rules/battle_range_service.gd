@@ -5,6 +5,7 @@ const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_s
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
 const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
+const STATUS_ARCHER_SHOOTING_SPECIALIZATION: StringName = &"archer_shooting_specialization"
 
 
 static func get_weapon_attack_range(unit_state: BattleUnitState) -> int:
@@ -101,6 +102,11 @@ static func _get_range_modifier_bonus(unit_state: BattleUnitState, _skill_def) -
 	var bonus := 0
 	if unit_state.has_status_effect(STATUS_ARCHER_RANGE_UP):
 		bonus += 1
+	var shooting_specialization = unit_state.get_status_effect(STATUS_ARCHER_SHOOTING_SPECIALIZATION)
+	if shooting_specialization != null \
+			and unit_matches_required_weapon_families(unit_state, [&"bow"]) \
+			and (requires_current_melee_weapon(_skill_def) or is_weapon_range_skill(_skill_def)):
+		bonus += maxi(int(shooting_specialization.params.get("range_bonus", shooting_specialization.power)), 0)
 	return bonus
 
 

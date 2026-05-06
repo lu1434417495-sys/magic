@@ -2126,6 +2126,16 @@ func _test_stamina_recovers_on_5tu_ticks_and_rest_doubles_progress() -> void:
 	facade._battle_runtime.issue_command(move_command)
 	_assert_true(not ally.is_resting, "单位执行非等待行动后应清除休息状态。")
 
+	state.phase = &"timeline_running"
+	state.active_unit_id = &""
+	ally.current_stamina = 10
+	ally.stamina_recovery_progress = 0
+	ally.is_resting = false
+	ally.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_RECOVERY_PERCENT_BONUS, 50)
+	facade.advance(1.0)
+	_assert_eq(ally.current_stamina, 11, "50% 体力恢复加成应让体质 3 的单个 5TU tick 恢复 1 点体力。")
+	_assert_eq(ally.stamina_recovery_progress, 2, "50% 体力恢复加成应把 8 点基础进度提高到 12 点并保留余数。")
+
 	_cleanup_test_session(game_session)
 
 

@@ -6,20 +6,89 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_hf835"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_his0s"]
 
-[sub_resource type="Resource" id="Resource_4y8ey"]
+[sub_resource type="Resource" id="Resource_aim_l0"]
 script = ExtResource("3_dmnkm")
 effect_type = &"damage"
-power = 13
+power = 0
+max_skill_level = 0
 damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 4,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_aim_l1"]
+script = ExtResource("3_dmnkm")
+effect_type = &"damage"
+power = 0
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 6,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_aim_l3"]
+script = ExtResource("3_dmnkm")
+effect_type = &"damage"
+power = 0
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"dice_count": 1,
+"dice_sides": 8,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
+
+[sub_resource type="Resource" id="Resource_aim_l5"]
+script = ExtResource("3_dmnkm")
+effect_type = &"damage"
+power = 0
+min_skill_level = 5
+max_skill_level = -1
+damage_tag = &"physical_pierce"
+params = {
+"add_weapon_dice": true,
+"dice_count": 2,
+"dice_sides": 5,
+"requires_weapon": true,
+"resolve_as_weapon_attack": true,
+"use_weapon_physical_damage_tag": true
+}
 
 [sub_resource type="Resource" id="Resource_u1vsk"]
 script = ExtResource("4_hf835")
 skill_id = &"archer_aimed_shot"
-range_value = 5
-stamina_cost = 1
-cooldown_tu = 5
-attack_roll_bonus = 2
-effect_defs = Array[ExtResource("3_dmnkm")]([SubResource("Resource_4y8ey")])
+range_value = 0
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 0
+attack_roll_bonus = 1
+required_weapon_families = Array[StringName]([&"bow"])
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+level_overrides = {
+2: {
+"attack_roll_bonus": 2
+},
+4: {
+"attack_roll_bonus": 3
+}
+}
+effect_defs = Array[ExtResource("3_dmnkm")]([SubResource("Resource_aim_l0"), SubResource("Resource_aim_l1"), SubResource("Resource_aim_l3"), SubResource("Resource_aim_l5")])
 
 [resource]
 script = ExtResource("5_his0s")
@@ -27,42 +96,52 @@ skill_id = &"archer_aimed_shot"
 display_name = "精准射击"
 icon_id = &"archer_aimed_shot"
 description = "稳住呼吸后射出高精度一箭；若目标本回合尚未行动，则暴击率额外 +15%。"
-level_description_template = "造成{dmg}伤害，射程{range}，攻击检定+{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_template = "武器伤害+{skill_dice}技能骰，攻击检定{attack}，射程随武器，消耗{ap}AP/{stamina}体力，无冷却"
 level_description_configs = {
 	"0": {
-		"dmg": "13",
-		"range": "5",
-		"attack": "+2",
+		"attack": "+1",
+		"skill_dice": "1D4",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "5"
+		"stamina": "20"
 	},
 	"1": {
-		"dmg": "13",
-		"range": "5",
-		"attack": "+2",
+		"attack": "+1",
+		"skill_dice": "1D6",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "5"
+		"stamina": "20"
 	},
 	"2": {
-		"dmg": "13",
-		"range": "5",
 		"attack": "+2",
+		"skill_dice": "1D6",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "5"
+		"stamina": "20"
 	},
 	"3": {
-		"dmg": "13",
-		"range": "5",
 		"attack": "+2",
+		"skill_dice": "1D8",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "5"
+		"stamina": "20"
 	},
+	"4": {
+		"attack": "+3",
+		"skill_dice": "1D8",
+		"ap": "1",
+		"stamina": "20"
+	},
+	"5": {
+		"attack": "+3",
+		"skill_dice": "2D5",
+		"ap": "1",
+		"stamina": "20"
+	}
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"agility": 40,
+"perception": 20
+}
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])
 combat_profile = SubResource("Resource_u1vsk")
