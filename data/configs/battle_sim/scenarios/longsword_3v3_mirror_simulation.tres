@@ -1,0 +1,352 @@
+[gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/battle_sim_scenario_def.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/battle_sim_unit_spec.gd" id="2_unit"]
+
+[sub_resource type="Resource" id="Resource_ally_01"]
+script = ExtResource("2_unit")
+unit_id = &"ally_longsword_01"
+source_member_id = &"ally_01"
+display_name = "盟军长剑手01"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(0, 2)
+current_hp = 36
+current_stamina = 120
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 36,
+"armor_ac_bonus": 0,
+"shield_ac_bonus": 0,
+"dodge_bonus": 0,
+"deflection_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "steel_longsword",
+"weapon_profile_type_id": "longsword",
+"weapon_family": "sword",
+"weapon_current_grip": "one_handed",
+"weapon_attack_range": 1,
+"weapon_one_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 10
+},
+"weapon_is_versatile": true,
+"weapon_uses_two_hands": false,
+"weapon_physical_damage_tag": "physical_slash"
+}
+
+[sub_resource type="Resource" id="Resource_ally_02"]
+script = ExtResource("2_unit")
+unit_id = &"ally_longsword_02"
+source_member_id = &"ally_02"
+display_name = "盟军长剑手02"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(0, 4)
+current_hp = 36
+current_stamina = 120
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 36,
+"armor_ac_bonus": 0,
+"shield_ac_bonus": 0,
+"dodge_bonus": 0,
+"deflection_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "steel_longsword",
+"weapon_profile_type_id": "longsword",
+"weapon_family": "sword",
+"weapon_current_grip": "one_handed",
+"weapon_attack_range": 1,
+"weapon_one_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 10
+},
+"weapon_is_versatile": true,
+"weapon_uses_two_hands": false,
+"weapon_physical_damage_tag": "physical_slash"
+}
+
+[sub_resource type="Resource" id="Resource_ally_03"]
+script = ExtResource("2_unit")
+unit_id = &"ally_longsword_03"
+source_member_id = &"ally_03"
+display_name = "盟军长剑手03"
+faction_id = &"player"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(0, 6)
+current_hp = 36
+current_stamina = 120
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 36,
+"armor_ac_bonus": 0,
+"shield_ac_bonus": 0,
+"dodge_bonus": 0,
+"deflection_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "steel_longsword",
+"weapon_profile_type_id": "longsword",
+"weapon_family": "sword",
+"weapon_current_grip": "one_handed",
+"weapon_attack_range": 1,
+"weapon_one_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 10
+},
+"weapon_is_versatile": true,
+"weapon_uses_two_hands": false,
+"weapon_physical_damage_tag": "physical_slash"
+}
+
+[sub_resource type="Resource" id="Resource_enemy_01"]
+script = ExtResource("2_unit")
+unit_id = &"enemy_longsword_01"
+source_member_id = &"enemy_01"
+display_name = "敌军长剑手01"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(18, 2)
+current_hp = 36
+current_stamina = 120
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 36,
+"armor_ac_bonus": 0,
+"shield_ac_bonus": 0,
+"dodge_bonus": 0,
+"deflection_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "steel_longsword",
+"weapon_profile_type_id": "longsword",
+"weapon_family": "sword",
+"weapon_current_grip": "one_handed",
+"weapon_attack_range": 1,
+"weapon_one_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 10
+},
+"weapon_is_versatile": true,
+"weapon_uses_two_hands": false,
+"weapon_physical_damage_tag": "physical_slash"
+}
+
+[sub_resource type="Resource" id="Resource_enemy_02"]
+script = ExtResource("2_unit")
+unit_id = &"enemy_longsword_02"
+source_member_id = &"enemy_02"
+display_name = "敌军长剑手02"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(18, 4)
+current_hp = 36
+current_stamina = 120
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 36,
+"armor_ac_bonus": 0,
+"shield_ac_bonus": 0,
+"dodge_bonus": 0,
+"deflection_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "steel_longsword",
+"weapon_profile_type_id": "longsword",
+"weapon_family": "sword",
+"weapon_current_grip": "one_handed",
+"weapon_attack_range": 1,
+"weapon_one_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 10
+},
+"weapon_is_versatile": true,
+"weapon_uses_two_hands": false,
+"weapon_physical_damage_tag": "physical_slash"
+}
+
+[sub_resource type="Resource" id="Resource_enemy_03"]
+script = ExtResource("2_unit")
+unit_id = &"enemy_longsword_03"
+source_member_id = &"enemy_03"
+display_name = "敌军长剑手03"
+faction_id = &"hostile"
+control_mode = &"ai"
+ai_brain_id = &"melee_aggressor"
+ai_state_id = &"engage"
+coord = Vector2i(18, 6)
+current_hp = 36
+current_stamina = 120
+current_ap = 2
+current_move_points = 2
+action_threshold = 120
+base_attributes = {
+"strength": 14,
+"agility": 12,
+"constitution": 14,
+"perception": 10,
+"intelligence": 8,
+"willpower": 10
+}
+attribute_overrides = {
+"hp_max": 36,
+"armor_ac_bonus": 0,
+"shield_ac_bonus": 0,
+"dodge_bonus": 0,
+"deflection_bonus": 0
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+"charge": 1,
+"warrior_heavy_strike": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "steel_longsword",
+"weapon_profile_type_id": "longsword",
+"weapon_family": "sword",
+"weapon_current_grip": "one_handed",
+"weapon_attack_range": 1,
+"weapon_one_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 10
+},
+"weapon_is_versatile": true,
+"weapon_uses_two_hands": false,
+"weapon_physical_damage_tag": "physical_slash"
+}
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"longsword_3v3_mirror_simulation"
+display_name = "Longsword 3v3 Mirror Simulation"
+description = "正式 canyon 地图上 3 名钢制长剑手对 3 名钢制长剑手，双方都使用 melee_aggressor AI，携带冲锋与重击技能，使用属性化六维与武器投影。"
+map_size = Vector2i(19, 11)
+terrain_profile_id = &"canyon"
+use_formal_terrain_generation = true
+world_coord = Vector2i(7, 11)
+ally_units = Array[Resource]([SubResource("Resource_ally_01"), SubResource("Resource_ally_02"), SubResource("Resource_ally_03")])
+enemy_units = Array[Resource]([SubResource("Resource_enemy_01"), SubResource("Resource_enemy_02"), SubResource("Resource_enemy_03")])
+tick_interval_seconds = 1.0
+tu_per_tick = 5
+max_iterations = 3000
+manual_policy = &"wait"
+trace_enabled = true
+seeds = PackedInt32Array(101, 102, 103, 104, 105)

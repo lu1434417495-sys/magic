@@ -35,6 +35,7 @@ func _test_profile_summary_exposes_skill_attempt_and_failure_totals() -> void:
 	_assert_eq(int(summary.get("skill_failure_totals", {}).get("skill_alpha", -1)), 1, "skill_alpha 失败次数应等于 attempt-success。")
 	_assert_eq(int(summary.get("skill_failure_totals", {}).get("skill_gamma", -1)), 2, "skill_gamma 全失败时应保留全部失败次数。")
 	_assert_true(not summary.get("skill_failure_totals", {}).has("skill_beta"), "零失败技能不应写入 failure_totals。")
+	_assert_eq(float(summary.get("average_timeline_steps", -1.0)), 3.0, "timeline_steps 应按 run 平均汇总。")
 
 
 func _test_profile_comparisons_expose_attempt_and_failure_deltas() -> void:
@@ -57,6 +58,7 @@ func _test_profile_comparisons_expose_attempt_and_failure_deltas() -> void:
 	_assert_eq(int(comparison.get("skill_failure_delta", {}).get("skill_alpha", 999)), -1, "candidate 的 skill_alpha 失败次数较 baseline 应少 1。")
 	_assert_eq(int(comparison.get("skill_attempt_delta", {}).get("skill_gamma", 999)), -2, "candidate 不再尝试 skill_gamma 时，attempt delta 应为 -2。")
 	_assert_eq(int(comparison.get("skill_failure_delta", {}).get("skill_gamma", 999)), -2, "candidate 不再失败 skill_gamma 时，failure delta 应为 -2。")
+	_assert_eq(float(comparison.get("average_timeline_steps_delta", 999.0)), -1.0, "candidate 的平均 timeline_steps 应比 baseline 少 1。")
 
 
 func _build_profile(profile_id: StringName, display_name: String):
@@ -71,6 +73,7 @@ func _build_run_a() -> Dictionary:
 		"winner_faction_id": "player",
 		"final_tu": 10,
 		"iterations": 5,
+		"timeline_steps": 2,
 		"metrics": {
 			"units": {
 				"unit_a": {
@@ -95,6 +98,7 @@ func _build_run_b() -> Dictionary:
 		"winner_faction_id": "hostile",
 		"final_tu": 20,
 		"iterations": 8,
+		"timeline_steps": 4,
 		"metrics": {
 			"units": {
 				"unit_b": {
@@ -118,6 +122,7 @@ func _build_run_candidate() -> Dictionary:
 		"winner_faction_id": "player",
 		"final_tu": 9,
 		"iterations": 4,
+		"timeline_steps": 2,
 		"metrics": {
 			"units": {
 				"unit_candidate": {

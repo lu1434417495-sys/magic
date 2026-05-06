@@ -3,13 +3,13 @@ extends RefCounted
 
 const BATTLE_SIM_CONTENT_PROVIDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_content_provider.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
 const BATTLE_SIM_OVERRIDE_APPLIER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_override_applier.gd")
 const BATTLE_SIM_REPORT_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_report_builder.gd")
 const BATTLE_SIM_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_terrain_generator.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
+const BATTLE_SIM_TRACE_SUMMARY_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd")
 const BattleSimProfileDef = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
 
 const REPORT_DIRECTORY := "user://simulation_reports"
@@ -20,6 +20,8 @@ var _override_applier = BATTLE_SIM_OVERRIDE_APPLIER_SCRIPT.new()
 var _report_builder = BATTLE_SIM_REPORT_BUILDER_SCRIPT.new()
 var _content_provider = BATTLE_SIM_CONTENT_PROVIDER_SCRIPT.new()
 var _terrain_generator = BATTLE_SIM_TERRAIN_GENERATOR_SCRIPT.new()
+var _execution_loop = BATTLE_SIM_EXECUTION_LOOP_SCRIPT.new()
+var _trace_summary_builder = BATTLE_SIM_TRACE_SUMMARY_BUILDER_SCRIPT.new()
 var progress_logging_enabled := false
 var progress_log_path := ""
 var _progress_log_file: FileAccess = null
@@ -74,13 +76,14 @@ func run_scenario(scenario_def, profile_defs: Array = []) -> Dictionary:
 			var run_result := _run_single_simulation(scenario_def, profile, seed)
 			runs.append(run_result)
 			if progress_logging_enabled:
-				_log_progress("[BattleSim] run-done profile=%s seed=%d ended=%s winner=%s final_tu=%d iterations=%d idle_loops=%d ally_alive=%d enemy_alive=%d" % [
+				_log_progress("[BattleSim] run-done profile=%s seed=%d ended=%s winner=%s final_tu=%d iterations=%d timeline_steps=%d idle_loops=%d ally_alive=%d enemy_alive=%d" % [
 					String(profile.profile_id),
 					seed,
 					str(bool(run_result.get("battle_ended", false))),
 					String(run_result.get("winner_faction_id", "")),
 					int(run_result.get("final_tu", 0)),
 					int(run_result.get("iterations", 0)),
+					int(run_result.get("timeline_steps", 0)),
 					int(run_result.get("idle_loops", 0)),
 					int(run_result.get("ally_alive", 0)),
 					int(run_result.get("enemy_alive", 0)),
@@ -124,6 +127,7 @@ func _run_single_simulation(scenario_def, profile, seed: int) -> Dictionary:
 		enemy_ai_brains,
 		profile
 	)
+	var use_formal_terrain := bool(scenario_def.use_formal_terrain_generation) if scenario_def != null else false
 	runtime.setup(
 		null,
 		overrides.get("skill_defs", {}),
@@ -132,44 +136,24 @@ func _run_single_simulation(scenario_def, profile, seed: int) -> Dictionary:
 		null,
 		null,
 		{},
-		_terrain_generator
+		null if use_formal_terrain else _terrain_generator
 	)
 	runtime.set_ai_trace_enabled(bool(scenario_def.trace_enabled))
 	runtime.set_ai_score_profile(overrides.get("ai_score_profile", null))
 	var encounter_anchor = _build_encounter_anchor(scenario_def)
 	var state = runtime.start_battle(encounter_anchor, seed, scenario_def.build_start_context())
-	var iterations := 0
-	var idle_loops := 0
-	while state != null and state.phase != &"battle_ended" and iterations < int(scenario_def.max_iterations):
-		iterations += 1
-		var previous_signature := _build_progress_signature(state)
-		if state.phase == &"unit_acting":
-			var active_unit = state.units.get(state.active_unit_id)
-			if active_unit != null and active_unit.is_alive and active_unit.control_mode == &"manual":
-				_issue_manual_policy(runtime, scenario_def.manual_policy, active_unit.unit_id)
-			else:
-				runtime.advance(0.0)
-		else:
-			runtime.advance(float(scenario_def.tick_interval_seconds))
-		if progress_logging_enabled and iterations % PROGRESS_ITERATION_INTERVAL == 0:
-			_log_progress("[BattleSim] progress profile=%s seed=%d iteration=%d phase=%s active_unit=%s tu=%d idle_loops=%d %s last_log=\"%s\"" % [
-				String(profile.profile_id),
-				seed,
-				iterations,
-				String(state.phase),
-				String(state.active_unit_id),
-				int(state.timeline.current_tu) if state.timeline != null else 0,
-				idle_loops,
-				_build_active_unit_progress_summary(state),
-				_get_last_log_line(state),
-			])
-		var next_signature := _build_progress_signature(state)
-		if previous_signature == next_signature:
-			idle_loops += 1
-			if idle_loops >= MAX_IDLE_LOOPS:
-				break
-		else:
-			idle_loops = 0
+	var loop_result: Dictionary = _execution_loop.run(runtime, state, scenario_def, {
+		"max_idle_loops": MAX_IDLE_LOOPS,
+		"progress_iteration_interval": PROGRESS_ITERATION_INTERVAL if progress_logging_enabled else 0,
+		"progress_callback": Callable(self, "_handle_run_progress"),
+		"progress_context": {
+			"profile_id": String(profile.profile_id),
+			"seed": seed,
+		},
+	})
+	var iterations := int(loop_result.get("iterations", 0))
+	var idle_loops := int(loop_result.get("idle_loops", 0))
+	var timeline_steps := int(loop_result.get("timeline_steps", 0))
 	var run_result := {
 		"scenario_id": String(scenario_def.scenario_id),
 		"profile_id": String(profile.profile_id),
@@ -180,6 +164,7 @@ func _run_single_simulation(scenario_def, profile, seed: int) -> Dictionary:
 		"final_tu": int(state.timeline.current_tu) if state != null and state.timeline != null else 0,
 		"iterations": iterations,
 		"idle_loops": idle_loops,
+		"timeline_steps": timeline_steps,
 		"ally_alive": _count_living_units(state, state.ally_unit_ids if state != null else []),
 		"enemy_alive": _count_living_units(state, state.enemy_unit_ids if state != null else []),
 		"metrics": runtime.get_battle_metrics().duplicate(true),
@@ -188,6 +173,27 @@ func _run_single_simulation(scenario_def, profile, seed: int) -> Dictionary:
 	}
 	runtime.dispose()
 	return run_result
+
+
+func _handle_run_progress(progress_data: Dictionary) -> void:
+	if not progress_logging_enabled:
+		return
+	var state = progress_data.get("state", null)
+	if state == null:
+		return
+	var context: Dictionary = progress_data.get("context", {}) if progress_data.get("context", {}) is Dictionary else {}
+	_log_progress("[BattleSim] progress profile=%s seed=%d iteration=%d timeline_steps=%d phase=%s active_unit=%s tu=%d idle_loops=%d %s last_log=\"%s\"" % [
+		String(context.get("profile_id", "")),
+		int(context.get("seed", 0)),
+		int(progress_data.get("iterations", 0)),
+		int(progress_data.get("timeline_steps", 0)),
+		String(state.phase),
+		String(state.active_unit_id),
+		int(state.timeline.current_tu) if state.timeline != null else 0,
+		int(progress_data.get("idle_loops", 0)),
+		_build_active_unit_progress_summary(state),
+		_get_last_log_line(state),
+	])
 
 
 func _get_content_dictionary(method_name: StringName) -> Dictionary:
@@ -205,44 +211,6 @@ func _build_encounter_anchor(scenario_def):
 	encounter_anchor.world_coord = Vector2i.ZERO
 	encounter_anchor.region_tag = &"simulation"
 	return encounter_anchor
-
-
-func _issue_manual_policy(runtime, manual_policy: StringName, unit_id: StringName) -> void:
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.unit_id = unit_id
-	command.command_type = BattleCommand.TYPE_WAIT
-	match manual_policy:
-		&"wait":
-			runtime.issue_command(command)
-		_:
-			runtime.issue_command(command)
-
-
-func _build_progress_signature(state) -> String:
-	if state == null:
-		return ""
-	var unit_parts: Array[String] = []
-	for unit_id_str in ProgressionDataUtils.sorted_string_keys(state.units):
-		var unit_state = state.units.get(StringName(unit_id_str))
-		if unit_state == null:
-			continue
-		unit_parts.append("%s:%d,%d:%d:%d:%d:%d:%d" % [
-			unit_id_str,
-			unit_state.coord.x,
-			unit_state.coord.y,
-			1 if bool(unit_state.is_alive) else 0,
-			int(unit_state.current_hp),
-			int(unit_state.current_ap),
-			int(unit_state.current_stamina),
-			int(unit_state.current_move_points),
-		])
-	return "%s|%s|%s|%d|%s" % [
-		String(state.phase),
-		String(state.active_unit_id),
-		String(state.winner_faction_id),
-		int(state.timeline.current_tu) if state.timeline != null else 0,
-		";".join(unit_parts),
-	]
 
 
 func _count_living_units(state, unit_ids: Array) -> int:
@@ -277,6 +245,15 @@ func _write_report_files(scenario_def, report: Dictionary) -> Dictionary:
 		return {}
 	var report_path := "%s/%s_%d_report.json" % [report_dir, scenario_key, timestamp]
 	var trace_path := "%s/%s_%d_turn_traces.jsonl" % [report_dir, scenario_key, timestamp]
+	var trace_summary_path := "%s/%s_%d_trace_summary.json" % [report_dir, scenario_key, timestamp]
+	var output_files := {
+		"report_json": report_path,
+		"turn_trace_jsonl": trace_path,
+	}
+	var has_traces := _trace_summary_builder.has_traces(report)
+	if has_traces:
+		output_files["trace_summary_json"] = trace_summary_path
+	report["output_files"] = output_files
 	var report_file = FileAccess.open(report_path, FileAccess.WRITE)
 	if report_file != null:
 		report_file.store_string(JSON.stringify(_normalize_variant(report), "\t"))
@@ -299,10 +276,13 @@ func _write_report_files(scenario_def, report: Dictionary) -> Dictionary:
 					flattened_trace["seed"] = int((run_entry as Dictionary).get("seed", 0))
 					trace_file.store_line(JSON.stringify(_normalize_variant(flattened_trace)))
 		trace_file.close()
-	return {
-		"report_json": report_path,
-		"turn_trace_jsonl": trace_path,
-	}
+	if has_traces:
+		var summary_file = FileAccess.open(trace_summary_path, FileAccess.WRITE)
+		if summary_file != null:
+			var trace_summary := _trace_summary_builder.build(report, report_path)
+			summary_file.store_string(JSON.stringify(_normalize_variant(trace_summary), "\t"))
+			summary_file.close()
+	return output_files
 
 
 func _open_progress_log() -> void:

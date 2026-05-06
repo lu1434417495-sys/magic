@@ -21,6 +21,7 @@ func validate_state(
 	var result := {
 		"valid": true,
 		"invalid_enemy_unit_ids": [],
+		"invalid_player_unit_ids": [],
 		"details": [],
 	}
 	if state == null or grid_service == null:
@@ -30,7 +31,7 @@ func validate_state(
 		})
 		return result
 
-	var player_targets := _collect_living_player_targets(state)
+	var player_targets := _collect_living_units(state, state.ally_unit_ids)
 	if player_targets.is_empty():
 		result.valid = false
 		result.details.append({
@@ -43,11 +44,12 @@ func validate_state(
 		var enemy_unit := state.units.get(enemy_unit_id) as BattleUnitState
 		if enemy_unit == null or not enemy_unit.is_alive:
 			continue
-		var enemy_result := _validate_enemy_unit(
+		var enemy_result := _validate_attacker_unit(
 			state,
 			grid_service,
 			skill_defs,
 			enemy_unit,
+			state.enemy_unit_ids,
 			player_targets,
 			options
 		)
@@ -56,28 +58,60 @@ func validate_state(
 		result.valid = false
 		(result.invalid_enemy_unit_ids as Array).append(enemy_unit.unit_id)
 		(result.details as Array).append(enemy_result)
+	if not bool(options.get("validate_player_to_enemy", false)):
+		return result
+
+	var enemy_targets := _collect_living_units(state, state.enemy_unit_ids)
+	if enemy_targets.is_empty():
+		result.valid = false
+		result.details.append({
+			"reason": "no_living_enemy_targets",
+		})
+		return result
+
+	for player_unit_id_variant in state.ally_unit_ids:
+		var player_unit_id := StringName(String(player_unit_id_variant))
+		var player_unit := state.units.get(player_unit_id) as BattleUnitState
+		if player_unit == null or not player_unit.is_alive:
+			continue
+		var player_result := _validate_attacker_unit(
+			state,
+			grid_service,
+			skill_defs,
+			player_unit,
+			state.ally_unit_ids,
+			enemy_targets,
+			options
+		)
+		if bool(player_result.get("valid", false)):
+			continue
+		result.valid = false
+		(result.invalid_player_unit_ids as Array).append(player_unit.unit_id)
+		(result.details as Array).append(player_result)
 	return result
 
 
-func _validate_enemy_unit(
+func _validate_attacker_unit(
 	state: BattleState,
 	grid_service,
 	skill_defs: Dictionary,
-	enemy_unit: BattleUnitState,
-	player_targets: Array[BattleUnitState],
+	attacker_unit: BattleUnitState,
+	attacker_unit_ids: Array,
+	target_units: Array[BattleUnitState],
 	options: Dictionary
 ) -> Dictionary:
-	var attack_skill_ids := _collect_attack_skill_ids(enemy_unit, skill_defs, player_targets)
+	var attack_skill_ids := _collect_attack_skill_ids(attacker_unit, skill_defs, target_units)
 	if attack_skill_ids.is_empty():
 		return {
 			"valid": false,
-			"unit_id": enemy_unit.unit_id,
+			"unit_id": attacker_unit.unit_id,
+			"faction_id": attacker_unit.faction_id,
 			"reason": "no_attack_skill",
 		}
 
 	var occupant_snapshot := _snapshot_occupants(state)
-	_clear_nonblocking_enemy_occupants(state, enemy_unit)
-	var reachable_anchors := _collect_reachable_anchors(state, grid_service, enemy_unit, options)
+	_clear_nonblocking_attacker_occupants(state, attacker_unit, attacker_unit_ids)
+	var reachable_anchors := _collect_reachable_anchors(state, grid_service, attacker_unit, options)
 	var attack_anchor := Vector2i(-1, -1)
 	var attack_target_id: StringName = &""
 	var attack_skill_id: StringName = &""
@@ -86,9 +120,9 @@ func _validate_enemy_unit(
 			state,
 			grid_service,
 			skill_defs,
-			enemy_unit,
+			attacker_unit,
 			anchor_coord,
-			player_targets,
+			target_units,
 			attack_skill_ids
 		)
 		if attack_match.is_empty():
@@ -102,14 +136,16 @@ func _validate_enemy_unit(
 	if attack_anchor == Vector2i(-1, -1):
 		return {
 			"valid": false,
-			"unit_id": enemy_unit.unit_id,
+			"unit_id": attacker_unit.unit_id,
+			"faction_id": attacker_unit.faction_id,
 			"reason": "no_reachable_attack_anchor",
 			"reachable_anchor_count": reachable_anchors.size(),
 			"attack_skill_ids": _string_name_array_to_strings(attack_skill_ids),
 		}
 	return {
 		"valid": true,
-		"unit_id": enemy_unit.unit_id,
+		"unit_id": attacker_unit.unit_id,
+		"faction_id": attacker_unit.faction_id,
 		"attack_anchor": attack_anchor,
 		"target_unit_id": attack_target_id,
 		"skill_id": attack_skill_id,
@@ -117,11 +153,11 @@ func _validate_enemy_unit(
 	}
 
 
-func _collect_living_player_targets(state: BattleState) -> Array[BattleUnitState]:
+func _collect_living_units(state: BattleState, unit_ids: Array) -> Array[BattleUnitState]:
 	var targets: Array[BattleUnitState] = []
 	if state == null:
 		return targets
-	for unit_id_variant in state.ally_unit_ids:
+	for unit_id_variant in unit_ids:
 		var unit_id := StringName(String(unit_id_variant))
 		var unit_state := state.units.get(unit_id) as BattleUnitState
 		if unit_state == null or not unit_state.is_alive:
@@ -180,20 +216,20 @@ func _snapshot_occupants(state: BattleState) -> Dictionary:
 	return snapshot
 
 
-func _clear_nonblocking_enemy_occupants(state: BattleState, subject_unit: BattleUnitState) -> void:
+func _clear_nonblocking_attacker_occupants(state: BattleState, subject_unit: BattleUnitState, attacker_unit_ids: Array) -> void:
 	if state == null or subject_unit == null:
 		return
-	for enemy_unit_id_variant in state.enemy_unit_ids:
-		var enemy_unit_id := StringName(String(enemy_unit_id_variant))
-		if enemy_unit_id == subject_unit.unit_id:
+	for unit_id_variant in attacker_unit_ids:
+		var unit_id := StringName(String(unit_id_variant))
+		if unit_id == subject_unit.unit_id:
 			continue
-		var enemy_unit := state.units.get(enemy_unit_id) as BattleUnitState
-		if enemy_unit == null:
+		var same_side_unit := state.units.get(unit_id) as BattleUnitState
+		if same_side_unit == null:
 			continue
-		enemy_unit.refresh_footprint()
-		for occupied_coord in enemy_unit.occupied_coords:
+		same_side_unit.refresh_footprint()
+		for occupied_coord in same_side_unit.occupied_coords:
 			var cell := state.cells.get(occupied_coord) as BattleCellState
-			if cell != null and cell.occupant_unit_id == enemy_unit.unit_id:
+			if cell != null and cell.occupant_unit_id == same_side_unit.unit_id:
 				cell.occupant_unit_id = &""
 
 

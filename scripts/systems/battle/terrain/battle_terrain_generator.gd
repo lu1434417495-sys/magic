@@ -998,7 +998,8 @@ func _find_spawn_pair(cells: Dictionary, map_size: Vector2i, edge_faces: Diction
 		return {}
 
 	var distance_from_player := _build_distance_map(cells, map_size, player_coord, resolved_edge_faces)
-	var enemy_coord := _pick_farthest_coord(largest_component, distance_from_player, cells, player_coord, false)
+	var enemy_candidates := _filter_opposing_spawn_side_coords(largest_component, player_coord, map_size)
+	var enemy_coord := _pick_farthest_coord(enemy_candidates, distance_from_player, cells, player_coord, false)
 	if enemy_coord == Vector2i(-1, -1):
 		return {}
 	if int(distance_from_player.get(enemy_coord, 0)) < 4:
@@ -1008,6 +1009,34 @@ func _find_spawn_pair(cells: Dictionary, map_size: Vector2i, edge_faces: Diction
 		"player_coord": player_coord,
 		"enemy_coord": enemy_coord,
 	}
+
+
+func _filter_opposing_spawn_side_coords(
+	coords: Array[Vector2i],
+	player_coord: Vector2i,
+	map_size: Vector2i
+) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if _get_long_edge_side_extent(map_size) <= 1:
+		return result
+	var player_is_near_long_edge := _is_near_long_edge_spawn_side(player_coord, map_size)
+	for coord in coords:
+		if _is_near_long_edge_spawn_side(coord, map_size) != player_is_near_long_edge:
+			result.append(coord)
+	return result
+
+
+func _is_near_long_edge_spawn_side(coord: Vector2i, map_size: Vector2i) -> bool:
+	var split_value := int(floor(float(_get_long_edge_side_extent(map_size)) * 0.5))
+	return _get_long_edge_side_axis_value(coord, map_size) < split_value
+
+
+func _get_long_edge_side_axis_value(coord: Vector2i, map_size: Vector2i) -> int:
+	return coord.y if map_size.x >= map_size.y else coord.x
+
+
+func _get_long_edge_side_extent(map_size: Vector2i) -> int:
+	return map_size.y if map_size.x >= map_size.y else map_size.x
 
 
 func _populate_canyon_props(cells: Dictionary, map_size: Vector2i, player_coord: Vector2i, enemy_coord: Vector2i) -> void:

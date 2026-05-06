@@ -10,6 +10,7 @@ func build_profile_summary(profile, runs: Array) -> Dictionary:
 	var faction_metric_totals: Dictionary = {}
 	var total_final_tu := 0
 	var total_iterations := 0
+	var total_timeline_steps := 0
 	for run_entry in runs:
 		if run_entry is not Dictionary:
 			continue
@@ -18,6 +19,7 @@ func build_profile_summary(profile, runs: Array) -> Dictionary:
 			wins_by_faction[winner_faction] = int(wins_by_faction.get(winner_faction, 0)) + 1
 		total_final_tu += int(run_entry.get("final_tu", 0))
 		total_iterations += int(run_entry.get("iterations", 0))
+		total_timeline_steps += int(run_entry.get("timeline_steps", 0))
 		_merge_skill_counter(skill_attempt_totals, run_entry.get("metrics", {}), "skill_attempt_counts")
 		_merge_skill_usage(skill_usage_totals, run_entry.get("metrics", {}))
 		_merge_action_choices(action_choice_counts, run_entry.get("ai_turn_traces", []))
@@ -31,6 +33,7 @@ func build_profile_summary(profile, runs: Array) -> Dictionary:
 		"win_rate_by_faction": _build_rate_dictionary(wins_by_faction, runs.size()),
 		"average_final_tu": float(total_final_tu) / float(run_count),
 		"average_iterations": float(total_iterations) / float(run_count),
+		"average_timeline_steps": float(total_timeline_steps) / float(run_count),
 		"skill_attempt_totals": skill_attempt_totals,
 		"skill_usage_totals": skill_usage_totals,
 		"skill_failure_totals": _build_skill_failure_totals(skill_attempt_totals, skill_usage_totals),
@@ -57,6 +60,7 @@ func build_profile_comparisons(profile_entries: Array) -> Array[Dictionary]:
 			"candidate_profile_id": String(candidate_summary.get("profile_id", "")),
 			"average_final_tu_delta": float(candidate_summary.get("average_final_tu", 0.0)) - float(baseline_summary.get("average_final_tu", 0.0)),
 			"average_iterations_delta": float(candidate_summary.get("average_iterations", 0.0)) - float(baseline_summary.get("average_iterations", 0.0)),
+			"average_timeline_steps_delta": float(candidate_summary.get("average_timeline_steps", 0.0)) - float(baseline_summary.get("average_timeline_steps", 0.0)),
 			"win_rate_delta": _diff_number_dictionary(
 				baseline_summary.get("win_rate_by_faction", {}),
 				candidate_summary.get("win_rate_by_faction", {})

@@ -69,5 +69,5 @@ ally_units = Array[Resource]([SubResource("Resource_player_vanguard")])
 enemy_units = Array[Resource]([SubResource("Resource_enemy_harrier")])
 tick_interval_seconds = 1.0
 tu_per_tick = 5
-max_iterations = 120
+max_iterations = 400
 seeds = PackedInt32Array(301, 302)

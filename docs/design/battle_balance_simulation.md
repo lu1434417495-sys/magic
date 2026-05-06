@@ -49,10 +49,13 @@
 
 - 场景定义：`res://scripts/systems/battle/sim/battle_sim_scenario_def.gd`
 - 单位定义：`res://scripts/systems/battle/sim/battle_sim_unit_spec.gd`
+- 正式角色 fixture：`res://scripts/systems/battle/sim/battle_sim_formal_combat_fixture.gd`
 - profile 定义：`res://scripts/systems/battle/sim/battle_sim_profile_def.gd`
 - patch 应用：`res://scripts/systems/battle/sim/battle_sim_override_applier.gd`
 - 汇总报表：`res://scripts/systems/battle/sim/battle_sim_report_builder.gd`
+- Trace 精简报表：`res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd`
 - 批量执行器：`res://scripts/systems/battle/sim/battle_sim_runner.gd`
+- 基础执行循环：`res://scripts/systems/battle/sim/battle_sim_execution_loop.gd`
 - CLI 入口：`res://tests/battle_runtime/run_battle_balance_simulation.gd`
 - LLM 分析包导出：`tools/build_battle_sim_analysis_packet.py`
 - Repo 内分析 skill：`.codex/skills/battle-sim-analysis`
@@ -172,6 +175,12 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - 如果再把完整 `turn_traces.jsonl` 一起喂给模型，通常会重复输入同一批 trace
 - 大多数平衡或 AI 诊断先看 summary 和少量 focus trace 就够了
 
+`BattleSimRunner` 与专项分析脚本开启 AI trace 时，应同时保留完整 trace 和精简 trace summary：
+
+- 完整报告：保留 `ai_turn_traces`，用于必要时全量复盘。
+- 精简报告：由 `BattleSimTraceSummaryBuilder` 生成，路径通常是完整报告同名 `_trace_summary.json`，用于快速判断 wait、资源阻断、候选评分和 focus 阵营回合。
+- 专项脚本如 `run_mixed_6v12_mirror_analysis.gd` 可用 `TRACE_AI=1` 打开 trace；默认会自动写出同目录 `_trace_summary.json`，也可用 `TRACE_SUMMARY_FILE` 指定路径。
+
 ## 运行时执行流程
 
 完整执行顺序如下：
@@ -195,10 +204,12 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
    - 地格定义
    - 时间轴参数
 10. runtime 开始战斗。
-11. 如果当前行动单位是手动单位，则 runner 按 `manual_policy` 发指令。
-12. 如果当前行动单位是 AI，则 runtime 走正常 AI 决策链，并记录 turn trace。
-13. 直到战斗结束、达到最大迭代数，或触发 idle guard。
-14. runner 收集本场的：
+11. `BattleSimExecutionLoop` 接管单场基础推进。
+12. 如果当前行动单位是手动单位，则按 `manual_policy` 发指令。
+13. 如果当前行动单位是 AI，则 runtime 走正常 AI 决策链，并记录 turn trace。
+14. 如果时间轴已有 `ready_unit_ids`，执行循环会先用 `advance(0.0)` drain 当前 ready 队列；只有 ready 队列为空时才按 `tick_interval_seconds / tu_per_tick` 推进下一段 TU。
+15. 直到战斗结束、达到最大迭代数，或触发 idle guard。
+16. runner 收集本场的：
    - 胜负结果
    - 最终 TU
    - 迭代数
@@ -206,8 +217,8 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
    - `metrics`
    - `ai_turn_traces`
    - `final_units`
-15. `BattleSimReportBuilder` 生成 profile summary 与 baseline 对比。
-16. runner 把完整 `report_json` 和扁平化的 `turn_trace_jsonl` 写到 `user://simulation_reports/...`。
+17. `BattleSimReportBuilder` 生成 profile summary 与 baseline 对比。
+18. runner 把完整 `report_json` 和扁平化的 `turn_trace_jsonl` 写到 `user://simulation_reports/...`；如果完整 report 中存在 `ai_turn_traces`，还会用 `BattleSimTraceSummaryBuilder` 同步写出 `trace_summary_json`。
 
 ## 场景定义
 
@@ -230,9 +241,9 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `world_coord`
   - 传给正式地形生成器的世界坐标；会参与 battle seed 计算。
 - `ally_units`
-  - 友军单位列表，元素是 `BattleSimUnitSpec`。
+  - 显式模拟单位列表，元素是 `BattleSimUnitSpec`；正式角色 fixture 场景应保持为空，由入口脚本通过 `BattleSimFormalCombatFixture` 生成。
 - `enemy_units`
-  - 敌军单位列表，元素是 `BattleSimUnitSpec`。
+  - 显式模拟单位列表，元素是 `BattleSimUnitSpec`；正式角色 fixture 场景应保持为空，由入口脚本通过 `BattleSimFormalCombatFixture` 生成。
 - `cell_overrides`
   - 按格子覆盖地形、地势、地格效果。
 - `tick_interval_seconds`
@@ -240,7 +251,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `tu_per_tick`
   - 时间轴每 tick 增长值。
 - 单位行动阈值
-  - 写在每个 `BattleSimUnitSpec.action_threshold` / `BattleUnitState.action_threshold` 上；scenario 不再提供全局行动阈值。
+  - scenario 不提供全局行动阈值。显式 `BattleSimUnitSpec` 夹具可在单位上声明；正式角色 fixture 场景通过建卡 payload 写入 `action_threshold`，再由 `AttributeService` 快照投影到 `BattleUnitState.action_threshold`。
 - `max_iterations`
   - 单场最大循环次数。
 - `manual_policy`
@@ -273,7 +284,30 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 
 ### 单位定义
 
-`BattleSimUnitSpec` 用于声明单个参战单位。它的职责不是“引用一个模板并自动生成全部内容”，而是“把模拟需要的单位状态显式写出来”。
+`BattleSimUnitSpec` 用于旧式显式参战单位夹具。它的职责不是“引用一个模板并自动生成全部内容”，而是“把模拟需要的单位状态显式写出来”。
+
+如果模拟目标是玩家角色、队伍成员、装备投影、技能进度、职业生命成长或建卡属性，优先使用 `BattleSimFormalCombatFixture`，不要在 `.tres` 场景里写 `base_attributes` / `attribute_overrides` / `weapon_projection`。当前 `mixed_2sword_1arch_mirror_simulation` 与 `mixed_6v12_mirror_simulation` 就是这种模式：场景资源只保留地图、地形、时间轴和 seed，单位由 fixture 走 `CharacterCreationService`、`CharacterManagementModule`、`AttributeService` 与正式装备投影生成，并在开战前按装备与职业被动后的有效 `hp_max` 补满所有成员当前生命。formal fixture 会显式开启 `validate_spawn_reachability` 与 `validate_bidirectional_spawn_reachability`；如果生成出的地图导致 player 与 hostile 任一方向无法抵达可攻击位置，`BattleRuntimeModule.start_battle()` 会用下一个 terrain seed attempt 重刷地图，而不是把不可交战地图纳入模拟样本。
+
+正式角色 fixture 支持 roster options：
+
+- `main_character_member_id`：指定友军主角；缺省时使用第一个友军。
+- `leader_member_id`：指定友军队长；缺省时跟随主角。
+- `main_character_reroll_count`：主角出生幸运烘焙使用的 reroll 次数；缺省为 `0`。
+- `attribute_roll_seed`：正式建卡六维的 `5D3-1` 骰子 seed；`run_mixed_6v12_mirror_analysis.gd` 缺省使用本场 battle seed，所以不同 run 会拥有不同属性分布，同 seed 可复现。
+
+`mixed_6v12_mirror_simulation` 的 6 人方按“主角 + 5 名队友”建模，12 人方按敌方单位建模，双方六维都由 fixture 走建卡骰子生成。选中的主角会通过 `CharacterCreationService.bake_hidden_luck_at_birth()` 烘焙 `hidden_luck_at_birth`，其余友军和敌方单位保持默认 `0`。`run_mixed_2s1a_mirror_analysis.gd` 与 `run_mixed_6v12_mirror_analysis.gd` 缺省用 `TrueRandomSeedService.generate_seed()` 生成 `START_SEED`，报告会写出 `start_seed` 与 `start_seed_source`；需要复现时可显式传入 `START_SEED`。这些脚本还可通过环境变量传入同名大写参数，例如 PowerShell：
+
+```powershell
+$env:MAIN_CHARACTER_MEMBER_ID='elite_archer_0'
+$env:MAIN_CHARACTER_REROLL_COUNT='0'
+$env:START_SEED='12345'
+$env:COUNT='1'
+godot --headless --script tests/battle_runtime/run_mixed_6v12_mirror_analysis.gd
+```
+
+`run_mixed_6v12_mirror_analysis.gd` 还有批量运行墙钟保护：`SIM_TIMEOUT_SECONDS` 缺省为 `1800`，表示 30 分钟。超时只在两场模拟之间停止继续排新 run，不中断正在结算的一场战斗；报告中的 `run_count / completed_run_count` 表示实际完成轮数，`requested_run_count` 表示请求轮数，`timed_out` 标记是否命中超时。设置 `SIM_TIMEOUT_SECONDS=0` 可关闭这层批量超时。
+
+`run_mixed_6v12_mirror_analysis.gd` 默认会向 stdout 打印实时近似进度，即使 `OUTPUT_FILE` 指向 JSON 文件也会打印。进度包含实际请求轮数、本场 seed、迭代数 / `max_iterations` 上限百分比、`timeline_steps`、当前 TU、phase、active unit 与双方存活数；这个百分比是执行上限进度，不代表胜负剩余时间。可用 `PROGRESS=0` 关闭，或用 `PROGRESS_SECONDS=5` 调整打印间隔。
 
 常用字段：
 
@@ -715,6 +749,34 @@ total_score =
 - `chosen_command`
 - `chosen_score_input`
 
+## Trace Summary 结构
+
+`trace_summary_json` 是完整 trace 的低 token sidecar。它与完整 `report_json` / `turn_trace_jsonl` 共存，不替代完整 trace。
+
+顶层重点字段：
+
+- `source_report`
+- `run_count`
+- `trace_count`
+- `trace_compaction`
+- `runs`
+
+每个 compact run 至少包含：
+
+- `profile_id`
+- `seed`
+- `winner_faction_id`
+- `iterations`
+- `timeline_steps`
+- `action_counts_by_faction`
+- `command_counts_by_faction`
+- `wait_counts_by_faction`
+- `block_reasons_by_faction`
+- `focus_turns`
+- `focus_wait_turns`
+
+默认 focus faction 是 `player`。每个 focus turn 只保留回合级 chosen action / command / score，以及 action trace 的 `block_reasons`、计数和前 2 个候选摘要；如果要完整候选列表，回到原始 `report_json` 或 `turn_trace_jsonl`。
+
 ### block_reasons 的意义
 
 `block_reasons` 不是一个固定枚举表，而是各具体 action 在评估时上报的阻断原因计数。常见用途：
@@ -800,6 +862,7 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
 - `winner_faction_id`
 - `final_tu`
 - `iterations`
+- `timeline_steps`
 - `idle_loops`
 - `ally_alive`
 - `enemy_alive`
@@ -813,6 +876,9 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
   - 常表示达到迭代上限或触发 idle guard，不能直接把它当正常平衡结果。
 - `idle_loops` 偏高
   - 常表示行动链停滞、站位无法推进，或行为策略互相抵消。
+- `iterations` 与 `timeline_steps`
+  - `iterations` 是执行循环步数，包含 AI 行动、manual wait、ready 队列 drain 和 TU tick，用于保护模拟不会无限循环。
+  - `timeline_steps` 只统计实际让时间轴 TU 前进的 tick，适合判断战斗经过了多少次正式时间推进。
 - `final_units`
   - 适合回看战斗结束时的单位状态，而不是只看胜负。
 
@@ -829,6 +895,7 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
 - `win_rate_by_faction`
 - `average_final_tu`
 - `average_iterations`
+- `average_timeline_steps`
 - `skill_usage_totals`
 - `action_choice_counts`
 - `faction_metric_totals`
@@ -848,6 +915,10 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
 `average_iterations`
 
 - 用于识别模拟推进是否更卡、更绕、或更容易停滞。
+
+`average_timeline_steps`
+
+- 用于观察真实时间轴推进次数，和 `average_iterations` 分开看可以判断耗时来自 TU tick，还是来自同一 TU 下的行动 / ready 队列 drain。
 
 `skill_usage_totals`
 
@@ -877,6 +948,7 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
 - `candidate_profile_id`
 - `average_final_tu_delta`
 - `average_iterations_delta`
+- `average_timeline_steps_delta`
 - `win_rate_delta`
 - `skill_usage_delta`
 - `action_choice_delta`
@@ -918,8 +990,8 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
 
 1. 看 `action_choice_counts`
    - 先确认“行为倾向”有没有变。
-2. 看 `average_final_tu` 和 `average_iterations`
-   - 确认策略变化是不是让战斗拖慢。
+2. 看 `average_final_tu`、`average_iterations` 和 `average_timeline_steps`
+   - 确认策略变化是不是让战斗拖慢，以及拖慢来自真实 TU 推进还是同一 TU 下的行动 / ready 队列 drain。
 3. 看 `turn_trace_jsonl`
    - 看每轮候选动作和阻断原因。
 4. 看具体 `score_input`

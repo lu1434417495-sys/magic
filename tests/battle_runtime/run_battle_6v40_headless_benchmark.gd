@@ -2,7 +2,7 @@ extends SceneTree
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
@@ -85,6 +85,7 @@ func _run_pass(
 	var state = _build_flat_state(MAP_SIZE, scenario_id)
 	_populate_units(runtime, state, scenario_id)
 	runtime._state = state
+	var execution_loop = BATTLE_SIM_EXECUTION_LOOP_SCRIPT.new()
 
 	var hud_adapter = BATTLE_HUD_ADAPTER_SCRIPT.new() if include_hud_snapshot else null
 	var logic_usec := 0
@@ -119,13 +120,14 @@ func _run_pass(
 				)
 				break
 			if active_unit.control_mode == &"manual":
-				_issue_wait(runtime, active_unit.unit_id)
 				manual_turns += 1
 			else:
-				runtime.advance(0.0)
 				ai_turns += 1
+			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICK_SECONDS)
+		elif execution_loop.has_ready_units(state):
+			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICK_SECONDS)
 		else:
-			runtime.advance(TIMELINE_TICK_SECONDS)
+			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICK_SECONDS)
 			timeline_steps += 1
 		logic_usec += Time.get_ticks_usec() - logic_start
 
@@ -483,13 +485,6 @@ func _add_unit_to_state(runtime, state, unit: BattleUnitState, is_enemy: bool) -
 	var placed: bool = runtime._grid_service.place_unit(state, unit, unit.coord, true)
 	if not placed:
 		_failures.append("Benchmark unit %s could not be placed on the benchmark map." % String(unit.unit_id))
-
-
-func _issue_wait(runtime, unit_id: StringName) -> void:
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_WAIT
-	command.unit_id = unit_id
-	runtime.issue_command(command)
 
 
 func _resolve_selected_coord(state) -> Vector2i:

@@ -13,6 +13,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_ready_queue_does_not_consume_timeline_ticks()
 	var runner = BATTLE_SIM_RUNNER_SCRIPT.new()
 	var report: Dictionary = runner.run_scenario(_build_scenario(), [_build_baseline_profile(), _build_suppressive_fire_blocked_profile()])
 	_assert_true((report.get("profile_entries", []) as Array).size() == 2, "simulation report 应包含 baseline 与 patch 两组 profile 结果。")
@@ -56,6 +57,83 @@ func _run() -> void:
 		push_error(failure)
 	print("Battle simulation regression: FAIL (%d)" % _failures.size())
 	quit(1)
+
+
+func _test_ready_queue_does_not_consume_timeline_ticks() -> void:
+	var runner = BATTLE_SIM_RUNNER_SCRIPT.new()
+	var report: Dictionary = runner.run_scenario(_build_ready_queue_scenario(), [_build_baseline_profile()])
+	var profile_entries: Array = report.get("profile_entries", [])
+	_assert_true(profile_entries.size() == 1, "ready queue regression 应产出单 profile entry。")
+	if profile_entries.is_empty():
+		return
+	var runs: Array = (profile_entries[0] as Dictionary).get("runs", [])
+	_assert_true(runs.size() == 1, "ready queue regression 应只跑 1 个 seed。")
+	if runs.is_empty():
+		return
+	var ai_turn_traces: Array = (runs[0] as Dictionary).get("ai_turn_traces", [])
+	var first_ready_turns: Array[int] = []
+	for trace_entry in ai_turn_traces:
+		if trace_entry is not Dictionary:
+			continue
+		var trace: Dictionary = trace_entry
+		var unit_id := String(trace.get("unit_id", ""))
+		if unit_id == "aa_hostile_one" or unit_id == "ab_hostile_two":
+			first_ready_turns.append(int(trace.get("turn_started_tu", -1)))
+			if first_ready_turns.size() >= 2:
+				break
+	_assert_true(first_ready_turns.size() == 2, "ready queue regression 应记录到两个同批 ready AI 回合。")
+	if first_ready_turns.size() < 2:
+		return
+	_assert_true(
+		first_ready_turns[0] == 5 and first_ready_turns[1] == 5,
+		"同一批 ready 单位应在同一 TU 被依次激活，不应被模拟循环额外推进到 %s。" % str(first_ready_turns)
+	)
+
+
+func _build_ready_queue_scenario():
+	var scenario = BATTLE_SIM_SCENARIO_DEF_SCRIPT.new()
+	scenario.scenario_id = &"simulation_ready_queue_regression"
+	scenario.display_name = "Simulation Ready Queue Regression"
+	scenario.map_size = Vector2i(5, 3)
+	scenario.tick_interval_seconds = 1.0
+	scenario.tu_per_tick = 5
+	scenario.max_iterations = 4
+	scenario.manual_policy = &"wait"
+	scenario.trace_enabled = true
+	scenario.seeds = PackedInt32Array([707])
+	scenario.ally_units = [
+		_build_ready_queue_unit(&"zz_player_dummy", "玩家木桩", &"player", &"manual", Vector2i(4, 1)),
+	]
+	scenario.enemy_units = [
+		_build_ready_queue_unit(&"aa_hostile_one", "敌方一号", &"hostile", &"ai", Vector2i(0, 1)),
+		_build_ready_queue_unit(&"ab_hostile_two", "敌方二号", &"hostile", &"ai", Vector2i(1, 1)),
+	]
+	return scenario
+
+
+func _build_ready_queue_unit(
+	unit_id: StringName,
+	display_name: String,
+	faction_id: StringName,
+	control_mode: StringName,
+	coord: Vector2i
+):
+	var unit_spec = BATTLE_SIM_UNIT_SPEC_SCRIPT.new()
+	unit_spec.unit_id = unit_id
+	unit_spec.display_name = display_name
+	unit_spec.faction_id = faction_id
+	unit_spec.control_mode = control_mode
+	unit_spec.coord = coord
+	unit_spec.action_threshold = 5
+	unit_spec.current_hp = 30
+	unit_spec.current_ap = 1
+	unit_spec.attribute_overrides = {
+		"hp_max": 30,
+		"action_points": 1,
+		"armor_class": 12,
+		"armor_ac_bonus": 0,
+	}
+	return unit_spec
 
 
 func _build_scenario():

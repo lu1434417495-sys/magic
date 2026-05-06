@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/battle_sim_scenario_def.gd" id="1_scenario"]
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = &"mixed_2sword_1arch_mirror_simulation"
+display_name = "Mixed 2Sword 1Arch Mirror Simulation"
+description = "Canyon 地图上 2 长剑手 + 1 弓箭手 对 2 长剑手 + 1 弓箭手，单位由正式角色创建 fixture 生成。"
+map_size = Vector2i(19, 11)
+terrain_profile_id = &"canyon"
+use_formal_terrain_generation = true
+world_coord = Vector2i(7, 11)
+tick_interval_seconds = 1.0
+tu_per_tick = 5
+max_iterations = 3000
+manual_policy = &"wait"
+trace_enabled = true
+seeds = PackedInt32Array(101, 102, 103, 104, 105)

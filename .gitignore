@@ -33,6 +33,9 @@ __pycache__/
 # Local temp and editor state
 .tmp/
 tmp/
+tmp_*.json
+tmp_*_llm_packet/
+tests/battle_runtime/reports/
 .vscode/
 .claude/settings.local.json
 .claude/*.lock

@@ -25,7 +25,9 @@ func _run() -> void:
 	)
 	if service_script != null:
 		_test_deep_water_split_marks_enemy_spawn_invalid(service_script)
+		_test_bidirectional_deep_water_split_marks_player_spawn_invalid(service_script)
 		_test_flat_field_marks_enemy_spawn_valid(service_script)
+		_test_bidirectional_flat_field_marks_both_sides_valid(service_script)
 
 	if _failures.is_empty():
 		print("Battle spawn reachability regression: PASS")
@@ -99,6 +101,67 @@ func _test_flat_field_marks_enemy_spawn_valid(service_script) -> void:
 	_assert_true(
 		not _string_name_array_has(result.get("invalid_enemy_unit_ids", []), enemy.unit_id),
 		"平地直连回归不应把敌方单位列入 invalid_enemy_unit_ids。"
+	)
+
+
+func _test_bidirectional_deep_water_split_marks_player_spawn_invalid(service_script) -> void:
+	var fixture := _build_service_fixture()
+	var skill_id: StringName = fixture.get("skill_id", &"")
+	if skill_id == &"":
+		return
+
+	var skill_def = fixture.get("skill_def")
+	var skill_range := _get_skill_range(skill_def)
+	var barrier_start := 3
+	var barrier_width := skill_range + 2
+	var map_size := Vector2i(barrier_start + barrier_width + 4, 5)
+	var state = _build_flat_state(map_size)
+	for x in range(barrier_start, barrier_start + barrier_width):
+		for y in range(map_size.y):
+			_set_cell_terrain(state, Vector2i(x, y), BATTLE_CELL_STATE_SCRIPT.TERRAIN_DEEP_WATER)
+
+	var enemy = _build_unit(&"split_enemy", &"enemy", Vector2i(1, 2), skill_id)
+	var player = _build_unit(&"split_player", &"player", Vector2i(barrier_start + barrier_width + 1, 2), skill_id)
+	_add_unit_to_state(fixture.grid_service, state, enemy, true)
+	_add_unit_to_state(fixture.grid_service, state, player, false)
+
+	var result: Dictionary = fixture.service.validate_state(
+		state,
+		fixture.grid_service,
+		fixture.skill_defs,
+		{"validate_player_to_enemy": true}
+	)
+	_assert_true(not bool(result.get("valid", true)), "双向验证开启时，深水完全隔断玩家与敌人应判定为 invalid。")
+	_assert_true(
+		_string_name_array_has(result.get("invalid_player_unit_ids", []), player.unit_id),
+		"双向深水隔断回归应在 invalid_player_unit_ids 中包含玩家单位。"
+	)
+
+
+func _test_bidirectional_flat_field_marks_both_sides_valid(service_script) -> void:
+	var fixture := _build_service_fixture()
+	var skill_id: StringName = fixture.get("skill_id", &"")
+	if skill_id == &"":
+		return
+
+	var skill_def = fixture.get("skill_def")
+	var skill_range := _get_skill_range(skill_def)
+	var state = _build_flat_state(Vector2i(skill_range + 6, 3))
+	var enemy = _build_unit(&"flat_enemy", &"enemy", Vector2i(1, 1), skill_id)
+	var player = _build_unit(&"flat_player", &"player", Vector2i(skill_range + 4, 1), skill_id)
+	_add_unit_to_state(fixture.grid_service, state, enemy, true)
+	_add_unit_to_state(fixture.grid_service, state, player, false)
+
+	var result: Dictionary = fixture.service.validate_state(
+		state,
+		fixture.grid_service,
+		fixture.skill_defs,
+		{"validate_player_to_enemy": true}
+	)
+	_assert_true(bool(result.get("valid", false)), "双向验证开启时，平地直连应允许双方抵达可攻击位置。")
+	_assert_true(
+		not _string_name_array_has(result.get("invalid_player_unit_ids", []), player.unit_id),
+		"双向平地直连回归不应把玩家单位列入 invalid_player_unit_ids。"
 	)
 
 
