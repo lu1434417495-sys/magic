@@ -51,14 +51,14 @@ func decide(context):
 				if hit_count < minimum_hit_count:
 					_trace_add_block_reason(action_trace, "minimum_hit_count")
 					continue
-				var position_metadata := _build_position_metadata(context, command)
+				var position_metadata := _build_position_metadata(context, command, skill_def)
 				position_metadata["action_label"] = _format_skill_variant_label(skill_def, cast_variant)
 				var score_input = _build_skill_score_input(
 					context,
 					skill_def,
 					command,
 					preview,
-					cast_variant.effect_defs,
+					_collect_ground_skill_effect_defs(skill_def, cast_variant),
 					position_metadata
 				)
 				if score_input == null:
@@ -104,11 +104,9 @@ func decide(context):
 	return resolved_decision
 
 
-func _build_position_metadata(context, command) -> Dictionary:
-	var metadata := {
-		"desired_min_distance": desired_min_distance,
-		"desired_max_distance": desired_max_distance,
-	}
+func _build_position_metadata(context, command, skill_def: SkillDef) -> Dictionary:
+	var distance_contract := _resolve_desired_distance_contract(context, skill_def)
+	var metadata := distance_contract.duplicate(true)
 	match distance_reference:
 		DISTANCE_REF_TARGET_COORD:
 			metadata["position_objective_kind"] = &"cast_distance"
@@ -122,6 +120,29 @@ func _build_position_metadata(context, command) -> Dictionary:
 		_:
 			metadata["position_objective_kind"] = &"none"
 	return metadata
+
+
+func _collect_ground_skill_effect_defs(skill_def: SkillDef, cast_variant) -> Array:
+	var effect_defs: Array = []
+	if skill_def != null and skill_def.combat_profile != null:
+		if skill_def.combat_profile.cast_variants.is_empty():
+			if cast_variant != null:
+				for effect_def in cast_variant.effect_defs:
+					if effect_def != null:
+						effect_defs.append(effect_def)
+			else:
+				for effect_def in skill_def.combat_profile.effect_defs:
+					if effect_def != null:
+						effect_defs.append(effect_def)
+			return effect_defs
+		for effect_def in skill_def.combat_profile.effect_defs:
+			if effect_def != null:
+				effect_defs.append(effect_def)
+	if cast_variant != null:
+		for effect_def in cast_variant.effect_defs:
+			if effect_def != null:
+				effect_defs.append(effect_def)
+	return effect_defs
 
 
 func _resolve_enemy_frontline_unit(context):

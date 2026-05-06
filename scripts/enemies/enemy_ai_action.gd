@@ -3,12 +3,19 @@ extends Resource
 
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const BattleAiDecision = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+
+const TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY: StringName = &"nearest_role_threat_enemy"
+const ROLE_THREAT_MIN_EFFECTIVE_RANGE := 4
+const ROLE_THREAT_DISTANCE_WINDOW := 4
+const ROLE_THREAT_MAX_APPROACH_DISTANCE := 7
+const ROLE_THREAT_MAX_CONTACT_RANGE := 2
 
 @export var action_id: StringName = &""
 @export var score_bucket_id: StringName = &""
@@ -29,6 +36,10 @@ func get_declared_skill_ids() -> Array[StringName]:
 	var skill_ids_variant = get("skill_ids")
 	if skill_ids_variant is Array:
 		for raw_skill_id in skill_ids_variant:
+			_append_declared_skill_id(results, seen, raw_skill_id)
+	var range_skill_ids_variant = get("range_skill_ids")
+	if range_skill_ids_variant is Array:
+		for raw_skill_id in range_skill_ids_variant:
 			_append_declared_skill_id(results, seen, raw_skill_id)
 	return results
 
@@ -256,7 +267,9 @@ func _matches_target_filter(context, unit_state: BattleUnitState, target_filter:
 
 func _sort_target_units(context, target_filter: StringName, selector: StringName) -> Array:
 	var effective_filter = target_filter
-	if selector == &"nearest_enemy" or selector == &"lowest_hp_enemy":
+	if selector == &"nearest_enemy" \
+			or selector == &"lowest_hp_enemy" \
+			or selector == TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY:
 		effective_filter = &"enemy"
 	elif selector == &"nearest_ally" or selector == &"lowest_hp_ally":
 		effective_filter = &"ally"
@@ -268,11 +281,17 @@ func _sort_target_units(context, target_filter: StringName, selector: StringName
 		return [forced_target]
 	if selector == &"self":
 		return units
+	var nearest_distance := _resolve_nearest_distance(context, units)
 	units.sort_custom(func(left: BattleUnitState, right: BattleUnitState) -> bool:
 		var left_hp_ratio = _get_hp_ratio(left)
 		var right_hp_ratio = _get_hp_ratio(right)
 		var left_distance = _distance_between_units(context, context.unit_state, left)
 		var right_distance = _distance_between_units(context, context.unit_state, right)
+		if selector == TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY:
+			var left_threat_score := _get_role_threat_selector_score(context, left, nearest_distance, left_distance)
+			var right_threat_score := _get_role_threat_selector_score(context, right, nearest_distance, right_distance)
+			if left_threat_score != right_threat_score:
+				return left_threat_score > right_threat_score
 		if selector == &"lowest_hp_enemy" or selector == &"lowest_hp_ally":
 			if !is_equal_approx(left_hp_ratio, right_hp_ratio):
 				return left_hp_ratio < right_hp_ratio
@@ -282,6 +301,60 @@ func _sort_target_units(context, target_filter: StringName, selector: StringName
 		return left_distance < right_distance
 	)
 	return units
+
+
+func _resolve_nearest_distance(context, units: Array) -> int:
+	var nearest_distance := 999999
+	for unit_variant in units:
+		var unit_state = unit_variant as BattleUnitState
+		if unit_state == null:
+			continue
+		nearest_distance = mini(nearest_distance, _distance_between_units(context, context.unit_state, unit_state))
+	return nearest_distance
+
+
+func _get_role_threat_selector_score(
+	context,
+	unit_state: BattleUnitState,
+	nearest_distance: int,
+	distance: int
+) -> int:
+	if unit_state == null:
+		return 0
+	var threat_range := _resolve_unit_effective_threat_range(context, unit_state)
+	var is_local_role_threat := threat_range >= ROLE_THREAT_MIN_EFFECTIVE_RANGE \
+		and distance <= nearest_distance + ROLE_THREAT_DISTANCE_WINDOW \
+		and distance <= ROLE_THREAT_MAX_APPROACH_DISTANCE
+	if is_local_role_threat:
+		return 1000 + threat_range * 10
+	if _resolve_unit_contact_threat_range(context, unit_state) > 0:
+		return 500
+	return 0
+
+
+func _resolve_unit_contact_threat_range(context, threat_unit: BattleUnitState) -> int:
+	if context == null or threat_unit == null:
+		return -1
+	var best_range := -1
+	for raw_skill_id in threat_unit.known_active_skill_ids:
+		var skill_id := ProgressionDataUtils.to_string_name(raw_skill_id)
+		if skill_id == &"":
+			continue
+		var skill_def = context.skill_defs.get(skill_id) as SkillDef
+		if not _is_hostile_threat_skill(skill_def):
+			continue
+		if not _skill_has_tag(skill_def, &"melee") and not _skill_has_tag(skill_def, &"weapon"):
+			continue
+		var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(threat_unit, skill_def)
+		if effective_range <= 0 and _skill_has_tag(skill_def, &"melee"):
+			effective_range = 1
+		if effective_range > ROLE_THREAT_MAX_CONTACT_RANGE:
+			continue
+		best_range = maxi(best_range, effective_range)
+	var weapon_range := BATTLE_RANGE_SERVICE_SCRIPT.get_weapon_attack_range(threat_unit)
+	if weapon_range > 0 and weapon_range <= ROLE_THREAT_MAX_CONTACT_RANGE:
+		best_range = maxi(best_range, weapon_range)
+	return best_range
 
 
 func _resolve_forced_target_unit(context, target_filter: StringName):
@@ -321,6 +394,150 @@ func _get_skill_level(unit_state: BattleUnitState, skill_id: StringName) -> int:
 	if unit_state.known_skill_level_map.has(skill_id):
 		return int(unit_state.known_skill_level_map.get(skill_id, 0))
 	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
+
+
+func _resolve_desired_distance_contract(
+	context,
+	skill_def: SkillDef = null,
+	range_skill_ids: Array[StringName] = []
+) -> Dictionary:
+	var configured_min := int(get("desired_min_distance"))
+	var configured_max := int(get("desired_max_distance"))
+	var effective_attack_range := _resolve_effective_attack_range(context, skill_def, range_skill_ids)
+	var resolved_max := configured_max
+	if effective_attack_range >= 0:
+		resolved_max = effective_attack_range
+	var resolved_min := configured_min
+	if resolved_max >= 0 and resolved_min > resolved_max:
+		resolved_min = resolved_max
+	return {
+		"desired_min_distance": resolved_min,
+		"desired_max_distance": maxi(resolved_max, resolved_min),
+		"configured_desired_min_distance": configured_min,
+		"configured_desired_max_distance": configured_max,
+		"effective_attack_range": effective_attack_range,
+	}
+
+
+func _resolve_effective_attack_range(context, skill_def: SkillDef = null, range_skill_ids: Array[StringName] = []) -> int:
+	if context == null or context.unit_state == null:
+		return -1
+	if skill_def != null:
+		return BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(context.unit_state, skill_def)
+	var best_range := -1
+	for skill_id in _resolve_known_skill_ids(context, range_skill_ids):
+		var candidate_skill_def := _get_skill_def(context, skill_id)
+		if candidate_skill_def == null or candidate_skill_def.combat_profile == null:
+			continue
+		var block_reason := _get_skill_cast_block_reason(context, candidate_skill_def)
+		if not block_reason.is_empty():
+			continue
+		best_range = maxi(best_range, BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(context.unit_state, candidate_skill_def))
+	return best_range
+
+
+func _resolve_target_safe_distance(
+	context,
+	target_unit: BattleUnitState,
+	configured_minimum_safe_distance: int,
+	safe_distance_margin: int = 1
+) -> int:
+	var resolved_minimum := maxi(configured_minimum_safe_distance, 0)
+	var threat_range := _resolve_unit_effective_threat_range(context, target_unit)
+	if threat_range <= 0:
+		return resolved_minimum
+	return maxi(resolved_minimum, threat_range + maxi(safe_distance_margin, 0))
+
+
+func _resolve_unit_effective_threat_range(context, threat_unit: BattleUnitState) -> int:
+	if context == null or threat_unit == null:
+		return -1
+	var best_range := -1
+	for raw_skill_id in threat_unit.known_active_skill_ids:
+		var skill_id := ProgressionDataUtils.to_string_name(raw_skill_id)
+		if skill_id == &"":
+			continue
+		var skill_def = context.skill_defs.get(skill_id) as SkillDef
+		if not _is_hostile_threat_skill(skill_def):
+			continue
+		best_range = maxi(best_range, BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(threat_unit, skill_def))
+	if best_range < 0:
+		best_range = BATTLE_RANGE_SERVICE_SCRIPT.get_weapon_attack_range(threat_unit)
+	return best_range
+
+
+func _select_most_unsafe_target(
+	context,
+	targets: Array,
+	anchor_coord: Vector2i,
+	configured_minimum_safe_distance: int,
+	safe_distance_margin: int = 1
+) -> BattleUnitState:
+	var best_target: BattleUnitState = null
+	var best_gap := -1
+	var best_distance := 999999
+	for target_variant in targets:
+		var target_unit = target_variant as BattleUnitState
+		if target_unit == null:
+			continue
+		var distance := _distance_from_anchor_to_unit(context, context.unit_state, anchor_coord, target_unit)
+		var safe_distance := _resolve_target_safe_distance(
+			context,
+			target_unit,
+			configured_minimum_safe_distance,
+			safe_distance_margin
+		)
+		var unsafe_gap := maxi(safe_distance - distance, 0)
+		if best_target == null \
+				or unsafe_gap > best_gap \
+				or (unsafe_gap == best_gap and distance < best_distance):
+			best_target = target_unit
+			best_gap = unsafe_gap
+			best_distance = distance
+	return best_target
+
+
+func _is_hostile_threat_skill(skill_def: SkillDef) -> bool:
+	if skill_def == null or skill_def.combat_profile == null:
+		return false
+	var target_filter := ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_team_filter)
+	if target_filter == &"ally" or target_filter == &"self":
+		return false
+	if _skill_has_tag(skill_def, &"output") \
+			or _skill_has_tag(skill_def, &"melee") \
+			or _skill_has_tag(skill_def, &"bow") \
+			or _skill_has_tag(skill_def, &"weapon"):
+		return true
+	if _effect_list_has_hostile_threat(skill_def.combat_profile.effect_defs):
+		return true
+	for cast_variant in skill_def.combat_profile.cast_variants:
+		if cast_variant != null and _effect_list_has_hostile_threat(cast_variant.effect_defs):
+			return true
+	return false
+
+
+func _skill_has_tag(skill_def: SkillDef, expected_tag: StringName) -> bool:
+	if skill_def == null or expected_tag == &"":
+		return false
+	for tag in skill_def.tags:
+		if ProgressionDataUtils.to_string_name(tag) == expected_tag:
+			return true
+	return false
+
+
+func _effect_list_has_hostile_threat(effect_defs: Array) -> bool:
+	for effect_def in effect_defs:
+		if effect_def == null:
+			continue
+		var effect_type := ProgressionDataUtils.to_string_name(effect_def.effect_type)
+		if effect_type == &"damage" \
+				or effect_type == &"chain_damage" \
+				or effect_type == &"charge" \
+				or effect_type == &"forced_move" \
+				or effect_type == &"path_step_aoe" \
+				or effect_type == &"status":
+			return true
+	return false
 
 
 func _get_ground_variants(context, skill_def: SkillDef) -> Array:

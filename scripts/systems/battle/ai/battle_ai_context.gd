@@ -18,6 +18,7 @@ var skill_defs: Dictionary = {}
 var preview_callback: Callable = Callable()
 var skill_score_input_callback: Callable = Callable()
 var action_score_input_callback: Callable = Callable()
+var runtime_actions_by_state: Dictionary = {}
 var trace_enabled := false
 var action_traces: Array[Dictionary] = []
 var _action_trace_nonce := 0
@@ -57,6 +58,19 @@ func build_action_score_input(
 		metadata
 	)
 	return score_input if score_input is BattleAiScoreInput else null
+
+
+func get_runtime_actions(state_id: StringName) -> Array:
+	if state_id == &"" or runtime_actions_by_state.is_empty():
+		return []
+	var actions_variant = runtime_actions_by_state.get(state_id, [])
+	if actions_variant is not Array:
+		return []
+	var result: Array = []
+	for action_variant in actions_variant:
+		if action_variant != null:
+			result.append(action_variant)
+	return result
 
 
 func resolve_forced_target_unit(target_filter: StringName):

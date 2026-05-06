@@ -17,6 +17,11 @@ extends Resource
 @export var position_distance_step := 4
 @export var position_undershoot_penalty := 15
 @export var position_overshoot_penalty := 12
+@export var threat_healer_bias := 0.15
+@export var threat_control_bias := 0.05
+@export var threat_ranged_bias := 0.08
+@export var threat_range_step_bias := 0.02
+@export var threat_multiplier_cap := 1.5
 @export var action_base_scores: Dictionary = {
 	"skill": 0,
 	"move": 20,
@@ -31,6 +36,9 @@ extends Resource
 	"frontline_guard": 130,
 	"harrier_pressure": 100,
 	"charge_open": 100,
+	"archer_survival": 150,
+	"archer_positioning": 110,
+	"archer_pressure": 90,
 }
 
 
@@ -66,6 +74,11 @@ func to_dict() -> Dictionary:
 		"position_distance_step": position_distance_step,
 		"position_undershoot_penalty": position_undershoot_penalty,
 		"position_overshoot_penalty": position_overshoot_penalty,
+		"threat_healer_bias": threat_healer_bias,
+		"threat_control_bias": threat_control_bias,
+		"threat_ranged_bias": threat_ranged_bias,
+		"threat_range_step_bias": threat_range_step_bias,
+		"threat_multiplier_cap": threat_multiplier_cap,
 		"action_base_scores": action_base_scores.duplicate(true),
 		"default_bucket_priority": default_bucket_priority,
 		"bucket_priorities": bucket_priorities.duplicate(true),

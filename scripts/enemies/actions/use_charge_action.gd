@@ -3,6 +3,7 @@ extends "res://scripts/enemies/enemy_ai_action.gd"
 
 @export var skill_id: StringName = &"charge"
 @export var target_selector: StringName = &"nearest_enemy"
+@export var minimum_charge_move_distance := 3
 
 
 func decide(context):
@@ -26,6 +27,11 @@ func decide(context):
 		_finalize_action_trace(context, action_trace)
 		return null
 	var focus_target = targets[0] as BattleUnitState
+	var focus_target_distance := _distance_between_units(context, context.unit_state, focus_target)
+	var trace_metadata: Dictionary = action_trace.get("metadata", {})
+	trace_metadata["focus_target_distance"] = focus_target_distance
+	trace_metadata["minimum_charge_move_distance"] = minimum_charge_move_distance
+	action_trace["metadata"] = trace_metadata
 	var best_decision = null
 	var best_score_input = null
 	var best_fallback_score = -999999
@@ -50,6 +56,15 @@ func decide(context):
 					context.unit_state.coord,
 					resolved_anchor
 				) if context.grid_service != null else 0
+				var short_charge_block_reason := _resolve_short_charge_block_reason(
+					context,
+					resolved_anchor,
+					resolved_move_distance,
+					focus_target_distance
+				)
+				if not short_charge_block_reason.is_empty():
+					_trace_add_block_reason(action_trace, short_charge_block_reason)
+					continue
 				var charge_action_base_score: int = 20 + maxi(resolved_move_distance - 1, 0) * 8
 				var score_input = _build_skill_score_input(
 					context,
@@ -77,6 +92,7 @@ func decide(context):
 					{
 						"resolved_anchor_coord": resolved_anchor,
 						"resolved_distance": resolved_distance,
+						"resolved_move_distance": resolved_move_distance,
 					}
 				))
 				if score_input != null:
@@ -147,10 +163,35 @@ func _resolve_charge_target_info(unit_state: BattleUnitState, target_coord: Vect
 	return {"valid": false}
 
 
+func _resolve_short_charge_block_reason(
+	context,
+	resolved_anchor: Vector2i,
+	resolved_move_distance: int,
+	focus_target_distance: int
+) -> String:
+	if minimum_charge_move_distance <= 1:
+		return ""
+	if focus_target_distance <= minimum_charge_move_distance:
+		return "target_distance_below_minimum_charge"
+	if resolved_move_distance > minimum_charge_move_distance:
+		return ""
+	if context == null or context.unit_state == null:
+		return ""
+	if resolved_anchor == context.unit_state.coord:
+		return ""
+	var move_command = _build_move_command(context, resolved_anchor)
+	var move_preview = context.preview_command(move_command)
+	if move_preview != null and bool(move_preview.allowed):
+		return "short_charge_regular_move_available"
+	return ""
+
+
 func validate_schema() -> Array[String]:
 	var errors := _collect_base_validation_errors()
 	if skill_id == &"":
 		errors.append("UseChargeAction %s is missing skill_id." % String(action_id))
 	if target_selector == &"":
 		errors.append("UseChargeAction %s is missing target_selector." % String(action_id))
+	if minimum_charge_move_distance < 1:
+		errors.append("UseChargeAction %s minimum_charge_move_distance must be >= 1." % String(action_id))
 	return errors

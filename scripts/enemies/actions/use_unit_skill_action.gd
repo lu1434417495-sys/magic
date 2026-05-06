@@ -48,7 +48,7 @@ func decide(context):
 			if preview == null or not bool(preview.allowed):
 				_trace_count_increment(action_trace, "preview_reject_count", 1)
 				continue
-			var position_metadata := _build_position_metadata(context, target_unit)
+			var position_metadata := _build_position_metadata(context, target_unit, skill_def)
 			position_metadata["action_label"] = skill_def.display_name
 			var score_input = _build_skill_score_input(
 				context,
@@ -105,11 +105,9 @@ func decide(context):
 	return resolved_decision
 
 
-func _build_position_metadata(context, target_unit) -> Dictionary:
-	var metadata := {
-		"desired_min_distance": desired_min_distance,
-		"desired_max_distance": desired_max_distance,
-	}
+func _build_position_metadata(context, target_unit, skill_def: SkillDef) -> Dictionary:
+	var distance_contract := _resolve_desired_distance_contract(context, skill_def)
+	var metadata := distance_contract.duplicate(true)
 	match distance_reference:
 		DISTANCE_REF_TARGET_UNIT:
 			metadata["position_target_unit"] = target_unit

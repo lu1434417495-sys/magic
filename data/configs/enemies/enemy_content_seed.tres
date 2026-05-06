@@ -6,6 +6,7 @@
 [ext_resource type="Resource" path="res://data/configs/enemies/brains/melee_aggressor.tres" id="4_brain_melee"]
 [ext_resource type="Resource" path="res://data/configs/enemies/brains/ranged_controller.tres" id="5_brain_ranged_controller"]
 [ext_resource type="Resource" path="res://data/configs/enemies/brains/ranged_suppressor.tres" id="6_brain_ranged_suppressor"]
+[ext_resource type="Resource" path="res://data/configs/enemies/brains/ranged_archer.tres" id="7_brain_ranged_archer"]
 [ext_resource type="Resource" path="res://data/configs/enemies/templates/mist_beast.tres" id="7_template_mist_beast"]
 [ext_resource type="Resource" path="res://data/configs/enemies/templates/mist_harrier.tres" id="8_template_mist_harrier"]
 [ext_resource type="Resource" path="res://data/configs/enemies/templates/mist_weaver.tres" id="9_template_mist_weaver"]
@@ -19,6 +20,6 @@
 
 [resource]
 script = ExtResource("1_seed")
-enemy_ai_brains = Array[Resource]([ExtResource("2_brain_frontline"), ExtResource("3_brain_healer"), ExtResource("4_brain_melee"), ExtResource("5_brain_ranged_controller"), ExtResource("6_brain_ranged_suppressor")])
+enemy_ai_brains = Array[Resource]([ExtResource("2_brain_frontline"), ExtResource("3_brain_healer"), ExtResource("4_brain_melee"), ExtResource("5_brain_ranged_controller"), ExtResource("6_brain_ranged_suppressor"), ExtResource("7_brain_ranged_archer")])
 enemy_templates = Array[Resource]([ExtResource("7_template_mist_beast"), ExtResource("8_template_mist_harrier"), ExtResource("9_template_mist_weaver"), ExtResource("10_template_wolf_alpha"), ExtResource("11_template_wolf_pack"), ExtResource("12_template_wolf_raider"), ExtResource("13_template_wolf_shaman"), ExtResource("14_template_wolf_vanguard")])
 wild_encounter_rosters = Array[Resource]([ExtResource("15_roster_mist_hollow"), ExtResource("16_roster_wolf_den")])

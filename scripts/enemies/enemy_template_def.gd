@@ -25,6 +25,7 @@ const NATURAL_WEAPON_DEFAULT_ATTACK_RANGE := 1
 
 @export var template_id: StringName = &""
 @export var display_name: String = ""
+@export var battle_sprite_texture: Texture2D = null
 @export var brain_id: StringName = &""
 @export var initial_state_id: StringName = &""
 @export var enemy_count := 1

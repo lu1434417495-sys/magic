@@ -22,8 +22,13 @@ const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_template_
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_range_action.gd")
+const MOVE_TO_ADVANTAGE_POSITION_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_advantage_position_action.gd")
+const RETREAT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/retreat_action.gd")
 const USE_CHARGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_charge_action.gd")
+const USE_CHARGE_PATH_AOE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_charge_path_aoe_action.gd")
 const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
+const MOVE_TO_MULTI_UNIT_SKILL_POSITION_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_multi_unit_skill_position_action.gd")
+const USE_MULTI_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_multi_unit_skill_action.gd")
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
@@ -65,8 +70,30 @@ func _run() -> void:
 	_test_natural_weapon_melee_aggressor_falls_back_to_basic_attack()
 	_test_ai_charge_decision_logs_brain_state_action()
 	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
+	_test_short_regular_move_prefers_close_in_over_charge()
+	_test_melee_close_in_prefers_screening_ranged_ally_when_healthy()
+	_test_melee_screening_scores_actual_path_cost_block()
+	_test_melee_screening_ignores_geometric_line_without_pressure()
 	_test_charge_action_scores_with_resolved_stop_anchor()
+	_test_ai_assembler_adds_whirlwind_charge_path_action()
+	_test_ai_charge_path_aoe_scores_repeat_hits()
+	_test_ai_runtime_plan_uses_auto_whirlwind_action()
 	_test_ai_ground_skill_generates_legal_command()
+	_test_ai_unit_skill_scores_ranged_role_threat_target()
+	_test_nearest_role_threat_enemy_selector_prefers_reachable_ranged_output()
+	_test_nearest_role_threat_enemy_selector_keeps_far_ranged_output_behind_frontline()
+	_test_nearest_role_threat_enemy_selector_prefers_frontline_over_far_ranged()
+	_test_ai_multi_unit_skill_generates_target_unit_ids()
+	_test_ai_multi_unit_skill_scores_role_threat_target_groups()
+	_test_ai_ground_skill_scores_role_threat_area_targets()
+	_test_ai_multi_unit_skill_prefers_max_targets_under_candidate_limit()
+	_test_ai_multi_unit_positioning_moves_toward_max_targets()
+	_test_ai_skill_distance_contract_uses_effective_weapon_range()
+	_test_ai_move_to_range_uses_effective_weapon_range()
+	_test_ranged_archer_survival_position_beats_shot_when_too_close()
+	_test_ranged_archer_survival_position_uses_enemy_threat_range()
+	_test_retreat_action_uses_enemy_threat_range_progress()
+	_test_ranged_archer_prefers_high_ground_position_before_shot()
 	_test_ai_skill_score_input_exposes_ground_metrics()
 	_test_ai_skill_score_input_uses_fate_aware_repeat_attack_success_rate()
 	_test_ai_score_low_hp_threshold_uses_formal_param_only()
@@ -80,6 +107,7 @@ func _run() -> void:
 	_test_move_to_range_prefers_closing_distance_over_wait_when_far_from_band()
 	_test_taunt_forces_nearest_enemy_selector_to_source_unit()
 	_test_taunt_forces_lowest_hp_enemy_selector_to_source_unit()
+	_test_taunt_forces_role_threat_enemy_selector_to_source_unit()
 	_test_taunt_disadvantage_ignores_stale_dead_or_non_hostile_source()
 	_test_healer_controller_uses_control_when_battle_is_stable()
 	_test_frontline_bulwark_guards_when_low_hp()
@@ -578,6 +606,224 @@ func _test_frontline_bulwark_charge_decision_logs_brain_state_action() -> void:
 	_assert_true(vanguard.coord != Vector2i(0, 1), "frontline_bulwark 在 engage 状态下应优先用 charge 接敌。")
 
 
+func _test_short_regular_move_prefers_close_in_over_charge() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(4, 3))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"short_charge_wolf",
+		"短距冲锋狼",
+		&"hostile",
+		Vector2i(0, 1),
+		&"melee_aggressor",
+		&"engage",
+		[&"charge", &"warrior_heavy_strike"],
+		36,
+		2
+	)
+	wolf.current_move_points = 2
+	wolf.current_stamina = 80
+	wolf.attribute_snapshot.set_value(&"stamina_max", 80)
+	var player = _build_manual_unit(&"short_charge_target", "短距目标", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.command != null, "短距离接敌应产出合法 AI 指令。")
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"wolf_close_in",
+		"短距离且普通移动可达时应走 close_in，而不是 charge_open。"
+	)
+	_assert_eq(
+		decision.command.command_type if decision != null and decision.command != null else &"",
+		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
+		"短距离接敌应生成移动指令。"
+	)
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(1, 1),
+		"短距离接敌应移动到贴身格。"
+	)
+
+
+func _test_melee_close_in_prefers_screening_ranged_ally_when_healthy() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 8))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"screening_wolf",
+		"占位战士",
+		&"hostile",
+		Vector2i(1, 4),
+		&"melee_aggressor",
+		&"engage",
+		[&"charge", &"basic_attack"],
+		28,
+		2
+	)
+	wolf.current_move_points = 2
+	wolf.current_stamina = 80
+	wolf.attribute_snapshot.set_value(&"stamina_max", 80)
+	var archer = _build_ai_unit(
+		&"screening_archer",
+		"后排弓手",
+		&"hostile",
+		Vector2i(3, 6),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot"],
+		28,
+		2
+	)
+	_apply_test_bow_weapon(archer, 6)
+	var player = _build_manual_unit(&"screening_threat", "近战威胁", &"player", Vector2i(3, 3), [&"basic_attack"])
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	action.action_id = &"screening_close_in_probe"
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 1
+	action.desired_max_distance = 1
+	action.screening_mode = &"ranged_ally"
+	action.screening_min_hp_ratio = 0.4
+	var decision = action.decide(ai_context)
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(3, 4),
+		"健康近战接敌时，应优先选择仍能贴敌且位于敌方近战到己方弓手最短路上的占位格。"
+	)
+	wolf.current_hp = 8
+	var low_hp_decision = action.decide(ai_context)
+	_assert_eq(
+		low_hp_decision.command.target_coord if low_hp_decision != null and low_hp_decision.command != null else Vector2i(-1, -1),
+		Vector2i(2, 3),
+		"低血且无防御技能时，接敌动作不应继续为了保护后排偏向占位格。"
+	)
+
+
+func _test_melee_screening_scores_actual_path_cost_block() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(6, 4))
+	for blocked_coord in [
+		Vector2i(2, 0),
+		Vector2i(3, 0),
+		Vector2i(4, 0),
+		Vector2i(2, 1),
+		Vector2i(3, 1),
+		Vector2i(2, 2),
+		Vector2i(3, 2),
+	]:
+		var cell = state.cells.get(blocked_coord)
+		if cell == null:
+			continue
+		cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_DEEP_WATER
+		cell.recalculate_runtime_values()
+	state.cell_columns = BATTLE_CELL_STATE_SCRIPT.build_columns_from_surface_cells(state.cells)
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"path_cost_screening_wolf",
+		"占位战士",
+		&"hostile",
+		Vector2i(0, 3),
+		&"melee_aggressor",
+		&"engage",
+		[&"charge", &"basic_attack"],
+		28,
+		2
+	)
+	wolf.current_move_points = 3
+	var archer = _build_ai_unit(
+		&"path_cost_screening_archer",
+		"后排弓手",
+		&"hostile",
+		Vector2i(4, 1),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot"],
+		28,
+		2
+	)
+	_apply_test_bow_weapon(archer, 6)
+	var player = _build_manual_unit(&"path_cost_screening_threat", "近战威胁", &"player", Vector2i(1, 1), [&"basic_attack"])
+	player.current_move_points = 5
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	action.action_id = &"path_cost_screening_probe"
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 1
+	action.desired_max_distance = 1
+	action.screening_mode = &"ranged_ally"
+	action.screening_min_hp_ratio = 0.4
+	var screening_context: Dictionary = action._build_screening_context(ai_context)
+	var metrics: Dictionary = action._build_screening_metrics(ai_context, Vector2i(3, 3), screening_context)
+	_assert_true(bool(screening_context.get("enabled", false)), "敌方近战一两步能威胁弓手时，screening context 应启用。")
+	_assert_true(int(metrics.get("bonus", 0)) > 0, "候选格实际增加敌方到弓手的路径成本时，应获得守线加分。")
+	_assert_true(int(metrics.get("path_cost_delta", 0)) > 0, "守线 metrics 应记录实际路径成本增量。")
+	_assert_true(not bool(metrics.get("on_shortest_path", true)), "该回归场景中的守线格不在几何最短路上，必须由实际路径成本命中。")
+	_assert_eq(
+		String(metrics.get("protected_unit_id", "")),
+		"path_cost_screening_archer",
+		"守线 metrics 应记录被保护的远程输出单位。"
+	)
+
+
+func _test_melee_screening_ignores_geometric_line_without_pressure() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(6, 8))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"geometric_screening_wolf",
+		"几何占位战士",
+		&"hostile",
+		Vector2i(0, 5),
+		&"melee_aggressor",
+		&"engage",
+		[&"charge", &"basic_attack"],
+		28,
+		2
+	)
+	wolf.current_move_points = 3
+	var archer = _build_ai_unit(
+		&"geometric_screening_archer",
+		"后排弓手",
+		&"hostile",
+		Vector2i(3, 6),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot"],
+		28,
+		2
+	)
+	_apply_test_bow_weapon(archer, 6)
+	var player = _build_manual_unit(&"geometric_screening_threat", "近战威胁", &"player", Vector2i(2, 3), [&"basic_attack"])
+	player.current_move_points = 3
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	action.action_id = &"geometric_screening_probe"
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 1
+	action.desired_max_distance = 1
+	action.screening_mode = &"ranged_ally"
+	action.screening_min_hp_ratio = 0.4
+	var screening_context: Dictionary = action._build_screening_context(ai_context)
+	var metrics: Dictionary = action._build_screening_metrics(ai_context, Vector2i(3, 5), screening_context)
+	_assert_true(bool(screening_context.get("enabled", false)), "敌方近战可威胁弓手时，screening context 应启用。")
+	_assert_eq(
+		int(metrics.get("bonus", 0)),
+		0,
+		"仅处于几何最短路但不增加路径成本、也不能贴身/反击的格子不应获得守线加分。"
+	)
+
+
 func _test_charge_action_scores_with_resolved_stop_anchor() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(6, 3))
@@ -608,6 +854,7 @@ func _test_charge_action_scores_with_resolved_stop_anchor() -> void:
 	action.action_id = &"charge_resolved_stop_anchor"
 	action.skill_id = &"charge"
 	action.target_selector = &"nearest_enemy"
+	action.minimum_charge_move_distance = 1
 	var decision = action.decide(ai_context)
 	_assert_true(decision != null and decision.command != null, "charge 评分回归应能产出合法冲锋指令。")
 	if decision == null or decision.command == null:
@@ -623,6 +870,118 @@ func _test_charge_action_scores_with_resolved_stop_anchor() -> void:
 		preview.resolved_anchor_coord if preview != null else Vector2i(-1, -1),
 		Vector2i(1, 1),
 		"charge preview 应暴露与正式执行一致的 resolved_anchor_coord。"
+	)
+
+
+func _test_ai_assembler_adds_whirlwind_charge_path_action() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var brain = runtime._enemy_ai_brains.get(&"melee_aggressor")
+	var spinner = _build_ai_unit(
+		&"whirlwind_assembler",
+		"自动旋风狼",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[&"warrior_whirlwind_slash"],
+		36,
+		2
+	)
+	_prepare_test_whirlwind_user(spinner)
+	var plan: Dictionary = runtime._ai_action_assembler.build_unit_action_plan(spinner, brain, runtime._skill_defs)
+	var engage_actions: Array = plan.get(&"engage", [])
+	var found_path_action := false
+	for action in engage_actions:
+		if action == null or action.get_script() != USE_CHARGE_PATH_AOE_ACTION_SCRIPT:
+			continue
+		found_path_action = action.get_declared_skill_ids().has(&"warrior_whirlwind_slash")
+		if found_path_action:
+			break
+	_assert_true(
+		found_path_action,
+		"AI 自动装配器应为 warrior_whirlwind_slash 生成 charge + path_step_aoe Action。"
+	)
+
+
+func _test_ai_charge_path_aoe_scores_repeat_hits() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 5))
+	runtime._state = state
+	var spinner = _build_ai_unit(
+		&"whirlwind_scorer",
+		"旋风评分狼",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[&"warrior_whirlwind_slash"],
+		36,
+		2
+	)
+	_prepare_test_whirlwind_user(spinner)
+	var large_target = _build_manual_unit(&"whirlwind_large_target", "大型目标", &"player", Vector2i(2, 0), [&"warrior_heavy_strike"])
+	large_target.body_size = BATTLE_UNIT_STATE_SCRIPT.BODY_SIZE_LARGE
+	large_target.sync_body_size_category_from_body_size()
+	large_target.refresh_footprint()
+	_add_unit_to_state(runtime, state, spinner, true)
+	_add_unit_to_state(runtime, state, large_target, false)
+	var ai_context = _build_ai_context(runtime, spinner)
+	var action = USE_CHARGE_PATH_AOE_ACTION_SCRIPT.new()
+	action.action_id = &"whirlwind_path_aoe_probe"
+	var action_skill_ids: Array[StringName] = [&"warrior_whirlwind_slash"]
+	action.skill_ids = action_skill_ids
+	action.target_selector = &"nearest_enemy"
+	action.minimum_hit_count = 2
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "旋风斩路径 AOE Action 应能产出合法候选。")
+	if decision == null or decision.command == null:
+		return
+	_assert_true(
+		decision.score_input != null and decision.score_input.path_step_hit_count >= 2,
+		"路径 AOE 评分应统计同一大型目标被沿途多次命中的收益。"
+	)
+	_assert_true(
+		decision.score_input != null and decision.score_input.path_step_payoff_score > 0,
+		"路径 AOE 评分应把沿途命中转成正向 hit payoff。"
+	)
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "旋风斩路径 AOE Action 生成的命令必须通过 preview_command。")
+
+
+func _test_ai_runtime_plan_uses_auto_whirlwind_action() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 5))
+	runtime._state = state
+	var spinner = _build_ai_unit(
+		&"whirlwind_auto_runtime",
+		"自动旋风运行时",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[&"warrior_whirlwind_slash"],
+		36,
+		2
+	)
+	_prepare_test_whirlwind_user(spinner)
+	var large_target = _build_manual_unit(&"whirlwind_runtime_target", "运行时大型目标", &"player", Vector2i(2, 0), [&"warrior_heavy_strike"])
+	large_target.body_size = BATTLE_UNIT_STATE_SCRIPT.BODY_SIZE_LARGE
+	large_target.sync_body_size_category_from_body_size()
+	large_target.refresh_footprint()
+	_add_unit_to_state(runtime, state, spinner, true)
+	_add_unit_to_state(runtime, state, large_target, false)
+	runtime._build_ai_action_plans()
+	var ai_context = _build_ai_context(runtime, spinner)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.command != null, "运行时自动 Action plan 应能产出 AI 指令。")
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"warrior_whirlwind_slash",
+		"未在 brain .tres 手写列出的 warrior_whirlwind_slash 应通过自动装配参与决策。"
+	)
+	_assert_true(
+		decision != null and decision.score_input != null and decision.score_input.path_step_hit_count >= 2,
+		"运行时选择旋风斩时应携带路径 AOE 评分指标。"
 	)
 
 
@@ -656,6 +1015,764 @@ func _test_ai_ground_skill_generates_legal_command() -> void:
 	var preview = runtime.preview_command(decision.command)
 	_assert_true(preview != null and preview.allowed, "AI 产出的 ground skill 命令必须能通过 preview_command。")
 	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "ground skill 预览应至少命中 2 个单位。")
+
+
+func _test_ai_unit_skill_scores_ranged_role_threat_target() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var caster = _build_ai_unit(
+		&"role_threat_lancer",
+		"威胁评分术士",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_controller",
+		&"pressure",
+		[&"mage_ice_lance"],
+		24,
+		2
+	)
+	caster.current_mp = 20
+	caster.attribute_snapshot.set_value(&"mp_max", 20)
+	var normal_target = _build_manual_unit(&"role_threat_normal", "普通目标", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
+	var ranged_target = _build_manual_unit(&"role_threat_archer", "远程威胁目标", &"player", Vector2i(4, 3), [&"archer_aimed_shot", &"basic_attack"])
+	_apply_test_bow_weapon(ranged_target, 6)
+	_add_unit_to_state(runtime, state, caster, true)
+	_add_unit_to_state(runtime, state, normal_target, false)
+	_add_unit_to_state(runtime, state, ranged_target, false)
+	var ai_context = _build_ai_context(runtime, caster)
+	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"role_threat_unit_probe"
+	var skill_ids: Array[StringName] = [&"mage_ice_lance"]
+	action.skill_ids = skill_ids
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 3
+	action.desired_max_distance = 4
+	action.distance_reference = &"target_unit"
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "单体技能威胁评分回归应产出合法指令。")
+	_assert_eq(
+		decision.command.target_unit_id if decision != null and decision.command != null else &"",
+		ranged_target.unit_id,
+		"单体技能在距离和伤害相同时，应因远程输出威胁优先选择远程攻击单位。"
+	)
+	_assert_true(
+		decision != null and decision.score_input != null and decision.score_input.target_priority_score > 0,
+		"单体技能评分应把目标角色威胁写入 target_priority_score。"
+	)
+
+
+func _test_nearest_role_threat_enemy_selector_prefers_reachable_ranged_output() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(9, 5))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"role_selector_wolf",
+		"威胁接敌狼",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[&"basic_attack"],
+		30,
+		2
+	)
+	var melee_target = _build_manual_unit(&"role_selector_melee", "近处前排", &"player", Vector2i(3, 2), [&"warrior_heavy_strike"])
+	var ranged_target = _build_manual_unit(&"role_selector_archer", "可压制远程", &"player", Vector2i(5, 2), [&"archer_aimed_shot", &"basic_attack"])
+	_apply_test_melee_weapon(melee_target, 1)
+	_apply_test_bow_weapon(ranged_target, 6)
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, melee_target, false)
+	_add_unit_to_state(runtime, state, ranged_target, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	var targets = action._sort_target_units(ai_context, &"enemy", &"nearest_role_threat_enemy")
+	_assert_true(not targets.is_empty(), "nearest_role_threat_enemy 应返回敌方候选。")
+	_assert_eq(
+		targets[0].unit_id if not targets.is_empty() else &"",
+		ranged_target.unit_id,
+		"近战接敌选择器应在近距离窗口内优先压制远程输出，而不是永远锁最近前排。"
+	)
+
+
+func _test_nearest_role_threat_enemy_selector_keeps_far_ranged_output_behind_frontline() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(12, 5))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"role_selector_far_wolf",
+		"远程窗口狼",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[&"basic_attack"],
+		30,
+		2
+	)
+	var melee_target = _build_manual_unit(&"role_selector_near_guard", "贴脸前排", &"player", Vector2i(2, 2), [&"warrior_heavy_strike"])
+	var ranged_target = _build_manual_unit(&"role_selector_far_archer", "远处远程", &"player", Vector2i(9, 2), [&"archer_aimed_shot", &"basic_attack"])
+	_apply_test_melee_weapon(melee_target, 1)
+	_apply_test_bow_weapon(ranged_target, 6)
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, melee_target, false)
+	_add_unit_to_state(runtime, state, ranged_target, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	var targets = action._sort_target_units(ai_context, &"enemy", &"nearest_role_threat_enemy")
+	_assert_true(not targets.is_empty(), "nearest_role_threat_enemy 远距回归应返回敌方候选。")
+	_assert_eq(
+		targets[0].unit_id if not targets.is_empty() else &"",
+		melee_target.unit_id,
+		"远程输出超出近距离窗口时，近战接敌选择器应先处理已经贴近的前排。"
+	)
+
+
+func _test_nearest_role_threat_enemy_selector_prefers_frontline_over_far_ranged() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(14, 5))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"role_selector_frontline_wolf",
+		"前排优先狼",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[&"basic_attack"],
+		30,
+		2
+	)
+	var ranged_target = _build_manual_unit(&"role_selector_far_but_closer_archer", "稍近远程", &"player", Vector2i(9, 2), [&"archer_aimed_shot", &"basic_attack"])
+	var melee_target = _build_manual_unit(&"role_selector_far_frontline", "更远前排", &"player", Vector2i(10, 2), [&"warrior_heavy_strike"])
+	_apply_test_bow_weapon(ranged_target, 6)
+	_apply_test_melee_weapon(melee_target, 1)
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, ranged_target, false)
+	_add_unit_to_state(runtime, state, melee_target, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	var targets = action._sort_target_units(ai_context, &"enemy", &"nearest_role_threat_enemy")
+	_assert_true(not targets.is_empty(), "nearest_role_threat_enemy 前排回归应返回敌方候选。")
+	_assert_eq(
+		targets[0].unit_id if not targets.is_empty() else &"",
+		melee_target.unit_id,
+		"远程输出不在可争夺窗口内时，即使几何距离略近，近战接敌也应优先敌方接触威胁。"
+	)
+
+
+func _test_ai_multi_unit_skill_generates_target_unit_ids() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"ranged_archer_multishot",
+		"多目标弓手",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot", &"basic_attack", &"archer_multishot"],
+		28,
+		2
+	)
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_longbow",
+		"weapon_profile_type_id": "longbow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 6,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+	var player_a = _build_manual_unit(&"multi_target_a", "目标A", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
+	var player_b = _build_manual_unit(&"multi_target_b", "目标B", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	var player_c = _build_manual_unit(&"multi_target_c", "目标C", &"player", Vector2i(4, 3), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, player_a, false)
+	_add_unit_to_state(runtime, state, player_b, false)
+	_add_unit_to_state(runtime, state, player_c, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var action = USE_MULTI_UNIT_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"multi_unit_probe"
+	var action_skill_ids: Array[StringName] = [&"archer_multishot"]
+	action.skill_ids = action_skill_ids
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 3
+	action.desired_max_distance = 5
+	action.distance_reference = &"target_unit"
+	var action_decision = action.decide(ai_context)
+	_assert_true(action_decision != null and action_decision.command != null, "multi-unit action 应能产出合法候选指令。")
+	_assert_true(
+		action_decision != null and action_decision.command != null and action_decision.command.target_unit_ids.size() >= 2,
+		"multi-unit action 应通过 target_unit_ids 携带多个目标，而不是只写地格。"
+	)
+	var action_preview = runtime.preview_command(action_decision.command if action_decision != null else null)
+	_assert_true(action_preview != null and action_preview.allowed, "multi-unit action 生成的命令必须通过 preview_command。")
+
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_true(decision != null and decision.state_id == &"pressure", "ranged_archer 多目标场景下应保持 pressure 状态。")
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"archer_multishot",
+		"ranged_archer 面对多个合法目标时应选择 archer_multishot。"
+	)
+	_assert_true(
+		decision != null and decision.command != null and decision.command.target_unit_ids.size() >= 2,
+		"ranged_archer 的 archer_multishot 命令必须写入 target_unit_ids。"
+	)
+	var preview = runtime.preview_command(decision.command if decision != null else null)
+	_assert_true(preview != null and preview.allowed, "ranged_archer 产出的 archer_multishot 命令必须通过 preview_command。")
+	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "archer_multishot 预览应命中多个单位。")
+
+
+func _test_ai_multi_unit_skill_scores_role_threat_target_groups() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"role_threat_multishot_archer",
+		"威胁连珠弓手",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_multishot"],
+		28,
+		2
+	)
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	_apply_test_bow_weapon(archer, 6)
+	var normal_a = _build_manual_unit(&"multi_role_normal_a", "普通靶A", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
+	var normal_b = _build_manual_unit(&"multi_role_normal_b", "普通靶B", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	var healer = _build_manual_unit(&"multi_role_healer", "治疗威胁靶", &"player", Vector2i(4, 3), [&"mage_temporal_rewind"])
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, normal_a, false)
+	_add_unit_to_state(runtime, state, normal_b, false)
+	_add_unit_to_state(runtime, state, healer, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var skill_def = runtime._skill_defs.get(&"archer_multishot")
+	var cast_variants = skill_def.combat_profile.get_unlocked_cast_variants(1) if skill_def != null and skill_def.combat_profile != null else []
+	var cast_variant = cast_variants[0] if not cast_variants.is_empty() else null
+	_assert_true(cast_variant != null, "multi-unit 威胁评分回归应能读取 archer_multishot cast variant。")
+	if cast_variant == null:
+		return
+	var normal_command = _build_test_multi_unit_skill_command(archer, &"archer_multishot", cast_variant.variant_id, [normal_a, normal_b])
+	var threat_command = _build_test_multi_unit_skill_command(archer, &"archer_multishot", cast_variant.variant_id, [normal_a, healer])
+	var normal_preview = runtime.preview_command(normal_command)
+	var threat_preview = runtime.preview_command(threat_command)
+	_assert_true(normal_preview != null and normal_preview.allowed, "普通 multi-unit 威胁评分命令必须通过 preview。")
+	_assert_true(threat_preview != null and threat_preview.allowed, "包含治疗威胁的 multi-unit 命令必须通过 preview。")
+	var normal_score = ai_context.build_skill_score_input(
+		skill_def,
+		normal_command,
+		normal_preview,
+		cast_variant.effect_defs,
+		{"position_target_unit": normal_a, "desired_min_distance": 3, "desired_max_distance": 6}
+	)
+	var threat_score = ai_context.build_skill_score_input(
+		skill_def,
+		threat_command,
+		threat_preview,
+		cast_variant.effect_defs,
+		{"position_target_unit": normal_a, "desired_min_distance": 3, "desired_max_distance": 6}
+	)
+	_assert_true(normal_score != null and threat_score != null, "multi-unit 威胁评分回归应拿到两个合法评分。")
+	if normal_score == null or threat_score == null:
+		return
+	_assert_eq(normal_score.target_count, threat_score.target_count, "multi-unit 威胁评分前置：两个候选应命中相同目标数。")
+	_assert_true(
+		threat_score.target_priority_score > normal_score.target_priority_score,
+		"multi-unit 技能应对包含治疗威胁目标的组合产生更高 target_priority_score。"
+	)
+	_assert_true(
+		threat_score.total_score > normal_score.total_score,
+		"multi-unit 技能在命中数相同时，应因目标威胁优先包含治疗单位的组合。"
+	)
+
+
+func _test_ai_ground_skill_scores_role_threat_area_targets() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 7))
+	runtime._state = state
+	var caster = _build_ai_unit(
+		&"role_threat_fireballer",
+		"威胁火球术士",
+		&"hostile",
+		Vector2i(1, 3),
+		&"ranged_controller",
+		&"pressure",
+		[&"mage_fireball"],
+		24,
+		2
+	)
+	caster.current_mp = 20
+	caster.attribute_snapshot.set_value(&"mp_max", 20)
+	var normal_a = _build_manual_unit(&"ground_role_normal_a", "范围普通A", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
+	var normal_b = _build_manual_unit(&"ground_role_normal_b", "范围普通B", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	var healer = _build_manual_unit(&"ground_role_healer", "范围治疗威胁", &"player", Vector2i(4, 4), [&"mage_temporal_rewind"])
+	var normal_c = _build_manual_unit(&"ground_role_normal_c", "范围普通C", &"player", Vector2i(4, 5), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, caster, true)
+	_add_unit_to_state(runtime, state, normal_a, false)
+	_add_unit_to_state(runtime, state, normal_b, false)
+	_add_unit_to_state(runtime, state, healer, false)
+	_add_unit_to_state(runtime, state, normal_c, false)
+	var ai_context = _build_ai_context(runtime, caster)
+	var skill_def = runtime._skill_defs.get(&"mage_fireball")
+	var normal_command = _build_test_ground_skill_command(caster, &"mage_fireball", Vector2i(4, 2))
+	var threat_command = _build_test_ground_skill_command(caster, &"mage_fireball", Vector2i(4, 4))
+	var normal_preview = runtime.preview_command(normal_command)
+	var threat_preview = runtime.preview_command(threat_command)
+	_assert_true(normal_preview != null and normal_preview.allowed, "普通范围威胁评分命令必须通过 preview。")
+	_assert_true(threat_preview != null and threat_preview.allowed, "包含治疗威胁的范围命令必须通过 preview。")
+	var normal_score = ai_context.build_skill_score_input(
+		skill_def,
+		normal_command,
+		normal_preview,
+		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
+		{"desired_min_distance": 3, "desired_max_distance": 4}
+	)
+	var threat_score = ai_context.build_skill_score_input(
+		skill_def,
+		threat_command,
+		threat_preview,
+		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
+		{"desired_min_distance": 3, "desired_max_distance": 4}
+	)
+	_assert_true(normal_score != null and threat_score != null, "范围威胁评分回归应拿到两个合法评分。")
+	if normal_score == null or threat_score == null:
+		return
+	_assert_eq(normal_score.target_count, threat_score.target_count, "范围威胁评分前置：两个候选应命中相同目标数。")
+	_assert_true(
+		threat_score.target_priority_score > normal_score.target_priority_score,
+		"范围技能应对覆盖治疗威胁目标的地格产生更高 target_priority_score。"
+	)
+	_assert_true(
+		threat_score.total_score > normal_score.total_score,
+		"范围技能在命中数相同时，应因目标威胁优先覆盖治疗单位。"
+	)
+
+
+func _test_ai_multi_unit_skill_prefers_max_targets_under_candidate_limit() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 8))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"ranged_archer_max_multishot",
+		"满目标弓手",
+		&"hostile",
+		Vector2i(1, 3),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_multishot"],
+		28,
+		2
+	)
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	archer.known_skill_level_map[&"archer_multishot"] = 7
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_longbow",
+		"weapon_profile_type_id": "longbow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 6,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+	_add_unit_to_state(runtime, state, archer, true)
+	for index in range(6):
+		var target = _build_manual_unit(
+			StringName("max_multishot_target_%d" % index),
+			"满目标靶%d" % index,
+			&"player",
+			Vector2i(4, index),
+			[&"warrior_heavy_strike"]
+		)
+		_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var action = USE_MULTI_UNIT_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"max_multi_unit_probe"
+	var action_skill_ids: Array[StringName] = [&"archer_multishot"]
+	action.skill_ids = action_skill_ids
+	action.target_selector = &"lowest_hp_enemy"
+	action.desired_min_distance = 3
+	action.desired_max_distance = 5
+	action.distance_reference = &"target_unit"
+	action.candidate_pool_limit = 6
+	action.candidate_group_limit = 12
+	var action_decision = action.decide(ai_context)
+	_assert_true(action_decision != null and action_decision.command != null, "multi-unit action 应能产出满目标候选指令。")
+	_assert_eq(
+		action_decision.command.target_unit_ids.size() if action_decision != null and action_decision.command != null else 0,
+		5,
+		"candidate_group_limit=12 时，L7 连珠箭应优先评估并选择 5 目标组合。"
+	)
+	var action_preview = runtime.preview_command(action_decision.command if action_decision != null else null)
+	_assert_true(action_preview != null and action_preview.allowed, "满目标 multi-unit action 命令必须通过 preview_command。")
+	_assert_eq(
+		action_preview.target_unit_ids.size() if action_preview != null else 0,
+		5,
+		"满目标连珠箭预览应保留 5 个单位目标。"
+	)
+
+
+func _test_ai_multi_unit_positioning_moves_toward_max_targets() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 8))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"ranged_archer_multishot_position",
+		"找点弓手",
+		&"hostile",
+		Vector2i(1, 3),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_multishot"],
+		28,
+		2
+	)
+	archer.current_move_points = 2
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	archer.known_skill_level_map[&"archer_multishot"] = 7
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_short_bow",
+		"weapon_profile_type_id": "shortbow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 4,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+	_add_unit_to_state(runtime, state, archer, true)
+	for index in range(5):
+		var target = _build_manual_unit(
+			StringName("position_multishot_target_%d" % index),
+			"找点靶%d" % index,
+			&"player",
+			Vector2i(5, index + 1),
+			[&"warrior_heavy_strike"]
+		)
+		_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var action = MOVE_TO_MULTI_UNIT_SKILL_POSITION_ACTION_SCRIPT.new()
+	action.action_id = &"multishot_position_probe"
+	var action_skill_ids: Array[StringName] = [&"archer_multishot"]
+	action.skill_ids = action_skill_ids
+	action.target_selector = &"lowest_hp_enemy"
+	action.desired_min_distance = 3
+	action.desired_max_distance = 5
+	action.distance_reference = &"target_unit"
+	action.candidate_pool_limit = 6
+	action.candidate_group_limit = 12
+	var action_decision = action.decide(ai_context)
+	_assert_true(action_decision != null and action_decision.command != null, "multi-unit positioning action 应能产出移动指令。")
+	_assert_eq(
+		action_decision.command.command_type if action_decision != null and action_decision.command != null else &"",
+		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
+		"multi-unit positioning action 应选择普通移动。"
+	)
+	_assert_eq(
+		action_decision.command.target_coord if action_decision != null and action_decision.command != null else Vector2i(-1, -1),
+		Vector2i(3, 3),
+		"multi-unit positioning action 应移动到可覆盖 5 个目标的位置。"
+	)
+	_assert_eq(
+		action_decision.score_input.target_count if action_decision != null and action_decision.score_input != null else 0,
+		5,
+		"multi-unit positioning action 的评分输入应暴露移动后可覆盖 5 个目标。"
+	)
+
+
+func _test_ai_skill_distance_contract_uses_effective_weapon_range() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(9, 3))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"effective_range_skill_archer",
+		"真实射程弓手",
+		&"hostile",
+		Vector2i(1, 1),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot"],
+		28,
+		2
+	)
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	_apply_test_bow_weapon(archer, 6)
+	var target = _build_manual_unit(&"effective_range_target", "六格目标", &"player", Vector2i(7, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"effective_range_skill_probe"
+	var action_skill_ids: Array[StringName] = [&"archer_aimed_shot"]
+	action.skill_ids = action_skill_ids
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 3
+	action.desired_max_distance = 5
+	action.distance_reference = &"target_unit"
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "unit skill action 应能用真实 6 格弓射程锁定目标。")
+	_assert_eq(
+		decision.score_input.desired_max_distance if decision != null and decision.score_input != null else -1,
+		6,
+		"unit skill action 评分距离上限应读取 BattleRangeService 的有效射程，而不是 ranged_archer.tres 的 5。"
+	)
+	var preview = runtime.preview_command(decision.command if decision != null else null)
+	_assert_true(preview != null and preview.allowed, "真实 6 格射程生成的攻击命令必须通过 runtime preview。")
+
+
+func _test_ai_move_to_range_uses_effective_weapon_range() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(10, 3))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"effective_range_move_archer",
+		"真实射程走位弓手",
+		&"hostile",
+		Vector2i(1, 1),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot"],
+		28,
+		2
+	)
+	archer.current_move_points = 2
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	_apply_test_bow_weapon(archer, 6)
+	var target = _build_manual_unit(&"effective_range_move_target", "七格目标", &"player", Vector2i(8, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	action.action_id = &"effective_range_move_probe"
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 3
+	action.desired_max_distance = 5
+	var range_skill_ids: Array[StringName] = [&"archer_aimed_shot"]
+	action.range_skill_ids = range_skill_ids
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "move_to_range 应能基于真实射程产出移动指令。")
+	_assert_eq(
+		decision.score_input.desired_max_distance if decision != null and decision.score_input != null else -1,
+		6,
+		"move_to_range 的距离带上限应读取当前弓有效射程。"
+	)
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(2, 1),
+		"真实射程为 6 时，AI 应只前进到 6 格攻击带边缘，而不是按硬编码 5 继续多走一格。"
+	)
+
+
+func _test_ranged_archer_survival_position_beats_shot_when_too_close() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"ranged_archer_survival",
+		"保命弓手",
+		&"hostile",
+		Vector2i(3, 2),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot", &"basic_attack", &"archer_multishot"],
+		28,
+		2
+	)
+	archer.current_move_points = 2
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_longbow",
+		"weapon_profile_type_id": "longbow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 6,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+	var target = _build_manual_unit(&"survival_target", "贴身目标", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"archer_survival_position",
+		"ranged_archer 被敌人贴近时应优先选择保命位移，而不是原地射击。"
+	)
+	_assert_eq(
+		decision.command.command_type if decision != null and decision.command != null else &"",
+		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
+		"保命站位应产出普通移动指令。"
+	)
+	var resolved_distance: int = int(runtime._grid_service.get_distance(decision.command.target_coord, target.coord)) if decision != null and decision.command != null else 0
+	_assert_true(resolved_distance > 1, "保命位移应拉开最近敌人的距离。")
+
+
+func _test_ranged_archer_survival_position_uses_enemy_threat_range() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(9, 5))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"ranged_archer_dynamic_survival",
+		"动态保命弓手",
+		&"hostile",
+		Vector2i(2, 2),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot", &"basic_attack", &"archer_multishot"],
+		28,
+		2
+	)
+	archer.current_move_points = 1
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	_apply_test_bow_weapon(archer, 6)
+	var target = _build_manual_unit(&"dynamic_survival_target", "长弓威胁", &"player", Vector2i(6, 2), [&"archer_aimed_shot"])
+	_apply_test_bow_weapon(target, 6)
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"archer_survival_position",
+		"ranged_archer 应把敌方长弓有效射程计入保命安全距离，而不是只按固定 3 格判定 already_safe。"
+	)
+	_assert_eq(
+		decision.command.command_type if decision != null and decision.command != null else &"",
+		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
+		"动态保命站位应产出移动指令。"
+	)
+
+
+func _test_retreat_action_uses_enemy_threat_range_progress() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 3))
+	runtime._state = state
+	var archer = _build_ai_unit(
+		&"retreat_dynamic_archer",
+		"动态撤退弓手",
+		&"hostile",
+		Vector2i(2, 1),
+		&"ranged_archer",
+		&"retreat",
+		[&"archer_aimed_shot", &"basic_attack"],
+		12,
+		2
+	)
+	archer.current_move_points = 1
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	_apply_test_bow_weapon(archer, 6)
+	var target = _build_manual_unit(&"retreat_dynamic_target", "长弓追击者", &"player", Vector2i(4, 1), [&"archer_aimed_shot"])
+	_apply_test_bow_weapon(target, 6)
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var action = RETREAT_ACTION_SCRIPT.new()
+	action.action_id = &"retreat_dynamic_probe"
+	action.score_bucket_id = &"archer_survival"
+	action.minimum_safe_distance = 2
+	action.use_dynamic_threat_safe_distance = true
+	action.safe_distance_margin = 1
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "retreat 应在未达到动态安全线时仍能按安全缺口改善产出移动。")
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(1, 1),
+		"retreat 应选择远离敌方长弓威胁的一步。"
+	)
+	_assert_eq(
+		decision.score_input.desired_min_distance if decision != null and decision.score_input != null else -1,
+		7,
+		"retreat 安全距离应读取敌方有效射程 6 并叠加 1 格安全边距。"
+	)
+	_assert_eq(
+		decision.score_input.position_objective_kind if decision != null and decision.score_input != null else &"",
+		&"distance_band_progress",
+		"retreat 应使用安全缺口改善评分，避免一步撤退因未达到安全线被 distance_floor 压成负收益。"
+	)
+
+	var fixed_action = RETREAT_ACTION_SCRIPT.new()
+	fixed_action.action_id = &"retreat_fixed_probe"
+	fixed_action.score_bucket_id = &"frontline_survival"
+	fixed_action.minimum_safe_distance = 4
+	var fixed_decision = fixed_action.decide(ai_context)
+	_assert_eq(
+		fixed_decision.score_input.desired_min_distance if fixed_decision != null and fixed_decision.score_input != null else -1,
+		4,
+		"retreat 默认应使用配置的固定安全距离，避免 melee_aggressor 低血时按敌方长弓射程后撤并拆掉前排。"
+	)
+
+
+func _test_ranged_archer_prefers_high_ground_position_before_shot() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var high_cell = state.cells.get(Vector2i(2, 2))
+	high_cell.base_height = 5
+	high_cell.height_offset = 0
+	high_cell.recalculate_runtime_values()
+	state.cell_columns = BATTLE_CELL_STATE_SCRIPT.build_columns_from_surface_cells(state.cells)
+	var archer = _build_ai_unit(
+		&"ranged_archer_high_ground",
+		"高地弓手",
+		&"hostile",
+		Vector2i(1, 2),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot", &"basic_attack", &"archer_multishot"],
+		28,
+		2
+	)
+	archer.current_move_points = 1
+	archer.current_stamina = 100
+	archer.attribute_snapshot.set_value(&"stamina_max", 100)
+	archer.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_longbow",
+		"weapon_profile_type_id": "longbow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": 6,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+	var target = _build_manual_unit(&"high_ground_target", "远处目标", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, archer)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"archer_high_ground_position",
+		"ranged_archer 有安全高地可用时应先抢高位。"
+	)
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(2, 2),
+		"高地站位应移动到可射击且高度更高的位置。"
+	)
 
 
 func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
@@ -1404,6 +2521,39 @@ func _test_taunt_forces_lowest_hp_enemy_selector_to_source_unit() -> void:
 	)
 
 
+func _test_taunt_forces_role_threat_enemy_selector_to_source_unit() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 5))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"taunted_role_selector_wolf",
+		"被嘲讽威胁狼",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[&"basic_attack"],
+		30,
+		2
+	)
+	_set_test_status(wolf, &"taunted", &"taunt_source_role_selector", 90)
+	var taunt_source = _build_manual_unit(&"taunt_source_role_selector", "嘲讽源", &"player", Vector2i(6, 2), [&"warrior_heavy_strike"])
+	var ranged_target = _build_manual_unit(&"closer_role_threat_target", "近处远程威胁", &"player", Vector2i(3, 2), [&"archer_aimed_shot", &"basic_attack"])
+	_apply_test_bow_weapon(ranged_target, 6)
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, taunt_source, false)
+	_add_unit_to_state(runtime, state, ranged_target, false)
+	var ai_context = _build_ai_context(runtime, wolf)
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	var targets = action._sort_target_units(ai_context, &"enemy", &"nearest_role_threat_enemy")
+	_assert_true(not targets.is_empty(), "nearest_role_threat_enemy taunt 回归应返回强制目标。")
+	_assert_eq(
+		targets[0].unit_id if not targets.is_empty() else &"",
+		taunt_source.unit_id,
+		"被 taunted 时，nearest_role_threat_enemy 不应继续优先选择更近的远程威胁。"
+	)
+
+
 func _test_taunt_disadvantage_ignores_stale_dead_or_non_hostile_source() -> void:
 	var state = _build_flat_state(Vector2i(7, 3))
 	var attacker = _build_ai_unit(
@@ -1703,6 +2853,7 @@ func _build_ai_context(runtime, unit_state):
 	ai_context.preview_callback = Callable(runtime, "preview_command")
 	ai_context.skill_score_input_callback = Callable(runtime._ai_service, "build_skill_score_input")
 	ai_context.action_score_input_callback = Callable(runtime._ai_service, "build_action_score_input")
+	ai_context.runtime_actions_by_state = runtime._ai_action_plans_by_unit_id.get(unit_state.unit_id, {}) if unit_state != null else {}
 	return ai_context
 
 
@@ -1768,6 +2919,86 @@ func _build_manual_unit(
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
 	return unit
+
+
+func _build_test_multi_unit_skill_command(source_unit, skill_id: StringName, skill_variant_id: StringName, target_units: Array):
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = command.TYPE_SKILL
+	command.unit_id = source_unit.unit_id if source_unit != null else &""
+	command.skill_id = skill_id
+	command.skill_variant_id = skill_variant_id
+	for target_unit in target_units:
+		if target_unit == null:
+			continue
+		command.target_unit_ids.append(target_unit.unit_id)
+		if command.target_coord == Vector2i(-1, -1):
+			command.target_coord = target_unit.coord
+	return command
+
+
+func _build_test_ground_skill_command(source_unit, skill_id: StringName, target_coord: Vector2i):
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = command.TYPE_SKILL
+	command.unit_id = source_unit.unit_id if source_unit != null else &""
+	command.skill_id = skill_id
+	command.target_coord = target_coord
+	var target_coords: Array[Vector2i] = [target_coord]
+	command.target_coords = target_coords
+	return command
+
+
+func _apply_test_bow_weapon(unit, attack_range: int) -> void:
+	if unit == null:
+		return
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_longbow",
+		"weapon_profile_type_id": "longbow",
+		"weapon_family": "bow",
+		"weapon_current_grip": "two_handed",
+		"weapon_attack_range": attack_range,
+		"weapon_two_handed_dice": {"dice_count": 1, "dice_sides": 8, "flat_bonus": 0},
+		"weapon_uses_two_hands": true,
+		"weapon_physical_damage_tag": "physical_pierce",
+	})
+
+
+func _apply_test_melee_weapon(unit, attack_range: int) -> void:
+	if unit == null:
+		return
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_sword",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_family": "sword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": attack_range,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
+
+
+func _prepare_test_whirlwind_user(unit) -> void:
+	if unit == null:
+		return
+	unit.current_stamina = 120
+	unit.current_aura = 140
+	unit.attribute_snapshot.set_value(&"stamina_max", 120)
+	unit.attribute_snapshot.set_value(&"aura_max", 140)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 30)
+	unit.known_skill_level_map[&"warrior_whirlwind_slash"] = 9
+	unit.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "ai_test_whirlwind_blade",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_family": "sword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
 
 
 func _set_test_status(unit, status_id: StringName, source_unit_id: StringName, duration_tu: int = -1, params: Dictionary = {}, power: int = 1) -> void:

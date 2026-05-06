@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+[ext_resource type="Texture2D" path="res://icon.svg" id="2_wolf_sprite"]
 
 [resource]
 script = ExtResource("1_template")
 template_id = &"wolf_pack"
 display_name = "荒狼群"
+battle_sprite_texture = ExtResource("2_wolf_sprite")
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 enemy_count = 2

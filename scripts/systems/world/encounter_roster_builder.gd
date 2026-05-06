@@ -433,6 +433,7 @@ func _build_units_from_template(
 		unit_state.unit_id = _build_enemy_unit_id(encounter_anchor, global_index)
 		unit_state.enemy_template_id = template.template_id if template != null else &""
 		unit_state.display_name = _resolve_enemy_unit_display_name(base_display_name, local_index, resolved_unit_count, use_numeric_suffix)
+		unit_state.battle_sprite_texture = template.battle_sprite_texture if template != null else null
 		unit_state.faction_id = encounter_anchor.faction_id if encounter_anchor != null and encounter_anchor.faction_id != &"" else &"hostile"
 		unit_state.control_mode = &"ai"
 		unit_state.ai_brain_id = template.brain_id

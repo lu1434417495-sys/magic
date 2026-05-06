@@ -78,7 +78,9 @@ func choose_command(context) -> BattleAiDecision:
 	var best_scored_decision: BattleAiDecision = null
 	var best_scored_action_index := 999999
 	var fallback_decision: BattleAiDecision = null
-	var actions = state_def.get_actions()
+	var actions = context.get_runtime_actions(next_state_id) if context.has_method("get_runtime_actions") else []
+	if actions.is_empty():
+		actions = state_def.get_actions()
 	for action_index in range(actions.size()):
 		var action = actions[action_index]
 		if action == null or not action.has_method("decide"):

@@ -30,6 +30,13 @@ const PROP_LAYER_Z := 0
 const UNIT_LAYER_Z := 0
 const TARGET_HIGHLIGHT_LAYER_Z := 1300
 const UNIT_GLYPH_LABEL_SIZE := Vector2(28.0, 28.0)
+const UNIT_SPRITE_TILE_WIDTH_RATIO := 0.95
+const UNIT_SPRITE_GROUND_ANCHOR_RATIO := 0.85
+const UNIT_SPRITE_SHADOW_HALF_SIZE := Vector2(20.0, 6.0)
+const UNIT_SPRITE_SHADOW_COLOR := Color(0.0, 0.0, 0.0, 0.45)
+const UNIT_SPRITE_HIGHLIGHT_HALF_SIZE := Vector2(22.0, 8.0)
+const UNIT_SPRITE_HIGHLIGHT_COLOR := Color(1.0, 0.94, 0.76, 0.92)
+const UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT := 28
 const UNIT_HEALTH_BAR_SIZE := Vector2(56.0, 14.0)
 const UNIT_HEALTH_BAR_Y_OFFSET := -50.0
 const UNIT_HEALTH_BAR_BG_COLOR := Color(0.14, 0.09, 0.06, 0.92)
@@ -414,31 +421,34 @@ func _create_unit_token(unit_state: BattleUnitState) -> Node2D:
 	token.set_meta("sort_depth", render_depth)
 	token.set_meta("board_coord", unit_state.coord)
 
-	var body := Polygon2D.new()
-	body.polygon = PackedVector2Array([
-		Vector2(0.0, -14.0),
-		Vector2(12.0, 0.0),
-		Vector2(0.0, 14.0),
-		Vector2(-12.0, 0.0),
-	])
-	body.color = _get_unit_color(unit_state)
-	body.antialiased = true
-	token.add_child(body)
+	if unit_state.battle_sprite_texture != null:
+		_attach_unit_sprite_visuals(token, unit_state)
+	else:
+		var body := Polygon2D.new()
+		body.polygon = PackedVector2Array([
+			Vector2(0.0, -14.0),
+			Vector2(12.0, 0.0),
+			Vector2(0.0, 14.0),
+			Vector2(-12.0, 0.0),
+		])
+		body.color = _get_unit_color(unit_state)
+		body.antialiased = true
+		token.add_child(body)
 
-	var outline := Line2D.new()
-	outline.points = PackedVector2Array([
-		Vector2(0.0, -14.0),
-		Vector2(12.0, 0.0),
-		Vector2(0.0, 14.0),
-		Vector2(-12.0, 0.0),
-		Vector2(0.0, -14.0),
-	])
-	outline.width = 2.0
-	outline.default_color = Color(0.18, 0.11, 0.06, 0.96)
-	outline.antialiased = true
-	token.add_child(outline)
+		var outline := Line2D.new()
+		outline.points = PackedVector2Array([
+			Vector2(0.0, -14.0),
+			Vector2(12.0, 0.0),
+			Vector2(0.0, 14.0),
+			Vector2(-12.0, 0.0),
+			Vector2(0.0, -14.0),
+		])
+		outline.width = 2.0
+		outline.default_color = Color(0.18, 0.11, 0.06, 0.96)
+		outline.antialiased = true
+		token.add_child(outline)
 
-	if unit_state.unit_id == _battle_state.active_unit_id:
+	if unit_state.battle_sprite_texture == null and unit_state.unit_id == _battle_state.active_unit_id:
 		var active_outline := Line2D.new()
 		active_outline.points = PackedVector2Array([
 			Vector2(0.0, -18.0),
@@ -472,6 +482,59 @@ func _create_unit_token(unit_state: BattleUnitState) -> Node2D:
 		token.add_child(health_bar)
 
 	return token
+
+
+func _attach_unit_sprite_visuals(token: Node2D, unit_state: BattleUnitState) -> void:
+	if token == null or unit_state == null or unit_state.battle_sprite_texture == null:
+		return
+
+	# Cancel the diamond-era anchor bias so the sprite's feet land on the tile surface.
+	var ground_y := -_get_unit_anchor_bias().y
+
+	var shadow := Polygon2D.new()
+	shadow.name = "UnitSpriteShadow"
+	shadow.polygon = _build_unit_ellipse_polygon(UNIT_SPRITE_SHADOW_HALF_SIZE)
+	shadow.color = UNIT_SPRITE_SHADOW_COLOR
+	shadow.position = Vector2(0.0, ground_y)
+	shadow.antialiased = true
+	shadow.z_index = -2
+	token.add_child(shadow)
+
+	if _battle_state != null and unit_state.unit_id == _battle_state.active_unit_id:
+		var highlight := Polygon2D.new()
+		highlight.name = "UnitSpriteActiveHighlight"
+		highlight.polygon = _build_unit_ellipse_polygon(UNIT_SPRITE_HIGHLIGHT_HALF_SIZE)
+		highlight.color = UNIT_SPRITE_HIGHLIGHT_COLOR
+		highlight.position = Vector2(0.0, ground_y)
+		highlight.antialiased = true
+		highlight.z_index = -1
+		token.add_child(highlight)
+
+	var texture_size := unit_state.battle_sprite_texture.get_size()
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return
+
+	var tile_size := _get_board_tile_size()
+	var target_width := maxf(float(tile_size.x) * UNIT_SPRITE_TILE_WIDTH_RATIO, 1.0)
+	var sprite_scale := target_width / texture_size.x
+	var sprite := Sprite2D.new()
+	sprite.name = "UnitSprite"
+	sprite.texture = unit_state.battle_sprite_texture
+	sprite.centered = true
+	sprite.scale = Vector2.ONE * sprite_scale
+	# Front-paws line at GROUND_ANCHOR_RATIO of image; offset sprite center so that line sits on ground_y.
+	sprite.position = Vector2(0.0, ground_y + (0.5 - UNIT_SPRITE_GROUND_ANCHOR_RATIO) * texture_size.y * sprite_scale)
+	sprite.z_index = 0
+	token.add_child(sprite)
+
+
+func _build_unit_ellipse_polygon(half_size: Vector2) -> PackedVector2Array:
+	var safe_half_size := Vector2(maxf(half_size.x, 1.0), maxf(half_size.y, 1.0))
+	var points := PackedVector2Array()
+	for index in range(UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT):
+		var angle := TAU * float(index) / float(UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT)
+		points.append(Vector2(cos(angle) * safe_half_size.x, sin(angle) * safe_half_size.y))
+	return points
 
 
 func _create_unit_health_bar(unit_state: BattleUnitState) -> Control:

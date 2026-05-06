@@ -13,14 +13,26 @@ script = ExtResource("3_charge")
 action_id = &"wolf_charge_open"
 score_bucket_id = &"charge_open"
 skill_id = &"charge"
-target_selector = &"nearest_enemy"
+target_selector = &"nearest_role_threat_enemy"
 
 [sub_resource type="Resource" id="Action_engage_move"]
 script = ExtResource("4_move")
 action_id = &"wolf_close_in"
+target_selector = &"nearest_role_threat_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+screening_mode = &"ranged_ally"
+screening_min_hp_ratio = 0.4
+screening_path_bonus = 45
+
+[sub_resource type="Resource" id="Action_engage_basic"]
+script = ExtResource("6_unit")
+action_id = &"wolf_basic_in_engage"
+skill_ids = Array[StringName]([&"basic_attack"])
 target_selector = &"nearest_enemy"
 desired_min_distance = 1
 desired_max_distance = 1
+distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_wait"]
 script = ExtResource("5_wait")
@@ -29,7 +41,7 @@ action_id = &"wolf_wait"
 [sub_resource type="Resource" id="State_engage"]
 script = ExtResource("2_state")
 state_id = &"engage"
-actions = Array[Resource]([SubResource("Action_engage_charge"), SubResource("Action_engage_move"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_engage_charge"), SubResource("Action_engage_move"), SubResource("Action_engage_basic"), SubResource("Action_wait")])
 
 [sub_resource type="Resource" id="Action_pressure_attack"]
 script = ExtResource("6_unit")
@@ -43,9 +55,12 @@ distance_reference = &"target_unit"
 [sub_resource type="Resource" id="Action_pressure_move"]
 script = ExtResource("4_move")
 action_id = &"wolf_keep_contact"
-target_selector = &"nearest_enemy"
+target_selector = &"nearest_role_threat_enemy"
 desired_min_distance = 1
 desired_max_distance = 1
+screening_mode = &"ranged_ally"
+screening_min_hp_ratio = 0.4
+screening_path_bonus = 45
 
 [sub_resource type="Resource" id="State_pressure"]
 script = ExtResource("2_state")

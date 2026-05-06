@@ -1,0 +1,133 @@
+[gd_resource type="Resource" script_class="EnemyAiBrainDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_brain_def.gd" id="1_brain"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_state_def.gd" id="2_state"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_ground_skill_action.gd" id="3_ground"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_unit_skill_action.gd" id="4_unit"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/move_to_range_action.gd" id="5_move"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/wait_action.gd" id="6_wait"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/retreat_action.gd" id="7_retreat"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_multi_unit_skill_action.gd" id="8_multi"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/move_to_multi_unit_skill_position_action.gd" id="9_multi_pos"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/move_to_advantage_position_action.gd" id="10_adv_pos"]
+
+[sub_resource type="Resource" id="Action_survival_position"]
+script = ExtResource("10_adv_pos")
+action_id = &"archer_survival_position"
+score_bucket_id = &"archer_survival"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
+minimum_safe_distance = 3
+positioning_mode = &"survival"
+
+[sub_resource type="Resource" id="Action_high_ground_position"]
+script = ExtResource("10_adv_pos")
+action_id = &"archer_high_ground_position"
+score_bucket_id = &"archer_positioning"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
+minimum_safe_distance = 3
+positioning_mode = &"high_ground"
+
+[sub_resource type="Resource" id="Action_pressure_aimed"]
+script = ExtResource("4_unit")
+action_id = &"archer_aimed_shot"
+score_bucket_id = &"archer_pressure"
+skill_ids = Array[StringName]([&"archer_aimed_shot", &"basic_attack"])
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_pressure_multishot"]
+script = ExtResource("8_multi")
+action_id = &"archer_multishot"
+score_bucket_id = &"archer_pressure"
+skill_ids = Array[StringName]([&"archer_multishot"])
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_multishot_position"]
+script = ExtResource("9_multi_pos")
+action_id = &"archer_multishot_position"
+score_bucket_id = &"archer_pressure"
+skill_ids = Array[StringName]([&"archer_multishot"])
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_engage_move"]
+script = ExtResource("5_move")
+action_id = &"archer_take_position"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
+
+[sub_resource type="Resource" id="Action_pressure_move"]
+script = ExtResource("5_move")
+action_id = &"archer_keep_range"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
+
+[sub_resource type="Resource" id="Action_melee_fallback"]
+script = ExtResource("5_move")
+action_id = &"archer_retreat_from_melee"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", &"basic_attack"])
+
+[sub_resource type="Resource" id="Action_wait"]
+script = ExtResource("6_wait")
+action_id = &"archer_wait"
+
+[sub_resource type="Resource" id="State_engage"]
+script = ExtResource("2_state")
+state_id = &"engage"
+actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_high_ground_position"), SubResource("Action_pressure_aimed"), SubResource("Action_pressure_multishot"), SubResource("Action_multishot_position"), SubResource("Action_engage_move"), SubResource("Action_melee_fallback"), SubResource("Action_wait")])
+
+[sub_resource type="Resource" id="State_pressure"]
+script = ExtResource("2_state")
+state_id = &"pressure"
+actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_high_ground_position"), SubResource("Action_pressure_aimed"), SubResource("Action_pressure_multishot"), SubResource("Action_multishot_position"), SubResource("Action_pressure_move"), SubResource("Action_melee_fallback"), SubResource("Action_wait")])
+
+[sub_resource type="Resource" id="Action_retreat_shoot"]
+script = ExtResource("4_unit")
+action_id = &"archer_retreat_shot"
+score_bucket_id = &"archer_pressure"
+skill_ids = Array[StringName]([&"archer_aimed_shot", &"basic_attack"])
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_retreat_move"]
+script = ExtResource("7_retreat")
+action_id = &"archer_retreat"
+score_bucket_id = &"archer_survival"
+minimum_safe_distance = 2
+use_dynamic_threat_safe_distance = true
+safe_distance_margin = 1
+
+[sub_resource type="Resource" id="State_retreat"]
+script = ExtResource("2_state")
+state_id = &"retreat"
+actions = Array[Resource]([SubResource("Action_retreat_shoot"), SubResource("Action_retreat_move"), SubResource("Action_wait")])
+
+[resource]
+script = ExtResource("1_brain")
+brain_id = &"ranged_archer"
+default_state_id = &"pressure"
+retreat_hp_ratio = 0.5
+pressure_distance = 5
+states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_retreat")])

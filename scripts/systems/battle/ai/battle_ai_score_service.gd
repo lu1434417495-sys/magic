@@ -4,6 +4,7 @@ extends RefCounted
 const BATTLE_AI_SCORE_INPUT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_input.gd")
 const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
 const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BattleAiScoreInput = preload("res://scripts/systems/battle/ai/battle_ai_score_input.gd")
 const BattleAiScoreProfile = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
@@ -12,6 +13,8 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
 const BONUS_CONDITION_TARGET_LOW_HP: StringName = &"target_low_hp"
+const PATH_STEP_AOE_EFFECT_TYPE: StringName = &"path_step_aoe"
+const MIN_RANGED_THREAT_RANGE := 3
 
 var _score_profile: BattleAiScoreProfile = BATTLE_AI_SCORE_PROFILE_SCRIPT.new()
 
@@ -54,6 +57,7 @@ func build_skill_score_input(
 	score_input.target_count = score_input.target_unit_ids.size()
 	var effective_effect_defs := _filter_effect_defs_for_context(effect_defs, context, skill_def)
 	_populate_hit_metrics(score_input, context, effective_effect_defs)
+	_populate_path_step_aoe_metrics(score_input, context, effective_effect_defs, metadata)
 	_populate_resource_cost_metrics(score_input, skill_def, context)
 	_populate_position_metrics(score_input, context, metadata)
 	score_input.total_score = _resolve_action_base_score(score_input.action_kind, metadata) \
@@ -147,12 +151,123 @@ func _populate_hit_metrics(score_input: BattleAiScoreInput, context, effect_defs
 		else:
 			score_input.hit_payoff_score += estimated_damage * _score_profile.damage_weight
 			score_input.hit_payoff_score -= estimated_healing * _score_profile.heal_weight
+			var target_priority_bonus := _resolve_target_role_threat_bonus(
+				context,
+				target_unit,
+				estimated_damage,
+				estimated_status_count,
+				estimated_terrain_effect_count,
+				estimated_height_delta
+			)
+			score_input.target_priority_score += target_priority_bonus
+			score_input.hit_payoff_score += target_priority_bonus
 		score_input.hit_payoff_score += estimated_status_count * _score_profile.status_weight
 		score_input.hit_payoff_score += estimated_terrain_effect_count * _score_profile.terrain_weight
 		score_input.hit_payoff_score += estimated_height_delta * _score_profile.height_weight
 	score_input.hit_payoff_score = int(round(
 		float(score_input.hit_payoff_score) * float(score_input.estimated_hit_rate_percent) / 100.0
 	))
+	score_input.target_priority_score = int(round(
+		float(score_input.target_priority_score) * float(score_input.estimated_hit_rate_percent) / 100.0
+	))
+
+
+func _populate_path_step_aoe_metrics(
+	score_input: BattleAiScoreInput,
+	context,
+	effect_defs: Array,
+	metadata: Dictionary
+) -> void:
+	if score_input == null or context == null or context.state == null or context.unit_state == null:
+		return
+	var hit_counts_variant = metadata.get("path_step_hit_counts_by_unit_id", {})
+	if hit_counts_variant is not Dictionary or (hit_counts_variant as Dictionary).is_empty():
+		return
+	var path_step_effect := _find_path_step_aoe_effect(effect_defs)
+	if path_step_effect == null:
+		path_step_effect = metadata.get("path_step_aoe_effect", null) as CombatEffectDef
+	if path_step_effect == null:
+		return
+	var damage_effect := _build_path_step_damage_effect(path_step_effect)
+	if damage_effect == null:
+		return
+	var hit_counts: Dictionary = hit_counts_variant
+	var raw_payoff := 0
+	var raw_target_priority := 0
+	var raw_status_payoff := 0
+	var total_hit_count := 0
+	var unique_target_count := 0
+	for unit_id_variant in hit_counts.keys():
+		var target_unit_id := ProgressionDataUtils.to_string_name(unit_id_variant)
+		var hit_count := maxi(int(hit_counts.get(unit_id_variant, 0)), 0)
+		if target_unit_id == &"" or hit_count <= 0:
+			continue
+		var target_unit := context.state.units.get(target_unit_id) as BattleUnitState
+		if target_unit == null:
+			continue
+		total_hit_count += hit_count
+		unique_target_count += 1
+		var estimated_damage := _estimate_damage_for_target(context.unit_state, [damage_effect], target_unit) * hit_count
+		score_input.estimated_damage += estimated_damage
+		if target_unit.faction_id == context.unit_state.faction_id:
+			raw_payoff -= estimated_damage * _score_profile.damage_weight
+			continue
+		raw_payoff += estimated_damage * _score_profile.damage_weight
+		var target_priority_bonus := _resolve_target_role_threat_bonus(context, target_unit, estimated_damage, 0, 0, 0)
+		raw_target_priority += target_priority_bonus
+		raw_payoff += target_priority_bonus
+		if _path_step_repeat_status_applies(context, score_input.skill_def, path_step_effect, hit_count):
+			raw_status_payoff += _score_profile.status_weight
+	raw_payoff += raw_status_payoff
+	var hit_rate_multiplier := float(score_input.estimated_hit_rate_percent) / 100.0
+	score_input.path_step_hit_count = total_hit_count
+	score_input.path_step_unique_target_count = unique_target_count
+	score_input.path_step_hit_counts_by_unit_id = hit_counts.duplicate(true)
+	score_input.path_step_payoff_score = int(round(float(raw_payoff) * hit_rate_multiplier))
+	score_input.hit_payoff_score += score_input.path_step_payoff_score
+	score_input.target_priority_score += int(round(float(raw_target_priority) * hit_rate_multiplier))
+	if score_input.target_count < unique_target_count:
+		score_input.target_count = unique_target_count
+
+
+func _find_path_step_aoe_effect(effect_defs: Array) -> CombatEffectDef:
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def != null and effect_def.effect_type == PATH_STEP_AOE_EFFECT_TYPE:
+			return effect_def
+	return null
+
+
+func _build_path_step_damage_effect(path_step_effect: CombatEffectDef) -> CombatEffectDef:
+	if path_step_effect == null:
+		return null
+	var damage_effect := path_step_effect.duplicate_for_runtime()
+	if damage_effect == null:
+		return null
+	damage_effect.effect_type = &"damage"
+	return damage_effect
+
+
+func _path_step_repeat_status_applies(
+	context,
+	skill_def: SkillDef,
+	path_step_effect: CombatEffectDef,
+	hit_count: int
+) -> bool:
+	if context == null or path_step_effect == null or path_step_effect.params == null or hit_count <= 0:
+		return false
+	var status_id := ProgressionDataUtils.to_string_name(path_step_effect.params.get("repeat_hit_status_id", ""))
+	if status_id == &"":
+		return false
+	var threshold := maxi(int(path_step_effect.params.get("repeat_hit_status_threshold", 1)), 1)
+	if hit_count < threshold:
+		return false
+	var duration_tu := int(path_step_effect.params.get("repeat_hit_status_duration_tu", 0))
+	if duration_tu <= 0:
+		return false
+	var min_skill_level := maxi(int(path_step_effect.params.get("repeat_hit_status_min_skill_level", 0)), 0)
+	var skill_id := skill_def.skill_id if skill_def != null else &""
+	return _get_context_skill_level(context, skill_id) >= min_skill_level
 
 
 func _filter_effect_defs_for_context(effect_defs: Array, context, skill_def: SkillDef) -> Array:
@@ -213,6 +328,123 @@ func _resolve_effect_damage_multiplier(effect_def: CombatEffectDef, target_unit:
 	if _has_bonus_condition(effect_def, target_unit):
 		multiplier *= _get_damage_ratio_multiplier(effect_def)
 	return maxf(multiplier, 0.0)
+
+
+func _resolve_target_role_threat_bonus(
+	context,
+	target_unit: BattleUnitState,
+	estimated_damage: int,
+	estimated_status_count: int,
+	estimated_terrain_effect_count: int,
+	estimated_height_delta: int
+) -> int:
+	var multiplier := _resolve_target_role_threat_multiplier(context, target_unit)
+	if multiplier <= 1.0:
+		return 0
+	var base_payoff := maxi(estimated_damage, 0) * _score_profile.damage_weight \
+		+ maxi(estimated_status_count, 0) * _score_profile.status_weight \
+		+ maxi(estimated_terrain_effect_count, 0) * _score_profile.terrain_weight \
+		+ maxi(estimated_height_delta, 0) * _score_profile.height_weight
+	if base_payoff <= 0:
+		return 0
+	return maxi(int(round(float(base_payoff) * (multiplier - 1.0))), 0)
+
+
+func _resolve_target_role_threat_multiplier(context, target_unit: BattleUnitState) -> float:
+	if context == null or target_unit == null or _score_profile == null:
+		return 1.0
+	var heal_skill_count := 0
+	var control_skill_count := 0
+	var best_ranged_attack_range := 0
+	for skill_id in target_unit.known_active_skill_ids:
+		var normalized_skill_id := ProgressionDataUtils.to_string_name(skill_id)
+		if normalized_skill_id == &"":
+			continue
+		var skill_def = context.skill_defs.get(normalized_skill_id) as SkillDef
+		if skill_def == null or skill_def.combat_profile == null:
+			continue
+		var role_effect_defs := _collect_role_threat_effect_defs(target_unit, skill_def)
+		if _is_heal_or_support_skill(skill_def, role_effect_defs):
+			heal_skill_count += 1
+		if _is_control_skill(role_effect_defs):
+			control_skill_count += 1
+		if _is_damage_skill(role_effect_defs):
+			var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(target_unit, skill_def)
+			if effective_range >= MIN_RANGED_THREAT_RANGE:
+				best_ranged_attack_range = maxi(best_ranged_attack_range, effective_range)
+
+	var multiplier := 1.0 \
+		+ float(heal_skill_count) * maxf(float(_score_profile.threat_healer_bias), 0.0) \
+		+ float(control_skill_count) * maxf(float(_score_profile.threat_control_bias), 0.0)
+	if best_ranged_attack_range >= MIN_RANGED_THREAT_RANGE:
+		multiplier += maxf(float(_score_profile.threat_ranged_bias), 0.0)
+		multiplier += float(best_ranged_attack_range - (MIN_RANGED_THREAT_RANGE - 1)) \
+			* maxf(float(_score_profile.threat_range_step_bias), 0.0)
+	var cap := float(_score_profile.threat_multiplier_cap)
+	if cap > 1.0:
+		multiplier = minf(multiplier, cap)
+	return maxf(multiplier, 1.0)
+
+
+func _collect_role_threat_effect_defs(unit_state: BattleUnitState, skill_def: SkillDef) -> Array:
+	var effect_defs: Array = []
+	if unit_state == null or skill_def == null or skill_def.combat_profile == null:
+		return effect_defs
+	var skill_level := _get_unit_skill_level(unit_state, skill_def.skill_id)
+	for effect_def in skill_def.combat_profile.effect_defs:
+		if effect_def != null and _is_effect_unlocked_for_skill_level(effect_def, skill_level, true):
+			effect_defs.append(effect_def)
+	for cast_variant in skill_def.combat_profile.get_unlocked_cast_variants(skill_level):
+		if cast_variant == null:
+			continue
+		for effect_def in cast_variant.effect_defs:
+			if effect_def != null and _is_effect_unlocked_for_skill_level(effect_def, skill_level, true):
+				effect_defs.append(effect_def)
+	return effect_defs
+
+
+func _is_heal_or_support_skill(skill_def: SkillDef, effect_defs: Array) -> bool:
+	if skill_def != null and skill_def.combat_profile != null:
+		if ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_team_filter) == &"ally":
+			return true
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def == null:
+			continue
+		if effect_def.effect_type == &"heal":
+			return true
+		if ProgressionDataUtils.to_string_name(effect_def.effect_target_team_filter) == &"ally":
+			return true
+	return false
+
+
+func _is_control_skill(effect_defs: Array) -> bool:
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def == null:
+			continue
+		var effect_type := ProgressionDataUtils.to_string_name(effect_def.effect_type)
+		if effect_type == &"status" or effect_type == &"apply_status" or effect_type == &"forced_move":
+			return true
+		if effect_def.status_id != &"" or effect_def.save_failure_status_id != &"":
+			return true
+	return false
+
+
+func _is_damage_skill(effect_defs: Array) -> bool:
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def != null and effect_def.effect_type == &"damage":
+			return true
+	return false
+
+
+func _get_unit_skill_level(unit_state: BattleUnitState, skill_id: StringName) -> int:
+	if unit_state == null or skill_id == &"":
+		return 0
+	if unit_state.known_skill_level_map.has(skill_id):
+		return int(unit_state.known_skill_level_map.get(skill_id, 0))
+	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
 
 
 func _get_pre_resistance_damage_multiplier(effect_def: CombatEffectDef) -> float:

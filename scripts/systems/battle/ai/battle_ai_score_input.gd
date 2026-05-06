@@ -23,6 +23,11 @@ var estimated_terrain_effect_count := 0
 var estimated_height_delta := 0
 var estimated_hit_rate_percent := 100
 var hit_payoff_score := 0
+var target_priority_score := 0
+var path_step_hit_count := 0
+var path_step_unique_target_count := 0
+var path_step_hit_counts_by_unit_id: Dictionary = {}
+var path_step_payoff_score := 0
 var ap_cost := 0
 var mp_cost := 0
 var stamina_cost := 0
@@ -58,6 +63,11 @@ func to_dict() -> Dictionary:
 		"estimated_height_delta": estimated_height_delta,
 		"estimated_hit_rate_percent": estimated_hit_rate_percent,
 		"hit_payoff_score": hit_payoff_score,
+		"target_priority_score": target_priority_score,
+		"path_step_hit_count": path_step_hit_count,
+		"path_step_unique_target_count": path_step_unique_target_count,
+		"path_step_hit_counts_by_unit_id": path_step_hit_counts_by_unit_id.duplicate(true),
+		"path_step_payoff_score": path_step_payoff_score,
 		"ap_cost": ap_cost,
 		"mp_cost": mp_cost,
 		"stamina_cost": stamina_cost,
