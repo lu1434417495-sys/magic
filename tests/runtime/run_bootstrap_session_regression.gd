@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const LOGIN_SCREEN_SCENE = preload("res://scenes/main/login_screen.tscn")
 const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_settings_service.gd")
+const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const TEST_PRESET_ID := &"test"
@@ -17,7 +18,10 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_display_settings_round_trip()
-	_test_decode_v5_payload_rejects_empty_world_data()
+	_test_decode_payload_rejects_empty_world_data()
+	_test_character_creation_body_size_uses_identity_rules()
+	_test_character_creation_applies_identity_granted_skills()
+	_test_starting_equipment_matches_random_skill()
 	_test_game_session_rotates_log_boundary_on_create_load_unload()
 	await _test_login_screen_test_entry_creates_generated_world()
 
@@ -47,7 +51,7 @@ func _test_display_settings_round_trip() -> void:
 	_cleanup_file(TEMP_SETTINGS_PATH)
 
 
-func _test_decode_v5_payload_rejects_empty_world_data() -> void:
+func _test_decode_payload_rejects_empty_world_data() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
 	_assert_eq(create_error, OK, "空 world_data 回归前置：应能创建测试存档。")
@@ -75,7 +79,7 @@ func _test_decode_v5_payload_rejects_empty_world_data() -> void:
 	world_state["world_data"] = {}
 	payload["world_state"] = world_state
 
-	var decode_result: Dictionary = serializer.decode_v5_payload(
+	var decode_result: Dictionary = serializer.decode_payload(
 		payload,
 		game_session.get_generation_config_path(),
 		game_session.get_generation_config(),
@@ -86,6 +90,139 @@ func _test_decode_v5_payload_rejects_empty_world_data() -> void:
 		ERR_INVALID_DATA,
 		"空 world_state.world_data 不应再被 normalize_world_data() 隐式放行。"
 	)
+	_cleanup_test_session(game_session)
+
+
+func _test_character_creation_body_size_uses_identity_rules() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var payload := {
+		"display_name": "Body Rule Hero",
+		"reroll_count": 0,
+		"strength": 10,
+		"agility": 10,
+		"constitution": 10,
+		"perception": 10,
+		"intelligence": 10,
+		"willpower": 10,
+		"race_id": &"human",
+		"subrace_id": &"common_human",
+		"age_years": 24,
+		"birth_at_world_step": 0,
+		"age_profile_id": &"human_age_profile",
+		"natural_age_stage_id": &"adult",
+		"effective_age_stage_id": &"adult",
+		"effective_age_stage_source_type": &"",
+		"effective_age_stage_source_id": &"",
+		"body_size": 99,
+		"body_size_category": &"large",
+		"versatility_pick": &"",
+		"active_stage_advancement_modifier_ids": [],
+		"bloodline_id": &"",
+		"bloodline_stage_id": &"",
+		"ascension_id": &"",
+		"ascension_stage_id": &"",
+		"ascension_started_at_world_step": -1,
+		"original_race_id_before_ascension": &"",
+		"biological_age_years": 24,
+		"astral_memory_years": 0,
+	}
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG, &"", "", payload))
+	_assert_eq(create_error, OK, "建卡体型规则回归前置：应能创建测试存档。")
+	if create_error == OK:
+		var party_state = game_session.get_party_state()
+		var member = party_state.get_member_state(party_state.get_resolved_main_character_member_id()) if party_state != null else null
+		_assert_true(member != null, "建卡体型规则回归前置：应能取得主角。")
+		if member != null:
+			_assert_eq(member.body_size_category, &"medium", "建卡落地应从 race/subrace 规则解析最终 body_size_category，不信任 payload int/category。")
+			_assert_eq(member.body_size, 2, "建卡落地应通过 BodySizeRules 从 category 派生 body_size。")
+			_assert_eq(int(member.progression.character_level), 0, "建卡创建的主角应从 0 级开始。")
+			_assert_eq(int(member.progression.unit_base_attributes.get_attribute_value(&"hp_max")), 14, "建卡创建的 0 级主角应按 14 + 体质调整值*2 写入初始生命上限。")
+			_assert_eq(int(member.current_hp), 14, "建卡创建的 0 级主角当前生命应等于初始生命上限。")
+	_cleanup_test_session(game_session)
+
+
+func _test_character_creation_applies_identity_granted_skills() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var payload := {
+		"display_name": "Dragonborn Hero",
+		"reroll_count": 0,
+		"strength": 10,
+		"agility": 10,
+		"constitution": 10,
+		"perception": 10,
+		"intelligence": 10,
+		"willpower": 10,
+		"race_id": &"dragonborn",
+		"subrace_id": &"red_dragonborn",
+		"age_years": 24,
+		"birth_at_world_step": 0,
+		"age_profile_id": &"dragonborn_age_profile",
+		"natural_age_stage_id": &"adult",
+		"effective_age_stage_id": &"adult",
+		"effective_age_stage_source_type": &"",
+		"effective_age_stage_source_id": &"",
+		"body_size": 99,
+		"body_size_category": &"large",
+		"versatility_pick": &"",
+		"active_stage_advancement_modifier_ids": [],
+		"bloodline_id": &"",
+		"bloodline_stage_id": &"",
+		"ascension_id": &"",
+		"ascension_stage_id": &"",
+		"ascension_started_at_world_step": -1,
+		"original_race_id_before_ascension": &"",
+		"biological_age_years": 24,
+		"astral_memory_years": 0,
+	}
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG, &"", "", payload))
+	_assert_eq(create_error, OK, "建卡身份授予技能回归前置：应能创建测试存档。")
+	if create_error == OK:
+		var party_state = game_session.get_party_state()
+		var member = party_state.get_member_state(party_state.get_resolved_main_character_member_id()) if party_state != null else null
+		_assert_true(member != null, "建卡身份授予技能回归前置：应能取得主角。")
+		if member != null:
+			_assert_eq(member.race_id, &"dragonborn", "建卡落地应保留 payload 指定的 race_id。")
+			_assert_eq(member.subrace_id, &"red_dragonborn", "建卡落地应保留 payload 指定的 subrace_id。")
+			var skill_progress = member.progression.get_skill_progress(&"dragon_breath_fire_cone")
+			_assert_true(skill_progress != null, "建卡落地后应立即补授亚种技能，不需要等下一次读档。")
+			if skill_progress != null:
+				_assert_true(skill_progress.is_learned, "Red Dragonborn 火焰吐息应为已学会状态。")
+				_assert_eq(skill_progress.granted_source_type, UnitSkillProgress.GRANTED_SOURCE_SUBRACE, "Red Dragonborn 火焰吐息来源类型应为 subrace。")
+				_assert_eq(skill_progress.granted_source_id, &"red_dragonborn", "Red Dragonborn 火焰吐息来源 id 应为 red_dragonborn。")
+	_cleanup_test_session(game_session)
+
+
+func _test_starting_equipment_matches_random_skill() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "随机起始装备回归前置：应能创建测试存档。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var party_state = game_session.get_party_state()
+	var member = party_state.get_member_state(party_state.get_resolved_main_character_member_id()) if party_state != null else null
+	_assert_true(member != null, "随机起始装备回归前置：应能取得新建主角。")
+	if member != null:
+		var random_skill_def = _find_random_starting_skill_def(game_session, member)
+		_assert_true(random_skill_def != null, "新建主角应记录一条 player 来源的随机起始技能。")
+		var expected_item_id := _expected_starting_weapon_for_skill(game_session, random_skill_def)
+		var equipped_item_id: StringName = member.equipment_state.get_equipped_item_id(&"main_hand")
+		_assert_eq(
+			String(equipped_item_id),
+			String(expected_item_id),
+			"随机起始技能类型应匹配主手基础装备。 skill_id=%s" % String(random_skill_def.skill_id if random_skill_def != null else &"")
+		)
+		_assert_true(
+			member.equipment_state.get_equipped_instance_id(&"main_hand") != &"",
+			"随机起始装备应写入持久装备实例 ID。"
+		)
+		if equipped_item_id == &"ash_shortbow" or equipped_item_id == &"militia_light_crossbow":
+			_assert_eq(
+				String(member.equipment_state.get_equipped_item_id(&"off_hand")),
+				String(equipped_item_id),
+				"双手远程起始武器应同步占用副手。"
+			)
 	_cleanup_test_session(game_session)
 
 
@@ -171,11 +308,70 @@ func _test_login_screen_test_entry_creates_generated_world() -> void:
 		var world_data: Dictionary = shared_game_session.get_world_data()
 		_assert_true(int(world_data.get("map_seed", 0)) != 0, "测试地图应通过正式生成链分配运行时 map_seed。")
 		_assert_true((world_data.get("settlements", []) as Array).size() > 0, "测试地图应通过正式生成链生成据点。")
+		var party_state = shared_game_session.get_party_state()
+		var member = party_state.get_member_state(party_state.get_resolved_main_character_member_id()) if party_state != null else null
+		_assert_true(member != null, "登录壳测试地图入口应能取得新建主角。")
+		if member != null:
+			_assert_eq(int(member.progression.character_level), 0, "登录壳测试地图入口创建的主角应从 0 级开始。")
 
 	login_screen.queue_free()
 	await process_frame
 	var cleanup_error := int(shared_game_session.clear_persisted_game())
 	_assert_eq(cleanup_error, OK, "登录壳测试入口回归结束后应能清理旧存档目录。")
+
+
+func _find_random_starting_skill_def(game_session, member):
+	if game_session == null or member == null or member.progression == null:
+		return null
+	var skill_defs: Dictionary = game_session.get_skill_defs()
+	for skill_key in member.progression.skills.keys():
+		var skill_progress = member.progression.get_skill_progress(StringName(skill_key))
+		if skill_progress == null or not skill_progress.is_learned:
+			continue
+		if skill_progress.granted_source_type != UnitSkillProgress.GRANTED_SOURCE_PLAYER:
+			continue
+		if skill_progress.granted_source_id != &"":
+			continue
+		return skill_defs.get(skill_progress.skill_id)
+	return null
+
+
+func _expected_starting_weapon_for_skill(game_session, skill_def) -> StringName:
+	var candidates: Array[StringName] = []
+	if _skill_matches(skill_def, [&"crossbow"], ["crossbow"]):
+		candidates.append(&"militia_light_crossbow")
+	if _skill_matches(skill_def, [&"archer", &"bow"], ["archer_"]):
+		candidates.append(&"ash_shortbow")
+	if _skill_matches(skill_def, [&"mage", &"magic", &"spell"], ["mage_"]):
+		candidates.append(&"oak_quarterstaff")
+	if _skill_matches(skill_def, [&"priest", &"faith", &"heal"], ["priest_", "saint_"]):
+		candidates.append(&"watchman_mace")
+	if _skill_matches(skill_def, [&"warrior", &"melee", &"shield"], ["warrior_"]):
+		candidates.append(&"steel_longsword")
+	candidates.append(&"steel_longsword")
+	return _first_valid_weapon_item_id(game_session, candidates)
+
+
+func _skill_matches(skill_def, tag_ids: Array[StringName], skill_id_prefixes: Array[String]) -> bool:
+	if skill_def == null:
+		return false
+	for tag_id in tag_ids:
+		if skill_def.tags.has(tag_id):
+			return true
+	var skill_id_text := String(skill_def.skill_id)
+	for prefix in skill_id_prefixes:
+		if skill_id_text.begins_with(prefix):
+			return true
+	return false
+
+
+func _first_valid_weapon_item_id(game_session, candidates: Array[StringName]) -> StringName:
+	var item_defs: Dictionary = game_session.get_item_defs() if game_session != null else {}
+	for item_id in candidates:
+		var item_def = item_defs.get(item_id)
+		if item_def != null and item_def.is_weapon():
+			return item_id
+	return &""
 
 
 func _cleanup_test_session(game_session) -> void:

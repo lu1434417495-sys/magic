@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"halfling"
+display_name = "半身人"
+description = "以幸运、勇气和灵巧步伐闻名的小型族群。"
+age_profile_id = &"halfling_age_profile"
+default_subrace_id = &"lightfoot_halfling"
+subrace_ids = Array[StringName]([&"lightfoot_halfling", &"strongheart_halfling"])
+body_size_category = &"small"
+base_speed = 5
+trait_ids = Array[StringName]([&"halfling_luck", &"brave", &"halfling_nimbleness", &"small_body"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([&"normal_vision"])
+save_advantage_tags = Array[StringName]([&"frightened"])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"halfling"])
+racial_trait_summary = Array[String](["半身人幸运。", "勇敢。", "半身人灵巧。", "小型体型。"])

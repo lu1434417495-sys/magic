@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"dwarf"
+display_name = "矮人"
+description = "坚韧的族群，拥有黑暗视觉并能抵抗毒素。"
+age_profile_id = &"dwarf_age_profile"
+default_subrace_id = &"gold_dwarf"
+subrace_ids = Array[StringName]([&"gold_dwarf", &"shield_dwarf", &"duergar"])
+body_size_category = &"medium"
+base_speed = 5
+trait_ids = Array[StringName]([&"darkvision", &"dwarven_resilience", &"dwarven_combat_training", &"stonecunning"])
+proficiency_tags = Array[StringName]([&"weapon_type_battleaxe", &"weapon_type_handaxe", &"weapon_type_light_hammer", &"weapon_type_warhammer", &"stone_lore"])
+vision_tags = Array[StringName]([&"darkvision"])
+save_advantage_tags = Array[StringName]([&"poison"])
+damage_resistances = {
+&"poison": &"half"
+}
+dialogue_tags = Array[StringName]([&"dwarf"])
+racial_trait_summary = Array[String](["黑暗视觉。", "矮人韧性。", "矮人战斗训练。", "岩石智识。"])

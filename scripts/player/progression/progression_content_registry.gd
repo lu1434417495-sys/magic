@@ -15,9 +15,12 @@ const BLOODLINE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progress
 const ASCENSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ascension_content_registry.gd")
 const STAGE_ADVANCEMENT_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/stage_advancement_content_registry.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
+const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
+const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
+const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 const HP_MAX: StringName = &"hp_max"
 const VALID_SKILL_TYPES := {
@@ -60,16 +63,14 @@ const VALID_MITIGATION_TIERS := {
 	&"double": true,
 	&"immune": true,
 }
-const BODY_SIZE_SMALL := 1
-const BODY_SIZE_MEDIUM := 2
-const BODY_SIZE_LARGE := 3
-const BODY_SIZE_HUGE := 4
-const VALID_BODY_SIZES := {
-	BODY_SIZE_SMALL: true,
-	BODY_SIZE_MEDIUM: true,
-	BODY_SIZE_LARGE: true,
-	BODY_SIZE_HUGE: true,
-}
+const BODY_SIZE_TINY := BodySizeRules.BODY_SIZE_TINY
+const BODY_SIZE_SMALL := BodySizeRules.BODY_SIZE_SMALL
+const BODY_SIZE_MEDIUM := BodySizeRules.BODY_SIZE_MEDIUM
+const BODY_SIZE_LARGE := BodySizeRules.BODY_SIZE_LARGE
+const BODY_SIZE_HUGE := BodySizeRules.BODY_SIZE_HUGE
+const BODY_SIZE_GARGANTUAN := BodySizeRules.BODY_SIZE_GARGANTUAN
+const BODY_SIZE_BOSS := BodySizeRules.BODY_SIZE_BOSS
+const VALID_BODY_SIZES := BodySizeRules.VALID_BODY_SIZES
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
@@ -720,6 +721,10 @@ func _append_identity_phase2_validation_errors(errors: Array[String]) -> void:
 		var subrace_id := StringName(subrace_key)
 		_append_subrace_phase2_errors(errors, subrace_id, _subrace_defs.get(subrace_id) as SubraceDef)
 
+	for trait_key in ProgressionDataUtils.sorted_string_keys(_race_trait_defs):
+		var trait_id := StringName(trait_key)
+		_append_race_trait_phase2_errors(errors, trait_id, _race_trait_defs.get(trait_id) as RaceTraitDef)
+
 	for profile_key in ProgressionDataUtils.sorted_string_keys(_age_profile_defs):
 		var profile_id := StringName(profile_key)
 		_append_age_profile_phase2_errors(errors, profile_id, _age_profile_defs.get(profile_id) as AgeProfileDef)
@@ -753,7 +758,7 @@ func _append_race_phase2_errors(errors: Array[String], race_id: StringName, race
 	if race_def == null:
 		return
 	var owner_label := "Race %s" % String(race_id)
-	_append_body_size_error(errors, owner_label, "body_size", race_def.body_size, false)
+	_append_body_size_category_error(errors, owner_label, "body_size_category", race_def.body_size_category, false)
 	_append_damage_resistance_errors(errors, owner_label, race_def.damage_resistances)
 	_append_trait_reference_errors(errors, owner_label, race_def.trait_ids, "trait_ids")
 	_append_racial_granted_skill_reference_errors(errors, owner_label, race_def.racial_granted_skills, &"race")
@@ -794,7 +799,7 @@ func _append_subrace_phase2_errors(errors: Array[String], subrace_id: StringName
 	if subrace_def == null:
 		return
 	var owner_label := "Subrace %s" % String(subrace_id)
-	_append_body_size_error(errors, owner_label, "body_size_override", subrace_def.body_size_override, true)
+	_append_body_size_category_error(errors, owner_label, "body_size_category_override", subrace_def.body_size_category_override, true)
 	_append_damage_resistance_errors(errors, owner_label, subrace_def.damage_resistances)
 	_append_trait_reference_errors(errors, owner_label, subrace_def.trait_ids, "trait_ids")
 	_append_racial_granted_skill_reference_errors(errors, owner_label, subrace_def.racial_granted_skills, &"subrace")
@@ -810,6 +815,21 @@ func _append_subrace_phase2_errors(errors: Array[String], subrace_id: StringName
 			"%s parent_race %s must list this subrace in subrace_ids." % [
 				owner_label,
 				String(subrace_def.parent_race_id),
+			]
+		)
+
+
+func _append_race_trait_phase2_errors(errors: Array[String], trait_id: StringName, trait_def: RaceTraitDef) -> void:
+	if trait_def == null:
+		return
+	var trigger_type := ProgressionDataUtils.to_string_name(trait_def.trigger_type)
+	if trigger_type == &"" or trigger_type == TRAIT_TRIGGER_HOOKS_SCRIPT.TRIGGER_PASSIVE:
+		return
+	if not TRAIT_TRIGGER_HOOKS_SCRIPT.has_dispatch_for_trait_trigger(trait_id, trigger_type):
+		errors.append(
+			"RaceTrait %s trigger_type %s has no TraitTriggerHooks dispatch." % [
+				String(trait_id),
+				String(trigger_type),
 			]
 		)
 
@@ -928,7 +948,7 @@ func _append_ascension_stage_phase2_errors(errors: Array[String], stage_id: Stri
 	if stage_def == null:
 		return
 	var owner_label := "AscensionStage %s" % String(stage_id)
-	_append_body_size_error(errors, owner_label, "body_size_override", stage_def.body_size_override, true)
+	_append_body_size_category_error(errors, owner_label, "body_size_category_override", stage_def.body_size_category_override, true)
 	_append_trait_reference_errors(errors, owner_label, stage_def.trait_ids, "trait_ids")
 	_append_racial_granted_skill_reference_errors(errors, owner_label, stage_def.racial_granted_skills, &"ascension")
 	if stage_def.ascension_id == &"":
@@ -1126,6 +1146,31 @@ func _append_body_size_error(
 				owner_label,
 				field_label,
 				size_value,
+			]
+		)
+
+
+func _append_body_size_category_error(
+	errors: Array[String],
+	owner_label: String,
+	field_label: String,
+	value: Variant,
+	allow_empty: bool
+) -> void:
+	if typeof(value) != TYPE_STRING_NAME:
+		errors.append("%s %s must be a StringName body_size_category." % [owner_label, field_label])
+		return
+	var category := StringName(value)
+	if category == &"":
+		if not allow_empty:
+			errors.append("%s %s must be a non-empty body_size_category." % [owner_label, field_label])
+		return
+	if not BodySizeRules.is_valid_body_size_category(category):
+		errors.append(
+			"%s %s uses unsupported body_size_category %s." % [
+				owner_label,
+				field_label,
+				String(category),
 			]
 		)
 

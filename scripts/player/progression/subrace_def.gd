@@ -6,7 +6,7 @@ extends Resource
 @export var display_name: String = ""
 @export_multiline var description: String = ""
 
-@export_enum("none:0", "small:1", "medium:2", "large:3", "huge:4") var body_size_override: int = 0
+@export var body_size_category_override: StringName = &""
 @export var speed_bonus: int = 0
 
 @export var attribute_modifiers: Array[AttributeModifier] = []

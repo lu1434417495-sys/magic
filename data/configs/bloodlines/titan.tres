@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="BloodlineDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/bloodline_def.gd" id="1_bloodline"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_constitution"]
+script = ExtResource("2_modifier")
+attribute_id = &"constitution"
+mode = &"flat"
+value = 1
+value_per_rank = 0
+source_type = &"bloodline"
+source_id = &"titan"
+
+[sub_resource type="Resource" id="Resource_willpower"]
+script = ExtResource("2_modifier")
+attribute_id = &"willpower"
+mode = &"flat"
+value = 1
+value_per_rank = 0
+source_type = &"bloodline"
+source_id = &"titan"
+
+[resource]
+script = ExtResource("1_bloodline")
+bloodline_id = &"titan"
+display_name = "Titan Blood"
+description = "A mythic bloodline carrying the dormant pressure of ancient titans. It is not a normal creation race and must be granted by story, reward, or debug tooling."
+stage_ids = Array[StringName]([&"titan_awakened"])
+trait_ids = Array[StringName]([])
+racial_granted_skills = Array[Resource]([])
+attribute_modifiers = Array[Resource]([SubResource("Resource_constitution"), SubResource("Resource_willpower")])
+trait_summary = Array[String](["Dormant titan blood: constitution +1, willpower +1.", "Advanced titan growth is handled by bloodline stage or ascension content, not ordinary race selection."])

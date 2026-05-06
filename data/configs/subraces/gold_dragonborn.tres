@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+[ext_resource type="Script" path="res://scripts/player/progression/racial_granted_skill.gd" id="2_grant"]
+
+[sub_resource type="Resource" id="Resource_breath"]
+script = ExtResource("2_grant")
+skill_id = &"dragon_breath_fire_cone"
+minimum_skill_level = 1
+grant_level = 1
+charge_kind = &"per_battle"
+charges = 1
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"gold_dragonborn"
+parent_race_id = &"dragonborn"
+display_name = "金龙裔"
+description = "继承金龙血脉、与火焰力量相连的龙裔。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"dragon_breath", &"damage_resistance"])
+racial_granted_skills = Array[Resource]([SubResource("Resource_breath")])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {
+&"fire": &"half"
+}
+dialogue_tags = Array[StringName]([&"dragonborn", &"gold_dragonborn"])
+racial_trait_summary = Array[String](["火焰锥形龙息。", "火焰抗性。"])

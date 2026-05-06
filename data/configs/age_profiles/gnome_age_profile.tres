@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="AgeProfileDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/age_profile_def.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/player/progression/age_stage_rule.gd" id="2_stage"]
+
+[sub_resource type="Resource" id="Resource_stage_young_adult"]
+script = ExtResource("2_stage")
+stage_id = &"young_adult"
+display_name = "Young Adult"
+description = "Creation-eligible young adult gnome age stage."
+selectable_in_creation = true
+reachable_by_aging = true
+
+[sub_resource type="Resource" id="Resource_stage_adult"]
+script = ExtResource("2_stage")
+stage_id = &"adult"
+display_name = "Adult"
+description = "Default adult gnome age stage."
+selectable_in_creation = true
+reachable_by_aging = true
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"gnome_age_profile"
+race_id = &"gnome"
+child_age = 0
+teen_age = 20
+young_adult_age = 30
+adult_age = 40
+middle_age = 150
+old_age = 300
+venerable_age = 450
+max_natural_age = 500
+stage_rules = Array[Resource]([SubResource("Resource_stage_young_adult"), SubResource("Resource_stage_adult")])
+creation_stage_ids = Array[StringName]([&"young_adult", &"adult"])
+default_age_by_stage = {
+"adult": 50,
+"young_adult": 35
+}

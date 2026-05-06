@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"standard_half_orc"
+parent_race_id = &"half_orc"
+display_name = "半兽人"
+description = "标准半兽人血脉选项。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"half_orc", &"orc"])
+racial_trait_summary = Array[String]([])

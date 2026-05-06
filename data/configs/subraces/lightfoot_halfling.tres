@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"lightfoot_halfling"
+parent_race_id = &"halfling"
+display_name = "轻足半身人"
+description = "拥有轻足隐匿身份的半身人。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"naturally_stealthy"])
+proficiency_tags = Array[StringName]([&"stealth"])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"halfling", &"lightfoot_halfling"])
+racial_trait_summary = Array[String](["天生隐匿。"])

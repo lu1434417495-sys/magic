@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="ProfessionDef" load_steps=16 format=3]
+[gd_resource type="Resource" script_class="ProfessionDef" load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/profession_def.gd" id="1_profession"]
 [ext_resource type="Script" path="res://scripts/player/progression/profession_promotion_requirement.gd" id="2_unlock"]
 [ext_resource type="Script" path="res://scripts/player/progression/tag_requirement.gd" id="3_tag"]
 [ext_resource type="Script" path="res://scripts/player/progression/profession_rank_requirement.gd" id="4_rank"]
+[ext_resource type="Script" path="res://scripts/player/progression/profession_granted_skill.gd" id="5_granted"]
 
 [sub_resource type="Resource" id="Resource_unlock_melee_learned"]
 script = ExtResource("3_tag")
@@ -78,13 +79,20 @@ script = ExtResource("4_rank")
 target_rank = 5
 required_tag_rules = Array[Resource]([SubResource("Resource_rank_5_melee")])
 
+[sub_resource type="Resource" id="Resource_grant_toughness"]
+script = ExtResource("5_granted")
+skill_id = &"warrior_toughness"
+unlock_rank = 1
+skill_type = &"passive"
+
 [resource]
 script = ExtResource("1_profession")
 profession_id = "warrior"
 display_name = "战士"
 description = "门槛不高的通用近战职业。战士等级只提供基础体能与战斗素养，具体风格由玩家后续学习和融合出的技能体系决定。"
 max_rank = 5
+hit_die_sides = 10
 is_initial_profession = true
 unlock_requirement = SubResource("Resource_unlock_requirement")
 rank_requirements = Array[Resource]([SubResource("Resource_rank_2_requirement"), SubResource("Resource_rank_3_requirement"), SubResource("Resource_rank_4_requirement"), SubResource("Resource_rank_5_requirement")])
-
+granted_skills = Array[Resource]([SubResource("Resource_grant_toughness")])

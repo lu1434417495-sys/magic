@@ -67,6 +67,7 @@ func _ready() -> void:
 	display_settings_window.configure_options(_display_settings_service.list_resolution_options())
 	character_creation_window.character_confirmed.connect(_on_character_creation_confirmed)
 	character_creation_window.cancelled.connect(_on_character_creation_cancelled)
+	_configure_character_creation_window()
 	start_button.grab_focus()
 	_show_idle_status()
 
@@ -157,6 +158,7 @@ func _on_world_preset_picker_cancelled() -> void:
 func _open_character_creation_for(start_type: StringName, preset_id: StringName) -> void:
 	_pending_start_type = start_type
 	_pending_preset_id = preset_id
+	_configure_character_creation_window()
 	character_creation_window.show_window()
 	status_label.text = "请输入主角姓名并掷出六项属性。"
 
@@ -310,6 +312,13 @@ func _show_idle_status() -> void:
 
 func _show_error(message: String) -> void:
 	status_label.text = message
+
+
+func _configure_character_creation_window() -> void:
+	var game_session = _get_game_session()
+	if game_session == null or not game_session.has_method("get_progression_content_registry"):
+		return
+	character_creation_window.set_progression_content_registry(game_session.get_progression_content_registry())
 
 
 func _get_game_session():

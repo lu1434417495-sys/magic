@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"racial_spell_grant"
+display_name = "种族法术授予"
+description = "种族魔法特性标记；只有对应正式 SkillDef 落地后才授予具体技能。"
+trigger_type = &"passive"
+effect_type = &"racial_spell_grant"
+params = {}

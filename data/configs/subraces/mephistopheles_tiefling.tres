@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"mephistopheles_tiefling"
+parent_race_id = &"tiefling"
+display_name = "墨菲斯托费利斯提夫林"
+description = "与墨菲斯托费利斯和炼狱奥术相连的提夫林。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"racial_spell_grant", &"mephistopheles_legacy"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"tiefling", &"mephistopheles_tiefling"])
+racial_trait_summary = Array[String](["墨菲斯托费利斯传承。"])

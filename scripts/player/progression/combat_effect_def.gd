@@ -32,6 +32,8 @@ const MIN_JUMP_ARC_RATIO := 0.15
 @export var terrain_replace_to: StringName = &""
 ## 字段说明：在编辑器中暴露高度增量配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var height_delta := 0
+## 字段说明：在编辑器中暴露临时体型分类配置，供战斗内持续性体型覆盖效果使用。
+@export var body_size_category: StringName = &""
 ## 字段说明：在编辑器中暴露强制位移模式配置，用于表达击退、拉拽、跳斩等位移效果。
 @export var forced_move_mode: StringName = &""
 ## 字段说明：在编辑器中暴露强制位移距离配置；mode=jump 时复用为 max_range 硬上限（0 = 不设上限）。
@@ -60,6 +62,16 @@ const MIN_JUMP_ARC_RATIO := 0.15
 @export var trigger_condition: StringName = &""
 ## 字段说明：触发前需要拥有的状态唯一标识；配合 trigger_condition 使用，如 on_fatal_damage 时需要先拥有 death_ward。
 @export var trigger_status_id: StringName = &""
+## 字段说明：效果生效前目标需要通过的豁免 DC；0 表示不做豁免。
+@export var save_dc := 0
+## 字段说明：豁免使用的基础属性 id。
+@export var save_ability: StringName = &""
+## 字段说明：带豁免的状态效果在失败时应用的状态；为空时使用 status_id。
+@export var save_failure_status_id: StringName = &""
+## 字段说明：伤害效果豁免成功时是否保留半伤。
+@export var save_partial_on_success := false
+## 字段说明：豁免标签，用于 advantage / disadvantage / immunity 查找。
+@export var save_tag: StringName = &""
 ## 字段说明：在编辑器中暴露参数配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var params: Dictionary = {}
 

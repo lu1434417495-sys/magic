@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="AscensionStageDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/ascension_stage_def.gd" id="1_stage"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+[ext_resource type="Script" path="res://scripts/player/progression/racial_granted_skill.gd" id="3_grant"]
+
+[sub_resource type="Resource" id="Resource_strength"]
+script = ExtResource("2_modifier")
+attribute_id = &"strength"
+mode = &"flat"
+value = 3
+value_per_rank = 0
+source_type = &"ascension"
+source_id = &"titan_avatar"
+
+[sub_resource type="Resource" id="Resource_constitution"]
+script = ExtResource("2_modifier")
+attribute_id = &"constitution"
+mode = &"flat"
+value = 2
+value_per_rank = 0
+source_type = &"ascension"
+source_id = &"titan_avatar"
+
+[sub_resource type="Resource" id="Resource_willpower"]
+script = ExtResource("2_modifier")
+attribute_id = &"willpower"
+mode = &"flat"
+value = 2
+value_per_rank = 0
+source_type = &"ascension"
+source_id = &"titan_avatar"
+
+[sub_resource type="Resource" id="Resource_stomp_grant"]
+script = ExtResource("3_grant")
+skill_id = &"titan_stomp"
+minimum_skill_level = 1
+grant_level = 1
+charge_kind = &"per_battle"
+charges = 2
+
+[sub_resource type="Resource" id="Resource_domain_grant"]
+script = ExtResource("3_grant")
+skill_id = &"titan_domain_pressure"
+minimum_skill_level = 1
+grant_level = 1
+charge_kind = &"per_battle"
+charges = 1
+
+[sub_resource type="Resource" id="Resource_colossus_grant"]
+script = ExtResource("3_grant")
+skill_id = &"titan_colossus_form"
+minimum_skill_level = 1
+grant_level = 1
+charge_kind = &"per_battle"
+charges = 1
+
+[resource]
+script = ExtResource("1_stage")
+stage_id = &"titan_avatar"
+ascension_id = &"titan_blood_ascension"
+display_name = "Titan Avatar"
+description = "The first stable titan-blood ascension stage. The character remains recognizable but carries a larger battlefield body and mythic pressure."
+attribute_modifiers = Array[Resource]([SubResource("Resource_strength"), SubResource("Resource_constitution"), SubResource("Resource_willpower")])
+trait_ids = Array[StringName]([])
+racial_granted_skills = Array[Resource]([SubResource("Resource_stomp_grant"), SubResource("Resource_domain_grant"), SubResource("Resource_colossus_grant")])
+body_size_category_override = &"large"
+trait_summary = Array[String](["Titan Avatar: strength +3, constitution +2, willpower +2.", "Body size category becomes large while this ascension stage is active.", "Grants Titan Stomp twice per battle, Titan Domain Pressure once per battle, and Titan Colossus Form once per battle.", "Titan Colossus Form is a battle-local temporary body size override and does not alter permanent identity."])

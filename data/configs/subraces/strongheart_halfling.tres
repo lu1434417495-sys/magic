@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"strongheart_halfling"
+parent_race_id = &"halfling"
+display_name = "强心半身人"
+description = "拥有强心韧性的半身人。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"damage_resistance", &"save_advantage"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([&"poison"])
+damage_resistances = {
+&"poison": &"half"
+}
+dialogue_tags = Array[StringName]([&"halfling", &"strongheart_halfling"])
+racial_trait_summary = Array[String](["强心韧性。"])

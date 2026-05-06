@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"wood_half_elf"
+parent_race_id = &"half_elf"
+display_name = "木半精灵"
+description = "拥有木精灵移动血脉的半精灵。"
+body_size_category_override = &""
+speed_bonus = 1
+trait_ids = Array[StringName]([&"fleet_of_foot", &"mask_of_the_wild"])
+proficiency_tags = Array[StringName]([&"stealth"])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"half_elf", &"wood_elf"])
+racial_trait_summary = Array[String](["迅捷步伐。", "荒野面具。"])

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"gold_dwarf"
+parent_race_id = &"dwarf"
+display_name = "黄金矮人"
+description = "传承黄金矮人血脉的矮人。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"dwarven_toughness"])
+proficiency_tags = Array[StringName]([&"dwarven_toughness"])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"dwarf", &"gold_dwarf"])
+racial_trait_summary = Array[String](["矮人坚韧。"])

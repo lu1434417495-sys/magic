@@ -67,7 +67,7 @@ func _append_subrace_validation_errors(errors: Array[String], subrace_id: String
 	_append_string_name_field_error(errors, owner_label, "parent_race_id", subrace_def.parent_race_id)
 	_append_string_field_error(errors, owner_label, "display_name", subrace_def.display_name)
 	_append_string_field_error(errors, owner_label, "description", subrace_def.description)
-	_append_int_field_error(errors, owner_label, "body_size_override", subrace_def.body_size_override)
+	_append_string_name_field_error(errors, owner_label, "body_size_category_override", subrace_def.body_size_category_override, true)
 	_append_int_field_error(errors, owner_label, "speed_bonus", subrace_def.speed_bonus)
 	_append_attribute_modifier_array_errors(errors, owner_label, subrace_def.attribute_modifiers, "attribute_modifiers")
 	_append_string_name_array_errors(errors, owner_label, subrace_def.trait_ids, "trait_ids")

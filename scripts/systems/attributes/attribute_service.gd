@@ -7,44 +7,53 @@ extends RefCounted
 
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const DERIVED_ATTRIBUTE_RULE_SCRIPT = preload("res://scripts/player/progression/derived_attribute_rule.gd")
+const ATTRIBUTE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/attributes/attribute_source_context.gd")
 
 const HP_MAX: StringName = &"hp_max"
+const CHARACTER_HP_MAX_PERCENT_BONUS: StringName = &"character_hp_max_percent_bonus"
 const MP_MAX: StringName = &"mp_max"
 const STAMINA_MAX: StringName = &"stamina_max"
+const STAMINA_RECOVERY_PERCENT_BONUS: StringName = &"stamina_recovery_percent_bonus"
 const AURA_MAX: StringName = &"aura_max"
 const ACTION_POINTS: StringName = &"action_points"
 const ACTION_THRESHOLD: StringName = UnitBaseAttributes.ACTION_THRESHOLD
 const ATTACK_BONUS: StringName = &"attack_bonus"
 const WEAPON_ATTACK_RANGE: StringName = &"weapon_attack_range"
+const STRENGTH_MODIFIER: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.STRENGTH_MODIFIER
+const AGILITY_MODIFIER: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.AGILITY_MODIFIER
+const CONSTITUTION_MODIFIER: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.CONSTITUTION_MODIFIER
+const PERCEPTION_MODIFIER: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.PERCEPTION_MODIFIER
+const INTELLIGENCE_MODIFIER: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.INTELLIGENCE_MODIFIER
+const WILLPOWER_MODIFIER: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.WILLPOWER_MODIFIER
 const ARMOR_CLASS: StringName = &"armor_class"
 const ARMOR_AC_BONUS: StringName = &"armor_ac_bonus"
 const SHIELD_AC_BONUS: StringName = &"shield_ac_bonus"
 const DODGE_BONUS: StringName = &"dodge_bonus"
 const DEFLECTION_BONUS: StringName = &"deflection_bonus"
-const CRIT_RATE: StringName = &"crit_rate"
-const CRIT_DAMAGE: StringName = &"crit_damage"
+const ARMOR_MAX_DEX_BONUS: StringName = &"armor_max_dex_bonus"
 
 const DEFAULT_CHARACTER_ACTION_THRESHOLD := 30
 const ACTION_THRESHOLD_GRANULARITY := 5
+const BASE_ARMOR_CLASS := 8
 
 const RESOURCE_ATTRIBUTE_IDS := [
 	HP_MAX,
+	CHARACTER_HP_MAX_PERCENT_BONUS,
 	MP_MAX,
 	STAMINA_MAX,
+	STAMINA_RECOVERY_PERCENT_BONUS,
 	AURA_MAX,
 	ACTION_POINTS,
 	ACTION_THRESHOLD,
 ]
 
 const COMBAT_ATTRIBUTE_IDS := [
-	ATTACK_BONUS,
 	ARMOR_CLASS,
 	ARMOR_AC_BONUS,
 	SHIELD_AC_BONUS,
 	DODGE_BONUS,
 	DEFLECTION_BONUS,
-	CRIT_RATE,
-	CRIT_DAMAGE,
+	ARMOR_MAX_DEX_BONUS,
 ]
 
 const AC_COMPONENT_ATTRIBUTE_IDS := [
@@ -76,6 +85,10 @@ var _passive_state = null
 var _temporary_effects = null
 ## 字段说明：缓存派生规则集合字典，集中保存可按键查询的运行时数据。
 var _derived_rules: Dictionary = {}
+## 字段说明：属性来源上下文，统一承载身份、装备、被动和临时修正。
+var _context = null
+var _cached_snapshot: AttributeSnapshot = null
+var _snapshot_dirty := true
 
 
 func _init() -> void:
@@ -90,12 +103,50 @@ func setup(
 	passive_state: Variant = null,
 	temporary_effects: Variant = null
 ) -> void:
-	_unit_progress = unit_progress
-	_skill_defs = _index_skill_defs(skill_defs)
-	_profession_defs = _index_profession_defs(profession_defs)
+	var context = ATTRIBUTE_SOURCE_CONTEXT_SCRIPT.new()
+	context.unit_progress = unit_progress
+	context.skill_defs = _index_skill_defs(skill_defs)
+	context.profession_defs = _index_profession_defs(profession_defs)
+	context.equipment_state = equipment_state
+	context.passive_state = passive_state
+	context.temporary_effects = temporary_effects
+	setup_context(context)
+
+
+func setup_context(context) -> void:
+	_context = context if context != null else ATTRIBUTE_SOURCE_CONTEXT_SCRIPT.new()
+	_unit_progress = _context.unit_progress
+	_skill_defs = _index_skill_defs(_context.skill_defs)
+	_profession_defs = _index_profession_defs(_context.profession_defs)
+	_equipment_state = _context.equipment_state
+	_passive_state = _context.passive_state
+	_temporary_effects = _context.temporary_effects
+	invalidate_snapshot()
+
+
+func set_equipment_state(equipment_state: Variant) -> void:
 	_equipment_state = equipment_state
+	if _context != null:
+		_context.equipment_state = equipment_state
+	invalidate_snapshot()
+
+
+func set_passive_state(passive_state: Variant) -> void:
 	_passive_state = passive_state
+	if _context != null:
+		_context.passive_state = passive_state
+	invalidate_snapshot()
+
+
+func set_temporary_effects(temporary_effects: Variant) -> void:
 	_temporary_effects = temporary_effects
+	if _context != null:
+		_context.temporary_effects = temporary_effects
+	invalidate_snapshot()
+
+
+func invalidate_snapshot() -> void:
+	_snapshot_dirty = true
 
 
 func get_base_value(attribute_id: StringName) -> int:
@@ -109,11 +160,23 @@ func get_total_value(attribute_id: StringName) -> int:
 	return get_snapshot().get_value(attribute_id)
 
 
+func get_modifier(attribute_id: StringName) -> int:
+	return _calculate_score_modifier(get_total_value(attribute_id))
+
+
 func get_action_points() -> int:
 	return get_total_value(ACTION_POINTS)
 
 
 func get_snapshot() -> AttributeSnapshot:
+	if not _snapshot_dirty and _cached_snapshot != null:
+		return _cached_snapshot
+	_cached_snapshot = _build_snapshot()
+	_snapshot_dirty = false
+	return _cached_snapshot
+
+
+func _build_snapshot() -> AttributeSnapshot:
 	var snapshot: AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT.new()
 	var modifier_entries: Array = _collect_all_modifier_entries()
 	var resolved_base_values := _resolve_base_attribute_values(modifier_entries)
@@ -123,7 +186,17 @@ func get_snapshot() -> AttributeSnapshot:
 
 	for attribute_id in _get_known_non_base_attribute_ids():
 		var derived_value := _get_persistent_base_value(attribute_id)
-		if _derived_rules.has(attribute_id):
+		if attribute_id == HP_MAX:
+			derived_value = _calculate_character_hp_max(_get_persistent_base_value(HP_MAX), modifier_entries)
+		elif attribute_id == CHARACTER_HP_MAX_PERCENT_BONUS:
+			snapshot.set_value(attribute_id, _resolve_character_hp_max_percent_bonus(modifier_entries))
+			continue
+		elif attribute_id == ARMOR_CLASS:
+			derived_value = _calculate_base_armor_class(resolved_base_values, modifier_entries)
+		elif attribute_id == ARMOR_MAX_DEX_BONUS:
+			snapshot.set_value(attribute_id, _resolve_armor_max_dex_bonus(modifier_entries))
+			continue
+		elif _derived_rules.has(attribute_id):
 			var rule: DerivedAttributeRule = _derived_rules.get(attribute_id) as DerivedAttributeRule
 			if rule != null:
 				derived_value += rule.evaluate(resolved_base_values)
@@ -155,6 +228,7 @@ func apply_permanent_attribute_change(attribute_id: StringName, delta: int, sour
 		return false
 
 	unit_base_attributes.set_attribute_value(attribute_id, unit_base_attributes.get_attribute_value(attribute_id) + delta)
+	invalidate_snapshot()
 	return true
 
 
@@ -240,12 +314,80 @@ func _resolve_base_attribute_values(modifier_entries: Array) -> Dictionary:
 
 func _collect_all_modifier_entries() -> Array:
 	var entries: Array = []
+	_append_race_modifier_entries(entries)
+	_append_subrace_modifier_entries(entries)
+	_append_age_modifier_entries(entries)
+	_append_bloodline_modifier_entries(entries)
+	_append_ascension_modifier_entries(entries)
+	_append_ascension_stage_modifier_entries(entries)
+	_append_stage_advancement_modifier_entries(entries)
+	_append_versatility_modifier_entries(entries)
 	_append_profession_modifier_entries(entries)
 	_append_skill_modifier_entries(entries)
 	_append_external_modifier_entries(entries, _equipment_state, &"equipment")
 	_append_external_modifier_entries(entries, _passive_state, &"passive")
 	_append_external_modifier_entries(entries, _temporary_effects, &"temporary")
 	return entries
+
+
+func _append_race_modifier_entries(entries: Array) -> void:
+	if _context == null or _context.race_def == null:
+		return
+	_append_modifier_entries(entries, _context.race_def.attribute_modifiers, &"race", _context.race_def.race_id, 1)
+
+
+func _append_subrace_modifier_entries(entries: Array) -> void:
+	if _context == null or _context.subrace_def == null:
+		return
+	_append_modifier_entries(entries, _context.subrace_def.attribute_modifiers, &"subrace", _context.subrace_def.subrace_id, 1)
+
+
+func _append_age_modifier_entries(entries: Array) -> void:
+	if _context == null or _context.age_stage_rule == null:
+		return
+	var source_type: StringName = _context.age_stage_source_type if _context.age_stage_source_type != &"" else &"age"
+	var source_id: StringName = _context.age_stage_source_id if _context.age_stage_source_id != &"" else _context.age_stage_rule.stage_id
+	_append_modifier_entries(entries, _context.age_stage_rule.attribute_modifiers, source_type, source_id, 1)
+
+
+func _append_bloodline_modifier_entries(entries: Array) -> void:
+	if _context == null:
+		return
+	if _context.bloodline_def != null:
+		_append_modifier_entries(entries, _context.bloodline_def.attribute_modifiers, &"bloodline", _context.bloodline_def.bloodline_id, 1)
+	if _context.bloodline_stage_def != null:
+		_append_modifier_entries(entries, _context.bloodline_stage_def.attribute_modifiers, &"bloodline", _context.bloodline_stage_def.stage_id, 1)
+
+
+func _append_ascension_modifier_entries(entries: Array) -> void:
+	if _context == null or _context.ascension_def == null:
+		return
+	var modifiers: Variant = _context.ascension_def.get("attribute_modifiers")
+	if modifiers is Array:
+		_append_modifier_entries(entries, modifiers, &"ascension", _context.ascension_def.ascension_id, 1)
+
+
+func _append_ascension_stage_modifier_entries(entries: Array) -> void:
+	if _context == null or _context.ascension_stage_def == null:
+		return
+	_append_modifier_entries(entries, _context.ascension_stage_def.attribute_modifiers, &"ascension", _context.ascension_stage_def.stage_id, 1)
+
+
+func _append_stage_advancement_modifier_entries(_entries: Array) -> void:
+	pass
+
+
+func _append_versatility_modifier_entries(entries: Array) -> void:
+	if _context == null or _context.versatility_pick == &"":
+		return
+	if not UnitBaseAttributes.BASE_ATTRIBUTE_IDS.has(_context.versatility_pick):
+		return
+	var modifier := AttributeModifier.new()
+	modifier.attribute_id = _context.versatility_pick
+	modifier.mode = AttributeModifier.MODE_FLAT
+	modifier.value = 1
+	var source_id: StringName = _context.race_def.race_id if _context.race_def != null else &"versatility"
+	_append_modifier_entries(entries, [modifier], &"versatility", source_id, 1)
 
 
 func _append_profession_modifier_entries(entries: Array) -> void:
@@ -364,6 +506,8 @@ func _get_persistent_base_value(attribute_id: StringName) -> int:
 	var unit_base_attributes := _get_unit_base_attributes()
 	if unit_base_attributes == null:
 		return 0
+	if attribute_id == HP_MAX and not unit_base_attributes.custom_stats.has(HP_MAX):
+		return 1
 	if attribute_id == ACTION_THRESHOLD and not unit_base_attributes.custom_stats.has(ACTION_THRESHOLD):
 		return DEFAULT_CHARACTER_ACTION_THRESHOLD
 	return unit_base_attributes.get_attribute_value(attribute_id)
@@ -392,6 +536,56 @@ func _apply_modifier_pipeline(attribute_id: StringName, base_value: int, modifie
 	return _clamp_attribute_value(attribute_id, result)
 
 
+func _calculate_character_hp_max(base_value: int, modifier_entries: Array) -> int:
+	var percent_bonus := _resolve_character_hp_max_percent_bonus(modifier_entries)
+	if percent_bonus <= 0:
+		return base_value
+	return int(floor(float(base_value) * float(100 + percent_bonus) / 100.0))
+
+
+func _resolve_character_hp_max_percent_bonus(modifier_entries: Array) -> int:
+	var percent_bonus := 0
+	for entry in modifier_entries:
+		var attribute_id := ProgressionDataUtils.to_string_name(entry.get("attribute_id", ""))
+		if attribute_id != CHARACTER_HP_MAX_PERCENT_BONUS:
+			continue
+		var mode := ProgressionDataUtils.to_string_name(entry.get("mode", "flat"))
+		if mode == AttributeModifier.MODE_PERCENT:
+			continue
+		percent_bonus += maxi(int(entry.get("value", 0)), 0)
+	return percent_bonus
+
+
+func _calculate_base_armor_class(resolved_base_values: Dictionary, modifier_entries: Array) -> int:
+	var agility := int(resolved_base_values.get(UnitBaseAttributes.AGILITY, 0))
+	var agility_modifier := _calculate_score_modifier(agility)
+	var capped_agility_modifier := agility_modifier
+	var max_dex_bonus := _resolve_armor_max_dex_bonus(modifier_entries)
+	if max_dex_bonus >= 0 and agility_modifier > max_dex_bonus:
+		capped_agility_modifier = max_dex_bonus
+	return _get_persistent_base_value(ARMOR_CLASS) + BASE_ARMOR_CLASS + capped_agility_modifier
+
+
+func _calculate_score_modifier(score: int) -> int:
+	return ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_score_modifier(score)
+
+
+func _resolve_armor_max_dex_bonus(modifier_entries: Array) -> int:
+	var resolved_cap := -1
+	for entry in modifier_entries:
+		var attribute_id := ProgressionDataUtils.to_string_name(entry.get("attribute_id", ""))
+		if attribute_id != ARMOR_MAX_DEX_BONUS:
+			continue
+		var mode := ProgressionDataUtils.to_string_name(entry.get("mode", "flat"))
+		if mode == AttributeModifier.MODE_PERCENT:
+			continue
+		var value := int(entry.get("value", -1))
+		if value < 0:
+			continue
+		resolved_cap = value if resolved_cap < 0 else mini(resolved_cap, value)
+	return resolved_cap
+
+
 func _modifier_entry_applies_to_attribute(attribute_id: StringName, modifier_attribute_id: StringName) -> bool:
 	if modifier_attribute_id == attribute_id:
 		return true
@@ -402,22 +596,22 @@ func _clamp_attribute_value(attribute_id: StringName, value: int) -> int:
 	match attribute_id:
 		HP_MAX:
 			return maxi(value, 1)
+		CHARACTER_HP_MAX_PERCENT_BONUS:
+			return maxi(value, 0)
+		STAMINA_RECOVERY_PERCENT_BONUS:
+			return maxi(value, 0)
 		MP_MAX, STAMINA_MAX, AURA_MAX:
 			return maxi(value, 0)
 		ACTION_POINTS:
 			return maxi(value, 1)
 		ACTION_THRESHOLD:
 			return _normalize_action_threshold(value)
-		ATTACK_BONUS:
-			return clampi(value, -20, 50)
 		ARMOR_CLASS:
 			return clampi(value, 1, 99)
 		ARMOR_AC_BONUS, SHIELD_AC_BONUS, DODGE_BONUS, DEFLECTION_BONUS:
 			return maxi(value, 0)
-		CRIT_RATE:
-			return clampi(value, 0, 100)
-		CRIT_DAMAGE:
-			return maxi(value, 100)
+		ARMOR_MAX_DEX_BONUS:
+			return maxi(value, -1)
 		_:
 			return value
 
@@ -473,26 +667,6 @@ func _get_additional_attribute_ids(modifier_entries: Array) -> Array[StringName]
 func _build_default_rules() -> Dictionary:
 	var rules: Dictionary = {}
 
-	rules[HP_MAX] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		HP_MAX,
-		60,
-		{
-			UnitBaseAttributes.CONSTITUTION: 8,
-			UnitBaseAttributes.STRENGTH: 2,
-		},
-		1,
-		1
-	)
-	rules[MP_MAX] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		MP_MAX,
-		30,
-		{
-			UnitBaseAttributes.INTELLIGENCE: 6,
-			UnitBaseAttributes.WILLPOWER: 4,
-		},
-		1,
-		0
-	)
 	rules[STAMINA_MAX] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
 		STAMINA_MAX,
 		24,
@@ -506,55 +680,11 @@ func _build_default_rules() -> Dictionary:
 	)
 	rules[ACTION_POINTS] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
 		ACTION_POINTS,
-		6,
-		{
-			UnitBaseAttributes.AGILITY: 2,
-			UnitBaseAttributes.PERCEPTION: 1,
-			UnitBaseAttributes.WILLPOWER: 1,
-		},
-		6,
-		1
-	)
-	rules[ATTACK_BONUS] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		ATTACK_BONUS,
-		2,
-		{
-			UnitBaseAttributes.PERCEPTION: 2,
-			UnitBaseAttributes.AGILITY: 1,
-			UnitBaseAttributes.STRENGTH: 1,
-		},
-		4,
-		0
-	)
-	rules[ARMOR_CLASS] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		ARMOR_CLASS,
-		8,
-		{
-			UnitBaseAttributes.AGILITY: 1,
-		},
 		1,
-		8,
-		14
-	)
-	rules[CRIT_RATE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		CRIT_RATE,
-		5,
 		{
-			UnitBaseAttributes.PERCEPTION: 4,
-			UnitBaseAttributes.AGILITY: 2,
+			UnitBaseAttributes.AGILITY: 1,
 		},
-		6,
-		0,
-		100
-	)
-	rules[CRIT_DAMAGE] = DERIVED_ATTRIBUTE_RULE_SCRIPT.new(
-		CRIT_DAMAGE,
-		150,
-		{
-			UnitBaseAttributes.STRENGTH: 2,
-			UnitBaseAttributes.INTELLIGENCE: 2,
-		},
-		4,
-		100
+		10,
+		1
 	)
 	return rules

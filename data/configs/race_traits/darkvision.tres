@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_trait")
 trait_id = &"darkvision"
-display_name = "Darkvision"
-description = "A compact seed trait proving passive vision traits load."
+display_name = "黑暗视觉"
+description = "可在昏暗或黑暗环境中保持视野的被动视觉特性。"
 trigger_type = &"passive"
 effect_type = &"darkvision"
 params = {

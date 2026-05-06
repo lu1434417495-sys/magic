@@ -106,12 +106,26 @@ func _test_save_payload_minimizes_identity_strings() -> void:
 	if not member_payload.is_empty():
 		_assert_type(member_payload.get(&"member_id", null), TYPE_STRING_NAME, "member_id 应保存为 StringName。")
 		_assert_type(member_payload.get(&"display_name", null), TYPE_STRING_NAME, "member display_name 在正式 payload 中应保存为 StringName。")
+		_assert_type(member_payload.get(&"race_id", null), TYPE_STRING_NAME, "member race_id 应保存为 StringName。")
+		_assert_type(member_payload.get(&"subrace_id", null), TYPE_STRING_NAME, "member subrace_id 应保存为 StringName。")
+		_assert_type(member_payload.get(&"age_profile_id", null), TYPE_STRING_NAME, "member age_profile_id 应保存为 StringName。")
+		_assert_type(member_payload.get(&"natural_age_stage_id", null), TYPE_STRING_NAME, "member natural_age_stage_id 应保存为 StringName。")
+		_assert_type(member_payload.get(&"effective_age_stage_id", null), TYPE_STRING_NAME, "member effective_age_stage_id 应保存为 StringName。")
+		_assert_type(member_payload.get(&"body_size_category", null), TYPE_STRING_NAME, "member body_size_category 应保存为 StringName。")
 		var progression: Dictionary = member_payload.get(&"progression", {})
 		_assert_type(progression.get(&"unit_id", null), TYPE_STRING_NAME, "progression unit_id 应保存为 StringName。")
 		_assert_array_item_type(progression.get(&"active_core_skill_ids", []), TYPE_STRING_NAME, "active_core_skill_ids 元素应保存为 StringName。")
 		_assert_dictionary_keys_type(progression.get(&"skills", {}), TYPE_STRING_NAME, "skills 的 skill_id key 应保存为 StringName。")
+		var skill_payloads: Dictionary = progression.get(&"skills", {})
+		for skill_payload_variant in skill_payloads.values():
+			if skill_payload_variant is not Dictionary:
+				continue
+			var skill_payload: Dictionary = skill_payload_variant
+			_assert_type(skill_payload.get(&"granted_source_type", null), TYPE_STRING_NAME, "skill granted_source_type 应保存为 StringName。")
+			_assert_type(skill_payload.get(&"granted_source_id", null), TYPE_STRING_NAME, "skill granted_source_id 应保存为 StringName。")
+			break
 
-	var decode_result: Dictionary = serializer.decode_v5_payload(
+	var decode_result: Dictionary = serializer.decode_payload(
 		payload,
 		game_session.get_generation_config_path(),
 		game_session.get_generation_config(),

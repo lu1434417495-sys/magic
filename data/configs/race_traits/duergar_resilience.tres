@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"duergar_resilience"
+display_name = "灰矮人韧性"
+description = "灰矮人抵御敌对影响的韧性标记。"
+trigger_type = &"passive"
+effect_type = &"duergar_resilience"
+params = {}

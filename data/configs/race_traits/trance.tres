@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"trance"
+display_name = "入定"
+description = "精灵式冥想休息的身份内容标记。"
+trigger_type = &"passive"
+effect_type = &"trance"
+params = {}

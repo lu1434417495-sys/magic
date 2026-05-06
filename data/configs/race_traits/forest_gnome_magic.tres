@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"forest_gnome_magic"
+display_name = "森林侏儒魔法"
+description = "森林侏儒的幻术与动物沟通魔法标记。"
+trigger_type = &"passive"
+effect_type = &"forest_gnome_magic"
+params = {}

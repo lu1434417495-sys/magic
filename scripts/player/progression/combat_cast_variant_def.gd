@@ -25,3 +25,5 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var allowed_base_terrains: Array[StringName] = []
 ## 字段说明：在编辑器中暴露效果定义集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var effect_defs: Array[CombatEffectDef] = []
+## 字段说明：在编辑器中暴露扩展参数字典，供运行时脚本读取自定义配置（如 square2_corner 偏移方向）。
+@export var params: Dictionary = {}

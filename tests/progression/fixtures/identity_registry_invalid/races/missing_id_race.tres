@@ -9,5 +9,5 @@ description = "Fixture covering missing race_id."
 age_profile_id = &"human_age_profile"
 default_subrace_id = &"common_human"
 subrace_ids = Array[StringName]([&"common_human"])
-body_size = 2
+body_size_category = &"medium"
 base_speed = 6

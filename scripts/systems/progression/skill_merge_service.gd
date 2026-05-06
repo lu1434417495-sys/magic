@@ -310,6 +310,9 @@ func _get_or_create_result_skill_progress(
 	result_progress.mastery_from_battle = source_battle_mastery
 	if not granted_profession_conflicted:
 		result_progress.profession_granted_by = granted_by_profession
+		if granted_by_profession != &"":
+			result_progress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION
+			result_progress.granted_source_id = granted_by_profession
 
 	return result_progress
 

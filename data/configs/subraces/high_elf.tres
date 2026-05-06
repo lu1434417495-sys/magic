@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"high_elf"
+parent_race_id = &"elf"
+display_name = "高等精灵"
+description = "拥有高等精灵魔法标记的精灵。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"racial_spell_grant"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"elf", &"high_elf"])
+racial_trait_summary = Array[String](["高等精灵戏法标记。"])

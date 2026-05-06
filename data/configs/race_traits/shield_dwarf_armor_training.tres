@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"shield_dwarf_armor_training"
+display_name = "盾矮人护甲训练"
+description = "盾矮人的护甲训练标记，用于身份熟练标签。"
+trigger_type = &"passive"
+effect_type = &"shield_dwarf_armor_training"
+params = {}

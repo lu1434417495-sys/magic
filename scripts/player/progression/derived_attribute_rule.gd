@@ -17,6 +17,8 @@ var divisor := 1
 var min_value := 0
 ## 字段说明：记录最大数值，作为当前计算、显示或结算时使用的核心数值。
 var max_value := 0
+## 字段说明：记录源属性偏移量，便于实现 DND 风格的 (属性 - 10) / 2 修正计算。
+var source_offset := 0
 
 
 func _init(
@@ -25,7 +27,8 @@ func _init(
 	p_coefficients: Dictionary = {},
 	p_divisor: int = 1,
 	p_min_value: int = 0,
-	p_max_value: int = 0
+	p_max_value: int = 0,
+	p_source_offset: int = 0
 ) -> void:
 	target_attribute_id = p_target_attribute_id
 	base_value = p_base_value
@@ -33,12 +36,13 @@ func _init(
 	divisor = maxi(p_divisor, 1)
 	min_value = p_min_value
 	max_value = p_max_value
+	source_offset = p_source_offset
 
 
 func evaluate(source_values: Dictionary) -> int:
 	var scaled_total := 0
 	for key in coefficients.keys():
-		scaled_total += int(coefficients[key]) * int(source_values.get(key, 0))
+		scaled_total += int(coefficients[key]) * (int(source_values.get(key, 0)) - source_offset)
 
 	var result := base_value + int(floor(float(scaled_total) / float(divisor)))
 	if max_value > min_value:

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"zariel_legacy"
+display_name = "扎瑞尔传承"
+description = "扎瑞尔提夫林的武斗型炼狱魔法标记。"
+trigger_type = &"passive"
+effect_type = &"zariel_legacy"
+params = {}

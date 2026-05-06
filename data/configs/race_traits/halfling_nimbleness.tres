@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"halfling_nimbleness"
+display_name = "半身人灵巧"
+description = "半身人小巧步伐与穿行能力的身份标记。"
+trigger_type = &"passive"
+effect_type = &"halfling_nimbleness"
+params = {}

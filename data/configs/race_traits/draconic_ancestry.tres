@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"draconic_ancestry"
+display_name = "龙族血脉"
+description = "龙裔血脉标记；具体吐息形态和抗性由亚种内容提供。"
+trigger_type = &"passive"
+effect_type = &"draconic_ancestry"
+params = {}

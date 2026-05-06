@@ -114,5 +114,5 @@ func _append_ascension_stage_validation_errors(errors: Array[String], stage_id: 
 	_append_attribute_modifier_array_errors(errors, owner_label, stage_def.attribute_modifiers, "attribute_modifiers")
 	_append_string_name_array_errors(errors, owner_label, stage_def.trait_ids, "trait_ids")
 	_append_racial_granted_skill_array_errors(errors, owner_label, stage_def.racial_granted_skills, "racial_granted_skills")
-	_append_int_field_error(errors, owner_label, "body_size_override", stage_def.body_size_override)
+	_append_string_name_field_error(errors, owner_label, "body_size_category_override", stage_def.body_size_category_override, true)
 	_append_string_array_errors(errors, owner_label, stage_def.trait_summary, "trait_summary")

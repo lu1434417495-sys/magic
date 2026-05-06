@@ -237,7 +237,8 @@ func setup(game_session) -> void:
 		_game_session.get_achievement_defs(),
 		_game_session.get_item_defs(),
 		_game_session.get_quest_defs(),
-		_get_equipment_instance_id_allocator()
+		_get_equipment_instance_id_allocator(),
+		_game_session.get_progression_content_bundle()
 	)
 	_setup_party_warehouse_service(_party_warehouse_service, _party_state, _game_session.get_item_defs())
 	_party_item_use_service.setup(
@@ -955,11 +956,11 @@ func get_current_promotion_prompt() -> Dictionary:
 
 
 func get_pending_promotion_prompt() -> Dictionary:
-	return _pending_promotion_prompt
+	return _pending_promotion_prompt.duplicate(true)
 
 
 func get_pending_world_promotion_prompt_state() -> Dictionary:
-	return _pending_world_promotion_prompt
+	return _pending_world_promotion_prompt.duplicate(true)
 
 
 func get_active_reward_state():

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"githyanki"
+display_name = "吉斯洋基"
+description = "来自星界的战士，擅长武艺、星界知识和灵能。"
+age_profile_id = &"githyanki_age_profile"
+default_subrace_id = &"standard_githyanki"
+subrace_ids = Array[StringName]([&"standard_githyanki"])
+body_size_category = &"medium"
+base_speed = 6
+trait_ids = Array[StringName]([&"githyanki_martial_prodigy", &"astral_knowledge", &"githyanki_psionics"])
+proficiency_tags = Array[StringName]([&"weapon_type_longsword", &"weapon_type_greatsword", &"weapon_type_shortsword", &"light_armor", &"medium_armor", &"astral_knowledge"])
+vision_tags = Array[StringName]([&"normal_vision"])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"githyanki"])
+racial_trait_summary = Array[String](["武艺奇才。", "星界知识。", "吉斯洋基灵能。"])

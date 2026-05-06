@@ -8,36 +8,43 @@ const SEED_EXPECTATIONS := {
 	&"warrior": {
 		"display_name": "战士",
 		"unlock_tag": &"melee",
+		"hit_die_sides": 10,
 		"rank_counts": [2, 3, 4, 5],
 	},
 	&"priest": {
 		"display_name": "牧师",
 		"unlock_tag": &"priest",
+		"hit_die_sides": 8,
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"rogue": {
 		"display_name": "盗贼",
 		"unlock_tag": &"rogue",
+		"hit_die_sides": 8,
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"berserker": {
 		"display_name": "狂战士",
 		"unlock_tag": &"berserker",
+		"hit_die_sides": 12,
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"paladin": {
 		"display_name": "圣武士",
 		"unlock_tag": &"paladin",
+		"hit_die_sides": 10,
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"mage": {
 		"display_name": "法师",
 		"unlock_tag": &"mage",
+		"hit_die_sides": 6,
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"archer": {
 		"display_name": "弓箭手",
 		"unlock_tag": &"archer",
+		"hit_die_sides": 8,
 		"rank_counts": [2, 2, 3, 3],
 	},
 }
@@ -82,6 +89,19 @@ func _test_seed_profession_resources_scan_and_validate() -> void:
 		_assert_eq(profession_def.display_name, expectation.get("display_name", ""), "职业 %s 应保留展示名。" % String(profession_id))
 		_assert_true(profession_def.is_initial_profession, "职业 %s 当前应保持初始职业配置。" % String(profession_id))
 		_assert_eq(int(profession_def.max_rank), 5, "职业 %s 当前应保持 5 阶上限。" % String(profession_id))
+		_assert_eq(int(profession_def.hit_die_sides), int(expectation.get("hit_die_sides", 0)), "职业 %s 的生命骰应稳定。" % String(profession_id))
+		if profession_id == &"warrior":
+			var granted_skills := profession_def.get_granted_skills_for_rank(1)
+			_assert_eq(granted_skills.size(), 1, "战士 1 级应授予一个职业被动。")
+			if not granted_skills.is_empty():
+				_assert_eq(granted_skills[0].skill_id, &"warrior_toughness", "战士 1 级应授予强健。")
+				_assert_eq(granted_skills[0].skill_type, &"passive", "强健授予项应标记为被动。")
+		if profession_id == &"archer":
+			var archer_granted_skills := profession_def.get_granted_skills_for_rank(1)
+			_assert_eq(archer_granted_skills.size(), 1, "弓箭手 1 级应授予一个职业被动。")
+			if not archer_granted_skills.is_empty():
+				_assert_eq(archer_granted_skills[0].skill_id, &"archer_shooting_specialization", "弓箭手 1 级应授予射击专精。")
+				_assert_eq(archer_granted_skills[0].skill_type, &"passive", "射击专精授予项应标记为被动。")
 		_assert_true(profession_def.unlock_requirement != null, "职业 %s 应保留正式 unlock_requirement。" % String(profession_id))
 		if profession_def.unlock_requirement != null:
 			var unlock_rules: Array = profession_def.unlock_requirement.required_tag_rules
@@ -159,4 +179,3 @@ func _assert_true(condition: bool, message: String) -> void:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
 		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
-

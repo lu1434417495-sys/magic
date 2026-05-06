@@ -240,7 +240,7 @@ func _make_race(race_id: StringName) -> RaceDef:
 	race.age_profile_id = &"fixture_age_profile"
 	race.default_subrace_id = &"fixture_subrace"
 	race.subrace_ids = [&"fixture_subrace"]
-	race.body_size = 2
+	race.body_size_category = &"medium"
 	race.base_speed = 6
 	return race
 

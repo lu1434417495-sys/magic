@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"half_elf"
+display_name = "半精灵"
+description = "兼具人类与精灵血脉，拥有妖精血统和黑暗视觉。"
+age_profile_id = &"half_elf_age_profile"
+default_subrace_id = &"high_half_elf"
+subrace_ids = Array[StringName]([&"high_half_elf", &"wood_half_elf", &"drow_half_elf"])
+body_size_category = &"medium"
+base_speed = 6
+trait_ids = Array[StringName]([&"fey_ancestry", &"darkvision", &"civil_militia"])
+proficiency_tags = Array[StringName]([&"weapon_type_spear", &"weapon_type_pike", &"weapon_type_halberd", &"weapon_type_glaive", &"light_armor", &"shield"])
+vision_tags = Array[StringName]([&"darkvision"])
+save_advantage_tags = Array[StringName]([&"charm", &"sleep"])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"half_elf", &"elf", &"human"])
+racial_trait_summary = Array[String](["妖精血统。", "黑暗视觉。", "公民民兵训练。"])

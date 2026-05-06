@@ -7,10 +7,12 @@ extends SceneTree
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
+const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
+const AttributeSourceContext = preload("res://scripts/systems/attributes/attribute_source_context.gd")
 const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
 const PartyManagementWindowScene = preload("res://scenes/ui/party_management_window.tscn")
@@ -21,6 +23,13 @@ const ProgressionService = preload("res://scripts/systems/progression/progressio
 const ProgressionSerialization = preload("res://scripts/systems/persistence/progression_serialization.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const RacialGrantedSkill = preload("res://scripts/player/progression/racial_granted_skill.gd")
+const RaceDef = preload("res://scripts/player/progression/race_def.gd")
+const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
+const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
+const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
+const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
+const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const WorldMapSystem = preload("res://scripts/systems/game_runtime/world_map_system.gd")
@@ -37,12 +46,18 @@ func _run() -> void:
 	_test_seed_achievement_registry_validates()
 	_test_seed_profession_catalog_includes_class_archetypes()
 	_test_archer_book_skill_catalog_registers_and_is_learnable()
+	_test_archer_profession_grant_passive_is_level_zero_and_not_manually_learnable()
+	_test_warrior_toughness_grant_scales_character_hp_only()
 	_test_manual_skill_learning_rejects_grant_only_sources()
+	_test_racial_skill_grant_writes_level_and_source()
+	_test_game_session_backfills_and_revokes_identity_granted_skills()
 	_test_new_game_random_skill_tier_mapping_uses_representative_defs()
 	_test_random_start_skill_pool_excludes_composite_upgrade_skills()
 	_test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_status()
 	_test_seed_growth_achievement_events_unlock_via_real_progression_actions()
 	_test_stamina_max_uses_constitution_strength_and_agility_formula()
+	_test_hp_max_uses_persistent_value_without_constitution_derivation()
+	_test_profession_promotion_persists_hit_die_hp_gain()
 	_test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap()
 	_test_core_max_skill_queues_attribute_progress_once()
 	_test_core_max_skill_ignores_string_name_attribute_growth_key()
@@ -143,6 +158,8 @@ func _test_archer_book_skill_catalog_registers_and_is_learnable() -> void:
 		var skill_def = skill_def_variant as SkillDef
 		if skill_def == null or not skill_def.tags.has(&"archer"):
 			continue
+		if skill_def.skill_type != &"active":
+			continue
 		archer_skill_ids.append(skill_def.skill_id)
 
 	_assert_eq(archer_skill_ids.size(), 32, "弓箭手技能目录应完整注册 32 个主动技能。")
@@ -163,6 +180,137 @@ func _test_archer_book_skill_catalog_registers_and_is_learnable() -> void:
 		)
 		if skill_def.skill_type == &"active":
 			_assert_true(skill_def.can_use_in_combat(), "主动技能 %s 应具备战斗配置。" % String(skill_id))
+
+
+func _test_archer_profession_grant_passive_is_level_zero_and_not_manually_learnable() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var skill_defs := registry.get_skill_defs()
+	var profession_defs := registry.get_profession_defs()
+	var shooting_specialization = skill_defs.get(&"archer_shooting_specialization") as SkillDef
+	var archer = profession_defs.get(&"archer") as ProfessionDef
+
+	_assert_true(shooting_specialization != null, "应注册射击专精。")
+	if shooting_specialization != null:
+		_assert_eq(shooting_specialization.skill_type, &"passive", "射击专精应是被动技能。")
+		_assert_eq(shooting_specialization.learn_source, &"profession", "射击专精应只能由职业授予。")
+	_assert_true(archer != null, "应注册弓箭手职业。")
+	if archer != null:
+		var rank_one_grants := archer.get_granted_skills_for_rank(1)
+		_assert_eq(rank_one_grants.size(), 1, "弓箭手 1 级应授予一个技能。")
+		if not rank_one_grants.is_empty():
+			_assert_eq(rank_one_grants[0].skill_id, &"archer_shooting_specialization", "弓箭手 1 级应授予射击专精。")
+
+	var manual_party_state := _make_party_state([&"manual_hero"])
+	var manual_manager := _setup_manager(manual_party_state, {})
+	_assert_true(
+		not manual_manager.learn_skill(&"manual_hero", &"archer_shooting_specialization"),
+		"射击专精不应允许手动学习。"
+	)
+
+	var profession := ProfessionDef.new()
+	profession.profession_id = &"test_archer_grant"
+	profession.display_name = "Test Archer Grant"
+	profession.max_rank = 1
+	profession.hit_die_sides = 8
+	profession.is_initial_profession = true
+	var grant := ProfessionGrantedSkill.new()
+	grant.skill_id = &"archer_shooting_specialization"
+	grant.unlock_rank = 1
+	grant.skill_type = &"passive"
+	profession.granted_skills = [grant]
+
+	var progress := UnitProgress.new()
+	progress.unit_id = &"grant_hero"
+	progress.display_name = "Grant Hero"
+	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 10)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	var service := ProgressionService.new()
+	service.setup(progress, skill_defs, {profession.profession_id: profession})
+	_assert_true(
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 4}),
+		"测试职业应能晋升并授予射击专精。"
+	)
+	var granted_progress = progress.get_skill_progress(&"archer_shooting_specialization")
+	_assert_true(granted_progress != null and granted_progress.is_learned, "职业晋升应学会射击专精。")
+	if granted_progress != null:
+		_assert_eq(int(granted_progress.skill_level), 0, "职业授予射击专精时技能等级应保持 0。")
+		_assert_eq(granted_progress.granted_source_type, UnitSkillProgress.GRANTED_SOURCE_PROFESSION, "射击专精来源类型应为职业。")
+		_assert_eq(granted_progress.granted_source_id, profession.profession_id, "射击专精来源 id 应记录授予职业。")
+
+
+func _test_warrior_toughness_grant_scales_character_hp_only() -> void:
+	var registry := ProgressionContentRegistry.new()
+	var skill_defs := registry.get_skill_defs()
+	var profession_defs := registry.get_profession_defs()
+	var toughness = skill_defs.get(&"warrior_toughness") as SkillDef
+	var warrior = profession_defs.get(&"warrior") as ProfessionDef
+
+	_assert_true(toughness != null, "应注册强健。")
+	if toughness != null:
+		_assert_eq(toughness.skill_type, &"passive", "强健应是被动技能。")
+		_assert_eq(toughness.learn_source, &"profession", "强健应只能由职业授予。")
+	_assert_true(warrior != null, "应注册战士职业。")
+	if warrior != null:
+		var rank_one_grants := warrior.get_granted_skills_for_rank(1)
+		_assert_eq(rank_one_grants.size(), 1, "战士 1 级应授予一个技能。")
+		if not rank_one_grants.is_empty():
+			_assert_eq(rank_one_grants[0].skill_id, &"warrior_toughness", "战士 1 级应授予强健。")
+
+	var manual_party_state := _make_party_state([&"manual_warrior"])
+	var manual_manager := _setup_manager(manual_party_state, {})
+	_assert_true(
+		not manual_manager.learn_skill(&"manual_warrior", &"warrior_toughness"),
+		"强健不应允许手动学习。"
+	)
+
+	var progress := UnitProgress.new()
+	progress.unit_id = &"tough_hero"
+	progress.display_name = "Tough Hero"
+	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 10)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 30)
+
+	var profession_progress := UnitProfessionProgress.new()
+	profession_progress.profession_id = &"warrior"
+	profession_progress.rank = 1
+	profession_progress.is_active = true
+	progress.set_profession_progress(profession_progress)
+
+	var skill_progress := UnitSkillProgress.new()
+	skill_progress.skill_id = &"warrior_toughness"
+	skill_progress.is_learned = true
+	skill_progress.skill_level = 0
+	skill_progress.profession_granted_by = &"warrior"
+	skill_progress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION
+	skill_progress.granted_source_id = &"warrior"
+	progress.set_skill_progress(skill_progress)
+
+	var equipment_hp := AttributeModifier.new()
+	equipment_hp.attribute_id = AttributeService.HP_MAX
+	equipment_hp.mode = AttributeModifier.MODE_FLAT
+	equipment_hp.value = 10
+	equipment_hp.source_type = &"equipment"
+	equipment_hp.source_id = &"test_armor"
+
+	var temporary_hp := AttributeModifier.new()
+	temporary_hp.attribute_id = AttributeService.HP_MAX
+	temporary_hp.mode = AttributeModifier.MODE_FLAT
+	temporary_hp.value = 50
+	temporary_hp.source_type = &"temporary"
+	temporary_hp.source_id = &"test_buff"
+
+	var context := AttributeSourceContext.new()
+	context.unit_progress = progress
+	context.skill_defs = skill_defs
+	context.profession_defs = profession_defs
+	context.equipment_state = [equipment_hp]
+	context.temporary_effects = [temporary_hp]
+
+	var attribute_service := AttributeService.new()
+	attribute_service.setup_context(context)
+	var snapshot = attribute_service.get_snapshot()
+	_assert_eq(snapshot.get_value(AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS), 20, "强健应提供人物生命百分比加成。")
+	_assert_eq(snapshot.get_value(AttributeService.STAMINA_RECOVERY_PERCENT_BONUS), 50, "强健应提供 50% 体力自然恢复加成。")
+	_assert_eq(snapshot.get_value(AttributeService.HP_MAX), 96, "强健只应放大 30 点人物生命到 36，再叠加装备 10 与临时 50。")
 
 
 func _test_manual_skill_learning_rejects_grant_only_sources() -> void:
@@ -197,6 +345,163 @@ func _test_manual_skill_learning_rejects_grant_only_sources() -> void:
 			progress.get_skill_progress(blocked_skill_id) == null,
 			"%s 被手动学习拒绝后不应创建技能进度。" % String(blocked_skill_id)
 		)
+
+
+func _test_racial_skill_grant_writes_level_and_source() -> void:
+	var race_skill := _make_test_learn_source_skill(&"race_granted_aura", &"race")
+	race_skill.max_level = 5
+	race_skill.mastery_curve = PackedInt32Array([10, 20, 30, 40, 50])
+	race_skill.combat_profile = CombatSkillDef.new()
+	race_skill.combat_profile.skill_id = race_skill.skill_id
+	race_skill.combat_profile.aura_cost = 2
+
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	progress.display_name = "Hero"
+	var service := ProgressionService.new()
+	service.setup(progress, {race_skill.skill_id: race_skill}, {})
+
+	var grant := _make_test_racial_grant(race_skill.skill_id, 3)
+	_assert_true(
+		service.grant_racial_skill(grant, UnitSkillProgress.GRANTED_SOURCE_RACE, &"test_race"),
+		"身份授予入口应能写入 race 来源技能。"
+	)
+	var skill_progress = progress.get_skill_progress(race_skill.skill_id)
+	_assert_true(skill_progress != null and skill_progress.is_learned, "race 授予技能应变为 learned。")
+	if skill_progress != null:
+		_assert_eq(int(skill_progress.skill_level), 3, "race 授予技能应使用 grant.minimum_skill_level。")
+		_assert_eq(skill_progress.granted_source_type, UnitSkillProgress.GRANTED_SOURCE_RACE, "race 授予技能应记录来源类型。")
+		_assert_eq(skill_progress.granted_source_id, &"test_race", "race 授予技能应记录来源 id。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "身份授予耗斗气技能后应同步解锁斗气资源。")
+	_assert_true(
+		not service.grant_racial_skill(grant, UnitSkillProgress.GRANTED_SOURCE_RACE, &"test_race"),
+		"重复身份授予不应覆盖已 learned 技能。"
+	)
+	_assert_eq(int(skill_progress.skill_level), 3, "重复身份授予后技能等级应保持不变。")
+	_assert_true(
+		not service.grant_racial_skill(grant, UnitSkillProgress.GRANTED_SOURCE_SUBRACE, &"test_subrace"),
+		"grant source_type 与 SkillDef.learn_source 不一致时应拒绝。"
+	)
+
+
+func _test_game_session_backfills_and_revokes_identity_granted_skills() -> void:
+	var race_skill := _make_test_identity_grant_skill(&"test_race_skill", UnitSkillProgress.GRANTED_SOURCE_RACE)
+	var subrace_skill := _make_test_identity_grant_skill(&"test_subrace_skill", UnitSkillProgress.GRANTED_SOURCE_SUBRACE)
+	var bloodline_skill := _make_test_identity_grant_skill(&"test_bloodline_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE)
+	var bloodline_stage_skill := _make_test_identity_grant_skill(&"test_bloodline_stage_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE)
+	var ascension_skill := _make_test_identity_grant_skill(&"test_ascension_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION)
+	var ascension_stage_skill := _make_test_identity_grant_skill(&"test_ascension_stage_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION)
+
+	var session := GameSession.new()
+	session._skill_defs = {
+		race_skill.skill_id: race_skill,
+		subrace_skill.skill_id: subrace_skill,
+		bloodline_skill.skill_id: bloodline_skill,
+		bloodline_stage_skill.skill_id: bloodline_stage_skill,
+		ascension_skill.skill_id: ascension_skill,
+		ascension_stage_skill.skill_id: ascension_stage_skill,
+	}
+	session._profession_defs = {}
+	session._progression_content_registry._race_defs = {
+		&"test_race": _make_test_race_def(&"test_race", race_skill.skill_id),
+	}
+	session._progression_content_registry._subrace_defs = {
+		&"test_subrace": _make_test_subrace_def(&"test_subrace", &"test_race", subrace_skill.skill_id),
+	}
+	session._progression_content_registry._bloodline_defs = {
+		&"test_bloodline": _make_test_bloodline_def(&"test_bloodline", bloodline_skill.skill_id),
+	}
+	session._progression_content_registry._bloodline_stage_defs = {
+		&"test_bloodline_stage": _make_test_bloodline_stage_def(&"test_bloodline_stage", &"test_bloodline", bloodline_stage_skill.skill_id),
+	}
+	session._progression_content_registry._ascension_defs = {
+		&"test_ascension": _make_test_ascension_def(&"test_ascension", ascension_skill.skill_id),
+	}
+	session._progression_content_registry._ascension_stage_defs = {
+		&"test_ascension_stage": _make_test_ascension_stage_def(&"test_ascension_stage", &"test_ascension", ascension_stage_skill.skill_id),
+	}
+
+	var party_state := _make_party_state([&"hero"])
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	member_state.race_id = &"test_race"
+	member_state.subrace_id = &"test_subrace"
+	member_state.bloodline_id = &"test_bloodline"
+	member_state.bloodline_stage_id = &"test_bloodline_stage"
+	member_state.ascension_id = &"test_ascension"
+	member_state.ascension_stage_id = &"test_ascension_stage"
+
+	_assert_true(session._backfill_racial_granted_skills(party_state), "GameSession 应能补授当前身份的技能。")
+	_assert_identity_granted_skill(
+		member_state.progression,
+		race_skill.skill_id,
+		UnitSkillProgress.GRANTED_SOURCE_RACE,
+		&"test_race",
+		2
+	)
+	_assert_identity_granted_skill(
+		member_state.progression,
+		subrace_skill.skill_id,
+		UnitSkillProgress.GRANTED_SOURCE_SUBRACE,
+		&"test_subrace",
+		2
+	)
+	_assert_identity_granted_skill(
+		member_state.progression,
+		bloodline_skill.skill_id,
+		UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
+		&"test_bloodline",
+		2
+	)
+	_assert_identity_granted_skill(
+		member_state.progression,
+		bloodline_stage_skill.skill_id,
+		UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
+		&"test_bloodline_stage",
+		2
+	)
+	_assert_identity_granted_skill(
+		member_state.progression,
+		ascension_skill.skill_id,
+		UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
+		&"test_ascension",
+		2
+	)
+	_assert_identity_granted_skill(
+		member_state.progression,
+		ascension_stage_skill.skill_id,
+		UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
+		&"test_ascension_stage",
+		2
+	)
+	_assert_true(
+		not session._backfill_racial_granted_skills(party_state),
+		"重复补授不应继续报告变更。"
+	)
+
+	var active_race_def := session._progression_content_registry._race_defs.get(&"test_race") as RaceDef
+	active_race_def.racial_granted_skills = []
+	_assert_true(
+		session._revoke_orphan_racial_skills(party_state),
+		"来源仍存在但 grant 已从内容中移除时，也应撤销孤儿身份技能。"
+	)
+	_assert_true(member_state.progression.get_skill_progress(race_skill.skill_id) == null, "同一 race 来源已删除的 grant 技能应被撤销。")
+
+	member_state.race_id = &"other_race"
+	member_state.bloodline_stage_id = &"other_bloodline_stage"
+	_assert_true(session._revoke_orphan_racial_skills(party_state), "身份变化后应撤销孤儿身份技能。")
+	_assert_true(
+		member_state.progression.get_skill_progress(bloodline_stage_skill.skill_id) == null,
+		"旧 bloodline stage 来源技能应被撤销。"
+	)
+	_assert_true(
+		member_state.progression.get_skill_progress(subrace_skill.skill_id) != null,
+		"仍属于当前 subrace 的技能不应被撤销。"
+	)
+	_assert_true(
+		member_state.progression.get_skill_progress(bloodline_skill.skill_id) != null,
+		"仍属于当前 bloodline 的技能不应被撤销。"
+	)
+	session.free()
 
 
 func _test_new_game_random_skill_tier_mapping_uses_representative_defs() -> void:
@@ -396,6 +701,59 @@ func _test_stamina_max_uses_constitution_strength_and_agility_formula() -> void:
 		service.get_total_value(AttributeService.STAMINA_MAX),
 		45,
 		"体力上限应使用 24 + 5*体质 + 力量 + 敏捷。"
+	)
+
+
+func _test_hp_max_uses_persistent_value_without_constitution_derivation() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 20)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 31)
+	var service := AttributeService.new()
+	service.setup(progress)
+	_assert_eq(
+		service.get_total_value(AttributeService.HP_MAX),
+		31,
+		"生命上限应读取持久 hp_max，不应在属性快照阶段继续按体质派生。"
+	)
+
+
+func _test_profession_promotion_persists_hit_die_hp_gain() -> void:
+	var profession := ProfessionDef.new()
+	profession.profession_id = &"test_d10"
+	profession.display_name = "Test D10"
+	profession.max_rank = 2
+	profession.hit_die_sides = 10
+	profession.is_initial_profession = true
+	var rank_requirement := ProfessionRankRequirement.new()
+	rank_requirement.target_rank = 2
+	var rank_requirements: Array[ProfessionRankRequirement] = [rank_requirement]
+	profession.rank_requirements = rank_requirements
+
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	progress.display_name = "Hero"
+	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 14)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	var service := ProgressionService.new()
+	service.setup(progress, {}, {profession.profession_id: profession})
+
+	_assert_true(
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 7}),
+		"测试职业应能晋升到 1 级。"
+	)
+	_assert_eq(
+		progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX),
+		31,
+		"晋升时应把 d10 roll 7 + CON 调整值 2*2 的生命增量写入持久 hp_max。"
+	)
+	_assert_true(
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		"测试职业应能晋升到 2 级。"
+	)
+	_assert_eq(
+		progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX),
+		36,
+		"后续晋升应继续把本级生命增量累加进持久 hp_max。"
 	)
 
 
@@ -913,6 +1271,8 @@ func _test_unit_progress_from_dict_rejects_child_schema_defaults() -> void:
 		"mastery_from_training",
 		"mastery_from_battle",
 		"profession_granted_by",
+		"granted_source_type",
+		"granted_source_id",
 		"core_max_growth_claimed",
 	]:
 		var payload := _build_unit_progress_payload_with_child_entries()
@@ -983,6 +1343,10 @@ func _test_unit_progress_from_dict_rejects_child_schema_defaults() -> void:
 		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "mastery_from_battle", "value": "0"},
 		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "mastery_from_battle", "value": -1},
 		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "profession_granted_by", "value": 123},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "granted_source_type", "value": ""},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "granted_source_type", "value": 123},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "granted_source_type", "value": "legacy"},
+		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "granted_source_id", "value": 123},
 		{"bucket": "skills", "entry_id": "test_strict_skill", "field": "core_max_growth_claimed", "value": 0},
 		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "rank", "value": "1"},
 		{"bucket": "professions", "entry_id": "test_strict_profession", "field": "rank", "value": -1},
@@ -1013,6 +1377,21 @@ func _test_unit_progress_from_dict_rejects_child_schema_defaults() -> void:
 			UnitProgress.from_dict(payload) == null,
 			"%s.%s 非法值不应被转换、丢弃或补默认。" % [String(case.get("bucket", "")), String(case.get("field", ""))]
 		)
+
+	var invalid_grant_source_payload := _build_unit_progress_payload_with_child_entries()
+	_set_unit_progress_child_field_value(invalid_grant_source_payload, "skills", "test_strict_skill", "granted_source_type", "race")
+	_set_unit_progress_child_field_value(invalid_grant_source_payload, "skills", "test_strict_skill", "granted_source_id", "")
+	_assert_true(
+		UnitProgress.from_dict(invalid_grant_source_payload) == null,
+		"race/subrace/ascension/bloodline/profession 来源必须携带 granted_source_id。"
+	)
+
+	var extra_skill_field_payload := _build_unit_progress_payload_with_child_entries()
+	_set_unit_progress_child_field_value(extra_skill_field_payload, "skills", "test_strict_skill", "legacy_source", "old")
+	_assert_true(
+		UnitProgress.from_dict(extra_skill_field_payload) == null,
+		"UnitSkillProgress 含未知字段时应直接拒绝。"
+	)
 
 	var invalid_promotion_history_payload := _build_unit_progress_payload_with_child_entries()
 	_set_unit_progress_child_field_value(
@@ -1110,7 +1489,6 @@ func _test_starting_and_random_skill_refresh_unlocks_combat_resources() -> void:
 		"资源刷新测试",
 		starting_skill.skill_id,
 		&"portrait_test",
-		18,
 		6,
 		4,
 		2,
@@ -1118,7 +1496,6 @@ func _test_starting_and_random_skill_refresh_unlocks_combat_resources() -> void:
 		1,
 		1,
 		1,
-		24,
 		0
 	)
 	_assert_true(
@@ -2621,6 +2998,111 @@ func _make_test_combat_resource_skill(skill_id: StringName, mp_cost: int, aura_c
 	skill_def.combat_profile.mp_cost = mp_cost
 	skill_def.combat_profile.aura_cost = aura_cost
 	return skill_def
+
+
+func _make_test_identity_grant_skill(skill_id: StringName, learn_source: StringName) -> SkillDef:
+	var skill_def := _make_test_learn_source_skill(skill_id, learn_source)
+	skill_def.max_level = 5
+	skill_def.mastery_curve = PackedInt32Array([10, 20, 30, 40, 50])
+	return skill_def
+
+
+func _make_test_racial_grant(skill_id: StringName, minimum_skill_level: int) -> RacialGrantedSkill:
+	var grant := RacialGrantedSkill.new()
+	grant.skill_id = skill_id
+	grant.minimum_skill_level = minimum_skill_level
+	grant.grant_level = 1
+	grant.charge_kind = RacialGrantedSkill.CHARGE_KIND_PER_BATTLE
+	grant.charges = 1
+	return grant
+
+
+func _make_test_race_def(race_id: StringName, granted_skill_id: StringName) -> RaceDef:
+	var race := RaceDef.new()
+	race.race_id = race_id
+	race.display_name = String(race_id)
+	race.description = String(race_id)
+	race.age_profile_id = &"test_age_profile"
+	race.default_subrace_id = &"test_subrace"
+	race.subrace_ids = [&"test_subrace"]
+	race.body_size_category = &"medium"
+	race.base_speed = 6
+	race.racial_granted_skills = [_make_test_racial_grant(granted_skill_id, 2)]
+	return race
+
+
+func _make_test_subrace_def(subrace_id: StringName, parent_race_id: StringName, granted_skill_id: StringName) -> SubraceDef:
+	var subrace := SubraceDef.new()
+	subrace.subrace_id = subrace_id
+	subrace.parent_race_id = parent_race_id
+	subrace.display_name = String(subrace_id)
+	subrace.description = String(subrace_id)
+	subrace.racial_granted_skills = [_make_test_racial_grant(granted_skill_id, 2)]
+	return subrace
+
+
+func _make_test_bloodline_def(bloodline_id: StringName, granted_skill_id: StringName) -> BloodlineDef:
+	var bloodline := BloodlineDef.new()
+	bloodline.bloodline_id = bloodline_id
+	bloodline.display_name = String(bloodline_id)
+	bloodline.description = String(bloodline_id)
+	bloodline.stage_ids = [&"test_bloodline_stage"]
+	bloodline.racial_granted_skills = [_make_test_racial_grant(granted_skill_id, 2)]
+	return bloodline
+
+
+func _make_test_bloodline_stage_def(
+	stage_id: StringName,
+	bloodline_id: StringName,
+	granted_skill_id: StringName
+) -> BloodlineStageDef:
+	var stage := BloodlineStageDef.new()
+	stage.stage_id = stage_id
+	stage.bloodline_id = bloodline_id
+	stage.display_name = String(stage_id)
+	stage.description = String(stage_id)
+	stage.racial_granted_skills = [_make_test_racial_grant(granted_skill_id, 2)]
+	return stage
+
+
+func _make_test_ascension_def(ascension_id: StringName, granted_skill_id: StringName) -> AscensionDef:
+	var ascension := AscensionDef.new()
+	ascension.ascension_id = ascension_id
+	ascension.display_name = String(ascension_id)
+	ascension.description = String(ascension_id)
+	ascension.stage_ids = [&"test_ascension_stage"]
+	ascension.racial_granted_skills = [_make_test_racial_grant(granted_skill_id, 2)]
+	return ascension
+
+
+func _make_test_ascension_stage_def(
+	stage_id: StringName,
+	ascension_id: StringName,
+	granted_skill_id: StringName
+) -> AscensionStageDef:
+	var stage := AscensionStageDef.new()
+	stage.stage_id = stage_id
+	stage.ascension_id = ascension_id
+	stage.display_name = String(stage_id)
+	stage.description = String(stage_id)
+	stage.racial_granted_skills = [_make_test_racial_grant(granted_skill_id, 2)]
+	return stage
+
+
+func _assert_identity_granted_skill(
+	progression: UnitProgress,
+	skill_id: StringName,
+	expected_source_type: StringName,
+	expected_source_id: StringName,
+	expected_level: int
+) -> void:
+	var skill_progress = progression.get_skill_progress(skill_id) if progression != null else null
+	_assert_true(skill_progress != null and skill_progress.is_learned, "%s 应已被身份授予。" % String(skill_id))
+	if skill_progress == null:
+		return
+	_assert_eq(int(skill_progress.skill_level), expected_level, "%s 身份授予等级应匹配。" % String(skill_id))
+	_assert_eq(skill_progress.granted_source_type, expected_source_type, "%s 身份授予来源类型应匹配。" % String(skill_id))
+	_assert_eq(skill_progress.granted_source_id, expected_source_id, "%s 身份授予来源 id 应匹配。" % String(skill_id))
 
 
 func _assert_true(condition: bool, message: String) -> void:

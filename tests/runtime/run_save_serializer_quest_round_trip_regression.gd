@@ -27,10 +27,11 @@ func _run() -> void:
 	_test_party_state_from_dict_rejects_bad_quest_state_schema()
 	_test_party_state_from_dict_rejects_bad_completed_quest_ids()
 	_test_party_state_from_dict_rejects_overlapping_quest_buckets()
-	_test_decode_v5_payload_rejects_missing_main_character_member_id()
-	_test_decode_v5_payload_rejects_missing_claimable_quests()
-	_test_decode_v5_payload_rejects_missing_roster_header_fields()
-	_test_decode_v5_payload_rejects_missing_member_schema_fields()
+	_test_decode_payload_rejects_v5_version()
+	_test_decode_payload_rejects_missing_main_character_member_id()
+	_test_decode_payload_rejects_missing_claimable_quests()
+	_test_decode_payload_rejects_missing_roster_header_fields()
+	_test_decode_payload_rejects_missing_member_schema_fields()
 
 	if _failures.is_empty():
 		print("Save serializer quest round trip regression: PASS")
@@ -80,7 +81,7 @@ func _test_save_serializer_round_trip_preserves_party_quest_schema() -> void:
 		party_state,
 		int(Time.get_unix_time_from_system())
 	)
-	var decode_result: Dictionary = serializer.decode_v5_payload(
+	var decode_result: Dictionary = serializer.decode_payload(
 		payload,
 		game_session.get_generation_config_path(),
 		game_session.get_generation_config(),
@@ -174,7 +175,7 @@ func _test_world_map_template_bindings_round_trip() -> void:
 		game_session.get_party_state(),
 		int(Time.get_unix_time_from_system())
 	)
-	var decode_result: Dictionary = serializer.decode_v5_payload(
+	var decode_result: Dictionary = serializer.decode_payload(
 		payload,
 		game_session.get_generation_config_path(),
 		game_session.get_generation_config(),
@@ -222,7 +223,7 @@ func _test_extract_save_meta_rejects_missing_slot_fields() -> void:
 
 	var rejected_meta: Dictionary = serializer.extract_save_meta_from_payload(payload)
 	_assert_true(rejected_meta.is_empty(), "缺失 display_name/world_size/timestamps 的 save_slot_meta 应直接拒绝。")
-	var decode_result: Dictionary = serializer.decode_v5_payload(
+	var decode_result: Dictionary = serializer.decode_payload(
 		payload,
 		game_session.get_generation_config_path(),
 		game_session.get_generation_config(),
@@ -438,7 +439,27 @@ func _test_party_state_from_dict_requires_member_schema_fields() -> void:
 		"current_hp",
 		"current_mp",
 		"is_dead",
+		"race_id",
+		"subrace_id",
+		"age_years",
+		"birth_at_world_step",
+		"age_profile_id",
+		"natural_age_stage_id",
+		"effective_age_stage_id",
+		"effective_age_stage_source_type",
+		"effective_age_stage_source_id",
 		"body_size",
+		"body_size_category",
+		"versatility_pick",
+		"active_stage_advancement_modifier_ids",
+		"bloodline_id",
+		"bloodline_stage_id",
+		"ascension_id",
+		"ascension_stage_id",
+		"ascension_started_at_world_step",
+		"original_race_id_before_ascension",
+		"biological_age_years",
+		"astral_memory_years",
 	]:
 		var missing_field_payload := _build_party_payload_with_member_field_removed(field_name)
 		_assert_true(
@@ -461,8 +482,42 @@ func _test_party_state_from_dict_requires_member_schema_fields() -> void:
 		{"field": "current_mp", "value": "6"},
 		{"field": "current_mp", "value": -1},
 		{"field": "is_dead", "value": 0},
+		{"field": "race_id", "value": ""},
+		{"field": "race_id", "value": 123},
+		{"field": "subrace_id", "value": ""},
+		{"field": "subrace_id", "value": 123},
+		{"field": "age_years", "value": "24"},
+		{"field": "age_years", "value": -1},
+		{"field": "birth_at_world_step", "value": "0"},
+		{"field": "birth_at_world_step", "value": -1},
+		{"field": "age_profile_id", "value": ""},
+		{"field": "age_profile_id", "value": 123},
+		{"field": "natural_age_stage_id", "value": ""},
+		{"field": "natural_age_stage_id", "value": 123},
+		{"field": "effective_age_stage_id", "value": ""},
+		{"field": "effective_age_stage_id", "value": 123},
+		{"field": "effective_age_stage_source_type", "value": 123},
+		{"field": "effective_age_stage_source_id", "value": 123},
 		{"field": "body_size", "value": "1"},
 		{"field": "body_size", "value": 0},
+		{"field": "body_size_category", "value": ""},
+		{"field": "body_size_category", "value": 123},
+		{"field": "versatility_pick", "value": 123},
+		{"field": "active_stage_advancement_modifier_ids", "value": ""},
+		{"field": "active_stage_advancement_modifier_ids", "value": [""]},
+		{"field": "active_stage_advancement_modifier_ids", "value": [123]},
+		{"field": "active_stage_advancement_modifier_ids", "value": ["blessing", "blessing"]},
+		{"field": "bloodline_id", "value": 123},
+		{"field": "bloodline_stage_id", "value": 123},
+		{"field": "ascension_id", "value": 123},
+		{"field": "ascension_stage_id", "value": 123},
+		{"field": "ascension_started_at_world_step", "value": "0"},
+		{"field": "ascension_started_at_world_step", "value": -2},
+		{"field": "original_race_id_before_ascension", "value": 123},
+		{"field": "biological_age_years", "value": "24"},
+		{"field": "biological_age_years", "value": -1},
+		{"field": "astral_memory_years", "value": "0"},
+		{"field": "astral_memory_years", "value": -1},
 	]:
 		var invalid_field_payload := _build_party_payload_with_member_field_value(
 			String(field_case.get("field", "")),
@@ -497,7 +552,13 @@ func _test_party_state_from_dict_requires_member_schema_fields() -> void:
 		)
 		_assert_true(
 			PartyState.from_dict(invalid_progression_payload) == null,
-			"progression.%s 非法的 PartyState shape 应直接拒绝。" % String(field_case.get("field", ""))
+		"progression.%s 非法的 PartyState shape 应直接拒绝。" % String(field_case.get("field", ""))
+		)
+
+	var extra_member_field_payload := _build_party_payload_with_member_field_value("legacy_identity_payload", "human")
+	_assert_true(
+		PartyState.from_dict(extra_member_field_payload) == null,
+		"包含未知成员字段的 PartyState shape 应直接拒绝。"
 	)
 
 
@@ -610,7 +671,35 @@ func _test_party_state_from_dict_rejects_overlapping_quest_buckets() -> void:
 	_assert_true(invalid_party_state == null, "同一 quest 同时出现在多个 bucket 的坏 PartyState shape 应直接拒绝。")
 
 
-func _test_decode_v5_payload_rejects_missing_main_character_member_id() -> void:
+func _test_decode_payload_rejects_v5_version() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_true(create_error == OK, "V5 拒绝回归需要可创建的测试世界。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var serializer = game_session._save_serializer
+	_assert_true(serializer != null, "V5 拒绝回归需要已初始化的 SaveSerializer。")
+	if serializer == null:
+		_cleanup_test_session(game_session)
+		return
+
+	var payload: Dictionary = _build_save_payload_for_session(game_session, serializer)
+	payload["version"] = 5
+
+	var decode_result: Dictionary = serializer.decode_payload(
+		payload,
+		game_session.get_generation_config_path(),
+		game_session.get_generation_config(),
+		game_session.get_active_save_meta()
+	)
+	_assert_eq(int(decode_result.get("error", OK)), ERR_INVALID_DATA, "V5 payload 应被 V6 target decoder 直接拒绝。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_decode_payload_rejects_missing_main_character_member_id() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
 	_assert_true(create_error == OK, "缺主角字段的旧存档回归需要可创建的测试世界。")
@@ -638,7 +727,7 @@ func _test_decode_v5_payload_rejects_missing_main_character_member_id() -> void:
 	party_state_payload.erase("main_character_member_id")
 	payload["party_state"] = party_state_payload
 
-	var decode_result: Dictionary = serializer.decode_v5_payload(
+	var decode_result: Dictionary = serializer.decode_payload(
 		payload,
 		game_session.get_generation_config_path(),
 		game_session.get_generation_config(),
@@ -649,7 +738,7 @@ func _test_decode_v5_payload_rejects_missing_main_character_member_id() -> void:
 	_cleanup_test_session(game_session)
 
 
-func _test_decode_v5_payload_rejects_missing_claimable_quests() -> void:
+func _test_decode_payload_rejects_missing_claimable_quests() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
 	_assert_true(create_error == OK, "缺 claimable_quests 字段的存档回归需要可创建的测试世界。")
@@ -677,7 +766,7 @@ func _test_decode_v5_payload_rejects_missing_claimable_quests() -> void:
 	party_state_payload.erase("claimable_quests")
 	payload["party_state"] = party_state_payload
 
-	var decode_result: Dictionary = serializer.decode_v5_payload(
+	var decode_result: Dictionary = serializer.decode_payload(
 		payload,
 		game_session.get_generation_config_path(),
 		game_session.get_generation_config(),
@@ -688,7 +777,7 @@ func _test_decode_v5_payload_rejects_missing_claimable_quests() -> void:
 	_cleanup_test_session(game_session)
 
 
-func _test_decode_v5_payload_rejects_missing_roster_header_fields() -> void:
+func _test_decode_payload_rejects_missing_roster_header_fields() -> void:
 	for field_name in ["version", "gold", "leader_member_id", "active_member_ids", "reserve_member_ids"]:
 		var game_session = GAME_SESSION_SCRIPT.new()
 		var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
@@ -717,7 +806,7 @@ func _test_decode_v5_payload_rejects_missing_roster_header_fields() -> void:
 		party_state_payload.erase(field_name)
 		payload["party_state"] = party_state_payload
 
-		var decode_result: Dictionary = serializer.decode_v5_payload(
+		var decode_result: Dictionary = serializer.decode_payload(
 			payload,
 			game_session.get_generation_config_path(),
 			game_session.get_generation_config(),
@@ -732,7 +821,7 @@ func _test_decode_v5_payload_rejects_missing_roster_header_fields() -> void:
 		_cleanup_test_session(game_session)
 
 
-func _test_decode_v5_payload_rejects_missing_member_schema_fields() -> void:
+func _test_decode_payload_rejects_missing_member_schema_fields() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
 	_assert_true(create_error == OK, "缺成员 schema 字段的存档回归需要可创建的测试世界。")
@@ -759,7 +848,7 @@ func _test_decode_v5_payload_rejects_missing_member_schema_fields() -> void:
 			String(field_case.get("field", ""))
 		)
 
-		var decode_result: Dictionary = serializer.decode_v5_payload(
+		var decode_result: Dictionary = serializer.decode_payload(
 			payload,
 			game_session.get_generation_config_path(),
 			game_session.get_generation_config(),

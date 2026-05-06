@@ -20,13 +20,11 @@ signal warehouse_requested
 signal closed
 
 const MAX_ACTIVE_MEMBER_COUNT := 4
-const DESIGN_PANEL_SIZE := Vector2(1380.0, 780.0)
-const MIN_PANEL_SIZE := Vector2(820.0, 540.0)
+const PANEL_VIEWPORT_RATIO := 0.5
+const MIN_PANEL_SIZE := Vector2(860.0, 540.0)
 const VIEWPORT_SAFE_MARGIN := Vector2(48.0, 30.0)
-const DESIGN_CONTENT_MARGIN_LEFT := 148
-const DESIGN_CONTENT_MARGIN_TOP := 118
-const DESIGN_CONTENT_MARGIN_RIGHT := 148
-const DESIGN_CONTENT_MARGIN_BOTTOM := 112
+const CONTENT_MARGIN := 24
+const CONTENT_MARGIN_VERTICAL := 22
 
 ## 字段说明：缓存遮罩节点，用于压暗背景并阻止底层界面继续接收输入。
 @onready var shade: ColorRect = $Shade
@@ -54,8 +52,6 @@ const DESIGN_CONTENT_MARGIN_BOTTOM := 112
 @onready var move_to_reserve_button: Button = %MoveToReserveButton
 ## 字段说明：缓存仓库按钮节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var warehouse_button: Button = %WarehouseButton
-## 字段说明：缓存角色概览栏节点，用于随窗口宽度收缩。
-@onready var overview_column: Control = %OverviewColumn
 ## 字段说明：缓存角色概览标签节点，用于展示选中成员的身份、资源和主要属性。
 @onready var overview_label: RichTextLabel = %OverviewLabel
 ## 字段说明：缓存属性页文本节点，用于展示最终属性快照。
@@ -81,6 +77,8 @@ var _item_defs: Dictionary = {}
 var _skill_defs: Dictionary = {}
 ## 字段说明：缓存职业定义集合字典，用于把职业进度翻译成玩家可读的名称和说明。
 var _profession_defs: Dictionary = {}
+## 字段说明：只读角色管理桥，负责提供包含身份、装备、职业和技能来源的最终属性快照。
+var _character_management = null
 ## 字段说明：缓存成员状态集合字典，集中保存可按键查询的运行时数据。
 var _member_states: Dictionary = {}
 ## 字段说明：记录队长成员唯一标识，作为查表、序列化和跨系统引用时使用的主键。
@@ -138,6 +136,12 @@ func set_skill_defs(skill_defs: Dictionary) -> void:
 
 func set_profession_defs(profession_defs: Dictionary) -> void:
 	_profession_defs = profession_defs if profession_defs != null else {}
+	if visible:
+		refresh_view()
+
+
+func set_character_management(character_management) -> void:
+	_character_management = character_management
 	if visible:
 		refresh_view()
 
@@ -211,50 +215,41 @@ func _update_responsive_layout() -> void:
 		maxf(viewport_size.x - VIEWPORT_SAFE_MARGIN.x * 2.0, 320.0),
 		maxf(viewport_size.y - VIEWPORT_SAFE_MARGIN.y * 2.0, 320.0)
 	)
+	var preferred_size := viewport_size * PANEL_VIEWPORT_RATIO
 	var panel_size := Vector2(
-		minf(DESIGN_PANEL_SIZE.x, available_size.x),
-		minf(DESIGN_PANEL_SIZE.y, available_size.y)
+		clampf(preferred_size.x, minf(MIN_PANEL_SIZE.x, available_size.x), available_size.x),
+		clampf(preferred_size.y, minf(MIN_PANEL_SIZE.y, available_size.y), available_size.y)
 	)
-	panel_size.x = maxf(panel_size.x, minf(MIN_PANEL_SIZE.x, available_size.x))
-	panel_size.y = maxf(panel_size.y, minf(MIN_PANEL_SIZE.y, available_size.y))
 	panel.custom_minimum_size = panel_size
 
-	var layout_scale := clampf(
-		minf(panel_size.x / DESIGN_PANEL_SIZE.x, panel_size.y / DESIGN_PANEL_SIZE.y),
-		0.72,
-		1.0
-	)
-	var margin_left := maxi(int(round(float(DESIGN_CONTENT_MARGIN_LEFT) * layout_scale)), 84)
-	var margin_top := maxi(int(round(float(DESIGN_CONTENT_MARGIN_TOP) * layout_scale)), 70)
-	var margin_right := maxi(int(round(float(DESIGN_CONTENT_MARGIN_RIGHT) * layout_scale)), 84)
-	var margin_bottom := maxi(int(round(float(DESIGN_CONTENT_MARGIN_BOTTOM) * layout_scale)), 66)
+	var margin_left := CONTENT_MARGIN
+	var margin_top := CONTENT_MARGIN_VERTICAL
+	var margin_right := CONTENT_MARGIN
+	var margin_bottom := CONTENT_MARGIN_VERTICAL
 	content_margin.add_theme_constant_override("margin_left", margin_left)
 	content_margin.add_theme_constant_override("margin_top", margin_top)
 	content_margin.add_theme_constant_override("margin_right", margin_right)
 	content_margin.add_theme_constant_override("margin_bottom", margin_bottom)
 
 	var content_width := maxf(panel_size.x - float(margin_left + margin_right), 320.0)
-	var list_width := clampf(300.0 * layout_scale, 210.0, 300.0)
-	var controls_width := clampf(136.0 * layout_scale, 116.0, 136.0)
-	var overview_width := clampf(250.0 * layout_scale, 180.0, 250.0)
+	var list_width := clampf(content_width * 0.26, 200.0, 260.0)
+	var controls_width := clampf(content_width * 0.14, 112.0, 136.0)
 	if content_width < 760.0:
-		list_width = 200.0
-		controls_width = 112.0
-		overview_width = 170.0
+		list_width = 190.0
+		controls_width = 110.0
 	lists_column.custom_minimum_size.x = list_width
 	controls_column.custom_minimum_size.x = controls_width
-	overview_column.custom_minimum_size.x = overview_width
 	for button in [set_leader_button, move_to_active_button, move_to_reserve_button, warehouse_button]:
 		if button != null:
 			button.custom_minimum_size.x = controls_width
 
-	var text_height := maxf(panel_size.y - float(margin_top + margin_bottom) - 168.0, 260.0)
+	var text_height := maxf(panel_size.y - float(margin_top + margin_bottom) - 136.0, 300.0)
 	overview_label.custom_minimum_size.y = text_height
 	for label in [attributes_label, equipment_label, skills_label, professions_label]:
 		if label != null:
 			label.custom_minimum_size.y = text_height
-	active_list.custom_minimum_size.y = maxf(145.0, text_height * 0.46)
-	reserve_list.custom_minimum_size.y = maxf(130.0, text_height * 0.40)
+	active_list.custom_minimum_size.y = maxf(140.0, text_height * 0.48)
+	reserve_list.custom_minimum_size.y = maxf(122.0, text_height * 0.42)
 
 
 func _capture_party_state(party_state: PartyState) -> void:
@@ -377,11 +372,16 @@ func _refresh_details() -> void:
 
 
 func _build_attribute_snapshot(member_state: PartyMemberState):
-	if member_state == null or member_state.progression == null:
+	if member_state == null or _character_management == null:
 		return null
-	var attribute_service = ATTRIBUTE_SERVICE_SCRIPT.new()
-	attribute_service.setup(member_state.progression, _skill_defs, _profession_defs, member_state.equipment_state)
-	return attribute_service.get_snapshot()
+	if _character_management.has_method("get_member_attribute_snapshot_for_equipment_view"):
+		return _character_management.get_member_attribute_snapshot_for_equipment_view(
+			member_state.member_id,
+			member_state.equipment_state
+		)
+	if _character_management.has_method("get_member_attribute_snapshot"):
+		return _character_management.get_member_attribute_snapshot(member_state.member_id)
+	return null
 
 
 func _build_overview_text(member_state: PartyMemberState, snapshot) -> String:
@@ -398,22 +398,68 @@ func _build_overview_text(member_state: PartyMemberState, snapshot) -> String:
 		],
 		"控制：%s" % String(member_state.control_mode),
 		"等级：%d" % int(progression.character_level if progression != null else 0),
-		"当前资源：HP %d / %d  MP %d / %d" % [
-			int(member_state.current_hp),
-			_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.HP_MAX),
-			int(member_state.current_mp),
-			_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.MP_MAX),
-		],
-		"体型：%d" % int(member_state.body_size),
-		"",
-		"核心属性：",
 	])
+	lines.append_array(_build_identity_overview_lines(member_state))
+	lines.append("当前资源：HP %d / %d  MP %d / %d" % [
+		int(member_state.current_hp),
+		_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.HP_MAX),
+		int(member_state.current_mp),
+		_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.MP_MAX),
+	])
+	lines.append("")
+	lines.append("核心属性：")
 	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
 		lines.append("- %s：%d" % [_get_attribute_label(attribute_id), _get_snapshot_value(snapshot, attribute_id)])
 	lines.append("")
 	lines.append("成就摘要：")
 	lines.append_array(_build_achievement_summary_lines(progression))
 	return "\n".join(lines)
+
+
+func _build_identity_overview_lines(member_state: PartyMemberState) -> PackedStringArray:
+	var lines := PackedStringArray()
+	var summary := _get_identity_summary(member_state.member_id if member_state != null else &"")
+	if summary.is_empty():
+		if member_state != null:
+			lines.append("体型：%s（%d）" % [String(member_state.body_size_category), int(member_state.body_size)])
+		return lines
+	lines.append("种族：%s" % String(summary.get("race_label", "")))
+	var subrace_label := String(summary.get("subrace_label", "")).strip_edges()
+	if not subrace_label.is_empty():
+		lines.append("亚种：%s" % subrace_label)
+	lines.append("年龄：%d 岁  |  自然阶段：%s  |  有效阶段：%s" % [
+		int(summary.get("age_years", 0)),
+		String(summary.get("natural_age_stage_label", "")),
+		String(summary.get("effective_age_stage_label", "")),
+	])
+	lines.append("体型：%s（%d）" % [
+		String(summary.get("body_size_category", "")),
+		int(summary.get("body_size", 0)),
+	])
+	var bloodline_label := String(summary.get("bloodline_label", "")).strip_edges()
+	var bloodline_stage_label := String(summary.get("bloodline_stage_label", "")).strip_edges()
+	if not bloodline_label.is_empty():
+		lines.append("血脉：%s%s" % [
+			bloodline_label,
+			" · %s" % bloodline_stage_label if not bloodline_stage_label.is_empty() else "",
+		])
+	var ascension_label := String(summary.get("ascension_label", "")).strip_edges()
+	var ascension_stage_label := String(summary.get("ascension_stage_label", "")).strip_edges()
+	if not ascension_label.is_empty():
+		lines.append("升华：%s%s" % [
+			ascension_label,
+			" · %s" % ascension_stage_label if not ascension_stage_label.is_empty() else "",
+		])
+	return lines
+
+
+func _get_identity_summary(member_id: StringName) -> Dictionary:
+	if member_id == &"" or _character_management == null:
+		return {}
+	if not _character_management.has_method("get_identity_summary_for_member"):
+		return {}
+	var summary = _character_management.get_identity_summary_for_member(member_id)
+	return summary if summary is Dictionary else {}
 
 
 func _build_attributes_text(member_state: PartyMemberState, snapshot) -> String:
@@ -513,10 +559,8 @@ func _build_skill_detail_lines(progression: UnitProgress, snapshot = null) -> Pa
 		if skill_def != null:
 			var runtime_context := {}
 			if snapshot != null and snapshot.has_method("get_value"):
-				var con_value := _get_snapshot_value(snapshot, UnitBaseAttributes.CONSTITUTION)
-				var will_value := _get_snapshot_value(snapshot, UnitBaseAttributes.WILLPOWER)
-				runtime_context["con_mod"] = int(floor((con_value - 10) / 2.0))
-				runtime_context["will_mod"] = int(floor((will_value - 10) / 2.0))
+				runtime_context["con_mod"] = _get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.CONSTITUTION_MODIFIER)
+				runtime_context["will_mod"] = _get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.WILLPOWER_MODIFIER)
 			var level_desc: String = SkillLevelDescriptionFormatter.build_level_description(skill_def, current_level, runtime_context)
 			if not level_desc.is_empty():
 				lines.append("  当前效果：%s" % level_desc)
@@ -720,6 +764,8 @@ func _get_attribute_label(attribute_id: StringName) -> String:
 			return "信仰幸运加值"
 		ATTRIBUTE_SERVICE_SCRIPT.HP_MAX:
 			return "生命上限"
+		ATTRIBUTE_SERVICE_SCRIPT.CHARACTER_HP_MAX_PERCENT_BONUS:
+			return "人物生命加成%"
 		ATTRIBUTE_SERVICE_SCRIPT.MP_MAX:
 			return "法力上限"
 		ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX:
@@ -730,8 +776,6 @@ func _get_attribute_label(attribute_id: StringName) -> String:
 			return "行动点"
 		ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD:
 			return "行动阈值 TU"
-		ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS:
-			return "攻击加值"
 		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS:
 			return "AC"
 		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS:
@@ -742,10 +786,8 @@ func _get_attribute_label(attribute_id: StringName) -> String:
 			return "闪避加值"
 		ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS:
 			return "偏斜加值"
-		ATTRIBUTE_SERVICE_SCRIPT.CRIT_RATE:
-			return "暴击率"
-		ATTRIBUTE_SERVICE_SCRIPT.CRIT_DAMAGE:
-			return "暴击伤害"
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_MAX_DEX_BONUS:
+			return "护甲敏捷上限"
 		_:
 			return String(attribute_id)
 

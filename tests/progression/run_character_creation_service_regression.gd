@@ -15,7 +15,10 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_reroll_mapping_covers_all_band_boundaries()
 	_test_overflow_inputs_fall_back_to_minus_six()
+	_test_initial_hp_max_uses_level_zero_formula()
 	_test_bake_hidden_luck_uses_character_creation_write_path()
+	_test_creation_payload_does_not_bake_reroll_luck_by_default()
+	_test_creation_payload_can_opt_into_reroll_luck_for_main_character()
 
 	if _failures.is_empty():
 		print("CharacterCreationService regression: PASS")
@@ -70,6 +73,12 @@ func _test_overflow_inputs_fall_back_to_minus_six() -> void:
 		_assert_eq(actual_hidden_luck, -6, "%s 应回退到 -6。" % String(case.get("label", "未知 case")))
 
 
+func _test_initial_hp_max_uses_level_zero_formula() -> void:
+	_assert_eq(CharacterCreationService.calculate_initial_hp_max(10), 14, "10 体质的 0 级初始生命应为 14。")
+	_assert_eq(CharacterCreationService.calculate_initial_hp_max(14), 18, "14 体质的 0 级初始生命应为 14 + 2*2。")
+	_assert_eq(CharacterCreationService.calculate_initial_hp_max(8), 12, "8 体质的 0 级初始生命应为 14 - 1*2。")
+
+
 func _test_bake_hidden_luck_uses_character_creation_write_path() -> void:
 	var progression := UnitProgress.new()
 	progression.unit_id = &"hero"
@@ -88,6 +97,55 @@ func _test_bake_hidden_luck_uses_character_creation_write_path() -> void:
 		-3,
 		"CharacterCreationService 应把 reroll=10000 烘焙为 -3。"
 	)
+
+
+func _test_creation_payload_does_not_bake_reroll_luck_by_default() -> void:
+	var payload := _build_creation_payload(0)
+	var member_state = CharacterCreationService.create_member_from_character_creation_payload(&"companion", payload)
+
+	_assert_eq(
+		member_state.get_hidden_luck_at_birth(),
+		0,
+		"非主角通过正式建卡 payload 创建时，即使 payload 带 reroll_count，也应默认 hidden_luck_at_birth=0。"
+	)
+
+
+func _test_creation_payload_can_opt_into_reroll_luck_for_main_character() -> void:
+	var payload := _build_creation_payload(0)
+	var member_state = CharacterCreationService.create_member_from_character_creation_payload(
+		&"hero",
+		payload,
+		null,
+		{CharacterCreationService.CREATION_OPTION_BAKE_REROLL_LUCK: true}
+	)
+
+	_assert_eq(
+		member_state.get_hidden_luck_at_birth(),
+		2,
+		"主角建卡 opt-in 后应按 reroll_count=0 烘焙 hidden_luck_at_birth=+2。"
+	)
+
+
+func _build_creation_payload(reroll_count: int) -> Dictionary:
+	return {
+		"display_name": "Creation Test",
+		"race_id": &"human",
+		"subrace_id": &"common_human",
+		"age_years": 24,
+		"birth_at_world_step": 0,
+		"age_profile_id": &"human_age_profile",
+		"natural_age_stage_id": &"adult",
+		"effective_age_stage_id": &"adult",
+		"body_size_category": &"medium",
+		"strength": 10,
+		"agility": 10,
+		"constitution": 10,
+		"perception": 10,
+		"intelligence": 10,
+		"willpower": 10,
+		"action_threshold": 30,
+		"reroll_count": reroll_count,
+	}
 
 
 func _assert_true(condition: bool, message: String) -> void:

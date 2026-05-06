@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"mephistopheles_legacy"
+display_name = "墨菲斯托费利斯传承"
+description = "墨菲斯托费利斯提夫林的炼狱奥术魔法标记。"
+trigger_type = &"passive"
+effect_type = &"mephistopheles_legacy"
+params = {}

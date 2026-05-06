@@ -127,6 +127,9 @@ func _append_profession_validation_errors(
 	if profession_def.max_rank <= 0:
 		errors.append("Profession %s must have max_rank >= 1." % String(profession_id))
 
+	if profession_def.hit_die_sides <= 0:
+		errors.append("Profession %s must have hit_die_sides >= 1." % String(profession_id))
+
 	if profession_def.requires_knowledge_unlock() and profession_def.unlock_knowledge_id == &"":
 		errors.append("Profession %s is missing unlock_knowledge_id." % String(profession_id))
 
@@ -266,6 +269,16 @@ func _append_granted_skill_errors(
 					String(granted_skill.skill_id),
 				]
 			)
+		elif not _skill_defs.is_empty():
+			var skill_def := _skill_defs.get(granted_skill.skill_id) as SkillDef
+			if skill_def != null and skill_def.learn_source != &"profession":
+				errors.append(
+					"Profession %s granted skill %s learn_source must be profession, got %s." % [
+						String(profession_id),
+						String(granted_skill.skill_id),
+						String(skill_def.learn_source),
+					]
+				)
 		if granted_skill.unlock_rank <= 0 or granted_skill.unlock_rank > profession_def.max_rank:
 			errors.append(
 				"Profession %s grants skill %s at invalid unlock_rank %d." % [

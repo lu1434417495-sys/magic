@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"relentless_endurance"
+display_name = "顽强耐力"
+description = "半兽人的求生特性，作为被动身份内容记录。"
+trigger_type = &"passive"
+effect_type = &"relentless_endurance"
+params = {}

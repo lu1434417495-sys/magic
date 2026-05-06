@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AscensionDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/ascension_def.gd" id="1_ascension"]
+
+[resource]
+script = ExtResource("1_ascension")
+ascension_id = &"titan_blood_ascension"
+display_name = "Titan Blood Ascension"
+description = "A story-gated ascension route for characters whose titan blood has awakened. It keeps the original race identity but lets the titan aspect override body size through ascension stages."
+stage_ids = Array[StringName]([&"titan_avatar"])
+trait_ids = Array[StringName]([])
+racial_granted_skills = Array[Resource]([])
+allowed_race_ids = Array[StringName]([])
+allowed_subrace_ids = Array[StringName]([])
+allowed_bloodline_ids = Array[StringName]([&"titan"])
+trait_summary = Array[String](["Requires Titan Blood.", "Original race traits remain active; titan body scaling is owned by the ascension stage."])
+replaces_age_growth = false
+suppresses_original_race_traits = false

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"duergar"
+parent_race_id = &"dwarf"
+display_name = "灰矮人"
+description = "幽暗地域的矮人，拥有高级黑暗视觉和灰矮人韧性。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"duergar_resilience", &"superior_darkvision", &"duergar_magic"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([&"superior_darkvision"])
+save_advantage_tags = Array[StringName]([&"charm", &"paralysis", &"illusion"])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"dwarf", &"duergar"])
+racial_trait_summary = Array[String](["灰矮人韧性。", "高级黑暗视觉。", "灰矮人魔法。"])

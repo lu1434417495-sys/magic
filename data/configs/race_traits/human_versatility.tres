@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_trait")
 trait_id = &"human_versatility"
-display_name = "Human Versatility"
-description = "Minimal seed trait used to prove identity registry loading."
+display_name = "人类多才"
+description = "建卡时用于选择一项适应属性的身份特性。"
 trigger_type = &"passive"
 effect_type = &"human_versatility"
 params = {

@@ -30,7 +30,7 @@ var _progression_serialization = null
 var _world_preset_registry = null
 var _party_state_script = null
 var _encounter_anchor_script = null
-var _save_version := 5
+var _save_version := 6
 var _save_index_version := 3
 var _max_active_member_count := 4
 
@@ -40,7 +40,7 @@ func setup(
 	world_preset_registry,
 	party_state_script,
 	encounter_anchor_script,
-	save_version: int = 5,
+	save_version: int = 6,
 	save_index_version: int = 3,
 	max_active_member_count: int = 4
 ) -> void:
@@ -97,7 +97,7 @@ func _build_meta_payload(saved_at_unix_time: int) -> Dictionary:
 	}
 
 
-func decode_v5_payload(
+func decode_payload(
 	payload: Dictionary,
 	generation_config_path: String,
 	generation_config,

@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_trait")
 trait_id = &"brave"
-display_name = "Brave"
-description = "A compact seed trait for courage under pressure."
+display_name = "勇敢"
+description = "面对恐惧与压迫时更稳的勇气特性。"
 trigger_type = &"passive"
 effect_type = &"brave"
 params = {}

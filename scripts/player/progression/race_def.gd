@@ -9,7 +9,7 @@ extends Resource
 @export var default_subrace_id: StringName = &""
 @export var subrace_ids: Array[StringName] = []
 
-@export_enum("small:1", "medium:2", "large:3", "huge:4") var body_size: int = 2
+@export var body_size_category: StringName = &"medium"
 @export var base_speed: int = 6
 
 @export var attribute_modifiers: Array[AttributeModifier] = []

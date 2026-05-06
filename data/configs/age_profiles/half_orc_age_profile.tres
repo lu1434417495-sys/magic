@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="AgeProfileDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/age_profile_def.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/player/progression/age_stage_rule.gd" id="2_stage"]
+
+[sub_resource type="Resource" id="Resource_stage_young_adult"]
+script = ExtResource("2_stage")
+stage_id = &"young_adult"
+display_name = "Young Adult"
+description = "Creation-eligible young adult half-orc age stage."
+selectable_in_creation = true
+reachable_by_aging = true
+
+[sub_resource type="Resource" id="Resource_stage_adult"]
+script = ExtResource("2_stage")
+stage_id = &"adult"
+display_name = "Adult"
+description = "Default adult half-orc age stage."
+selectable_in_creation = true
+reachable_by_aging = true
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"half_orc_age_profile"
+race_id = &"half_orc"
+child_age = 0
+teen_age = 12
+young_adult_age = 16
+adult_age = 18
+middle_age = 35
+old_age = 55
+venerable_age = 70
+max_natural_age = 75
+stage_rules = Array[Resource]([SubResource("Resource_stage_young_adult"), SubResource("Resource_stage_adult")])
+creation_stage_ids = Array[StringName]([&"young_adult", &"adult"])
+default_age_by_stage = {
+"adult": 24,
+"young_adult": 18
+}

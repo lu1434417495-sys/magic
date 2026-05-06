@@ -4,9 +4,24 @@ const PARTY_MANAGEMENT_WINDOW_SCENE = preload("res://scenes/ui/party_management_
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
 var _failures: Array[String] = []
+
+
+class SnapshotProvider:
+	extends RefCounted
+
+	var snapshot = null
+	var requests: Array[Dictionary] = []
+
+	func get_member_attribute_snapshot_for_equipment_view(member_id: StringName, equipment_view: Variant):
+		requests.append({
+			"member_id": member_id,
+			"equipment_view": equipment_view,
+		})
+		return snapshot
 
 
 func _initialize() -> void:
@@ -14,8 +29,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	await _test_window_uses_half_viewport_with_minimum_size()
 	await _test_leader_to_reserve_emits_roster_before_leader()
 	await _test_member_details_tolerate_missing_skill_and_occupied_slots()
+	await _test_member_details_use_injected_character_management_snapshot()
 
 	if _failures.is_empty():
 		print("Party management window regression: PASS")
@@ -26,6 +43,48 @@ func _run() -> void:
 		push_error(failure)
 	print("Party management window regression: FAIL (%d)" % _failures.size())
 	quit(1)
+
+
+func _test_window_uses_half_viewport_with_minimum_size() -> void:
+	root.size = Vector2i(1920, 1080)
+	var window = PARTY_MANAGEMENT_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	window.anchor_right = 0.0
+	window.anchor_bottom = 0.0
+	window.size = Vector2(1920, 1080)
+	await process_frame
+	window.show_party(_build_party_state([&"hero"]))
+	await process_frame
+
+	var panel := window.get_node("%Panel") as Control
+	_assert_vector2_near(panel.custom_minimum_size, Vector2(960, 540), 0.1, "1920x1080 下队伍管理窗口应使用半屏尺寸。")
+	_assert_true(window.get_node_or_null("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/概览/OverviewLabel") != null, "概览应在右侧详情标签页内。")
+	_assert_true(window.get_node_or_null("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/属性/AttributesLabel") != null, "属性标签页应保留。")
+	_assert_true(window.get_node_or_null("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/装备/EquipmentLabel") != null, "装备标签页应保留。")
+	_assert_true(window.get_node_or_null("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/技能/SkillsLabel") != null, "技能标签页应保留。")
+	_assert_true(window.get_node_or_null("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/职业/ProfessionsLabel") != null, "职业标签页应保留。")
+
+	window.queue_free()
+	await process_frame
+
+	root.size = Vector2i(1000, 700)
+	window = PARTY_MANAGEMENT_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	window.anchor_right = 0.0
+	window.anchor_bottom = 0.0
+	window.size = Vector2(1000, 700)
+	await process_frame
+	window.show_party(_build_party_state([&"hero"]))
+	await process_frame
+
+	panel = window.get_node("%Panel") as Control
+	_assert_vector2_near(panel.custom_minimum_size, Vector2(860, 540), 0.1, "小窗口下队伍管理窗口应使用可读保底尺寸。")
+	_assert_true(panel.custom_minimum_size.x <= 1000.0 - 96.0, "保底宽度不应超过横向安全区域。")
+	_assert_true(panel.custom_minimum_size.y <= 700.0 - 60.0, "保底高度不应超过纵向安全区域。")
+
+	window.queue_free()
+	await process_frame
+	root.size = Vector2i(1280, 720)
 
 
 func _test_leader_to_reserve_emits_roster_before_leader() -> void:
@@ -120,6 +179,48 @@ func _test_member_details_tolerate_missing_skill_and_occupied_slots() -> void:
 	await process_frame
 
 
+func _test_member_details_use_injected_character_management_snapshot() -> void:
+	var window = PARTY_MANAGEMENT_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	var snapshot := AttributeSnapshot.new()
+	snapshot.set_value(&"hp_max", 123)
+	snapshot.set_value(&"mp_max", 17)
+	snapshot.set_value(&"strength", 15)
+	var provider := SnapshotProvider.new()
+	provider.snapshot = snapshot
+	window.set_character_management(provider)
+
+	var party_state := _build_party_state([&"hero"])
+	var hero: PartyMemberState = party_state.get_member_state(&"hero")
+	hero.current_hp = 12
+	hero.current_mp = 3
+	window.show_party(party_state)
+	await process_frame
+	_assert_true(window.select_member(&"hero"), "测试应能选中主角。")
+	await process_frame
+
+	var overview_text := String(window.overview_label.text)
+	var attributes_text := String(window.attributes_label.text)
+	_assert_true(provider.requests.size() > 0, "队伍管理窗口应通过注入的角色管理桥请求属性快照。")
+	_assert_true(overview_text.contains("HP 12 / 123  MP 3 / 17"), "概览资源值应来自注入快照。")
+	_assert_true(attributes_text.contains("力量：15"), "属性页基础属性应来自注入快照。")
+
+	window.queue_free()
+	await process_frame
+
+
+func _build_party_state(member_ids: Array[StringName]) -> PartyState:
+	var party_state := PartyState.new()
+	for member_id in member_ids:
+		party_state.set_member_state(_make_member(member_id, String(member_id)))
+	party_state.leader_member_id = member_ids[0] if not member_ids.is_empty() else &""
+	party_state.active_member_ids = member_ids.duplicate()
+	party_state.reserve_member_ids = []
+	return party_state
+
+
 func _make_member(member_id: StringName, display_name: String) -> PartyMemberState:
 	var member := PartyMemberState.new()
 	member.member_id = member_id
@@ -139,4 +240,9 @@ func _assert_true(value: bool, message: String) -> void:
 
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
+		_failures.append("%s (actual=%s expected=%s)" % [message, str(actual), str(expected)])
+
+
+func _assert_vector2_near(actual: Vector2, expected: Vector2, tolerance: float, message: String) -> void:
+	if absf(actual.x - expected.x) > tolerance or absf(actual.y - expected.y) > tolerance:
 		_failures.append("%s (actual=%s expected=%s)" % [message, str(actual), str(expected)])

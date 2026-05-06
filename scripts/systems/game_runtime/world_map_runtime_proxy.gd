@@ -173,6 +173,10 @@ func get_party_state():
 	return _call_runtime_read(&"get_party_state", null)
 
 
+func get_character_management():
+	return _call_runtime_read(&"get_character_management", null)
+
+
 func get_party_selected_member_id() -> StringName:
 	return _call_runtime_read(&"get_party_selected_member_id", &"")
 

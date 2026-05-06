@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"dragonborn"
+display_name = "龙裔"
+description = "继承龙族血脉的类人族群，以龙息武器和元素抗性为标志。"
+age_profile_id = &"dragonborn_age_profile"
+default_subrace_id = &"black_dragonborn"
+subrace_ids = Array[StringName]([&"black_dragonborn", &"blue_dragonborn", &"brass_dragonborn", &"bronze_dragonborn", &"copper_dragonborn", &"gold_dragonborn", &"green_dragonborn", &"red_dragonborn", &"silver_dragonborn", &"white_dragonborn"])
+body_size_category = &"medium"
+base_speed = 6
+trait_ids = Array[StringName]([&"draconic_ancestry"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([&"normal_vision"])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"dragonborn"])
+racial_trait_summary = Array[String](["龙族血脉。", "龙裔亚种会授予对应吐息武器和元素抗性。"])

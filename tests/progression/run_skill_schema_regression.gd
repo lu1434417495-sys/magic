@@ -5,6 +5,7 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const OFFICIAL_SKILL_RESOURCE_DIRECTORY := "res://data/configs/skills/"
@@ -14,6 +15,7 @@ const OFFICIAL_COMMON_MELEE_RESOURCE_SKILL_IDS: Array[StringName] = [
 	&"charge",
 ]
 const OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS: Array[StringName] = [
+	&"warrior_toughness",
 	&"warrior_heavy_strike",
 	&"warrior_sweeping_slash",
 	&"warrior_piercing_thrust",
@@ -60,6 +62,7 @@ const OFFICIAL_ARCHER_RESOURCE_SKILL_IDS: Array[StringName] = [
 	&"archer_shield_breaker",
 	&"archer_fearsignal_shot",
 	&"archer_harrier_mark",
+	&"archer_shooting_specialization",
 	&"archer_multishot",
 	&"archer_arrow_rain",
 	&"archer_fan_volley",
@@ -111,9 +114,12 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	var basic_attack := skill_defs.get(&"basic_attack") as SkillDef
 	var charge := skill_defs.get(&"charge") as SkillDef
 	var heavy_strike := skill_defs.get(&"warrior_heavy_strike") as SkillDef
+	var warrior_toughness := skill_defs.get(&"warrior_toughness") as SkillDef
 	var sweeping_slash := skill_defs.get(&"warrior_sweeping_slash") as SkillDef
 	var aura_slash := skill_defs.get(&"warrior_aura_slash") as SkillDef
 	var archer_multishot := skill_defs.get(&"archer_multishot") as SkillDef
+	var archer_arrow_rain := skill_defs.get(&"archer_arrow_rain") as SkillDef
+	var archer_shooting_specialization := skill_defs.get(&"archer_shooting_specialization") as SkillDef
 	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
 
 	_assert_true(registry.validate().is_empty(), "SkillContentRegistry 的正式技能资源当前不应报告校验错误。")
@@ -122,6 +128,9 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(basic_attack.display_name, "攻击", "基础攻击应保留展示名。")
 		_assert_true(basic_attack.tags.has(&"basic"), "基础攻击应带 basic 标签。")
 		_assert_true(basic_attack.can_use_in_combat(), "基础攻击应可在战斗中使用。")
+		_assert_true(basic_attack.combat_profile != null, "基础攻击应保留 combat_profile。")
+		if basic_attack.combat_profile != null:
+			_assert_eq(int(basic_attack.combat_profile.stamina_cost), 8, "基础攻击体力消耗应为 8。")
 		if basic_attack.combat_profile != null and not basic_attack.combat_profile.effect_defs.is_empty():
 			var basic_damage = basic_attack.combat_profile.effect_defs[0]
 			_assert_true(bool(basic_damage.params.get("add_weapon_dice", false)), "基础攻击应使用当前武器/空手/天生武器骰。")
@@ -141,8 +150,9 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(charge.attribute_growth_progress.get("strength", 0)), 20, "冲锋力量成长进度应来自正式资源。")
 		_assert_true(charge.combat_profile != null, "冲锋资源应保留 combat_profile。")
 		if charge.combat_profile != null:
-			_assert_eq(int(charge.combat_profile.stamina_cost), 40, "冲锋基础体力消耗应保留 40。")
+			_assert_eq(int(charge.combat_profile.stamina_cost), 50, "冲锋 0 级体力消耗应为 50。")
 			_assert_eq(int(charge.combat_profile.cooldown_tu), 50, "冲锋基础冷却应保留 50 TU。")
+			_assert_eq(int(charge.combat_profile.get_effective_resource_costs(1).get("stamina_cost", 0)), 50, "冲锋 1 级体力消耗应跟随基础值涨为 50。")
 			_assert_eq(int(charge.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 35, "冲锋 2 级起体力消耗应降为 35。")
 			_assert_eq(int(charge.combat_profile.get_effective_resource_costs(4).get("stamina_cost", 0)), 30, "冲锋 4 级起体力消耗应降为 30。")
 			_assert_eq(int(charge.combat_profile.get_effective_resource_costs(6).get("stamina_cost", 0)), 25, "冲锋 6 级起体力消耗应降为 25。")
@@ -156,16 +166,46 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 				_assert_eq(int((charge_effect.params.get("distance_by_level", {}) as Dictionary).get("7", 0)), 7, "冲锋 7 级距离应保留 7。")
 				_assert_eq(int(charge_effect.params.get("trap_immunity_level", 0)), 7, "冲锋陷阱免疫等级应保留 7。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_WARRIOR_RESOURCE_SKILL_IDS, &"warrior", "战士")
+	_assert_true(warrior_toughness != null, "强健资源应成功转成 SkillDef。")
+	if warrior_toughness != null:
+		_assert_eq(warrior_toughness.display_name, "强健", "强健应保留展示名。")
+		_assert_eq(warrior_toughness.skill_type, &"passive", "强健应是被动技能。")
+		_assert_eq(warrior_toughness.learn_source, &"profession", "强健只能由职业授予。")
+		_assert_eq(int(warrior_toughness.max_level), 1, "强健上限应为 1。")
+		_assert_eq(Array(warrior_toughness.mastery_curve), [1], "强健应保留 1 档占位熟练度曲线。")
+		_assert_eq(int(warrior_toughness.attribute_modifiers.size()), 2, "强健应配置人物生命和体力恢复两条修正。")
+		if int(warrior_toughness.attribute_modifiers.size()) >= 2:
+			var toughness_hp_modifier := warrior_toughness.attribute_modifiers[0]
+			_assert_eq(toughness_hp_modifier.attribute_id, AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS, "强健应写入人物生命百分比通道。")
+			_assert_eq(toughness_hp_modifier.mode, &"flat", "人物生命百分比通道应使用 flat 数值表达百分比点。")
+			_assert_eq(int(toughness_hp_modifier.value), 20, "强健应提供 20% 人物生命加成。")
+			var toughness_stamina_modifier := warrior_toughness.attribute_modifiers[1]
+			_assert_eq(toughness_stamina_modifier.attribute_id, AttributeService.STAMINA_RECOVERY_PERCENT_BONUS, "强健应写入体力恢复百分比通道。")
+			_assert_eq(toughness_stamina_modifier.mode, &"flat", "体力恢复百分比通道应使用 flat 数值表达百分比点。")
+			_assert_eq(int(toughness_stamina_modifier.value), 50, "强健应提供 50% 体力恢复加成。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
+	_assert_true(archer_shooting_specialization != null, "射击专精资源应成功转成 SkillDef。")
+	if archer_shooting_specialization != null:
+		_assert_eq(archer_shooting_specialization.display_name, "射击专精", "射击专精应保留展示名。")
+		_assert_eq(archer_shooting_specialization.skill_type, &"passive", "射击专精应是被动技能。")
+		_assert_eq(archer_shooting_specialization.learn_source, &"profession", "射击专精只能由职业授予。")
+		_assert_eq(int(archer_shooting_specialization.max_level), 1, "射击专精上限应为 1。")
+		_assert_eq(Array(archer_shooting_specialization.mastery_curve), [1], "射击专精应保留 1 档占位熟练度曲线。")
+		_assert_true(archer_shooting_specialization.combat_profile != null, "射击专精应保留被动 combat_profile。")
+		if archer_shooting_specialization.combat_profile != null:
+			_assert_eq(int(archer_shooting_specialization.combat_profile.passive_effect_defs.size()), 1, "射击专精应配置一个 battle_start 被动效果。")
+			var specialization_effect = archer_shooting_specialization.combat_profile.passive_effect_defs[0]
+			_assert_eq(specialization_effect.status_id, &"archer_shooting_specialization", "射击专精应投影专用射程状态。")
+			_assert_eq(int(specialization_effect.params.get("range_bonus", 0)), 1, "射击专精应提供 +1 射程。")
 	_assert_true(archer_multishot != null, "连珠箭资源应成功转成 SkillDef。")
 	if archer_multishot != null and archer_multishot.combat_profile != null:
-		_assert_eq(int(archer_multishot.max_level), 5, "连珠箭应使用 5 级上限。")
-		_assert_eq(int(archer_multishot.non_core_max_level), 3, "连珠箭非核心上限应显式覆盖 3 级。")
-		_assert_eq(Array(archer_multishot.mastery_curve), [300, 750, 1650, 3000, 4800], "连珠箭熟练度曲线应为重击的 3 倍。")
-		_assert_eq(archer_multishot.growth_tier, &"basic", "连珠箭应使用 basic 成长档。")
-		_assert_eq(int(archer_multishot.attribute_growth_progress.get("agility", 0)), 40, "连珠箭满级应提供 40 点敏捷成长进度。")
-		_assert_eq(int(archer_multishot.attribute_growth_progress.get("strength", 0)), 20, "连珠箭满级应提供 20 点力量成长进度。")
+		_assert_eq(int(archer_multishot.max_level), 7, "连珠箭应使用 7 级上限。")
+		_assert_eq(int(archer_multishot.non_core_max_level), 5, "连珠箭非核心上限应显式覆盖 5 级。")
+		_assert_eq(Array(archer_multishot.mastery_curve), [300, 750, 1650, 3000, 4800, 7050, 9750], "连珠箭熟练度曲线应覆盖 7 级。")
+		_assert_eq(archer_multishot.growth_tier, &"intermediate", "连珠箭应使用 intermediate 成长档。")
+		_assert_eq(int(archer_multishot.attribute_growth_progress.get("agility", 0)), 80, "连珠箭满级应提供 80 点敏捷成长进度。")
+		_assert_eq(int(archer_multishot.attribute_growth_progress.get("strength", 0)), 40, "连珠箭满级应提供 40 点力量成长进度。")
 		_assert_eq(int(archer_multishot.attribute_growth_progress.get("perception", 0)), 0, "连珠箭不应再提供感知成长进度。")
 		_assert_eq(archer_multishot.combat_profile.mastery_trigger_mode, &"weapon_attack_quality", "连珠箭应按武器满骰或暴击触发熟练度。")
 		_assert_eq(archer_multishot.combat_profile.mastery_amount_mode, &"per_target_rank", "连珠箭应按每个目标阶级计算熟练度。")
@@ -181,6 +221,8 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(0)), -1, "连珠箭 0 级应保留多目标攻击检定惩罚。")
 		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(2)), 0, "连珠箭 2 级应移除攻击检定惩罚。")
 		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(4)), 1, "连珠箭 4 级应获得攻击检定加值。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(6)), 2, "连珠箭 6 级应获得 +2 攻击检定加值。")
+		_assert_eq(int(archer_multishot.combat_profile.get_effective_resource_costs(7).get("stamina_cost", 0)), 35, "连珠箭 7 级体力消耗应降为 35。")
 		var multishot_variant = archer_multishot.combat_profile.get_cast_variant(&"multishot_volley")
 		_assert_true(multishot_variant != null, "连珠箭应保留 multishot_volley 施放变体。")
 		if multishot_variant != null:
@@ -194,6 +236,41 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 				_assert_true(not bool(multishot_damage.params.get("requires_weapon", false)), "连珠箭应由 required_weapon_families 表达弓类门槛。")
 				_assert_true(not multishot_damage.params.has("dice_count"), "连珠箭不应配置额外技能伤害骰。")
 				_assert_true(not multishot_damage.params.has("dice_sides"), "连珠箭不应配置额外技能伤害骰。")
+	_assert_true(archer_arrow_rain != null, "箭雨资源应成功转成 SkillDef。")
+	if archer_arrow_rain != null and archer_arrow_rain.combat_profile != null:
+		_assert_eq(int(archer_arrow_rain.max_level), 7, "箭雨应使用 7 级上限。")
+		_assert_eq(Array(archer_arrow_rain.combat_profile.required_weapon_families), [&"bow"], "箭雨应要求当前装备弓类武器。")
+		_assert_eq(int(archer_arrow_rain.combat_profile.ap_cost), 1, "箭雨应消耗 1 AP。")
+		_assert_eq(int(archer_arrow_rain.combat_profile.stamina_cost), 50, "箭雨应消耗 50 体力。")
+		_assert_eq(int(archer_arrow_rain.combat_profile.cooldown_tu), 90, "箭雨应保留 90 TU 冷却。")
+		_assert_eq(int(archer_arrow_rain.combat_profile.effect_defs.size()), 5, "箭雨应由一条武器伤害和四档压制地形效果组成。")
+		var arrow_rain_damage = archer_arrow_rain.combat_profile.effect_defs[0]
+		_assert_eq(arrow_rain_damage.effect_type, &"damage", "箭雨首段效果应是武器伤害。")
+		_assert_true(bool(arrow_rain_damage.params.get("add_weapon_dice", false)), "箭雨应使用当前弓的武器骰。")
+		_assert_true(bool(arrow_rain_damage.params.get("use_weapon_physical_damage_tag", false)), "箭雨应使用当前弓的物理伤害类型。")
+		_assert_true(bool(arrow_rain_damage.params.get("resolve_as_weapon_attack", false)), "箭雨范围内每个目标应按武器攻击命中结算。")
+		_assert_true(not arrow_rain_damage.params.has("requires_weapon"), "箭雨应由 required_weapon_families 表达弓类门槛。")
+		var suppression_durations := {}
+		var suppression_count := 0
+		var has_unit_slow := false
+		for effect_def in archer_arrow_rain.combat_profile.effect_defs:
+			if effect_def.effect_type == &"status" and effect_def.status_id == &"slow":
+				has_unit_slow = true
+			if effect_def.effect_type != &"terrain_effect":
+				continue
+			suppression_count += 1
+			_assert_eq(effect_def.terrain_effect_id, &"arrow_rain_suppression", "箭雨地形效果应使用稳定压制 effect id。")
+			_assert_eq(effect_def.tick_effect_type, &"movement_cost", "箭雨压制地形只应修改移动成本，不应额外 tick 伤害或状态。")
+			_assert_eq(int(effect_def.tick_interval_tu), 5, "箭雨压制地形应按 5 TU 粒度过期。")
+			_assert_eq(int(effect_def.params.get("move_cost_delta", 0)), 1, "箭雨压制地形应只增加 1 点移动成本。")
+			_assert_eq(String(effect_def.params.get("does_not_stack_with_status_id", "")), "slow", "箭雨压制地形不应和单位 slow 叠加。")
+			suppression_durations[int(effect_def.min_skill_level)] = int(effect_def.duration_tu)
+		_assert_true(not has_unit_slow, "路线B下箭雨不应再配置单位 slow 状态效果。")
+		_assert_eq(suppression_count, 4, "箭雨压制地形应按 0/2/4/6 四档配置。")
+		_assert_eq(int(suppression_durations.get(0, 0)), 30, "箭雨 0-1 级压制地形应持续 30 TU。")
+		_assert_eq(int(suppression_durations.get(2, 0)), 35, "箭雨 2-3 级压制地形应持续 35 TU。")
+		_assert_eq(int(suppression_durations.get(4, 0)), 40, "箭雨 4-5 级压制地形应持续 40 TU。")
+		_assert_eq(int(suppression_durations.get(6, 0)), 45, "箭雨 6-7 级压制地形应持续 45 TU。")
 	_assert_resource_backed_skill_ids(skill_defs, _collect_mage_skill_ids(skill_defs), &"mage", "法师")
 	_assert_true(skill_defs.has(&"warrior_heavy_strike"), "SkillContentRegistry 应扫描到已迁移的重击资源。")
 	_assert_true(heavy_strike != null, "重击资源应成功转成 SkillDef。")
@@ -213,7 +290,10 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(heavy_strike.combat_profile.stamina_cost), 30, "重击资源应保留 30 点体力消耗。")
 		_assert_eq(int(heavy_strike.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 20, "重击 2 级起体力消耗应降为 20。")
 		_assert_eq(int(heavy_strike.combat_profile.cooldown_tu), 0, "重击资源不应配置冷却。")
-		_assert_eq(int(heavy_strike.combat_profile.attack_roll_bonus), -1, "重击所有等级都应保留 -1 攻击检定修正。")
+		_assert_eq(int(heavy_strike.combat_profile.attack_roll_bonus), 1, "重击 0 级攻击检定修正应为 +1。")
+		_assert_eq(int(heavy_strike.combat_profile.get_effective_attack_roll_bonus(3)), 1, "重击 3 级前应保持 +1 攻击检定修正。")
+		_assert_eq(int(heavy_strike.combat_profile.get_effective_attack_roll_bonus(4)), 2, "重击 4 级攻击检定修正应为 +2。")
+		_assert_eq(int(heavy_strike.combat_profile.get_effective_attack_roll_bonus(5)), 3, "重击 5 级攻击检定修正应为 +3。")
 		var level_zero_damage = heavy_strike.combat_profile.effect_defs[0]
 		var level_one_damage = heavy_strike.combat_profile.effect_defs[1]
 		var level_three_damage = heavy_strike.combat_profile.effect_defs[2]
@@ -243,7 +323,7 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(level_five_staggered_effect.status_id, &"staggered", "重击 5 级应追加 staggered。")
 		_assert_eq(int(level_five_staggered_effect.min_skill_level), 5, "重击 staggered 应从 5 级生效。")
 		_assert_eq(int(level_five_staggered_effect.duration_tu), 60, "重击 5 级 staggered 应持续 60 TU。")
-		_assert_eq(level_five_staggered_effect.trigger_event, &"critical_hit", "重击 5 级 staggered 应只在大成功时触发。")
+		_assert_eq(level_five_staggered_effect.trigger_event, &"secondary_hit", "重击 5 级 staggered 应在二次命中成功时触发。")
 	_assert_true(sweeping_slash != null, "横扫资源应成功转成 SkillDef。")
 	if sweeping_slash != null and sweeping_slash.combat_profile != null:
 		_assert_eq(int(sweeping_slash.max_level), 5, "横扫应使用 5 级上限。")

@@ -5,15 +5,17 @@
 [resource]
 script = ExtResource("1_race")
 race_id = &"human"
-display_name = "Human"
-description = "Minimal official race seed for identity registry loading."
+display_name = "人类"
+description = "适应力强、训练面广，没有天生黑暗视觉。"
 age_profile_id = &"human_age_profile"
 default_subrace_id = &"common_human"
 subrace_ids = Array[StringName]([&"common_human"])
-body_size = 2
+body_size_category = &"medium"
 base_speed = 6
-trait_ids = Array[StringName]([&"human_versatility", &"darkvision"])
-proficiency_tags = Array[StringName]([&"civilian"])
+trait_ids = Array[StringName]([&"human_versatility", &"civil_militia"])
+proficiency_tags = Array[StringName]([&"civilian", &"weapon_type_spear", &"weapon_type_pike", &"weapon_type_halberd", &"weapon_type_glaive", &"light_armor", &"shield"])
 vision_tags = Array[StringName]([&"normal_vision"])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
 dialogue_tags = Array[StringName]([&"human"])
-racial_trait_summary = Array[String](["Versatile heritage.", "Darkvision."])
+racial_trait_summary = Array[String](["人类多才。", "公民民兵训练。"])

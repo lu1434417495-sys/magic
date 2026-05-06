@@ -13,6 +13,8 @@ extends Resource
 @export_multiline var description: String = ""
 ## 字段说明：在编辑器中暴露最大阶位参数，用于限制该对象可达到的上限并控制成长或容量边界。
 @export var max_rank := 1
+## 字段说明：职业每次晋升时使用的生命骰面数，晋升会把本级生命增量写入持久 hp_max。
+@export var hit_die_sides := 8
 ## 字段说明：在编辑器中暴露是否初始职业配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var is_initial_profession := false
 ## 字段说明：在编辑器中暴露解锁知识唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

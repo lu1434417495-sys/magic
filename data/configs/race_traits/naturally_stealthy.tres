@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"naturally_stealthy"
+display_name = "天生隐匿"
+description = "轻足半身人的隐匿特性，通过熟练标签表达。"
+trigger_type = &"passive"
+effect_type = &"naturally_stealthy"
+params = {}

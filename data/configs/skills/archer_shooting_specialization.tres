@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
+
+[sub_resource type="Resource" id="Resource_shooting_specialization_status"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 1
+status_id = &"archer_shooting_specialization"
+trigger_condition = &"battle_start"
+params = {
+"range_bonus": 1,
+"source_skill_id": "archer_shooting_specialization"
+}
+
+[sub_resource type="Resource" id="Resource_combat_profile"]
+script = ExtResource("2_combat")
+skill_id = &"archer_shooting_specialization"
+target_mode = &"self"
+target_team_filter = &"ally"
+target_selection_mode = &"self"
+selection_order_mode = &"stable"
+min_target_count = 1
+max_target_count = 1
+ap_cost = 0
+mp_cost = 0
+stamina_cost = 0
+aura_cost = 0
+cooldown_tu = 0
+range_value = 0
+area_value = 0
+passive_effect_defs = Array[ExtResource("1_effect")]([SubResource("Resource_shooting_specialization_status")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"archer_shooting_specialization"
+display_name = "射击专精"
+icon_id = &"archer_shooting_specialization"
+description = "弓箭手基础被动。装备弓武器时，弓攻击有效射程 +1；不适用于弩。"
+skill_type = &"passive"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(1)
+learn_source = &"profession"
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"passive"])
+combat_profile = SubResource("Resource_combat_profile")

@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="AgeProfileDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/age_profile_def.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/player/progression/age_stage_rule.gd" id="2_stage"]
+
+[sub_resource type="Resource" id="Resource_stage_young_adult"]
+script = ExtResource("2_stage")
+stage_id = &"young_adult"
+display_name = "Young Adult"
+description = "Creation-eligible young adult githyanki age stage."
+selectable_in_creation = true
+reachable_by_aging = true
+
+[sub_resource type="Resource" id="Resource_stage_adult"]
+script = ExtResource("2_stage")
+stage_id = &"adult"
+display_name = "Adult"
+description = "Default adult githyanki age stage."
+selectable_in_creation = true
+reachable_by_aging = true
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"githyanki_age_profile"
+race_id = &"githyanki"
+child_age = 0
+teen_age = 12
+young_adult_age = 16
+adult_age = 18
+middle_age = 40
+old_age = 65
+venerable_age = 85
+max_natural_age = 100
+stage_rules = Array[Resource]([SubResource("Resource_stage_young_adult"), SubResource("Resource_stage_adult")])
+creation_stage_ids = Array[StringName]([&"young_adult", &"adult"])
+default_age_by_stage = {
+"adult": 25,
+"young_adult": 18
+}

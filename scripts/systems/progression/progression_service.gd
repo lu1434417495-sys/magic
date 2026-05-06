@@ -7,6 +7,8 @@ extends RefCounted
 
 const SELECTION_KEY_QUALIFIER_SKILL_IDS := "selected_qualifier_skill_ids"
 const SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS := "selected_assigned_core_skill_ids"
+const SELECTION_KEY_HP_ROLL_OVERRIDE := "hp_roll_override"
+const HP_MAX_ATTRIBUTE_ID: StringName = &"hp_max"
 const MANUAL_LEARN_BLOCKED_SOURCES := {
 	&"profession": true,
 	&"race": true,
@@ -14,8 +16,15 @@ const MANUAL_LEARN_BLOCKED_SOURCES := {
 	&"ascension": true,
 	&"bloodline": true,
 }
+const RACIAL_GRANT_SOURCES := {
+	&"race": true,
+	&"subrace": true,
+	&"ascension": true,
+	&"bloodline": true,
+}
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
+const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/progression/skill_merge_service.gd")
 const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 
@@ -111,6 +120,37 @@ func learn_skill(skill_id: StringName) -> bool:
 		skill_progress.skill_id = skill_id
 
 	skill_progress.is_learned = true
+	_unit_progress.set_skill_progress(skill_progress)
+	refresh_runtime_state()
+	return true
+
+
+func grant_racial_skill(grant: RacialGrantedSkill, source_type: StringName, source_id: StringName) -> bool:
+	if _unit_progress == null or grant == null:
+		return false
+	if not _is_racial_grant_source_type(source_type):
+		return false
+	if source_id == &"" or grant.skill_id == &"":
+		return false
+	if int(grant.minimum_skill_level) < 0:
+		return false
+
+	var skill_def: SkillDef = _get_skill_def(grant.skill_id)
+	if skill_def == null or skill_def.learn_source != source_type:
+		return false
+
+	var skill_progress: Variant = _unit_progress.get_skill_progress(grant.skill_id)
+	if skill_progress != null and skill_progress.is_learned:
+		return false
+	if skill_progress == null:
+		skill_progress = _new_skill_progress()
+		skill_progress.skill_id = grant.skill_id
+
+	skill_progress.is_learned = true
+	skill_progress.skill_level = int(grant.minimum_skill_level)
+	skill_progress.granted_source_type = source_type
+	skill_progress.granted_source_id = source_id
+
 	_unit_progress.set_skill_progress(skill_progress)
 	refresh_runtime_state()
 	return true
@@ -283,10 +323,19 @@ func promote_profession(profession_id: StringName, selection: Dictionary = {}) -
 	promotion_record.timestamp = int(Time.get_unix_time_from_system())
 	profession_progress.add_promotion_record(promotion_record)
 
+	_apply_profession_hit_point_gain(profession_def, selection)
 	_grant_profession_skills(profession_def, profession_progress, target_rank)
 	_unit_progress.set_profession_progress(profession_progress)
 	refresh_runtime_state()
 	return true
+
+
+static func calculate_profession_hit_point_gain(hit_die_roll: int, constitution_value: int) -> int:
+	return maxi(1, maxi(hit_die_roll, 1) + calculate_constitution_modifier(constitution_value) * 2)
+
+
+static func calculate_constitution_modifier(constitution_value: int) -> int:
+	return ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_score_modifier(constitution_value)
 
 
 func get_profession_upgrade_candidates() -> Array[PendingProfessionChoice]:
@@ -299,8 +348,33 @@ func is_skill_relearn_blocked(skill_id: StringName) -> bool:
 	return _unit_progress.is_skill_relearn_blocked(skill_id)
 
 
+func _apply_profession_hit_point_gain(profession_def: ProfessionDef, selection: Dictionary) -> void:
+	if _unit_progress == null or _unit_progress.unit_base_attributes == null or profession_def == null:
+		return
+	var hit_die_sides := maxi(int(profession_def.hit_die_sides), 1)
+	var hit_die_roll := _roll_profession_hit_die(hit_die_sides, selection)
+	var constitution_value := int(_unit_progress.unit_base_attributes.get_attribute_value(UnitBaseAttributes.CONSTITUTION))
+	var hp_gain := calculate_profession_hit_point_gain(hit_die_roll, constitution_value)
+	var current_hp_max := int(_unit_progress.unit_base_attributes.get_attribute_value(HP_MAX_ATTRIBUTE_ID))
+	_unit_progress.unit_base_attributes.set_attribute_value(HP_MAX_ATTRIBUTE_ID, current_hp_max + hp_gain)
+
+
+func _roll_profession_hit_die(hit_die_sides: int, selection: Dictionary) -> int:
+	var normalized_sides := maxi(hit_die_sides, 1)
+	var override_value: Variant = selection.get(SELECTION_KEY_HP_ROLL_OVERRIDE, null)
+	if override_value is int:
+		return clampi(int(override_value), 1, normalized_sides)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	return rng.randi_range(1, normalized_sides)
+
+
 func _is_manual_skill_learn_source_blocked(learn_source: StringName) -> bool:
 	return MANUAL_LEARN_BLOCKED_SOURCES.has(learn_source)
+
+
+func _is_racial_grant_source_type(source_type: StringName) -> bool:
+	return RACIAL_GRANT_SOURCES.has(source_type)
 
 
 func _index_skill_defs(skill_defs: Variant) -> Dictionary:
@@ -768,14 +842,15 @@ func _get_tag_rules_for_target(
 	target_rank: int,
 	is_unlock: bool
 ) -> Array[TagRequirement]:
+	var empty_rules: Array[TagRequirement] = []
 	if profession_def == null:
-		return []
+		return empty_rules
 	if is_unlock:
-		return profession_def.unlock_requirement.required_tag_rules if profession_def.unlock_requirement != null else []
+		return profession_def.unlock_requirement.required_tag_rules if profession_def.unlock_requirement != null else empty_rules
 
 	var rank_requirement: ProfessionRankRequirement = profession_def.get_rank_requirement(target_rank)
 	if rank_requirement == null:
-		return []
+		return empty_rules
 	return rank_requirement.required_tag_rules
 
 
@@ -912,6 +987,8 @@ func _grant_profession_skills(
 		skill_progress.is_learned = true
 		if skill_progress.profession_granted_by == &"":
 			skill_progress.profession_granted_by = profession_def.profession_id
+		skill_progress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION
+		skill_progress.granted_source_id = profession_def.profession_id
 
 		_unit_progress.set_skill_progress(skill_progress)
 

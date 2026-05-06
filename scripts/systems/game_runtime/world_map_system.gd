@@ -92,6 +92,7 @@ func _ready() -> void:
 	party_management_window.set_item_defs(_game_session.get_item_defs())
 	party_management_window.set_skill_defs(_game_session.get_skill_defs())
 	party_management_window.set_profession_defs(_game_session.get_profession_defs())
+	party_management_window.set_character_management(_runtime_proxy.get_character_management())
 
 	settlement_window.action_requested.connect(_on_settlement_action_requested)
 	settlement_window.closed.connect(_on_settlement_window_closed)

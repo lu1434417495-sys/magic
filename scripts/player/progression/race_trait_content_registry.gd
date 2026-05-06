@@ -3,15 +3,7 @@ extends "res://scripts/player/progression/identity_content_registry_base.gd"
 
 const RACE_TRAIT_CONFIG_DIRECTORY := "res://data/configs/race_traits"
 const RACE_TRAIT_DEF_SCRIPT = preload("res://scripts/player/progression/race_trait_def.gd")
-
-const VALID_TRIGGER_TYPES := {
-	&"passive": true,
-	&"on_natural_one": true,
-	&"on_crit": true,
-	&"on_fatal_damage": true,
-	&"on_battle_start": true,
-	&"on_turn_start": true,
-}
+const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
 
 var _race_trait_defs: Dictionary = {}
 
@@ -76,7 +68,7 @@ func _append_trait_validation_errors(errors: Array[String], trait_id: StringName
 	_append_string_field_error(errors, owner_label, "display_name", trait_def.display_name)
 	_append_string_field_error(errors, owner_label, "description", trait_def.description)
 	_append_string_name_field_error(errors, owner_label, "trigger_type", trait_def.trigger_type)
-	if not VALID_TRIGGER_TYPES.has(trait_def.trigger_type):
+	if not TRAIT_TRIGGER_HOOKS_SCRIPT.VALID_TRIGGER_TYPES.has(trait_def.trigger_type):
 		errors.append("%s uses unsupported trigger_type %s." % [owner_label, String(trait_def.trigger_type)])
 	_append_string_name_field_error(errors, owner_label, "effect_type", trait_def.effect_type)
 	if not RaceTraitDef.VALID_EFFECT_TYPES.has(trait_def.effect_type):

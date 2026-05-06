@@ -86,11 +86,15 @@ func _test_valid_identity_graph_passes_phase2() -> void:
 	registry._age_profile_defs = {
 		&"human_age": _make_age_profile(&"human_age", &"human", [&"adult"]),
 	}
+	var valid_race := _make_race(&"human", &"human_age", &"high_human", [&"high_human"], [&"keen_senses"], &"race_skill")
+	valid_race.body_size_category = &"gargantuan"
 	registry._race_defs = {
-		&"human": _make_race(&"human", &"human_age", &"high_human", [&"high_human"], [&"keen_senses"], &"race_skill"),
+		&"human": valid_race,
 	}
+	var valid_subrace := _make_subrace(&"high_human", &"human", [&"keen_senses"], &"subrace_skill")
+	valid_subrace.body_size_category_override = &"boss"
 	registry._subrace_defs = {
-		&"high_human": _make_subrace(&"high_human", &"human", [&"keen_senses"], &"subrace_skill"),
+		&"high_human": valid_subrace,
 	}
 	registry._bloodline_defs = {
 		&"titan": _make_bloodline(&"titan", [&"titan_awakened"], [&"keen_senses"], &"bloodline_skill"),
@@ -101,8 +105,10 @@ func _test_valid_identity_graph_passes_phase2() -> void:
 	registry._ascension_defs = {
 		&"dragon_ascension": _make_ascension(&"dragon_ascension", [&"dragon_awakened"], [&"titan"], [&"keen_senses"], &"ascension_skill"),
 	}
+	var valid_ascension_stage := _make_ascension_stage(&"dragon_awakened", &"dragon_ascension", [&"keen_senses"], &"ascension_skill")
+	valid_ascension_stage.body_size_category_override = &"tiny"
 	registry._ascension_stage_defs = {
-		&"dragon_awakened": _make_ascension_stage(&"dragon_awakened", &"dragon_ascension", [&"keen_senses"], &"ascension_skill"),
+		&"dragon_awakened": valid_ascension_stage,
 	}
 	registry._stage_advancement_defs = {
 		&"titan_shift": _make_stage_advancement(&"titan_shift", StageAdvancementModifier.TARGET_AXIS_BLOODLINE, &"titan_awakened"),
@@ -121,10 +127,12 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 	}
 	registry._race_trait_defs = {
 		&"known_trait": _make_trait(&"known_trait"),
+		&"undispatched_trait": _make_trait(&"undispatched_trait"),
 	}
+	registry._race_trait_defs[&"undispatched_trait"].trigger_type = &"on_crit"
 
 	var invalid_race := _make_race(&"broken_race", &"missing_age", &"broken_subrace", [&"broken_subrace"], [&"missing_trait"], &"race_skill")
-	invalid_race.body_size = 99
+	invalid_race.body_size_category = &"colossal"
 	invalid_race.damage_resistances = {
 		&"cold": &"half",
 		&"fire": &"resist",
@@ -136,7 +144,7 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 	}
 
 	var invalid_subrace := _make_subrace(&"broken_subrace", &"missing_parent", [&"missing_trait"], &"subrace_skill")
-	invalid_subrace.body_size_override = 99
+	invalid_subrace.body_size_category_override = &"colossal"
 	registry._subrace_defs = {
 		invalid_subrace.subrace_id: invalid_subrace,
 	}
@@ -159,7 +167,7 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 		&"broken_ascension": _make_ascension(&"broken_ascension", [&"missing_ascension_stage", &"shared_stage"], [&"missing_bloodline"], [&"missing_trait"], &"ascension_skill"),
 	}
 	var invalid_ascension_stage := _make_ascension_stage(&"shared_stage", &"wrong_ascension", [&"missing_trait"], &"ascension_skill")
-	invalid_ascension_stage.body_size_override = 99
+	invalid_ascension_stage.body_size_category_override = &"colossal"
 	registry._ascension_stage_defs = {
 		invalid_ascension_stage.stage_id: invalid_ascension_stage,
 	}
@@ -179,12 +187,13 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 	_assert_error_contains(errors, "references missing parent_race missing_parent", "Subrace.parent_race_id 应进入 Phase 2 校验。")
 	_assert_error_contains(errors, "trait_ids references missing trait missing_trait", "trait_ids 引用应进入 Phase 2 校验。")
 	_assert_error_contains(errors, "skill race_skill learn_source must be race, got profession", "racial_granted_skills.skill_id 的 learn_source 应匹配来源。")
+	_assert_error_contains(errors, "RaceTrait undispatched_trait trigger_type on_crit has no TraitTriggerHooks dispatch", "非 passive trait 必须进入 TraitTriggerHooks dispatch。")
 	_assert_error_contains(errors, "unsupported damage tag cold", "damage_resistances key 应校验 damage tag。")
 	_assert_error_contains(errors, "uses unsupported mitigation tier resist", "damage_resistances value 应校验 mitigation tier。")
 	_assert_error_contains(errors, "damage_resistances key 123 must be a non-empty String or StringName", "damage_resistances key 类型应可定位。")
 	_assert_error_contains(errors, "damage_resistances[poison] must be a non-empty String or StringName", "damage_resistances value 类型应可定位。")
-	_assert_error_contains(errors, "Race broken_race body_size uses unsupported body_size 99", "Race.body_size 应校验合法整数枚举。")
-	_assert_error_contains(errors, "Subrace broken_subrace body_size_override uses unsupported body_size 99", "Subrace.body_size_override 应校验合法整数枚举。")
+	_assert_error_contains(errors, "Race broken_race body_size_category uses unsupported body_size_category colossal", "Race.body_size_category 应校验合法枚举。")
+	_assert_error_contains(errors, "Subrace broken_subrace body_size_category_override uses unsupported body_size_category colossal", "Subrace.body_size_category_override 应校验合法枚举。")
 	_assert_error_contains(errors, "must declare at least one stage_rules entry", "AgeProfile.stage_rules 应要求非空。")
 	_assert_error_contains(errors, "creation_stage_ids references missing stage adult", "AgeProfile.creation_stage_ids 应指向本 profile stage。")
 	_assert_error_contains(errors, "references missing bloodline_stage missing_bloodline_stage", "Bloodline.stage_ids 应校验 stage 引用。")
@@ -197,7 +206,7 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 	_assert_error_contains(errors, "applies_to_bloodline_ids references missing bloodline missing_bloodline", "StageAdvancement.applies_to_bloodline_ids 应校验引用。")
 	_assert_error_contains(errors, "applies_to_ascension_ids references missing ascension missing_ascension", "StageAdvancement.applies_to_ascension_ids 应校验引用。")
 	_assert_error_contains(errors, "max_stage_id references missing stage missing_stage", "StageAdvancement.max_stage_id 应校验目标 stage 引用。")
-	_assert_error_contains(errors, "AscensionStage shared_stage body_size_override uses unsupported body_size 99", "AscensionStage.body_size_override 应校验合法整数枚举。")
+	_assert_error_contains(errors, "AscensionStage shared_stage body_size_category_override uses unsupported body_size_category colossal", "AscensionStage.body_size_category_override 应校验合法枚举。")
 
 
 func _make_empty_progression_registry() -> ProgressionContentRegistry:
@@ -281,7 +290,7 @@ func _make_race(
 	race.age_profile_id = age_profile_id
 	race.default_subrace_id = default_subrace_id
 	race.subrace_ids = subrace_ids
-	race.body_size = 2
+	race.body_size_category = &"medium"
 	race.base_speed = 6
 	race.trait_ids = trait_ids
 	race.racial_granted_skills = [_make_granted_skill(granted_skill_id)]
@@ -371,7 +380,7 @@ func _make_ascension_stage(
 	stage.description = "Fixture ascension stage."
 	stage.trait_ids = trait_ids
 	stage.racial_granted_skills = [_make_granted_skill(granted_skill_id)]
-	stage.body_size_override = 3
+	stage.body_size_category_override = &"large"
 	return stage
 
 

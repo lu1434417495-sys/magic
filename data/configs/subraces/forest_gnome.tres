@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"forest_gnome"
+parent_race_id = &"gnome"
+display_name = "森林侏儒"
+description = "拥有森林血脉身份标记的侏儒。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"forest_gnome_magic"])
+proficiency_tags = Array[StringName]([&"forest_lore"])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"gnome", &"forest_gnome"])
+racial_trait_summary = Array[String](["森林侏儒魔法。"])

@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+power = 10
+damage_tag = &"physical_blunt"
+params = { "add_weapon_dice": false }
+
+[sub_resource type="Resource" id="Effect_stagger"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+status_id = &"staggered"
+power = 1
+duration_tu = 40
+
+[sub_resource type="Resource" id="Combat_profile"]
+script = ExtResource("2_combat")
+skill_id = &"titan_stomp"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 0
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 120
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_damage"), SubResource("Effect_stagger")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"titan_stomp"
+display_name = "Titan Stomp"
+icon_id = &"titan_stomp"
+description = "Slam the ground with titan force, damaging nearby enemies and staggering them."
+max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"titan", &"ascension", &"melee", &"aoe", &"control"])
+learn_source = &"ascension"
+combat_profile = SubResource("Combat_profile")

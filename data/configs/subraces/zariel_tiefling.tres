@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"zariel_tiefling"
+parent_race_id = &"tiefling"
+display_name = "扎瑞尔提夫林"
+description = "与扎瑞尔和武斗型炼狱魔法相连的提夫林。"
+body_size_category_override = &""
+speed_bonus = 0
+trait_ids = Array[StringName]([&"racial_spell_grant", &"zariel_legacy"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"tiefling", &"zariel_tiefling"])
+racial_trait_summary = Array[String](["扎瑞尔传承。"])

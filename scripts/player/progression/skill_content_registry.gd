@@ -8,6 +8,8 @@ extends RefCounted
 const SKILL_CONFIG_DIRECTORY := "res://data/configs/skills"
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
+const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
+const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
 const TU_GRANULARITY := 5
 const VALID_MASTERY_TRIGGER_MODES := [
 	&"skill_damage_dice_max",
@@ -34,6 +36,7 @@ const VALID_TRIGGER_CONDITIONS := [
 ]
 const VALID_EFFECT_TYPES := [
 	&"break_equipment_on_hit",
+	&"body_size_category_override",
 	&"chain_damage",
 	&"charge",
 	&"cleanse_harmful",
@@ -421,6 +424,7 @@ func _append_effect_validation_errors(
 				TU_GRANULARITY,
 			]
 		)
+	_append_save_validation_errors(errors, skill_id, effect_def, context_label)
 	if effect_def.params != null:
 		var unsupported_param_aliases := {
 			"damage_dice_count": "dice_count",
@@ -526,6 +530,36 @@ func _append_effect_validation_errors(
 						context_label,
 					]
 				)
+		&"body_size_category_override":
+			if effect_def.status_id == &"":
+				errors.append(
+					"Skill %s body_size_category_override effect in %s is missing status_id." % [
+						String(skill_id),
+						context_label,
+					]
+				)
+			if effect_def.body_size_category == &"":
+				errors.append(
+					"Skill %s body_size_category_override effect in %s is missing body_size_category." % [
+						String(skill_id),
+						context_label,
+					]
+				)
+			elif not BODY_SIZE_RULES_SCRIPT.is_valid_body_size_category(effect_def.body_size_category):
+				errors.append(
+					"Skill %s body_size_category_override effect in %s uses unsupported body_size_category %s." % [
+						String(skill_id),
+						context_label,
+						String(effect_def.body_size_category),
+					]
+				)
+			if effect_def.duration_tu <= 0:
+				errors.append(
+					"Skill %s body_size_category_override effect in %s must have positive duration_tu." % [
+						String(skill_id),
+						context_label,
+					]
+				)
 		&"forced_move":
 			if effect_def.params != null:
 				if effect_def.params.has("mode"):
@@ -568,6 +602,53 @@ func _append_effect_validation_errors(
 				)
 		&"path_step_aoe":
 			_append_path_step_aoe_validation_errors(errors, skill_id, effect_def, context_label)
+
+
+func _append_save_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	effect_def: CombatEffectDef,
+	context_label: String
+) -> void:
+	if effect_def == null:
+		return
+	var save_dc := int(effect_def.save_dc)
+	var save_ability := ProgressionDataUtils.to_string_name(effect_def.save_ability)
+	var save_tag := ProgressionDataUtils.to_string_name(effect_def.save_tag)
+	if save_dc < 0:
+		errors.append("Skill %s effect %s save_dc must be >= 0." % [String(skill_id), context_label])
+	if save_dc <= 0:
+		if save_ability != &"":
+			errors.append("Skill %s effect %s save_ability requires save_dc >= 1." % [String(skill_id), context_label])
+		if save_tag != &"":
+			errors.append("Skill %s effect %s save_tag requires save_dc >= 1." % [String(skill_id), context_label])
+		if effect_def.save_failure_status_id != &"":
+			errors.append("Skill %s effect %s save_failure_status_id requires save_dc >= 1." % [String(skill_id), context_label])
+		if bool(effect_def.save_partial_on_success):
+			errors.append("Skill %s effect %s save_partial_on_success requires save_dc >= 1." % [String(skill_id), context_label])
+		return
+	if not BATTLE_SAVE_RESOLVER_SCRIPT.VALID_SAVE_ABILITIES.has(save_ability):
+		errors.append(
+			"Skill %s effect %s uses unsupported save_ability %s." % [
+				String(skill_id),
+				context_label,
+				String(save_ability),
+			]
+		)
+	if not BATTLE_SAVE_RESOLVER_SCRIPT.VALID_SAVE_TAGS.has(save_tag):
+		errors.append(
+			"Skill %s effect %s uses unsupported save_tag %s." % [
+				String(skill_id),
+				context_label,
+				String(save_tag),
+			]
+		)
+	if bool(effect_def.save_partial_on_success) and effect_def.effect_type != &"damage":
+		errors.append("Skill %s effect %s save_partial_on_success is only supported on damage effects." % [String(skill_id), context_label])
+	if effect_def.save_failure_status_id != &"" \
+			and effect_def.effect_type != &"status" \
+			and effect_def.effect_type != &"apply_status":
+		errors.append("Skill %s effect %s save_failure_status_id is only supported on status effects." % [String(skill_id), context_label])
 
 
 func _append_path_step_aoe_validation_errors(

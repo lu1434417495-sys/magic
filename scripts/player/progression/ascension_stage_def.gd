@@ -9,5 +9,5 @@ extends Resource
 @export var attribute_modifiers: Array[AttributeModifier] = []
 @export var trait_ids: Array[StringName] = []
 @export var racial_granted_skills: Array[RacialGrantedSkill] = []
-@export_enum("none:0", "small:1", "medium:2", "large:3", "huge:4") var body_size_override: int = 0
+@export var body_size_category_override: StringName = &""
 @export var trait_summary: Array[String] = []

@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+power = 12
+damage_tag = &"fire"
+save_dc = 12
+save_ability = &"constitution"
+save_partial_on_success = true
+save_tag = &"dragon_breath"
+
+[sub_resource type="Resource" id="Combat_profile"]
+script = ExtResource("2_combat")
+skill_id = &"dragon_breath_fire_cone"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 3
+area_pattern = &"cone"
+area_value = 2
+ap_cost = 1
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_damage")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"dragon_breath_fire_cone"
+display_name = "龙息：火焰锥形"
+icon_id = &"dragon_breath_fire_cone"
+description = "以锥形喷吐火焰。目标进行体质豁免，成功则伤害减半。"
+max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"dragon_breath", &"fire"])
+learn_source = &"subrace"
+combat_profile = SubResource("Combat_profile")

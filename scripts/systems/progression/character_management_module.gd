@@ -15,7 +15,14 @@ const PROFESSION_ASSIGNMENT_SERVICE_SCRIPT = preload("res://scripts/systems/prog
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/progression/skill_merge_service.gd")
 const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const ATTRIBUTE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/attributes/attribute_source_context.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
+const PASSIVE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/progression/passive_source_context.gd")
+const AGE_STAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/progression/age_stage_resolver.gd")
+const BLOODLINE_APPLY_SERVICE_SCRIPT = preload("res://scripts/systems/progression/bloodline_apply_service.gd")
+const ASCENSION_APPLY_SERVICE_SCRIPT = preload("res://scripts/systems/progression/ascension_apply_service.gd")
+const STAGE_ADVANCEMENT_APPLY_SERVICE_SCRIPT = preload("res://scripts/systems/progression/stage_advancement_apply_service.gd")
+const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_equipment_service.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
@@ -26,11 +33,14 @@ const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progressi
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 const PartyState = PARTY_STATE_SCRIPT
 const PartyMemberState = PARTY_MEMBER_STATE_SCRIPT
+const PassiveSourceContext = PASSIVE_SOURCE_CONTEXT_SCRIPT
 const QuestDef = QUEST_DEF_SCRIPT
 const AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT
+const AttributeSourceContext = ATTRIBUTE_SOURCE_CONTEXT_SCRIPT
 const CharacterProgressionDelta = CHARACTER_PROGRESSION_DELTA_SCRIPT
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 const PendingCharacterRewardEntry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT
+const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 const REWARD_TYPE_ACHIEVEMENT: StringName = &"achievement"
 const REWARD_TYPE_QUEST: StringName = &"quest"
@@ -54,6 +64,14 @@ var _achievement_defs: Dictionary = {}
 var _item_defs: Dictionary = {}
 ## 字段说明：缓存任务定义集合字典，集中保存可按键查询的运行时数据。
 var _quest_defs: Dictionary = {}
+## 字段说明：缓存 progression content bundle，供身份解析、属性上下文和 battle passive 投影共用。
+var _progression_content_bundle: Dictionary = {}
+## 字段说明：身份应用服务是血脉字段的唯一正式写入入口。
+var _bloodline_apply_service = BLOODLINE_APPLY_SERVICE_SCRIPT.new()
+## 字段说明：身份应用服务是升华字段的唯一正式写入入口。
+var _ascension_apply_service = ASCENSION_APPLY_SERVICE_SCRIPT.new()
+## 字段说明：身份应用服务是长期阶段提升列表的唯一正式写入入口。
+var _stage_advancement_apply_service = STAGE_ADVANCEMENT_APPLY_SERVICE_SCRIPT.new()
 ## 字段说明：记录队伍仓库服务，会参与运行时状态流转、系统协作和存档恢复。
 var _party_warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
 ## 字段说明：记录队伍装备服务，会参与运行时状态流转、系统协作和存档恢复。
@@ -70,7 +88,8 @@ func setup(
 	achievement_defs: Dictionary = {},
 	item_defs: Dictionary = {},
 	quest_defs: Dictionary = {},
-	equipment_instance_id_allocator: Callable = Callable()
+	equipment_instance_id_allocator: Callable = Callable(),
+	progression_content_bundle: Dictionary = {}
 ) -> void:
 	_party_state = party_state if party_state != null else PARTY_STATE_SCRIPT.new()
 	_skill_defs = skill_defs if skill_defs != null else {}
@@ -78,10 +97,12 @@ func setup(
 	_achievement_defs = achievement_defs if achievement_defs != null else {}
 	_item_defs = item_defs if item_defs != null else {}
 	_quest_defs = quest_defs if quest_defs != null else {}
+	_progression_content_bundle = progression_content_bundle if progression_content_bundle != null else {}
 	_equipment_instance_id_allocator = equipment_instance_id_allocator
 	_party_warehouse_service.setup(_party_state, _item_defs, _equipment_instance_id_allocator)
 	_party_equipment_service.setup(_party_state, _item_defs, _party_warehouse_service, _equipment_instance_id_allocator)
 	_quest_progress_service.setup(_party_state, _quest_defs)
+	_setup_identity_apply_services()
 
 
 func get_party_state() -> PartyState:
@@ -97,6 +118,225 @@ func set_party_state(party_state: PartyState) -> void:
 	_party_warehouse_service.setup(_party_state, _item_defs, _equipment_instance_id_allocator)
 	_party_equipment_service.setup(_party_state, _item_defs, _party_warehouse_service, _equipment_instance_id_allocator)
 	_quest_progress_service.setup(_party_state, _quest_defs)
+	_setup_identity_apply_services()
+
+
+func get_race_def_for_member(member_id: StringName) -> RaceDef:
+	var member_state := get_member_state(member_id)
+	if member_state == null:
+		return null
+	return _get_content_def("race_defs", "race", member_state.race_id) as RaceDef
+
+
+func get_subrace_def_for_member(member_id: StringName) -> SubraceDef:
+	var member_state := get_member_state(member_id)
+	if member_state == null:
+		return null
+	return _get_content_def("subrace_defs", "subrace", member_state.subrace_id) as SubraceDef
+
+
+func get_bloodline_def_for_member(member_id: StringName) -> BloodlineDef:
+	var member_state := get_member_state(member_id)
+	if member_state == null or member_state.bloodline_id == &"":
+		return null
+	return _get_content_def("bloodline_defs", "bloodline", member_state.bloodline_id) as BloodlineDef
+
+
+func get_bloodline_stage_def_for_member(member_id: StringName) -> BloodlineStageDef:
+	var member_state := get_member_state(member_id)
+	if member_state == null or member_state.bloodline_stage_id == &"":
+		return null
+	return _get_content_def("bloodline_stage_defs", "bloodline_stage", member_state.bloodline_stage_id) as BloodlineStageDef
+
+
+func get_ascension_def_for_member(member_id: StringName) -> AscensionDef:
+	var member_state := get_member_state(member_id)
+	if member_state == null or member_state.ascension_id == &"":
+		return null
+	return _get_content_def("ascension_defs", "ascension", member_state.ascension_id) as AscensionDef
+
+
+func get_ascension_stage_def_for_member(member_id: StringName) -> AscensionStageDef:
+	var member_state := get_member_state(member_id)
+	if member_state == null or member_state.ascension_stage_id == &"":
+		return null
+	return _get_content_def("ascension_stage_defs", "ascension_stage", member_state.ascension_stage_id) as AscensionStageDef
+
+
+func get_age_stage_rule_for_member(member_id: StringName) -> AgeStageRule:
+	var member_state := get_member_state(member_id)
+	if member_state == null:
+		return null
+	var age_profile := _get_content_def("age_profile_defs", "age_profile", member_state.age_profile_id) as AgeProfileDef
+	if age_profile == null:
+		return null
+	var effective_stage_id := member_state.effective_age_stage_id
+	if effective_stage_id == &"":
+		effective_stage_id = member_state.natural_age_stage_id
+	for stage_rule in age_profile.stage_rules:
+		if stage_rule == null or stage_rule.stage_id != effective_stage_id:
+			continue
+		return stage_rule
+	return null
+
+
+func build_attribute_source_context(member_id: StringName, equipment_state_override: Variant = null) -> AttributeSourceContext:
+	var member_state := get_member_state(member_id)
+	var context: AttributeSourceContext = ATTRIBUTE_SOURCE_CONTEXT_SCRIPT.new()
+	if member_state == null:
+		return context
+	var equipment_state_variant: Variant = equipment_state_override if equipment_state_override != null else member_state.equipment_state
+	context.unit_progress = member_state.progression
+	context.skill_defs = _skill_defs
+	context.profession_defs = _profession_defs
+	context.race_def = get_race_def_for_member(member_id)
+	context.subrace_def = get_subrace_def_for_member(member_id)
+	context.age_stage_rule = get_age_stage_rule_for_member(member_id)
+	context.age_stage_source_type = member_state.effective_age_stage_source_type
+	context.age_stage_source_id = member_state.effective_age_stage_source_id
+	context.bloodline_def = get_bloodline_def_for_member(member_id)
+	context.bloodline_stage_def = get_bloodline_stage_def_for_member(member_id)
+	context.ascension_def = get_ascension_def_for_member(member_id)
+	context.ascension_stage_def = get_ascension_stage_def_for_member(member_id)
+	context.versatility_pick = member_state.versatility_pick
+	context.equipment_state = _party_equipment_service.build_attribute_modifiers(equipment_state_variant)
+	context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(member_state)
+	return context
+
+
+func build_passive_source_context(member_id: StringName, progression_state = null) -> PassiveSourceContext:
+	var member_state := get_member_state(member_id)
+	var context: PassiveSourceContext = PASSIVE_SOURCE_CONTEXT_SCRIPT.new()
+	context.member_state = member_state
+	context.unit_progress = progression_state if progression_state != null else (member_state.progression if member_state != null else null)
+	if context.unit_progress != null:
+		context.skill_progress_by_id = context.unit_progress.skills
+	context.race_def = get_race_def_for_member(member_id)
+	context.subrace_def = get_subrace_def_for_member(member_id)
+	context.trait_defs = _get_content_bucket("race_trait_defs", "race_trait")
+	context.bloodline_def = get_bloodline_def_for_member(member_id)
+	context.bloodline_stage_def = get_bloodline_stage_def_for_member(member_id)
+	context.ascension_def = get_ascension_def_for_member(member_id)
+	context.ascension_stage_def = get_ascension_stage_def_for_member(member_id)
+	context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(member_state)
+	return context
+
+
+func get_identity_summary_for_member(member_id: StringName) -> Dictionary:
+	var member_state := get_member_state(member_id)
+	if member_state == null:
+		return {}
+	var race_def := get_race_def_for_member(member_id)
+	var subrace_def := get_subrace_def_for_member(member_id)
+	var bloodline_def := get_bloodline_def_for_member(member_id)
+	var bloodline_stage_def := get_bloodline_stage_def_for_member(member_id)
+	var ascension_def := get_ascension_def_for_member(member_id)
+	var ascension_stage_def := get_ascension_stage_def_for_member(member_id)
+	var natural_stage_label := _get_age_stage_display_label(
+		member_state.age_profile_id,
+		member_state.natural_age_stage_id
+	)
+	var effective_stage_label := _get_age_stage_display_label(
+		member_state.age_profile_id,
+		member_state.effective_age_stage_id
+	)
+	return {
+		"race_label": _identity_def_label(race_def, member_state.race_id),
+		"subrace_label": _identity_def_label(subrace_def, member_state.subrace_id),
+		"age_years": int(member_state.age_years),
+		"biological_age_years": int(member_state.biological_age_years),
+		"astral_memory_years": int(member_state.astral_memory_years),
+		"natural_age_stage_label": natural_stage_label,
+		"effective_age_stage_label": effective_stage_label,
+		"effective_age_stage_source_type": String(member_state.effective_age_stage_source_type),
+		"effective_age_stage_source_id": String(member_state.effective_age_stage_source_id),
+		"body_size": int(member_state.body_size),
+		"body_size_category": String(member_state.body_size_category),
+		"bloodline_label": _identity_def_label(bloodline_def, member_state.bloodline_id),
+		"bloodline_stage_label": _identity_def_label(bloodline_stage_def, member_state.bloodline_stage_id),
+		"ascension_label": _identity_def_label(ascension_def, member_state.ascension_id),
+		"ascension_stage_label": _identity_def_label(ascension_stage_def, member_state.ascension_stage_id),
+		"trait_summary": _build_identity_trait_summary_lines(
+			race_def,
+			subrace_def,
+			get_age_stage_rule_for_member(member_id),
+			bloodline_def,
+			bloodline_stage_def,
+			ascension_def,
+			ascension_stage_def
+		),
+		"damage_resistances": _collect_identity_damage_resistances(race_def, subrace_def),
+		"save_advantage_tags": _collect_identity_save_advantage_tags(race_def, subrace_def),
+		"racial_skill_lines": _build_identity_granted_skill_lines(
+			race_def,
+			subrace_def,
+			bloodline_def,
+			bloodline_stage_def,
+			ascension_def,
+			ascension_stage_def
+		),
+	}
+
+
+func apply_bloodline(member_id: StringName, bloodline_id: StringName, bloodline_stage_id: StringName) -> bool:
+	var member_state := get_member_state(member_id)
+	if not _bloodline_apply_service.apply_bloodline(member_state, bloodline_id, bloodline_stage_id):
+		return false
+	_refresh_member_identity_after_apply(member_state)
+	return true
+
+
+func revoke_bloodline(member_id: StringName) -> bool:
+	var member_state := get_member_state(member_id)
+	if not _bloodline_apply_service.revoke_bloodline(member_state):
+		return false
+	_refresh_member_identity_after_apply(member_state)
+	return true
+
+
+func apply_ascension(
+	member_id: StringName,
+	ascension_id: StringName,
+	ascension_stage_id: StringName,
+	current_world_step: int
+) -> bool:
+	var member_state := get_member_state(member_id)
+	if not _ascension_apply_service.apply_ascension(member_state, ascension_id, ascension_stage_id, current_world_step):
+		return false
+	_refresh_member_identity_after_apply(member_state)
+	return true
+
+
+func revoke_ascension(member_id: StringName, restore_original_race: bool = true) -> bool:
+	var member_state := get_member_state(member_id)
+	if not _ascension_apply_service.revoke_ascension(member_state, restore_original_race):
+		return false
+	_refresh_member_identity_after_apply(member_state)
+	return true
+
+
+func add_stage_advancement_modifier(member_id: StringName, modifier_id: StringName) -> bool:
+	var member_state := get_member_state(member_id)
+	if not _stage_advancement_apply_service.add_stage_advancement_modifier(member_state, modifier_id):
+		return false
+	_refresh_member_identity_after_apply(member_state)
+	return true
+
+
+func remove_stage_advancement_modifier(member_id: StringName, modifier_id: StringName) -> bool:
+	var member_state := get_member_state(member_id)
+	if not _stage_advancement_apply_service.remove_stage_advancement_modifier(member_state, modifier_id):
+		return false
+	_refresh_member_identity_after_apply(member_state)
+	return true
+
+
+func grant_racial_skill(member_id: StringName, grant: RacialGrantedSkill, source_type: StringName, source_id: StringName) -> bool:
+	var member_state := get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return false
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
+	return progression_service.grant_racial_skill(grant, source_type, source_id)
 
 
 func get_member_state(member_id: StringName) -> PartyMemberState:
@@ -953,6 +1193,227 @@ func _collect_known_skill_level_map(progression_state) -> Dictionary:
 	return skill_levels
 
 
+func _setup_identity_apply_services() -> void:
+	_bloodline_apply_service.setup(_progression_content_bundle)
+	_ascension_apply_service.setup(_progression_content_bundle)
+	_stage_advancement_apply_service.setup(_progression_content_bundle)
+
+
+func _refresh_member_identity_after_apply(member_state: PartyMemberState) -> void:
+	if member_state == null:
+		return
+	_resolve_member_body_size(member_state)
+	_resolve_member_effective_age_stage(member_state)
+	_revoke_orphan_racial_skills_for_member(member_state)
+	_backfill_racial_granted_skills_for_member(member_state)
+
+
+func _resolve_member_body_size(member_state: PartyMemberState) -> void:
+	var category := _resolve_body_size_category_for_member(member_state)
+	if category == &"":
+		return
+	member_state.body_size_category = category
+	member_state.body_size = BodySizeRules.get_body_size_for_category(category)
+
+
+func _resolve_body_size_category_for_member(member_state: PartyMemberState) -> StringName:
+	if member_state == null:
+		return &""
+	var ascension_stage_def := get_ascension_stage_def_for_member(member_state.member_id)
+	if ascension_stage_def != null \
+		and ascension_stage_def.body_size_category_override != &"" \
+		and BodySizeRules.is_valid_body_size_category(ascension_stage_def.body_size_category_override):
+		return ascension_stage_def.body_size_category_override
+	var subrace_def := get_subrace_def_for_member(member_state.member_id)
+	if subrace_def != null \
+		and subrace_def.body_size_category_override != &"" \
+		and BodySizeRules.is_valid_body_size_category(subrace_def.body_size_category_override):
+		return subrace_def.body_size_category_override
+	var race_def := get_race_def_for_member(member_state.member_id)
+	if race_def != null and BodySizeRules.is_valid_body_size_category(race_def.body_size_category):
+		return race_def.body_size_category
+	return &""
+
+
+func _resolve_member_effective_age_stage(member_state: PartyMemberState) -> void:
+	if member_state == null:
+		return
+	var age_profile := _get_content_def("age_profile_defs", "age_profile", member_state.age_profile_id) as AgeProfileDef
+	var resolution := AGE_STAGE_RESOLVER_SCRIPT.resolve_effective_stage(
+		member_state,
+		age_profile,
+		_collect_active_stage_advancement_modifiers(member_state),
+		get_bloodline_def_for_member(member_state.member_id),
+		get_bloodline_stage_def_for_member(member_state.member_id),
+		get_ascension_def_for_member(member_state.member_id),
+		get_ascension_stage_def_for_member(member_state.member_id)
+	)
+	var stage_id := ProgressionDataUtils.to_string_name(resolution.get("stage_id", ""))
+	if stage_id == &"":
+		stage_id = member_state.natural_age_stage_id if member_state.natural_age_stage_id != &"" else &"adult"
+	member_state.effective_age_stage_id = stage_id
+	member_state.effective_age_stage_source_type = ProgressionDataUtils.to_string_name(resolution.get("source_type", ""))
+	member_state.effective_age_stage_source_id = ProgressionDataUtils.to_string_name(resolution.get("source_id", ""))
+
+
+func _collect_active_stage_advancement_modifiers(member_state: PartyMemberState) -> Array:
+	var modifiers: Array = []
+	if member_state == null:
+		return modifiers
+	var stage_advancement_defs := _get_content_bucket("stage_advancement_defs", "stage_advancement")
+	for modifier_id in member_state.active_stage_advancement_modifier_ids:
+		var modifier := stage_advancement_defs.get(modifier_id) as StageAdvancementModifier
+		if modifier == null:
+			continue
+		modifiers.append(modifier)
+	return modifiers
+
+
+func _backfill_racial_granted_skills_for_member(member_state: PartyMemberState) -> bool:
+	if member_state == null or member_state.progression == null:
+		return false
+	var grant_entries := _collect_member_racial_grant_entries(member_state)
+	if grant_entries.is_empty():
+		return false
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
+	var changed := false
+	for grant_entry in grant_entries:
+		var grant := grant_entry.get("grant") as RacialGrantedSkill
+		var source_type := ProgressionDataUtils.to_string_name(grant_entry.get("source_type", ""))
+		var source_id := ProgressionDataUtils.to_string_name(grant_entry.get("source_id", ""))
+		if progression_service.grant_racial_skill(grant, source_type, source_id):
+			changed = true
+	return changed
+
+
+func _revoke_orphan_racial_skills_for_member(member_state: PartyMemberState) -> bool:
+	if member_state == null or member_state.progression == null:
+		return false
+	var active_grant_lookup := _collect_active_identity_grant_lookup(member_state)
+	var skill_ids_to_remove: Array[StringName] = []
+	for skill_key in ProgressionDataUtils.sorted_string_keys(member_state.progression.skills):
+		var skill_id := StringName(skill_key)
+		var skill_progress: Variant = member_state.progression.get_skill_progress(skill_id)
+		if skill_progress == null:
+			continue
+		var source_type := ProgressionDataUtils.to_string_name(skill_progress.granted_source_type)
+		if not _is_racial_granted_source_type(source_type):
+			continue
+		if skill_progress.profession_granted_by != &"":
+			continue
+		var source_id := ProgressionDataUtils.to_string_name(skill_progress.granted_source_id)
+		if active_grant_lookup.has(_identity_grant_key(source_type, source_id, skill_id)):
+			continue
+		skill_ids_to_remove.append(skill_id)
+	if skill_ids_to_remove.is_empty():
+		return false
+	for skill_id in skill_ids_to_remove:
+		member_state.progression.remove_skill_progress(skill_id)
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
+	progression_service.refresh_runtime_state()
+	return true
+
+
+func _collect_active_identity_grant_lookup(member_state: PartyMemberState) -> Dictionary:
+	var lookup: Dictionary = {}
+	for grant_entry in _collect_member_racial_grant_entries(member_state):
+		var grant := grant_entry.get("grant") as RacialGrantedSkill
+		if grant == null:
+			continue
+		var source_type := ProgressionDataUtils.to_string_name(grant_entry.get("source_type", ""))
+		var source_id := ProgressionDataUtils.to_string_name(grant_entry.get("source_id", ""))
+		lookup[_identity_grant_key(source_type, source_id, grant.skill_id)] = true
+	return lookup
+
+
+func _collect_member_racial_grant_entries(member_state: PartyMemberState) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	if member_state == null:
+		return entries
+	var race_def := _get_content_def("race_defs", "race", member_state.race_id) as RaceDef
+	if race_def != null:
+		_append_racial_grant_entries(
+			entries,
+			race_def.racial_granted_skills,
+			UnitSkillProgress.GRANTED_SOURCE_RACE,
+			member_state.race_id
+		)
+	var subrace_def := _get_content_def("subrace_defs", "subrace", member_state.subrace_id) as SubraceDef
+	if subrace_def != null:
+		_append_racial_grant_entries(
+			entries,
+			subrace_def.racial_granted_skills,
+			UnitSkillProgress.GRANTED_SOURCE_SUBRACE,
+			member_state.subrace_id
+		)
+	if member_state.bloodline_id != &"":
+		var bloodline_def := _get_content_def("bloodline_defs", "bloodline", member_state.bloodline_id) as BloodlineDef
+		if bloodline_def != null:
+			_append_racial_grant_entries(
+				entries,
+				bloodline_def.racial_granted_skills,
+				UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
+				member_state.bloodline_id
+			)
+	if member_state.bloodline_stage_id != &"":
+		var bloodline_stage_def := _get_content_def("bloodline_stage_defs", "bloodline_stage", member_state.bloodline_stage_id) as BloodlineStageDef
+		if bloodline_stage_def != null:
+			_append_racial_grant_entries(
+				entries,
+				bloodline_stage_def.racial_granted_skills,
+				UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
+				member_state.bloodline_stage_id
+			)
+	if member_state.ascension_id != &"":
+		var ascension_def := _get_content_def("ascension_defs", "ascension", member_state.ascension_id) as AscensionDef
+		if ascension_def != null:
+			_append_racial_grant_entries(
+				entries,
+				ascension_def.racial_granted_skills,
+				UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
+				member_state.ascension_id
+			)
+	if member_state.ascension_stage_id != &"":
+		var ascension_stage_def := _get_content_def("ascension_stage_defs", "ascension_stage", member_state.ascension_stage_id) as AscensionStageDef
+		if ascension_stage_def != null:
+			_append_racial_grant_entries(
+				entries,
+				ascension_stage_def.racial_granted_skills,
+				UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
+				member_state.ascension_stage_id
+			)
+	return entries
+
+
+func _append_racial_grant_entries(
+	entries: Array[Dictionary],
+	granted_skills: Array,
+	source_type: StringName,
+	source_id: StringName
+) -> void:
+	if source_id == &"":
+		return
+	for grant in granted_skills:
+		if grant == null:
+			continue
+		entries.append({
+			"grant": grant,
+			"source_type": source_type,
+			"source_id": source_id,
+		})
+
+
+func _identity_grant_key(source_type: StringName, source_id: StringName, skill_id: StringName) -> String:
+	return "%s:%s:%s" % [String(source_type), String(source_id), String(skill_id)]
+
+
+func _is_racial_granted_source_type(source_type: StringName) -> bool:
+	return source_type == UnitSkillProgress.GRANTED_SOURCE_RACE \
+		or source_type == UnitSkillProgress.GRANTED_SOURCE_SUBRACE \
+		or source_type == UnitSkillProgress.GRANTED_SOURCE_ASCENSION \
+		or source_type == UnitSkillProgress.GRANTED_SOURCE_BLOODLINE
+
+
 func _build_progression_service(progression_state) -> ProgressionService:
 	var assignment_service: ProfessionAssignmentService = PROFESSION_ASSIGNMENT_SERVICE_SCRIPT.new()
 	assignment_service.setup(progression_state, _skill_defs, _profession_defs)
@@ -975,15 +1436,163 @@ func _build_progression_service(progression_state) -> ProgressionService:
 	return progression_service
 
 
+func _get_content_def(primary_bucket: String, alias_bucket: String, entry_id: StringName):
+	if entry_id == &"":
+		return null
+	var bucket := _get_content_bucket(primary_bucket, alias_bucket)
+	return bucket.get(entry_id)
+
+
+func _get_content_bucket(primary_bucket: String, alias_bucket: String) -> Dictionary:
+	var bucket_variant: Variant = _progression_content_bundle.get(primary_bucket, {})
+	if bucket_variant is Dictionary:
+		return bucket_variant
+	bucket_variant = _progression_content_bundle.get(alias_bucket, {})
+	if bucket_variant is Dictionary:
+		return bucket_variant
+	return {}
+
+
+func _identity_def_label(definition, fallback_id: StringName) -> String:
+	if definition != null:
+		var display_name := String(definition.get("display_name")).strip_edges()
+		if not display_name.is_empty():
+			return display_name
+	return String(fallback_id) if fallback_id != &"" else ""
+
+
+func _get_age_stage_display_label(age_profile_id: StringName, stage_id: StringName) -> String:
+	if stage_id == &"":
+		return ""
+	var age_profile := _get_content_def("age_profile_defs", "age_profile", age_profile_id) as AgeProfileDef
+	if age_profile != null:
+		for stage_rule in age_profile.stage_rules:
+			if stage_rule == null or stage_rule.stage_id != stage_id:
+				continue
+			if not stage_rule.display_name.is_empty():
+				return stage_rule.display_name
+			break
+	return String(stage_id)
+
+
+func _build_identity_trait_summary_lines(
+	race_def: RaceDef,
+	subrace_def: SubraceDef,
+	age_stage_rule: AgeStageRule,
+	bloodline_def: BloodlineDef,
+	bloodline_stage_def: BloodlineStageDef,
+	ascension_def: AscensionDef,
+	ascension_stage_def: AscensionStageDef
+) -> Array[String]:
+	var lines: Array[String] = []
+	if race_def != null:
+		_append_identity_text_lines(lines, race_def.racial_trait_summary)
+	if subrace_def != null:
+		_append_identity_text_lines(lines, subrace_def.racial_trait_summary)
+	if age_stage_rule != null:
+		_append_identity_text_lines(lines, age_stage_rule.trait_summary)
+	if bloodline_def != null:
+		_append_identity_text_lines(lines, bloodline_def.trait_summary)
+	if bloodline_stage_def != null:
+		_append_identity_text_lines(lines, bloodline_stage_def.trait_summary)
+	if ascension_def != null:
+		_append_identity_text_lines(lines, ascension_def.trait_summary)
+	if ascension_stage_def != null:
+		_append_identity_text_lines(lines, ascension_stage_def.trait_summary)
+	return lines
+
+
+func _append_identity_text_lines(target: Array[String], values: Array) -> void:
+	for value in values:
+		var text := String(value).strip_edges()
+		if text.is_empty() or target.has(text):
+			continue
+		target.append(text)
+
+
+func _collect_identity_damage_resistances(race_def: RaceDef, subrace_def: SubraceDef) -> Dictionary:
+	var result := {}
+	if race_def != null:
+		_merge_identity_string_name_map(result, race_def.damage_resistances)
+	if subrace_def != null:
+		_merge_identity_string_name_map(result, subrace_def.damage_resistances)
+	return result
+
+
+func _merge_identity_string_name_map(target: Dictionary, source: Dictionary) -> void:
+	for raw_key in source.keys():
+		var key := ProgressionDataUtils.to_string_name(raw_key)
+		var value := ProgressionDataUtils.to_string_name(source[raw_key])
+		if key == &"" or value == &"":
+			continue
+		target[key] = value
+
+
+func _collect_identity_save_advantage_tags(race_def: RaceDef, subrace_def: SubraceDef) -> Array[StringName]:
+	var tags: Array[StringName] = []
+	if race_def != null:
+		_append_unique_string_names(tags, race_def.save_advantage_tags)
+	if subrace_def != null:
+		_append_unique_string_names(tags, subrace_def.save_advantage_tags)
+	return tags
+
+
+func _build_identity_granted_skill_lines(
+	race_def: RaceDef,
+	subrace_def: SubraceDef,
+	bloodline_def: BloodlineDef,
+	bloodline_stage_def: BloodlineStageDef,
+	ascension_def: AscensionDef,
+	ascension_stage_def: AscensionStageDef
+) -> Array[String]:
+	var lines: Array[String] = []
+	if race_def != null:
+		_append_identity_granted_skill_lines(lines, race_def.racial_granted_skills, _identity_def_label(race_def, race_def.race_id))
+	if subrace_def != null:
+		_append_identity_granted_skill_lines(lines, subrace_def.racial_granted_skills, _identity_def_label(subrace_def, subrace_def.subrace_id))
+	if bloodline_def != null:
+		_append_identity_granted_skill_lines(lines, bloodline_def.racial_granted_skills, _identity_def_label(bloodline_def, bloodline_def.bloodline_id))
+	if bloodline_stage_def != null:
+		_append_identity_granted_skill_lines(lines, bloodline_stage_def.racial_granted_skills, _identity_def_label(bloodline_stage_def, bloodline_stage_def.stage_id))
+	if ascension_def != null:
+		_append_identity_granted_skill_lines(lines, ascension_def.racial_granted_skills, _identity_def_label(ascension_def, ascension_def.ascension_id))
+	if ascension_stage_def != null:
+		_append_identity_granted_skill_lines(lines, ascension_stage_def.racial_granted_skills, _identity_def_label(ascension_stage_def, ascension_stage_def.stage_id))
+	return lines
+
+
+func _append_identity_granted_skill_lines(target: Array[String], grants: Array, source_label: String) -> void:
+	for grant_variant in grants:
+		var grant := grant_variant as RacialGrantedSkill
+		if grant == null or grant.skill_id == &"":
+			continue
+		var line := "%s（%s，%s）" % [
+			_resolve_skill_label(grant.skill_id),
+			source_label,
+			_format_identity_grant_charges(grant),
+		]
+		if target.has(line):
+			continue
+		target.append(line)
+
+
+func _format_identity_grant_charges(grant: RacialGrantedSkill) -> String:
+	if grant == null:
+		return "无次数"
+	match grant.charge_kind:
+		RacialGrantedSkill.CHARGE_KIND_AT_WILL:
+			return "随意"
+		RacialGrantedSkill.CHARGE_KIND_PER_TURN:
+			return "每回合 %d 次" % maxi(int(grant.charges), 0)
+		RacialGrantedSkill.CHARGE_KIND_PER_BATTLE:
+			return "每场战斗 %d 次" % maxi(int(grant.charges), 0)
+		_:
+			return "%s %d" % [String(grant.charge_kind), maxi(int(grant.charges), 0)]
+
+
 func _build_attribute_service(member_state: PartyMemberState, equipment_state_override: Variant = null) -> AttributeService:
 	var attribute_service: AttributeService = ATTRIBUTE_SERVICE_SCRIPT.new()
-	var equipment_state_variant: Variant = equipment_state_override if equipment_state_override != null else member_state.equipment_state
-	attribute_service.setup(
-		member_state.progression,
-		_skill_defs,
-		_profession_defs,
-		_party_equipment_service.build_attribute_modifiers(equipment_state_variant)
-	)
+	attribute_service.call("setup_context", build_attribute_source_context(member_state.member_id, equipment_state_override))
 	return attribute_service
 
 
@@ -1762,6 +2371,8 @@ func _resolve_attribute_label(attribute_id: StringName) -> String:
 			return "意志"
 		ATTRIBUTE_SERVICE_SCRIPT.HP_MAX:
 			return "生命上限"
+		ATTRIBUTE_SERVICE_SCRIPT.CHARACTER_HP_MAX_PERCENT_BONUS:
+			return "人物生命加成%"
 		ATTRIBUTE_SERVICE_SCRIPT.MP_MAX:
 			return "法力上限"
 		ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX:
@@ -1780,6 +2391,8 @@ func _resolve_attribute_label(attribute_id: StringName) -> String:
 			return "闪避加值"
 		ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS:
 			return "偏斜加值"
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_MAX_DEX_BONUS:
+			return "护甲敏捷上限"
 		_:
 			return String(attribute_id)
 

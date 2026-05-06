@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"artificers_lore"
+display_name = "工匠学识"
+description = "岩侏儒对机关、工艺和魔法造物的知识标记。"
+trigger_type = &"passive"
+effect_type = &"artificers_lore"
+params = {}

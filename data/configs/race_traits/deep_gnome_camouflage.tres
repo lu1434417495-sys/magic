@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"deep_gnome_camouflage"
+display_name = "石中伪装"
+description = "地底侏儒在岩石和地下环境中隐匿的标记。"
+trigger_type = &"passive"
+effect_type = &"deep_gnome_camouflage"
+params = {}

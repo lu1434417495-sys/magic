@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="BloodlineStageDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/bloodline_stage_def.gd" id="1_stage"]
+[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_strength"]
+script = ExtResource("2_modifier")
+attribute_id = &"strength"
+mode = &"flat"
+value = 2
+value_per_rank = 0
+source_type = &"bloodline"
+source_id = &"titan_awakened"
+
+[sub_resource type="Resource" id="Resource_constitution"]
+script = ExtResource("2_modifier")
+attribute_id = &"constitution"
+mode = &"flat"
+value = 2
+value_per_rank = 0
+source_type = &"bloodline"
+source_id = &"titan_awakened"
+
+[sub_resource type="Resource" id="Resource_willpower"]
+script = ExtResource("2_modifier")
+attribute_id = &"willpower"
+mode = &"flat"
+value = 1
+value_per_rank = 0
+source_type = &"bloodline"
+source_id = &"titan_awakened"
+
+[resource]
+script = ExtResource("1_stage")
+stage_id = &"titan_awakened"
+bloodline_id = &"titan"
+display_name = "Titan Blood Awakened"
+description = "The first stable awakening of titan blood: the body becomes heavier, forceful, and harder to break, while the character remains in their original race and body-size rules."
+attribute_modifiers = Array[Resource]([SubResource("Resource_strength"), SubResource("Resource_constitution"), SubResource("Resource_willpower")])
+trait_ids = Array[StringName]([])
+racial_granted_skills = Array[Resource]([])
+trait_summary = Array[String](["Awakened titan blood: strength +2, constitution +2, willpower +1.", "This stage does not change body size; giant or divine form belongs to later ascension content."])

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"gnome"
+display_name = "侏儒"
+description = "小巧而机敏的族群，擅长抵御精神类魔法。"
+age_profile_id = &"gnome_age_profile"
+default_subrace_id = &"forest_gnome"
+subrace_ids = Array[StringName]([&"forest_gnome", &"deep_gnome", &"rock_gnome"])
+body_size_category = &"small"
+base_speed = 5
+trait_ids = Array[StringName]([&"darkvision", &"gnome_cunning", &"small_body"])
+proficiency_tags = Array[StringName]([])
+vision_tags = Array[StringName]([&"darkvision"])
+save_advantage_tags = Array[StringName]([&"magic", &"intelligence", &"willpower"])
+damage_resistances = {}
+dialogue_tags = Array[StringName]([&"gnome"])
+racial_trait_summary = Array[String](["黑暗视觉。", "侏儒狡黠。", "小型体型。"])

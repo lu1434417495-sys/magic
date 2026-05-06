@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_trait_def.gd" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"elven_weapon_training"
+display_name = "精灵武器训练"
+description = "熟悉长剑、短剑、短弓和长弓的训练。"
+trigger_type = &"passive"
+effect_type = &"elven_weapon_training"
+params = {}

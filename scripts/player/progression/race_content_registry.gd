@@ -69,7 +69,7 @@ func _append_race_validation_errors(errors: Array[String], race_id: StringName, 
 	_append_string_name_field_error(errors, owner_label, "age_profile_id", race_def.age_profile_id)
 	_append_string_name_field_error(errors, owner_label, "default_subrace_id", race_def.default_subrace_id)
 	_append_string_name_array_errors(errors, owner_label, race_def.subrace_ids, "subrace_ids")
-	_append_int_field_error(errors, owner_label, "body_size", race_def.body_size)
+	_append_string_name_field_error(errors, owner_label, "body_size_category", race_def.body_size_category)
 	_append_int_field_error(errors, owner_label, "base_speed", race_def.base_speed)
 	_append_attribute_modifier_array_errors(errors, owner_label, race_def.attribute_modifiers, "attribute_modifiers")
 	_append_string_name_array_errors(errors, owner_label, race_def.trait_ids, "trait_ids")

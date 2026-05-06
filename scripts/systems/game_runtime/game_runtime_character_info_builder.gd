@@ -67,6 +67,12 @@ func build_battle_character_info_sections(unit: BattleUnitState, type_label: Str
 		"title": "基础概览",
 		"entries": build_battle_character_info_base_entries(unit, type_label, faction_label),
 	}]
+	var identity_entries := build_battle_character_identity_entries(unit)
+	if not identity_entries.is_empty():
+		sections.append({
+			"title": "身份与特性",
+			"entries": identity_entries,
+		})
 	var status_entries := build_battle_character_status_entries(unit)
 	if not status_entries.is_empty():
 		sections.append({
@@ -80,6 +86,76 @@ func build_battle_character_info_sections(unit: BattleUnitState, type_label: Str
 			"entries": skill_entries,
 		})
 	return sections
+
+
+func build_battle_character_identity_entries(unit: BattleUnitState) -> Array[Dictionary]:
+	var summary := _get_battle_unit_identity_summary(unit)
+	if summary.is_empty():
+		return []
+	var entries: Array[Dictionary] = [
+		{
+			"label": "种族",
+			"value": String(summary.get("race_label", "")),
+		},
+		{
+			"label": "亚种",
+			"value": String(summary.get("subrace_label", "")),
+		},
+		{
+			"label": "年龄",
+			"value": "%d 岁" % int(summary.get("age_years", 0)),
+		},
+		{
+			"label": "自然阶段",
+			"value": String(summary.get("natural_age_stage_label", "")),
+		},
+		{
+			"label": "有效阶段",
+			"value": String(summary.get("effective_age_stage_label", "")),
+		},
+		{
+			"label": "体型",
+			"value": "%s（%d）" % [
+				String(summary.get("body_size_category", "")),
+				int(summary.get("body_size", 0)),
+			],
+		},
+	]
+	var bloodline_label := String(summary.get("bloodline_label", "")).strip_edges()
+	if not bloodline_label.is_empty():
+		entries.append({
+			"label": "血脉",
+			"value": _join_identity_label_pair(
+				bloodline_label,
+				String(summary.get("bloodline_stage_label", "")).strip_edges()
+			),
+		})
+	var ascension_label := String(summary.get("ascension_label", "")).strip_edges()
+	if not ascension_label.is_empty():
+		entries.append({
+			"label": "升华",
+			"value": _join_identity_label_pair(
+				ascension_label,
+				String(summary.get("ascension_stage_label", "")).strip_edges()
+			),
+		})
+	var damage_resistance_text := _format_identity_map(summary.get("damage_resistances", {}))
+	if not damage_resistance_text.is_empty():
+		entries.append({
+			"label": "伤害抗性",
+			"value": damage_resistance_text,
+		})
+	var save_advantage_text := _format_identity_array(summary.get("save_advantage_tags", []))
+	if not save_advantage_text.is_empty():
+		entries.append({
+			"label": "豁免优势",
+			"value": save_advantage_text,
+		})
+	for line in _identity_text_array(summary.get("trait_summary", [])):
+		entries.append({"text": "特性：%s" % line})
+	for line in _identity_text_array(summary.get("racial_skill_lines", [])):
+		entries.append({"text": "种族法术：%s" % line})
+	return entries
 
 
 func build_battle_character_info_fate_payload(unit: BattleUnitState) -> Dictionary:
@@ -207,3 +283,48 @@ func _format_coord(coord: Vector2i) -> String:
 
 func _get_skill_display_name(skill_id: StringName) -> String:
 	return _runtime._get_skill_display_name(skill_id) if _runtime != null else String(skill_id)
+
+
+func _get_battle_unit_identity_summary(unit: BattleUnitState) -> Dictionary:
+	if unit == null or unit.source_member_id == &"" or _runtime == null:
+		return {}
+	if not _runtime.has_method("get_character_management"):
+		return {}
+	var character_management = _runtime.get_character_management()
+	if character_management == null or not character_management.has_method("get_identity_summary_for_member"):
+		return {}
+	var summary = character_management.get_identity_summary_for_member(unit.source_member_id)
+	return summary if summary is Dictionary else {}
+
+
+func _join_identity_label_pair(primary_label: String, secondary_label: String) -> String:
+	if secondary_label.is_empty():
+		return primary_label
+	return "%s · %s" % [primary_label, secondary_label]
+
+
+func _format_identity_map(value: Variant) -> String:
+	if value is not Dictionary:
+		return ""
+	var parts := PackedStringArray()
+	var data := value as Dictionary
+	for key in data.keys():
+		parts.append("%s=%s" % [String(key), String(data[key])])
+	parts.sort()
+	return "，".join(parts)
+
+
+func _format_identity_array(value: Variant) -> String:
+	return "，".join(_identity_text_array(value))
+
+
+func _identity_text_array(value: Variant) -> PackedStringArray:
+	var result := PackedStringArray()
+	if value is not Array:
+		return result
+	for entry in value:
+		var text := String(entry).strip_edges()
+		if text.is_empty():
+			continue
+		result.append(text)
+	return result
