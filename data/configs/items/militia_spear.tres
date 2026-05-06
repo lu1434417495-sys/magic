@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "militia_spear"
+base_item_id = "weapon_type_spear_base"
+display_name = "Militia Spear"
+description = "A versatile piercing weapon with a throwable balance."
+is_stackable = false
+base_price = 110
+buy_price = 110
+sell_price = 55
+sellable = true
+max_stack = 1

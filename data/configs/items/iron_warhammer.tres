@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "iron_warhammer"
+base_item_id = "weapon_type_warhammer_base"
+display_name = "Iron Warhammer"
+description = "A versatile martial hammer for blunt force."
+is_stackable = false
+base_price = 250
+buy_price = 250
+sell_price = 125
+sellable = true
+max_stack = 1

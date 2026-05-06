@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "raider_greataxe"
+base_item_id = "weapon_type_greataxe_base"
+display_name = "Raider Greataxe"
+description = "A two-handed axe with a high single damage die."
+is_stackable = false
+base_price = 290
+buy_price = 290
+sell_price = 145
+sellable = true
+max_stack = 1

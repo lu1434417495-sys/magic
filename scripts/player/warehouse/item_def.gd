@@ -66,6 +66,8 @@ const DAMAGE_TAG_PHYSICAL_BLUNT: StringName = &"physical_blunt"
 @export var equipment_type_id: StringName = &""
 ## 字段说明：武器运行时配置真相源；必须引用 WeaponProfileDef，攻击范围、伤害类型与后续武器骰配置均从该资源读取。
 @export var weapon_profile: Resource = null
+## 字段说明：护甲允许计入普通 AC 的最大正向敏捷调整值；-1 表示该物品不提供敏捷上限约束。
+@export_range(-1, 20, 1) var max_dex_bonus := -1
 
 
 func get_effective_max_stack() -> int:
@@ -157,6 +159,10 @@ func get_weapon_physical_damage_tag() -> StringName:
 
 func is_armor() -> bool:
 	return get_equipment_type_id_normalized() == EQUIPMENT_TYPE_ARMOR
+
+
+func get_max_dex_bonus() -> int:
+	return maxi(int(max_dex_bonus), -1)
 
 
 func is_accessory() -> bool:

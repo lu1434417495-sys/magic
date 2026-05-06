@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "iron_war_pick"
+base_item_id = "weapon_type_war_pick_base"
+display_name = "Iron War Pick"
+description = "A martial one-handed pick for piercing armor gaps."
+is_stackable = false
+base_price = 220
+buy_price = 220
+sell_price = 110
+sellable = true
+max_stack = 1

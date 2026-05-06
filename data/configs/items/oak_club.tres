@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "oak_club"
+base_item_id = "weapon_type_club_base"
+display_name = "Oak Club"
+description = "A simple light bludgeoning weapon."
+is_stackable = false
+base_price = 45
+buy_price = 45
+sell_price = 22
+sellable = true
+max_stack = 1

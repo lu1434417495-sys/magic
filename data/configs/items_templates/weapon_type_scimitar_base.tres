@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/weapon_profile_def.gd" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/weapon_damage_dice_def.gd" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"scimitar"
+training_group = &"martial"
+range_type = &"melee"
+family = &"sword"
+damage_tag = &"physical_slash"
+attack_range = 1
+one_handed_dice = SubResource("Resource_one_handed_dice")
+properties_mode = 1
+properties = Array[StringName](["finesse", "light"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = "weapon_type_scimitar_base"
+icon = "res://icon.svg"
+item_category = "equipment"
+tags = Array[StringName](["weapon", "melee", "one_handed", "scimitar", "sword", "weapon_class_sword", "weapon_type_scimitar"])
+equipment_slot_ids = Array[String](["main_hand"])
+equipment_type_id = "weapon"
+weapon_profile = SubResource("Resource_weapon_profile")

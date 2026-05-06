@@ -17,6 +17,40 @@ const EquipmentEntryState = preload("res://scripts/player/equipment/equipment_en
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
+const BG3_WEAPON_SEED_ITEMS := {
+	&"club": &"oak_club",
+	&"dagger": &"iron_dagger",
+	&"handaxe": &"militia_axe",
+	&"javelin": &"hunting_javelin",
+	&"light_hammer": &"smith_light_hammer",
+	&"mace": &"watchman_mace",
+	&"sickle": &"farmer_sickle",
+	&"quarterstaff": &"oak_quarterstaff",
+	&"spear": &"militia_spear",
+	&"greatclub": &"iron_greatclub",
+	&"light_crossbow": &"militia_light_crossbow",
+	&"shortbow": &"ash_shortbow",
+	&"flail": &"iron_flail",
+	&"morningstar": &"iron_morningstar",
+	&"rapier": &"duelist_rapier",
+	&"scimitar": &"curved_scimitar",
+	&"shortsword": &"bronze_sword",
+	&"war_pick": &"iron_war_pick",
+	&"battleaxe": &"soldier_battleaxe",
+	&"longsword": &"steel_longsword",
+	&"trident": &"guard_trident",
+	&"warhammer": &"iron_warhammer",
+	&"glaive": &"soldier_glaive",
+	&"greataxe": &"raider_greataxe",
+	&"greatsword": &"iron_greatsword",
+	&"halberd": &"steel_halberd",
+	&"maul": &"stone_maul",
+	&"pike": &"soldier_pike",
+	&"hand_crossbow": &"compact_hand_crossbow",
+	&"heavy_crossbow": &"siege_heavy_crossbow",
+	&"longbow": &"ash_longbow",
+}
+
 var _failures: Array[String] = []
 
 
@@ -26,6 +60,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_item_registry_accepts_equipment_seed_data()
+	_test_all_bg3_weapon_types_are_registered_as_weapon_equipment()
 	_test_melee_weapons_declare_exactly_one_physical_damage_tag()
 	_test_equipment_service_moves_items_between_warehouse_and_slots()
 	_test_equipment_modifiers_change_attribute_snapshot_and_round_trip()
@@ -36,6 +71,7 @@ func _run() -> void:
 	_test_two_handed_weapon_attribute_not_double_counted()
 	_test_atomic_rollback_when_warehouse_full()
 	_test_preview_equip_returns_displaced_entries()
+	_test_armor_max_dex_bonus_caps_positive_agility_ac()
 	_test_requirement_profession_check()
 	_test_equip_creates_instance_id_in_slot()
 	_test_instance_id_preserved_through_unequip_and_reequip()
@@ -55,6 +91,7 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	var bronze_sword = item_defs.get(&"bronze_sword")
 	var leather_cap = item_defs.get(&"leather_cap")
 	var leather_jerkin = item_defs.get(&"leather_jerkin")
+	var iron_scale_mail = item_defs.get(&"iron_scale_mail")
 	var scout_charm = item_defs.get(&"scout_charm")
 	var iron_greatsword = item_defs.get(&"iron_greatsword")
 	var militia_axe = item_defs.get(&"militia_axe")
@@ -63,6 +100,7 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_true(bronze_sword != null and bronze_sword.is_equipment(), "青铜短剑应注册为可装备物品。")
 	_assert_true(leather_cap != null and leather_cap.is_equipment(), "皮革护帽应注册为可装备物品。")
 	_assert_true(leather_jerkin != null and leather_jerkin.is_equipment(), "皮革短甲应注册为可装备物品。")
+	_assert_true(iron_scale_mail != null and iron_scale_mail.is_equipment(), "铁鳞甲应注册为可装备物品。")
 	_assert_true(scout_charm != null and scout_charm.is_equipment(), "斥候护符应注册为可装备物品。")
 	_assert_true(iron_greatsword != null and iron_greatsword.is_equipment(), "铁制大剑应注册为可装备物品。")
 	_assert_true(militia_axe != null and militia_axe.is_equipment(), "民兵手斧应注册为可装备物品。")
@@ -71,6 +109,7 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_eq(bronze_sword.get_equipment_type_id_normalized(), &"weapon", "青铜短剑应归类为 weapon。")
 	_assert_eq(leather_cap.get_equipment_type_id_normalized(), &"armor", "皮革护帽应归类为 armor。")
 	_assert_eq(leather_jerkin.get_equipment_type_id_normalized(), &"armor", "皮革短甲应归类为 armor。")
+	_assert_eq(iron_scale_mail.get_equipment_type_id_normalized(), &"armor", "铁鳞甲应归类为 armor。")
 	_assert_eq(scout_charm.get_equipment_type_id_normalized(), &"accessory", "斥候护符应归类为 accessory。")
 	_assert_eq(iron_greatsword.get_equipment_type_id_normalized(), &"weapon", "铁制大剑应归类为 weapon。")
 	_assert_eq(militia_axe.get_equipment_type_id_normalized(), &"weapon", "民兵手斧应归类为 weapon。")
@@ -78,6 +117,7 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_true(bronze_sword.is_weapon(), "青铜短剑应通过 is_weapon()。")
 	_assert_true(leather_cap.is_armor(), "皮革护帽应通过 is_armor()。")
 	_assert_true(leather_jerkin.is_armor(), "皮革短甲应通过 is_armor()。")
+	_assert_true(iron_scale_mail.is_armor(), "铁鳞甲应通过 is_armor()。")
 	_assert_true(scout_charm.is_accessory(), "斥候护符应通过 is_accessory()。")
 	_assert_eq(iron_greatsword.get_final_occupied_slot_ids(&"main_hand").size(), 2, "铁制大剑应声明占用 2 个槽位。")
 	_assert_eq(
@@ -89,6 +129,25 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 	_assert_eq(leather_cap.get_sell_price(), 50, "皮革护帽应声明出售价格。")
 	_assert_eq(leather_cap.get_equipment_slot_ids(), [&"head"], "皮革护帽应声明头部槽位。")
 	_assert_eq(leather_cap.get_final_occupied_slot_ids(&"head"), [&"head"], "皮革护帽应只占用头部槽。")
+	_assert_eq(leather_cap.get_max_dex_bonus(), -1, "皮革护帽不应声明身体护甲敏捷上限。")
+	_assert_eq(
+		leather_jerkin.get_tags(),
+		[&"armor", &"body", &"leather", &"light_armor"],
+		"皮革短甲应补齐身体皮甲标签。"
+	)
+	_assert_eq(leather_jerkin.get_equipment_slot_ids(), [&"body"], "皮革短甲应声明身体槽位。")
+	_assert_eq(leather_jerkin.get_final_occupied_slot_ids(&"body"), [&"body"], "皮革短甲应只占用身体槽。")
+	_assert_eq(leather_jerkin.get_max_dex_bonus(), 6, "皮革短甲应声明 3.5E 软皮甲敏捷上限。")
+	_assert_eq(
+		iron_scale_mail.get_tags(),
+		[&"armor", &"body", &"metal", &"medium_armor", &"scale_mail"],
+		"铁鳞甲应补齐中甲标签。"
+	)
+	_assert_eq(iron_scale_mail.get_buy_price(), 180, "铁鳞甲应声明购买价格。")
+	_assert_eq(iron_scale_mail.get_sell_price(), 90, "铁鳞甲应声明出售价格。")
+	_assert_eq(iron_scale_mail.get_equipment_slot_ids(), [&"body"], "铁鳞甲应声明身体槽位。")
+	_assert_eq(iron_scale_mail.get_final_occupied_slot_ids(&"body"), [&"body"], "铁鳞甲应只占用身体槽。")
+	_assert_eq(iron_scale_mail.get_max_dex_bonus(), 3, "铁鳞甲应声明鳞甲敏捷上限。")
 	_assert_eq(
 		bronze_sword.get_tags(),
 		[&"weapon", &"melee", &"one_handed", &"shortsword", &"sword", &"weapon_class_sword", &"weapon_type_shortsword"],
@@ -138,6 +197,33 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 		covered_equipment_slots.has(&"head"),
 		"正式装备种子至少应覆盖 head 槽位。"
 	)
+	_assert_true(
+		covered_equipment_slots.has(&"body"),
+		"正式装备种子至少应覆盖 body 槽位。"
+	)
+
+
+func _test_all_bg3_weapon_types_are_registered_as_weapon_equipment() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	_assert_eq(BG3_WEAPON_SEED_ITEMS.size(), 31, "装备种子应覆盖 31 类 BG3 基础武器类型。")
+	for weapon_type_id in BG3_WEAPON_SEED_ITEMS.keys():
+		var item_id := ProgressionDataUtils.to_string_name(BG3_WEAPON_SEED_ITEMS[weapon_type_id])
+		var item_def := item_defs.get(item_id) as ItemDef
+		_assert_true(item_def != null, "BG3 weapon_type %s 应有正式装备实例 %s。" % [String(weapon_type_id), String(item_id)])
+		if item_def == null:
+			continue
+		_assert_true(item_def.is_equipment(), "%s 应注册为装备。" % String(item_id))
+		_assert_true(item_def.is_weapon(), "%s 应注册为武器。" % String(item_id))
+		_assert_eq(item_def.get_equipment_slot_ids(), [&"main_hand"], "%s 应通过主手槽装备。" % String(item_id))
+		_assert_true(item_def.get_weapon_attack_range() >= 1, "%s 应投影有效武器射程。" % String(item_id))
+		_assert_true(
+			ItemDef.get_valid_weapon_physical_damage_tags().has(item_def.get_weapon_physical_damage_tag()),
+			"%s 应投影有效物理伤害类型。" % String(item_id)
+		)
+		var profile := item_def.get("weapon_profile") as WeaponProfileDef
+		_assert_true(profile != null, "%s 应持有 WeaponProfileDef。" % String(item_id))
+		if profile != null:
+			_assert_eq(String(profile.weapon_type_id), String(weapon_type_id), "%s 应映射到指定 BG3 weapon_type_id。" % String(item_id))
 
 
 func _test_melee_weapons_declare_exactly_one_physical_damage_tag() -> void:
@@ -307,8 +393,8 @@ func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> voi
 	)
 	_assert_eq(
 		after_snapshot.get_value(AttributeService.HP_MAX) - before_snapshot.get_value(AttributeService.HP_MAX),
-		6,
-		"皮革短甲应为生命上限提供固定加值。"
+		0,
+		"皮革短甲不应提供生命上限加值。"
 	)
 	_assert_eq(
 		after_snapshot.get_value(AttributeService.DODGE_BONUS) - before_snapshot.get_value(AttributeService.DODGE_BONUS),
@@ -559,6 +645,60 @@ func _test_preview_equip_returns_displaced_entries() -> void:
 	# preview 不应改变状态
 	_assert_eq(String(party_state.get_member_state(&"hero").equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "preview_equip 不应修改状态。")
 	_assert_eq(warehouse_service.count_item(&"iron_greatsword"), 1, "preview_equip 不应消耗仓库库存。")
+
+
+func _test_armor_max_dex_bonus_caps_positive_agility_ac() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	var progression_registry := ProgressionContentRegistry.new()
+	var party_state := _build_party_with_member(&"hero", "Hero", 8)
+	party_state.get_member_state(&"hero").progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 18)
+
+	var baseline_manager := CharacterManagementModule.new()
+	baseline_manager.setup(
+		party_state,
+		progression_registry.get_skill_defs(),
+		progression_registry.get_profession_defs(),
+		progression_registry.get_achievement_defs(),
+		item_defs
+	)
+	var baseline_snapshot = baseline_manager.get_member_attribute_snapshot(&"hero")
+	_assert_eq(baseline_snapshot.get_value(AttributeService.ARMOR_CLASS), 12, "敏捷 18 且无护甲时 AC 应为 8 + 敏捷调整值 4。")
+	_assert_eq(baseline_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS), -1, "无护甲时敏捷上限应为 -1。")
+
+	var warehouse_service := PartyWarehouseService.new()
+	warehouse_service.setup(party_state, item_defs)
+	warehouse_service.add_item(&"leather_jerkin", 1)
+	warehouse_service.add_item(&"iron_scale_mail", 1)
+	var equipment_service := PartyEquipmentService.new()
+	equipment_service.setup(party_state, item_defs, warehouse_service)
+
+	var leather_result := equipment_service.equip_item(&"hero", &"leather_jerkin")
+	_assert_true(bool(leather_result.get("success", false)), "皮革短甲应能装备到身体槽。")
+	var leather_manager := CharacterManagementModule.new()
+	leather_manager.setup(
+		party_state,
+		progression_registry.get_skill_defs(),
+		progression_registry.get_profession_defs(),
+		progression_registry.get_achievement_defs(),
+		item_defs
+	)
+	var leather_snapshot = leather_manager.get_member_attribute_snapshot(&"hero")
+	_assert_eq(leather_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS), 6, "皮革短甲应提供敏捷上限 6。")
+	_assert_eq(leather_snapshot.get_value(AttributeService.ARMOR_CLASS), 14, "皮革短甲不应限制敏捷 18 的 +4 AC。")
+
+	var scale_result := equipment_service.equip_item(&"hero", &"iron_scale_mail")
+	_assert_true(bool(scale_result.get("success", false)), "铁鳞甲应能替换身体槽护甲。")
+	var scale_manager := CharacterManagementModule.new()
+	scale_manager.setup(
+		party_state,
+		progression_registry.get_skill_defs(),
+		progression_registry.get_profession_defs(),
+		progression_registry.get_achievement_defs(),
+		item_defs
+	)
+	var scale_snapshot = scale_manager.get_member_attribute_snapshot(&"hero")
+	_assert_eq(scale_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS), 3, "铁鳞甲应提供敏捷上限 3。")
+	_assert_eq(scale_snapshot.get_value(AttributeService.ARMOR_CLASS), 15, "铁鳞甲应把敏捷 AC 从 +4 限制为 +3，再叠加护甲 +4。")
 
 
 func _test_requirement_profession_check() -> void:

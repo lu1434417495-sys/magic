@@ -286,6 +286,7 @@ static func resolve_with_template_chain(
 ##   3) 数组：tags / crafting_groups / quest_groups / attribute_modifiers 为可加成数组，模板与 instance 合并去重；
 ##      equipment_slot_ids / occupied_slot_ids 为结构性数组，instance 非空覆盖、空回退模板（不能合并以免出现重复槽位）。
 ## weapon_profile 是武器运行时真相源；合并只委托 WeaponProfileDef，不在 ItemDef 上保留裸字段规则。
+## max_dex_bonus 使用 -1 表示未填，0 是有效上限，因此合并时以 >= 0 作为 instance 覆盖条件。
 ## attribute_modifiers 在合并时深拷贝并把 source_id 重写为最终 item_id，避免多个实例共享 source 导致结算覆盖。
 static func merge_with_template(template: ItemDef, instance: ItemDef) -> ItemDef:
 	var merged: ItemDef = ITEM_DEF_SCRIPT.new()
@@ -304,6 +305,7 @@ static func merge_with_template(template: ItemDef, instance: ItemDef) -> ItemDef
 	merged.base_price = int(instance.base_price) if int(instance.base_price) != 0 else int(template.base_price)
 	merged.buy_price = int(instance.buy_price) if int(instance.buy_price) != 0 else int(template.buy_price)
 	merged.sell_price = int(instance.sell_price) if int(instance.sell_price) != 0 else int(template.sell_price)
+	merged.max_dex_bonus = int(instance.max_dex_bonus) if int(instance.max_dex_bonus) >= 0 else int(template.max_dex_bonus)
 
 	# 默认非空字段：is_stackable(true) / sellable(true) / max_stack(99)。
 	# 这些字段的默认值本身有业务含义，无法区分"未填"与"显式填默认"，所以始终使用 instance 值，模板不参与。

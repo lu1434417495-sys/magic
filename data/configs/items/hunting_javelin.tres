@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "hunting_javelin"
+base_item_id = "weapon_type_javelin_base"
+display_name = "Hunting Javelin"
+description = "A simple piercing weapon balanced for throwing."
+is_stackable = false
+base_price = 90
+buy_price = 90
+sell_price = 45
+sellable = true
+max_stack = 1

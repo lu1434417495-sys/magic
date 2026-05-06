@@ -123,12 +123,12 @@ func _run() -> void:
 	_assert_party_equipment_not_updated_during_battle(offhand_result.snapshot, active_member_id)
 
 	_prime_active_unit_ap(runner, 4)
-	var hp_equip_result = await _run_command(runner, "battle equip body leather_jerkin")
-	_assert_battle_hp_item_equipped(hp_equip_result.snapshot)
-	var hp_equip_report := _find_latest_change_equipment_report(hp_equip_result.snapshot)
-	_prime_active_unit_hp_and_ap(runner, int(hp_equip_report.get("hp_max_after", 0)), 2)
-	var hp_unequip_result = await _run_command(runner, "battle unequip body")
-	_assert_battle_unequip_hp_clamp_and_turn_end(hp_unequip_result.snapshot, hp_unequip_result.snapshot_text)
+	var body_armor_equip_result = await _run_command(runner, "battle equip body leather_jerkin")
+	_assert_battle_body_armor_equipped_without_hp_bonus(body_armor_equip_result.snapshot)
+	var body_armor_equip_report := _find_latest_change_equipment_report(body_armor_equip_result.snapshot)
+	_prime_active_unit_hp_and_ap(runner, int(body_armor_equip_report.get("hp_max_after", 0)), 2)
+	var body_armor_unequip_result = await _run_command(runner, "battle unequip body")
+	_assert_battle_unequip_body_armor_turn_end_without_hp_clamp(body_armor_unequip_result.snapshot, body_armor_unequip_result.snapshot_text)
 
 	var finish_result = await _run_command(runner, "battle finish player")
 	_assert_party_equipment_written_back_after_battle(finish_result.snapshot, active_member_id)
@@ -320,7 +320,7 @@ func _assert_successful_battle_equip(snapshot: Dictionary, text_snapshot: String
 	_assert_eq(String(equipped.get("item_id", "")), "leather_cap", "成功换装后单位 battle-local 装备快照应显示 head 皮革护帽。")
 	_assert_eq(_count_battle_backpack_item(snapshot, "leather_cap"), 0, "成功换装后 battle-local 背包中不应残留该装备。")
 	_assert_true(text_snapshot.contains("report=change_equipment | ok=true"), "文本快照应渲染成功换装 report。")
-	_assert_true(text_snapshot.contains("equip=head:leather_cap#"), "文本快照应渲染单位 battle-local 装备。")
+	_assert_true(text_snapshot.contains("head:leather_cap"), "文本快照应渲染单位 battle-local 装备。")
 	_assert_true(text_snapshot.contains("backpack_used_slots="), "文本快照应渲染 battle-local 背包摘要。")
 
 
@@ -488,30 +488,29 @@ func _assert_party_equipment_written_back_after_battle(snapshot: Dictionary, mem
 	_assert_eq(String(main_entry.get("item_id", "")), String(VERSATILE_TEST_WEAPON_ID), "战后 party 主手才应写回 battle-local versatile 武器。")
 	_assert_eq(String(offhand_entry.get("item_id", "")), String(OFFHAND_TEST_ITEM_ID), "战后 party 副手才应写回 battle-local 副手物品。")
 	_assert_eq(String(head_entry.get("item_id", "")), "leather_cap", "战后 party 头部应写回 battle-local 皮革护帽。")
-	_assert_true(body_entry.is_empty(), "HP clamp 卸装后战后 party body 槽应保持清空。")
+	_assert_true(body_entry.is_empty(), "卸装后战后 party body 槽应保持清空。")
 
 
-func _assert_battle_hp_item_equipped(snapshot: Dictionary) -> void:
+func _assert_battle_body_armor_equipped_without_hp_bonus(snapshot: Dictionary) -> void:
 	var report := _find_latest_change_equipment_report(snapshot)
-	_assert_true(bool(report.get("ok", false)), "HP 装备换装应成功。")
-	_assert_eq(String(report.get("item_id", "")), "leather_jerkin", "HP 装备换装 report 应记录皮革短甲。")
-	_assert_true(int(report.get("hp_max_after", 0)) > int(report.get("hp_max_before", 0)), "装备 HP 加成装备后 hp_max_after 应上升。")
+	_assert_true(bool(report.get("ok", false)), "身体护甲换装应成功。")
+	_assert_eq(String(report.get("item_id", "")), "leather_jerkin", "身体护甲换装 report 应记录皮革短甲。")
+	_assert_eq(int(report.get("hp_max_after", 0)), int(report.get("hp_max_before", -1)), "皮革短甲不应提高 HP 上限。")
 
 
-func _assert_battle_unequip_hp_clamp_and_turn_end(snapshot: Dictionary, text_snapshot: String) -> void:
+func _assert_battle_unequip_body_armor_turn_end_without_hp_clamp(snapshot: Dictionary, text_snapshot: String) -> void:
 	var battle_snapshot: Dictionary = snapshot.get("battle", {})
 	var report := _find_latest_change_equipment_report(snapshot)
-	_assert_true(bool(report.get("ok", false)), "HP 装备卸装应成功。")
-	_assert_eq(String(report.get("operation", "")), "unequip", "HP clamp report 应来自卸装。")
-	_assert_true(bool(report.get("hp_clamped", false)), "卸下 HP 加成装备时 report 应标记 hp_clamped。")
-	_assert_true(int(report.get("hp_before", 0)) > int(report.get("hp_after", 0)), "HP clamp report 应显示 HP 下降。")
-	_assert_eq(int(report.get("hp_after", 0)), int(report.get("hp_max_after", -1)), "HP clamp 后 current_hp 应等于新 HP 上限。")
+	_assert_true(bool(report.get("ok", false)), "身体护甲卸装应成功。")
+	_assert_eq(String(report.get("operation", "")), "unequip", "卸装 report 应来自卸装。")
+	_assert_true(not bool(report.get("hp_clamped", false)), "卸下无生命加成护甲时不应标记 hp_clamped。")
+	_assert_eq(int(report.get("hp_before", 0)), int(report.get("hp_after", -1)), "卸下无生命加成护甲时当前 HP 不应变化。")
 	_assert_eq(String(battle_snapshot.get("phase", "")), "timeline_running", "AP 归零后战斗阶段应回到 timeline_running。")
 	_assert_eq(String(battle_snapshot.get("active_unit_id", "")), "", "AP 归零后应清空 active_unit_id。")
 	var unit := _find_battle_unit(battle_snapshot, String(report.get("unit_id", "")))
-	_assert_true(_find_equipped_entry(unit.get("equipment", []), "body").is_empty(), "HP 装备卸装后 body 槽应清空。")
-	_assert_eq(_count_battle_backpack_item(snapshot, "leather_jerkin"), 1, "HP 装备卸装后应回到 battle-local 背包。")
-	_assert_true(text_snapshot.contains("hp_clamped=true"), "文本快照应渲染 HP clamp。")
+	_assert_true(_find_equipped_entry(unit.get("equipment", []), "body").is_empty(), "身体护甲卸装后 body 槽应清空。")
+	_assert_eq(_count_battle_backpack_item(snapshot, "leather_jerkin"), 1, "身体护甲卸装后应回到 battle-local 背包。")
+	_assert_true(not text_snapshot.contains("hp_clamped=true"), "文本快照不应渲染不存在的 HP clamp。")
 	_assert_true(text_snapshot.contains("active_unit_id="), "文本快照应渲染行动结束后的 active_unit_id。")
 
 

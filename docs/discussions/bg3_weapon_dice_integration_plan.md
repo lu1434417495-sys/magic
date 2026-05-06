@@ -22,12 +22,11 @@
   - 模板继承由 `WeaponProfileDef.merge()` 负责，`ItemContentRegistry.merge_with_template()` 只委托 profile 合并。
 - `scripts/player/warehouse/weapon_damage_dice_def.gd`
   - 持有 `dice_count`、`dice_sides`、`flat_bonus`。
-- 当前种子武器只保留 BG3 子集：
-  - `bronze_sword` -> Shortsword, `1D6`, `physical_pierce`, `finesse/light`
-  - `iron_greatsword` -> Greatsword, `2D6`, `physical_slash`, `two_handed`
-  - `militia_axe` -> Handaxe, `1D6`, `physical_slash`, `light/thrown`
-  - `watchman_mace` -> Mace, `1D6`, `physical_blunt`
-  - `scout_dagger` 已从种子物品移除。
+- 当前种子武器已覆盖 `docs/design/weapon_types_damage.md` 中 31 类 BG3 基础 weapon type：
+  - 每类 weapon type 都有一个 `data/configs/items_templates/weapon_type_*_base.tres` 模板。
+  - 每个模板至少有一个正式 `data/configs/items/*.tres` 装备实例引用。
+  - 仍保留原有正式实例：`bronze_sword` -> Shortsword、`iron_greatsword` -> Greatsword、`militia_axe` -> Handaxe、`watchman_mace` -> Mace。
+  - `scout_dagger` 仍不作为正式种子物品；Dagger 类型由 `iron_dagger` 落地。
 
 ### 战斗投影
 

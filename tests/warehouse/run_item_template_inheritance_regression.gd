@@ -94,6 +94,74 @@ const TEMPLATE_IDS := [
 	&"weapon_type_mace_base",
 ]
 
+const BG3_WEAPON_SEED_ITEMS := {
+	&"club": &"oak_club",
+	&"dagger": &"iron_dagger",
+	&"handaxe": &"militia_axe",
+	&"javelin": &"hunting_javelin",
+	&"light_hammer": &"smith_light_hammer",
+	&"mace": &"watchman_mace",
+	&"sickle": &"farmer_sickle",
+	&"quarterstaff": &"oak_quarterstaff",
+	&"spear": &"militia_spear",
+	&"greatclub": &"iron_greatclub",
+	&"light_crossbow": &"militia_light_crossbow",
+	&"shortbow": &"ash_shortbow",
+	&"flail": &"iron_flail",
+	&"morningstar": &"iron_morningstar",
+	&"rapier": &"duelist_rapier",
+	&"scimitar": &"curved_scimitar",
+	&"shortsword": &"bronze_sword",
+	&"war_pick": &"iron_war_pick",
+	&"battleaxe": &"soldier_battleaxe",
+	&"longsword": &"steel_longsword",
+	&"trident": &"guard_trident",
+	&"warhammer": &"iron_warhammer",
+	&"glaive": &"soldier_glaive",
+	&"greataxe": &"raider_greataxe",
+	&"greatsword": &"iron_greatsword",
+	&"halberd": &"steel_halberd",
+	&"maul": &"stone_maul",
+	&"pike": &"soldier_pike",
+	&"hand_crossbow": &"compact_hand_crossbow",
+	&"heavy_crossbow": &"siege_heavy_crossbow",
+	&"longbow": &"ash_longbow",
+}
+
+const BG3_WEAPON_PROFILE_EXPECTATIONS := {
+	&"club": {"training_group": &"simple", "range_type": &"melee", "family": &"club", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [1, 4, 0], "two_handed_dice": [], "properties": [&"light"]},
+	&"dagger": {"training_group": &"simple", "range_type": &"melee", "family": &"dagger", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 4, 0], "two_handed_dice": [], "properties": [&"finesse", &"light", &"thrown"]},
+	&"handaxe": {"training_group": &"simple", "range_type": &"melee", "family": &"axe", "damage_tag": &"physical_slash", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [], "properties": [&"light", &"thrown"]},
+	&"javelin": {"training_group": &"simple", "range_type": &"melee", "family": &"spear", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [], "properties": [&"thrown"]},
+	&"light_hammer": {"training_group": &"simple", "range_type": &"melee", "family": &"hammer", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [1, 4, 0], "two_handed_dice": [], "properties": [&"light", &"thrown"]},
+	&"mace": {"training_group": &"simple", "range_type": &"melee", "family": &"mace", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [], "properties": []},
+	&"sickle": {"training_group": &"simple", "range_type": &"melee", "family": &"sickle", "damage_tag": &"physical_slash", "attack_range": 1, "one_handed_dice": [1, 4, 0], "two_handed_dice": [], "properties": [&"light"]},
+	&"quarterstaff": {"training_group": &"simple", "range_type": &"melee", "family": &"staff", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [1, 8, 0], "properties": [&"versatile"]},
+	&"spear": {"training_group": &"simple", "range_type": &"melee", "family": &"spear", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [1, 8, 0], "properties": [&"versatile", &"thrown"]},
+	&"greatclub": {"training_group": &"simple", "range_type": &"melee", "family": &"club", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [], "two_handed_dice": [1, 8, 0], "properties": [&"two_handed"]},
+	&"light_crossbow": {"training_group": &"simple", "range_type": &"ranged", "family": &"crossbow", "damage_tag": &"physical_pierce", "attack_range": 3, "one_handed_dice": [], "two_handed_dice": [1, 8, 0], "properties": [&"two_handed"]},
+	&"shortbow": {"training_group": &"simple", "range_type": &"ranged", "family": &"bow", "damage_tag": &"physical_pierce", "attack_range": 3, "one_handed_dice": [], "two_handed_dice": [1, 6, 0], "properties": [&"two_handed"]},
+	&"flail": {"training_group": &"martial", "range_type": &"melee", "family": &"mace", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [1, 8, 0], "two_handed_dice": [], "properties": []},
+	&"morningstar": {"training_group": &"martial", "range_type": &"melee", "family": &"mace", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 8, 0], "two_handed_dice": [], "properties": []},
+	&"rapier": {"training_group": &"martial", "range_type": &"melee", "family": &"sword", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 8, 0], "two_handed_dice": [], "properties": [&"finesse"]},
+	&"scimitar": {"training_group": &"martial", "range_type": &"melee", "family": &"sword", "damage_tag": &"physical_slash", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [], "properties": [&"finesse", &"light"]},
+	&"shortsword": {"training_group": &"martial", "range_type": &"melee", "family": &"sword", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [], "properties": [&"finesse", &"light"]},
+	&"war_pick": {"training_group": &"martial", "range_type": &"melee", "family": &"pick", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 8, 0], "two_handed_dice": [], "properties": []},
+	&"battleaxe": {"training_group": &"martial", "range_type": &"melee", "family": &"axe", "damage_tag": &"physical_slash", "attack_range": 1, "one_handed_dice": [1, 8, 0], "two_handed_dice": [1, 10, 0], "properties": [&"versatile"]},
+	&"longsword": {"training_group": &"martial", "range_type": &"melee", "family": &"sword", "damage_tag": &"physical_slash", "attack_range": 1, "one_handed_dice": [1, 8, 0], "two_handed_dice": [1, 10, 0], "properties": [&"versatile"]},
+	&"trident": {"training_group": &"martial", "range_type": &"melee", "family": &"spear", "damage_tag": &"physical_pierce", "attack_range": 1, "one_handed_dice": [1, 6, 0], "two_handed_dice": [1, 8, 0], "properties": [&"versatile", &"thrown"]},
+	&"warhammer": {"training_group": &"martial", "range_type": &"melee", "family": &"hammer", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [1, 8, 0], "two_handed_dice": [1, 10, 0], "properties": [&"versatile"]},
+	&"glaive": {"training_group": &"martial", "range_type": &"melee", "family": &"polearm", "damage_tag": &"physical_slash", "attack_range": 2, "one_handed_dice": [], "two_handed_dice": [1, 10, 0], "properties": [&"two_handed", &"reach"]},
+	&"greataxe": {"training_group": &"martial", "range_type": &"melee", "family": &"axe", "damage_tag": &"physical_slash", "attack_range": 1, "one_handed_dice": [], "two_handed_dice": [1, 12, 0], "properties": [&"two_handed"]},
+	&"greatsword": {"training_group": &"martial", "range_type": &"melee", "family": &"sword", "damage_tag": &"physical_slash", "attack_range": 1, "one_handed_dice": [], "two_handed_dice": [2, 6, 0], "properties": [&"two_handed"]},
+	&"halberd": {"training_group": &"martial", "range_type": &"melee", "family": &"polearm", "damage_tag": &"physical_slash", "attack_range": 2, "one_handed_dice": [], "two_handed_dice": [1, 10, 0], "properties": [&"two_handed", &"reach"]},
+	&"maul": {"training_group": &"martial", "range_type": &"melee", "family": &"hammer", "damage_tag": &"physical_blunt", "attack_range": 1, "one_handed_dice": [], "two_handed_dice": [2, 6, 0], "properties": [&"two_handed"]},
+	&"pike": {"training_group": &"martial", "range_type": &"melee", "family": &"polearm", "damage_tag": &"physical_pierce", "attack_range": 2, "one_handed_dice": [], "two_handed_dice": [1, 10, 0], "properties": [&"two_handed", &"reach"]},
+	&"hand_crossbow": {"training_group": &"martial", "range_type": &"ranged", "family": &"crossbow", "damage_tag": &"physical_pierce", "attack_range": 2, "one_handed_dice": [1, 6, 0], "two_handed_dice": [], "properties": [&"light"]},
+	&"heavy_crossbow": {"training_group": &"martial", "range_type": &"ranged", "family": &"crossbow", "damage_tag": &"physical_pierce", "attack_range": 4, "one_handed_dice": [], "two_handed_dice": [1, 10, 0], "properties": [&"two_handed"]},
+	&"longbow": {"training_group": &"martial", "range_type": &"ranged", "family": &"bow", "damage_tag": &"physical_pierce", "attack_range": 4, "one_handed_dice": [], "two_handed_dice": [1, 8, 0], "properties": [&"two_handed"]},
+}
+
 var _failures: Array[String] = []
 
 
@@ -104,6 +172,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_real_registry_no_validation_errors()
 	_test_weapon_instances_resolve_against_templates()
+	_test_all_bg3_weapon_types_have_seed_items()
 	_test_attribute_modifier_source_id_rewritten()
 	_test_templates_excluded_from_item_defs()
 	_test_standalone_item_without_template_unchanged()
@@ -174,6 +243,46 @@ func _test_weapon_instances_resolve_against_templates() -> void:
 		_assert_true(item_def.is_weapon(), "%s 合并后应通过 is_weapon() 判定。" % String(item_id))
 
 
+func _test_all_bg3_weapon_types_have_seed_items() -> void:
+	var item_defs := ItemContentRegistry.new().get_item_defs()
+	_assert_eq(
+		BG3_WEAPON_PROFILE_EXPECTATIONS.size(),
+		31,
+		"BG3 基础武器类型回归应覆盖 docs/design/weapon_types_damage.md 的 31 类。"
+	)
+	for weapon_type_id in BG3_WEAPON_PROFILE_EXPECTATIONS.keys():
+		var item_id := ProgressionDataUtils.to_string_name(BG3_WEAPON_SEED_ITEMS.get(weapon_type_id, &""))
+		_assert_true(item_id != &"", "BG3 weapon_type %s 应声明正式 seed item。" % String(weapon_type_id))
+		if item_id == &"":
+			continue
+		var item_def: ItemDef = item_defs.get(item_id) as ItemDef
+		_assert_true(item_def != null, "BG3 weapon_type %s 应能通过 seed item %s 加载。" % [String(weapon_type_id), String(item_id)])
+		if item_def == null:
+			continue
+		_assert_true(item_def.is_equipment(), "%s 应注册为装备。" % String(item_id))
+		_assert_true(item_def.is_weapon(), "%s 应注册为武器装备。" % String(item_id))
+		_assert_true(not item_def.is_stackable, "%s 作为武器实例应不可堆叠。" % String(item_id))
+		_assert_eq(item_def.get_effective_max_stack(), 1, "%s 作为武器实例应只允许单件实例。" % String(item_id))
+		_assert_true(
+			item_def.get_tags().has(StringName("weapon_type_%s" % String(weapon_type_id))),
+			"%s tags 应包含 weapon_type_%s。" % [String(item_id), String(weapon_type_id)]
+		)
+		var expectation: Dictionary = BG3_WEAPON_PROFILE_EXPECTATIONS[weapon_type_id]
+		var profile := item_def.get("weapon_profile") as WeaponProfileDef
+		_assert_true(profile != null, "%s 应合并出 WeaponProfileDef。" % String(item_id))
+		if profile == null:
+			continue
+		_assert_eq(String(profile.weapon_type_id), String(weapon_type_id), "%s 应映射到指定 BG3 weapon_type_id。" % String(item_id))
+		_assert_eq(String(profile.training_group), String(expectation["training_group"]), "%s training_group 应符合 BG3 分类。" % String(item_id))
+		_assert_eq(String(profile.range_type), String(expectation["range_type"]), "%s range_type 应符合 BG3 分类。" % String(item_id))
+		_assert_eq(String(profile.family), String(expectation["family"]), "%s family 应符合战斗技能 family 口径。" % String(item_id))
+		_assert_eq(String(profile.damage_tag), String(expectation["damage_tag"]), "%s damage_tag 应符合基础伤害类型。" % String(item_id))
+		_assert_eq(int(profile.attack_range), int(expectation["attack_range"]), "%s attack_range 应符合当前战棋投影。" % String(item_id))
+		_assert_eq(_dice_to_list(profile.one_handed_dice), expectation["one_handed_dice"], "%s one_handed_dice 应符合 BG3 基础骰。" % String(item_id))
+		_assert_eq(_dice_to_list(profile.two_handed_dice), expectation["two_handed_dice"], "%s two_handed_dice 应符合 BG3 基础骰。" % String(item_id))
+		_assert_eq(profile.get_properties(), expectation["properties"], "%s properties 应符合 BG3 基础属性。" % String(item_id))
+
+
 func _test_attribute_modifier_source_id_rewritten() -> void:
 	var item_defs := ItemContentRegistry.new().get_item_defs()
 	for item_id in WEAPON_INSTANCE_EXPECTATIONS.keys():
@@ -191,6 +300,9 @@ func _test_templates_excluded_from_item_defs() -> void:
 	var item_defs := ItemContentRegistry.new().get_item_defs()
 	for template_id in TEMPLATE_IDS:
 		_assert_true(not item_defs.has(template_id), "模板 %s 不应出现在 get_item_defs() 中。" % String(template_id))
+	for weapon_type_id in BG3_WEAPON_PROFILE_EXPECTATIONS.keys():
+		var template_id := StringName("weapon_type_%s_base" % String(weapon_type_id))
+		_assert_true(not item_defs.has(template_id), "BG3 武器模板 %s 不应出现在 get_item_defs() 中。" % String(template_id))
 
 
 func _test_standalone_item_without_template_unchanged() -> void:

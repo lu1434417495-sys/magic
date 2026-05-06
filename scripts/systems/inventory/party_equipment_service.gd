@@ -5,6 +5,7 @@ const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 
 ## 字段说明：记录队伍状态，会参与运行时状态流转、系统协作和存档恢复。
 var _party_state = PARTY_STATE_SCRIPT.new()
@@ -72,6 +73,7 @@ func build_attribute_modifiers(equipment_state_variant: Variant) -> Array[Attrib
 			if modifier is not AttributeModifier:
 				continue
 			modifiers.append(modifier)
+		_append_armor_max_dex_modifier(modifiers, item_def)
 	return modifiers
 
 
@@ -358,6 +360,21 @@ func _normalize_equipment_state(equipment_state_variant: Variant):
 	if equipment_state_variant is Object and equipment_state_variant.has_method("get_equipped_item_id"):
 		return equipment_state_variant
 	return EQUIPMENT_STATE_SCRIPT.from_dict(equipment_state_variant if equipment_state_variant != null else {})
+
+
+func _append_armor_max_dex_modifier(modifiers: Array[AttributeModifier], item_def: ItemDef) -> void:
+	if item_def == null or not item_def.is_armor():
+		return
+	var max_dex_bonus := item_def.get_max_dex_bonus()
+	if max_dex_bonus < 0:
+		return
+	var modifier := AttributeModifier.new()
+	modifier.attribute_id = ATTRIBUTE_SERVICE_SCRIPT.ARMOR_MAX_DEX_BONUS
+	modifier.mode = AttributeModifier.MODE_FLAT
+	modifier.value = max_dex_bonus
+	modifier.source_type = &"equipment"
+	modifier.source_id = item_def.item_id
+	modifiers.append(modifier)
 
 
 func _resolve_target_slot(allowed_slots: Array[StringName], equipment_state) -> StringName:

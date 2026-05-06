@@ -7,25 +7,25 @@
 script = ExtResource("2_modifier")
 attribute_id = "armor_ac_bonus"
 mode = "flat"
-value = 2
+value = 4
 source_type = "equipment"
-source_id = "leather_jerkin"
+source_id = "iron_scale_mail"
 
 [resource]
 script = ExtResource("1_item")
-item_id = "leather_jerkin"
-display_name = "皮革短甲"
-description = "轻便皮甲，适合初期前排单位。"
+item_id = "iron_scale_mail"
+display_name = "铁鳞甲"
+description = "覆盖躯干的标准中甲，牺牲少量灵活性换取更稳定的防护。"
 icon = "res://icon.svg"
 is_stackable = false
-base_price = 95
-buy_price = 95
-sell_price = 48
+base_price = 180
+buy_price = 180
+sell_price = 90
 sellable = true
 max_stack = 1
 item_category = "equipment"
-tags = Array[StringName](["armor", "body", "leather", "light_armor"])
+tags = Array[StringName](["armor", "body", "metal", "medium_armor", "scale_mail"])
 equipment_slot_ids = Array[String](["body"])
 equipment_type_id = "armor"
-max_dex_bonus = 6
+max_dex_bonus = 3
 attribute_modifiers = Array[Resource]([SubResource("Resource_defense_bonus")])

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "soldier_battleaxe"
+base_item_id = "weapon_type_battleaxe_base"
+display_name = "Soldier Battleaxe"
+description = "A versatile martial axe for one-handed or two-handed use."
+is_stackable = false
+base_price = 240
+buy_price = 240
+sell_price = 120
+sellable = true
+max_stack = 1
