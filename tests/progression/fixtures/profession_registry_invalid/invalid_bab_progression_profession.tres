@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ProfessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/profession_def.gd" id="1_profession"]
+
+[resource]
+script = ExtResource("1_profession")
+profession_id = "invalid_bab_progression_profession"
+display_name = "非法 BAB 职业"
+description = "用于验证 bab_progression 非法值错误。"
+max_rank = 1
+bab_progression = &"three-quarter"
+is_initial_profession = true

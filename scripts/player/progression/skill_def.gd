@@ -57,6 +57,8 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var growth_tier: StringName = &""
 ## 字段说明：技能达到当前允许最高等级后提供的基础属性进度，键为基础属性标识、值为进度量。
 @export var attribute_growth_progress: Dictionary = {}
+## 字段说明：对带 meditation / cultivation 标签的功法技能强制配置的评级；basic / intermediate / advanced / ultimate。
+@export var practice_tier: StringName = &""
 ## 字段说明：在编辑器中暴露属性修正列表配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var attribute_modifiers: Array[AttributeModifier] = []
 ## 字段说明：等级描述模板字符串，支持 {key} 变量替换和 {{?key}}...{{/key}} 条件块；

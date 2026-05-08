@@ -44,6 +44,22 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var mastery_trigger_mode: StringName = &"skill_damage_dice_max"
 ## 字段说明：战斗熟练度数值模式；默认按目标阶级逐个目标计入。
 @export var mastery_amount_mode: StringName = &"per_target_rank"
+## 字段说明：法术控制检定模式；control_roll 表示施放时用施法者幸运做一次独立 D20 控制检定。
+@export var spell_fate_mode: StringName = &""
+## 字段说明：法术控制大成功奖励模式；mp_refund 表示按本次实际消耗法力返还。
+@export var spell_critical_mode: StringName = &""
+## 字段说明：法术控制大成功时返还本次实际法力消耗的百分比。
+@export var spell_critical_mp_refund_percent := 0
+## 字段说明：技能等级到本场大失败保护次数的映射；下标按当前技能等级读取。
+@export var fumble_protection_curve: PackedInt32Array = PackedInt32Array()
+## 字段说明：大失败被保护压制时，额外吞噬本次实际法力消耗的百分比。
+@export var fumble_protection_extra_mp_percent := 100
+## 字段说明：无保护大失败后的失控模式；ground_anchor_drift 表示地面范围法术落点偏移。
+@export var backlash_mode: StringName = &""
+## 字段说明：失控时可选目标过滤覆盖；当前火球友伤由效果自身 any 过滤表达，本字段预留给后续技能。
+@export var backlash_target_filter: StringName = &""
+## 字段说明：ground_anchor_drift 的切比雪夫偏移半径。
+@export var backlash_offset_radius := 0
 ## 字段说明：在编辑器中暴露影响区域原点模式配置，用于补充 line / cone / self 等范围语义。
 @export var area_origin_mode: StringName = &"target"
 ## 字段说明：在编辑器中暴露影响区域方向模式配置，用于补充 line / cone 等朝向语义。
@@ -163,11 +179,41 @@ func get_effective_area_value(skill_level: int) -> int:
 	return area_value
 
 
+func get_effective_range_value(skill_level: int) -> int:
+	var override := get_level_override(skill_level)
+	if override.has("range_value"):
+		return int(override.get("range_value", range_value))
+	return range_value
+
+
 func get_effective_max_target_count(skill_level: int) -> int:
 	var override := get_level_override(skill_level)
 	if override.has("max_target_count"):
 		return int(override.get("max_target_count", max_target_count))
 	return max_target_count
+
+
+func has_spell_fate_control() -> bool:
+	return spell_fate_mode == &"control_roll"
+
+
+func get_spell_critical_mp_refund_percent() -> int:
+	return clampi(int(spell_critical_mp_refund_percent), 0, 100)
+
+
+func get_fumble_protection_limit(skill_level: int) -> int:
+	if fumble_protection_curve.is_empty():
+		return 0
+	var index := clampi(skill_level, 0, fumble_protection_curve.size() - 1)
+	return maxi(int(fumble_protection_curve[index]), 0)
+
+
+func get_fumble_protection_extra_mp_percent() -> int:
+	return maxi(int(fumble_protection_extra_mp_percent), 0)
+
+
+func uses_ground_anchor_drift_backlash() -> bool:
+	return backlash_mode == &"ground_anchor_drift"
 
 
 func _parse_override_level(level_key) -> int:

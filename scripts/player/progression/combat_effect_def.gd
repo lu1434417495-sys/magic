@@ -64,6 +64,10 @@ const MIN_JUMP_ARC_RATIO := 0.15
 @export var trigger_status_id: StringName = &""
 ## 字段说明：效果生效前目标需要通过的豁免 DC；0 表示不做豁免。
 @export var save_dc := 0
+## 字段说明：豁免 DC 来源；static 使用 save_dc，caster_spell 使用 8 + 施法属性调整值 + 法术熟练加值。
+@export var save_dc_mode: StringName = &"static"
+## 字段说明：动态法术 DC 使用的施法者属性；caster_spell 模式下通常为 intelligence。
+@export var save_dc_source_ability: StringName = &""
 ## 字段说明：豁免使用的基础属性 id。
 @export var save_ability: StringName = &""
 ## 字段说明：带豁免的状态效果在失败时应用的状态；为空时使用 status_id。

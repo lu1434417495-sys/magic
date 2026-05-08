@@ -8,6 +8,12 @@ extends RefCounted
 const PROFESSION_CONFIG_DIRECTORY := "res://data/configs/professions"
 const PROFESSION_DEF_SCRIPT = preload("res://scripts/player/progression/profession_def.gd")
 
+const VALID_BAB_PROGRESSIONS := {
+	&"full": true,
+	&"three_quarter": true,
+	&"half": true,
+}
+
 const VALID_REACTIVATION_MODES := {
 	&"auto": true,
 	&"manual": true,
@@ -129,6 +135,14 @@ func _append_profession_validation_errors(
 
 	if profession_def.hit_die_sides <= 0:
 		errors.append("Profession %s must have hit_die_sides >= 1." % String(profession_id))
+
+	if not VALID_BAB_PROGRESSIONS.has(profession_def.bab_progression):
+		errors.append(
+			"Profession %s uses unsupported bab_progression %s." % [
+				String(profession_id),
+				String(profession_def.bab_progression),
+			]
+		)
 
 	if profession_def.requires_knowledge_unlock() and profession_def.unlock_knowledge_id == &"":
 		errors.append("Profession %s is missing unlock_knowledge_id." % String(profession_id))

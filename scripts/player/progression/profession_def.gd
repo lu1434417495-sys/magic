@@ -15,6 +15,9 @@ extends Resource
 @export var max_rank := 1
 ## 字段说明：职业每次晋升时使用的生命骰面数，晋升会把本级生命增量写入持久 hp_max。
 @export var hit_die_sides := 8
+## 字段说明：BAB 增长档位，参与战斗派生属性 base_attack_bonus 累加。允许值：full / three_quarter / half。
+## 累加规则参见 docs/design/dnd35e_combat_system_vision.md §1.1：必须先把所有职业的 rank × rate 累加成总分子，再除以分母 8。
+@export var bab_progression: StringName = &"half"
 ## 字段说明：在编辑器中暴露是否初始职业配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var is_initial_profession := false
 ## 字段说明：在编辑器中暴露解锁知识唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

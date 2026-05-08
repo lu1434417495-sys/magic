@@ -31,6 +31,8 @@ const SHIELD_AC_BONUS: StringName = &"shield_ac_bonus"
 const DODGE_BONUS: StringName = &"dodge_bonus"
 const DEFLECTION_BONUS: StringName = &"deflection_bonus"
 const ARMOR_MAX_DEX_BONUS: StringName = &"armor_max_dex_bonus"
+const BASE_ATTACK_BONUS: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.BASE_ATTACK_BONUS
+const SPELL_PROFICIENCY_BONUS: StringName = ATTRIBUTE_SNAPSHOT_SCRIPT.SPELL_PROFICIENCY_BONUS
 
 const DEFAULT_CHARACTER_ACTION_THRESHOLD := 30
 const ACTION_THRESHOLD_GRANULARITY := 5
@@ -210,6 +212,11 @@ func _build_snapshot() -> AttributeSnapshot:
 			attribute_id,
 			_apply_modifier_pipeline(attribute_id, _get_persistent_base_value(attribute_id), modifier_entries)
 		)
+
+	# BAB 是按累加分子整数算法直接派生的，不参与 modifier pipeline；
+	# 单独写入 snapshot，避免被 _get_additional_attribute_ids 列入二次迭代。
+	snapshot.set_value(BASE_ATTACK_BONUS, _calculate_base_attack_bonus())
+	snapshot.set_value(SPELL_PROFICIENCY_BONUS, _calculate_spell_proficiency_bonus())
 
 	return snapshot
 
@@ -554,6 +561,34 @@ func _resolve_character_hp_max_percent_bonus(modifier_entries: Array) -> int:
 			continue
 		percent_bonus += maxi(int(entry.get("value", 0)), 0)
 	return percent_bonus
+
+
+## 累计基础攻击加值（BAB）。仅遍历激活、未隐藏、rank > 0 的职业；
+## 把 [rank, bab_progression] 二元组交给 AttributeSnapshot 的整数算法做"先乘后除"累加，避免逐职业 floor 截断。
+func _calculate_base_attack_bonus() -> int:
+	if _unit_progress == null:
+		return 0
+	var pairs: Array = []
+	for profession_key in _unit_progress.professions.keys():
+		var profession_id := ProgressionDataUtils.to_string_name(profession_key)
+		var profession_progress: Variant = _unit_progress.get_profession_progress(profession_id)
+		if profession_progress == null:
+			continue
+		if profession_progress.rank <= 0:
+			continue
+		if not profession_progress.is_active or profession_progress.is_hidden:
+			continue
+		var profession_def := _profession_defs.get(profession_id) as ProfessionDef
+		if profession_def == null:
+			continue
+		pairs.append([profession_progress.rank, profession_def.bab_progression])
+	return ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_base_attack_bonus(pairs)
+
+
+func _calculate_spell_proficiency_bonus() -> int:
+	if _unit_progress == null:
+		return ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_spell_proficiency_bonus(0)
+	return ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_spell_proficiency_bonus(int(_unit_progress.character_level))
 
 
 func _calculate_base_armor_class(resolved_base_values: Dictionary, modifier_entries: Array) -> int:

@@ -9,42 +9,49 @@ const SEED_EXPECTATIONS := {
 		"display_name": "战士",
 		"unlock_tag": &"melee",
 		"hit_die_sides": 10,
+		"bab_progression": &"full",
 		"rank_counts": [2, 3, 4, 5],
 	},
 	&"priest": {
 		"display_name": "牧师",
 		"unlock_tag": &"priest",
 		"hit_die_sides": 8,
+		"bab_progression": &"three_quarter",
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"rogue": {
 		"display_name": "盗贼",
 		"unlock_tag": &"rogue",
 		"hit_die_sides": 8,
+		"bab_progression": &"three_quarter",
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"berserker": {
 		"display_name": "狂战士",
 		"unlock_tag": &"berserker",
 		"hit_die_sides": 12,
+		"bab_progression": &"full",
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"paladin": {
 		"display_name": "圣武士",
 		"unlock_tag": &"paladin",
 		"hit_die_sides": 10,
+		"bab_progression": &"full",
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"mage": {
 		"display_name": "法师",
 		"unlock_tag": &"mage",
 		"hit_die_sides": 6,
+		"bab_progression": &"half",
 		"rank_counts": [2, 2, 3, 3],
 	},
 	&"archer": {
 		"display_name": "弓箭手",
 		"unlock_tag": &"archer",
 		"hit_die_sides": 8,
+		"bab_progression": &"full",
 		"rank_counts": [2, 2, 3, 3],
 	},
 }
@@ -90,6 +97,7 @@ func _test_seed_profession_resources_scan_and_validate() -> void:
 		_assert_true(profession_def.is_initial_profession, "职业 %s 当前应保持初始职业配置。" % String(profession_id))
 		_assert_eq(int(profession_def.max_rank), 5, "职业 %s 当前应保持 5 阶上限。" % String(profession_id))
 		_assert_eq(int(profession_def.hit_die_sides), int(expectation.get("hit_die_sides", 0)), "职业 %s 的生命骰应稳定。" % String(profession_id))
+		_assert_eq(profession_def.bab_progression, expectation.get("bab_progression", &""), "职业 %s 的 BAB 成长档位应稳定。" % String(profession_id))
 		if profession_id == &"warrior":
 			var granted_skills := profession_def.get_granted_skills_for_rank(1)
 			_assert_eq(granted_skills.size(), 1, "战士 1 级应授予一个职业被动。")
@@ -161,6 +169,10 @@ func _test_profession_registry_reports_missing_id_duplicate_and_illegal_refs() -
 	_assert_true(
 		_has_error_containing(validation_errors, "references missing profession phantom_profession"),
 		"职业注册表应显式报告非法职业引用。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "uses unsupported bab_progression three-quarter"),
+		"职业注册表应显式报告非法 BAB 成长档位。"
 	)
 
 

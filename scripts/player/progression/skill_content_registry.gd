@@ -24,6 +24,22 @@ const VALID_MASTERY_AMOUNT_MODES := [
 	&"per_target_rank",
 	&"per_cast_hp_ratio",
 ]
+const VALID_SPELL_FATE_MODES := [
+	&"",
+	&"control_roll",
+]
+const VALID_SPELL_CRITICAL_MODES := [
+	&"",
+	&"mp_refund",
+]
+const VALID_BACKLASH_MODES := [
+	&"",
+	&"ground_anchor_drift",
+]
+const VALID_SAVE_DC_MODES := [
+	BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_STATIC,
+	BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL,
+]
 const VALID_EFFECT_TRIGGER_EVENTS := [
 	&"",
 	&"critical_hit",
@@ -281,6 +297,7 @@ func _append_combat_profile_validation_errors(
 		errors.append("Skill %s combat_profile costs must be >= 0." % String(skill_id))
 	if not _is_valid_tu_value(int(combat_profile.cooldown_tu)):
 		errors.append("Skill %s combat_profile cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), TU_GRANULARITY])
+	_append_spell_fate_validation_errors(errors, skill_id, combat_profile)
 	_append_string_name_array_validation_errors(errors, skill_id, "combat_profile.required_weapon_families", combat_profile.required_weapon_families)
 	_append_string_name_array_validation_errors(errors, skill_id, "combat_profile.excluded_weapon_families", combat_profile.excluded_weapon_families)
 	_append_string_name_array_validation_errors(errors, skill_id, "combat_profile.excluded_weapon_type_ids", combat_profile.excluded_weapon_type_ids)
@@ -366,6 +383,40 @@ func _append_combat_profile_validation_errors(
 				cast_variant.effect_defs[effect_index] as CombatEffectDef,
 				"combat_profile.cast_variants[%d].effect_defs[%d]" % [variant_index, effect_index]
 			)
+
+
+func _append_spell_fate_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	combat_profile: CombatSkillDef
+) -> void:
+	if combat_profile == null:
+		return
+	if not VALID_SPELL_FATE_MODES.has(combat_profile.spell_fate_mode):
+		errors.append("Skill %s combat_profile uses unsupported spell_fate_mode %s." % [String(skill_id), String(combat_profile.spell_fate_mode)])
+	if not VALID_SPELL_CRITICAL_MODES.has(combat_profile.spell_critical_mode):
+		errors.append("Skill %s combat_profile uses unsupported spell_critical_mode %s." % [String(skill_id), String(combat_profile.spell_critical_mode)])
+	if not VALID_BACKLASH_MODES.has(combat_profile.backlash_mode):
+		errors.append("Skill %s combat_profile uses unsupported backlash_mode %s." % [String(skill_id), String(combat_profile.backlash_mode)])
+	if combat_profile.spell_critical_mode != &"" and combat_profile.spell_fate_mode == &"":
+		errors.append("Skill %s combat_profile spell_critical_mode requires spell_fate_mode." % String(skill_id))
+	if combat_profile.backlash_mode != &"" and combat_profile.spell_fate_mode == &"":
+		errors.append("Skill %s combat_profile backlash_mode requires spell_fate_mode." % String(skill_id))
+	if int(combat_profile.spell_critical_mp_refund_percent) < 0 or int(combat_profile.spell_critical_mp_refund_percent) > 100:
+		errors.append("Skill %s combat_profile spell_critical_mp_refund_percent must be between 0 and 100." % String(skill_id))
+	if int(combat_profile.fumble_protection_extra_mp_percent) < 0:
+		errors.append("Skill %s combat_profile fumble_protection_extra_mp_percent must be >= 0." % String(skill_id))
+	for protection_value in combat_profile.fumble_protection_curve:
+		if int(protection_value) < 0:
+			errors.append("Skill %s combat_profile fumble_protection_curve values must be >= 0." % String(skill_id))
+			break
+	if combat_profile.backlash_offset_radius < 0:
+		errors.append("Skill %s combat_profile backlash_offset_radius must be >= 0." % String(skill_id))
+	if combat_profile.backlash_mode == &"ground_anchor_drift":
+		if combat_profile.target_mode != &"ground":
+			errors.append("Skill %s combat_profile ground_anchor_drift requires target_mode ground." % String(skill_id))
+		if combat_profile.backlash_offset_radius <= 0:
+			errors.append("Skill %s combat_profile ground_anchor_drift requires backlash_offset_radius >= 1." % String(skill_id))
 
 
 func _append_effect_validation_errors(
@@ -613,19 +664,43 @@ func _append_save_validation_errors(
 	if effect_def == null:
 		return
 	var save_dc := int(effect_def.save_dc)
+	var save_dc_mode := ProgressionDataUtils.to_string_name(effect_def.save_dc_mode)
+	var dynamic_save_dc := save_dc_mode == BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
+	var has_save_dc := save_dc > 0 or dynamic_save_dc
 	var save_ability := ProgressionDataUtils.to_string_name(effect_def.save_ability)
+	var save_dc_source_ability := ProgressionDataUtils.to_string_name(effect_def.save_dc_source_ability)
 	var save_tag := ProgressionDataUtils.to_string_name(effect_def.save_tag)
+	if not VALID_SAVE_DC_MODES.has(save_dc_mode):
+		errors.append(
+			"Skill %s effect %s uses unsupported save_dc_mode %s." % [
+				String(skill_id),
+				context_label,
+				String(save_dc_mode),
+			]
+		)
 	if save_dc < 0:
 		errors.append("Skill %s effect %s save_dc must be >= 0." % [String(skill_id), context_label])
-	if save_dc <= 0:
+	if dynamic_save_dc and save_dc > 0:
+		errors.append("Skill %s effect %s caster_spell save_dc_mode must leave static save_dc at 0." % [String(skill_id), context_label])
+	if not dynamic_save_dc and save_dc_source_ability != &"":
+		errors.append("Skill %s effect %s save_dc_source_ability requires caster_spell save_dc_mode." % [String(skill_id), context_label])
+	if dynamic_save_dc and not BATTLE_SAVE_RESOLVER_SCRIPT.VALID_SAVE_ABILITIES.has(save_dc_source_ability):
+		errors.append(
+			"Skill %s effect %s uses unsupported save_dc_source_ability %s." % [
+				String(skill_id),
+				context_label,
+				String(save_dc_source_ability),
+			]
+		)
+	if not has_save_dc:
 		if save_ability != &"":
-			errors.append("Skill %s effect %s save_ability requires save_dc >= 1." % [String(skill_id), context_label])
+			errors.append("Skill %s effect %s save_ability requires save_dc >= 1 or caster_spell save_dc_mode." % [String(skill_id), context_label])
 		if save_tag != &"":
-			errors.append("Skill %s effect %s save_tag requires save_dc >= 1." % [String(skill_id), context_label])
+			errors.append("Skill %s effect %s save_tag requires save_dc >= 1 or caster_spell save_dc_mode." % [String(skill_id), context_label])
 		if effect_def.save_failure_status_id != &"":
-			errors.append("Skill %s effect %s save_failure_status_id requires save_dc >= 1." % [String(skill_id), context_label])
+			errors.append("Skill %s effect %s save_failure_status_id requires save_dc >= 1 or caster_spell save_dc_mode." % [String(skill_id), context_label])
 		if bool(effect_def.save_partial_on_success):
-			errors.append("Skill %s effect %s save_partial_on_success requires save_dc >= 1." % [String(skill_id), context_label])
+			errors.append("Skill %s effect %s save_partial_on_success requires save_dc >= 1 or caster_spell save_dc_mode." % [String(skill_id), context_label])
 		return
 	if not BATTLE_SAVE_RESOLVER_SCRIPT.VALID_SAVE_ABILITIES.has(save_ability):
 		errors.append(

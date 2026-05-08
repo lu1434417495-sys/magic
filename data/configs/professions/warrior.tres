@@ -92,6 +92,7 @@ display_name = "战士"
 description = "门槛不高的通用近战职业。战士等级只提供基础体能与战斗素养，具体风格由玩家后续学习和融合出的技能体系决定。"
 max_rank = 5
 hit_die_sides = 10
+bab_progression = &"full"
 is_initial_profession = true
 unlock_requirement = SubResource("Resource_unlock_requirement")
 rank_requirements = Array[Resource]([SubResource("Resource_rank_2_requirement"), SubResource("Resource_rank_3_requirement"), SubResource("Resource_rank_4_requirement"), SubResource("Resource_rank_5_requirement")])

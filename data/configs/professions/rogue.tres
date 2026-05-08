@@ -85,6 +85,7 @@ display_name = "盗贼"
 description = "依赖机动、先手和压制手段撕开战局缝隙的轻装职业。"
 max_rank = 5
 hit_die_sides = 8
+bab_progression = &"three_quarter"
 is_initial_profession = true
 unlock_requirement = SubResource("Resource_unlock_requirement")
 rank_requirements = Array[Resource]([SubResource("Resource_rank_2_requirement"), SubResource("Resource_rank_3_requirement"), SubResource("Resource_rank_4_requirement"), SubResource("Resource_rank_5_requirement")])
