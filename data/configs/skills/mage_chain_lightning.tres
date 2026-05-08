@@ -1,27 +1,105 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
 [ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_qhtd4"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_e4ler"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_rrfwx"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_5syql"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_6ora7"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_6umgf"]
-script = ExtResource("3_rrfwx")
+[sub_resource type="Resource" id="Damage_l0"]
+script = ExtResource("1_effect")
 effect_type = &"damage"
-power = 12
+max_skill_level = 0
 damage_tag = &"lightning"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"chain_lightning"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
 
-[sub_resource type="Resource" id="Resource_4c7rw"]
-script = ExtResource("3_rrfwx")
+[sub_resource type="Resource" id="Damage_l1"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"lightning"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"chain_lightning"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l3"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"lightning"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"chain_lightning"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l5"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"lightning"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"chain_lightning"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l7"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"lightning"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"chain_lightning"
+params = {
+"dice_count": 8,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Shock"]
+script = ExtResource("1_effect")
 effect_type = &"status"
 power = 1
 status_id = &"shocked"
-duration_tu = 90
+duration_tu = 60
 
-[sub_resource type="Resource" id="Resource_kp6eu"]
-script = ExtResource("3_rrfwx")
+[sub_resource type="Resource" id="Chain"]
+script = ExtResource("1_effect")
 effect_type = &"chain_damage"
+effect_target_team_filter = &"any"
 params = {
 "base_chain_radius": 1,
 "bonus_terrain_effect_id": "wet",
@@ -30,54 +108,62 @@ params = {
 "wet_chain_radius": 2
 }
 
-[sub_resource type="Resource" id="Resource_ry144"]
-script = ExtResource("4_5syql")
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_chain_lightning"
 range_value = 5
-ap_cost = 2
-mp_cost = 2
-cooldown_tu = 10
-ai_tags = Array[StringName]([&"chain", &"aoe"])
-effect_defs = Array[ExtResource("3_rrfwx")]([SubResource("Resource_6umgf"), SubResource("Resource_4c7rw"), SubResource("Resource_kp6eu")])
+ap_cost = 1
+mp_cost = 120
+cooldown_tu = 60
+spell_fate_mode = &"control_roll"
+spell_critical_mode = &"mp_refund"
+spell_critical_mp_refund_percent = 50
+fumble_protection_curve = PackedInt32Array(0, 0, 0, 1, 1, 2, 2, 3)
+fumble_protection_extra_mp_percent = 100
+ai_tags = Array[StringName]([&"chain", &"aoe", &"setup"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l5"), SubResource("Damage_l7"), SubResource("Shock"), SubResource("Chain")])
 
 [resource]
-script = ExtResource("5_6ora7")
+script = ExtResource("3_skill")
 skill_id = &"mage_chain_lightning"
 display_name = "链式闪击"
 icon_id = &"mage_chain_lightning"
-description = "单体锁定的链式闪电，首段命中造成雷电伤害并施加感电，可连锁弹射。"
-level_description_template = "射程{range}，雷伤{dmg}，可弹射连锁。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+description = "单体锁定的进阶雷系法术。命中后向附近所有目标弹射全额雷电伤害并附加感电，不分敌我。湿地会扩大弹射范围。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"lightning", &"aoe", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
+level_description_template = "射程5，造成{dmg}雷电伤害（敏捷豁免减半）并附加shocked（60TU，强度1），向范围内全部目标弹射全额伤害，不分敌我。湿地扩大弹射范围。消耗1AP/120法力，冷却60TU"
 level_description_configs = {
 "0": {
-"dmg": "12",
-"range": "5",
-"ap": "2",
-"mp": "2",
-"cooldown": "10",
+"dmg": "4D6"
 },
 "1": {
-"dmg": "12",
-"range": "5",
-"ap": "2",
-"mp": "2",
-"cooldown": "10",
+"dmg": "5D6"
 },
 "2": {
-"dmg": "12",
-"range": "5",
-"ap": "2",
-"mp": "2",
-"cooldown": "10",
+"dmg": "5D6"
 },
 "3": {
-"dmg": "12",
-"range": "5",
-"ap": "2",
-"mp": "2",
-"cooldown": "10"
+"dmg": "6D6"
+},
+"4": {
+"dmg": "6D6"
+},
+"5": {
+"dmg": "7D6"
+},
+"6": {
+"dmg": "7D6"
+},
+"7": {
+"dmg": "8D6"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"lightning"])
-combat_profile = SubResource("Resource_ry144")
+combat_profile = SubResource("Combat")

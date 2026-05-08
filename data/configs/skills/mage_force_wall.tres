@@ -6,6 +6,54 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_8cock"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_p8fxu"]
 
+[sub_resource type="Resource" id="Resource_03kay"]
+script = ExtResource("3_if6wa")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_kk27b"]
+script = ExtResource("3_if6wa")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_if6wa"]
+script = ExtResource("3_if6wa")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_8cock"]
+script = ExtResource("3_if6wa")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_p8fxu"]
+script = ExtResource("3_if6wa")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_lhwai"]
 script = ExtResource("4_8cock")
 skill_id = &"mage_force_wall"
@@ -14,8 +62,22 @@ range_value = 4
 area_pattern = &"line"
 area_value = 1
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 15
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 10,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"status_applied"
+effect_defs = Array[ExtResource("3_if6wa")]([SubResource("Resource_03kay"), SubResource("Resource_kk27b"), SubResource("Resource_if6wa"), SubResource("Resource_8cock"), SubResource("Resource_p8fxu")])
 
 [resource]
 script = ExtResource("5_p8fxu")
@@ -23,38 +85,89 @@ skill_id = &"mage_force_wall"
 display_name = "力场墙"
 icon_id = &"mage_force_wall"
 description = "在目标直线区域生成不可穿越的力场墙，持续120TU，用于切割战场阵型。"
-max_level = 3
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support", &"control", &"terrain"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "生成持续{duration}TU的力场墙，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
 "area": "直线1格",
 "cooldown": "15",
-"duration": "120",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "1": {
 "ap": "2",
 "area": "直线1格",
 "cooldown": "15",
-"duration": "120",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "2": {
 "ap": "2",
 "area": "直线1格",
 "cooldown": "15",
-"duration": "120",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "3": {
 "ap": "2",
 "area": "直线1格",
 "cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"area": "直线1格",
+"cooldown": "10",
 "duration": "120",
-"mp": "2"
+"hit": "+0",
+"mp": "80",
+"range": "6"
 }
 }
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_lhwai")

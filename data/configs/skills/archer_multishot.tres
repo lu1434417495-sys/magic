@@ -32,7 +32,7 @@ skill_id = &"archer_multishot"
 target_mode = &"ground"
 range_value = 5
 ap_cost = 1
-stamina_cost = 40
+stamina_cost = 45
 cooldown_tu = 0
 attack_roll_bonus = -1
 level_overrides = {
@@ -55,7 +55,7 @@ level_overrides = {
 "attack_roll_bonus": 2
 },
 7: {
-"stamina_cost": 35
+"stamina_cost": 40
 }
 }
 mastery_trigger_mode = &"weapon_attack_quality"
@@ -80,49 +80,49 @@ level_description_configs = {
 		"targets": "2",
 		"attack": "-1",
 		"ap": "1",
-		"stamina": "40"
+		"stamina": "45"
 	},
 	"1": {
 		"targets": "3",
 		"attack": "-1",
 		"ap": "1",
-		"stamina": "40"
+		"stamina": "45"
 	},
 	"2": {
 		"targets": "3",
 		"attack": "0",
 		"ap": "1",
-		"stamina": "40"
+		"stamina": "45"
 	},
 	"3": {
 		"targets": "4",
 		"attack": "0",
 		"ap": "1",
-		"stamina": "40"
+		"stamina": "45"
 	},
 	"4": {
 		"targets": "4",
 		"attack": "+1",
 		"ap": "1",
-		"stamina": "40"
+		"stamina": "45"
 	},
 	"5": {
 		"targets": "5",
 		"attack": "+1",
 		"ap": "1",
-		"stamina": "40"
+		"stamina": "45"
 	},
 	"6": {
 		"targets": "5",
 		"attack": "+2",
 		"ap": "1",
-		"stamina": "40"
+		"stamina": "45"
 	},
 	"7": {
 		"targets": "5",
 		"attack": "+2",
 		"ap": "1",
-		"stamina": "35"
+		"stamina": "40"
 	}
 }
 max_level = 7

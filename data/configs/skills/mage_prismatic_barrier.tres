@@ -6,13 +6,69 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_a7rdk"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_63rsa"]
 
-[sub_resource type="Resource" id="Resource_vwsas"]
+[sub_resource type="Resource" id="Resource_c2ttp"]
 script = ExtResource("3_7pj8o")
 effect_type = &"status"
 power = 1
+max_skill_level = 0
 effect_target_team_filter = &"ally"
 status_id = &"prismatic_barrier"
 duration_tu = 60
+params = {
+"damage_tags": Array[String](["fire", "freeze", "lightning", "negative_energy"]),
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_okaxh"]
+script = ExtResource("3_7pj8o")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"prismatic_barrier"
+duration_tu = 60
+params = {
+"damage_tags": Array[String](["fire", "freeze", "lightning", "negative_energy"]),
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_7pj8o"]
+script = ExtResource("3_7pj8o")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"prismatic_barrier"
+duration_tu = 80
+params = {
+"damage_tags": Array[String](["fire", "freeze", "lightning", "negative_energy"]),
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_a7rdk"]
+script = ExtResource("3_7pj8o")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"prismatic_barrier"
+duration_tu = 100
+params = {
+"damage_tags": Array[String](["fire", "freeze", "lightning", "negative_energy"]),
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_63rsa"]
+script = ExtResource("3_7pj8o")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"prismatic_barrier"
+duration_tu = 120
 params = {
 "damage_tags": Array[String](["fire", "freeze", "lightning", "negative_energy"]),
 "mitigation_tier": "half"
@@ -24,9 +80,22 @@ skill_id = &"mage_prismatic_barrier"
 target_team_filter = &"ally"
 range_value = 3
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_7pj8o")]([SubResource("Resource_vwsas")])
+level_overrides = {
+3: {
+"range_value": 4
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 4
+},
+7: {
+"range_value": 5
+}
+}
+mastery_trigger_mode = &"effect_applied"
+effect_defs = Array[ExtResource("3_7pj8o")]([SubResource("Resource_c2ttp"), SubResource("Resource_okaxh"), SubResource("Resource_7pj8o"), SubResource("Resource_a7rdk"), SubResource("Resource_63rsa")])
 
 [resource]
 script = ExtResource("5_63rsa")
@@ -34,42 +103,89 @@ skill_id = &"mage_prismatic_barrier"
 display_name = "棱彩屏障"
 icon_id = &"mage_prismatic_barrier"
 description = "给友军附加持续 60 TU 的棱彩抗性，使 火焰 / 冰霜 / 闪电 / 负能量 伤害减半。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 20,
+"intelligence": 60,
+"willpower": 100
+}
 level_description_template = "为友方施加棱彩屏障（持续{duration}TU），减免火焰/冰霜/闪电/负能量伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "3",
-"status": "prismatic_barrier",
-"duration": "60"
+"status": "prismatic_barrier"
 },
 "1": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "3",
-"status": "prismatic_barrier",
-"duration": "60"
+"status": "prismatic_barrier"
 },
 "2": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "3",
-"status": "prismatic_barrier",
-"duration": "60"
+"status": "prismatic_barrier"
 },
 "3": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
-"range": "3",
-"status": "prismatic_barrier",
-"duration": "60"
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"status": "prismatic_barrier"
+},
+"4": {
+"ap": "2",
+"cooldown": "10",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"status": "prismatic_barrier"
+},
+"5": {
+"ap": "2",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"status": "prismatic_barrier"
+},
+"6": {
+"ap": "2",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"status": "prismatic_barrier"
+},
+"7": {
+"ap": "2",
+"cooldown": "5",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "5",
+"status": "prismatic_barrier"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_l3ha5")

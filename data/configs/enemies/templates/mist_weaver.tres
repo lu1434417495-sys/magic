@@ -20,9 +20,14 @@ base_attribute_overrides = {
 "willpower": 7,
 }
 skill_ids = Array[StringName]([&"mage_temporal_rewind", &"mage_glacial_prison", &"mage_ice_lance"])
+skill_level_map = {
+&"mage_temporal_rewind": 3,
+&"mage_glacial_prison": 3,
+&"mage_ice_lance": 3,
+}
 attribute_overrides = {
 "hp_max": 24,
-"mp_max": 14,
+"mp_max": 120,
 "action_points": 2,
 "attack_bonus": 6,
 "armor_class": 12,

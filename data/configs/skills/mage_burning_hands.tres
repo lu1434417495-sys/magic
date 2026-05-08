@@ -1,76 +1,227 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_1ex6e"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_5p3a2"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ymrxf"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_2jcg7"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_fqnkt"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_1xdhh"]
-script = ExtResource("3_ymrxf")
+[sub_resource type="Resource" id="Damage_l0"]
+script = ExtResource("1_effect")
 effect_type = &"damage"
-power = 11
+max_skill_level = 0
 damage_tag = &"fire"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
 
-[sub_resource type="Resource" id="Resource_7yom8"]
-script = ExtResource("4_2jcg7")
+[sub_resource type="Resource" id="Damage_l1"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"fire"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l3"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"fire"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l5"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"fire"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l7"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"fire"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Burn_l3"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"burning"
+duration_tu = 40
+
+[sub_resource type="Resource" id="Burn_l5"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+status_id = &"burning"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Burn_l7"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 2
+min_skill_level = 7
+status_id = &"burning"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_burning_hands"
 target_mode = &"ground"
 range_value = 0
 area_pattern = &"cone"
 area_value = 1
 ap_cost = 2
-mp_cost = 1
-cooldown_tu = 5
+mp_cost = 70
+cooldown_tu = 10
 attack_roll_bonus = 1
-effect_defs = Array[ExtResource("3_ymrxf")]([SubResource("Resource_1xdhh")])
+level_overrides = {
+3: {},
+5: {
+"area_value": 2,
+"cooldown_tu": 5
+},
+7: {
+"area_value": 2,
+"attack_roll_bonus": 2
+}
+}
+ai_tags = Array[StringName]([&"aoe", &"close_range"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l5"), SubResource("Damage_l7"), SubResource("Burn_l3"), SubResource("Burn_l5"), SubResource("Burn_l7")])
 
 [resource]
-script = ExtResource("5_fqnkt")
+script = ExtResource("3_skill")
 skill_id = &"mage_burning_hands"
 display_name = "焚掌喷流"
 icon_id = &"mage_burning_hands"
-description = "近距离扇形压制，对贴脸敌人清场效率高，适合法师被近战压迫时反打。"
-level_description_template = "自身扇形范围，攻击检定{hit}，火伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+description = "近距离扇形火焰压制。比火球术风险更高，但更适合贴脸反制。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"fire", &"aoe", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
+level_description_template = "自身前方{area}，攻击检定{hit}，造成{dmg}火焰伤害{{?burn}}，附加灼烧（{burn_duration}TU，强度{burn_power}）{{/burn}}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "11",
-"hit": "+1",
-"range": "0",
-"area": "1",
 "ap": "2",
-"mp": "1",
-"cooldown": "5",
+"area": "小锥形",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+1",
+"mp": "70",
+"range": "0"
 },
 "1": {
-"dmg": "11",
-"hit": "+1",
-"range": "0",
-"area": "1",
 "ap": "2",
-"mp": "1",
-"cooldown": "5",
+"area": "小锥形",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+1",
+"mp": "70",
+"range": "0"
 },
 "2": {
-"dmg": "11",
-"hit": "+1",
-"range": "0",
-"area": "1",
 "ap": "2",
-"mp": "1",
-"cooldown": "5",
+"area": "小锥形",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+1",
+"mp": "70",
+"range": "0"
 },
 "3": {
-"dmg": "11",
-"hit": "+1",
-"range": "0",
-"area": "1",
 "ap": "2",
-"mp": "1",
-"cooldown": "5"
+"area": "小锥形",
+"burn": "true",
+"burn_duration": "40",
+"burn_power": "1",
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+1",
+"mp": "70",
+"range": "0"
+},
+"4": {
+"ap": "2",
+"area": "小锥形",
+"burn": "true",
+"burn_duration": "40",
+"burn_power": "1",
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+1",
+"mp": "70",
+"range": "0"
+},
+"5": {
+"ap": "2",
+"area": "大锥形",
+"burn": "true",
+"burn_duration": "60",
+"burn_power": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+1",
+"mp": "70",
+"range": "0"
+},
+"6": {
+"ap": "2",
+"area": "大锥形",
+"burn": "true",
+"burn_duration": "60",
+"burn_power": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+1",
+"mp": "70",
+"range": "0"
+},
+"7": {
+"ap": "2",
+"area": "大锥形",
+"burn": "true",
+"burn_duration": "80",
+"burn_power": "2",
+"cooldown": "5",
+"dmg": "7D6",
+"duration": "120",
+"hit": "+2",
+"mp": "70",
+"range": "0"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"fire"])
-combat_profile = SubResource("Resource_7yom8")
+combat_profile = SubResource("Combat")

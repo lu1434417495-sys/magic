@@ -63,7 +63,7 @@ damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "dice_count": 2,
-"dice_sides": 5,
+"dice_sides": 4,
 "requires_weapon": true,
 "resolve_as_weapon_attack": true,
 "use_weapon_physical_damage_tag": true
@@ -96,43 +96,31 @@ skill_id = &"archer_aimed_shot"
 display_name = "精准射击"
 icon_id = &"archer_aimed_shot"
 description = "稳住呼吸后射出高精度一箭；若目标本回合尚未行动，则暴击率额外 +15%。"
-level_description_template = "武器伤害+{skill_dice}技能骰，攻击检定{attack}，射程随武器，消耗{ap}AP/{stamina}体力，无冷却"
+level_description_template = "武器伤害+{skill_dice}技能骰，攻击检定{attack}，射程随武器，消耗1AP/20体力，无冷却"
 level_description_configs = {
 	"0": {
 		"attack": "+1",
-		"skill_dice": "1D4",
-		"ap": "1",
-		"stamina": "20"
+		"skill_dice": "1D4"
 	},
 	"1": {
 		"attack": "+1",
-		"skill_dice": "1D6",
-		"ap": "1",
-		"stamina": "20"
+		"skill_dice": "1D6"
 	},
 	"2": {
 		"attack": "+2",
-		"skill_dice": "1D6",
-		"ap": "1",
-		"stamina": "20"
+		"skill_dice": "1D6"
 	},
 	"3": {
 		"attack": "+2",
-		"skill_dice": "1D8",
-		"ap": "1",
-		"stamina": "20"
+		"skill_dice": "1D8"
 	},
 	"4": {
 		"attack": "+3",
-		"skill_dice": "1D8",
-		"ap": "1",
-		"stamina": "20"
+		"skill_dice": "1D8"
 	},
 	"5": {
 		"attack": "+3",
-		"skill_dice": "2D5",
-		"ap": "1",
-		"stamina": "20"
+		"skill_dice": "2D4"
 	}
 }
 max_level = 5

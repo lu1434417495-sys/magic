@@ -105,6 +105,10 @@ func _apply_attribute_defaults(unit_state: BattleUnitState) -> void:
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(attribute_overrides.get("shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(attribute_overrides.get("dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(attribute_overrides.get("deflection_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS, int(attribute_overrides.get(
+		"spell_proficiency_bonus",
+		2
+	)))
 
 
 func _build_formal_attribute_snapshot():

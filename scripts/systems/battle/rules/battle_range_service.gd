@@ -65,7 +65,10 @@ static func is_weapon_range_skill(skill_def) -> bool:
 
 
 static func resolve_base_skill_range(unit_state: BattleUnitState, skill_def) -> int:
-	var configured_range := maxi(int(skill_def.combat_profile.range_value), 0)
+	var skill_level := 0
+	if unit_state != null and skill_def != null and skill_def.combat_profile != null:
+		skill_level = int(unit_state.known_skill_level_map.get(skill_def.skill_id, 0))
+	var configured_range := maxi(int(skill_def.combat_profile.get_effective_range_value(skill_level)), 0)
 	if is_ground_jump_skill(skill_def):
 		return configured_range
 	if requires_current_melee_weapon(skill_def):

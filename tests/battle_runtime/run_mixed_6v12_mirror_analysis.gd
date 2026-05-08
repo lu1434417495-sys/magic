@@ -30,6 +30,10 @@ func _initialize() -> void:
 	var start_seed_source := "environment" if OS.has_environment("START_SEED") else "true_random"
 	var start_seed := int(OS.get_environment("START_SEED")) if OS.has_environment("START_SEED") else TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
 	var run_count := int(OS.get_environment("COUNT")) if OS.has_environment("COUNT") else 10
+	var explicit_seeds := _read_int_list_environment("SEEDS")
+	if not explicit_seeds.is_empty():
+		start_seed_source = "explicit_seeds"
+		run_count = explicit_seeds.size()
 	var output_path := OS.get_environment("OUTPUT_FILE") if OS.has_environment("OUTPUT_FILE") else ""
 	var trace_ai := _read_bool_environment("TRACE_AI", false)
 	var timeout_seconds := _read_int_environment(ENV_SIMULATION_TIMEOUT_SECONDS, DEFAULT_SIMULATION_TIMEOUT_SECONDS)
@@ -130,7 +134,7 @@ func _initialize() -> void:
 		if _has_reached_timeout(start_time, timeout_seconds):
 			timed_out = true
 			break
-		var seed := rng.randi()
+		var seed: int = explicit_seeds[run_index] if run_index < explicit_seeds.size() else rng.randi()
 		var run_start_time := Time.get_ticks_msec()
 		_last_progress_print_msec = 0
 		_print_progress("[Progress] run %d/%d start seed=%d batch_elapsed=%.1fs" % [
@@ -554,6 +558,22 @@ func _read_float_environment(name: String, default_value: float) -> float:
 	if value.is_empty():
 		return default_value
 	return float(value)
+
+
+func _read_int_list_environment(name: String) -> Array[int]:
+	var values: Array[int] = []
+	if not OS.has_environment(name):
+		return values
+	var raw_value := OS.get_environment(name).strip_edges()
+	if raw_value.is_empty():
+		return values
+	raw_value = raw_value.replace(";", ",")
+	for part in raw_value.split(",", false):
+		var trimmed := String(part).strip_edges()
+		if trimmed.is_empty():
+			continue
+		values.append(int(trimmed))
+	return values
 
 
 func _has_reached_timeout(start_time_msec: int, timeout_seconds: int) -> bool:

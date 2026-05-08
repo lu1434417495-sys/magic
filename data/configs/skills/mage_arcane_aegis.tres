@@ -6,16 +6,79 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_b3smv"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_shcgr"]
 
+[sub_resource type="Resource" id="Resource_vs36w"]
+script = ExtResource("3_0uu8j")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_ck63s"]
+script = ExtResource("3_0uu8j")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_0uu8j"]
+script = ExtResource("3_0uu8j")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_b3smv"]
+script = ExtResource("3_0uu8j")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_shcgr"]
+script = ExtResource("3_0uu8j")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_b000k"]
 script = ExtResource("4_b3smv")
 skill_id = &"mage_arcane_aegis"
 target_mode = &"ground"
+target_team_filter = &"ally"
 range_value = 4
 area_pattern = &"radius"
 area_value = 1
 ap_cost = 3
-mp_cost = 3
+mp_cost = 100
 cooldown_tu = 20
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 15,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"effect_applied"
+effect_defs = Array[ExtResource("3_0uu8j")]([SubResource("Resource_vs36w"), SubResource("Resource_ck63s"), SubResource("Resource_0uu8j"), SubResource("Resource_b3smv"), SubResource("Resource_shcgr")])
 
 [resource]
 script = ExtResource("5_shcgr")
@@ -23,38 +86,89 @@ skill_id = &"mage_arcane_aegis"
 display_name = "奥术圣域"
 icon_id = &"mage_arcane_aegis"
 description = "范围内友军获得法盾、净化一层负面效果，并提高法术命中。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 20,
+"intelligence": 60,
+"willpower": 100
+}
 level_description_template = "射程{range}，范围{area}格友军。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"range": "4",
-"area": "1",
 "ap": "3",
-"mp": "3",
+"area": "1",
 "cooldown": "20",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "4"
 },
 "1": {
-"range": "4",
-"area": "1",
 "ap": "3",
-"mp": "3",
+"area": "1",
 "cooldown": "20",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "4"
 },
 "2": {
-"range": "4",
-"area": "1",
 "ap": "3",
-"mp": "3",
+"area": "1",
 "cooldown": "20",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "4"
 },
 "3": {
-"range": "4",
-"area": "1",
 "ap": "3",
-"mp": "3",
-"cooldown": "20"
+"area": "1",
+"cooldown": "20",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "5"
+},
+"4": {
+"ap": "3",
+"area": "1",
+"cooldown": "20",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "5"
+},
+"5": {
+"ap": "3",
+"area": "1",
+"cooldown": "15",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "5"
+},
+"6": {
+"ap": "3",
+"area": "1",
+"cooldown": "15",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "5"
+},
+"7": {
+"ap": "3",
+"area": "1",
+"cooldown": "15",
+"duration": "120",
+"hit": "+0",
+"mp": "100",
+"range": "6"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_b000k")

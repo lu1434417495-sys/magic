@@ -6,6 +6,54 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_iuw8i"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_g3otk"]
 
+[sub_resource type="Resource" id="Resource_75x0y"]
+script = ExtResource("3_bxjte")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_cot1p"]
+script = ExtResource("3_bxjte")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_bxjte"]
+script = ExtResource("3_bxjte")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_iuw8i"]
+script = ExtResource("3_bxjte")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_g3otk"]
+script = ExtResource("3_bxjte")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"rooted"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_he5sn"]
 script = ExtResource("4_iuw8i")
 skill_id = &"mage_null_zone"
@@ -14,8 +62,22 @@ range_value = 4
 area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 15
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 10,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"status_applied"
+effect_defs = Array[ExtResource("3_bxjte")]([SubResource("Resource_75x0y"), SubResource("Resource_cot1p"), SubResource("Resource_bxjte"), SubResource("Resource_iuw8i"), SubResource("Resource_g3otk")])
 
 [resource]
 script = ExtResource("5_g3otk")
@@ -23,34 +85,89 @@ skill_id = &"mage_null_zone"
 display_name = "禁魔区"
 icon_id = &"mage_null_zone"
 description = "区域内敌人下一个技能消耗+1，并使施法类动作命中-15%。"
-max_level = 3
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"arcane", &"control", &"terrain"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "范围{area}禁魔。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
 "area": "半径1格",
 "cooldown": "15",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "1": {
 "ap": "2",
 "area": "半径1格",
 "cooldown": "15",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "2": {
 "ap": "2",
 "area": "半径1格",
 "cooldown": "15",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "3": {
 "ap": "2",
 "area": "半径1格",
 "cooldown": "15",
-"mp": "2"
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"area": "半径1格",
+"cooldown": "10",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "6"
 }
 }
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"arcane"])
 combat_profile = SubResource("Resource_he5sn")

@@ -6,51 +6,158 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_8tn8k"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_t480j"]
 
+[sub_resource type="Resource" id="Resource_wrbc1"]
+script = ExtResource("3_q8g3g")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_an3wy"]
+script = ExtResource("3_q8g3g")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_q8g3g"]
+script = ExtResource("3_q8g3g")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_8tn8k"]
+script = ExtResource("3_q8g3g")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_t480j"]
+script = ExtResource("3_q8g3g")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_56sbg"]
 script = ExtResource("4_8tn8k")
 skill_id = &"mage_death_mark"
 range_value = 5
-mp_cost = 1
+mp_cost = 60
 cooldown_tu = 10
 attack_roll_bonus = 2
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 3,
+"range_value": 7
+}
+}
+mastery_trigger_mode = &"status_applied"
+effect_defs = Array[ExtResource("3_q8g3g")]([SubResource("Resource_wrbc1"), SubResource("Resource_an3wy"), SubResource("Resource_q8g3g"), SubResource("Resource_8tn8k"), SubResource("Resource_t480j")])
+
 [resource]
 script = ExtResource("5_t480j")
 skill_id = &"mage_death_mark"
 display_name = "死兆印记"
 icon_id = &"mage_death_mark"
 description = "纯功能收割印记，目标生命越低，承受的法术伤害越高。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "射程{range}，攻击检定{hit}，施加死亡印记。消耗{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
 "cooldown": "10",
+"duration": "60",
+"hit": "+2",
+"mp": "60",
+"range": "5"
 },
 "1": {
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
 "cooldown": "10",
+"duration": "60",
+"hit": "+2",
+"mp": "60",
+"range": "5"
 },
 "2": {
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
 "cooldown": "10",
+"duration": "60",
+"hit": "+2",
+"mp": "60",
+"range": "5"
 },
 "3": {
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "10"
+"cooldown": "10",
+"duration": "80",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"duration": "80",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"duration": "120",
+"hit": "+3",
+"mp": "60",
+"range": "7"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
 combat_profile = SubResource("Resource_56sbg")

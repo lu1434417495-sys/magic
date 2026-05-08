@@ -74,6 +74,9 @@ func _run() -> void:
 	_test_melee_close_in_prefers_screening_ranged_ally_when_healthy()
 	_test_melee_screening_scores_actual_path_cost_block()
 	_test_melee_screening_ignores_geometric_line_without_pressure()
+	_test_ai_wait_action_marks_active_rest_when_stamina_starved()
+	_test_ai_wait_action_reports_rest_when_no_action_is_available()
+	_test_active_rest_does_not_outrank_melee_screening_move()
 	_test_charge_action_scores_with_resolved_stop_anchor()
 	_test_ai_assembler_adds_whirlwind_charge_path_action()
 	_test_ai_charge_path_aoe_scores_repeat_hits()
@@ -824,6 +827,164 @@ func _test_melee_screening_ignores_geometric_line_without_pressure() -> void:
 	)
 
 
+func _test_ai_wait_action_marks_active_rest_when_stamina_starved() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
+	brain.brain_id = &"active_rest_probe_brain"
+	brain.default_state_id = &"pressure"
+	brain.pressure_distance = 99
+	var pressure_state = ENEMY_AI_STATE_DEF_SCRIPT.new()
+	pressure_state.state_id = &"pressure"
+	var basic_action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	basic_action.action_id = &"active_rest_basic"
+	var basic_skill_ids: Array[StringName] = [&"basic_attack"]
+	basic_action.skill_ids = basic_skill_ids
+	basic_action.target_selector = &"nearest_enemy"
+	basic_action.desired_min_distance = 1
+	basic_action.desired_max_distance = 1
+	basic_action.distance_reference = &"target_unit"
+	var wait_action = WAIT_ACTION_SCRIPT.new()
+	wait_action.action_id = &"active_rest_wait"
+	pressure_state.actions = [basic_action, wait_action]
+	brain.states = [pressure_state]
+	runtime._enemy_ai_brains[brain.brain_id] = brain
+	runtime._ai_service.setup(runtime._enemy_ai_brains)
+
+	var state = _build_flat_state(Vector2i(3, 1))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"active_rest_wolf",
+		"体力耗尽战士",
+		&"hostile",
+		Vector2i(0, 0),
+		brain.brain_id,
+		&"pressure",
+		[&"basic_attack"],
+		28,
+		1
+	)
+	wolf.current_stamina = 0
+	wolf.action_threshold = 30
+	wolf.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 40)
+	wolf.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 3)
+	var player = _build_manual_unit(&"active_rest_target", "贴身目标", &"player", Vector2i(1, 0), [&"basic_attack"])
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var decision = runtime._ai_service.choose_command(_build_ai_context(runtime, wolf))
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"active_rest_wait",
+		"体力不足且无法支付基础攻击时，默认 wait action 应表达主动休息。"
+	)
+	_assert_true(
+		decision != null and decision.reason_text.contains("主动休息"),
+		"主动休息的 AI reason_text 应明确说明资源目的。"
+	)
+	_assert_true(
+		decision != null and decision.score_input != null and int(decision.score_input.total_score) > -40,
+		"主动休息应抬高 wait 评分，但仍保持低于有效移动/守线动作。"
+	)
+
+
+func _test_ai_wait_action_reports_rest_when_no_action_is_available() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
+	brain.brain_id = &"fallback_rest_probe_brain"
+	brain.default_state_id = &"engage"
+	var engage_state = ENEMY_AI_STATE_DEF_SCRIPT.new()
+	engage_state.state_id = &"engage"
+	var wait_action = WAIT_ACTION_SCRIPT.new()
+	wait_action.action_id = &"fallback_rest_wait"
+	engage_state.actions = [wait_action]
+	brain.states = [engage_state]
+	runtime._enemy_ai_brains[brain.brain_id] = brain
+	runtime._ai_service.setup(runtime._enemy_ai_brains)
+
+	var state = _build_flat_state(Vector2i(3, 1))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"fallback_rest_wolf",
+		"无动作战士",
+		&"hostile",
+		Vector2i(0, 0),
+		brain.brain_id,
+		&"engage",
+		[],
+		28,
+		1
+	)
+	wolf.current_stamina = 20
+	wolf.action_threshold = 30
+	wolf.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 40)
+	var player = _build_manual_unit(&"fallback_rest_target", "目标", &"player", Vector2i(2, 0), [&"basic_attack"])
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var decision = runtime._ai_service.choose_command(_build_ai_context(runtime, wolf))
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"fallback_rest_wait",
+		"没有有效动作时仍应由默认 wait action 收束。"
+	)
+	_assert_true(
+		decision != null and decision.reason_text.contains("休息"),
+		"未消耗 AP 且体力未满时，默认 wait 的 AI 文案应明确表示会进入休息。"
+	)
+	_assert_eq(
+		int(decision.score_input.total_score) if decision != null and decision.score_input != null else 999,
+		-40,
+		"普通无动作休息只改变语义说明，不应提高 wait 评分去抢移动或卡位。"
+	)
+
+
+func _test_active_rest_does_not_outrank_melee_screening_move() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 8))
+	runtime._state = state
+	var wolf = _build_ai_unit(
+		&"rest_screening_wolf",
+		"体力不足占位战士",
+		&"hostile",
+		Vector2i(1, 4),
+		&"melee_aggressor",
+		&"engage",
+		[&"basic_attack"],
+		28,
+		1
+	)
+	wolf.current_stamina = 0
+	wolf.current_move_points = 2
+	wolf.action_threshold = 30
+	wolf.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 40)
+	wolf.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 3)
+	var archer = _build_ai_unit(
+		&"rest_screening_archer",
+		"被保护弓手",
+		&"hostile",
+		Vector2i(3, 6),
+		&"ranged_archer",
+		&"pressure",
+		[&"archer_aimed_shot"],
+		28,
+		2
+	)
+	_apply_test_bow_weapon(archer, 6)
+	var player = _build_manual_unit(&"rest_screening_threat", "近战威胁", &"player", Vector2i(3, 3), [&"basic_attack"])
+	_add_unit_to_state(runtime, state, wolf, true)
+	_add_unit_to_state(runtime, state, archer, true)
+	_add_unit_to_state(runtime, state, player, false)
+	var decision = runtime._ai_service.choose_command(_build_ai_context(runtime, wolf))
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"wolf_close_in",
+		"体力不足时，主动休息不能抢掉近战战士仍可执行的守线/接敌移动。"
+	)
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(3, 4),
+		"体力不足的近战仍应先走到实际增加敌方路径成本的守线格，之后再等待休息。"
+	)
+
+
 func _test_charge_action_scores_with_resolved_stop_anchor() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(6, 3))
@@ -1032,8 +1193,8 @@ func _test_ai_unit_skill_scores_ranged_role_threat_target() -> void:
 		24,
 		2
 	)
-	caster.current_mp = 20
-	caster.attribute_snapshot.set_value(&"mp_max", 20)
+	caster.current_mp = 120
+	caster.attribute_snapshot.set_value(&"mp_max", 120)
 	var normal_target = _build_manual_unit(&"role_threat_normal", "普通目标", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
 	var ranged_target = _build_manual_unit(&"role_threat_archer", "远程威胁目标", &"player", Vector2i(4, 3), [&"archer_aimed_shot", &"basic_attack"])
 	_apply_test_bow_weapon(ranged_target, 6)
@@ -1311,8 +1472,8 @@ func _test_ai_ground_skill_scores_role_threat_area_targets() -> void:
 		24,
 		2
 	)
-	caster.current_mp = 20
-	caster.attribute_snapshot.set_value(&"mp_max", 20)
+	caster.current_mp = 120
+	caster.attribute_snapshot.set_value(&"mp_max", 120)
 	var normal_a = _build_manual_unit(&"ground_role_normal_a", "范围普通A", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
 	var normal_b = _build_manual_unit(&"ground_role_normal_b", "范围普通B", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
 	var healer = _build_manual_unit(&"ground_role_healer", "范围治疗威胁", &"player", Vector2i(4, 4), [&"mage_temporal_rewind"])
@@ -2876,13 +3037,13 @@ func _build_ai_unit(
 	unit.ai_brain_id = brain_id
 	unit.ai_state_id = state_id
 	unit.current_hp = current_hp
-	unit.current_mp = 8
+	unit.current_mp = 120
 	unit.current_stamina = 8
 	unit.current_ap = current_ap
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", maxi(current_hp, 24))
-	unit.attribute_snapshot.set_value(&"mp_max", 8)
+	unit.attribute_snapshot.set_value(&"mp_max", 120)
 	unit.attribute_snapshot.set_value(&"stamina_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 2))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
@@ -2891,7 +3052,7 @@ func _build_ai_unit(
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
-		unit.known_skill_level_map[skill_id] = 1
+		unit.known_skill_level_map[skill_id] = 3 if String(skill_id).begins_with("mage_") else 1
 	return unit
 
 
@@ -2917,7 +3078,7 @@ func _build_manual_unit(
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
-		unit.known_skill_level_map[skill_id] = 1
+		unit.known_skill_level_map[skill_id] = 3 if String(skill_id).begins_with("mage_") else 1
 	return unit
 
 

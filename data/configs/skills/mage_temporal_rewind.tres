@@ -6,10 +6,42 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_7yi5m"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_ebd8h"]
 
-[sub_resource type="Resource" id="Resource_j76ly"]
+[sub_resource type="Resource" id="Resource_uv5a8"]
 script = ExtResource("3_ayp6q")
 effect_type = &"heal"
-power = 12
+power = 16
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_mesuq"]
+script = ExtResource("3_ayp6q")
+effect_type = &"heal"
+power = 22
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_ayp6q"]
+script = ExtResource("3_ayp6q")
+effect_type = &"heal"
+power = 28
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_7yi5m"]
+script = ExtResource("3_ayp6q")
+effect_type = &"heal"
+power = 34
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_ebd8h"]
+script = ExtResource("3_ayp6q")
+effect_type = &"heal"
+power = 40
+min_skill_level = 7
 effect_target_team_filter = &"ally"
 
 [sub_resource type="Resource" id="Resource_6us5o"]
@@ -18,9 +50,22 @@ skill_id = &"mage_temporal_rewind"
 target_team_filter = &"ally"
 range_value = 3
 ap_cost = 2
-mp_cost = 3
+mp_cost = 100
 cooldown_tu = 20
-effect_defs = Array[ExtResource("3_ayp6q")]([SubResource("Resource_j76ly")])
+level_overrides = {
+3: {
+"range_value": 4
+},
+5: {
+"cooldown_tu": 15,
+"range_value": 4
+},
+7: {
+"range_value": 5
+}
+}
+mastery_trigger_mode = &"effect_applied"
+effect_defs = Array[ExtResource("3_ayp6q")]([SubResource("Resource_uv5a8"), SubResource("Resource_mesuq"), SubResource("Resource_ayp6q"), SubResource("Resource_7yi5m"), SubResource("Resource_ebd8h")])
 
 [resource]
 script = ExtResource("5_ebd8h")
@@ -28,38 +73,89 @@ skill_id = &"mage_temporal_rewind"
 display_name = "时序回溯"
 icon_id = &"mage_temporal_rewind"
 description = "以时序魔法为射程内一名友军回复生命值。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 90,
+"perception": 20,
+"willpower": 70
+}
 level_description_template = "为友方回复{heal}点生命。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
-"mp": "3",
 "cooldown": "20",
-"range": "3",
-"heal": "12"
+"duration": "60",
+"heal": "16",
+"hit": "+0",
+"mp": "100",
+"range": "3"
 },
 "1": {
 "ap": "2",
-"mp": "3",
 "cooldown": "20",
-"range": "3",
-"heal": "12"
+"duration": "60",
+"heal": "22",
+"hit": "+0",
+"mp": "100",
+"range": "3"
 },
 "2": {
 "ap": "2",
-"mp": "3",
 "cooldown": "20",
-"range": "3",
-"heal": "12"
+"duration": "60",
+"heal": "22",
+"hit": "+0",
+"mp": "100",
+"range": "3"
 },
 "3": {
 "ap": "2",
-"mp": "3",
 "cooldown": "20",
-"range": "3",
-"heal": "12"
+"duration": "80",
+"heal": "28",
+"hit": "+0",
+"mp": "100",
+"range": "4"
+},
+"4": {
+"ap": "2",
+"cooldown": "20",
+"duration": "80",
+"heal": "28",
+"hit": "+0",
+"mp": "100",
+"range": "4"
+},
+"5": {
+"ap": "2",
+"cooldown": "15",
+"duration": "100",
+"heal": "34",
+"hit": "+0",
+"mp": "100",
+"range": "4"
+},
+"6": {
+"ap": "2",
+"cooldown": "15",
+"duration": "100",
+"heal": "34",
+"hit": "+0",
+"mp": "100",
+"range": "4"
+},
+"7": {
+"ap": "2",
+"cooldown": "15",
+"duration": "120",
+"heal": "40",
+"hit": "+0",
+"mp": "100",
+"range": "5"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_6us5o")

@@ -1,15 +1,16 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_bht2o"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_wve6n"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_pcowg"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ml20d"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_vb56d"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_0xvka"]
-script = ExtResource("3_pcowg")
+[sub_resource type="Resource" id="MagicShield_l0"]
+script = ExtResource("1_effect")
 effect_type = &"status"
 power = 1
+max_skill_level = 2
 effect_target_team_filter = &"ally"
 status_id = &"magic_shield"
 duration_tu = 60
@@ -18,47 +19,176 @@ params = {
 "mitigation_tier": "half"
 }
 
-[sub_resource type="Resource" id="Resource_4f2wv"]
-script = ExtResource("4_ml20d")
+[sub_resource type="Resource" id="MagicShield_l3"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 80
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="MagicShield_l5"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 100
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="MagicShield_l7"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"magic_shield"
+duration_tu = 120
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Shield_l5"]
+script = ExtResource("1_effect")
+effect_type = &"shield"
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+duration_tu = 80
+params = {
+"dice_count": 2,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Shield_l7"]
+script = ExtResource("1_effect")
+effect_type = &"shield"
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+duration_tu = 100
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_magic_shield"
 target_team_filter = &"ally"
 range_value = 0
-area_pattern = &"self"
-mp_cost = 1
-cooldown_tu = 5
-target_selection_mode = &"self"
-effect_defs = Array[ExtResource("3_pcowg")]([SubResource("Resource_0xvka")])
+mp_cost = 80
+cooldown_tu = 20
+level_overrides = {
+3: {
+"range_value": 3
+},
+5: {
+"cooldown_tu": 15
+},
+7: {
+"range_value": 4
+}
+}
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"support", &"defense"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("MagicShield_l0"), SubResource("MagicShield_l3"), SubResource("MagicShield_l5"), SubResource("MagicShield_l7"), SubResource("Shield_l5"), SubResource("Shield_l7")])
 
 [resource]
-script = ExtResource("5_vb56d")
+script = ExtResource("3_skill")
 skill_id = &"mage_magic_shield"
 display_name = "魔力护盾"
 icon_id = &"mage_magic_shield"
-description = "为自身施加护罩，使承受的法术/能量伤害减半。"
-max_level = 3
-level_description_template = "附加magic_shield（{duration}TU），法术/能量伤害减半。消耗{mp}法力，冷却{cooldown}TU"
+description = "为自身或盟友施加魔力护盾，使承受的法术/能量伤害减半。高等级附加护盾值。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support", &"defense"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 20,
+"intelligence": 60,
+"willpower": 100
+}
+level_description_template = "射程{range}，附加magic_shield（{duration}TU），法术/能量伤害减半{{?shield}}，并获得{shield}护盾骰{{/shield}}。消耗1AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"cooldown": "5",
+"ap": "1",
+"cooldown": "20",
 "duration": "60",
-"mp": "1"
+"hit": "+0",
+"mp": "80",
+"range": "0"
 },
 "1": {
-"cooldown": "5",
+"ap": "1",
+"cooldown": "20",
 "duration": "60",
-"mp": "1"
+"hit": "+0",
+"mp": "80",
+"range": "0"
 },
 "2": {
-"cooldown": "5",
+"ap": "1",
+"cooldown": "20",
 "duration": "60",
-"mp": "1"
+"hit": "+0",
+"mp": "80",
+"range": "0"
 },
 "3": {
-"cooldown": "5",
-"duration": "60",
-"mp": "1"
+"ap": "1",
+"cooldown": "20",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "3"
+},
+"4": {
+"ap": "1",
+"cooldown": "20",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "3"
+},
+"5": {
+"ap": "1",
+"cooldown": "15",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "3",
+"shield": "2D6"
+},
+"6": {
+"ap": "1",
+"cooldown": "15",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "3",
+"shield": "2D6"
+},
+"7": {
+"ap": "1",
+"cooldown": "15",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"shield": "3D6"
 }
 }
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
-combat_profile = SubResource("Resource_4f2wv")
+combat_profile = SubResource("Combat")

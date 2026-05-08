@@ -18,6 +18,7 @@ func _run() -> void:
 	_test_save_resolver_handles_immunity_before_roll()
 	_test_save_resolver_handles_advantage_and_disadvantage()
 	_test_save_resolver_forces_natural_one_and_twenty()
+	_test_caster_spell_save_dc_uses_source_ability_and_spell_proficiency()
 	_test_damage_save_success_halves_partial_damage()
 	_test_status_save_success_blocks_and_failure_applies_status()
 	if _failures.is_empty():
@@ -89,6 +90,23 @@ func _test_save_resolver_forces_natural_one_and_twenty() -> void:
 	_assert_true(bool(natural_twenty_result.get("success", false)), "natural 20 should force save success.")
 
 
+func _test_caster_spell_save_dc_uses_source_ability_and_spell_proficiency() -> void:
+	var source = _make_unit(&"spell_dc_source", &"enemy")
+	source.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 18)
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS, 3)
+	var target = _make_unit(&"spell_dc_target", &"player")
+	target.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 10)
+	var effect = _make_caster_spell_save_damage_effect()
+
+	var failed_result: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source, target, effect, {"save_roll_override": 14})
+	_assert_eq(int(failed_result.get("dc", -1)), 15, "caster_spell DC 应为 8 + INT 调整值 4 + 法术熟练 3。")
+	_assert_eq(int(failed_result.get("roll_total", -1)), 14, "敏捷 10 目标的豁免总值应只等于 d20。")
+	_assert_true(not bool(failed_result.get("success", true)), "低于动态 DC 的敏捷豁免应失败。")
+
+	var success_result: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source, target, effect, {"save_roll_override": 15})
+	_assert_true(bool(success_result.get("success", false)), "达到动态 DC 的敏捷豁免应成功。")
+
+
 func _test_damage_save_success_halves_partial_damage() -> void:
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var source = _make_unit(&"breath_source", &"enemy")
@@ -146,6 +164,19 @@ func _make_save_status_effect(save_tag: StringName, status_id: StringName, failu
 	return effect
 
 
+func _make_caster_spell_save_damage_effect():
+	var effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	effect.effect_type = &"damage"
+	effect.damage_tag = &"fire"
+	effect.power = 10
+	effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
+	effect.save_dc_source_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE
+	effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
+	effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_FIREBALL
+	effect.save_partial_on_success = true
+	return effect
+
+
 func _make_unit(unit_id: StringName, faction_id: StringName):
 	var unit = BATTLE_UNIT_STATE_SCRIPT.new()
 	unit.unit_id = unit_id
@@ -162,7 +193,9 @@ func _make_unit(unit_id: StringName, faction_id: StringName):
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 2)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 10)
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 10)
+	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 10)
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER, 10)
 	return unit
 

@@ -6,6 +6,7 @@ const CombatCastVariantDef = preload("res://scripts/player/progression/combat_ca
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const BattleSaveResolver = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
 
 const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
 const FATE_PREVIEW_MODE_NONE: StringName = &""
@@ -94,10 +95,19 @@ func should_resolve_unit_skill_as_fate_attack(
 	for effect_def in effect_defs:
 		if effect_def == null or effect_def.effect_type != &"damage":
 			continue
+		if _effect_has_save(effect_def):
+			continue
 		if not is_unit_valid_for_effect(active_unit, target_unit, resolve_effect_target_filter(skill_def, effect_def)):
 			continue
 		return true
 	return false
+
+
+func _effect_has_save(effect_def: CombatEffectDef) -> bool:
+	if effect_def == null:
+		return false
+	var save_dc_mode := ProgressionDataUtils.to_string_name(effect_def.save_dc_mode)
+	return save_dc_mode == BattleSaveResolver.SAVE_DC_MODE_CASTER_SPELL or effect_def.save_dc > 0
 
 
 func is_force_hit_no_crit_skill(skill_def: SkillDef) -> bool:
@@ -240,6 +250,7 @@ func is_unit_effect(effect_def: CombatEffectDef) -> bool:
 	if effect_def == null:
 		return false
 	return effect_def.effect_type == &"damage" \
+		or effect_def.effect_type == &"chain_damage" \
 		or effect_def.effect_type == &"heal" \
 		or effect_def.effect_type == &"stamina_restore" \
 		or effect_def.effect_type == &"shield" \

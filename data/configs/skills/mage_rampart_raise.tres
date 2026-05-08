@@ -24,6 +24,39 @@ variant_id = &"double_cover"
 display_name = "双格掩体"
 description = "形成双格掩体屏障。"
 
+[sub_resource type="Resource" id="Resource_height0"]
+script = ExtResource("3_aewbb")
+effect_type = &"height_delta"
+max_skill_level = 0
+height_delta = 1
+
+[sub_resource type="Resource" id="Resource_height12"]
+script = ExtResource("3_aewbb")
+effect_type = &"height_delta"
+min_skill_level = 1
+max_skill_level = 2
+height_delta = 1
+
+[sub_resource type="Resource" id="Resource_height34"]
+script = ExtResource("3_aewbb")
+effect_type = &"height_delta"
+min_skill_level = 3
+max_skill_level = 4
+height_delta = 2
+
+[sub_resource type="Resource" id="Resource_height56"]
+script = ExtResource("3_aewbb")
+effect_type = &"height_delta"
+min_skill_level = 5
+max_skill_level = 6
+height_delta = 2
+
+[sub_resource type="Resource" id="Resource_height7"]
+script = ExtResource("3_aewbb")
+effect_type = &"height_delta"
+min_skill_level = 7
+height_delta = 3
+
 [sub_resource type="Resource" id="Resource_mq4xh"]
 script = ExtResource("4_gb2d1")
 skill_id = &"mage_rampart_raise"
@@ -32,8 +65,22 @@ range_value = 4
 area_pattern = &"line"
 area_value = 1
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 15
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 10,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"effect_applied"
+effect_defs = Array[ExtResource("3_aewbb")]([SubResource("Resource_height0"), SubResource("Resource_height12"), SubResource("Resource_height34"), SubResource("Resource_height56"), SubResource("Resource_height7")])
 cast_variants = Array[ExtResource("2_mudpc")]([SubResource("Resource_v3suk"), SubResource("Resource_favh6"), SubResource("Resource_orjcm")])
 
 [resource]
@@ -42,34 +89,81 @@ skill_id = &"mage_rampart_raise"
 display_name = "升墙术"
 icon_id = &"mage_rampart_raise"
 description = "升起地形屏障，提供短墙、单柱高地或双格掩体三种形态，用于切线与保护后排。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"earth", &"terrain"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 50,
+"intelligence": 100,
+"willpower": 30
+}
 level_description_template = "升起地形屏障，可在短墙、单柱高地或双格掩体中选择形态。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "4"
 },
 "1": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "4"
 },
 "2": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "4"
 },
 "3": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
-"range": "4"
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"cooldown": "10",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "6"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"earth"])
 combat_profile = SubResource("Resource_mq4xh")

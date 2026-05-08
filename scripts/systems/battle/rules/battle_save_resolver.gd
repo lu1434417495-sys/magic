@@ -13,10 +13,15 @@ const SAVE_TAG_PARALYSIS: StringName = &"paralysis"
 const SAVE_TAG_CHARM: StringName = &"charm"
 const SAVE_TAG_POISON: StringName = &"poison"
 const SAVE_TAG_DRAGON_BREATH: StringName = &"dragon_breath"
+const SAVE_TAG_FIREBALL: StringName = &"fireball"
+const SAVE_TAG_CHAIN_LIGHTNING: StringName = &"chain_lightning"
 
 const ADVANTAGE_STATE_NORMAL: StringName = &"normal"
 const ADVANTAGE_STATE_ADVANTAGE: StringName = &"advantage"
 const ADVANTAGE_STATE_DISADVANTAGE: StringName = &"disadvantage"
+const SAVE_DC_MODE_STATIC: StringName = &"static"
+const SAVE_DC_MODE_CASTER_SPELL: StringName = &"caster_spell"
+const SPELL_SAVE_DC_BASE := 8
 
 const VALID_SAVE_TAGS := {
 	SAVE_TAG_SLEEP: true,
@@ -24,6 +29,8 @@ const VALID_SAVE_TAGS := {
 	SAVE_TAG_CHARM: true,
 	SAVE_TAG_POISON: true,
 	SAVE_TAG_DRAGON_BREATH: true,
+	SAVE_TAG_FIREBALL: true,
+	SAVE_TAG_CHAIN_LIGHTNING: true,
 }
 
 const VALID_SAVE_ABILITIES := {
@@ -43,12 +50,13 @@ const CONTROL_SAVE_TAGS := {
 
 
 static func resolve_save(
-	_source_unit: BattleUnitState,
+	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
 	effect_def: CombatEffectDef,
 	context: Dictionary = {}
 ) -> Dictionary:
-	if target_unit == null or effect_def == null or int(effect_def.save_dc) <= 0:
+	var resolved_dc := _resolve_save_dc(source_unit, effect_def, context)
+	if target_unit == null or effect_def == null or resolved_dc <= 0:
 		return _empty_result()
 	var save_tag := ProgressionDataUtils.to_string_name(effect_def.save_tag)
 	var save_ability := ProgressionDataUtils.to_string_name(effect_def.save_ability)
@@ -60,7 +68,7 @@ static func resolve_save(
 			"success": true,
 			"natural_roll": 0,
 			"roll_total": 0,
-			"dc": int(effect_def.save_dc),
+			"dc": resolved_dc,
 			"ability": String(save_ability),
 			"save_tag": String(save_tag),
 			"advantage_state": String(ADVANTAGE_STATE_NORMAL),
@@ -76,7 +84,7 @@ static func resolve_save(
 	var ability_modifier := _get_target_ability_modifier(target_unit, save_ability)
 	var save_bonus := _get_status_save_bonus(target_unit, save_tag)
 	var roll_total := natural_roll + ability_modifier + save_bonus
-	var success := roll_total >= int(effect_def.save_dc)
+	var success := roll_total >= resolved_dc
 	if natural_roll <= 1:
 		success = false
 	elif natural_roll >= 20:
@@ -87,7 +95,7 @@ static func resolve_save(
 		"success": success,
 		"natural_roll": natural_roll,
 		"roll_total": roll_total,
-		"dc": int(effect_def.save_dc),
+		"dc": resolved_dc,
 		"ability": String(save_ability),
 		"save_tag": String(save_tag),
 		"advantage_state": String(advantage_state),
@@ -96,6 +104,30 @@ static func resolve_save(
 		"bonus": save_bonus,
 		"sources": tag_state.get("sources", []),
 	}
+
+
+static func _resolve_save_dc(source_unit: BattleUnitState, effect_def: CombatEffectDef, context: Dictionary = {}) -> int:
+	if effect_def == null:
+		return 0
+	var save_dc_mode := ProgressionDataUtils.to_string_name(effect_def.save_dc_mode)
+	match save_dc_mode:
+		SAVE_DC_MODE_CASTER_SPELL:
+			return _resolve_caster_spell_save_dc(source_unit, effect_def, context)
+		_:
+			return maxi(int(effect_def.save_dc), 0)
+
+
+static func _resolve_caster_spell_save_dc(source_unit: BattleUnitState, effect_def: CombatEffectDef, context: Dictionary = {}) -> int:
+	if source_unit == null or source_unit.attribute_snapshot == null or effect_def == null:
+		return 0
+	var source_ability := ProgressionDataUtils.to_string_name(effect_def.save_dc_source_ability)
+	if source_ability == &"" and context != null:
+		source_ability = ProgressionDataUtils.to_string_name(context.get("save_dc_source_ability", ""))
+	if source_ability == &"":
+		return 0
+	var ability_modifier := _get_source_ability_modifier(source_unit, source_ability)
+	var proficiency_bonus := _get_source_spell_proficiency_bonus(source_unit)
+	return maxi(SPELL_SAVE_DC_BASE + ability_modifier + proficiency_bonus, 1)
 
 
 static func is_immune(unit_state: BattleUnitState, save_tag: StringName) -> bool:
@@ -274,6 +306,21 @@ static func _get_target_ability_modifier(target_unit: BattleUnitState, save_abil
 	if modifier_id == &"":
 		return 0
 	return int(target_unit.attribute_snapshot.get_value(modifier_id))
+
+
+static func _get_source_ability_modifier(source_unit: BattleUnitState, source_ability: StringName) -> int:
+	if source_unit == null or source_unit.attribute_snapshot == null or source_ability == &"":
+		return 0
+	var modifier_id := ATTRIBUTE_SNAPSHOT_SCRIPT.get_base_attribute_modifier_id(source_ability)
+	if modifier_id == &"":
+		return 0
+	return int(source_unit.attribute_snapshot.get_value(modifier_id))
+
+
+static func _get_source_spell_proficiency_bonus(source_unit: BattleUnitState) -> int:
+	if source_unit == null or source_unit.attribute_snapshot == null:
+		return 0
+	return maxi(int(source_unit.attribute_snapshot.get_value(ATTRIBUTE_SNAPSHOT_SCRIPT.SPELL_PROFICIENCY_BONUS)), 0)
 
 
 static func _get_status_save_bonus(target_unit: BattleUnitState, save_tag: StringName) -> int:

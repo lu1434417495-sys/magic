@@ -6,6 +6,54 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_tb60o"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_yns36"]
 
+[sub_resource type="Resource" id="Resource_tg8v2"]
+script = ExtResource("3_5tye5")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_lchdx"]
+script = ExtResource("3_5tye5")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_5tye5"]
+script = ExtResource("3_5tye5")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_tb60o"]
+script = ExtResource("3_5tye5")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_yns36"]
+script = ExtResource("3_5tye5")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_v5f3h"]
 script = ExtResource("4_tb60o")
 skill_id = &"mage_time_stop"
@@ -13,10 +61,19 @@ target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"
 ap_cost = 3
-mp_cost = 3
-cooldown_tu = 5
+mp_cost = 120
+cooldown_tu = 15
 aura_cost = 1
+level_overrides = {
+3: {},
+5: {
+"cooldown_tu": 10
+},
+7: {}
+}
+mastery_trigger_mode = &"effect_applied"
 target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_5tye5")]([SubResource("Resource_tg8v2"), SubResource("Resource_lchdx"), SubResource("Resource_5tye5"), SubResource("Resource_tb60o"), SubResource("Resource_yns36")])
 
 [resource]
 script = ExtResource("5_yns36")
@@ -24,34 +81,89 @@ skill_id = &"mage_time_stop"
 display_name = "瞬时停界"
 icon_id = &"mage_time_stop"
 description = "使法师获得极短额外操作窗口，可移动、布阵或释放低阶技能。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 90,
+"perception": 20,
+"willpower": 70
+}
 level_description_template = "获得额外操作窗口。消耗{ap}AP/{mp}法力/{aura}Aura，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "3",
-"mp": "3",
 "aura": "1",
-"cooldown": "5"
+"cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "120",
+"range": "0"
 },
 "1": {
 "ap": "3",
-"mp": "3",
 "aura": "1",
-"cooldown": "5"
+"cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "120",
+"range": "0"
 },
 "2": {
 "ap": "3",
-"mp": "3",
 "aura": "1",
-"cooldown": "5"
+"cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "120",
+"range": "0"
 },
 "3": {
 "ap": "3",
-"mp": "3",
 "aura": "1",
-"cooldown": "5"
+"cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "120",
+"range": "0"
+},
+"4": {
+"ap": "3",
+"aura": "1",
+"cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "120",
+"range": "0"
+},
+"5": {
+"ap": "3",
+"aura": "1",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "120",
+"range": "0"
+},
+"6": {
+"ap": "3",
+"aura": "1",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "120",
+"range": "0"
+},
+"7": {
+"ap": "3",
+"aura": "1",
+"cooldown": "10",
+"duration": "120",
+"hit": "+0",
+"mp": "120",
+"range": "0"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_v5f3h")

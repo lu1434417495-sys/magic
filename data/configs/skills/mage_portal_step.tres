@@ -12,17 +12,79 @@ variant_id = &"coord_pair"
 display_name = "双点门径"
 description = "双点门径"
 
+[sub_resource type="Resource" id="Resource_portal0"]
+script = ExtResource("3_86r5h")
+effect_type = &"terrain_effect"
+tick_effect_type = &"none"
+max_skill_level = 0
+terrain_effect_id = &"portal_anchor"
+duration_tu = 60
+tick_interval_tu = 20
+
+[sub_resource type="Resource" id="Resource_portal12"]
+script = ExtResource("3_86r5h")
+effect_type = &"terrain_effect"
+tick_effect_type = &"none"
+min_skill_level = 1
+max_skill_level = 2
+terrain_effect_id = &"portal_anchor"
+duration_tu = 60
+tick_interval_tu = 20
+
+[sub_resource type="Resource" id="Resource_portal34"]
+script = ExtResource("3_86r5h")
+effect_type = &"terrain_effect"
+tick_effect_type = &"none"
+min_skill_level = 3
+max_skill_level = 4
+terrain_effect_id = &"portal_anchor"
+duration_tu = 80
+tick_interval_tu = 20
+
+[sub_resource type="Resource" id="Resource_portal56"]
+script = ExtResource("3_86r5h")
+effect_type = &"terrain_effect"
+tick_effect_type = &"none"
+min_skill_level = 5
+max_skill_level = 6
+terrain_effect_id = &"portal_anchor"
+duration_tu = 100
+tick_interval_tu = 20
+
+[sub_resource type="Resource" id="Resource_portal7"]
+script = ExtResource("3_86r5h")
+effect_type = &"terrain_effect"
+tick_effect_type = &"none"
+min_skill_level = 7
+terrain_effect_id = &"portal_anchor"
+duration_tu = 120
+tick_interval_tu = 20
+
 [sub_resource type="Resource" id="Resource_xkdrh"]
 script = ExtResource("4_nnu2u")
 skill_id = &"mage_portal_step"
 target_mode = &"ground"
 range_value = 4
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 15
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 10,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"effect_applied"
 target_selection_mode = &"coord_pair"
 min_target_count = 2
 max_target_count = 2
+effect_defs = Array[ExtResource("3_86r5h")]([SubResource("Resource_portal0"), SubResource("Resource_portal12"), SubResource("Resource_portal34"), SubResource("Resource_portal56"), SubResource("Resource_portal7")])
 cast_variants = Array[ExtResource("2_cprul")]([SubResource("Resource_iurwt")])
 
 [resource]
@@ -31,30 +93,81 @@ skill_id = &"mage_portal_step"
 display_name = "门径跨越"
 icon_id = &"mage_portal_step"
 description = "在两格之间建立短时门户，供一名友军穿越。"
-max_level = 3
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support", &"mobility"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"agility": 50,
+"intelligence": 90,
+"willpower": 40
+}
 level_description_template = "建立门户供友军穿越。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
 "cooldown": "15",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "1": {
 "ap": "2",
 "cooldown": "15",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "2": {
 "ap": "2",
 "cooldown": "15",
-"mp": "2"
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "3": {
 "ap": "2",
 "cooldown": "15",
-"mp": "2"
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"cooldown": "10",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "6"
 }
 }
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_xkdrh")

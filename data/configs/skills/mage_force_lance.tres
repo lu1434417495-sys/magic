@@ -6,21 +6,110 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_br4qw"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_cqxl6"]
 
-[sub_resource type="Resource" id="Resource_pq75f"]
+[sub_resource type="Resource" id="Resource_dkafh"]
 script = ExtResource("3_b5vy3")
 effect_type = &"damage"
-power = 12
+max_skill_level = 0
 damage_tag = &"magic"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_eyfhf"]
+script = ExtResource("3_b5vy3")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"magic"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_b5vy3"]
+script = ExtResource("3_b5vy3")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"magic"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_br4qw"]
+script = ExtResource("3_b5vy3")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"magic"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_cqxl6"]
+script = ExtResource("3_b5vy3")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"magic"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_pq75f"]
+script = ExtResource("3_b5vy3")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_dlhya"]
+script = ExtResource("3_b5vy3")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_tvcwg"]
+script = ExtResource("3_b5vy3")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_nlt8v"]
 script = ExtResource("4_br4qw")
 skill_id = &"mage_force_lance"
 range_value = 5
 ap_cost = 2
-mp_cost = 2
-cooldown_tu = 5
+mp_cost = 80
+cooldown_tu = 10
 attack_roll_bonus = 1
-effect_defs = Array[ExtResource("3_b5vy3")]([SubResource("Resource_pq75f")])
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 2,
+"range_value": 7
+}
+}
+effect_defs = Array[ExtResource("3_b5vy3")]([SubResource("Resource_dkafh"), SubResource("Resource_eyfhf"), SubResource("Resource_b5vy3"), SubResource("Resource_br4qw"), SubResource("Resource_cqxl6"), SubResource("Resource_pq75f"), SubResource("Resource_dlhya"), SubResource("Resource_tvcwg")])
 
 [resource]
 script = ExtResource("5_cqxl6")
@@ -28,42 +117,89 @@ skill_id = &"mage_force_lance"
 display_name = "力场矛"
 icon_id = &"mage_force_lance"
 description = "奥术直刺，对破甲目标额外+20%伤害。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"arcane", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "射程{range}，攻击检定{hit}，奥术伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "12",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+1",
+"mp": "80",
+"range": "5"
 },
 "1": {
-"dmg": "12",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+1",
+"mp": "80",
+"range": "5"
 },
 "2": {
-"dmg": "12",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+1",
+"mp": "80",
+"range": "5"
 },
 "3": {
-"dmg": "12",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
-"cooldown": "5"
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"4": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"5": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"6": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"7": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "7D6",
+"duration": "120",
+"hit": "+2",
+"mp": "80",
+"range": "7"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"arcane"])
 combat_profile = SubResource("Resource_nlt8v")

@@ -6,31 +6,125 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_e5yyb"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_epdtn"]
 
-[sub_resource type="Resource" id="Resource_yqxva"]
+[sub_resource type="Resource" id="Resource_h1hxa"]
 script = ExtResource("3_nub84")
 effect_type = &"damage"
-power = 17
+max_skill_level = 0
 damage_tag = &"fire"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_mp6e3"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"fire"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_nub84"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"fire"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_e5yyb"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"fire"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_epdtn"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"fire"
+params = {
+"dice_count": 8,
+"dice_sides": 6
+}
 
 [sub_resource type="Resource" id="Resource_yihuu"]
 script = ExtResource("2_mp6e3")
 variant_id = &"instant_burst"
 display_name = "即时引爆"
 description = "立即引爆的基础形态。"
-effect_defs = Array[ExtResource("3_nub84")]([SubResource("Resource_yqxva")])
+effect_defs = Array[ExtResource("3_nub84")]([SubResource("Resource_h1hxa"), SubResource("Resource_mp6e3"), SubResource("Resource_nub84"), SubResource("Resource_e5yyb"), SubResource("Resource_epdtn")])
+
+[sub_resource type="Resource" id="Resource_yqxva"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+max_skill_level = 0
+damage_tag = &"fire"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
 
 [sub_resource type="Resource" id="Resource_tgmlv"]
 script = ExtResource("3_nub84")
 effect_type = &"damage"
-power = 17
+min_skill_level = 1
+max_skill_level = 2
 damage_tag = &"fire"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_i42cq"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"fire"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_ih8vf"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"fire"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_685k4"]
+script = ExtResource("3_nub84")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"fire"
+params = {
+"dice_count": 8,
+"dice_sides": 6
+}
 
 [sub_resource type="Resource" id="Resource_khn4w"]
 script = ExtResource("2_mp6e3")
 variant_id = &"delayed_burst"
 display_name = "延后 60 TU"
 description = "延后 `60 TU` 引爆并额外施加 `灼烧`。"
-effect_defs = Array[ExtResource("3_nub84")]([SubResource("Resource_tgmlv")])
+effect_defs = Array[ExtResource("3_nub84")]([SubResource("Resource_yqxva"), SubResource("Resource_tgmlv"), SubResource("Resource_i42cq"), SubResource("Resource_ih8vf"), SubResource("Resource_685k4")])
 
 [sub_resource type="Resource" id="Resource_241ad"]
 script = ExtResource("4_e5yyb")
@@ -40,8 +134,21 @@ range_value = 5
 area_pattern = &"radius"
 area_value = 2
 ap_cost = 3
-mp_cost = 3
+mp_cost = 100
 cooldown_tu = 20
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 15,
+"range_value": 6
+},
+7: {
+"range_value": 7
+}
+}
+mastery_trigger_mode = &"effect_applied"
 cast_variants = Array[ExtResource("2_mp6e3")]([SubResource("Resource_yihuu"), SubResource("Resource_khn4w")])
 
 [resource]
@@ -50,42 +157,96 @@ skill_id = &"mage_delayed_fireball"
 display_name = "延爆火球"
 icon_id = &"mage_delayed_fireball"
 description = "可选择即时引爆或延后60TU引爆，延后形态额外施加灼烧。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"fire"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 120,
+"willpower": 60
+}
 level_description_template = "射程{range}，火伤{dmg}，范围{area}格，可选延爆。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "17",
-"range": "5",
-"area": "2",
 "ap": "3",
-"mp": "3",
+"area": "2",
 "cooldown": "20",
+"dmg": "17",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "5"
 },
 "1": {
-"dmg": "17",
-"range": "5",
-"area": "2",
 "ap": "3",
-"mp": "3",
+"area": "2",
 "cooldown": "20",
+"dmg": "17",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "5"
 },
 "2": {
-"dmg": "17",
-"range": "5",
-"area": "2",
 "ap": "3",
-"mp": "3",
+"area": "2",
 "cooldown": "20",
+"dmg": "17",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "5"
 },
 "3": {
-"dmg": "17",
-"range": "5",
-"area": "2",
 "ap": "3",
-"mp": "3",
-"cooldown": "20"
+"area": "2",
+"cooldown": "20",
+"dmg": "17",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "6"
+},
+"4": {
+"ap": "3",
+"area": "2",
+"cooldown": "20",
+"dmg": "17",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "6"
+},
+"5": {
+"ap": "3",
+"area": "2",
+"cooldown": "15",
+"dmg": "17",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "6"
+},
+"6": {
+"ap": "3",
+"area": "2",
+"cooldown": "15",
+"dmg": "17",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "6"
+},
+"7": {
+"ap": "3",
+"area": "2",
+"cooldown": "15",
+"dmg": "17",
+"duration": "120",
+"hit": "+0",
+"mp": "100",
+"range": "7"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"fire"])
 combat_profile = SubResource("Resource_241ad")

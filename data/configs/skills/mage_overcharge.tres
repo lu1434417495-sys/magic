@@ -6,15 +6,72 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6pwm3"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_xr7hx"]
 
+[sub_resource type="Resource" id="Resource_2vinr"]
+script = ExtResource("3_bseoo")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+status_id = &"attack_roll_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_kmk2g"]
+script = ExtResource("3_bseoo")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"attack_roll_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_bseoo"]
+script = ExtResource("3_bseoo")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"attack_roll_bonus_up"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_6pwm3"]
+script = ExtResource("3_bseoo")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"attack_roll_bonus_up"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_xr7hx"]
+script = ExtResource("3_bseoo")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"attack_roll_bonus_up"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_o0l4l"]
 script = ExtResource("4_6pwm3")
 skill_id = &"mage_overcharge"
 target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"
-mp_cost = 1
+mp_cost = 60
 cooldown_tu = 10
+level_overrides = {
+3: {},
+5: {
+"cooldown_tu": 5
+},
+7: {}
+}
+mastery_trigger_mode = &"effect_applied"
 target_selection_mode = &"self"
+effect_defs = Array[ExtResource("3_bseoo")]([SubResource("Resource_2vinr"), SubResource("Resource_kmk2g"), SubResource("Resource_bseoo"), SubResource("Resource_6pwm3"), SubResource("Resource_xr7hx")])
 
 [resource]
 script = ExtResource("5_xr7hx")
@@ -22,26 +79,81 @@ skill_id = &"mage_overcharge"
 display_name = "过载灌注"
 icon_id = &"mage_overcharge"
 description = "强化下一个雷系技能：伤害+20%，若触发连锁则额外多跳一次。"
-max_level = 3
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"lightning", &"support"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 90,
+"perception": 20,
+"willpower": 70
+}
 level_description_template = "强化下一雷系技能。消耗{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "0"
 },
 "1": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "0"
 },
 "2": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "0"
 },
 "3": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "80",
+"hit": "+0",
+"mp": "60",
+"range": "0"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"duration": "80",
+"hit": "+0",
+"mp": "60",
+"range": "0"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "60",
+"range": "0"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "60",
+"range": "0"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"duration": "120",
+"hit": "+0",
+"mp": "60",
+"range": "0"
 }
 }
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"lightning"])
 combat_profile = SubResource("Resource_o0l4l")

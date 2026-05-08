@@ -6,16 +6,79 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_oy4st"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_n4wfq"]
 
+[sub_resource type="Resource" id="Resource_1aw7b"]
+script = ExtResource("3_xqrjm")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_cpbqg"]
+script = ExtResource("3_xqrjm")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_xqrjm"]
+script = ExtResource("3_xqrjm")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_oy4st"]
+script = ExtResource("3_xqrjm")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_n4wfq"]
+script = ExtResource("3_xqrjm")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"willpower_save_bonus_up"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_bn8sx"]
 script = ExtResource("4_oy4st")
 skill_id = &"mage_spell_totem"
 target_mode = &"ground"
+target_team_filter = &"ally"
 range_value = 4
 area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 15
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 10,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"effect_applied"
+effect_defs = Array[ExtResource("3_xqrjm")]([SubResource("Resource_1aw7b"), SubResource("Resource_cpbqg"), SubResource("Resource_xqrjm"), SubResource("Resource_oy4st"), SubResource("Resource_n4wfq")])
 
 [resource]
 script = ExtResource("5_n4wfq")
@@ -23,34 +86,81 @@ skill_id = &"mage_spell_totem"
 display_name = "咒能图腾"
 icon_id = &"mage_spell_totem"
 description = "图腾周围友军获得 咏唱 或小幅 mp 回复；适合阵地战。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"summon", &"support"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 90,
+"perception": 20,
+"willpower": 70
+}
 level_description_template = "召唤咒能图腾，为周围友军提供增益。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "4"
 },
 "1": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "4"
 },
 "2": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
 "range": "4"
 },
 "3": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
-"range": "4"
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"cooldown": "15",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"cooldown": "10",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "6"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"summon"])
 combat_profile = SubResource("Resource_bn8sx")

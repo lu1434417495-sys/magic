@@ -1,59 +1,217 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
 [ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_lnh1m"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_yi6ns"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_868eb"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_rdkyg"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_3iomw"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_aytwb"]
-script = ExtResource("3_868eb")
+[sub_resource type="Resource" id="Damage_l0"]
+script = ExtResource("1_effect")
 effect_type = &"damage"
-power = 10
+max_skill_level = 0
 damage_tag = &"lightning"
+params = {
+"dice_count": 2,
+"dice_sides": 6
+}
 
-[sub_resource type="Resource" id="Resource_b7i6m"]
-script = ExtResource("4_rdkyg")
+[sub_resource type="Resource" id="Damage_l1"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"lightning"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l3"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"lightning"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l5"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"lightning"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l7"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"lightning"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Shocked_l3"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"shocked"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Shocked_l5"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 1
+min_skill_level = 5
+max_skill_level = 6
+status_id = &"shocked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Shocked_l7"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+power = 2
+min_skill_level = 7
+status_id = &"shocked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_spark_javelin"
 range_value = 5
-mp_cost = 1
+mp_cost = 60
+cooldown_tu = 10
 attack_roll_bonus = 1
-effect_defs = Array[ExtResource("3_868eb")]([SubResource("Resource_aytwb")])
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 2,
+"range_value": 7
+}
+}
+ai_tags = Array[StringName]([&"single_target", &"setup"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l5"), SubResource("Damage_l7"), SubResource("Shocked_l3"), SubResource("Shocked_l5"), SubResource("Shocked_l7")])
 
 [resource]
-script = ExtResource("5_3iomw")
+script = ExtResource("3_skill")
 skill_id = &"mage_spark_javelin"
 display_name = "电矛术"
 icon_id = &"mage_spark_javelin"
-description = "低耗雷系点射；命中后施加 感电。"
-level_description_template = "攻击检定+{hit}，造成{dmg}点伤害。消耗{mp}法力"
+description = "低耗雷系点射。高等级时附加感电，为链式闪击创造弹射窗口。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"lightning", &"setup", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
+level_description_template = "射程{range}，攻击检定{hit}，造成{dmg}雷电伤害{{?shock}}，附加shocked（{shock_duration}TU，强度{shock_power}）{{/shock}}。消耗1AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"mp": "1",
-"range": "5",
+"ap": "1",
+"cooldown": "10",
+"dmg": "2D6",
+"duration": "60",
 "hit": "+1",
-"dmg": "10"
+"mp": "60",
+"range": "5"
 },
 "1": {
-"mp": "1",
-"range": "5",
+"ap": "1",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
 "hit": "+1",
-"dmg": "10"
+"mp": "60",
+"range": "5"
 },
 "2": {
-"mp": "1",
-"range": "5",
+"ap": "1",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
 "hit": "+1",
-"dmg": "10"
+"mp": "60",
+"range": "5"
 },
 "3": {
-"mp": "1",
-"range": "5",
+"ap": "1",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
 "hit": "+1",
-"dmg": "10"
+"mp": "60",
+"range": "6",
+"shock": "true",
+"shock_duration": "60",
+"shock_power": "1"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+1",
+"mp": "60",
+"range": "6",
+"shock": "true",
+"shock_duration": "60",
+"shock_power": "1"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+1",
+"mp": "60",
+"range": "6",
+"shock": "true",
+"shock_duration": "80",
+"shock_power": "1"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+1",
+"mp": "60",
+"range": "6",
+"shock": "true",
+"shock_duration": "80",
+"shock_power": "1"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "120",
+"hit": "+2",
+"mp": "60",
+"range": "7",
+"shock": "true",
+"shock_duration": "80",
+"shock_power": "2"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"lightning"])
-combat_profile = SubResource("Resource_b7i6m")
+combat_profile = SubResource("Combat")

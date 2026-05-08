@@ -6,21 +6,110 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_pi3cc"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_ei83j"]
 
-[sub_resource type="Resource" id="Resource_38xxr"]
+[sub_resource type="Resource" id="Resource_5v3ja"]
 script = ExtResource("3_v74mk")
 effect_type = &"damage"
-power = 13
+max_skill_level = 0
 damage_tag = &"freeze"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_55n23"]
+script = ExtResource("3_v74mk")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"freeze"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_v74mk"]
+script = ExtResource("3_v74mk")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"freeze"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_pi3cc"]
+script = ExtResource("3_v74mk")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"freeze"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_ei83j"]
+script = ExtResource("3_v74mk")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"freeze"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_38xxr"]
+script = ExtResource("3_v74mk")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"frozen"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_p6ast"]
+script = ExtResource("3_v74mk")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"frozen"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_e3rdn"]
+script = ExtResource("3_v74mk")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"frozen"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_sxkku"]
 script = ExtResource("4_pi3cc")
 skill_id = &"mage_shatter_lance"
 range_value = 5
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 10
 attack_roll_bonus = 2
-effect_defs = Array[ExtResource("3_v74mk")]([SubResource("Resource_38xxr")])
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 3,
+"range_value": 7
+}
+}
+effect_defs = Array[ExtResource("3_v74mk")]([SubResource("Resource_5v3ja"), SubResource("Resource_55n23"), SubResource("Resource_v74mk"), SubResource("Resource_pi3cc"), SubResource("Resource_ei83j"), SubResource("Resource_38xxr"), SubResource("Resource_p6ast"), SubResource("Resource_e3rdn")])
 
 [resource]
 script = ExtResource("5_ei83j")
@@ -28,42 +117,89 @@ skill_id = &"mage_shatter_lance"
 display_name = "碎晶枪"
 icon_id = &"mage_shatter_lance"
 description = "对 frozen、shocked 或 浸湿 目标造成额外伤害，是典型元素联动终结技。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"ice", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "攻击检定+{hit}，造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
-"range": "5",
+"dmg": "3D6",
+"duration": "60",
 "hit": "+2",
-"dmg": "13"
+"mp": "80",
+"range": "5"
 },
 "1": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
-"range": "5",
+"dmg": "4D6",
+"duration": "60",
 "hit": "+2",
-"dmg": "13"
+"mp": "80",
+"range": "5"
 },
 "2": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
-"range": "5",
+"dmg": "4D6",
+"duration": "60",
 "hit": "+2",
-"dmg": "13"
+"mp": "80",
+"range": "5"
 },
 "3": {
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
-"range": "5",
+"dmg": "5D6",
+"duration": "80",
 "hit": "+2",
-"dmg": "13"
+"mp": "80",
+"range": "6"
+},
+"4": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+2",
+"mp": "80",
+"range": "6"
+},
+"5": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+2",
+"mp": "80",
+"range": "6"
+},
+"6": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+2",
+"mp": "80",
+"range": "6"
+},
+"7": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "7D6",
+"duration": "120",
+"hit": "+3",
+"mp": "80",
+"range": "7"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"ice"])
 combat_profile = SubResource("Resource_sxkku")

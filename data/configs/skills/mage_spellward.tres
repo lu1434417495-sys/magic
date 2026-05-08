@@ -6,10 +6,11 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_o6dpd"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_i5ogj"]
 
-[sub_resource type="Resource" id="Resource_m4wdv"]
+[sub_resource type="Resource" id="Resource_g16ra"]
 script = ExtResource("3_mu3ut")
 effect_type = &"status"
 power = 1
+max_skill_level = 0
 effect_target_team_filter = &"ally"
 status_id = &"spellward"
 duration_tu = 60
@@ -18,13 +19,124 @@ params = {
 "mitigation_tier": "half"
 }
 
-[sub_resource type="Resource" id="Resource_uibw6"]
+[sub_resource type="Resource" id="Resource_jcblt"]
 script = ExtResource("3_mu3ut")
 effect_type = &"status"
 power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"spellward"
+duration_tu = 60
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_mu3ut"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"spellward"
+duration_tu = 80
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_o6dpd"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"spellward"
+duration_tu = 100
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_i5ogj"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"spellward"
+duration_tu = 120
+params = {
+"damage_category": "magic",
+"mitigation_tier": "half"
+}
+
+[sub_resource type="Resource" id="Resource_m4wdv"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
 effect_target_team_filter = &"ally"
 status_id = &"death_ward"
 duration_tu = 60
+params = {
+"damage_tag": "negative_energy",
+"mitigation_tier": "immune"
+}
+
+[sub_resource type="Resource" id="Resource_wjean"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"death_ward"
+duration_tu = 60
+params = {
+"damage_tag": "negative_energy",
+"mitigation_tier": "immune"
+}
+
+[sub_resource type="Resource" id="Resource_8hnxh"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"death_ward"
+duration_tu = 80
+params = {
+"damage_tag": "negative_energy",
+"mitigation_tier": "immune"
+}
+
+[sub_resource type="Resource" id="Resource_3r3ie"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"death_ward"
+duration_tu = 100
+params = {
+"damage_tag": "negative_energy",
+"mitigation_tier": "immune"
+}
+
+[sub_resource type="Resource" id="Resource_5xodj"]
+script = ExtResource("3_mu3ut")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"death_ward"
+duration_tu = 120
 params = {
 "damage_tag": "negative_energy",
 "mitigation_tier": "immune"
@@ -34,13 +146,27 @@ params = {
 script = ExtResource("4_o6dpd")
 skill_id = &"mage_spellward"
 target_mode = &"ground"
+target_team_filter = &"ally"
 range_value = 4
 area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 15
-effect_defs = Array[ExtResource("3_mu3ut")]([SubResource("Resource_m4wdv"), SubResource("Resource_uibw6")])
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 10,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"status_applied"
+effect_defs = Array[ExtResource("3_mu3ut")]([SubResource("Resource_g16ra"), SubResource("Resource_jcblt"), SubResource("Resource_mu3ut"), SubResource("Resource_o6dpd"), SubResource("Resource_i5ogj"), SubResource("Resource_m4wdv"), SubResource("Resource_wjean"), SubResource("Resource_8hnxh"), SubResource("Resource_3r3ie"), SubResource("Resource_5xodj")])
 
 [resource]
 script = ExtResource("5_i5ogj")
@@ -48,46 +174,97 @@ skill_id = &"mage_spellward"
 display_name = "法术结界"
 icon_id = &"mage_spellward"
 description = "为范围内友军施加持续 60 TU 的结界：法术 / 能量伤害减半，负能量 伤害无效。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 20,
+"intelligence": 60,
+"willpower": 100
+}
 level_description_template = "为范围内友军施加法术结界与死亡守护（持续{duration}TU）。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
-"range": "4",
-"status": "spellward",
 "duration": "60",
-"duration2": "60"
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"status": "spellward"
 },
 "1": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
-"range": "4",
-"status": "spellward",
 "duration": "60",
-"duration2": "60"
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"status": "spellward"
 },
 "2": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
-"range": "4",
-"status": "spellward",
 "duration": "60",
-"duration2": "60"
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4",
+"status": "spellward"
 },
 "3": {
 "ap": "2",
-"mp": "2",
 "cooldown": "15",
-"range": "4",
-"status": "spellward",
-"duration": "60",
-"duration2": "60"
+"duration": "80",
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "5",
+"status": "spellward"
+},
+"4": {
+"ap": "2",
+"cooldown": "15",
+"duration": "80",
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "5",
+"status": "spellward"
+},
+"5": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "5",
+"status": "spellward"
+},
+"6": {
+"ap": "2",
+"cooldown": "10",
+"duration": "100",
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "5",
+"status": "spellward"
+},
+"7": {
+"ap": "2",
+"cooldown": "10",
+"duration": "120",
+"duration2": "60",
+"hit": "+0",
+"mp": "80",
+"range": "6",
+"status": "spellward"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
 combat_profile = SubResource("Resource_p4f8j")

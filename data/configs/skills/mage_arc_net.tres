@@ -6,11 +6,87 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_8l5y2"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8my3o"]
 
-[sub_resource type="Resource" id="Resource_81t4u"]
+[sub_resource type="Resource" id="Resource_4b1jc"]
 script = ExtResource("3_nsmx2")
 effect_type = &"damage"
-power = 8
+max_skill_level = 0
 damage_tag = &"lightning"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_imt76"]
+script = ExtResource("3_nsmx2")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"lightning"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_nsmx2"]
+script = ExtResource("3_nsmx2")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"lightning"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_8l5y2"]
+script = ExtResource("3_nsmx2")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"lightning"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_8my3o"]
+script = ExtResource("3_nsmx2")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"lightning"
+params = {
+"dice_count": 8,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_81t4u"]
+script = ExtResource("3_nsmx2")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"shocked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_qao0l"]
+script = ExtResource("3_nsmx2")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"shocked"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_580p4"]
+script = ExtResource("3_nsmx2")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"shocked"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_x05s4"]
 script = ExtResource("4_8l5y2")
@@ -20,9 +96,21 @@ range_value = 4
 area_pattern = &"line"
 area_value = 1
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_nsmx2")]([SubResource("Resource_81t4u")])
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 5
+},
+7: {
+"area_value": 2
+}
+}
+effect_defs = Array[ExtResource("3_nsmx2")]([SubResource("Resource_4b1jc"), SubResource("Resource_imt76"), SubResource("Resource_nsmx2"), SubResource("Resource_8l5y2"), SubResource("Resource_8my3o"), SubResource("Resource_81t4u"), SubResource("Resource_qao0l"), SubResource("Resource_580p4")])
 
 [resource]
 script = ExtResource("5_8my3o")
@@ -30,42 +118,97 @@ skill_id = &"mage_arc_net"
 display_name = "电网术"
 icon_id = &"mage_arc_net"
 description = "在一条直线上挂起电网，首个穿过的敌人被定身并附加感电。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"lightning", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "射程{range}，雷伤{dmg}，直线范围。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
+"area": "1",
 "cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "1": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
+"area": "1",
 "cooldown": "10",
+"dmg": "5D6",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "2": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
+"area": "1",
 "cooldown": "10",
+"dmg": "5D6",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "3": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
-"cooldown": "10"
+"area": "1",
+"cooldown": "10",
+"dmg": "6D6",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"area": "1",
+"cooldown": "10",
+"dmg": "6D6",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"area": "1",
+"cooldown": "5",
+"dmg": "7D6",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"area": "1",
+"cooldown": "5",
+"dmg": "7D6",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"area": "1",
+"cooldown": "5",
+"dmg": "8D6",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "5"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"lightning"])
 combat_profile = SubResource("Resource_x05s4")

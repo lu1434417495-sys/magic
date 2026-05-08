@@ -1,71 +1,305 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
 [ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_yl8p2"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_w0cao"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_3axpt"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_xb5pe"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_nuq4k"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_28o4j"]
-script = ExtResource("3_3axpt")
+[sub_resource type="Resource" id="InitialDamage_l0"]
+script = ExtResource("1_effect")
 effect_type = &"damage"
-power = 8
+max_skill_level = 0
 damage_tag = &"fire"
+params = {
+"dice_count": 2,
+"dice_sides": 6
+}
 
-[sub_resource type="Resource" id="Resource_kmuj3"]
-script = ExtResource("4_xb5pe")
+[sub_resource type="Resource" id="InitialDamage_l1"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"fire"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="InitialDamage_l3"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"fire"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="InitialDamage_l5"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"fire"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="InitialDamage_l7"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"fire"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="WallDamage_l0"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+tick_effect_type = &"damage"
+power = 4
+max_skill_level = 2
+damage_tag = &"fire"
+terrain_effect_id = &"mage_fire_wall_flame"
+duration_tu = 80
+tick_interval_tu = 20
+params = {
+"display_name": "火墙"
+}
+
+[sub_resource type="Resource" id="WallDamage_l3"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+tick_effect_type = &"damage"
+power = 6
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"fire"
+terrain_effect_id = &"mage_fire_wall_flame"
+duration_tu = 100
+tick_interval_tu = 20
+params = {
+"display_name": "火墙"
+}
+
+[sub_resource type="Resource" id="WallDamage_l5"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+tick_effect_type = &"damage"
+power = 8
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"fire"
+terrain_effect_id = &"mage_fire_wall_flame"
+duration_tu = 120
+tick_interval_tu = 20
+params = {
+"display_name": "火墙"
+}
+
+[sub_resource type="Resource" id="WallDamage_l7"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+tick_effect_type = &"damage"
+power = 10
+min_skill_level = 7
+damage_tag = &"fire"
+terrain_effect_id = &"mage_fire_wall_flame"
+duration_tu = 140
+tick_interval_tu = 20
+params = {
+"display_name": "火墙"
+}
+
+[sub_resource type="Resource" id="WallBurn_l3"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+tick_effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"burning"
+terrain_effect_id = &"mage_fire_wall_burn"
+duration_tu = 100
+tick_interval_tu = 20
+params = {
+"display_name": "火墙余焰",
+"duration_tu": 40
+}
+
+[sub_resource type="Resource" id="WallBurn_l5"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+tick_effect_type = &"status"
+power = 1
+min_skill_level = 5
+max_skill_level = 6
+status_id = &"burning"
+terrain_effect_id = &"mage_fire_wall_burn"
+duration_tu = 120
+tick_interval_tu = 20
+params = {
+"display_name": "火墙余焰",
+"duration_tu": 60
+}
+
+[sub_resource type="Resource" id="WallBurn_l7"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+tick_effect_type = &"status"
+power = 2
+min_skill_level = 7
+status_id = &"burning"
+terrain_effect_id = &"mage_fire_wall_burn"
+duration_tu = 140
+tick_interval_tu = 20
+params = {
+"display_name": "火墙余焰",
+"duration_tu": 60
+}
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_fire_wall"
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"line"
-area_value = 1
+area_value = 2
 ap_cost = 2
-mp_cost = 2
-cooldown_tu = 15
-effect_defs = Array[ExtResource("3_3axpt")]([SubResource("Resource_28o4j")])
+mp_cost = 100
+cooldown_tu = 30
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"area_value": 3,
+"cooldown_tu": 25,
+"range_value": 5
+},
+7: {
+"area_value": 3,
+"range_value": 6
+}
+}
+ai_tags = Array[StringName]([&"aoe", &"terrain", &"control"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("InitialDamage_l0"), SubResource("InitialDamage_l1"), SubResource("InitialDamage_l3"), SubResource("InitialDamage_l5"), SubResource("InitialDamage_l7"), SubResource("WallDamage_l0"), SubResource("WallDamage_l3"), SubResource("WallDamage_l5"), SubResource("WallDamage_l7"), SubResource("WallBurn_l3"), SubResource("WallBurn_l5"), SubResource("WallBurn_l7")])
 
 [resource]
-script = ExtResource("5_nuq4k")
+script = ExtResource("3_skill")
 skill_id = &"mage_fire_wall"
 display_name = "火墙术"
 icon_id = &"mage_fire_wall"
-description = "生成持续120TU的火墙，穿越或在其上结束行动的敌人承受火焰伤害并获得灼烧。"
-level_description_template = "射程{range}，火伤{dmg}，直线火墙持续120TU。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+description = "在直线上制造持续火墙。火墙会周期性灼烧站在其中的敌人。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"fire", &"terrain", &"aoe", &"output"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 120,
+"willpower": 60
+}
+level_description_template = "射程{range}，直线长度{area}，初始造成{dmg}火焰伤害，火墙持续{duration}TU，每20TU造成{tick}火伤{{?burn}}并附加灼烧{{/burn}}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
-"cooldown": "15",
+"area": "2",
+"cooldown": "30",
+"dmg": "2D6",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "4",
+"tick": "4"
 },
 "1": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
-"cooldown": "15",
+"area": "2",
+"cooldown": "30",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "4",
+"tick": "4"
 },
 "2": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
-"cooldown": "15",
+"area": "2",
+"cooldown": "30",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "4",
+"tick": "4"
 },
 "3": {
-"dmg": "8",
-"range": "4",
-"area": "1",
 "ap": "2",
-"mp": "2",
-"cooldown": "15"
+"area": "2",
+"burn": "true",
+"cooldown": "30",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "5",
+"tick": "6"
+},
+"4": {
+"ap": "2",
+"area": "2",
+"burn": "true",
+"cooldown": "30",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "5",
+"tick": "6"
+},
+"5": {
+"ap": "2",
+"area": "3",
+"burn": "true",
+"cooldown": "25",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "5",
+"tick": "8"
+},
+"6": {
+"ap": "2",
+"area": "3",
+"burn": "true",
+"cooldown": "25",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "5",
+"tick": "8"
+},
+"7": {
+"ap": "2",
+"area": "3",
+"burn": "true",
+"cooldown": "25",
+"dmg": "6D6",
+"duration": "120",
+"hit": "+0",
+"mp": "100",
+"range": "6",
+"tick": "10"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"fire"])
-combat_profile = SubResource("Resource_kmuj3")
+combat_profile = SubResource("Combat")

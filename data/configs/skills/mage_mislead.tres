@@ -6,13 +6,75 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6gola"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_od2om"]
 
+[sub_resource type="Resource" id="Resource_75qe7"]
+script = ExtResource("3_38txc")
+effect_type = &"status"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+status_id = &"dodge_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_50dhy"]
+script = ExtResource("3_38txc")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+status_id = &"dodge_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_38txc"]
+script = ExtResource("3_38txc")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+status_id = &"dodge_bonus_up"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_6gola"]
+script = ExtResource("3_38txc")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"ally"
+status_id = &"dodge_bonus_up"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_od2om"]
+script = ExtResource("3_38txc")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"ally"
+status_id = &"dodge_bonus_up"
+duration_tu = 120
+
 [sub_resource type="Resource" id="Resource_utev8"]
 script = ExtResource("4_6gola")
 skill_id = &"mage_mislead"
 target_team_filter = &"ally"
 range_value = 3
-mp_cost = 1
+mp_cost = 60
 cooldown_tu = 10
+level_overrides = {
+3: {
+"range_value": 4
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 4
+},
+7: {
+"range_value": 5
+}
+}
+mastery_trigger_mode = &"effect_applied"
+effect_defs = Array[ExtResource("3_38txc")]([SubResource("Resource_75qe7"), SubResource("Resource_50dhy"), SubResource("Resource_38txc"), SubResource("Resource_6gola"), SubResource("Resource_od2om")])
 
 [resource]
 script = ExtResource("5_od2om")
@@ -20,26 +82,81 @@ skill_id = &"mage_mislead"
 display_name = "误导术"
 icon_id = &"mage_mislead"
 description = "为友军制造短暂伪像，令敌方下一次单体技能有概率转空。"
-max_level = 3
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"illusion", &"support"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 90,
+"perception": 20,
+"willpower": 70
+}
 level_description_template = "令目标获得误导。消耗{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "3"
 },
 "1": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "3"
 },
 "2": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "3"
 },
 "3": {
+"ap": "1",
 "cooldown": "10",
-"mp": "1"
+"duration": "80",
+"hit": "+0",
+"mp": "60",
+"range": "4"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"duration": "80",
+"hit": "+0",
+"mp": "60",
+"range": "4"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "60",
+"range": "4"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "60",
+"range": "4"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"duration": "120",
+"hit": "+0",
+"mp": "60",
+"range": "5"
 }
 }
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"illusion"])
 combat_profile = SubResource("Resource_utev8")

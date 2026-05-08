@@ -6,20 +6,108 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_4nsnc"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_kl3no"]
 
-[sub_resource type="Resource" id="Resource_f0thj"]
+[sub_resource type="Resource" id="Resource_rg86u"]
 script = ExtResource("3_cgad7")
 effect_type = &"damage"
-power = 12
+max_skill_level = 0
 damage_tag = &"negative_energy"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_y2ab5"]
+script = ExtResource("3_cgad7")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_cgad7"]
+script = ExtResource("3_cgad7")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_4nsnc"]
+script = ExtResource("3_cgad7")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_kl3no"]
+script = ExtResource("3_cgad7")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_f0thj"]
+script = ExtResource("3_cgad7")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_xi6l3"]
+script = ExtResource("3_cgad7")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_rgc0n"]
+script = ExtResource("3_cgad7")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_cjwwx"]
 script = ExtResource("4_4nsnc")
 skill_id = &"mage_black_flame"
 range_value = 5
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_cgad7")]([SubResource("Resource_f0thj")])
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"range_value": 7
+}
+}
+effect_defs = Array[ExtResource("3_cgad7")]([SubResource("Resource_rg86u"), SubResource("Resource_y2ab5"), SubResource("Resource_cgad7"), SubResource("Resource_4nsnc"), SubResource("Resource_kl3no"), SubResource("Resource_f0thj"), SubResource("Resource_xi6l3"), SubResource("Resource_rgc0n")])
 
 [resource]
 script = ExtResource("5_kl3no")
@@ -27,38 +115,89 @@ skill_id = &"mage_black_flame"
 display_name = "冥火术"
 icon_id = &"mage_black_flame"
 description = "施加不可被普通净化立刻清除的暗焰灼烧，对高回复敌人特别克制。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "射程{range}，负能量伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "12",
-"range": "5",
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "5"
 },
 "1": {
-"dmg": "12",
-"range": "5",
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "5"
 },
 "2": {
-"dmg": "12",
-"range": "5",
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "5"
 },
 "3": {
-"dmg": "12",
-"range": "5",
 "ap": "2",
-"mp": "2",
-"cooldown": "10"
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "6"
+},
+"4": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "6"
+},
+"5": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "6"
+},
+"6": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "6"
+},
+"7": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "7D6",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "7"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
 combat_profile = SubResource("Resource_cjwwx")

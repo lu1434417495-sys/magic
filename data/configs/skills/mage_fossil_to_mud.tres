@@ -70,8 +70,21 @@ script = ExtResource("4_f3njh")
 skill_id = &"mage_fossil_to_mud"
 target_mode = &"ground"
 range_value = 3
-mp_cost = 2
-cooldown_tu = 5
+mp_cost = 80
+cooldown_tu = 10
+level_overrides = {
+3: {
+"range_value": 4
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 4
+},
+7: {
+"range_value": 5
+}
+}
+mastery_trigger_mode = &"effect_applied"
 cast_variants = Array[ExtResource("2_0vatg")]([SubResource("Resource_cb1ig"), SubResource("Resource_6qv13"), SubResource("Resource_pkivc"), SubResource("Resource_c0vs3")])
 
 [resource]
@@ -80,34 +93,81 @@ skill_id = &"mage_fossil_to_mud"
 display_name = "化石为泥"
 icon_id = &"mage_fossil_to_mud"
 description = "将指定平地或地刺改造成泥沼；随等级解锁单格降层、连续双格降层与2x2泥沼改造。"
-max_level = 5
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"earth", &"terrain"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 50,
+"intelligence": 100,
+"willpower": 30
+}
 level_description_template = "改造地形为泥沼。消耗{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"cooldown": "5",
-"mp": "2"
+"ap": "1",
+"cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "3"
 },
 "1": {
-"cooldown": "5",
-"mp": "2"
+"ap": "1",
+"cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "3"
 },
 "2": {
-"cooldown": "5",
-"mp": "2"
+"ap": "1",
+"cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "3"
 },
 "3": {
-"cooldown": "5",
-"mp": "2"
+"ap": "1",
+"cooldown": "10",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "4": {
-"cooldown": "5",
-"mp": "2"
+"ap": "1",
+"cooldown": "10",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "4"
 },
 "5": {
+"ap": "1",
 "cooldown": "5",
-"mp": "2"
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "4"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "4"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "5"
 }
 }
-mastery_curve = PackedInt32Array(20, 30, 45, 60, 80)
-tags = Array[StringName]([&"mage", &"magic", &"earth", &"terrain"])
 combat_profile = SubResource("Resource_sjstb")

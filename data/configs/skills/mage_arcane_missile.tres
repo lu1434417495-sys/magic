@@ -1,72 +1,187 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
 [ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_isppr"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_tciq2"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_bcpov"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_grbq4"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_q8e4u"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_04fav"]
-script = ExtResource("3_bcpov")
+[sub_resource type="Resource" id="Damage_l0"]
+script = ExtResource("1_effect")
 effect_type = &"damage"
-power = 7
+max_skill_level = 0
 damage_tag = &"magic"
+params = {
+"dice_count": 2,
+"dice_sides": 6
+}
 
-[sub_resource type="Resource" id="Resource_5wotp"]
-script = ExtResource("4_grbq4")
+[sub_resource type="Resource" id="Damage_l1"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"magic"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l3"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"magic"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l5"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"magic"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l7"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"magic"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_arcane_missile"
 range_value = 5
-mp_cost = 1
-cooldown_tu = 5
+mp_cost = 60
+cooldown_tu = 10
 attack_roll_bonus = 3
+level_overrides = {
+3: {
+"max_target_count": 3,
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 4,
+"max_target_count": 4
+}
+}
+ai_tags = Array[StringName]([&"single_target", &"multi_target", &"reliable"])
 target_selection_mode = &"multi_unit"
-min_target_count = 2
-max_target_count = 3
+max_target_count = 2
 selection_order_mode = &"manual"
-effect_defs = Array[ExtResource("3_bcpov")]([SubResource("Resource_04fav")])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l5"), SubResource("Damage_l7")])
 
 [resource]
-script = ExtResource("5_q8e4u")
+script = ExtResource("3_skill")
 skill_id = &"mage_arcane_missile"
 display_name = "奥术飞弹"
 icon_id = &"mage_arcane_missile"
-description = "法师的稳定多目标点射基准，单次施法锁定2-3个敌人依次命中。"
-level_description_template = "射程{range}，攻击检定{hit}，奥术伤{dmg}，最多3目标。消耗{mp}法力，冷却{cooldown}TU"
+description = "稳定的奥术多目标点射。等级提升会提高飞弹伤害、射程与可锁定目标数。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"arcane", &"output"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 120,
+"willpower": 60
+}
+level_description_template = "射程{range}，攻击检定{hit}，每个目标造成{dmg}奥术伤害，最多{targets}目标。消耗1AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "7",
-"hit": "+3",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "2D6",
+"duration": "60",
+"hit": "+3",
+"mp": "60",
+"range": "5",
+"targets": "2"
 },
 "1": {
-"dmg": "7",
-"hit": "+3",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+3",
+"mp": "60",
+"range": "5",
+"targets": "2"
 },
 "2": {
-"dmg": "7",
-"hit": "+3",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+3",
+"mp": "60",
+"range": "5",
+"targets": "2"
 },
 "3": {
-"dmg": "7",
-"hit": "+3",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5"
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+3",
+"mp": "60",
+"range": "6",
+"targets": "3"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+3",
+"mp": "60",
+"range": "6",
+"targets": "3"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+3",
+"mp": "60",
+"range": "6",
+"targets": "3"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+3",
+"mp": "60",
+"range": "6",
+"targets": "3"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "120",
+"hit": "+4",
+"mp": "60",
+"range": "6",
+"targets": "4"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"arcane"])
-combat_profile = SubResource("Resource_5wotp")
+combat_profile = SubResource("Combat")

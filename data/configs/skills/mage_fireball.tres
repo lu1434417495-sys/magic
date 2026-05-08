@@ -6,66 +6,266 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_3s2hp"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_1kl4o"]
 
-[sub_resource type="Resource" id="Resource_cegb8"]
+[sub_resource type="Resource" id="Resource_dmg_l0"]
 script = ExtResource("3_0agah")
 effect_type = &"damage"
-power = 13
+max_skill_level = 0
 damage_tag = &"fire"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
 
-[sub_resource type="Resource" id="Resource_jcdgw"]
+[sub_resource type="Resource" id="Resource_dmg_l1"]
+script = ExtResource("3_0agah")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"fire"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_dmg_l3"]
+script = ExtResource("3_0agah")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"fire"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_dmg_l5"]
+script = ExtResource("3_0agah")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"fire"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_dmg_l7"]
+script = ExtResource("3_0agah")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"fire"
+effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
+params = {
+"dice_count": 8,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_burn_l3"]
+script = ExtResource("3_0agah")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"burning"
+effect_target_team_filter = &"any"
+duration_tu = 40
+tick_interval_tu = 10
+
+[sub_resource type="Resource" id="Resource_burn_l5"]
+script = ExtResource("3_0agah")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+status_id = &"burning"
+effect_target_team_filter = &"any"
+duration_tu = 60
+tick_interval_tu = 10
+
+[sub_resource type="Resource" id="Resource_burn_l7"]
+script = ExtResource("3_0agah")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+status_id = &"burning"
+effect_target_team_filter = &"any"
+duration_tu = 80
+tick_interval_tu = 10
+
+[sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_3s2hp")
 skill_id = &"mage_fireball"
 target_mode = &"ground"
-range_value = 4
-area_pattern = &"diamond"
-area_value = 1
-ap_cost = 2
-mp_cost = 2
-cooldown_tu = 10
-effect_defs = Array[ExtResource("3_0agah")]([SubResource("Resource_cegb8")])
+range_value = 3
+mp_cost = 100
+cooldown_tu = 30
+spell_fate_mode = &"control_roll"
+spell_critical_mode = &"mp_refund"
+spell_critical_mp_refund_percent = 50
+fumble_protection_curve = PackedInt32Array(0, 0, 0, 1, 1, 2, 2, 3)
+fumble_protection_extra_mp_percent = 100
+backlash_mode = &"ground_anchor_drift"
+backlash_offset_radius = 1
+level_overrides = {
+3: {
+"area_pattern": "cross",
+"area_value": 1,
+"range_value": 4
+},
+5: {
+"cooldown_tu": 25,
+"range_value": 4
+},
+6: {
+"range_value": 5
+},
+7: {
+"area_value": 2
+}
+}
+effect_defs = Array[ExtResource("3_0agah")]([SubResource("Resource_dmg_l0"), SubResource("Resource_dmg_l1"), SubResource("Resource_dmg_l3"), SubResource("Resource_dmg_l5"), SubResource("Resource_dmg_l7"), SubResource("Resource_burn_l3"), SubResource("Resource_burn_l5"), SubResource("Resource_burn_l7")])
 
 [resource]
 script = ExtResource("5_1kl4o")
 skill_id = &"mage_fireball"
 display_name = "火球术"
 icon_id = &"mage_fireball"
-description = "向指定地格投掷火球，对菱形小范围内目标造成火焰伤害。"
-level_description_template = "射程{range}，火伤{dmg}，菱形范围{area}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+description = "向指定地格投掷火球，造成大范围火焰伤害。高等级时射程和范围扩大，并附加灼烧。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"fire", &"aoe", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
+level_description_template = "造成{dmg}火焰伤害{{?burn}}，命中附加灼烧（{burn_duration}TU，每tick {burn_power}点）{{/burn}}，射程{range}，{area}，消耗1AP/100法力，冷却30TU"
 level_description_configs = {
 "0": {
-"dmg": "13",
-"range": "4",
-"area": "1",
-"ap": "2",
-"mp": "2",
-"cooldown": "10",
+"ap": "1",
+"area": "单体",
+"cooldown": "30",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "3"
 },
 "1": {
-"dmg": "13",
-"range": "4",
-"area": "1",
-"ap": "2",
-"mp": "2",
-"cooldown": "10",
+"ap": "1",
+"area": "单体",
+"cooldown": "30",
+"dmg": "5D6",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "3"
 },
 "2": {
-"dmg": "13",
-"range": "4",
-"area": "1",
-"ap": "2",
-"mp": "2",
-"cooldown": "10",
+"ap": "1",
+"area": "单体",
+"cooldown": "30",
+"dmg": "5D6",
+"duration": "60",
+"hit": "+0",
+"mp": "100",
+"range": "3"
 },
 "3": {
-"dmg": "13",
-"range": "4",
-"area": "1",
-"ap": "2",
-"mp": "2",
-"cooldown": "10"
+"ap": "1",
+"area": "十字范围",
+"burn": "true",
+"burn_duration": "40",
+"burn_power": "1",
+"cooldown": "30",
+"dmg": "6D6",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "4"
+},
+"4": {
+"ap": "1",
+"area": "十字范围",
+"burn": "true",
+"burn_duration": "40",
+"burn_power": "1",
+"cooldown": "30",
+"dmg": "6D6",
+"duration": "80",
+"hit": "+0",
+"mp": "100",
+"range": "4"
+},
+"5": {
+"ap": "1",
+"area": "十字范围",
+"burn": "true",
+"burn_duration": "60",
+"burn_power": "2",
+"cooldown": "25",
+"dmg": "7D6",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "4"
+},
+"6": {
+"ap": "1",
+"area": "十字范围",
+"burn": "true",
+"burn_duration": "60",
+"burn_power": "2",
+"cooldown": "25",
+"dmg": "7D6",
+"duration": "100",
+"hit": "+0",
+"mp": "100",
+"range": "5"
+},
+"7": {
+"ap": "1",
+"area": "大十字范围",
+"burn": "true",
+"burn_duration": "80",
+"burn_power": "3",
+"cooldown": "25",
+"dmg": "8D6",
+"duration": "120",
+"hit": "+0",
+"mp": "100",
+"range": "5"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"fire"])
-combat_profile = SubResource("Resource_jcdgw")
+combat_profile = SubResource("Resource_combat")

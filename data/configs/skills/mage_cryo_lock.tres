@@ -6,21 +6,110 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6r1gh"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_yomy4"]
 
-[sub_resource type="Resource" id="Resource_fcfju"]
+[sub_resource type="Resource" id="Resource_j7dhe"]
 script = ExtResource("3_sn8c2")
 effect_type = &"damage"
-power = 8
+max_skill_level = 0
 damage_tag = &"freeze"
+params = {
+"dice_count": 2,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_quggw"]
+script = ExtResource("3_sn8c2")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"freeze"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_sn8c2"]
+script = ExtResource("3_sn8c2")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"freeze"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_6r1gh"]
+script = ExtResource("3_sn8c2")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"freeze"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_yomy4"]
+script = ExtResource("3_sn8c2")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"freeze"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_fcfju"]
+script = ExtResource("3_sn8c2")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"frozen"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_37myl"]
+script = ExtResource("3_sn8c2")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"frozen"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_ow1g0"]
+script = ExtResource("3_sn8c2")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"frozen"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_1e4gi"]
 script = ExtResource("4_6r1gh")
 skill_id = &"mage_cryo_lock"
 range_value = 5
 ap_cost = 2
-mp_cost = 2
+mp_cost = 80
 cooldown_tu = 10
 attack_roll_bonus = 1
-effect_defs = Array[ExtResource("3_sn8c2")]([SubResource("Resource_fcfju")])
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 2,
+"range_value": 7
+}
+}
+effect_defs = Array[ExtResource("3_sn8c2")]([SubResource("Resource_j7dhe"), SubResource("Resource_quggw"), SubResource("Resource_sn8c2"), SubResource("Resource_6r1gh"), SubResource("Resource_yomy4"), SubResource("Resource_fcfju"), SubResource("Resource_37myl"), SubResource("Resource_ow1g0")])
 
 [resource]
 script = ExtResource("5_yomy4")
@@ -28,42 +117,89 @@ skill_id = &"mage_cryo_lock"
 display_name = "寒锁术"
 icon_id = &"mage_cryo_lock"
 description = "冰锁缠身，目标获得定身，并在下次承受火焰伤害时额外受到+20%蒸腾爆裂。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"ice", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "射程{range}，攻击检定{hit}，冰伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "8",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"dmg": "2D6",
+"duration": "60",
+"hit": "+1",
+"mp": "80",
+"range": "5"
 },
 "1": {
-"dmg": "8",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+1",
+"mp": "80",
+"range": "5"
 },
 "2": {
-"dmg": "8",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
 "cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+1",
+"mp": "80",
+"range": "5"
 },
 "3": {
-"dmg": "8",
-"hit": "+1",
-"range": "5",
 "ap": "2",
-"mp": "2",
-"cooldown": "10"
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"4": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"5": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"6": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+1",
+"mp": "80",
+"range": "6"
+},
+"7": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "120",
+"hit": "+2",
+"mp": "80",
+"range": "7"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"ice"])
 combat_profile = SubResource("Resource_1e4gi")

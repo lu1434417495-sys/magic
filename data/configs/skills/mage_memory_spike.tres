@@ -6,20 +6,109 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_gpuwo"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_d5jlh"]
 
-[sub_resource type="Resource" id="Resource_cikv6"]
+[sub_resource type="Resource" id="Resource_v7ydr"]
 script = ExtResource("3_0bjem")
 effect_type = &"damage"
-power = 8
+max_skill_level = 0
 damage_tag = &"magic"
+params = {
+"dice_count": 2,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_d8hc0"]
+script = ExtResource("3_0bjem")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"magic"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_0bjem"]
+script = ExtResource("3_0bjem")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"magic"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_gpuwo"]
+script = ExtResource("3_0bjem")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"magic"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_d5jlh"]
+script = ExtResource("3_0bjem")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"magic"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_cikv6"]
+script = ExtResource("3_0bjem")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_ng8bj"]
+script = ExtResource("3_0bjem")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_64nvh"]
+script = ExtResource("3_0bjem")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_44m6a"]
 script = ExtResource("4_gpuwo")
 skill_id = &"mage_memory_spike"
 range_value = 5
-mp_cost = 1
+mp_cost = 60
 cooldown_tu = 10
 attack_roll_bonus = 2
-effect_defs = Array[ExtResource("3_0bjem")]([SubResource("Resource_cikv6")])
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 3,
+"range_value": 7
+}
+}
+effect_defs = Array[ExtResource("3_0bjem")]([SubResource("Resource_v7ydr"), SubResource("Resource_d8hc0"), SubResource("Resource_0bjem"), SubResource("Resource_gpuwo"), SubResource("Resource_d5jlh"), SubResource("Resource_cikv6"), SubResource("Resource_ng8bj"), SubResource("Resource_64nvh")])
 
 [resource]
 script = ExtResource("5_d5jlh")
@@ -27,34 +116,89 @@ skill_id = &"mage_memory_spike"
 display_name = "记忆针刺"
 icon_id = &"mage_memory_spike"
 description = "干扰咒式记忆，目标下一次技能消耗+1。"
-max_level = 3
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"illusion", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "攻击检定+{hit}，造成{dmg}伤害。消耗{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
+"ap": "1",
 "cooldown": "10",
-"dmg": "8",
+"dmg": "2D6",
+"duration": "60",
 "hit": "+2",
-"mp": "1"
+"mp": "60",
+"range": "5"
 },
 "1": {
+"ap": "1",
 "cooldown": "10",
-"dmg": "8",
+"dmg": "3D6",
+"duration": "60",
 "hit": "+2",
-"mp": "1"
+"mp": "60",
+"range": "5"
 },
 "2": {
+"ap": "1",
 "cooldown": "10",
-"dmg": "8",
+"dmg": "3D6",
+"duration": "60",
 "hit": "+2",
-"mp": "1"
+"mp": "60",
+"range": "5"
 },
 "3": {
+"ap": "1",
 "cooldown": "10",
-"dmg": "8",
+"dmg": "4D6",
+"duration": "80",
 "hit": "+2",
-"mp": "1"
+"mp": "60",
+"range": "6"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "120",
+"hit": "+3",
+"mp": "60",
+"range": "7"
 }
 }
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"illusion"])
 combat_profile = SubResource("Resource_44m6a")

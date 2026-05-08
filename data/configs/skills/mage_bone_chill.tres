@@ -6,20 +6,109 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_yrllf"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_jl5r8"]
 
-[sub_resource type="Resource" id="Resource_ufix4"]
+[sub_resource type="Resource" id="Resource_rd0b4"]
 script = ExtResource("3_acudt")
 effect_type = &"damage"
-power = 8
+max_skill_level = 0
 damage_tag = &"negative_energy"
+params = {
+"dice_count": 2,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_qpsqy"]
+script = ExtResource("3_acudt")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_acudt"]
+script = ExtResource("3_acudt")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_yrllf"]
+script = ExtResource("3_acudt")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_jl5r8"]
+script = ExtResource("3_acudt")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"negative_energy"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_ufix4"]
+script = ExtResource("3_acudt")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_ide3c"]
+script = ExtResource("3_acudt")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Resource_fdmha"]
+script = ExtResource("3_acudt")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"marked"
+duration_tu = 120
 
 [sub_resource type="Resource" id="Resource_f6ysm"]
 script = ExtResource("4_yrllf")
 skill_id = &"mage_bone_chill"
 range_value = 5
-mp_cost = 1
-cooldown_tu = 5
+mp_cost = 60
+cooldown_tu = 10
 attack_roll_bonus = 2
-effect_defs = Array[ExtResource("3_acudt")]([SubResource("Resource_ufix4")])
+level_overrides = {
+3: {
+"range_value": 6
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 6
+},
+7: {
+"attack_roll_bonus": 3,
+"range_value": 7
+}
+}
+effect_defs = Array[ExtResource("3_acudt")]([SubResource("Resource_rd0b4"), SubResource("Resource_qpsqy"), SubResource("Resource_acudt"), SubResource("Resource_yrllf"), SubResource("Resource_jl5r8"), SubResource("Resource_ufix4"), SubResource("Resource_ide3c"), SubResource("Resource_fdmha")])
 
 [resource]
 script = ExtResource("5_jl5r8")
@@ -27,42 +116,89 @@ skill_id = &"mage_bone_chill"
 display_name = "骨寒术"
 icon_id = &"mage_bone_chill"
 description = "目标获得寒蚀与治疗效率下降效果，对奶量体系很克制。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "射程{range}，攻击检定{hit}，负能量伤{dmg}。消耗{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "8",
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "2D6",
+"duration": "60",
+"hit": "+2",
+"mp": "60",
+"range": "5"
 },
 "1": {
-"dmg": "8",
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+2",
+"mp": "60",
+"range": "5"
 },
 "2": {
-"dmg": "8",
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5",
+"cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+2",
+"mp": "60",
+"range": "5"
 },
 "3": {
-"dmg": "8",
-"hit": "+2",
-"range": "5",
 "ap": "1",
-"mp": "1",
-"cooldown": "5"
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"dmg": "4D6",
+"duration": "80",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "5D6",
+"duration": "100",
+"hit": "+2",
+"mp": "60",
+"range": "6"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "120",
+"hit": "+3",
+"mp": "60",
+"range": "7"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"necromancy"])
 combat_profile = SubResource("Resource_f6ysm")

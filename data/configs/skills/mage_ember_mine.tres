@@ -6,11 +6,90 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_dlsci"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_6islm"]
 
-[sub_resource type="Resource" id="Resource_qjy6g"]
+[sub_resource type="Resource" id="Resource_1x4kf"]
 script = ExtResource("3_qi0kj")
 effect_type = &"damage"
-power = 9
+max_skill_level = 0
 damage_tag = &"fire"
+params = {
+"dice_count": 3,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_as80b"]
+script = ExtResource("3_qi0kj")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"fire"
+params = {
+"dice_count": 4,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_qi0kj"]
+script = ExtResource("3_qi0kj")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"fire"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_dlsci"]
+script = ExtResource("3_qi0kj")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"fire"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_6islm"]
+script = ExtResource("3_qi0kj")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"fire"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Resource_qjy6g"]
+script = ExtResource("3_qi0kj")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+status_id = &"burning"
+duration_tu = 80
+tick_interval_tu = 10
+
+[sub_resource type="Resource" id="Resource_r15iw"]
+script = ExtResource("3_qi0kj")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+status_id = &"burning"
+duration_tu = 100
+tick_interval_tu = 10
+
+[sub_resource type="Resource" id="Resource_62ll1"]
+script = ExtResource("3_qi0kj")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+status_id = &"burning"
+duration_tu = 120
+tick_interval_tu = 10
 
 [sub_resource type="Resource" id="Resource_5q4va"]
 script = ExtResource("4_dlsci")
@@ -18,9 +97,23 @@ skill_id = &"mage_ember_mine"
 target_mode = &"ground"
 range_value = 4
 ap_cost = 2
-mp_cost = 1
+mp_cost = 60
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_qi0kj")]([SubResource("Resource_qjy6g")])
+level_overrides = {
+3: {
+"area_pattern": "cross",
+"area_value": 1,
+"range_value": 5
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 5
+},
+7: {
+"area_value": 2
+}
+}
+effect_defs = Array[ExtResource("3_qi0kj")]([SubResource("Resource_1x4kf"), SubResource("Resource_as80b"), SubResource("Resource_qi0kj"), SubResource("Resource_dlsci"), SubResource("Resource_6islm"), SubResource("Resource_qjy6g"), SubResource("Resource_r15iw"), SubResource("Resource_62ll1")])
 
 [resource]
 script = ExtResource("5_6islm")
@@ -28,38 +121,89 @@ skill_id = &"mage_ember_mine"
 display_name = "灰烬雷"
 icon_id = &"mage_ember_mine"
 description = "在指定地格埋下火种，首个踩入的敌人受到伤害并获得灼烧。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"fire", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
 level_description_template = "射程{range}，火伤{dmg}，埋设地雷。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "9",
-"range": "4",
 "ap": "2",
-"mp": "1",
 "cooldown": "10",
+"dmg": "3D6",
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "4"
 },
 "1": {
-"dmg": "9",
-"range": "4",
 "ap": "2",
-"mp": "1",
 "cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "4"
 },
 "2": {
-"dmg": "9",
-"range": "4",
 "ap": "2",
-"mp": "1",
 "cooldown": "10",
+"dmg": "4D6",
+"duration": "60",
+"hit": "+0",
+"mp": "60",
+"range": "4"
 },
 "3": {
-"dmg": "9",
-"range": "4",
 "ap": "2",
-"mp": "1",
-"cooldown": "10"
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+0",
+"mp": "60",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"cooldown": "10",
+"dmg": "5D6",
+"duration": "80",
+"hit": "+0",
+"mp": "60",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+0",
+"mp": "60",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "6D6",
+"duration": "100",
+"hit": "+0",
+"mp": "60",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"cooldown": "5",
+"dmg": "7D6",
+"duration": "120",
+"hit": "+0",
+"mp": "60",
+"range": "5"
 }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"fire"])
 combat_profile = SubResource("Resource_5q4va")

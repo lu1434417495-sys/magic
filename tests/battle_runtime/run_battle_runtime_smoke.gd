@@ -554,7 +554,7 @@ func _test_on_kill_move_points_gain_unlocks_post_action_movement() -> void:
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 	var state := _build_skill_test_state(Vector2i(4, 2))
 	var unit := _build_unit(&"death_reap_move_user", Vector2i(0, 0), 2)
-	unit.current_mp = 3
+	unit.current_mp = 120
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 20)
 	unit.known_active_skill_ids = [skill.skill_id]
 	unit.known_skill_level_map = {skill.skill_id: 0}
@@ -1632,7 +1632,7 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 
 	var line_state := _build_skill_test_state(Vector2i(5, 5))
 	var line_user := _build_unit(&"line_skill_user", Vector2i(2, 2), 3)
-	line_user.current_mp = 3
+	line_user.current_mp = 120
 	line_user.known_active_skill_ids = [&"mage_flame_spear"]
 	line_user.known_skill_level_map = {&"mage_flame_spear": 1}
 	var line_enemy_front := _build_enemy_unit(&"line_enemy_front", Vector2i(2, 0))
@@ -1781,7 +1781,7 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(archer.unit_id), "连珠箭应记录施法者变更。")
-	_assert_eq(archer.current_stamina, 20, "连珠箭应只按一次施放消耗 40 体力。")
+	_assert_eq(archer.current_stamina, 15, "连珠箭应只按一次施放消耗 45 体力。")
 	_assert_eq(
 		_extract_string_name_array(batch.changed_unit_ids),
 		[String(archer.unit_id), String(enemy_c.unit_id), String(enemy_a.unit_id), String(enemy_b.unit_id)],
@@ -1871,10 +1871,10 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 
 	var state := _build_skill_test_state(Vector2i(4, 2))
 	var mage := _build_unit(&"mage_arcane_missile_user", Vector2i(0, 1), 3)
-	mage.current_mp = 3
+	mage.current_mp = 120
 	mage.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	mage.known_active_skill_ids = [&"mage_arcane_missile"]
-	mage.known_skill_level_map = {&"mage_arcane_missile": 1}
+	mage.known_skill_level_map = {&"mage_arcane_missile": 3}
 	var enemy_a := _build_enemy_unit(&"enemy_a", Vector2i(2, 0))
 	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	var enemy_b := _build_enemy_unit(&"enemy_b", Vector2i(0, 0))
@@ -1908,7 +1908,7 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(mage.unit_id), "奥术飞弹应记录施法者变更。")
-	_assert_eq(mage.current_mp, 2, "奥术飞弹应只按一次施放消耗法力。")
+	_assert_eq(mage.current_mp, 60, "奥术飞弹应只按一次施放消耗法力。")
 	_assert_eq(
 		_extract_string_name_array(batch.changed_unit_ids),
 		[String(mage.unit_id), String(enemy_b.unit_id), String(enemy_c.unit_id), String(enemy_a.unit_id)],
