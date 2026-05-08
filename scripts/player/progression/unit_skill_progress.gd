@@ -36,6 +36,10 @@ const TO_DICT_FIELDS: Array[String] = [
 	"granted_source_type",
 	"granted_source_id",
 	"core_max_growth_claimed",
+	"is_level_trigger_active",
+	"is_level_trigger_locked",
+	"lock_awaken_tier",
+	"bonus_to_hit_from_lock",
 ]
 
 ## 字段说明：记录技能唯一标识，作为查表、序列化和跨系统引用时使用的主键。
@@ -66,6 +70,14 @@ var granted_source_type: StringName = GRANTED_SOURCE_PLAYER
 var granted_source_id: StringName = &""
 ## 字段说明：标记该技能达到核心最高等级后的属性进度奖励是否已入队，避免重复发放。
 var core_max_growth_claimed := false
+## 字段说明：标记当前是否作为唯一激活中的升级触发核心技能。
+var is_level_trigger_active := false
+## 字段说明：标记是否已完成过一次等级触发并进入锁定态。
+var is_level_trigger_locked := false
+## 字段说明：记录已完成几次锁定成长阶段。
+var lock_awaken_tier := 0
+## 字段说明：锁定后提供的命中修正，默认 +1。
+var bonus_to_hit_from_lock := 1
 
 
 func is_max_level(max_level: int) -> bool:
@@ -92,6 +104,10 @@ func to_dict() -> Dictionary:
 		"granted_source_type": String(granted_source_type),
 		"granted_source_id": String(granted_source_id),
 		"core_max_growth_claimed": core_max_growth_claimed,
+		"is_level_trigger_active": is_level_trigger_active,
+		"is_level_trigger_locked": is_level_trigger_locked,
+		"lock_awaken_tier": lock_awaken_tier,
+		"bonus_to_hit_from_lock": bonus_to_hit_from_lock,
 	}
 
 
@@ -104,10 +120,10 @@ static func from_dict(data: Dictionary):
 	var skill_id = _parse_string_name_field(data["skill_id"], false)
 	if skill_id == null:
 		return null
-	for bool_field in ["is_learned", "is_core", "core_max_growth_claimed"]:
+	for bool_field in ["is_learned", "is_core", "core_max_growth_claimed", "is_level_trigger_active", "is_level_trigger_locked"]:
 		if data[bool_field] is not bool:
 			return null
-	for int_field in ["skill_level", "current_mastery", "total_mastery_earned", "mastery_from_training", "mastery_from_battle"]:
+	for int_field in ["skill_level", "current_mastery", "total_mastery_earned", "mastery_from_training", "mastery_from_battle", "lock_awaken_tier", "bonus_to_hit_from_lock"]:
 		var int_value: Variant = data[int_field]
 		if int_value is not int or int(int_value) < 0:
 			return null
@@ -142,6 +158,10 @@ static func from_dict(data: Dictionary):
 	progress.granted_source_type = granted_source_type
 	progress.granted_source_id = granted_source_id
 	progress.core_max_growth_claimed = data["core_max_growth_claimed"]
+	progress.is_level_trigger_active = data["is_level_trigger_active"]
+	progress.is_level_trigger_locked = data["is_level_trigger_locked"]
+	progress.lock_awaken_tier = int(data["lock_awaken_tier"])
+	progress.bonus_to_hit_from_lock = int(data["bonus_to_hit_from_lock"])
 	return progress
 
 

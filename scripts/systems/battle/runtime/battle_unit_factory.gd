@@ -215,11 +215,12 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	var hp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1)
 	var mp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0)
 	var stamina_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
+	var aura_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
 	var action_points := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
 	unit_state.current_hp = clampi(int(member_state.current_hp) if member_state != null else hp_max, 0, hp_max)
 	unit_state.current_mp = clampi(int(member_state.current_mp) if member_state != null else mp_max, 0, mp_max)
 	unit_state.current_stamina = stamina_max
-	unit_state.current_aura = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
+	unit_state.current_aura = clampi(int(member_state.current_aura) if member_state != null else aura_max, 0, aura_max)
 	unit_state.current_ap = action_points
 	unit_state.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
 	unit_state.action_threshold = _resolve_action_threshold_from_snapshot(
@@ -272,6 +273,13 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_enemy_shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(
+		ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS,
+		int(context.get(
+			"default_enemy_spell_proficiency_bonus",
+			ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_spell_proficiency_bonus(int(context.get("default_enemy_character_level", 0)))
+		))
+	)
 	if _has_explicit_default_enemy_weapon_context(context):
 		var enemy_weapon_attack_range := maxi(int(context.get("default_enemy_weapon_attack_range", 1)), 0)
 		_apply_enemy_natural_weapon_projection(

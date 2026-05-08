@@ -27,6 +27,7 @@ const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progressio
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const SKILL_MERGE_SERVICE_SCRIPT = preload("res://scripts/systems/progression/skill_merge_service.gd")
 const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
+const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 
 ## 字段说明：保存单位进度，便于顺序遍历、批量展示、批量运算和整体重建。
 var _unit_progress: UnitProgress = null
@@ -311,6 +312,9 @@ func promote_profession(profession_id: StringName, selection: Dictionary = {}) -
 
 	if is_unlock:
 		for skill_id in consumed_skill_ids:
+			if not _assignment_service.can_assign_core_skill_to_profession(skill_id, profession_id):
+				return false
+		for skill_id in consumed_skill_ids:
 			if not _assignment_service.assign_core_skill_to_profession(skill_id, profession_id):
 				return false
 
@@ -364,9 +368,7 @@ func _roll_profession_hit_die(hit_die_sides: int, selection: Dictionary) -> int:
 	var override_value: Variant = selection.get(SELECTION_KEY_HP_ROLL_OVERRIDE, null)
 	if override_value is int:
 		return clampi(int(override_value), 1, normalized_sides)
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
-	return rng.randi_range(1, normalized_sides)
+	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(1, normalized_sides))
 
 
 func _is_manual_skill_learn_source_blocked(learn_source: StringName) -> bool:
@@ -976,10 +978,13 @@ func _grant_profession_skills(
 	for granted_skill: ProfessionGrantedSkill in profession_def.get_granted_skills_for_rank(target_rank):
 		if granted_skill == null:
 			continue
+		if granted_skill.skill_id == &"":
+			continue
 
 		profession_progress.add_granted_skill(granted_skill.skill_id)
 
 		var skill_progress: Variant = _unit_progress.get_skill_progress(granted_skill.skill_id)
+		var was_already_learned := skill_progress != null and bool(skill_progress.is_learned)
 		if skill_progress == null:
 			skill_progress = _new_skill_progress()
 			skill_progress.skill_id = granted_skill.skill_id
@@ -987,8 +992,9 @@ func _grant_profession_skills(
 		skill_progress.is_learned = true
 		if skill_progress.profession_granted_by == &"":
 			skill_progress.profession_granted_by = profession_def.profession_id
-		skill_progress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION
-		skill_progress.granted_source_id = profession_def.profession_id
+		if not was_already_learned:
+			skill_progress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION
+			skill_progress.granted_source_id = profession_def.profession_id
 
 		_unit_progress.set_skill_progress(skill_progress)
 

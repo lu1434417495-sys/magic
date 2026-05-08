@@ -694,7 +694,17 @@ func _test_decode_payload_rejects_v5_version() -> void:
 		game_session.get_generation_config(),
 		game_session.get_active_save_meta()
 	)
-	_assert_eq(int(decode_result.get("error", OK)), ERR_INVALID_DATA, "V5 payload 应被 V6 target decoder 直接拒绝。")
+	_assert_eq(int(decode_result.get("error", OK)), ERR_INVALID_DATA, "V5 payload 应被当前 target decoder 直接拒绝。")
+
+	payload = _build_save_payload_for_session(game_session, serializer)
+	payload["version"] = 6
+	decode_result = serializer.decode_payload(
+		payload,
+		game_session.get_generation_config_path(),
+		game_session.get_generation_config(),
+		game_session.get_active_save_meta()
+	)
+	_assert_eq(int(decode_result.get("error", OK)), ERR_INVALID_DATA, "V6 payload 应被 V7 target decoder 直接拒绝。")
 
 	_cleanup_test_session(game_session)
 

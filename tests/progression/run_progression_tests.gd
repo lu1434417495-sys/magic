@@ -1002,6 +1002,8 @@ func _test_unit_progress_from_dict_requires_top_level_schema_fields() -> void:
 		"blocked_relearn_skill_ids",
 		"merged_skill_source_map",
 		"unlocked_combat_resource_ids",
+		"active_level_trigger_core_skill_id",
+		"locked_level_trigger_skill_ids",
 	]:
 		var payload := _build_unit_progress_payload_with_child_entries()
 		payload.erase(field_name)
@@ -1036,6 +1038,10 @@ func _test_unit_progress_from_dict_requires_top_level_schema_fields() -> void:
 		{"field": "unlocked_combat_resource_ids", "value": ["hp", "hp"]},
 		{"field": "unlocked_combat_resource_ids", "value": ["hp"]},
 		{"field": "unlocked_combat_resource_ids", "value": ["hp", "stamina", "unknown"]},
+		{"field": "active_level_trigger_core_skill_id", "value": 123},
+		{"field": "locked_level_trigger_skill_ids", "value": [""]},
+		{"field": "locked_level_trigger_skill_ids", "value": [123]},
+		{"field": "locked_level_trigger_skill_ids", "value": ["test_strict_skill", "test_strict_skill"]},
 	]:
 		var payload := _build_unit_progress_payload_with_child_entries()
 		payload[String(field_case.get("field", ""))] = field_case.get("value")
@@ -1057,6 +1063,7 @@ func _test_unit_progress_from_dict_requires_top_level_schema_fields() -> void:
 		{"field": "blocked_relearn_skill_ids", "value": {}},
 		{"field": "merged_skill_source_map", "value": []},
 		{"field": "unlocked_combat_resource_ids", "value": {}},
+		{"field": "locked_level_trigger_skill_ids", "value": {}},
 	]:
 		var payload := _build_unit_progress_payload_with_child_entries()
 		payload[String(field_case.get("field", ""))] = field_case.get("value")

@@ -1107,13 +1107,14 @@ func promote_profession(
 	return delta
 
 
-func commit_battle_resources(member_id: StringName, current_hp: int, current_mp: int) -> void:
+func commit_battle_resources(member_id: StringName, current_hp: int, current_mp: int, current_aura: int) -> void:
 	var member_state: PartyMemberState = get_member_state(member_id)
 	if member_state == null:
 		return
 	var snapshot: AttributeSnapshot = get_member_attribute_snapshot(member_id)
 	member_state.current_hp = clampi(current_hp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1))
 	member_state.current_mp = clampi(current_mp, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0))
+	member_state.current_aura = clampi(current_aura, 0, maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0))
 	member_state.is_dead = false
 
 
@@ -1124,6 +1125,7 @@ func commit_battle_death(member_id: StringName) -> void:
 	_salvage_member_equipment(member_state)
 	member_state.current_hp = 0
 	member_state.current_mp = 0
+	member_state.current_aura = 0
 	member_state.is_dead = true
 	if _party_state != null:
 		_party_state.remove_member_from_rosters(member_id)

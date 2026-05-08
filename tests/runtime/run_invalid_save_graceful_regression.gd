@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
+const INVALID_GENERATION_CONFIG_PATH := "user://invalid_generation_config_resource.tres"
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 
 var _failures: Array[String] = []
@@ -13,6 +14,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_create_new_save_rejects_invalid_generation_config_without_quit()
 	_test_load_save_rejects_bad_world_data_without_quit()
 	_test_fresh_session_load_rejects_bad_world_data_without_quit()
 	_test_load_save_rejects_bad_equipment_instance_without_quit()
@@ -26,6 +28,21 @@ func _run() -> void:
 		push_error(failure)
 	print("Invalid save graceful regression: FAIL (%d)" % _failures.size())
 	quit(1)
+
+
+func _test_create_new_save_rejects_invalid_generation_config_without_quit() -> void:
+	_remove_user_file_if_exists(INVALID_GENERATION_CONFIG_PATH)
+	var save_resource_error := ResourceSaver.save(Resource.new(), INVALID_GENERATION_CONFIG_PATH)
+	_assert_eq(save_resource_error, OK, "坏 generation config 回归前置：应能写入可加载但类型错误的资源。")
+	if save_resource_error != OK:
+		return
+
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(INVALID_GENERATION_CONFIG_PATH))
+	_assert_eq(create_error, ERR_CANT_OPEN, "类型错误的 generation config 应通过 create_new_save() 返回错误，不应中止进程。")
+	_assert_eq(game_session.has_active_world(), false, "类型错误的 generation config 不应留下 active world。")
+	_cleanup_test_session(game_session)
+	_remove_user_file_if_exists(INVALID_GENERATION_CONFIG_PATH)
 
 
 func _test_load_save_rejects_bad_world_data_without_quit() -> void:
@@ -147,6 +164,11 @@ func _cleanup_test_session(game_session) -> void:
 		return
 	game_session.clear_persisted_game()
 	game_session.free()
+
+
+func _remove_user_file_if_exists(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 func _assert_eq(actual, expected, message: String) -> void:

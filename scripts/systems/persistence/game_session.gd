@@ -6,6 +6,7 @@ extends Node
 
 const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_grid_system.gd")
 const WORLD_MAP_SPAWN_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_spawn_system.gd")
+const WORLD_MAP_GENERATION_CONFIG_SCRIPT = preload("res://scripts/utils/world_map_generation_config.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
@@ -33,7 +34,7 @@ const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 const SAVE_DIRECTORY := "user://saves"
 const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
-const SAVE_VERSION := 6
+const SAVE_VERSION := 7
 const SAVE_INDEX_VERSION := 3
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 const MAX_ACTIVE_MEMBER_COUNT := 4
@@ -121,6 +122,9 @@ var _content_validation_snapshot: Dictionary = {}
 var _save_serializer = SAVE_SERIALIZER_SCRIPT.new()
 var _log_service = GAME_LOG_SERVICE_SCRIPT.new()
 var _world_content_validator = WORLD_MAP_CONTENT_VALIDATOR_SCRIPT.new()
+var _save_index_entries_cache: Array[Dictionary] = []
+var _save_index_cache_valid := false
+var _save_index_cache_signature: Dictionary = {}
 
 
 func _init() -> void:
@@ -133,6 +137,8 @@ func _init() -> void:
 		SAVE_INDEX_VERSION,
 		MAX_ACTIVE_MEMBER_COUNT
 	)
+	# Refresh order is intentional: items can be generated from skills, recipes read items,
+	# and world validation reads enemy rosters after enemy content is cached.
 	_refresh_progression_content()
 	_refresh_item_content()
 	_refresh_recipe_content()
@@ -259,10 +265,12 @@ func load_save(save_id: String) -> int:
 	if generation_config == null:
 		return ERR_CANT_OPEN
 
-	var load_error := _load_v6_payload(payload, generation_config_path, generation_config, save_meta)
+	var previous_runtime_state := _capture_runtime_state()
+	var load_error := _load_current_payload(payload, generation_config_path, generation_config, save_meta)
 	if load_error == OK:
 		var post_decode_save_error := _flush_post_decode_save()
 		if post_decode_save_error != OK:
+			_restore_runtime_state(previous_runtime_state)
 			return post_decode_save_error
 		_rotate_log_session()
 		_log_session_info("session.save.load.ok", "已加载存档。", {
@@ -528,6 +536,7 @@ func clear_persisted_world() -> int:
 
 func clear_persisted_game() -> int:
 	_reset_runtime_state()
+	_invalidate_save_index_cache()
 
 	var remove_error := _remove_directory_recursive(SAVE_DIRECTORY)
 	if remove_error != OK:
@@ -562,7 +571,10 @@ func _try_load_game_state(generation_config_path: String) -> bool:
 	return load_save(String(save_meta.get("save_id", ""))) == OK
 
 
-func _prepare_new_world(generation_config_path: String, generation_config) -> int:
+func _prepare_new_world(generation_config_path: String, generation_config: WorldMapGenerationConfig) -> int:
+	if generation_config == null:
+		return ERR_INVALID_PARAMETER
+
 	var grid_system = WORLD_MAP_GRID_SYSTEM_SCRIPT.new()
 	grid_system.setup(generation_config.world_size_in_chunks, generation_config.chunk_size)
 
@@ -607,18 +619,9 @@ func _persist_game_state() -> int:
 		now
 	)
 
-	var save_file := FileAccess.open_compressed(_active_save_path, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
-	if save_file == null:
-		var open_error := FileAccess.get_open_error()
-		_push_session_error("session.save.persist.open_failed", "Failed to open save file %s. Error: %s" % [_active_save_path, open_error], {
-			"save_id": _active_save_id,
-			"save_path": _active_save_path,
-			"open_error": open_error,
-		})
-		return open_error
-
-	save_file.store_var(_build_save_payload(now), false)
-	save_file.close()
+	var payload_write_error := _write_save_payload_atomically(_active_save_path, _build_save_payload(now))
+	if payload_write_error != OK:
+		return payload_write_error
 
 	var index_error := _write_save_index(_upsert_save_meta(_load_save_index_entries(), _active_save_meta))
 	if index_error != OK:
@@ -628,7 +631,7 @@ func _persist_game_state() -> int:
 	return OK
 
 
-func _load_v6_payload(
+func _load_current_payload(
 	payload: Dictionary,
 	generation_config_path: String,
 	generation_config,
@@ -731,8 +734,7 @@ func _revoke_orphan_racial_skills(party_state) -> bool:
 			continue
 		for skill_id in skill_ids_to_remove:
 			member_state.progression.remove_skill_progress(skill_id)
-		var progression_service = PROGRESSION_SERVICE_SCRIPT.new()
-		progression_service.setup(member_state.progression, _skill_defs, _profession_defs)
+		_refresh_progression_runtime_state(member_state.progression)
 		changed = true
 	return changed
 
@@ -898,6 +900,9 @@ func _build_save_meta(
 func _generate_unique_save_id(timestamp: int, prefix: String = "save") -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
+	var existing_save_ids: Dictionary = {}
+	for entry in _load_save_index_entries():
+		existing_save_ids[String(entry.get("save_id", ""))] = true
 	var datetime := Time.get_datetime_dict_from_unix_time(timestamp)
 	var normalized_prefix := prefix.strip_edges().replace(" ", "_")
 	if normalized_prefix.is_empty():
@@ -914,18 +919,25 @@ func _generate_unique_save_id(timestamp: int, prefix: String = "save") -> String
 
 	for _attempt in range(128):
 		var save_id := "%s_%06d" % [id_prefix, rng.randi_range(0, 999999)]
-		if _get_save_meta_by_id(save_id).is_empty() and not FileAccess.file_exists(_build_save_file_path(save_id)):
+		if not existing_save_ids.has(save_id) and not FileAccess.file_exists(_build_save_file_path(save_id)):
 			return save_id
 	return ""
 
 
-func _load_generation_config(generation_config_path: String):
+func _load_generation_config(generation_config_path: String) -> WorldMapGenerationConfig:
 	var generation_config = load(generation_config_path)
 	if generation_config == null:
 		_push_session_error("session.config.load_failed", "GameSession failed to load config from %s." % generation_config_path, {
 			"generation_config_path": generation_config_path,
 		})
-	return generation_config
+		return null
+	if generation_config.get_script() != WORLD_MAP_GENERATION_CONFIG_SCRIPT:
+		_push_session_error("session.config.invalid_type", "GameSession generation config %s must use WorldMapGenerationConfig." % generation_config_path, {
+			"generation_config_path": generation_config_path,
+			"actual_script": str(generation_config.get_script()),
+		})
+		return null
+	return generation_config as WorldMapGenerationConfig
 
 
 func _read_save_payload(save_path: String, emit_errors: bool = true) -> Dictionary:
@@ -947,8 +959,8 @@ func _read_save_payload(save_path: String, emit_errors: bool = true) -> Dictiona
 		return {"error": open_error}
 
 	var save_size := int(save_file.get_length())
-	# Corrupt or truncated files should be treated as invalid save payloads
-	# without invoking Variant decoding, which would otherwise emit engine errors.
+	# Compressed Variant payloads shorter than Godot's 8-byte wrapper/header are
+	# always truncated; skip get_var() so corrupt files do not emit engine errors.
 	if save_size < 8:
 		save_file.close()
 		return {"error": ERR_INVALID_DATA}
@@ -972,44 +984,125 @@ func _build_save_file_path(save_id: String) -> String:
 	return "%s/%s.dat" % [SAVE_DIRECTORY, save_id]
 
 
+func _write_compressed_variant_atomically(virtual_path: String, payload: Variant, error_event_prefix: String, label: String) -> int:
+	var temp_path := "%s.tmp" % virtual_path
+	var cleanup_temp_error := _remove_file_if_exists(temp_path)
+	if cleanup_temp_error != OK:
+		return cleanup_temp_error
+
+	var file := FileAccess.open_compressed(temp_path, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
+	if file == null:
+		var open_error := FileAccess.get_open_error()
+		_push_session_error("%s.open_failed" % error_event_prefix, "Failed to open %s file %s. Error: %s" % [label, temp_path, open_error], {
+			"path": temp_path,
+			"open_error": open_error,
+		})
+		return open_error
+
+	file.store_var(payload, false)
+	var write_error := file.get_error()
+	file.close()
+	if write_error != OK:
+		_remove_file_if_exists(temp_path)
+		_push_session_error("%s.write_failed" % error_event_prefix, "Failed to write %s file %s. Error: %s" % [label, temp_path, write_error], {
+			"path": temp_path,
+			"write_error": write_error,
+		})
+		return write_error
+
+	return _replace_file_atomically(temp_path, virtual_path, error_event_prefix, label)
+
+
+func _write_save_payload_atomically(save_path: String, payload: Dictionary) -> int:
+	return _write_compressed_variant_atomically(save_path, payload, "session.save.persist", "save")
+
+
+func _replace_file_atomically(source_path: String, target_path: String, error_event_prefix: String, label: String) -> int:
+	var backup_path := "%s.bak" % target_path
+	var cleanup_backup_error := _remove_file_if_exists(backup_path)
+	if cleanup_backup_error != OK:
+		_remove_file_if_exists(source_path)
+		return cleanup_backup_error
+
+	var had_existing_target := FileAccess.file_exists(target_path)
+	if had_existing_target:
+		var backup_error := _rename_file(target_path, backup_path)
+		if backup_error != OK:
+			_remove_file_if_exists(source_path)
+			_push_session_error("%s.backup_failed" % error_event_prefix, "Failed to prepare existing %s file %s for replacement. Error: %s" % [label, target_path, backup_error], {
+				"target_path": target_path,
+				"backup_path": backup_path,
+				"backup_error": backup_error,
+			})
+			return backup_error
+
+	var replace_error := _rename_file(source_path, target_path)
+	if replace_error != OK:
+		_remove_file_if_exists(source_path)
+		if had_existing_target:
+			_rename_file(backup_path, target_path)
+		_push_session_error("%s.replace_failed" % error_event_prefix, "Failed to replace %s file %s. Error: %s" % [label, target_path, replace_error], {
+			"source_path": source_path,
+			"target_path": target_path,
+			"replace_error": replace_error,
+		})
+		return replace_error
+
+	if had_existing_target:
+		var remove_backup_error := _remove_file_if_exists(backup_path)
+		if remove_backup_error != OK:
+			push_warning("GameSession: replaced %s file but failed to remove backup %s. Error: %s" % [label, backup_path, remove_backup_error])
+	return OK
+
+
+func _rename_file(from_virtual_path: String, to_virtual_path: String) -> int:
+	return DirAccess.rename_absolute(
+		ProjectSettings.globalize_path(from_virtual_path),
+		ProjectSettings.globalize_path(to_virtual_path)
+	)
+
+
+func _remove_file_if_exists(virtual_path: String) -> int:
+	if not FileAccess.file_exists(virtual_path):
+		return OK
+	return DirAccess.remove_absolute(ProjectSettings.globalize_path(virtual_path))
+
+
 func _load_save_index_entries() -> Array[Dictionary]:
-	if not FileAccess.file_exists(SAVE_INDEX_PATH):
-		return _rebuild_save_index_entries_from_save_files()
+	if _is_save_index_cache_current():
+		return _duplicate_save_index_entries(_save_index_entries_cache)
 
-	var index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.READ, SAVE_FILE_COMPRESSION_MODE)
-	if index_file == null:
-		var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
-		if not rebuilt_entries.is_empty():
-			_write_save_index(rebuilt_entries)
-		return rebuilt_entries
-
-	var raw_payload = _read_save_index_payload(index_file)
-	index_file.close()
-
+	var should_rewrite_index := false
 	var raw_entries: Array = []
-	if typeof(raw_payload) == TYPE_DICTIONARY:
-		var raw_payload_dict: Dictionary = raw_payload
-		var index_version_variant: Variant = raw_payload_dict.get("version", null)
-		if not _is_save_index_integer_value(index_version_variant) \
-			or int(index_version_variant) != SAVE_INDEX_VERSION \
-			or typeof(raw_payload_dict.get("saves", null)) != TYPE_ARRAY:
-			var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
-			if not rebuilt_entries.is_empty():
-				_write_save_index(rebuilt_entries)
-			return rebuilt_entries
-		raw_entries = raw_payload_dict.get("saves", [])
+	if not FileAccess.file_exists(SAVE_INDEX_PATH):
+		should_rewrite_index = true
 	else:
-		var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
-		if not rebuilt_entries.is_empty():
-			_write_save_index(rebuilt_entries)
-		return rebuilt_entries
+		var index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.READ, SAVE_FILE_COMPRESSION_MODE)
+		if index_file == null:
+			should_rewrite_index = true
+		else:
+			var raw_payload = _read_save_index_payload(index_file)
+			index_file.close()
+			if typeof(raw_payload) == TYPE_DICTIONARY:
+				var raw_payload_dict: Dictionary = raw_payload
+				var index_version_variant: Variant = raw_payload_dict.get("version", null)
+				if not _is_save_index_integer_value(index_version_variant) \
+					or int(index_version_variant) != SAVE_INDEX_VERSION \
+					or typeof(raw_payload_dict.get("saves", null)) != TYPE_ARRAY:
+					should_rewrite_index = true
+				else:
+					raw_entries = raw_payload_dict.get("saves", [])
+			else:
+				should_rewrite_index = true
 
 	var entries := _normalize_save_index_entries(raw_entries)
 	var rebuilt_entries := _rebuild_save_index_entries_from_save_files()
 	var merged_entries := _merge_save_index_entries(entries, rebuilt_entries)
-	if merged_entries.size() != entries.size():
+	if should_rewrite_index or not _save_index_entries_match(entries, merged_entries):
 		_write_save_index(merged_entries)
-	return merged_entries
+	else:
+		_set_save_index_cache(merged_entries)
+	return _duplicate_save_index_entries(merged_entries)
 
 
 func _write_save_index(entries: Array[Dictionary]) -> int:
@@ -1017,19 +1110,95 @@ func _write_save_index(entries: Array[Dictionary]) -> int:
 	if ensure_dir_error != OK:
 		return ensure_dir_error
 
-	var index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
-	if index_file == null:
+	var normalized_entries := _normalize_save_index_entries(entries)
+	var write_error := _write_compressed_variant_atomically(
+		SAVE_INDEX_PATH,
+		_build_save_index_payload(normalized_entries),
+		"session.save.index",
+		"save index"
+	)
+	_set_save_index_cache(normalized_entries)
+	if write_error != OK:
 		# Save files remain authoritative; the index is a rebuildable cache.
 		return OK
-
-	var normalized_entries := _normalize_save_index_entries(entries)
-	index_file.store_var(_build_save_index_payload(normalized_entries), false)
-	index_file.close()
 	return OK
 
 
 func _read_save_index_payload(index_file: FileAccess) -> Variant:
 	return _save_serializer.read_save_index_payload(index_file)
+
+
+func _is_save_index_cache_current() -> bool:
+	if not _save_index_cache_valid:
+		return false
+	var current_signature := _get_save_index_file_signature()
+	return bool(_save_index_cache_signature.get("exists", false)) == bool(current_signature.get("exists", false)) \
+		and int(_save_index_cache_signature.get("modified_time", -1)) == int(current_signature.get("modified_time", -1)) \
+		and int(_save_index_cache_signature.get("size", -1)) == int(current_signature.get("size", -1))
+
+
+func _set_save_index_cache(entries: Array[Dictionary]) -> void:
+	_save_index_entries_cache = _duplicate_save_index_entries(entries)
+	_save_index_cache_valid = true
+	_save_index_cache_signature = _get_save_index_file_signature()
+
+
+func _invalidate_save_index_cache() -> void:
+	_save_index_entries_cache.clear()
+	_save_index_cache_valid = false
+	_save_index_cache_signature = {}
+
+
+func _get_save_index_file_signature() -> Dictionary:
+	if not FileAccess.file_exists(SAVE_INDEX_PATH):
+		return {
+			"exists": false,
+			"modified_time": -1,
+			"size": -1,
+		}
+
+	var size := -1
+	var index_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.READ)
+	if index_file != null:
+		size = int(index_file.get_length())
+		index_file.close()
+	return {
+		"exists": true,
+		"modified_time": int(FileAccess.get_modified_time(SAVE_INDEX_PATH)),
+		"size": size,
+	}
+
+
+func _duplicate_save_index_entries(entries: Array[Dictionary]) -> Array[Dictionary]:
+	var duplicated_entries: Array[Dictionary] = []
+	for entry in entries:
+		duplicated_entries.append(entry.duplicate(true))
+	return duplicated_entries
+
+
+func _save_index_entries_match(left_entries: Array[Dictionary], right_entries: Array[Dictionary]) -> bool:
+	if left_entries.size() != right_entries.size():
+		return false
+	for index in range(left_entries.size()):
+		if not _save_index_entry_matches(left_entries[index], right_entries[index]):
+			return false
+	return true
+
+
+func _save_index_entry_matches(left_entry: Dictionary, right_entry: Dictionary) -> bool:
+	for key in [
+		"save_id",
+		"display_name",
+		"world_preset_id",
+		"world_preset_name",
+		"generation_config_path",
+		"world_size_cells",
+		"created_at_unix_time",
+		"updated_at_unix_time",
+	]:
+		if left_entry.get(key, null) != right_entry.get(key, null):
+			return false
+	return true
 
 
 func _normalize_save_index_entries(raw_entries: Array) -> Array[Dictionary]:
@@ -1072,7 +1241,13 @@ func _rebuild_save_index_entries_from_save_files() -> Array[Dictionary]:
 		return []
 
 	var rebuilt_by_id: Dictionary = {}
-	save_dir.list_dir_begin()
+	var list_error := save_dir.list_dir_begin()
+	if list_error != OK:
+		_push_session_error("session.save.index.rebuild_list_failed", "Failed to list save directory %s for index rebuild. Error: %s" % [SAVE_DIRECTORY, list_error], {
+			"save_directory": SAVE_DIRECTORY,
+			"list_error": list_error,
+		})
+		return []
 	while true:
 		var file_name := save_dir.get_next()
 		if file_name.is_empty():
@@ -1154,7 +1329,13 @@ func _remove_directory_recursive(virtual_path: String) -> int:
 		})
 		return open_error
 
-	dir.list_dir_begin()
+	var list_error := dir.list_dir_begin()
+	if list_error != OK:
+		_push_session_error("session.cleanup.list_directory_failed", "Failed to list directory %s for cleanup. Error: %s" % [virtual_path, list_error], {
+			"virtual_path": virtual_path,
+			"list_error": list_error,
+		})
+		return list_error
 	while true:
 		var name := dir.get_next()
 		if name.is_empty():
@@ -1407,7 +1588,7 @@ func _build_default_member_state(
 	warrior_progress.add_core_skill(starting_skill_id)
 	progression.set_profession_progress(warrior_progress)
 	var random_starting_skill_def = _grant_random_starting_book_skill(progression)
-	_refresh_starting_progression_runtime_state(progression)
+	_refresh_progression_runtime_state(progression)
 
 	member_state.progression = progression
 	_equip_starting_weapon_for_skill(member_state, random_starting_skill_def)
@@ -1512,7 +1693,7 @@ func _first_valid_starting_weapon_item_id(candidates: Array[StringName]) -> Stri
 	return &""
 
 
-func _refresh_starting_progression_runtime_state(progression) -> void:
+func _refresh_progression_runtime_state(progression) -> void:
 	if progression == null:
 		return
 	var progression_service = PROGRESSION_SERVICE_SCRIPT.new()
@@ -1617,6 +1798,42 @@ func _serialize_world_data(world_data: Dictionary) -> Dictionary:
 func _rotate_log_session() -> void:
 	if _log_service != null:
 		_log_service.start_new_session()
+
+
+func _capture_runtime_state() -> Dictionary:
+	return {
+		"active_save_id": _active_save_id,
+		"active_save_path": _active_save_path,
+		"active_save_meta": _active_save_meta.duplicate(true),
+		"generation_config_path": _generation_config_path,
+		"generation_config": _generation_config,
+		"world_data": _world_data.duplicate(true),
+		"player_coord": _player_coord,
+		"player_faction_id": _player_faction_id,
+		"party_state": _party_state,
+		"has_active_world": _has_active_world,
+		"battle_save_lock_enabled": _battle_save_lock_enabled,
+		"battle_save_dirty": _battle_save_dirty,
+		"post_decode_save_pending": _post_decode_save_pending,
+		"post_decode_save_reasons": _post_decode_save_reasons.duplicate(),
+	}
+
+
+func _restore_runtime_state(state: Dictionary) -> void:
+	_active_save_id = String(state.get("active_save_id", ""))
+	_active_save_path = String(state.get("active_save_path", ""))
+	_active_save_meta = (state.get("active_save_meta", {}) as Dictionary).duplicate(true)
+	_generation_config_path = String(state.get("generation_config_path", ""))
+	_generation_config = state.get("generation_config", null)
+	_world_data = (state.get("world_data", {}) as Dictionary).duplicate(true)
+	_player_coord = state.get("player_coord", Vector2i.ZERO)
+	_player_faction_id = String(state.get("player_faction_id", "player"))
+	_party_state = state.get("party_state", PARTY_STATE_SCRIPT.new())
+	_has_active_world = bool(state.get("has_active_world", false))
+	_battle_save_lock_enabled = bool(state.get("battle_save_lock_enabled", false))
+	_battle_save_dirty = bool(state.get("battle_save_dirty", false))
+	_post_decode_save_pending = bool(state.get("post_decode_save_pending", false))
+	_post_decode_save_reasons = ProgressionDataUtils.to_string_name_array(state.get("post_decode_save_reasons", []))
 
 
 func _reset_runtime_state() -> void:

@@ -140,6 +140,7 @@ func _run() -> void:
 	_test_battle_unit_factory_clones_explicit_unit_charge_state()
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh()
+	_test_runtime_syncs_member_aura_into_battle_and_back()
 	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
 	_test_enemy_resource_sync_handles_missing_attribute_snapshot()
 	_test_battle_unit_factory_no_longer_builds_manual_fallback_terrain()
@@ -662,6 +663,46 @@ func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() ->
 		"party_late_greatsword",
 		"修改 battle-local 装备 view 不应直改 PartyMemberState.equipment_state。"
 	)
+
+
+func _test_runtime_syncs_member_aura_into_battle_and_back() -> void:
+	var registry := PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
+	var party_state := _make_party_state([&"hero"])
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	member_state.current_aura = 4
+	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 18)
+	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 6)
+	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 6)
+
+	var gateway := CHARACTER_MANAGEMENT_MODULE_SCRIPT.new()
+	gateway.setup(party_state, registry.get_skill_defs(), {}, {}, {}, {})
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(gateway, registry.get_skill_defs(), {}, {})
+
+	var encounter_anchor := ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
+	encounter_anchor.entity_id = &"aura_sync_smoke"
+	encounter_anchor.display_name = "灵气同步测试"
+	encounter_anchor.world_coord = Vector2i(8, 2)
+	encounter_anchor.faction_id = &"hostile"
+	encounter_anchor.region_tag = &"north_wilds"
+
+	var state = runtime.start_battle(encounter_anchor, 1910, {
+		"battle_map_size": Vector2i(7, 7),
+	})
+	_assert_true(state != null and not state.is_empty(), "灵气同步回归前置：应能创建 battle state。")
+	if state == null or state.is_empty() or state.ally_unit_ids.is_empty():
+		return
+
+	var unit = state.units.get(state.ally_unit_ids[0])
+	_assert_true(unit != null, "灵气同步回归前置：应能取得友方战斗单位。")
+	if unit == null:
+		return
+	_assert_eq(unit.current_aura, 4, "开战时应从 PartyMemberState.current_aura 初始化战斗单位灵气。")
+
+	unit.current_aura = 2
+	runtime.end_battle({"commit_progression": true})
+	_assert_eq(member_state.current_aura, 2, "战斗结束应把 BattleUnitState.current_aura 回写到 PartyMemberState。")
 
 
 func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> void:

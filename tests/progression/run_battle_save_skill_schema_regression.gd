@@ -14,6 +14,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_skill_schema_accepts_valid_save_fields()
+	_test_skill_schema_accepts_dynamic_caster_spell_save_dc()
 	_test_skill_schema_rejects_invalid_save_fields()
 	if _failures.is_empty():
 		print("Battle save skill schema regression: PASS")
@@ -50,6 +51,21 @@ func _test_skill_schema_accepts_valid_save_fields() -> void:
 	_assert_true(status_errors.is_empty(), "valid status save fields should pass SkillContentRegistry validation.")
 
 
+func _test_skill_schema_accepts_dynamic_caster_spell_save_dc() -> void:
+	var registry = SKILL_CONTENT_REGISTRY_SCRIPT.new()
+	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = 8
+	damage_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
+	damage_effect.save_dc_source_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE
+	damage_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
+	damage_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_FIREBALL
+	damage_effect.save_partial_on_success = true
+	var errors: Array[String] = []
+	registry._append_effect_validation_errors(errors, &"valid_dynamic_spell_save_damage", damage_effect, "test_effect")
+	_assert_true(errors.is_empty(), "caster_spell save_dc_mode should allow save fields without static save_dc.")
+
+
 func _test_skill_schema_rejects_invalid_save_fields() -> void:
 	var registry = SKILL_CONTENT_REGISTRY_SCRIPT.new()
 	var invalid_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
@@ -72,6 +88,19 @@ func _test_skill_schema_rejects_invalid_save_fields() -> void:
 	var noop_errors: Array[String] = []
 	registry._append_effect_validation_errors(noop_errors, &"noop_save", noop_effect, "test_effect")
 	_assert_true(_has_error_containing(noop_errors, "save_tag requires save_dc"), "save_tag without save_dc should be rejected.")
+
+	var bad_dynamic_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	bad_dynamic_effect.effect_type = &"damage"
+	bad_dynamic_effect.power = 4
+	bad_dynamic_effect.save_dc = 12
+	bad_dynamic_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
+	bad_dynamic_effect.save_dc_source_ability = &"fortune"
+	bad_dynamic_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
+	bad_dynamic_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_FIREBALL
+	var bad_dynamic_errors: Array[String] = []
+	registry._append_effect_validation_errors(bad_dynamic_errors, &"bad_dynamic_save", bad_dynamic_effect, "test_effect")
+	_assert_true(_has_error_containing(bad_dynamic_errors, "static save_dc at 0"), "caster_spell save_dc_mode should reject static save_dc.")
+	_assert_true(_has_error_containing(bad_dynamic_errors, "unsupported save_dc_source_ability"), "caster_spell save_dc_mode should validate source ability.")
 
 
 func _has_error_containing(errors: Array[String], needle: String) -> bool:

@@ -58,6 +58,10 @@ var blocked_relearn_skill_ids: Array[StringName] = []
 var merged_skill_source_map: Dictionary = {}
 ## 字段说明：记录角色已正式解锁并可在战斗 HUD 展示的战斗资源。
 var unlocked_combat_resource_ids: Array[StringName] = DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS.duplicate()
+## 字段说明：记录当前唯一具有升级触发资格的核心技能，空字符串表示尚无激活。
+var active_level_trigger_core_skill_id: StringName = &""
+## 字段说明：记录已触发过等级提升并被锁定的核心技能列表，锁定后不再具有升级触发资格。
+var locked_level_trigger_skill_ids: Array[StringName] = []
 
 
 func set_skill_progress(skill_progress) -> void:
@@ -255,6 +259,8 @@ func to_dict() -> Dictionary:
 		"blocked_relearn_skill_ids": ProgressionDataUtils.string_name_array_to_string_array(blocked_relearn_skill_ids),
 		"merged_skill_source_map": ProgressionDataUtils.string_name_array_map_to_string_dict(merged_skill_source_map),
 		"unlocked_combat_resource_ids": ProgressionDataUtils.string_name_array_to_string_array(unlocked_combat_resource_ids),
+		"active_level_trigger_core_skill_id": String(active_level_trigger_core_skill_id),
+		"locked_level_trigger_skill_ids": ProgressionDataUtils.string_name_array_to_string_array(locked_level_trigger_skill_ids),
 	}
 
 
@@ -276,6 +282,8 @@ static func from_dict(data: Dictionary):
 		"blocked_relearn_skill_ids",
 		"merged_skill_source_map",
 		"unlocked_combat_resource_ids",
+		"active_level_trigger_core_skill_id",
+		"locked_level_trigger_skill_ids",
 	]:
 		if not data.has(field_name):
 			return null
@@ -291,6 +299,8 @@ static func from_dict(data: Dictionary):
 	var blocked_relearn_skill_ids_variant: Variant = data.get("blocked_relearn_skill_ids", null)
 	var merged_skill_source_map_variant: Variant = data.get("merged_skill_source_map", null)
 	var unlocked_resources_variant: Variant = data.get("unlocked_combat_resource_ids", null)
+	var active_level_trigger_core_skill_id_variant: Variant = data.get("active_level_trigger_core_skill_id", null)
+	var locked_level_trigger_skill_ids_variant: Variant = data.get("locked_level_trigger_skill_ids", null)
 	if unit_base_attributes_data is not Dictionary:
 		return null
 	if reputation_state_data is not Dictionary:
@@ -314,6 +324,8 @@ static func from_dict(data: Dictionary):
 	if merged_skill_source_map_variant is not Dictionary:
 		return null
 	if unlocked_resources_variant is not Array:
+		return null
+	if locked_level_trigger_skill_ids_variant is not Array:
 		return null
 	var version_variant: Variant = data.get("version", null)
 	if version_variant is not int or int(version_variant) != 1:
@@ -348,6 +360,12 @@ static func from_dict(data: Dictionary):
 	var parsed_unlocked_resources = _parse_unique_string_name_array(unlocked_resources_variant)
 	if parsed_unlocked_resources == null:
 		return null
+	var parsed_active_level_trigger_core_skill_id = _parse_optional_string_name(active_level_trigger_core_skill_id_variant)
+	if parsed_active_level_trigger_core_skill_id == null:
+		return null
+	var parsed_locked_level_trigger_skill_ids = _parse_unique_string_name_array(locked_level_trigger_skill_ids_variant)
+	if parsed_locked_level_trigger_skill_ids == null:
+		return null
 	for resource_id in parsed_unlocked_resources:
 		if not VALID_COMBAT_RESOURCE_IDS.has(resource_id):
 			return null
@@ -369,6 +387,8 @@ static func from_dict(data: Dictionary):
 	progress.blocked_relearn_skill_ids = parsed_blocked_relearn_skill_ids
 	progress.merged_skill_source_map = parsed_merged_skill_source_map
 	progress.unlocked_combat_resource_ids = parsed_unlocked_resources
+	progress.active_level_trigger_core_skill_id = parsed_active_level_trigger_core_skill_id
+	progress.locked_level_trigger_skill_ids = parsed_locked_level_trigger_skill_ids
 	progress.sync_default_combat_resource_unlocks()
 
 	for key in skills_data.keys():
@@ -430,6 +450,13 @@ static func _parse_required_string_name(value: Variant):
 	if parsed_value == &"":
 		return null
 	return parsed_value
+
+
+static func _parse_optional_string_name(value: Variant):
+	var value_type := typeof(value)
+	if value_type != TYPE_STRING and value_type != TYPE_STRING_NAME:
+		return null
+	return ProgressionDataUtils.to_string_name(value)
 
 
 static func _parse_unique_string_name_array(values: Array):

@@ -19,6 +19,7 @@ const TO_DICT_FIELDS: Array[String] = [
 	"control_mode",
 	"current_hp",
 	"current_mp",
+	"current_aura",
 	"is_dead",
 	"race_id",
 	"subrace_id",
@@ -61,6 +62,8 @@ var control_mode: StringName = &"manual"
 var current_hp := 1
 ## 字段说明：记录当前法力值，会参与成长规则判定、序列化和界面展示。
 var current_mp := 0
+## 字段说明：记录当前斗气值，会参与成长规则判定、序列化和界面展示。
+var current_aura := 0
 ## 字段说明：记录该成员是否已经永久死亡；死亡后不再参与队伍编成与战斗。
 var is_dead := false
 ## 字段说明：记录角色种族，是人物身份与后续属性 / 被动投影的持久真相源。
@@ -153,6 +156,7 @@ func to_dict() -> Dictionary:
 		"control_mode": String(control_mode),
 		"current_hp": current_hp,
 		"current_mp": current_mp,
+		"current_aura": current_aura,
 		"is_dead": is_dead,
 		"race_id": String(race_id),
 		"subrace_id": String(subrace_id),
@@ -210,6 +214,9 @@ static func from_dict(data: Dictionary):
 		return null
 	var current_mp_variant: Variant = data.get("current_mp", null)
 	if current_mp_variant is not int or int(current_mp_variant) < 0:
+		return null
+	var current_aura_variant: Variant = data.get("current_aura", null)
+	if current_aura_variant is not int or int(current_aura_variant) < 0:
 		return null
 	var is_dead_variant: Variant = data.get("is_dead", null)
 	if is_dead_variant is not bool:
@@ -294,6 +301,7 @@ static func from_dict(data: Dictionary):
 	member_state.control_mode = control_mode
 	member_state.current_hp = int(current_hp_variant)
 	member_state.current_mp = int(current_mp_variant)
+	member_state.current_aura = int(current_aura_variant)
 	member_state.is_dead = bool(is_dead_variant)
 	member_state.race_id = race_id
 	member_state.subrace_id = subrace_id
