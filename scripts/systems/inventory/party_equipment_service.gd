@@ -64,6 +64,8 @@ func get_equipped_entries(member_id: StringName) -> Array[Dictionary]:
 func build_attribute_modifiers(equipment_state_variant: Variant) -> Array[AttributeModifier]:
 	var modifiers: Array[AttributeModifier] = []
 	var equipment_state = _normalize_equipment_state(equipment_state_variant)
+	if equipment_state == null:
+		return modifiers
 	for entry_slot_id in equipment_state.get_entry_slot_ids():
 		var item_id: StringName = equipment_state.get_equipped_item_id(entry_slot_id)
 		var item_def = get_item_def(item_id)
@@ -159,7 +161,8 @@ func preview_equip(
 	if equip_req != null and equip_req.has_method("check"):
 		var req_result: Dictionary = equip_req.check(member_state)
 		if not bool(req_result.get("allowed", true)):
-			var blockers: Array = req_result.get("blockers", [])
+			var blockers_variant: Variant = req_result.get("blockers", [])
+			var blockers: Array = blockers_variant if blockers_variant is Array else []
 			var first_code: String = blockers[0] if not blockers.is_empty() else "requirement_failed"
 			var blockers_str: Array[String] = []
 			for b in blockers:
@@ -255,7 +258,11 @@ func equip_item(
 		)
 
 	var member_state = _get_member_state(norm_member)
+	if member_state == null:
+		return _build_result(false, norm_member, &"", norm_item, &"", "member_not_found", norm_instance)
 	var equipment_state = _ensure_equipment_state(member_state)
+	if equipment_state == null:
+		return _build_result(false, norm_member, &"", norm_item, &"", "equipment_state_invalid", norm_instance)
 	var entry_slot := ProgressionDataUtils.to_string_name(preview.get("entry_slot_id", ""))
 	var occupied_slots: Array[StringName] = ProgressionDataUtils.to_string_name_array(preview.get("occupied_slot_ids", []))
 
@@ -267,9 +274,18 @@ func equip_item(
 	# 弹出被替换条目，把实例归还仓库
 	for d in preview.get("displaced_entries", []):
 		var displaced_entry_slot := ProgressionDataUtils.to_string_name(d.get("entry_slot_id", ""))
+		var displaced_occupied_slots: Array[StringName] = equipment_state.get_occupied_slot_ids_for_entry(displaced_entry_slot)
 		var displaced_instance = equipment_state.pop_equipped_instance(displaced_entry_slot)
 		if displaced_instance != null:
-			_warehouse_service.deposit_equipment_instance(displaced_instance)
+			if not _warehouse_service.deposit_equipment_instance(displaced_instance):
+				equipment_state.set_equipped_entry(
+					displaced_entry_slot,
+					ProgressionDataUtils.to_string_name(d.get("item_id", "")),
+					displaced_occupied_slots,
+					displaced_instance
+				)
+				_warehouse_service.deposit_equipment_instance(new_instance)
+				return _build_result(false, norm_member, entry_slot, norm_item, &"", "warehouse_deposit_failed", norm_instance)
 		elif displaced_entry_slot != &"":
 			equipment_state.clear_entry_slot(displaced_entry_slot)
 
@@ -284,7 +300,7 @@ func equip_item(
 	if not displaced.is_empty():
 		previous_instance_id = ProgressionDataUtils.to_string_name(displaced[0].get("instance_id", ""))
 
-	return _build_result(
+	var result := _build_result(
 		true,
 		norm_member,
 		entry_slot,
@@ -294,6 +310,9 @@ func equip_item(
 		ProgressionDataUtils.to_string_name(new_instance.instance_id),
 		previous_instance_id
 	)
+	var displaced_entries_variant: Variant = preview.get("displaced_entries", [])
+	result["displaced_entries"] = displaced_entries_variant.duplicate(true) if displaced_entries_variant is Array else []
+	return result
 
 
 func unequip_item(member_id: StringName, slot_id: StringName) -> Dictionary:
@@ -310,20 +329,25 @@ func unequip_item(member_id: StringName, slot_id: StringName) -> Dictionary:
 	var current_item_id: StringName = equipment_state.get_equipped_item_id(norm_slot)
 	if current_item_id == &"":
 		return _build_result(false, norm_member, norm_slot, &"", &"", "slot_empty")
-	if get_item_def(current_item_id) == null:
-		return _build_result(false, norm_member, norm_slot, current_item_id, &"", "item_not_found")
 
 	# 先预览：确认仓库有空余格位
-	var preview_result: Dictionary = _warehouse_service.preview_add_item(current_item_id, 1)
-	if int(preview_result.get("remaining_quantity", 0)) > 0:
+	var item_def = get_item_def(current_item_id)
+	if item_def != null:
+		var preview_result: Dictionary = _warehouse_service.preview_add_item(current_item_id, 1)
+		if int(preview_result.get("remaining_quantity", 0)) > 0:
+			return _build_result(false, norm_member, norm_slot, current_item_id, &"", "warehouse_full")
+	elif _warehouse_service.get_total_capacity() - _warehouse_service.get_used_slots() <= 0:
 		return _build_result(false, norm_member, norm_slot, current_item_id, &"", "warehouse_full")
 
 	var entry_slot: StringName = equipment_state.get_entry_slot_for_slot(norm_slot)
+	var occupied_slots_before: Array[StringName] = equipment_state.get_occupied_slot_ids_for_entry(entry_slot)
 
 	# 弹出实例并归还仓库
 	var instance = equipment_state.pop_equipped_instance(entry_slot)
 	if instance != null:
-		_warehouse_service.deposit_equipment_instance(instance)
+		if not _warehouse_service.deposit_equipment_instance(instance):
+			equipment_state.set_equipped_entry(entry_slot, current_item_id, occupied_slots_before, instance)
+			return _build_result(false, norm_member, norm_slot, current_item_id, &"", "warehouse_deposit_failed")
 	else:
 		equipment_state.clear_slot(norm_slot)
 
@@ -352,7 +376,8 @@ func _ensure_equipment_state(member_state):
 	if member_state == null:
 		return EQUIPMENT_STATE_SCRIPT.new()
 	if member_state.equipment_state == null or not (member_state.equipment_state is Object and member_state.equipment_state.has_method("get_equipped_item_id")):
-		member_state.equipment_state = _normalize_equipment_state(member_state.equipment_state)
+		var normalized_state = _normalize_equipment_state(member_state.equipment_state)
+		member_state.equipment_state = normalized_state if normalized_state != null else EQUIPMENT_STATE_SCRIPT.new()
 	return member_state.equipment_state
 
 

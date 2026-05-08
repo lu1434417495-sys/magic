@@ -697,13 +697,13 @@ func _build_unit(
 	unit.control_mode = &"manual"
 	unit.current_ap = current_ap
 	unit.current_hp = 60
-	unit.current_mp = 4
+	unit.current_mp = 120
 	unit.current_stamina = 4
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 120)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 4)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))

@@ -48,6 +48,7 @@ const FORTUNE_MARKED_STAT_ID: StringName = &"fortune_marked"
 const DOOM_MARKED_STAT_ID: StringName = &"doom_marked"
 const DOOM_AUTHORITY_STAT_ID: StringName = &"doom_authority"
 const WORLD_MOVE_REPEAT_INTERVAL := 0.5
+const MAX_COMMAND_WORLD_MOVE_COUNT := 256
 const PARTY_WAREHOUSE_INTERACTION_ID := "party_warehouse"
 const BATTLE_LOOT_DROP_TYPE_ITEM: StringName = &"item"
 const BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
@@ -1230,7 +1231,7 @@ func _resolve_battle_encounter_display_name(encounter_anchor: ENCOUNTER_ANCHOR_D
 
 
 func finalize_battle_resolution(battle_resolution_result) -> void:
-	if battle_resolution_result == null:
+	if battle_resolution_result == null or _game_session == null or _character_management == null or _battle_runtime == null:
 		return
 	var battle_name: String = _active_battle_encounter_name if not _active_battle_encounter_name.is_empty() else "遭遇"
 	var winner_faction_id := String(battle_resolution_result.winner_faction_id)
@@ -1508,6 +1509,7 @@ func refresh_fog() -> void:
 
 func set_party_state(party_state) -> void:
 	_party_state = party_state
+	_sync_party_state_services()
 
 
 func persist_world_data() -> int:
@@ -1551,7 +1553,7 @@ func command_world_move(direction: Vector2i, count: int = 1) -> Dictionary:
 			return _command_error("当前有窗口打开，不能执行大地图移动。")
 		if direction == Vector2i.ZERO:
 			return _command_error("移动方向不能为空。")
-		var move_count := maxi(count, 1)
+		var move_count := mini(maxi(count, 1), MAX_COMMAND_WORLD_MOVE_COUNT)
 		for _index in range(move_count):
 			_move_player(direction)
 			if _is_battle_active() or _is_modal_window_open():
@@ -2075,6 +2077,9 @@ func _get_current_promotion_prompt() -> Dictionary:
 	return _reward_flow_handler.get_current_promotion_prompt() if _reward_flow_handler != null else {}
 
 func _move_player(direction: Vector2i) -> void:
+	if _game_session == null:
+		_update_status("游戏会话不可用，无法移动。")
+		return
 	var source_coord := _player_coord
 	var previous_settlement := _get_settlement_at(source_coord)
 	var target_coord := source_coord + direction
@@ -2208,7 +2213,9 @@ func _on_world_map_cell_clicked(coord: Vector2i) -> void:
 	if _is_modal_window_open():
 		return
 	if is_submap_active():
-		_return_from_active_submap()
+		var return_result := _return_from_active_submap()
+		if not bool(return_result.get("ok", false)) and _current_status_message.is_empty():
+			_update_status(String(return_result.get("message", "返回主地图失败。")))
 		return
 
 	_selected_coord = coord
@@ -2722,19 +2729,31 @@ func _setup_party_warehouse_service(service, party_state, item_defs: Dictionary 
 	service.setup(party_state, item_defs, _get_equipment_instance_id_allocator())
 
 
+func _sync_party_state_services() -> void:
+	var item_defs: Dictionary = {}
+	if _game_session != null:
+		item_defs = _game_session.get_item_defs()
+	if _character_management != null and _character_management.has_method("set_party_state"):
+		_character_management.set_party_state(_party_state)
+	_setup_party_warehouse_service(_party_warehouse_service, _party_state, item_defs)
+	if _party_item_use_service != null and _game_session != null:
+		_party_item_use_service.setup(
+			_party_state,
+			item_defs,
+			_game_session.get_skill_defs(),
+			_party_warehouse_service,
+			_character_management
+		)
+	if _party_equipment_service != null:
+		_party_equipment_service.setup(_party_state, item_defs, _party_warehouse_service, _get_equipment_instance_id_allocator())
+
+
 func _persist_party_state() -> int:
+	if _game_session == null:
+		return ERR_UNAVAILABLE
 	var persist_error: int = int(_game_session.set_party_state(_party_state))
 	_party_state = _game_session.get_party_state()
-	_character_management.set_party_state(_party_state)
-	_setup_party_warehouse_service(_party_warehouse_service, _party_state, _game_session.get_item_defs())
-	_party_item_use_service.setup(
-		_party_state,
-		_game_session.get_item_defs(),
-		_game_session.get_skill_defs(),
-		_party_warehouse_service,
-		_character_management
-	)
-	_party_equipment_service.setup(_party_state, _game_session.get_item_defs(), _party_warehouse_service, _get_equipment_instance_id_allocator())
+	_sync_party_state_services()
 	_refresh_fog()
 	return persist_error
 
@@ -3019,6 +3038,8 @@ func _confirm_pending_submap_entry() -> Dictionary:
 
 
 func _enter_submap(submap_id: String, source_map_id: String, source_coord: Vector2i) -> Dictionary:
+	if _game_session == null:
+		return _command_error("游戏会话不可用，无法进入子地图。")
 	if submap_id.is_empty():
 		return _command_error("子地图标识不能为空。")
 	if not _ensure_submap_generated(submap_id):
@@ -3053,6 +3074,8 @@ func _enter_submap(submap_id: String, source_map_id: String, source_coord: Vecto
 
 
 func _return_from_active_submap() -> Dictionary:
+	if _game_session == null:
+		return _command_error("游戏会话不可用，无法返回主地图。")
 	if not is_submap_active():
 		return _command_error("当前不在子地图中。")
 	var submap_entry := _get_mounted_submap_entry(_world_map_data_context.active_map_id)

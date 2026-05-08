@@ -86,7 +86,7 @@ func _handle_change_equipment_command(active_unit: BattleUnitState, command: Bat
 	active_unit.current_ap = maxi(active_unit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0)
 	apply_result["ap_before"] = ap_before
 	apply_result["ap_after"] = int(active_unit.current_ap)
-	_runtime._record_action_issued(active_unit, BattleCommand.TYPE_CHANGE_EQUIPMENT)
+	_runtime._record_action_issued(active_unit, BattleCommand.TYPE_CHANGE_EQUIPMENT, CHANGE_EQUIPMENT_AP_COST)
 	batch.changed_unit_ids.append(active_unit.unit_id)
 	_append_change_equipment_report(batch, active_unit, apply_result, true)
 

@@ -20,10 +20,11 @@ var _footprints: Dictionary = {}
 
 
 func setup(world_size_in_chunks: Vector2i, chunk_size: Vector2i) -> void:
-	_chunk_size = chunk_size
+	_chunk_size = Vector2i(maxi(chunk_size.x, 1), maxi(chunk_size.y, 1))
+	var normalized_world_size := Vector2i(maxi(world_size_in_chunks.x, 0), maxi(world_size_in_chunks.y, 0))
 	_world_size_cells = Vector2i(
-		world_size_in_chunks.x * chunk_size.x,
-		world_size_in_chunks.y * chunk_size.y
+		normalized_world_size.x * _chunk_size.x,
+		normalized_world_size.y * _chunk_size.y
 	)
 	_occupied_cells.clear()
 	_footprints.clear()
@@ -58,6 +59,8 @@ func is_cell_walkable(coord: Vector2i) -> bool:
 
 
 func get_occupant_root(coord: Vector2i) -> String:
+	if not is_cell_inside_world(coord):
+		return ""
 	var occupant_state = _get_occupant_state(coord)
 	return occupant_state.footprint_root_id if occupant_state != null else ""
 
@@ -78,9 +81,21 @@ func can_place_footprint(origin: Vector2i, size: Vector2i) -> bool:
 	return true
 
 
-func register_footprint(entity_id: String, origin: Vector2i, size: Vector2i) -> void:
+func register_footprint(entity_id: String, origin: Vector2i, size: Vector2i) -> bool:
 	if entity_id.is_empty():
-		return
+		return false
+	var previous_footprint = _get_footprint_state(entity_id)
+	if previous_footprint != null:
+		clear_footprint(entity_id)
+	if not can_place_footprint(origin, size):
+		if previous_footprint != null:
+			_write_footprint_cells(entity_id, previous_footprint.origin, previous_footprint.size)
+		return false
+	_write_footprint_cells(entity_id, origin, size)
+	return true
+
+
+func _write_footprint_cells(entity_id: String, origin: Vector2i, size: Vector2i) -> void:
 	_footprints[entity_id] = WORLD_MAP_FOOTPRINT_STATE_SCRIPT.create(origin, size)
 
 	for y in range(size.y):
@@ -122,7 +137,7 @@ func get_neighbors_4(coord: Vector2i) -> Array[Vector2i]:
 
 
 func get_chunk_coord(coord: Vector2i) -> Vector2i:
-	if _chunk_size.x == 0 or _chunk_size.y == 0:
+	if _chunk_size.x <= 0 or _chunk_size.y <= 0:
 		return Vector2i.ZERO
 	return Vector2i(
 		int(coord.x / _chunk_size.x),
@@ -138,6 +153,9 @@ func _get_occupant_state(coord: Vector2i):
 			return null
 		return occupant_variant
 	if occupant_variant is Dictionary:
+		if not occupant_variant.has("occupant_id") or not occupant_variant.has("footprint_root_id"):
+			_occupied_cells.erase(coord)
+			return null
 		var occupant_state = WORLD_MAP_OCCUPANT_STATE_SCRIPT.create(
 			String(occupant_variant.get("occupant_id", "")),
 			String(occupant_variant.get("footprint_root_id", ""))
@@ -155,9 +173,14 @@ func _get_footprint_state(entity_id: String):
 	if footprint_variant is Object and footprint_variant.has_method("is_empty"):
 		return footprint_variant
 	if footprint_variant is Dictionary:
+		var origin_variant: Variant = footprint_variant.get("origin", null)
+		var size_variant: Variant = footprint_variant.get("size", null)
+		if origin_variant is not Vector2i or size_variant is not Vector2i:
+			_footprints.erase(entity_id)
+			return null
 		var footprint_state = WORLD_MAP_FOOTPRINT_STATE_SCRIPT.create(
-			footprint_variant.get("origin", Vector2i.ZERO),
-			footprint_variant.get("size", Vector2i.ZERO)
+			origin_variant,
+			size_variant
 		)
 		if footprint_state.is_empty():
 			_footprints.erase(entity_id)

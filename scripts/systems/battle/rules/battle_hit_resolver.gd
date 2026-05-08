@@ -234,6 +234,7 @@ func build_skill_attack_check(
 	flat_bonus: int = 0,
 	flat_penalty: int = 0
 ) -> Dictionary:
+	var attacker_base_attack_bonus := _get_unit_attribute_value(active_unit, ATTRIBUTE_SERVICE_SCRIPT.BASE_ATTACK_BONUS, 0)
 	var attacker_attack_bonus := _get_unit_attribute_value(active_unit, ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
 	var target_armor_class := _get_target_armor_class(target_unit)
 	var skill_level := 0
@@ -247,14 +248,16 @@ func build_skill_attack_check(
 	var situational_attack_bonus := flat_bonus + maxi(status_attack_bonus_delta, 0)
 	var situational_attack_penalty := flat_penalty + maxi(-status_attack_bonus_delta, 0)
 	var required_roll := target_armor_class \
+		- attacker_base_attack_bonus \
 		- attacker_attack_bonus \
 		- skill_attack_bonus \
 		- situational_attack_bonus \
 		+ situational_attack_penalty
 	var hit_rate_percent := _compute_hit_rate_percent(required_roll)
 	var attack_check := {
+		"attacker_base_attack_bonus": attacker_base_attack_bonus,
 		"attacker_attack_bonus": attacker_attack_bonus,
-		"attacker_bab": attacker_attack_bonus,
+		"attacker_bab": attacker_base_attack_bonus,
 		"target_armor_class": target_armor_class,
 		"skill_attack_bonus": skill_attack_bonus,
 		"situational_attack_bonus": situational_attack_bonus,
@@ -342,8 +345,12 @@ func _get_status_param_string_key(params: Dictionary, param_key: StringName, fal
 	if params == null or param_key == &"":
 		return fallback
 	var param_name := String(param_key)
+	if params.has(param_key):
+		return params[param_key]
+	if params.has(param_name):
+		return params[param_name]
 	for key_variant in params.keys():
-		if key_variant is String and String(key_variant) == param_name:
+		if ProgressionDataUtils.to_string_name(key_variant) == param_key:
 			return params[key_variant]
 	return fallback
 
@@ -369,8 +376,7 @@ func roll_attack_check(battle_state: BattleState, attack_check: Dictionary) -> D
 			}),
 		}
 	var roll := _roll_battle_d20(battle_state)
-	var required_roll := int(attack_check.get("required_roll", ATTACK_CHECK_TARGET))
-	var roll_disposition := _resolve_attack_roll_disposition(roll, required_roll)
+	var roll_disposition := _resolve_attack_roll_disposition_for_check(roll, attack_check)
 	var result: Dictionary = attack_check.duplicate(true)
 	result["roll"] = roll
 	result["roll_disposition"] = roll_disposition
@@ -380,21 +386,21 @@ func roll_attack_check(battle_state: BattleState, attack_check: Dictionary) -> D
 
 
 func roll_hit_rate(battle_state: BattleState, hit_rate_percent: int) -> Dictionary:
-	var synthetic_required_roll := _get_required_roll_for_hit_rate(clampi(hit_rate_percent, 0, 100))
+	var clamped_hit_rate := clampi(hit_rate_percent, 0, 100)
+	var synthetic_required_roll := _get_required_roll_for_hit_rate(clamped_hit_rate)
+	var synthetic_attack_check := {
+		"required_roll": synthetic_required_roll,
+		"display_required_roll": _get_display_required_roll(synthetic_required_roll),
+		"natural_one_auto_miss": clamped_hit_rate < 100,
+		"natural_twenty_auto_hit": clamped_hit_rate > 0,
+	}
+	var resolved_hit_rate := _compute_attack_check_success_rate_percent(synthetic_attack_check)
+	synthetic_attack_check["hit_rate_percent"] = resolved_hit_rate
+	synthetic_attack_check["success_rate_percent"] = resolved_hit_rate
+	synthetic_attack_check["preview_text"] = format_attack_check_preview(synthetic_attack_check)
 	return roll_attack_check(
 		battle_state,
-		{
-			"required_roll": synthetic_required_roll,
-			"display_required_roll": _get_display_required_roll(synthetic_required_roll),
-			"hit_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
-			"success_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
-			"preview_text": format_attack_check_preview({
-				"required_roll": synthetic_required_roll,
-				"display_required_roll": _get_display_required_roll(synthetic_required_roll),
-				"hit_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
-				"success_rate_percent": _compute_hit_rate_percent(synthetic_required_roll),
-			}),
-		}
+		synthetic_attack_check
 	)
 
 
@@ -679,6 +685,25 @@ func _compute_hit_rate_percent(required_roll: int) -> int:
 
 func _is_attack_roll_success(roll: int, required_roll: int) -> bool:
 	return _is_attack_roll_disposition_success(_resolve_attack_roll_disposition(roll, required_roll))
+
+
+func _compute_attack_check_success_rate_percent(attack_check: Dictionary) -> int:
+	var success_count := 0
+	for roll in range(NATURAL_MISS_ROLL, NATURAL_HIT_ROLL + 1):
+		if _is_attack_roll_disposition_success(_resolve_attack_roll_disposition_for_check(roll, attack_check)):
+			success_count += 1
+	return success_count * 5
+
+
+func _resolve_attack_roll_disposition_for_check(roll: int, attack_check: Dictionary) -> StringName:
+	var required_roll := int(attack_check.get("required_roll", ATTACK_CHECK_TARGET))
+	if bool(attack_check.get("natural_one_auto_miss", true)) and roll <= NATURAL_MISS_ROLL:
+		return ROLL_DISPOSITION_NATURAL_AUTO_MISS
+	if bool(attack_check.get("natural_twenty_auto_hit", true)) and roll >= NATURAL_HIT_ROLL:
+		return ROLL_DISPOSITION_NATURAL_AUTO_HIT
+	if roll >= required_roll:
+		return ROLL_DISPOSITION_THRESHOLD_HIT
+	return ROLL_DISPOSITION_THRESHOLD_MISS
 
 
 func _resolve_attack_roll_disposition(roll: int, required_roll: int) -> StringName:

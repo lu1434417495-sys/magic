@@ -174,10 +174,12 @@ var current_move_points := DEFAULT_MOVE_POINTS_PER_TURN
 var unlocked_combat_resource_ids: Array[StringName] = DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS.duplicate()
 ## 字段说明：记录体力恢复的小数进度，满 10 点进度转化为 1 点体力。
 var stamina_recovery_progress := 0
-## 字段说明：标记单位是否正在休息；休息状态让体力恢复翻倍，直到下次非等待行动。
+## 字段说明：标记单位是否正在休息；休息状态让体力恢复翻倍，直到下次消耗 AP 的行动。
 var is_resting := false
-## 字段说明：标记当前行动窗口内是否已经执行过动作，用于区分直接跳过与行动后结束。
+## 字段说明：标记当前行动窗口内是否已经执行过消耗 AP 的动作，用于区分休息与行动后结束。
 var has_taken_action_this_turn := false
+## 字段说明：标记当前行动窗口内是否已经执行过普通移动；移动会锁定剩余移动力，但不阻断休息。
+var has_moved_this_turn := false
 ## 字段说明：标记本行动窗口是否允许使用已被行动/移动锁定的普通移动力。
 var can_use_locked_move_points_this_turn := false
 ## 字段说明：记录当前剩余护盾值，供伤害在进入生命前优先吸收。
@@ -258,6 +260,8 @@ var per_battle_charges: Dictionary = {}
 var per_turn_charges: Dictionary = {}
 ## 字段说明：记录每回合次数型资源的回合初恢复上限，不进入 battle payload。
 var per_turn_charge_limits: Dictionary = {}
+## 字段说明：记录每场战斗中各法术已消耗的大失败保护次数，不进入 battle payload。
+var fumble_protection_used: Dictionary = {}
 
 
 func _init() -> void:
@@ -516,6 +520,7 @@ func clone() -> BattleUnitState:
 	cloned_state.per_battle_charges = per_battle_charges.duplicate(true)
 	cloned_state.per_turn_charges = per_turn_charges.duplicate(true)
 	cloned_state.per_turn_charge_limits = per_turn_charge_limits.duplicate(true)
+	cloned_state.has_moved_this_turn = has_moved_this_turn
 	return cloned_state
 
 

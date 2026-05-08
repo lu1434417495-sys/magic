@@ -378,16 +378,17 @@ func add_equipment_instance(instance, force_new_instance_id: bool = false) -> Di
 
 
 ## 将装备实例直接存入仓库，不检查容量。调用方须在存入前通过预览确认有空余格位。
-func deposit_equipment_instance(instance) -> void:
+func deposit_equipment_instance(instance) -> bool:
 	if instance == null:
-		return
+		return false
 	var warehouse_state = _ensure_warehouse_state()
 	# 确保有效的 instance_id
 	if instance.instance_id == &"":
 		instance.instance_id = _allocate_equipment_instance_id(warehouse_state)
 		if instance.instance_id == &"":
-			return
+			return false
 	warehouse_state.equipment_instances.append(instance)
+	return true
 
 
 func _execute_batch_swap(

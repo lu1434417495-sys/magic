@@ -21,7 +21,7 @@ func setup(unit_progress: UnitProgress, skill_defs: Variant, profession_defs: Va
 	_profession_defs = _index_profession_defs(profession_defs)
 
 
-func assign_core_skill_to_profession(skill_id: StringName, profession_id: StringName) -> bool:
+func can_assign_core_skill_to_profession(skill_id: StringName, profession_id: StringName) -> bool:
 	var skill_progress: Variant = _get_skill_progress(skill_id)
 	var profession_progress: Variant = _get_profession_progress(profession_id)
 	var skill_def: SkillDef = _get_skill_def(skill_id)
@@ -35,6 +35,14 @@ func assign_core_skill_to_profession(skill_id: StringName, profession_id: String
 		return false
 	if skill_progress.assigned_profession_id != &"" and skill_progress.assigned_profession_id != profession_id:
 		return false
+	return true
+
+
+func assign_core_skill_to_profession(skill_id: StringName, profession_id: StringName) -> bool:
+	if not can_assign_core_skill_to_profession(skill_id, profession_id):
+		return false
+	var skill_progress: Variant = _get_skill_progress(skill_id)
+	var profession_progress: Variant = _get_profession_progress(profession_id)
 
 	_remove_skill_from_all_professions(skill_id, profession_id)
 	skill_progress.assigned_profession_id = profession_id

@@ -70,7 +70,7 @@ func _test_selection_sidecar_tracks_multi_unit_targets() -> void:
 		Vector2i(0, 0),
 		[&"mage_arcane_missile"],
 		2,
-		6
+		120
 	)
 	var enemy_a: BattleUnitState = _build_manual_unit(&"enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
 	var enemy_b: BattleUnitState = _build_manual_unit(&"enemy_b", "敌人B", &"enemy", Vector2i(3, 0), [], 2, 0)
@@ -125,7 +125,7 @@ func _test_selection_sidecar_reuses_shared_line_cone_radius_and_self_target_coll
 	_assert_selection_sidecar_matches_ground_preview_target_collection(
 		game_session,
 		&"mage_flame_spear",
-		3,
+		120,
 		20,
 		Vector2i(2, 1),
 		"line"
@@ -141,7 +141,7 @@ func _test_selection_sidecar_reuses_shared_line_cone_radius_and_self_target_coll
 	_assert_selection_sidecar_matches_ground_preview_target_collection(
 		game_session,
 		&"mage_cold_snap",
-		2,
+		120,
 		20,
 		Vector2i(2, 1),
 		"radius"
@@ -149,7 +149,7 @@ func _test_selection_sidecar_reuses_shared_line_cone_radius_and_self_target_coll
 	_assert_selection_sidecar_matches_self_preview_target_collection(
 		game_session,
 		&"mage_arcane_orbit",
-		2,
+		120,
 		20,
 		"self"
 	)
@@ -474,7 +474,7 @@ func _test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready() -> v
 		Vector2i(0, 0),
 		[&"mage_arcane_missile"],
 		2,
-		6
+		120
 	)
 	var enemy_a: BattleUnitState = _build_manual_unit(&"confirm_enemy_a", "敌人A", &"enemy", Vector2i(2, 0), [], 2, 0)
 	var enemy_b: BattleUnitState = _build_manual_unit(&"confirm_enemy_b", "敌人B", &"enemy", Vector2i(3, 0), [], 2, 0)
@@ -808,7 +808,7 @@ func _build_manual_unit(
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 30)
-	unit.attribute_snapshot.set_value(&"mp_max", maxi(current_mp, 6))
+	unit.attribute_snapshot.set_value(&"mp_max", maxi(current_mp, 120))
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 2))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)

@@ -122,13 +122,14 @@ func resolve_skill(
 func resolve_attack_effects(
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
-	effect_defs: Array,
+	effect_defs: Variant,
 	attack_check: Dictionary,
 	attack_context: Dictionary = {}
 ) -> Dictionary:
 	if source_unit == null or target_unit == null:
 		return _build_attack_metadata_result(_build_empty_result(), {})
 
+	var resolved_effect_defs := _coerce_effect_defs(effect_defs)
 	var attack_metadata := _resolve_attack_metadata(source_unit, target_unit, attack_check, attack_context)
 	if not bool(attack_metadata.get("attack_success", false)):
 		var failed_result := _build_attack_metadata_result(_build_empty_result(), attack_metadata)
@@ -138,14 +139,14 @@ func resolve_attack_effects(
 
 	# 二次命中判定（用于盾击晕眩等效果）
 	var secondary_hit_dc_base := 10
-	for eff in effect_defs:
+	for eff in resolved_effect_defs:
 		if eff != null and eff.trigger_event == &"secondary_hit" and eff.params != null:
 			secondary_hit_dc_base = int(eff.params.get("secondary_hit_dc_base", 10))
 			break
 	attack_metadata["secondary_hit_success"] = _resolve_secondary_hit(source_unit, target_unit, attack_context, secondary_hit_dc_base)
 
 	var resolved_result := _build_attack_metadata_result(
-		resolve_effects(source_unit, target_unit, effect_defs, attack_metadata),
+		resolve_effects(source_unit, target_unit, resolved_effect_defs, attack_metadata),
 		attack_metadata
 	)
 	_attach_attack_report_entry(resolved_result, source_unit, target_unit)
@@ -153,15 +154,28 @@ func resolve_attack_effects(
 	return resolved_result
 
 
+func resolve_spell_control_check(
+	source_unit: BattleUnitState,
+	attack_context: Dictionary = {}
+) -> Dictionary:
+	if source_unit == null:
+		return {}
+	var control_metadata := _resolve_spell_control_metadata(source_unit, attack_context)
+	if bool(attack_context.get("dispatch_events", true)):
+		_dispatch_spell_control_resolution_events(source_unit, control_metadata, attack_context)
+	return control_metadata
+
+
 func resolve_effects(
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
-	effect_defs: Array,
+	effect_defs: Variant,
 	damage_context: Dictionary = {}
 ) -> Dictionary:
 	if source_unit == null or target_unit == null:
 		return _build_empty_result()
 
+	var resolved_effect_defs := _coerce_effect_defs(effect_defs)
 	var total_damage := 0
 	var total_healing := 0
 	var total_shield_absorbed := 0
@@ -175,7 +189,7 @@ func resolve_effects(
 	var applied := false
 	var black_star_wedge_triggered := false
 
-	for effect_def in effect_defs:
+	for effect_def in resolved_effect_defs:
 		if effect_def == null:
 			continue
 		if not _does_effect_trigger(effect_def, damage_context):
@@ -323,6 +337,12 @@ func resolve_effects(
 	return result
 
 
+func _coerce_effect_defs(effect_defs: Variant) -> Array:
+	if effect_defs is Array:
+		return effect_defs
+	return []
+
+
 func _does_effect_trigger(effect_def, damage_context: Dictionary) -> bool:
 	if effect_def == null:
 		return false
@@ -441,6 +461,82 @@ func _resolve_attack_metadata(
 		return metadata
 
 	metadata["ordinary_miss"] = true
+	return metadata
+
+
+func _resolve_spell_control_metadata(
+	source_unit: BattleUnitState,
+	attack_context: Dictionary
+) -> Dictionary:
+	var hidden_luck_at_birth := _get_hidden_luck_at_birth(source_unit)
+	var faith_luck_bonus := _get_faith_luck_bonus(source_unit)
+	var effective_luck := _get_effective_luck(source_unit)
+	var is_disadvantage := bool(attack_context.get("is_disadvantage", false))
+	var crit_gate_die := FATE_ATTACK_FORMULA_SCRIPT.calc_crit_gate_die_size(effective_luck, is_disadvantage)
+	var crit_locked := _fate_attack_rules.is_attack_crit_locked(source_unit)
+	var metadata := {
+		"attack_resolution": ATTACK_RESOLUTION_HIT,
+		"spell_control_resolution": &"normal",
+		"attack_success": true,
+		"critical_hit": false,
+		"critical_fail": false,
+		"ordinary_miss": false,
+		"is_disadvantage": is_disadvantage,
+		"hidden_luck_at_birth": hidden_luck_at_birth,
+		"faith_luck_bonus": faith_luck_bonus,
+		"effective_luck": effective_luck,
+		"crit_locked": crit_locked,
+		"crit_gate_die": crit_gate_die,
+		"crit_gate_roll": 0,
+		"hit_roll": 0,
+		"fumble_low_end": FATE_ATTACK_FORMULA_SCRIPT.calc_fumble_low_end(effective_luck),
+		"crit_threshold": FATE_ATTACK_FORMULA_SCRIPT.calc_crit_threshold(hidden_luck_at_birth, faith_luck_bonus),
+		"trait_trigger_results": [],
+	}
+
+	if crit_gate_die > NATURAL_HIT_ROLL:
+		var crit_gate_roll := _roll_attack_die(crit_gate_die, is_disadvantage, attack_context)
+		metadata["crit_gate_roll"] = crit_gate_roll
+		if _fate_attack_rules.does_gate_die_crit(crit_gate_roll, crit_gate_die, crit_locked):
+			metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT
+			metadata["spell_control_resolution"] = &"critical_success"
+			metadata["critical_hit"] = true
+			return metadata
+
+	var hit_roll := _roll_attack_die(NATURAL_HIT_ROLL, is_disadvantage, attack_context)
+	metadata["hit_roll"] = hit_roll
+	var natural_one_trait_result := _resolve_natural_one_trait_reroll(
+		source_unit,
+		hit_roll,
+		attack_context
+	)
+	if bool(natural_one_trait_result.get("triggered", false)):
+		hit_roll = int(natural_one_trait_result.get("rerolled_roll", hit_roll))
+		metadata["hit_roll"] = hit_roll
+		_append_trait_trigger_result(metadata, natural_one_trait_result)
+
+	if hit_roll <= int(metadata.get("fumble_low_end", 1)):
+		if _try_apply_reverse_fate_amulet(source_unit):
+			metadata["spell_control_resolution"] = &"reverse_fate_downgraded"
+			metadata["reverse_fate_downgraded"] = true
+			return metadata
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_FAIL
+		metadata["spell_control_resolution"] = &"critical_fail"
+		metadata["attack_success"] = false
+		metadata["critical_fail"] = true
+		return metadata
+
+	if _fate_attack_rules.is_high_threat_crit_roll(
+		hit_roll,
+		crit_locked,
+		crit_gate_die,
+		int(metadata.get("crit_threshold", NATURAL_HIT_ROLL))
+	):
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT
+		metadata["spell_control_resolution"] = &"critical_success"
+		metadata["critical_hit"] = true
+		return metadata
+
 	return metadata
 
 
@@ -579,6 +675,18 @@ func _dispatch_attack_resolution_events(
 		_fate_event_bus.dispatch(event_type, payload)
 
 
+func _dispatch_spell_control_resolution_events(
+	source_unit: BattleUnitState,
+	control_metadata: Dictionary,
+	attack_context: Dictionary = {}
+) -> void:
+	if _fate_event_bus == null or control_metadata.is_empty():
+		return
+	var payload := _build_spell_control_event_payload(source_unit, control_metadata, attack_context)
+	for event_type in _build_spell_control_event_tags(control_metadata):
+		_fate_event_bus.dispatch(event_type, payload)
+
+
 func _build_attack_event_payload(
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
@@ -602,6 +710,34 @@ func _build_attack_event_payload(
 		"crit_gate_roll": int(attack_metadata.get("crit_gate_roll", 0)),
 		"hit_roll": int(attack_metadata.get("hit_roll", 0)),
 		"luck_snapshot": _build_attack_luck_snapshot(attack_metadata),
+	}
+
+
+func _build_spell_control_event_payload(
+	source_unit: BattleUnitState,
+	control_metadata: Dictionary,
+	attack_context: Dictionary = {}
+) -> Dictionary:
+	var battle_state := attack_context.get("battle_state", null) as BattleState
+	return {
+		"battle_id": battle_state.battle_id if battle_state != null else &"",
+		"attacker_id": source_unit.unit_id if source_unit != null else &"",
+		"attacker_member_id": source_unit.source_member_id if source_unit != null else &"",
+		"attacker_low_hp_hardship": _is_low_hp_hardship(source_unit),
+		"attacker_strong_attack_debuff_ids": _get_strong_attack_debuff_ids(source_unit),
+		"defender_id": &"",
+		"defender_member_id": &"",
+		"defender_is_elite_or_boss": false,
+		"attack_resolution": ProgressionDataUtils.to_string_name(control_metadata.get("attack_resolution", "")),
+		"spell_control_resolution": ProgressionDataUtils.to_string_name(control_metadata.get("spell_control_resolution", "")),
+		"critical_source": _resolve_critical_source(control_metadata),
+		"is_disadvantage": bool(control_metadata.get("is_disadvantage", false)),
+		"crit_gate_die": int(control_metadata.get("crit_gate_die", 0)),
+		"crit_gate_roll": int(control_metadata.get("crit_gate_roll", 0)),
+		"hit_roll": int(control_metadata.get("hit_roll", 0)),
+		"luck_snapshot": _build_attack_luck_snapshot(control_metadata),
+		"event_family": &"spell_control",
+		"skill_id": ProgressionDataUtils.to_string_name(attack_context.get("skill_id", "")),
 	}
 
 
@@ -1528,6 +1664,17 @@ func _build_attack_event_tags(attack_metadata: Dictionary) -> Array[StringName]:
 	return event_tags
 
 
+func _build_spell_control_event_tags(control_metadata: Dictionary) -> Array[StringName]:
+	var event_tags: Array[StringName] = []
+	if bool(control_metadata.get("critical_fail", false)):
+		event_tags.append(BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_FAIL)
+	if _is_high_threat_critical_hit(control_metadata):
+		event_tags.append(BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_HIGH_THREAT_CRITICAL_HIT)
+	if bool(control_metadata.get("critical_hit", false)) and bool(control_metadata.get("is_disadvantage", false)):
+		event_tags.append(BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_SUCCESS_UNDER_DISADVANTAGE)
+	return event_tags
+
+
 func resolve_fall_damage(target_unit: BattleUnitState, fall_layers: int) -> Dictionary:
 	if target_unit == null or fall_layers <= 0 or not target_unit.is_alive:
 		return _build_empty_result()
@@ -1718,8 +1865,9 @@ func _trigger_last_stand(target_unit: BattleUnitState, source_unit: BattleUnitSt
 	var death_ward_entry = target_unit.get_status_effect(&"death_ward")
 	if death_ward_entry == null:
 		return false
-	var source_skill_id := ProgressionDataUtils.to_string_name(death_ward_entry.params.get("source_skill_id", ""))
-	var skill_level := int(death_ward_entry.params.get("skill_level", 0))
+	var death_ward_params: Dictionary = death_ward_entry.params if death_ward_entry.params is Dictionary else {}
+	var source_skill_id := ProgressionDataUtils.to_string_name(death_ward_params.get("source_skill_id", ""))
+	var skill_level := int(death_ward_params.get("skill_level", 0))
 	var skill_def = _skill_defs.get(source_skill_id) if _skill_defs != null else null
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
@@ -1762,7 +1910,7 @@ func _resolve_heal_fatal_amount(target_unit: BattleUnitState, effect_def) -> int
 	var heal_per_level := int(params.get("heal_per_level", 4))
 	var con_mod_base := int(params.get("con_mod_base", 2))
 	var con_mod_per_2_levels := int(params.get("con_mod_per_2_levels", 1))
-	var skill_level := maxi(int(params.get("skill_level", 0)), 0)
+	var skill_level := maxi(int(params.get("skill_level", 1)), 1)
 
 	var con_mod := _get_unit_base_attribute_modifier(target_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION)
 
@@ -1896,8 +2044,12 @@ func _get_status_param_string_key(params: Dictionary, param_key: StringName, fal
 	if params == null or param_key == &"":
 		return fallback
 	var param_name := String(param_key)
+	if params.has(param_key):
+		return params[param_key]
+	if params.has(param_name):
+		return params[param_name]
 	for key_variant in params.keys():
-		if key_variant is String and String(key_variant) == param_name:
+		if ProgressionDataUtils.to_string_name(key_variant) == param_key:
 			return params[key_variant]
 	return fallback
 

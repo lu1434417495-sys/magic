@@ -66,7 +66,11 @@ func _get_status_param_string_key(params: Dictionary, param_key: StringName, fal
 	if params == null or param_key == &"":
 		return fallback
 	var param_name := String(param_key)
+	if params.has(param_key):
+		return params[param_key]
+	if params.has(param_name):
+		return params[param_name]
 	for key_variant in params.keys():
-		if key_variant is String and String(key_variant) == param_name:
+		if ProgressionDataUtils.to_string_name(key_variant) == param_key:
 			return params[key_variant]
 	return fallback
