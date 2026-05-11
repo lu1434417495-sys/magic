@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
 const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
 
 const INVALID_ITEM_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_invalid"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class InvalidWorldContentValidator:
@@ -35,11 +38,15 @@ func _assert_official_validation_surface(runner) -> void:
 	var snapshot_result = await _run_command(runner, "snapshot")
 	var validation_snapshot: Dictionary = snapshot_result.snapshot.get("validation", {})
 	var domains: Dictionary = validation_snapshot.get("domains", {})
+	var progression_domain: Dictionary = domains.get("progression", {})
 	var item_domain: Dictionary = domains.get("item", {})
 	var world_domain: Dictionary = domains.get("world", {})
+	var progression_errors: Array = progression_domain.get("errors", [])
 
-	_assert_true(bool(validation_snapshot.get("ok", false)), "正式 headless validation 快照应标记为 ok。")
+	_assert_true(bool(validation_snapshot.get("ok", false)), "正式 headless validation 快照应通过。")
 	_assert_eq(int(validation_snapshot.get("error_count", -1)), 0, "正式 headless validation 快照不应有错误。")
+	_assert_eq(int(progression_domain.get("error_count", -1)), 0, "正式 progression validation domain 不应有错误。")
+	_assert_eq(progression_errors.size(), 0, "正式 progression validation domain 不应返回错误列表。")
 	_assert_eq(int(item_domain.get("error_count", -1)), 0, "正式 item validation domain 不应有错误。")
 	_assert_eq(int(world_domain.get("error_count", -1)), 0, "正式 world validation domain 不应有错误。")
 	_assert_true(snapshot_result.snapshot_text.contains("[VALIDATION]"), "headless 文本快照应包含 VALIDATION 分段。")
@@ -127,7 +134,7 @@ func _assert_error_contains(errors: Array, fragment: String, message: String) ->
 	for error_variant in errors:
 		if String(error_variant).contains(fragment):
 			return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _run_command(runner, command_text: String):
@@ -142,13 +149,13 @@ func _run_command(runner, command_text: String):
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _finish() -> void:

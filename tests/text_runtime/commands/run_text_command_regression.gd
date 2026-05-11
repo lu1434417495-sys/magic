@@ -2,6 +2,8 @@
 # It protects runtime flows while the main game remains UI-driven.
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
@@ -11,7 +13,8 @@ const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runt
 const BATTLE_LOOT_COMMIT_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_commit.txt"
 const BATTLE_LOOT_OVERFLOW_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_overflow.txt"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -40,9 +43,9 @@ func _run() -> void:
 	await _assert_eventually_present_research_reward(runner, "裂甲斩", "entry=skill_unlock | warrior_guard_break")
 	await _drain_visible_rewards(runner)
 
+	_inject_submit_item_contract(runner.get_session().get_game_session())
 	await _run_command(runner, "game new test")
 	_inject_extended_test_settlement_services(runner)
-	_inject_submit_item_contract(runner.get_session().get_game_session())
 	_assert_log_snapshot_available(runner)
 	_assert_new_game_random_book_skill_grant(runner)
 	var book_skill := _pick_unlearned_book_skill_for_member(runner.get_session().get_game_session(), &"player_sword_01")
@@ -182,7 +185,7 @@ func _exercise_battle_flow(runner) -> void:
 		var snapshot: Dictionary = runner.get_session().build_snapshot()
 		if bool(snapshot.get("battle", {}).get("active", false)):
 			break
-		await _run_command(runner, "battle tick 1.0")
+		await _run_command(runner, "battle tick 1")
 		guard += 1
 	_assert_true(bool(runner.get_session().build_snapshot().get("battle", {}).get("active", false)), "进入遭遇后应切入战斗。")
 	if not bool(runner.get_session().build_snapshot().get("battle", {}).get("active", false)):
@@ -218,7 +221,7 @@ func _advance_to_manual_battle_turn(runner, max_ticks: int = 64) -> void:
 		var active_unit := _find_unit(battle_snapshot.get("units", []), active_unit_id)
 		if String(active_unit.get("control_mode", "")) == "manual":
 			return
-		await _run_command(runner, "battle tick 1.0")
+		await _run_command(runner, "battle tick 1")
 	_assert_true(false, "文本 battle blocker 回归未能进入手动单位回合。")
 
 
@@ -251,7 +254,7 @@ func _assert_battle_start_prompt_present_in_text_snapshot(text_snapshot: String)
 	var selected_target_index := text_snapshot.find("selected_target_unit_count=", battle_section_index)
 	var confirm_visible_index := text_snapshot.find("start_confirm_visible=true", battle_section_index)
 	var prompt_title_index := text_snapshot.find("start_prompt_title=开始战斗", battle_section_index)
-	var prompt_description_index := text_snapshot.find("start_prompt_description=是否开始战斗？确认后 TU 将按每秒 5 点推进。", battle_section_index)
+	var prompt_description_index := text_snapshot.find("start_prompt_description=是否开始战斗？确认后 TU 将按整数 tick 推进。", battle_section_index)
 	var prompt_confirm_index := text_snapshot.find("start_prompt_confirm_text=开始战斗", battle_section_index)
 	var hud_header_index := text_snapshot.find("hud_header=", battle_section_index)
 	_assert_true(battle_section_index >= 0, "文本快照应包含 BATTLE 分段。")
@@ -750,7 +753,7 @@ func _inject_submit_item_contract(game_session) -> void:
 	submit_item_quest.reward_entries = [
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 18},
 	]
-	game_session.get_quest_defs()[submit_item_quest.quest_id] = submit_item_quest
+	game_session.install_test_content_def(&"quest", submit_item_quest.quest_id, submit_item_quest)
 
 
 func _inject_extended_test_settlement_services(runner) -> void:
@@ -848,7 +851,8 @@ func _assert_equipment_requirement_error_message(runner) -> void:
 	var requirement := EquipmentRequirement.new()
 	requirement.required_profession_ids = ["__blocked_profession__"]
 	blocked_sword.equip_requirement = requirement
-	item_defs[&"bronze_sword"] = blocked_sword
+	runner.get_session().get_game_session().install_test_content_def(&"item", &"bronze_sword", blocked_sword)
+	_refresh_runtime_content_from_game_session(runner)
 
 	var bronze_sword_instance_id := _find_session_warehouse_instance_id(runner, "bronze_sword")
 	_assert_true(not bronze_sword_instance_id.is_empty(), "资格失败文本回归前置：应能找到 bronze_sword instance_id。")
@@ -857,7 +861,8 @@ func _assert_equipment_requirement_error_message(runner) -> void:
 	_assert_true(result.message.contains("青铜短剑"), "资格失败文案应包含物品名称。")
 	_assert_eq(_count_session_warehouse_item("bronze_sword"), 1, "资格失败时不应消耗仓库中的装备。")
 
-	item_defs[&"bronze_sword"] = bronze_sword
+	runner.get_session().get_game_session().install_test_content_def(&"item", &"bronze_sword", bronze_sword)
+	_refresh_runtime_content_from_game_session(runner)
 
 
 func _assert_duplicate_equipment_instance_text_boundaries(runner) -> void:
@@ -1001,6 +1006,15 @@ func _get_first_promotion_choice_id(snapshot: Dictionary) -> String:
 	return String(first_choice.get("profession_id", ""))
 
 
+func _refresh_runtime_content_from_game_session(runner) -> void:
+	if runner == null or runner.get_session() == null:
+		return
+	var facade = runner.get_session().get_runtime_facade()
+	var game_session = runner.get_session().get_game_session()
+	if facade != null and game_session != null:
+		facade.setup(game_session)
+
+
 func _run_command(runner, command_text: String) -> void:
 	var result = await runner.execute_line(command_text)
 	if result.skipped:
@@ -1032,13 +1046,13 @@ func _drain_visible_rewards(runner, max_confirms: int = 6) -> void:
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _finish() -> void:

@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
 const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
@@ -16,7 +18,8 @@ const DUPLICATE_TEST_CHARM_ID: StringName = &"wpndice_duplicate_charm"
 const DUPLICATE_TEST_CHARM_COMMON_INSTANCE_ID: StringName = &"wpndice_duplicate_charm_common_001"
 const DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID: StringName = &"wpndice_duplicate_charm_rare_001"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -63,21 +66,21 @@ func _run() -> void:
 	_prime_active_unit_ap(runner, 4)
 	var duplicate_item_only_result = await _run_command_expect_fail(
 		runner,
-		"battle equip accessory_1 %s" % String(DUPLICATE_TEST_CHARM_ID)
+		"battle equip necklace %s" % String(DUPLICATE_TEST_CHARM_ID)
 	)
 	_assert_battle_duplicate_item_only_requires_instance(duplicate_item_only_result)
 
 	_prime_active_unit_ap(runner, 4)
 	var duplicate_explicit_result = await _run_command(
 		runner,
-		"battle equip accessory_1 %s instance_id=%s" % [String(DUPLICATE_TEST_CHARM_ID), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)]
+		"battle equip necklace %s instance_id=%s" % [String(DUPLICATE_TEST_CHARM_ID), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)]
 	)
 	_assert_battle_duplicate_explicit_equip(duplicate_explicit_result.snapshot)
 
 	_prime_active_unit_ap(runner, 4)
 	var duplicate_unequip_result = await _run_command(
 		runner,
-		"battle unequip accessory_1 instance_id=%s" % String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
+		"battle unequip necklace instance_id=%s" % String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
 	)
 	_assert_battle_duplicate_unequip_round_trip(duplicate_unequip_result.snapshot, runner)
 
@@ -146,7 +149,7 @@ func _advance_to_manual_battle_turn(runner, max_ticks: int = 64) -> void:
 		var active_unit := _find_battle_unit(battle_snapshot, active_unit_id)
 		if String(active_unit.get("control_mode", "")) == "manual":
 			return
-		await _run_command(runner, "battle tick 1.0")
+		await _run_command(runner, "battle tick 1")
 	_assert_true(false, "战斗换装文本回归未能进入手动单位回合。")
 
 
@@ -266,7 +269,7 @@ func _build_duplicate_test_charm_def() -> ItemDef:
 	item_def.is_stackable = false
 	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
 	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ACCESSORY
-	item_def.equipment_slot_ids = ["accessory_1", "accessory_2"]
+	item_def.equipment_slot_ids = ["necklace"]
 	item_def.tags = [&"accessory", &"test"]
 	return item_def
 
@@ -385,7 +388,7 @@ func _assert_battle_duplicate_explicit_equip(snapshot: Dictionary) -> void:
 	_assert_eq(String(report.get("instance_id", "")), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID), "duplicate explicit equip report 应记录指定实例。")
 	_assert_eq(_count_battle_backpack_item(snapshot, String(DUPLICATE_TEST_CHARM_ID)), 1, "装备指定实例后 battle-local 背包中应只剩另一个重复实例。")
 	var unit := _find_battle_unit(snapshot.get("battle", {}), String(report.get("unit_id", "")))
-	var equipped := _find_equipped_entry(unit.get("equipment", []), "accessory_1")
+	var equipped := _find_equipped_entry(unit.get("equipment", []), "necklace")
 	_assert_eq(String(equipped.get("instance_id", "")), String(DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID), "battle-local 饰品槽应写入指定 rare instance_id。")
 
 
@@ -628,31 +631,31 @@ func _run_command(runner, command_text: String):
 		return result
 	if not result.ok:
 		print(result.render())
-		_failures.append("命令失败：%s | %s" % [command_text, result.message])
+		_test.fail("命令失败：%s | %s" % [command_text, result.message])
 	return result
 
 
 func _run_command_expect_fail(runner, command_text: String):
 	var result = await runner.execute_line(command_text)
 	if result.skipped:
-		_failures.append("命令被跳过，无法验证失败：%s" % command_text)
+		_test.fail("命令被跳过，无法验证失败：%s" % command_text)
 		return result
 	if result.ok:
 		print(result.render())
-		_failures.append("命令应失败但成功：%s" % command_text)
+		_test.fail("命令应失败但成功：%s" % command_text)
 	return result
 
 
 func _assert_true(value: bool, message: String) -> void:
 	if value:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _finish() -> void:

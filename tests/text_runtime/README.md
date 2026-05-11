@@ -13,21 +13,21 @@ Non-scope:
 - It should not become the source of truth for world or battle rules.
 
 Entry points:
-- `run_text_command_repl.gd`: local interactive debugging.
-- `run_text_command_script.gd`: run a scenario file.
-- `run_text_command_regression.gd`: end-to-end regression coverage.
-- `run_battle_equipment_text_command_regression.gd`: battle-local text equip/unequip command and snapshot coverage.
-- `run_validation_text_surface_regression.gd`: validation snapshot/text-surface regression without log scraping.
+- `tools/run_text_command_repl.gd`: local interactive debugging.
+- `tools/run_text_command_script.gd`: run a scenario file.
+- `commands/run_text_command_regression.gd`: end-to-end regression coverage.
+- `commands/run_battle_equipment_text_command_regression.gd`: battle-local text equip/unequip command and snapshot coverage.
+- `commands/run_validation_text_surface_regression.gd`: validation snapshot/text-surface regression without log scraping.
 
 Typical commands:
-```powershell
-godot --headless --script tests/text_runtime/run_text_command_script.gd
-godot --headless --script tests/text_runtime/run_text_command_regression.gd
-godot --headless --script tests/text_runtime/run_battle_equipment_text_command_regression.gd
-godot --headless --script tests/text_runtime/run_validation_text_surface_regression.gd
-godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/contract_board_accept.txt
-godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_commit.txt
-godot --headless --script tests/text_runtime/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_overflow.txt
+```shell
+godot --headless --script tests/text_runtime/tools/run_text_command_script.gd
+godot --headless --script tests/text_runtime/commands/run_text_command_regression.gd
+godot --headless --script tests/text_runtime/commands/run_battle_equipment_text_command_regression.gd
+godot --headless --script tests/text_runtime/commands/run_validation_text_surface_regression.gd
+godot --headless --script tests/text_runtime/tools/run_text_command_script.gd -- res://tests/text_runtime/scenarios/contract_board_accept.txt
+godot --headless --script tests/text_runtime/tools/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_commit.txt
+godot --headless --script tests/text_runtime/tools/run_text_command_script.gd -- res://tests/text_runtime/scenarios/battle_loot_overflow.txt
 ```
 
 Automation-only helpers used by scenarios:
