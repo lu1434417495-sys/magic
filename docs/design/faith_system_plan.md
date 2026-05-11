@@ -48,12 +48,12 @@
   - `PartyManagementWindow` 当前显示 `信仰幸运加值`。
   - `CharacterInfoWindow` / battle HUD fate 信息会展示 `faith_luck_bonus`、`fortune_marked`、`doom_marked` 与 Misfortune 状态。
 - 回归：
-  - `tests/progression/run_faith_service_regression.gd`
-  - `tests/progression/run_fortuna_guidance_regression.gd`
-  - `tests/progression/run_misfortune_guidance_regression.gd`
-  - `tests/progression/run_misfortune_black_omen_regression.gd`
-  - `tests/progression/run_fortune_service_regression.gd`
-  - `tests/progression/run_party_state_fate_regression.gd`
+  - `tests/progression/fate/run_faith_service_regression.gd`
+  - `tests/progression/fate/run_fortuna_guidance_regression.gd`
+  - `tests/progression/fate/run_misfortune_guidance_regression.gd`
+  - `tests/progression/fate/run_misfortune_black_omen_regression.gd`
+  - `tests/progression/fate/run_fortune_service_regression.gd`
+  - `tests/progression/fate/run_party_state_fate_regression.gd`
   - `tests/world_map/ui/run_character_info_window_fate_regression.gd`
 
 ## 当前非事实
@@ -258,12 +258,12 @@
 
 ### 当前应运行
 
-- `godot --headless --script tests/progression/run_faith_service_regression.gd`
-- `godot --headless --script tests/progression/run_fortuna_guidance_regression.gd`
-- `godot --headless --script tests/progression/run_misfortune_guidance_regression.gd`
-- `godot --headless --script tests/progression/run_misfortune_black_omen_regression.gd`
-- `godot --headless --script tests/progression/run_fortune_service_regression.gd`
-- `godot --headless --script tests/progression/run_party_state_fate_regression.gd`
+- `godot --headless --script tests/progression/fate/run_faith_service_regression.gd`
+- `godot --headless --script tests/progression/fate/run_fortuna_guidance_regression.gd`
+- `godot --headless --script tests/progression/fate/run_misfortune_guidance_regression.gd`
+- `godot --headless --script tests/progression/fate/run_misfortune_black_omen_regression.gd`
+- `godot --headless --script tests/progression/fate/run_fortune_service_regression.gd`
+- `godot --headless --script tests/progression/fate/run_party_state_fate_regression.gd`
 - `godot --headless --script tests/world_map/ui/run_character_info_window_fate_regression.gd`
 
 ### 当前覆盖

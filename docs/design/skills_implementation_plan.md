@@ -419,7 +419,7 @@ total_score = action_base_score
 | 2. 双骰取舍 | `battle_hit_resolver.gd` | `_roll_battle_d20()` 支持一次取两骰，按 disposition 取 max/min |
 | 3. 预览展示 | `battle_preview.gd` / `battle_hud_adapter.gd` | `hit_preview` 补 `roll_disposition` 字段，HUD 展示 "优势 / 劣势" 标签 |
 | 4. 战场规则来源 | 新文件 `scripts/systems/battle_roll_disposition_resolver.gd` | 高地 / 掩体 / 贴身远程 / 包夹等战场来源合成最终 disposition |
-| 5. 回归测试 | `tests/battle_runtime/run_battle_roll_disposition_regression.gd` | 覆盖双骰取高 / 取低 / 与天然 1/20 的互动 |
+| 5. 回归测试 | `tests/battle_runtime/rules/run_battle_roll_disposition_regression.gd` | 覆盖双骰取高 / 取低 / 与天然 1/20 的互动 |
 
 **验收标准**：
 

@@ -56,7 +56,7 @@
 - Trace 精简报表：`res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd`
 - 批量执行器：`res://scripts/systems/battle/sim/battle_sim_runner.gd`
 - 基础执行循环：`res://scripts/systems/battle/sim/battle_sim_execution_loop.gd`
-- CLI 入口：`res://tests/battle_runtime/run_battle_balance_simulation.gd`
+- CLI 入口：`res://tests/battle_runtime/simulation/run_battle_balance_simulation.gd`
 - LLM 分析包导出：`tools/build_battle_sim_analysis_packet.py`
 - Repo 内分析 skill：`.codex/skills/battle-sim-analysis`
 
@@ -98,7 +98,7 @@
 运行示例：
 
 ```bash
-godot --headless --script tests/battle_runtime/run_battle_balance_simulation.gd -- \
+godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.gd -- \
   res://data/configs/battle_sim/scenarios/archer_pressure_example.tres \
   res://data/configs/battle_sim/profiles/baseline.tres \
   res://data/configs/battle_sim/profiles/pinning_shot_blocked.tres \
@@ -108,7 +108,7 @@ godot --headless --script tests/battle_runtime/run_battle_balance_simulation.gd 
 AI vs AI 示例：
 
 ```bash
-godot --headless --script tests/battle_runtime/run_battle_balance_simulation.gd -- \
+godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.gd -- \
   res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres \
   res://data/configs/battle_sim/profiles/baseline.tres
 ```
@@ -207,7 +207,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 11. `BattleSimExecutionLoop` 接管单场基础推进。
 12. 如果当前行动单位是手动单位，则按 `manual_policy` 发指令。
 13. 如果当前行动单位是 AI，则 runtime 走正常 AI 决策链，并记录 turn trace。
-14. 如果时间轴已有 `ready_unit_ids`，执行循环会先用 `advance(0.0)` drain 当前 ready 队列；只有 ready 队列为空时才按 `tick_interval_seconds / tu_per_tick` 推进下一段 TU。
+14. 如果时间轴已有 `ready_unit_ids`，执行循环会先用 `advance(0)` drain 当前 ready 队列；只有 ready 队列为空时才按 `timeline_ticks_per_step / tu_per_tick` 推进下一段 TU。
 15. 直到战斗结束、达到最大迭代数，或触发 idle guard。
 16. runner 收集本场的：
    - 胜负结果
@@ -246,8 +246,8 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
   - 显式模拟单位列表，元素是 `BattleSimUnitSpec`；正式角色 fixture 场景应保持为空，由入口脚本通过 `BattleSimFormalCombatFixture` 生成。
 - `cell_overrides`
   - 按格子覆盖地形、地势、地格效果。
-- `tick_interval_seconds`
-  - runtime 推进时每轮传入的 delta。
+- `timeline_ticks_per_step`
+  - runtime 推进时每轮传入的整数 tick 数。
 - `tu_per_tick`
   - 时间轴每 tick 增长值。
 - 单位行动阈值
@@ -268,7 +268,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
   - `enemy_spawns`
   - `map_size`
   - `cells`
-  - `tick_interval_seconds`
+  - `timeline_ticks_per_step`
   - `tu_per_tick`
   - `battle_terrain_profile`
 - 正式地形生成模式：
@@ -276,7 +276,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
   - `enemy_units`
   - `battle_map_size`
   - `world_coord`
-  - `tick_interval_seconds`
+  - `timeline_ticks_per_step`
   - `tu_per_tick`
   - `battle_terrain_profile`
 
@@ -302,7 +302,7 @@ $env:MAIN_CHARACTER_MEMBER_ID='elite_archer_0'
 $env:MAIN_CHARACTER_REROLL_COUNT='0'
 $env:START_SEED='12345'
 $env:COUNT='1'
-godot --headless --script tests/battle_runtime/run_mixed_6v12_mirror_analysis.gd
+godot --headless --script tests/battle_runtime/benchmarks/run_mixed_6v12_mirror_analysis.gd
 ```
 
 `run_mixed_6v12_mirror_analysis.gd` 还有批量运行墙钟保护：`SIM_TIMEOUT_SECONDS` 缺省为 `1800`，表示 30 分钟。超时只在两场模拟之间停止继续排新 run，不中断正在结算的一场战斗；报告中的 `run_count / completed_run_count` 表示实际完成轮数，`requested_run_count` 表示请求轮数，`timed_out` 标记是否命中超时。设置 `SIM_TIMEOUT_SECONDS=0` 可关闭这层批量超时。

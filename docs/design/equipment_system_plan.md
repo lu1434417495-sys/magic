@@ -152,8 +152,14 @@
   - `off_hand`
   - `head`
   - `body`
-  - `accessory_1`
-  - `accessory_2`
+  - `hands`
+  - `feet`
+  - `cloak`
+  - `necklace`
+  - `ring_1`
+  - `ring_2`
+  - `special_trinket`
+  - `badge`
 - 固定槽位仍然保留，因为它能保证：
   - UI 布局稳定
   - 文本快照稳定
@@ -251,12 +257,9 @@
   - `instance_id`
   - `item_id`
   - `current_durability`
-  - `armor_wear_progress`
-  - `weapon_wear_progress`
 - 说明：
-  - `current_durability` 是当前剩余耐久
-  - `armor_wear_progress` 用于累计护甲磨损
-  - `weapon_wear_progress` 用于累计武器磨耗
+  - `current_durability` 是当前剩余耐久；耐久归零才视为失效，未归零装备仍有效。
+  - 当前 schema 不维护护甲 / 武器磨损进度。
 - Deferred 方向选择“只把装备做成实例，普通堆叠物品维持现状”，不做全物品实例化。
 
 ## 装备规则层
@@ -527,17 +530,13 @@
   - `off_hand`（仅当该装备带 `shield` 或 `armor` trait）
 - 护甲磨损公式：
   - `armor_delta = max(attacker_sharpness - defender_toughness, 0)`
-  - 把 `armor_delta` 累加到护甲实例的 `armor_wear_progress`
-  - 每累计满 `20` 点，护甲 `current_durability -= 1`
-  - 余数保留
+  - 如需启用护甲耐久损耗，直接按整数规则扣减 `current_durability`
 
 ### 武器公式
 
 - 武器耐久首版推荐公式：
   - `weapon_delta = 5 + max(defender_toughness - attacker_sharpness, 0)`
-  - 把 `weapon_delta` 累加到武器实例的 `weapon_wear_progress`
-  - 每累计满 `30` 点，武器 `current_durability -= 1`
-  - 余数保留
+  - 如需启用武器耐久损耗，直接按整数规则扣减 `current_durability`
 - 这样能让护甲更明显体现“被压穿”，同时避免武器过快报废。
 
 ### 锋锐与坚韧来源
@@ -567,12 +566,12 @@
 - 只有在装备真正损坏并移除时，才需要刷新单位属性快照。
 - 刷新时必须重新计算属性上限，但只对 `current_hp / current_mp / current_stamina / current_ap` 做上限裁剪，不做重置。
 
-### 与显式装备破坏兼容
+### 与裂解术装备损坏兼容
 
-- `break_equipment_on_hit` 仍然保留为显式技能语义。
-- 常规耐久磨损与显式装备破坏的差异：
+- 旧的即时破坏字段已废弃；显式技能装备损坏使用 `equipment_durability_damage`。
+- 常规耐久磨损与裂解术装备损坏的差异：
   - 常规磨损：按 `锋锐 / 坚韧` 和累计阈值逐步掉耐久
-  - 显式破坏：按技能规则直接摧毁装备
+  - 裂解术损坏：目标装备先做特殊检定；成功不扣耐久，失败按技能等级对应整数 power 扣耐久
 - 两者共享的底层结果应一致：
   - 最终都是销毁某个已装备实例
   - 最终都不回共享仓库

@@ -741,7 +741,7 @@ var fate_run_flags: Dictionary = {}
 var meta_flags: Dictionary = {}
 ```
 
-旧计划里的 `party_drop_luck_source_member_id` 已废弃，不进入 `PartyState` 存档；对应回归见 `tests/progression/run_party_state_fate_regression.gd`。
+旧计划里的 `party_drop_luck_source_member_id` 已废弃，不进入 `PartyState` 存档；对应回归见 `tests/progression/fate/run_party_state_fate_regression.gd`。
 
 ### 8.4 `BattleRuntime` 临时字段
 
@@ -805,7 +805,7 @@ var calamity_by_member_id: Dictionary = {}
 
 ## 十、测试计划 **[已落地]**
 
-> 已有 regression：`tests/progression/run_party_state_fate_regression.gd`、`run_fortune_service_regression.gd`、`run_fortuna_guidance_regression.gd`、`run_misfortune_guidance_regression.gd`、`run_low_luck_event_service_regression.gd`、`run_faith_service_regression.gd`，以及 `tests/battle_runtime/run_fate_calamity_drop_regression.gd`、`run_low_luck_relic_regression.gd`、`run_fate_low_luck_tactical_skills_regression.gd`。
+> 已有 regression：`tests/progression/fate/run_party_state_fate_regression.gd`、`run_fortune_service_regression.gd`、`run_fortuna_guidance_regression.gd`、`run_misfortune_guidance_regression.gd`、`run_low_luck_event_service_regression.gd`、`run_faith_service_regression.gd`，以及 `tests/battle_runtime/fate/run_fate_calamity_drop_regression.gd`、`run_low_luck_relic_regression.gd`、`run_fate_low_luck_tactical_skills_regression.gd`。
 
 ### 10.1 progression / serialization
 

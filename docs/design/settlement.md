@@ -697,9 +697,9 @@ shop_inventory_def: Dictionary
 ├── refresh_interval_steps: int        # 商品刷新间隔（world_step）
 ├── max_slots: int                     # 最大商品格数
 ├── guaranteed_items: Array[Dictionary]  # 必定出现的物品
-│   └── { item_id: String, min_qty: int, max_qty: int, price_multiplier: float }
+│   └── { item_id: String, min_qty: int, max_qty: int, price_basis_points: int }
 ├── random_pool: Array[Dictionary]      # 随机池
-│   └── { item_id: String, weight: int, min_qty: int, max_qty: int, price_multiplier: float }
+│   └── { item_id: String, weight: int, min_qty: int, max_qty: int, price_basis_points: int }
 ├── max_random_items: int              # 从随机池中抽取的最大数量
 ```
 
