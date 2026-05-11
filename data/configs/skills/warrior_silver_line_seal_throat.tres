@@ -1,0 +1,71 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_ef0"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+min_skill_level = 0
+max_skill_level = 3
+damage_tag = &"physical_slash"
+params = {
+    "add_weapon_dice": true,
+    "requires_weapon": true,
+    "use_weapon_physical_damage_tag": true,
+    "dice_count": 1,
+    "dice_sides": 4,
+    "grant_status_id": "combo_stack",
+    "grant_status_power": 1,
+    "grant_status_duration_tu": 180,
+    "grant_status_stack_limit": 20
+}
+
+[sub_resource type="Resource" id="Resource_ef1"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+min_skill_level = 4
+max_skill_level = -1
+damage_tag = &"physical_slash"
+params = {
+    "add_weapon_dice": true,
+    "requires_weapon": true,
+    "use_weapon_physical_damage_tag": true,
+    "dice_count": 1,
+    "dice_sides": 8,
+    "grant_status_id": "combo_stack",
+    "grant_status_power": 1,
+    "grant_status_duration_tu": 180,
+    "grant_status_stack_limit": 20
+}
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_silver_line_seal_throat"
+range_value = 1
+ap_cost = 1
+stamina_cost = 26
+cooldown_tu = 80
+attack_roll_bonus = 3
+level_overrides = {
+	3: {
+		"stamina_cost": 20
+	}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_ef0"), SubResource("Resource_ef1")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_silver_line_seal_throat"
+display_name = "银线封喉"
+description = "沉默近战武技。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600, 3800, 5300)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "strength": 60, "willpower": 60 }
+tags = Array[StringName]([&"warrior", &"melee", &"control"])
+combat_profile = SubResource("Resource_combat")

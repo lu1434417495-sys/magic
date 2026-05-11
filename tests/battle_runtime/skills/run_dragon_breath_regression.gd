@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
@@ -19,7 +21,8 @@ const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/un
 
 const DRAGON_BREATH_FIRE_CONE: StringName = &"dragon_breath_fire_cone"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -42,7 +45,10 @@ func _run() -> void:
 
 func _test_official_dragon_breath_skill_resources_are_schema_stable() -> void:
 	var registry = SKILL_CONTENT_REGISTRY_SCRIPT.new()
-	_assert_true(registry.validate().is_empty(), "official skill registry should validate after dragon breath resources are loaded: %s" % str(registry.validate()))
+	_assert_current_official_skill_validation_errors(
+		registry.validate(),
+		"official skill registry should validate cleanly."
+	)
 	var expected_specs := {
 		&"dragon_breath_fire_cone": {"damage_tag": &"fire", "area_pattern": &"cone"},
 		&"dragon_breath_fire_line": {"damage_tag": &"fire", "area_pattern": &"line"},
@@ -243,16 +249,20 @@ func _racial_skill_charge_key(skill_id: StringName) -> StringName:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s Expected %s, got %s." % [message, str(expected), str(actual)])
+		_test.fail("%s Expected %s, got %s." % [message, str(expected), str(actual)])
+
+
+func _assert_current_official_skill_validation_errors(errors: Array[String], message: String) -> void:
+	_assert_true(errors.is_empty(), "%s errors=%s" % [message, str(errors)])
 
 
 func _assert_log_contains(lines: Array, needle: String, message: String) -> void:
 	for line_variant in lines:
 		if String(line_variant).contains(needle):
 			return
-	_failures.append("%s log=%s" % [message, str(lines)])
+	_test.fail("%s log=%s" % [message, str(lines)])

@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -13,7 +15,8 @@ const TITAN_COLOSSUS_FORM: StringName = &"titan_colossus_form"
 const TITAN_GIANT_FORM_STATUS: StringName = &"titan_giant_form"
 const TITAN_COLOSSUS_CHARGE_KEY: StringName = &"racial_skill_titan_colossus_form"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -128,9 +131,9 @@ func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUni
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
+		_test.fail("%s expected=%s actual=%s" % [message, str(expected), str(actual)])

@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
@@ -17,8 +20,10 @@ const ProgressionContentRegistry = preload("res://scripts/player/progression/pro
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT = preload("res://tests/battle_runtime/helpers/deterministic_battle_hit_resolver.gd")
+const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class FakeRepeatAttackDamageResolver:
@@ -46,12 +51,20 @@ class FakeRepeatAttackDamageResolver:
 class StageOutcomeDamageResolver extends BattleDamageResolver:
 	var stage_successes: Array[bool] = []
 	var stage_damage: Array[int] = []
+	var target_ids_seen: Array[StringName] = []
+	var dead_target_ids_seen: Array[StringName] = []
+	var hp_before_by_call: Array[int] = []
 	var call_count := 0
 
-	func resolve_attack_effects(_source_unit, target_unit, _stage_effects: Array, _attack_check: Dictionary, _attack_context: Dictionary = {}) -> Dictionary:
+	func resolve_attack_effects(_source_unit, target_unit, _stage_effects: Variant, _attack_check: Dictionary, _attack_context: Dictionary = {}) -> Dictionary:
 		var success := bool(stage_successes[call_count]) if call_count < stage_successes.size() else false
 		var damage := int(stage_damage[call_count]) if call_count < stage_damage.size() else 0
 		call_count += 1
+		if target_unit != null:
+			target_ids_seen.append(target_unit.unit_id)
+			hp_before_by_call.append(int(target_unit.current_hp))
+			if not target_unit.is_alive:
+				dead_target_ids_seen.append(target_unit.unit_id)
 		if not success:
 			return {
 				"attack_success": false,
@@ -161,6 +174,9 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_whirlwind_slash_path_aoe_can_repeat_hits_across_steps()
 	_test_whirlwind_slash_runtime_repeats_hits_across_steps()
+	_test_hundred_shadow_random_chain_is_unit_target_contract()
+	_test_random_chain_reselects_from_living_pool_and_pays_ap_once()
+	_test_random_chain_stops_immediately_on_miss_and_respects_target_cap()
 	_test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_settlement()
 	_test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful_follow_up()
 	_test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss()
@@ -346,6 +362,7 @@ func _test_whirlwind_slash_runtime_repeats_hits_across_steps() -> void:
 
 func _test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful_follow_up() -> void:
 	var runtime := _build_runtime()
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	var state := _build_state(Vector2i(5, 3))
 	state.timeline = BattleTimelineState.new()
 	var skill_def := _get_skill_def(&"saint_blade_combo")
@@ -363,6 +380,8 @@ func _test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful
 	warrior.known_skill_level_map = {&"saint_blade_combo": 1}
 	var enemy := _build_unit(&"saint_blade_target", Vector2i(2, 1), 2)
 	enemy.faction_id = &"enemy"
+	enemy.current_hp = 999
+	enemy.attribute_snapshot.set_value(&"hp_max", 999)
 	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, -10)
 
 	_add_unit(runtime, state, warrior)
@@ -472,6 +491,101 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 			batch != null and batch.log_lines.any(func(line): return String(line).contains(String(stage_preview_texts[1]))),
 			"圣剑连斩 battle log 应复用 preview 的第二段命中文案。 preview=%s log=%s" % [str(stage_preview_texts), str(batch.log_lines)]
 		)
+
+
+func _test_hundred_shadow_random_chain_is_unit_target_contract() -> void:
+	var skill_def := _get_skill_def(&"warrior_hundred_shadow_final_dance")
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "百影终舞技能定义应存在并声明 combat_profile。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+	_assert_eq(skill_def.combat_profile.target_selection_mode, &"random_chain", "百影终舞应声明 random_chain 随机连击。")
+	_assert_eq(skill_def.combat_profile.target_mode, &"unit", "random_chain 是正式 unit-target 技能，不应按 ground action 路由。")
+	_assert_eq(skill_def.combat_profile.target_team_filter, &"enemy", "百影终舞随机链目标池应只包含敌方单位。")
+	_assert_eq(skill_def.combat_profile.max_hits_per_target, 2, "百影终舞仍应保留每目标最多 2 次命中的上限。")
+	_assert_eq(skill_def.combat_profile.ap_cost, 1, "百影终舞整条连击链只应按一次技能 AP 成本结算。")
+
+
+func _test_random_chain_reselects_from_living_pool_and_pays_ap_once() -> void:
+	var skill_def := _build_random_chain_test_skill(&"random_chain_living_pool_contract", 2)
+	var runtime := _build_runtime()
+	runtime._skill_defs[skill_def.skill_id] = skill_def
+	var state := _build_state(Vector2i(6, 3))
+	state.timeline = BattleTimelineState.new()
+	var warrior := _build_unit(&"chain_user", Vector2i(1, 1), 2)
+	warrior.known_active_skill_ids = [skill_def.skill_id]
+	warrior.known_skill_level_map = {skill_def.skill_id: 1}
+	var enemy_a := _build_unit(&"chain_enemy_a", Vector2i(2, 1), 1)
+	enemy_a.faction_id = &"enemy"
+	enemy_a.current_hp = 20
+	var enemy_b := _build_unit(&"chain_enemy_b", Vector2i(3, 1), 1)
+	enemy_b.faction_id = &"enemy"
+	enemy_b.current_hp = 20
+	_add_unit(runtime, state, warrior)
+	_add_unit(runtime, state, enemy_a)
+	_add_unit(runtime, state, enemy_b)
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = [enemy_a.unit_id, enemy_b.unit_id]
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
+	var forced_resolver := StageOutcomeDamageResolver.new()
+	forced_resolver.stage_successes.assign([true, true, true])
+	forced_resolver.stage_damage.assign([999, 1, 1])
+	runtime.configure_damage_resolver_for_tests(forced_resolver)
+
+	var command := _build_skill_command_without_target(warrior.unit_id, skill_def.skill_id)
+	var preview := runtime.preview_command(command)
+	_assert_true(preview != null and preview.allowed, "random_chain unit-target 技能无需显式目标也应允许预览。")
+	var batch := runtime.issue_command(command)
+
+	_assert_true(batch != null, "random_chain 执行应返回事件批次。")
+	_assert_true(forced_resolver.call_count >= 2, "首击击杀后，random_chain 应从当前存活合法目标池继续选择下一击。")
+	_assert_eq(forced_resolver.dead_target_ids_seen.size(), 0, "random_chain 不应再次选择已经死亡的目标。")
+	if forced_resolver.target_ids_seen.size() >= 2:
+		_assert_true(
+			forced_resolver.target_ids_seen[0] != forced_resolver.target_ids_seen[1],
+			"首击击杀目标后，下一击必须改选仍存活的合法目标。 seen=%s" % [str(forced_resolver.target_ids_seen)]
+		)
+	_assert_eq(warrior.current_ap, 1, "random_chain 整条链只应扣一次 AP 成本。")
+
+
+func _test_random_chain_stops_immediately_on_miss_and_respects_target_cap() -> void:
+	var skill_def := _build_random_chain_test_skill(&"random_chain_miss_stop_contract", 2)
+	var runtime := _build_runtime()
+	runtime._skill_defs[skill_def.skill_id] = skill_def
+	var state := _build_state(Vector2i(7, 3))
+	state.timeline = BattleTimelineState.new()
+	var warrior := _build_unit(&"chain_miss_user", Vector2i(1, 1), 2)
+	warrior.known_active_skill_ids = [skill_def.skill_id]
+	warrior.known_skill_level_map = {skill_def.skill_id: 1}
+	var enemies: Array[BattleUnitState] = [
+		_build_unit(&"chain_miss_enemy_a", Vector2i(2, 1), 1),
+		_build_unit(&"chain_miss_enemy_b", Vector2i(3, 1), 1),
+		_build_unit(&"chain_miss_enemy_c", Vector2i(4, 1), 1),
+	]
+	_add_unit(runtime, state, warrior)
+	for enemy in enemies:
+		enemy.faction_id = &"enemy"
+		enemy.current_hp = 40
+		_add_unit(runtime, state, enemy)
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = [&"chain_miss_enemy_a", &"chain_miss_enemy_b", &"chain_miss_enemy_c"]
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
+	var forced_resolver := StageOutcomeDamageResolver.new()
+	forced_resolver.stage_successes.assign([true, false, true])
+	forced_resolver.stage_damage.assign([1, 0, 1])
+	runtime.configure_damage_resolver_for_tests(forced_resolver)
+
+	var command := _build_skill_command_without_target(warrior.unit_id, skill_def.skill_id)
+	var preview := runtime.preview_command(command)
+	_assert_true(preview != null and preview.allowed, "random_chain miss 停止用例前置：技能应可预览。")
+	runtime.issue_command(command)
+
+	_assert_eq(forced_resolver.call_count, 2, "random_chain 任意一击 miss 后应立即终止整条链。")
+	var hit_counts := _target_hit_counts(forced_resolver.target_ids_seen)
+	for target_id in hit_counts.keys():
+		_assert_true(int(hit_counts.get(target_id, 0)) <= 2, "random_chain 应遵守 max_hits_per_target。 counts=%s" % [str(hit_counts)])
+	_assert_eq(warrior.current_ap, 1, "random_chain miss 提前停止时也只应扣一次 AP 成本。")
 
 
 func _test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry() -> void:
@@ -589,6 +703,7 @@ func _test_same_faction_support_mastery_counts_status_or_effect_applied() -> voi
 func _test_control_save_bonus_status_modifies_secondary_hit() -> void:
 	var resolver := FixedSecondarySaveRollDamageResolver.new()
 	resolver.save_roll = 8
+	resolver.set_hit_resolver(SharedHitResolvers.FixedHitResolver.new(8))
 	var source_unit := _build_unit(&"secondary_hit_source", Vector2i(1, 1), 2)
 	var target_unit := _build_unit(&"secondary_hit_target", Vector2i(2, 1), 2)
 	source_unit.attribute_snapshot.set_value(&"strength", 10)
@@ -670,6 +785,33 @@ func _get_effect_def(effect_defs: Array, effect_type: StringName) -> CombatEffec
 		if typed_effect != null and typed_effect.effect_type == effect_type:
 			return typed_effect
 	return null
+
+
+func _build_random_chain_test_skill(skill_id: StringName, max_hits_per_target: int) -> SkillDef:
+	var damage_effect := CombatEffectDef.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.damage_tag = &"physical_slash"
+	damage_effect.power = 1
+	damage_effect.params = {
+		"dice_count": 1,
+		"dice_sides": 4,
+	}
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.skill_id = skill_id
+	combat_profile.target_mode = &"unit"
+	combat_profile.target_team_filter = &"enemy"
+	combat_profile.target_selection_mode = &"random_chain"
+	combat_profile.max_hits_per_target = max_hits_per_target
+	combat_profile.range_value = 4
+	combat_profile.ap_cost = 1
+	combat_profile.stamina_cost = 0
+	combat_profile.mastery_trigger_mode = &"damage_dealt"
+	combat_profile.effect_defs = [damage_effect]
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = String(skill_id)
+	skill_def.combat_profile = combat_profile
+	return skill_def
 
 
 func _build_state(map_size: Vector2i) -> BattleState:
@@ -760,6 +902,21 @@ func _build_unit_skill_command(unit_id: StringName, skill_id: StringName, target
 	return command
 
 
+func _build_skill_command_without_target(unit_id: StringName, skill_id: StringName) -> BattleCommand:
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = unit_id
+	command.skill_id = skill_id
+	return command
+
+
+func _target_hit_counts(target_ids: Array[StringName]) -> Dictionary:
+	var counts: Dictionary = {}
+	for target_id in target_ids:
+		counts[target_id] = int(counts.get(target_id, 0)) + 1
+	return counts
+
+
 func _find_repeat_attack_seed_for_stage_outcomes(
 	runtime: BattleRuntimeModule,
 	state: BattleState,
@@ -796,9 +953,9 @@ func _find_repeat_attack_seed_for_stage_outcomes(
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s actual=%s expected=%s" % [message, str(actual), str(expected)])

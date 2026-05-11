@@ -12,11 +12,11 @@ status_id = &"doom_sentence_verdict"
 duration_tu = 60
 params = {
 "counts_as_debuff": false,
-"incoming_damage_multiplier": 1.2,
 "lock_counterattack": true,
 "lock_crit": true,
 "lock_dodge_bonus": true,
-"main_skill_lock_other_debuff_count": 2
+"main_skill_lock_other_debuff_count": 2,
+"mitigation_tier": "double"
 }
 
 [sub_resource type="Resource" id="Resource_w7s2b"]
@@ -32,7 +32,7 @@ script = ExtResource("4_w4d7q")
 skill_id = &"doom_sentence"
 display_name = "厄命宣判"
 icon_id = &"doom_sentence"
-description = "每战 1 次，消耗 5 点 calamity；仅能对 elite / boss 施放 2 回合【厄命宣判】：目标不能暴击、反击或闪避，且受到全队额外伤害；若其已有 2 个以上 debuff，则主技能失效。"
+description = "每战 1 次，消耗 5 点 calamity；仅能对 elite / boss 施放 2 回合【厄命宣判】：目标不能暴击、反击或闪避，且进入全伤害易伤；若其已有 2 个以上 debuff，则主技能失效。"
 max_level = 1
 mastery_curve = PackedInt32Array(60)
 tags = Array[StringName]([&"misfortune", &"doom", &"calamity", &"sentence"])

@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_army_drum_short_order"
+range_value = 0
+area_pattern = &"radius"
+area_value = 3
+ap_cost = 1
+stamina_cost = 28
+cooldown_tu = 80
+attack_roll_bonus = 0
+level_overrides = {
+	3: {
+		"stamina_cost": 22
+	}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_army_drum_short_order"
+display_name = "军鼓短令"
+description = "最低行动顺序友军提前。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600, 3800, 5300)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "strength": 40, "willpower": 80 }
+tags = Array[StringName]([&"warrior", &"melee", &"buff", &"team"])
+combat_profile = SubResource("Resource_combat")

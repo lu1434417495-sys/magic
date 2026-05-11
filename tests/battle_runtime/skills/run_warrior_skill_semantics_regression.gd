@@ -1,29 +1,24 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
+const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
+
 const BattleAiContext = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 
 
-class DeterministicHitMaxDamageResolver extends BattleDamageResolver:
-	func _roll_damage_die(dice_sides: int) -> int:
-		return maxi(dice_sides, 1)
-
-	func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state) -> int:
-		if battle_state != null:
-			battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
-		return clampi(10, mini(min_value, max_value), maxi(min_value, max_value))
-
-
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _battle_fixture := BattleTestFixture.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -101,9 +96,9 @@ func _test_true_dragon_slash_hits_multiple_units_in_line() -> void:
 
 
 func _test_shield_bash_reduces_target_ap_on_next_turn() -> void:
-	var attempt := _run_shield_bash_until_staggered(100)
+	var attempt := _run_shield_bash_attempt()
 	if attempt.is_empty():
-		_failures.append("盾击应在多次正式随机命中流程中至少成功施加一次 staggered。")
+		_test.fail("盾击应在固定命中流程中成功施加 staggered。")
 		return
 	var runtime := attempt.get("runtime") as BattleRuntimeModule
 	var state := attempt.get("state") as BattleState
@@ -117,7 +112,7 @@ func _test_shield_bash_reduces_target_ap_on_next_turn() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(enemy.unit_id)
-	var activate_batch := runtime.advance(0.0)
+	var activate_batch := runtime.advance(0)
 	_assert_true(activate_batch.log_lines.size() > 0, "目标回合激活时应产生行动日志。")
 	_assert_eq(enemy.current_ap, 1, "staggered 应让目标在下一回合少 1 点行动点。")
 
@@ -130,43 +125,44 @@ func _test_shield_bash_reduces_target_ap_on_next_turn() -> void:
 	_assert_true(not enemy.status_effects.has(&"staggered"), "TU 走完后 staggered 应被移除。")
 
 
-func _run_shield_bash_until_staggered(max_attempts: int) -> Dictionary:
-	for attempt_index in range(maxi(max_attempts, 1)):
-		var runtime := _build_runtime()
-		var state := _build_skill_test_state(Vector2i(5, 3))
-		var warrior := _build_unit(StringName("warrior_shield_bash_user_%d" % attempt_index), Vector2i(1, 1), 2)
-		warrior.current_stamina = 25
-		warrior.known_active_skill_ids = [&"warrior_shield_bash"]
-		warrior.known_skill_level_map = {&"warrior_shield_bash": 1}
-		warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
-		var enemy := _build_unit(StringName("warrior_shield_bash_target_%d" % attempt_index), Vector2i(2, 1), 2)
-		enemy.faction_id = &"enemy"
-		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
-		enemy.attribute_snapshot.set_value(&"action_points", 2)
-		enemy.current_hp = 40
+func _run_shield_bash_attempt() -> Dictionary:
+	var runtime := _build_runtime()
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedSuccessFailedSecondarySaveOneDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(1))
+	var state := _build_skill_test_state(Vector2i(5, 3))
+	var warrior := _build_unit(&"warrior_shield_bash_user", Vector2i(1, 1), 2)
+	warrior.current_stamina = 25
+	warrior.known_active_skill_ids = [&"warrior_shield_bash"]
+	warrior.known_skill_level_map = {&"warrior_shield_bash": 1}
+	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	var enemy := _build_unit(&"warrior_shield_bash_target", Vector2i(2, 1), 2)
+	enemy.faction_id = &"enemy"
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy.attribute_snapshot.set_value(&"action_points", 2)
+	enemy.current_hp = 40
 
-		_add_unit(runtime, state, warrior)
-		_add_unit(runtime, state, enemy)
-		state.ally_unit_ids = [warrior.unit_id]
-		state.enemy_unit_ids = [enemy.unit_id]
-		state.active_unit_id = warrior.unit_id
-		runtime._state = state
+	_add_unit(runtime, state, warrior)
+	_add_unit(runtime, state, enemy)
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
 
-		var command := BattleCommand.new()
-		command.command_type = BattleCommand.TYPE_SKILL
-		command.unit_id = warrior.unit_id
-		command.skill_id = &"warrior_shield_bash"
-		command.target_unit_id = enemy.unit_id
-		command.target_coord = enemy.coord
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = warrior.unit_id
+	command.skill_id = &"warrior_shield_bash"
+	command.target_unit_id = enemy.unit_id
+	command.target_coord = enemy.coord
 
-		var batch := runtime.issue_command(command)
-		if enemy.status_effects.has(&"staggered"):
-			return {
-				"runtime": runtime,
-				"state": state,
-				"enemy": enemy,
-				"batch": batch,
-			}
+	var batch := runtime.issue_command(command)
+	if enemy.status_effects.has(&"staggered"):
+		return {
+			"runtime": runtime,
+			"state": state,
+			"enemy": enemy,
+			"batch": batch,
+		}
 	return {}
 
 
@@ -321,7 +317,7 @@ func _test_jump_slash_repositions_before_landing_burst() -> void:
 	_assert_eq(blocked_warrior.current_stamina, blocked_stamina_before, "preview 拒绝的跳斩不应继续扣除体力。")
 	_assert_true(not blocked_batch.changed_unit_ids.has(blocked_warrior.unit_id), "preview 拒绝的跳斩不应把施法者记为已执行变更。")
 	_assert_true(
-		blocked_batch.log_lines.any(func(line): return String(line).contains("跳跃落点")),
+		blocked_batch.log_lines.any(func(line): return String(line).contains("位移落点")),
 		"preview 拒绝的跳斩应把阻断原因带回 issue_command。 log=%s" % [str(blocked_batch.log_lines)]
 	)
 
@@ -385,7 +381,7 @@ func _test_jump_slash_diagonal_landing_uses_jump_distance() -> void:
 
 func _test_execution_cleave_deals_more_damage_to_low_hp_targets() -> void:
 	var healthy_damage := _measure_execution_cleave_damage(30)
-	var low_hp_damage := _measure_execution_cleave_damage(19)
+	var low_hp_damage := _measure_execution_cleave_damage(14)
 	_assert_true(
 		low_hp_damage > healthy_damage,
 		"断头斩应对低血目标造成更高伤害。 healthy=%d low_hp=%d" % [healthy_damage, low_hp_damage]
@@ -437,10 +433,12 @@ func _test_aura_slash_requires_and_consumes_aura() -> void:
 	var state := _build_skill_test_state(Vector2i(5, 3))
 	var warrior := _build_unit(&"warrior_aura_user", Vector2i(1, 1), 2)
 	warrior.current_aura = 1
+	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	warrior.known_active_skill_ids = [&"warrior_aura_slash"]
 	warrior.known_skill_level_map = {&"warrior_aura_slash": 1}
 	var enemy := _build_unit(&"warrior_aura_target", Vector2i(2, 1), 2)
 	enemy.faction_id = &"enemy"
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 
 	_add_unit(runtime, state, warrior)
 	_add_unit(runtime, state, enemy)
@@ -476,7 +474,8 @@ func _test_aura_slash_requires_and_consumes_aura() -> void:
 
 func _measure_enemy_heavy_strike_damage(apply_guard: bool) -> int:
 	var runtime := _build_runtime()
-	runtime.configure_damage_resolver_for_tests(DeterministicHitMaxDamageResolver.new())
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitMaxDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
 	var state := _build_skill_test_state(Vector2i(5, 3))
 	var warrior := _build_unit(&"guard_target", Vector2i(1, 1), 2)
 	warrior.current_stamina = 50
@@ -520,25 +519,23 @@ func _measure_enemy_heavy_strike_damage(apply_guard: bool) -> int:
 
 
 func _measure_max_buffed_ally_strike_damage(apply_war_cry: bool) -> int:
-	var best_damage := 0
-	for attempt_index in range(80):
-		best_damage = maxi(best_damage, _measure_buffed_ally_strike_damage_once(apply_war_cry, attempt_index))
-	return best_damage
+	return _measure_buffed_ally_strike_damage_once(apply_war_cry)
 
 
-func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool, attempt_index: int) -> int:
+func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool) -> int:
 	var runtime := _build_runtime()
-	runtime.configure_damage_resolver_for_tests(DeterministicHitMaxDamageResolver.new())
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitMaxDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
 	var state := _build_skill_test_state(Vector2i(5, 4))
-	var buffer := _build_unit(StringName("war_cry_user_%d" % attempt_index), Vector2i(1, 1), 2)
+	var buffer := _build_unit(&"war_cry_user", Vector2i(1, 1), 2)
 	buffer.current_stamina = 30
 	buffer.known_active_skill_ids = [&"warrior_war_cry"]
 	buffer.known_skill_level_map = {&"warrior_war_cry": 1}
-	var striker := _build_unit(StringName("war_cry_striker_%d" % attempt_index), Vector2i(1, 2), 2)
+	var striker := _build_unit(&"war_cry_striker", Vector2i(1, 2), 2)
 	striker.current_stamina = 30
 	striker.known_active_skill_ids = [&"warrior_heavy_strike"]
 	striker.known_skill_level_map = {&"warrior_heavy_strike": 1}
-	var enemy := _build_unit(StringName("war_cry_target_%d" % attempt_index), Vector2i(2, 2), 2)
+	var enemy := _build_unit(&"war_cry_target", Vector2i(2, 2), 2)
 	enemy.faction_id = &"enemy"
 
 	_add_unit(runtime, state, buffer)
@@ -574,39 +571,35 @@ func _measure_buffed_ally_strike_damage_once(apply_war_cry: bool, attempt_index:
 
 
 func _measure_execution_cleave_damage(target_current_hp: int) -> int:
-	for attempt_index in range(100):
-		var runtime := _build_runtime()
-		var state := _build_skill_test_state(Vector2i(5, 3))
-		var warrior := _build_unit(StringName("execution_cleave_user_%d" % attempt_index), Vector2i(1, 1), 2)
-		warrior.current_stamina = 35
-		warrior.known_active_skill_ids = [&"warrior_execution_cleave"]
-		warrior.known_skill_level_map = {&"warrior_execution_cleave": 1}
-		warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
-		var enemy := _build_unit(StringName("execution_cleave_target_%d" % attempt_index), Vector2i(2, 1), 2)
-		enemy.faction_id = &"enemy"
-		enemy.current_hp = target_current_hp
-		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	var runtime := _build_runtime()
+	var state := _build_skill_test_state(Vector2i(5, 3))
+	var warrior := _build_unit(&"execution_cleave_user", Vector2i(1, 1), 2)
+	warrior.current_stamina = 45
+	warrior.known_active_skill_ids = [&"warrior_execution_cleave"]
+	warrior.known_skill_level_map = {&"warrior_execution_cleave": 1}
+	warrior.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	var enemy := _build_unit(&"execution_cleave_target", Vector2i(2, 1), 2)
+	enemy.faction_id = &"enemy"
+	enemy.current_hp = target_current_hp
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 
-		_add_unit(runtime, state, warrior)
-		_add_unit(runtime, state, enemy)
-		state.ally_unit_ids = [warrior.unit_id]
-		state.enemy_unit_ids = [enemy.unit_id]
-		state.active_unit_id = warrior.unit_id
-		runtime._state = state
+	_add_unit(runtime, state, warrior)
+	_add_unit(runtime, state, enemy)
+	state.ally_unit_ids = [warrior.unit_id]
+	state.enemy_unit_ids = [enemy.unit_id]
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
 
-		var command := BattleCommand.new()
-		command.command_type = BattleCommand.TYPE_SKILL
-		command.unit_id = warrior.unit_id
-		command.skill_id = &"warrior_execution_cleave"
-		command.target_unit_id = enemy.unit_id
-		command.target_coord = enemy.coord
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = warrior.unit_id
+	command.skill_id = &"warrior_execution_cleave"
+	command.target_unit_id = enemy.unit_id
+	command.target_coord = enemy.coord
 
-		var hp_before := enemy.current_hp
-		runtime.issue_command(command)
-		var damage := hp_before - enemy.current_hp
-		if damage > 0:
-			return damage
-	return 0
+	var hp_before := enemy.current_hp
+	runtime.issue_command(command)
+	return hp_before - enemy.current_hp
 
 
 func _build_runtime() -> BattleRuntimeModule:
@@ -614,21 +607,17 @@ func _build_runtime() -> BattleRuntimeModule:
 	var enemy_content_registry := EnemyContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, enemy_content_registry.get_enemy_ai_brains())
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	return runtime
 
 
 func _build_skill_test_state(map_size: Vector2i) -> BattleState:
-	var state := BattleState.new()
-	state.battle_id = &"warrior_skill_semantics"
-	state.phase = &"unit_acting"
-	state.map_size = map_size
-	state.timeline = BattleTimelineState.new()
-	state.cells = {}
-	for y in range(map_size.y):
-		for x in range(map_size.x):
-			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
-	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
-	return state
+	return _battle_fixture.build_state({
+		"battle_id": &"warrior_skill_semantics",
+		"map_size": map_size,
+		"base_height": 4,
+		"height_offset": 0,
+	})
 
 
 func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, total_tu: int) -> void:
@@ -637,37 +626,23 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
-	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
 	for unit_variant in state.units.values():
 		var unit_state := unit_variant as BattleUnitState
 		if unit_state != null:
 			unit_state.action_threshold = 1000000
-	runtime.advance(float(total_tu) / 5.0)
-
-
-func _build_cell(coord: Vector2i) -> BattleCellState:
-	var cell := BattleCellState.new()
-	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
-	cell.base_height = 4
-	cell.height_offset = 0
-	cell.recalculate_runtime_values()
-	return cell
+	runtime.advance(int(total_tu / 5))
 
 
 func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> BattleUnitState:
-	var unit := BattleUnitState.new()
-	unit.unit_id = unit_id
-	unit.display_name = String(unit_id)
-	unit.faction_id = &"player"
-	unit.current_ap = current_ap
-	unit.current_hp = 40
-	unit.current_mp = 4
+	var unit := _battle_fixture.build_unit(unit_id, {
+		"coord": coord,
+		"current_ap": current_ap,
+		"current_hp": 40,
+		"current_mp": 4,
+		"current_aura": 0,
+	})
 	unit.current_stamina = 60
-	unit.current_aura = 0
-	unit.is_alive = true
-	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 40)
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
 	unit.attribute_snapshot.set_value(&"stamina_max", 60)
@@ -711,9 +686,9 @@ func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUni
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s actual=%s expected=%s" % [message, str(actual), str(expected)])

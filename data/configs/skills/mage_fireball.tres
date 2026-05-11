@@ -97,6 +97,10 @@ min_skill_level = 3
 max_skill_level = 4
 status_id = &"burning"
 effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_tag = &"fireball"
 duration_tu = 40
 tick_interval_tu = 10
 
@@ -108,6 +112,10 @@ min_skill_level = 5
 max_skill_level = 6
 status_id = &"burning"
 effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_tag = &"fireball"
 duration_tu = 60
 tick_interval_tu = 10
 
@@ -118,6 +126,10 @@ power = 3
 min_skill_level = 7
 status_id = &"burning"
 effect_target_team_filter = &"any"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_tag = &"fireball"
 duration_tu = 80
 tick_interval_tu = 10
 

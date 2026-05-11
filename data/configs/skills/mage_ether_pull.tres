@@ -10,7 +10,7 @@
 script = ExtResource("3_dgj6s")
 effect_type = &"damage"
 max_skill_level = 0
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 2,
 "dice_sides": 6
@@ -21,7 +21,7 @@ script = ExtResource("3_dgj6s")
 effect_type = &"damage"
 min_skill_level = 1
 max_skill_level = 2
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 3,
 "dice_sides": 6
@@ -32,7 +32,7 @@ script = ExtResource("3_dgj6s")
 effect_type = &"damage"
 min_skill_level = 3
 max_skill_level = 4
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 4,
 "dice_sides": 6
@@ -43,7 +43,7 @@ script = ExtResource("3_dgj6s")
 effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 6
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 5,
 "dice_sides": 6
@@ -53,7 +53,7 @@ params = {
 script = ExtResource("3_dgj6s")
 effect_type = &"damage"
 min_skill_level = 7
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 6,
 "dice_sides": 6

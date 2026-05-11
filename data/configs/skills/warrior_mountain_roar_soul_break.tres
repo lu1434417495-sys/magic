@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_ef0"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+power = 8
+min_skill_level = 0
+max_skill_level = -1
+damage_tag = &"thunder"
+params = {
+    "dice_count": 1,
+    "dice_sides": 8,
+    "add_weapon_dice": false
+}
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_mountain_roar_soul_break"
+range_value = 2
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 1
+stamina_cost = 0
+aura_cost = 40
+cooldown_tu = 80
+attack_roll_bonus = -1
+level_overrides = {
+	3: {
+		"aura_cost": 32
+	}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_ef0")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_mountain_roar_soul_break"
+display_name = "山吼断魂"
+description = "目标无法获得士气增益。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600, 3800, 5300)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "strength": 50, "willpower": 70 }
+tags = Array[StringName]([&"warrior", &"melee", &"control"])
+combat_profile = SubResource("Resource_combat")

@@ -10,7 +10,7 @@
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
 max_skill_level = 0
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 4,
 "dice_sides": 6
@@ -21,7 +21,7 @@ script = ExtResource("3_xlsww")
 effect_type = &"damage"
 min_skill_level = 1
 max_skill_level = 2
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 5,
 "dice_sides": 6
@@ -32,7 +32,7 @@ script = ExtResource("3_xlsww")
 effect_type = &"damage"
 min_skill_level = 3
 max_skill_level = 4
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 6,
 "dice_sides": 6
@@ -43,7 +43,7 @@ script = ExtResource("3_xlsww")
 effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 6
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 7,
 "dice_sides": 6
@@ -53,7 +53,7 @@ params = {
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
 min_skill_level = 7
-damage_tag = &"magic"
+damage_tag = &"force"
 params = {
 "dice_count": 8,
 "dice_sides": 6
@@ -61,63 +61,131 @@ params = {
 
 [sub_resource type="Resource" id="Resource_x8cf6"]
 script = ExtResource("3_xlsww")
-effect_type = &"break_equipment_on_hit"
+effect_type = &"equipment_durability_damage"
+power = 28
+max_skill_level = 2
+effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_ability = &"willpower"
+save_dc_source_ability = &"intelligence"
+save_tag = &"equipment_disjunction"
 params = {
-"base_break_chance": 35,
-"max_broken_items": 1,
+"max_damaged_items": 1,
 "require_damage_applied": true,
-"slot_break_chance_map": {
-"accessory_1": 0.7,
-"accessory_2": 0.7,
-"body": 0.6,
-"head": 0.85,
-"main_hand": 1.0,
-"off_hand": 0.9
-},
 "slot_weight_map": {
-"accessory_1": 10,
-"accessory_2": 10,
+"hands": 10,
+"feet": 10,
+"cloak": 10,
+"necklace": 10,
+"ring_1": 10,
+"ring_2": 10,
+"special_trinket": 10,
+"badge": 10,
 "body": 10,
 "head": 20,
 "main_hand": 30,
 "off_hand": 20
-}
+},
+"target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
 }
 
 [sub_resource type="Resource" id="Resource_r8gt0"]
 script = ExtResource("3_xlsww")
-effect_type = &"status"
-power = 2
+effect_type = &"equipment_durability_damage"
+power = 36
 min_skill_level = 3
 max_skill_level = 4
 effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 80
+save_dc_mode = &"caster_spell"
+save_ability = &"willpower"
+save_dc_source_ability = &"intelligence"
+save_tag = &"equipment_disjunction"
+params = {
+"max_damaged_items": 1,
+"require_damage_applied": true,
+"slot_weight_map": {
+"hands": 10,
+"feet": 10,
+"cloak": 10,
+"necklace": 10,
+"ring_1": 10,
+"ring_2": 10,
+"special_trinket": 10,
+"badge": 10,
+"body": 10,
+"head": 20,
+"main_hand": 30,
+"off_hand": 20
+},
+"target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
+}
 
 [sub_resource type="Resource" id="Resource_hphye"]
 script = ExtResource("3_xlsww")
-effect_type = &"status"
-power = 2
+effect_type = &"equipment_durability_damage"
+power = 44
 min_skill_level = 5
 max_skill_level = 6
 effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 100
+save_dc_mode = &"caster_spell"
+save_ability = &"willpower"
+save_dc_source_ability = &"intelligence"
+save_tag = &"equipment_disjunction"
+params = {
+"max_damaged_items": 1,
+"require_damage_applied": true,
+"slot_weight_map": {
+"hands": 10,
+"feet": 10,
+"cloak": 10,
+"necklace": 10,
+"ring_1": 10,
+"ring_2": 10,
+"special_trinket": 10,
+"badge": 10,
+"body": 10,
+"head": 20,
+"main_hand": 30,
+"off_hand": 20
+},
+"target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
+}
 
 [sub_resource type="Resource" id="Resource_1g2g6"]
 script = ExtResource("3_xlsww")
-effect_type = &"status"
-power = 3
+effect_type = &"equipment_durability_damage"
+power = 56
 min_skill_level = 7
 effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 120
+save_dc_mode = &"caster_spell"
+save_ability = &"willpower"
+save_dc_source_ability = &"intelligence"
+save_tag = &"equipment_disjunction"
+params = {
+"max_damaged_items": 1,
+"require_damage_applied": true,
+"slot_weight_map": {
+"hands": 10,
+"feet": 10,
+"cloak": 10,
+"necklace": 10,
+"ring_1": 10,
+"ring_2": 10,
+"special_trinket": 10,
+"badge": 10,
+"body": 10,
+"head": 20,
+"main_hand": 30,
+"off_hand": 20
+},
+"target_slots": Array[StringName]([&"main_hand", &"off_hand", &"head", &"body", &"hands", &"feet", &"cloak", &"necklace", &"ring_1", &"ring_2", &"special_trinket", &"badge"])
+}
 
 [sub_resource type="Resource" id="Resource_2ps32"]
 script = ExtResource("4_628t1")
 skill_id = &"mage_spell_disjunction"
 range_value = 5
-ap_cost = 2
+ap_cost = 1
 mp_cost = 100
 cooldown_tu = 15
 level_overrides = {
@@ -139,7 +207,7 @@ script = ExtResource("5_iuvjb")
 skill_id = &"mage_spell_disjunction"
 display_name = "裂解术"
 icon_id = &"mage_spell_disjunction"
-description = "单体法术伤害，附带破坏目标装备的效果。"
+description = "单体法术伤害，附带裂解目标装备耐久的效果。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
@@ -150,76 +218,84 @@ attribute_growth_progress = {
 "perception": 20,
 "willpower": 50
 }
-level_description_template = "造成{dmg}点伤害，并尝试破坏装备。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_template = "造成{dmg}点伤害，命中后使一件装备损失{durability}耐久（意志豁免成功则不损失）。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"ap": "2",
+"ap": "1",
 "cooldown": "15",
 "dmg": "4D6",
-"duration": "60",
+"durability": "28",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "5"
 },
 "1": {
-"ap": "2",
+"ap": "1",
 "cooldown": "15",
 "dmg": "5D6",
-"duration": "60",
+"durability": "28",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "5"
 },
 "2": {
-"ap": "2",
+"ap": "1",
 "cooldown": "15",
 "dmg": "5D6",
-"duration": "60",
+"durability": "28",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "5"
 },
 "3": {
-"ap": "2",
+"ap": "1",
 "cooldown": "15",
 "dmg": "6D6",
-"duration": "80",
+"durability": "36",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "6"
 },
 "4": {
-"ap": "2",
+"ap": "1",
 "cooldown": "15",
 "dmg": "6D6",
-"duration": "80",
+"durability": "36",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "6"
 },
 "5": {
-"ap": "2",
+"ap": "1",
 "cooldown": "10",
 "dmg": "7D6",
-"duration": "100",
+"durability": "44",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "6"
 },
 "6": {
-"ap": "2",
+"ap": "1",
 "cooldown": "10",
 "dmg": "7D6",
-"duration": "100",
+"durability": "44",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "6"
 },
 "7": {
-"ap": "2",
+"ap": "1",
 "cooldown": "10",
 "dmg": "8D6",
-"duration": "120",
+"durability": "56",
+"duration": "0",
 "hit": "+0",
 "mp": "100",
 "range": "7"

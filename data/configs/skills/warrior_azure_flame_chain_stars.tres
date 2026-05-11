@@ -1,0 +1,52 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_ef0"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+power = 6
+min_skill_level = 0
+max_skill_level = -1
+damage_tag = &"force"
+params = {
+    "dice_count": 1,
+    "dice_sides": 6,
+    "add_weapon_dice": false
+}
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_azure_flame_chain_stars"
+range_value = 4
+ap_cost = 1
+stamina_cost = 0
+aura_cost = 48
+cooldown_tu = 80
+attack_roll_bonus = 0
+level_overrides = {
+	5: {
+		"attack_roll_bonus": 1
+	},
+	8: {
+		"aura_cost": 38
+	}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_ef0")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_azure_flame_chain_stars"
+display_name = "苍焰连星"
+description = "对最多3个不同目标各造成80%斗气伤害。"
+max_level = 10
+non_core_max_level = 9
+mastery_curve = PackedInt32Array(360, 900, 1980, 3600, 5760, 8600, 12000, 16000, 21000, 26900)
+growth_tier = &"ultimate"
+attribute_growth_progress = { "strength": 100, "willpower": 140 }
+tags = Array[StringName]([&"warrior", &"melee", &"qi", &"ranged", &"finisher"])
+combat_profile = SubResource("Resource_combat")

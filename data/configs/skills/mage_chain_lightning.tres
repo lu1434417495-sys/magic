@@ -94,6 +94,10 @@ script = ExtResource("1_effect")
 effect_type = &"status"
 power = 1
 status_id = &"shocked"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"constitution"
+save_tag = &"chain_lightning"
 duration_tu = 60
 
 [sub_resource type="Resource" id="Chain"]

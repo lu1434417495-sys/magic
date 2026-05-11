@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ASCENSION_DEF_SCRIPT = preload("res://scripts/player/progression/ascension_def.gd")
 const BATTLE_UNIT_FACTORY_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
 const BATTLE_UNIT_FACTORY_RUNTIME_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_unit_factory_runtime.gd")
@@ -20,7 +22,8 @@ const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progressio
 const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class FakeRuntime:
@@ -279,9 +282,9 @@ func _make_party_state(member_ids: Array[StringName]):
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

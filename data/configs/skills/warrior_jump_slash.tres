@@ -57,14 +57,11 @@ area_pattern = &"radius"
 area_value = 1
 ap_cost = 2
 stamina_cost = 35
-cooldown_tu = 10
+cooldown_tu = 60
 attack_roll_bonus = 1
 level_overrides = {
 2: {
 "stamina_cost": 30
-},
-4: {
-"cooldown_tu": 5
 }
 }
 mastery_trigger_mode = &"skill_damage_dice_max"

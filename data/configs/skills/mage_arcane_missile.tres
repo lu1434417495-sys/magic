@@ -6,182 +6,242 @@
 [ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_tciq2"]
 [ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
 
-[sub_resource type="Resource" id="Damage_l0"]
+[sub_resource type="Resource" id="Damage"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
-max_skill_level = 0
-damage_tag = &"magic"
+damage_tag = &"force"
+max_skill_level = 3
 params = {
-"dice_count": 2,
-"dice_sides": 6
+"dice_bonus": 1,
+"dice_count": 1,
+"dice_sides": 4
 }
 
-[sub_resource type="Resource" id="Damage_l1"]
+[sub_resource type="Resource" id="Damage_L4"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
-min_skill_level = 1
-max_skill_level = 2
-damage_tag = &"magic"
+damage_tag = &"force"
+min_skill_level = 4
+max_skill_level = 5
 params = {
-"dice_count": 3,
-"dice_sides": 6
+"dice_bonus": 2,
+"dice_count": 1,
+"dice_sides": 4
 }
 
-[sub_resource type="Resource" id="Damage_l3"]
+[sub_resource type="Resource" id="Damage_L6"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
-min_skill_level = 3
-max_skill_level = 4
-damage_tag = &"magic"
+damage_tag = &"force"
+min_skill_level = 6
+max_skill_level = 7
 params = {
-"dice_count": 4,
-"dice_sides": 6
+"dice_bonus": 3,
+"dice_count": 1,
+"dice_sides": 4
 }
 
-[sub_resource type="Resource" id="Damage_l5"]
+[sub_resource type="Resource" id="Damage_L8"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
-min_skill_level = 5
-max_skill_level = 6
-damage_tag = &"magic"
+damage_tag = &"force"
+min_skill_level = 8
+max_skill_level = 9
 params = {
-"dice_count": 5,
-"dice_sides": 6
+"dice_bonus": 4,
+"dice_count": 1,
+"dice_sides": 4
 }
 
-[sub_resource type="Resource" id="Damage_l7"]
+[sub_resource type="Resource" id="Damage_L10"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
-min_skill_level = 7
-damage_tag = &"magic"
+damage_tag = &"force"
+min_skill_level = 10
+max_skill_level = -1
 params = {
-"dice_count": 6,
-"dice_sides": 6
+"dice_bonus": 5,
+"dice_count": 1,
+"dice_sides": 4
 }
 
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_arcane_missile"
-range_value = 5
-mp_cost = 60
-cooldown_tu = 10
-attack_roll_bonus = 3
+range_value = 3
+mp_cost = 20
+stamina_cost = 15
+cooldown_tu = 0
+attack_roll_bonus = 1
 level_overrides = {
+1: {
+"attack_roll_bonus": 2
+},
+2: {
+"attack_roll_bonus": 3
+},
 3: {
+"attack_roll_bonus": 4,
 "max_target_count": 3,
-"range_value": 6
+"range_value": 4
 },
 5: {
-"cooldown_tu": 5,
-"range_value": 6
+"max_target_count": 4,
+"range_value": 5
+},
+6: {
+"max_target_count": 5
 },
 7: {
-"attack_roll_bonus": 4,
-"max_target_count": 4
+"max_target_count": 6,
+"range_value": 6
+},
+8: {
+"max_target_count": 7
+},
+9: {
+"max_target_count": 8
+},
+10: {
+"max_target_count": 9,
+"range_value": 7
 }
 }
 ai_tags = Array[StringName]([&"single_target", &"multi_target", &"reliable"])
 target_selection_mode = &"multi_unit"
 max_target_count = 2
+allow_repeat_target = true
 selection_order_mode = &"manual"
-effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l5"), SubResource("Damage_l7")])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage"), SubResource("Damage_L4"), SubResource("Damage_L6"), SubResource("Damage_L8"), SubResource("Damage_L10")])
 
 [resource]
 script = ExtResource("3_skill")
 skill_id = &"mage_arcane_missile"
 display_name = "奥术飞弹"
 icon_id = &"mage_arcane_missile"
-description = "稳定的奥术多目标点射。等级提升会提高飞弹伤害、射程与可锁定目标数。"
-max_level = 7
-non_core_max_level = 5
-mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+description = "稳定的力场飞弹，可向多个目标发射。等级提升会增加飞弹数量、射程，并降低冷却。"
+max_level = 5
+non_core_max_level = 3
+dynamic_max_level_stat_id = &"profession_rank:mage"
+dynamic_max_level_base = 5
+dynamic_max_level_per_stat = -2
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000, 17000, 22000, 28000)
 tags = Array[StringName]([&"mage", &"magic", &"arcane", &"output"])
-growth_tier = &"advanced"
+growth_tier = &"basic"
 attribute_growth_progress = {
-"intelligence": 120,
-"willpower": 60
+"intelligence": 60
 }
-level_description_template = "射程{range}，攻击检定{hit}，每个目标造成{dmg}奥术伤害，最多{targets}目标。消耗1AP/{mp}法力，冷却{cooldown}TU"
+level_description_template = "射程{range}，攻击检定{hit}，发射{missiles}枚力场飞弹，每发造成{dmg}伤害，可集中于同一目标。消耗1AP/{mp}法力/{stamina}体力，冷却{cooldown}TU  动态最大等级:{dynamic_max_level}"
 level_description_configs = {
 "0": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "2D6",
-"duration": "60",
-"hit": "+3",
-"mp": "60",
-"range": "5",
-"targets": "2"
+"cooldown": "0",
+"dmg": "1d4+1",
+"hit": "+1",
+"missiles": "2",
+"mp": "20",
+"range": "3",
+"stamina": "15"
 },
 "1": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "3D6",
-"duration": "60",
-"hit": "+3",
-"mp": "60",
-"range": "5",
-"targets": "2"
+"cooldown": "0",
+"dmg": "1d4+1",
+"hit": "+2",
+"missiles": "2",
+"mp": "20",
+"range": "3",
+"stamina": "15"
 },
 "2": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "3D6",
-"duration": "60",
+"cooldown": "0",
+"dmg": "1d4+1",
 "hit": "+3",
-"mp": "60",
-"range": "5",
-"targets": "2"
+"missiles": "2",
+"mp": "20",
+"range": "3",
+"stamina": "15"
 },
 "3": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "4D6",
-"duration": "80",
-"hit": "+3",
-"mp": "60",
-"range": "6",
-"targets": "3"
+"cooldown": "0",
+"dmg": "1d4+1",
+"hit": "+4",
+"missiles": "3",
+"mp": "20",
+"range": "4",
+"stamina": "15"
 },
 "4": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "4D6",
-"duration": "80",
-"hit": "+3",
-"mp": "60",
-"range": "6",
-"targets": "3"
+"cooldown": "0",
+"dmg": "1d4+2",
+"hit": "+4",
+"missiles": "3",
+"mp": "20",
+"range": "4",
+"stamina": "15"
 },
 "5": {
 "ap": "1",
-"cooldown": "5",
-"dmg": "5D6",
-"duration": "100",
-"hit": "+3",
-"mp": "60",
-"range": "6",
-"targets": "3"
+"cooldown": "0",
+"dmg": "1d4+2",
+"hit": "+4",
+"missiles": "4",
+"mp": "20",
+"range": "5",
+"stamina": "15"
 },
 "6": {
 "ap": "1",
-"cooldown": "5",
-"dmg": "5D6",
-"duration": "100",
-"hit": "+3",
-"mp": "60",
-"range": "6",
-"targets": "3"
+"cooldown": "0",
+"dmg": "1d4+3",
+"hit": "+4",
+"missiles": "5",
+"mp": "20",
+"range": "5",
+"stamina": "15"
 },
 "7": {
 "ap": "1",
-"cooldown": "5",
-"dmg": "6D6",
-"duration": "120",
+"cooldown": "0",
+"dmg": "1d4+3",
 "hit": "+4",
-"mp": "60",
+"missiles": "6",
+"mp": "20",
 "range": "6",
-"targets": "4"
+"stamina": "15"
+},
+"8": {
+"ap": "1",
+"cooldown": "0",
+"dmg": "1d4+4",
+"hit": "+4",
+"missiles": "7",
+"mp": "20",
+"range": "6",
+"stamina": "15"
+},
+"9": {
+"ap": "1",
+"cooldown": "0",
+"dmg": "1d4+4",
+"hit": "+4",
+"missiles": "8",
+"mp": "20",
+"range": "6",
+"stamina": "15"
+},
+"10": {
+"ap": "1",
+"cooldown": "0",
+"dmg": "1d4+5",
+"hit": "+4",
+"missiles": "9",
+"mp": "20",
+"range": "7",
+"stamina": "15"
 }
 }
 combat_profile = SubResource("Combat")

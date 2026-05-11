@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_ef0"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+min_skill_level = 0
+max_skill_level = -1
+status_id = &"burning"
+duration_tu = 60
+effect_target_team_filter = &"enemy"
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_burn_breath_press"
+range_value = 3
+area_pattern = &"radius"
+area_value = 1
+ap_cost = 1
+stamina_cost = 0
+aura_cost = 35
+cooldown_tu = 80
+attack_roll_bonus = 0
+level_overrides = {
+	5: {
+		"aura_cost": 28
+	}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_ef0")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_burn_breath_press"
+display_name = "灼息压阵"
+description = "区域敌人行动结束时若未移动则受伤。"
+max_level = 9
+non_core_max_level = 7
+mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840, 5640, 7800, 10320, 13200)
+growth_tier = &"advanced"
+attribute_growth_progress = { "strength": 70, "willpower": 110 }
+tags = Array[StringName]([&"warrior", &"melee", &"control", &"fire", &"terrain"])
+combat_profile = SubResource("Resource_combat")

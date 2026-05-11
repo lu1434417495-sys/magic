@@ -11,6 +11,11 @@ script = ExtResource("3_nub84")
 effect_type = &"damage"
 max_skill_level = 0
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 4,
 "dice_sides": 6
@@ -22,6 +27,11 @@ effect_type = &"damage"
 min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 5,
 "dice_sides": 6
@@ -33,6 +43,11 @@ effect_type = &"damage"
 min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 6,
 "dice_sides": 6
@@ -44,6 +59,11 @@ effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 7,
 "dice_sides": 6
@@ -54,6 +74,11 @@ script = ExtResource("3_nub84")
 effect_type = &"damage"
 min_skill_level = 7
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 8,
 "dice_sides": 6
@@ -71,6 +96,11 @@ script = ExtResource("3_nub84")
 effect_type = &"damage"
 max_skill_level = 0
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 4,
 "dice_sides": 6
@@ -82,6 +112,11 @@ effect_type = &"damage"
 min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 5,
 "dice_sides": 6
@@ -93,6 +128,11 @@ effect_type = &"damage"
 min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 6,
 "dice_sides": 6
@@ -104,6 +144,11 @@ effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 7,
 "dice_sides": 6
@@ -114,6 +159,11 @@ script = ExtResource("3_nub84")
 effect_type = &"damage"
 min_skill_level = 7
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"fireball"
 params = {
 "dice_count": 8,
 "dice_sides": 6

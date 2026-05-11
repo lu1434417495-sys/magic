@@ -1,0 +1,103 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_ps_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_ps_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_ps_skill"]
+
+[sub_resource type="Resource" id="Resource_ps_layered_barrier"]
+script = ExtResource("1_ps_effect")
+effect_type = &"layered_barrier"
+duration_tu = 120
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
+params = {
+"area_pattern": "diamond",
+"profile_id": "prismatic_sphere",
+"radius_cells": 2,
+"save_dc": 16
+}
+
+[sub_resource type="Resource" id="Resource_ps_combat"]
+script = ExtResource("2_ps_combat")
+skill_id = &"mage_prismatic_sphere"
+target_mode = &"unit"
+target_team_filter = &"self"
+range_value = 0
+area_pattern = &"self"
+ap_cost = 3
+mp_cost = 160
+cooldown_tu = 30
+mastery_trigger_mode = &"effect_applied"
+target_selection_mode = &"self"
+effect_defs = Array[ExtResource("1_ps_effect")]([SubResource("Resource_ps_layered_barrier")])
+
+[resource]
+script = ExtResource("3_ps_skill")
+skill_id = &"mage_prismatic_sphere"
+display_name = "虹光法球"
+icon_id = &"mage_prismatic_sphere"
+description = "在施法者所在位置创造固定虹光法球。施法者可自由出入，但不能隔着法球攻击或施法；其他单位穿越时依次承受七层效果。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"defense", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 20,
+"intelligence": 100,
+"willpower": 60
+}
+level_description_template = "创造固定虹光法球（半径2格，持续{duration}TU）。消耗{ap}AP/{mp}法力，冷却{cooldown}TU。"
+level_description_configs = {
+"0": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+},
+"1": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+},
+"2": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+},
+"3": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+},
+"4": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+},
+"5": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+},
+"6": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+},
+"7": {
+"ap": "3",
+"cooldown": "30",
+"duration": "120",
+"mp": "160"
+}
+}
+combat_profile = SubResource("Resource_ps_combat")

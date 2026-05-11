@@ -12,6 +12,10 @@ effect_type = &"status"
 power = 1
 max_skill_level = 0
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 60
 
@@ -22,6 +26,10 @@ power = 1
 min_skill_level = 1
 max_skill_level = 2
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 60
 
@@ -32,6 +40,10 @@ power = 2
 min_skill_level = 3
 max_skill_level = 4
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 80
 
@@ -42,6 +54,10 @@ power = 2
 min_skill_level = 5
 max_skill_level = 6
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 100
 
@@ -51,6 +67,10 @@ effect_type = &"status"
 power = 3
 min_skill_level = 7
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 120
 

@@ -1,28 +1,20 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
+const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 
-var _failures: Array[String] = []
-
-
-class FixedRollDamageResolver extends BATTLE_DAMAGE_RESOLVER_SCRIPT:
-	var fixed_roll := 10
-
-	func _init(roll: int = 10) -> void:
-		fixed_roll = roll
-
-	func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state) -> int:
-		if battle_state != null:
-			battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
-		return clampi(fixed_roll, mini(min_value, max_value), maxi(min_value, max_value))
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -153,7 +145,8 @@ func _build_runtime_with_spell_control_roll(roll: int):
 	var skill_def = load("res://data/configs/skills/mage_fireball.tres")
 	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
 	runtime.setup(null, {skill_def.skill_id: skill_def}, {}, {})
-	runtime.configure_damage_resolver_for_tests(FixedRollDamageResolver.new(roll))
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedFailedSaveDamageResolver.new([], [roll]))
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(roll))
 	return runtime
 
 
@@ -250,22 +243,21 @@ func _advance_timeline_tu(runtime, state, total_tu: int) -> void:
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
-	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
 	for unit_variant in state.units.values():
 		var unit_state = unit_variant
 		if unit_state != null:
 			unit_state.action_threshold = 1000000
-	runtime.advance(float(total_tu) / 5.0)
+	runtime.advance(int(total_tu / 5))
 
 
 func _assert_true(value: bool, message: String) -> void:
 	if value:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
+	_test.fail("%s expected=%s actual=%s" % [message, str(expected), str(actual)])

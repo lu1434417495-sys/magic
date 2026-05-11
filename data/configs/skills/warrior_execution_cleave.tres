@@ -7,16 +7,17 @@
 [sub_resource type="Resource" id="Resource_execute_l0"]
 script = ExtResource("3_7k4xh")
 effect_type = &"damage"
-power = 8
+power = 0
 max_skill_level = 2
-damage_ratio_percent = 180
 damage_tag = &"physical_slash"
 bonus_condition = &"target_low_hp"
 params = {
 "add_weapon_dice": true,
+"bonus_damage_dice_count": 1,
+"bonus_damage_dice_sides": 6,
 "dice_count": 1,
 "dice_sides": 6,
-"hp_ratio_threshold": 0.5,
+"hp_ratio_threshold_percent": 50,
 "requires_weapon": true,
 "use_weapon_physical_damage_tag": true
 }
@@ -24,17 +25,18 @@ params = {
 [sub_resource type="Resource" id="Resource_execute_l3"]
 script = ExtResource("3_7k4xh")
 effect_type = &"damage"
-power = 10
+power = 0
 min_skill_level = 3
 max_skill_level = 4
-damage_ratio_percent = 180
 damage_tag = &"physical_slash"
 bonus_condition = &"target_low_hp"
 params = {
 "add_weapon_dice": true,
+"bonus_damage_dice_count": 1,
+"bonus_damage_dice_sides": 8,
 "dice_count": 1,
 "dice_sides": 8,
-"hp_ratio_threshold": 0.6,
+"hp_ratio_threshold_percent": 50,
 "requires_weapon": true,
 "use_weapon_physical_damage_tag": true
 }
@@ -42,16 +44,17 @@ params = {
 [sub_resource type="Resource" id="Resource_execute_l5"]
 script = ExtResource("3_7k4xh")
 effect_type = &"damage"
-power = 12
+power = 0
 min_skill_level = 5
-damage_ratio_percent = 220
 damage_tag = &"physical_slash"
 bonus_condition = &"target_low_hp"
 params = {
 "add_weapon_dice": true,
+"bonus_damage_dice_count": 2,
+"bonus_damage_dice_sides": 8,
 "dice_count": 1,
 "dice_sides": 10,
-"hp_ratio_threshold": 0.6,
+"hp_ratio_threshold_percent": 50,
 "requires_weapon": true,
 "use_weapon_physical_damage_tag": true
 }
@@ -59,16 +62,16 @@ params = {
 [sub_resource type="Resource" id="Resource_r1utu"]
 script = ExtResource("4_sc5i1")
 skill_id = &"warrior_execution_cleave"
-ap_cost = 2
-stamina_cost = 35
-cooldown_tu = 10
-attack_roll_bonus = 1
+ap_cost = 1
+stamina_cost = 45
+cooldown_tu = 150
+attack_roll_bonus = 0
 level_overrides = {
-2: {
-"stamina_cost": 30
+3: {
+"stamina_cost": 40
 },
-4: {
-"cooldown_tu": 5
+5: {
+"stamina_cost": 35
 }
 }
 mastery_trigger_mode = &"damage_dealt"
@@ -80,7 +83,7 @@ script = ExtResource("5_khg2g")
 skill_id = &"warrior_execution_cleave"
 display_name = "断头斩"
 icon_id = &"warrior_execution_cleave"
-description = "对低血目标有更高收益的斩杀技。"
+description = "瞄准半血以下目标的处决斩击，命中低血目标时追加处决伤害骰。"
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840)

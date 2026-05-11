@@ -9,27 +9,8 @@
 [sub_resource type="Resource" id="BlinkJump"]
 script = ExtResource("1_effect")
 effect_type = &"forced_move"
-forced_move_mode = &"jump"
+forced_move_mode = &"blink"
 forced_move_distance = 5
-jump_base_budget = 10
-jump_arc_ratio = 0.4
-
-[sub_resource type="Resource" id="Dodge_l3"]
-script = ExtResource("1_effect")
-effect_type = &"status"
-power = 1
-min_skill_level = 3
-max_skill_level = 6
-status_id = &"dodge_bonus_up"
-duration_tu = 40
-
-[sub_resource type="Resource" id="Dodge_l7"]
-script = ExtResource("1_effect")
-effect_type = &"status"
-power = 1
-min_skill_level = 7
-status_id = &"dodge_bonus_up"
-duration_tu = 60
 
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
@@ -54,97 +35,71 @@ level_overrides = {
 }
 mastery_trigger_mode = &"effect_applied"
 ai_tags = Array[StringName]([&"mobility", &"escape"])
-effect_defs = Array[ExtResource("1_effect")]([SubResource("BlinkJump"), SubResource("Dodge_l3"), SubResource("Dodge_l7")])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("BlinkJump")])
 
 [resource]
 script = ExtResource("3_skill")
 skill_id = &"mage_blink"
 display_name = "闪现术"
 icon_id = &"mage_blink"
-description = "短距离空间跃迁。使用现有跳跃落点规则验证目标地格，高等级提升距离并获得短暂闪避。"
+description = "短距离空间跃迁。只按平面距离与落点可占用性验证目标地格，高等级提升距离。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
-tags = Array[StringName]([&"mage", &"magic", &"mobility", &"support"])
+tags = Array[StringName]([&"mage", &"magic", &"mobility"])
 growth_tier = &"advanced"
 attribute_growth_progress = {
 "intelligence": 90,
 "perception": 20,
 "willpower": 70
 }
-level_description_template = "选地格位移最多{range}格{{?dodge}}，获得dodge_bonus_up（{dodge_duration}TU）{{/dodge}}。消耗1AP/{mp}法力，冷却{cooldown}TU"
+level_description_template = "选地格位移最多{range}格。消耗1AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "1",
 "cooldown": "20",
-"duration": "60",
-"hit": "+0",
 "mp": "80",
 "range": "3"
 },
 "1": {
 "ap": "1",
 "cooldown": "20",
-"duration": "60",
-"hit": "+0",
 "mp": "80",
 "range": "3"
 },
 "2": {
 "ap": "1",
 "cooldown": "20",
-"duration": "60",
-"hit": "+0",
 "mp": "80",
 "range": "3"
 },
 "3": {
 "ap": "1",
 "cooldown": "15",
-"dodge": "true",
-"dodge_duration": "40",
-"duration": "80",
-"hit": "+0",
 "mp": "80",
 "range": "4"
 },
 "4": {
 "ap": "1",
 "cooldown": "15",
-"dodge": "true",
-"dodge_duration": "40",
-"duration": "80",
-"hit": "+0",
 "mp": "80",
 "range": "4"
 },
 "5": {
 "ap": "1",
 "cooldown": "15",
-"dodge": "true",
-"dodge_duration": "40",
-"duration": "100",
-"hit": "+0",
 "mp": "80",
 "range": "4"
 },
 "6": {
 "ap": "1",
 "cooldown": "15",
-"dodge": "true",
-"dodge_duration": "40",
-"duration": "100",
-"hit": "+0",
 "mp": "80",
 "range": "4"
 },
 "7": {
 "ap": "1",
 "cooldown": "15",
-"dodge": "true",
-"dodge_duration": "60",
-"duration": "120",
-"hit": "+0",
 "mp": "80",
 "range": "5"
 }

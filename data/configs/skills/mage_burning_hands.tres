@@ -11,6 +11,11 @@ script = ExtResource("1_effect")
 effect_type = &"damage"
 max_skill_level = 0
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 3,
 "dice_sides": 6
@@ -22,6 +27,11 @@ effect_type = &"damage"
 min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 4,
 "dice_sides": 6
@@ -33,6 +43,11 @@ effect_type = &"damage"
 min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 5,
 "dice_sides": 6
@@ -44,6 +59,11 @@ effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 6,
 "dice_sides": 6
@@ -54,6 +74,11 @@ script = ExtResource("1_effect")
 effect_type = &"damage"
 min_skill_level = 7
 damage_tag = &"fire"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 7,
 "dice_sides": 6
@@ -66,6 +91,10 @@ power = 1
 min_skill_level = 3
 max_skill_level = 4
 status_id = &"burning"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_tag = &"magic"
 duration_tu = 40
 
 [sub_resource type="Resource" id="Burn_l5"]
@@ -75,6 +104,10 @@ power = 2
 min_skill_level = 5
 max_skill_level = 6
 status_id = &"burning"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_tag = &"magic"
 duration_tu = 60
 
 [sub_resource type="Resource" id="Burn_l7"]
@@ -83,6 +116,10 @@ effect_type = &"status"
 power = 2
 min_skill_level = 7
 status_id = &"burning"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_tag = &"magic"
 duration_tu = 80
 
 [sub_resource type="Resource" id="Combat"]

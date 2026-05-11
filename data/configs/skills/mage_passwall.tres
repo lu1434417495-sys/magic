@@ -1,0 +1,116 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="1_passwall_variant"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="2_passwall_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="3_passwall_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="4_passwall_skill"]
+
+[sub_resource type="Resource" id="Effect_edge_clear"]
+script = ExtResource("2_passwall_effect")
+effect_type = &"edge_clear"
+params = {
+"breaks_barrier_layer": "green"
+}
+
+[sub_resource type="Resource" id="Variant_open_passage"]
+script = ExtResource("1_passwall_variant")
+variant_id = &"open_passage"
+display_name = "开辟通道"
+description = "选择两个正交相邻地格，移除它们之间的墙、门或闸门阻挡。"
+footprint_pattern = &"line2"
+required_coord_count = 2
+effect_defs = Array[ExtResource("2_passwall_effect")]([SubResource("Effect_edge_clear")])
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("3_passwall_combat")
+skill_id = &"mage_passwall"
+target_mode = &"ground"
+target_team_filter = &"any"
+range_value = 4
+ap_cost = 2
+mp_cost = 90
+cooldown_tu = 20
+level_overrides = {
+3: {
+"range_value": 5
+},
+5: {
+"cooldown_tu": 15,
+"range_value": 5
+},
+7: {
+"range_value": 6
+}
+}
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"terrain", &"mobility", &"breaker"])
+cast_variants = Array[ExtResource("1_passwall_variant")]([SubResource("Variant_open_passage")])
+
+[resource]
+script = ExtResource("4_passwall_skill")
+skill_id = &"mage_passwall"
+display_name = "穿墙术"
+icon_id = &"mage_passwall"
+description = "在墙体、门或闸门之间开辟通道；也可按虹光法球规则破解绿色层。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"earth", &"terrain", &"utility", &"breaker"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 100,
+"perception": 40,
+"willpower": 40
+}
+level_description_template = "开辟相邻两格之间的墙体通道。消耗{ap}AP/{mp}法力，射程{range}格，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "20",
+"mp": "90",
+"range": "4"
+},
+"1": {
+"ap": "2",
+"cooldown": "20",
+"mp": "90",
+"range": "4"
+},
+"2": {
+"ap": "2",
+"cooldown": "20",
+"mp": "90",
+"range": "4"
+},
+"3": {
+"ap": "2",
+"cooldown": "20",
+"mp": "90",
+"range": "5"
+},
+"4": {
+"ap": "2",
+"cooldown": "20",
+"mp": "90",
+"range": "5"
+},
+"5": {
+"ap": "2",
+"cooldown": "15",
+"mp": "90",
+"range": "5"
+},
+"6": {
+"ap": "2",
+"cooldown": "15",
+"mp": "90",
+"range": "5"
+},
+"7": {
+"ap": "2",
+"cooldown": "15",
+"mp": "90",
+"range": "6"
+}
+}
+combat_profile = SubResource("Combat")

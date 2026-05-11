@@ -10,7 +10,12 @@
 script = ExtResource("3_mtx8r")
 effect_type = &"damage"
 max_skill_level = 0
-damage_tag = &"magic"
+damage_tag = &"physical_blunt"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 5,
 "dice_sides": 6
@@ -21,7 +26,12 @@ script = ExtResource("3_mtx8r")
 effect_type = &"damage"
 min_skill_level = 1
 max_skill_level = 2
-damage_tag = &"magic"
+damage_tag = &"physical_blunt"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 6,
 "dice_sides": 6
@@ -32,7 +42,12 @@ script = ExtResource("3_mtx8r")
 effect_type = &"damage"
 min_skill_level = 3
 max_skill_level = 4
-damage_tag = &"magic"
+damage_tag = &"physical_blunt"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 7,
 "dice_sides": 6
@@ -43,7 +58,12 @@ script = ExtResource("3_mtx8r")
 effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 6
-damage_tag = &"magic"
+damage_tag = &"physical_blunt"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 8,
 "dice_sides": 6
@@ -53,7 +73,12 @@ params = {
 script = ExtResource("3_mtx8r")
 effect_type = &"damage"
 min_skill_level = 7
-damage_tag = &"magic"
+damage_tag = &"physical_blunt"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
 params = {
 "dice_count": 9,
 "dice_sides": 6
@@ -66,6 +91,10 @@ power = 2
 min_skill_level = 3
 max_skill_level = 4
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 80
 
@@ -76,6 +105,10 @@ power = 2
 min_skill_level = 5
 max_skill_level = 6
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 100
 
@@ -85,6 +118,10 @@ effect_type = &"status"
 power = 3
 min_skill_level = 7
 effect_target_team_filter = &"enemy"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
 status_id = &"marked"
 duration_tu = 120
 

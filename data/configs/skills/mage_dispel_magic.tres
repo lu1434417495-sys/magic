@@ -1,0 +1,175 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_dispel_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_dispel_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_dispel_skill"]
+
+[sub_resource type="Resource" id="Dispel_l0"]
+script = ExtResource("1_dispel_effect")
+effect_type = &"dispel_magic"
+power = 1
+max_skill_level = 0
+effect_target_team_filter = &"any"
+params = {
+"breaks_barrier_layer": "violet",
+"max_status_removed": 1,
+"remove_beneficial_from_enemies": true,
+"remove_harmful_from_allies": true
+}
+
+[sub_resource type="Resource" id="Dispel_l1"]
+script = ExtResource("1_dispel_effect")
+effect_type = &"dispel_magic"
+power = 1
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"any"
+params = {
+"breaks_barrier_layer": "violet",
+"max_status_removed": 1,
+"remove_beneficial_from_enemies": true,
+"remove_harmful_from_allies": true
+}
+
+[sub_resource type="Resource" id="Dispel_l3"]
+script = ExtResource("1_dispel_effect")
+effect_type = &"dispel_magic"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"any"
+params = {
+"breaks_barrier_layer": "violet",
+"max_status_removed": 2,
+"remove_beneficial_from_enemies": true,
+"remove_harmful_from_allies": true
+}
+
+[sub_resource type="Resource" id="Dispel_l5"]
+script = ExtResource("1_dispel_effect")
+effect_type = &"dispel_magic"
+power = 3
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"any"
+params = {
+"breaks_barrier_layer": "violet",
+"max_status_removed": 3,
+"remove_beneficial_from_enemies": true,
+"remove_harmful_from_allies": true
+}
+
+[sub_resource type="Resource" id="Dispel_l7"]
+script = ExtResource("1_dispel_effect")
+effect_type = &"dispel_magic"
+power = 4
+min_skill_level = 7
+effect_target_team_filter = &"any"
+params = {
+"breaks_barrier_layer": "violet",
+"max_status_removed": 4,
+"remove_beneficial_from_enemies": true,
+"remove_harmful_from_allies": true
+}
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_dispel_combat")
+skill_id = &"mage_dispel_magic"
+target_mode = &"unit"
+target_team_filter = &"any"
+range_value = 6
+ap_cost = 2
+mp_cost = 60
+cooldown_tu = 10
+level_overrides = {
+3: {
+"range_value": 7
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 7
+},
+7: {
+"range_value": 8
+}
+}
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"support", &"debuff", &"breaker", &"dispel"])
+effect_defs = Array[ExtResource("1_dispel_effect")]([SubResource("Dispel_l0"), SubResource("Dispel_l1"), SubResource("Dispel_l3"), SubResource("Dispel_l5"), SubResource("Dispel_l7")])
+
+[resource]
+script = ExtResource("3_dispel_skill")
+skill_id = &"mage_dispel_magic"
+display_name = "解除魔法"
+icon_id = &"mage_dispel_magic"
+description = "解除一个目标身上的魔法效果：友方目标移除可驱散减益，敌方目标移除可驱散增益；也可按虹光法球规则破解紫色层。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"support", &"debuff", &"breaker", &"dispel"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 100,
+"perception": 30,
+"willpower": 50
+}
+level_description_template = "解除{count}个魔法状态。消耗{ap}AP/{mp}法力，射程{range}格，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "2",
+"cooldown": "10",
+"count": "1",
+"mp": "60",
+"range": "6"
+},
+"1": {
+"ap": "2",
+"cooldown": "10",
+"count": "1",
+"mp": "60",
+"range": "6"
+},
+"2": {
+"ap": "2",
+"cooldown": "10",
+"count": "1",
+"mp": "60",
+"range": "6"
+},
+"3": {
+"ap": "2",
+"cooldown": "10",
+"count": "2",
+"mp": "60",
+"range": "7"
+},
+"4": {
+"ap": "2",
+"cooldown": "10",
+"count": "2",
+"mp": "60",
+"range": "7"
+},
+"5": {
+"ap": "2",
+"cooldown": "5",
+"count": "3",
+"mp": "60",
+"range": "7"
+},
+"6": {
+"ap": "2",
+"cooldown": "5",
+"count": "3",
+"mp": "60",
+"range": "7"
+},
+"7": {
+"ap": "2",
+"cooldown": "5",
+"count": "4",
+"mp": "60",
+"range": "8"
+}
+}
+combat_profile = SubResource("Combat")

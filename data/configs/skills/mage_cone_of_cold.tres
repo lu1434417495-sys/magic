@@ -1,0 +1,251 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_cold_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_cold_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_cold_skill"]
+
+[sub_resource type="Resource" id="Damage_l0"]
+script = ExtResource("1_cold_effect")
+effect_type = &"damage"
+max_skill_level = 0
+damage_tag = &"freeze"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_partial_on_success = true
+save_tag = &"magic"
+params = {
+"dice_count": 5,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l1"]
+script = ExtResource("1_cold_effect")
+effect_type = &"damage"
+min_skill_level = 1
+max_skill_level = 2
+damage_tag = &"freeze"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_partial_on_success = true
+save_tag = &"magic"
+params = {
+"dice_count": 6,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l3"]
+script = ExtResource("1_cold_effect")
+effect_type = &"damage"
+min_skill_level = 3
+max_skill_level = 4
+damage_tag = &"freeze"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_partial_on_success = true
+save_tag = &"magic"
+params = {
+"dice_count": 7,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l5"]
+script = ExtResource("1_cold_effect")
+effect_type = &"damage"
+min_skill_level = 5
+max_skill_level = 6
+damage_tag = &"freeze"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_partial_on_success = true
+save_tag = &"magic"
+params = {
+"dice_count": 8,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Damage_l7"]
+script = ExtResource("1_cold_effect")
+effect_type = &"damage"
+min_skill_level = 7
+damage_tag = &"freeze"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_partial_on_success = true
+save_tag = &"magic"
+params = {
+"dice_count": 9,
+"dice_sides": 6
+}
+
+[sub_resource type="Resource" id="Slow_l3"]
+script = ExtResource("1_cold_effect")
+effect_type = &"status"
+power = 2
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"slow"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
+duration_tu = 80
+
+[sub_resource type="Resource" id="Slow_l5"]
+script = ExtResource("1_cold_effect")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 6
+status_id = &"slow"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
+duration_tu = 100
+
+[sub_resource type="Resource" id="Slow_l7"]
+script = ExtResource("1_cold_effect")
+effect_type = &"status"
+power = 3
+min_skill_level = 7
+status_id = &"slow"
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
+duration_tu = 120
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_cold_combat")
+skill_id = &"mage_cone_of_cold"
+target_mode = &"ground"
+range_value = 1
+area_pattern = &"narrow_cone"
+area_value = 5
+ap_cost = 1
+mp_cost = 120
+cooldown_tu = 25
+level_overrides = {
+3: {},
+5: {
+"cooldown_tu": 20
+},
+7: {
+"area_value": 6
+}
+}
+ai_tags = Array[StringName]([&"aoe", &"close_range", &"control"])
+effect_defs = Array[ExtResource("1_cold_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l5"), SubResource("Damage_l7"), SubResource("Slow_l3"), SubResource("Slow_l5"), SubResource("Slow_l7")])
+
+[resource]
+script = ExtResource("3_cold_skill")
+skill_id = &"mage_cone_of_cold"
+display_name = "寒冰锥"
+icon_id = &"mage_cone_of_cold"
+description = "从施法者前方喷出近端宽、远端收束的极寒锥流；目标以意志进行法术豁免，成功时伤害减半。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"ice", &"aoe", &"output", &"control"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 110,
+"perception": 20,
+"willpower": 50
+}
+level_description_template = "前方{area}，造成{dmg}冰冻伤害，豁免成功半伤{{?slow}}，并附加减速（{slow_duration}TU，强度{slow_power}）{{/slow}}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "1",
+"area": "窄锥5格",
+"cooldown": "25",
+"dmg": "5D6",
+"hit": "+0",
+"mp": "120",
+"range": "1"
+},
+"1": {
+"ap": "1",
+"area": "窄锥5格",
+"cooldown": "25",
+"dmg": "6D6",
+"hit": "+0",
+"mp": "120",
+"range": "1"
+},
+"2": {
+"ap": "1",
+"area": "窄锥5格",
+"cooldown": "25",
+"dmg": "6D6",
+"hit": "+0",
+"mp": "120",
+"range": "1"
+},
+"3": {
+"ap": "1",
+"area": "窄锥5格",
+"cooldown": "25",
+"dmg": "7D6",
+"hit": "+0",
+"mp": "120",
+"range": "1",
+"slow": "true",
+"slow_duration": "80",
+"slow_power": "2"
+},
+"4": {
+"ap": "1",
+"area": "窄锥5格",
+"cooldown": "25",
+"dmg": "7D6",
+"hit": "+0",
+"mp": "120",
+"range": "1",
+"slow": "true",
+"slow_duration": "80",
+"slow_power": "2"
+},
+"5": {
+"ap": "1",
+"area": "窄锥5格",
+"cooldown": "20",
+"dmg": "8D6",
+"hit": "+0",
+"mp": "120",
+"range": "1",
+"slow": "true",
+"slow_duration": "100",
+"slow_power": "2"
+},
+"6": {
+"ap": "1",
+"area": "窄锥5格",
+"cooldown": "20",
+"dmg": "8D6",
+"hit": "+0",
+"mp": "120",
+"range": "1",
+"slow": "true",
+"slow_duration": "100",
+"slow_power": "2"
+},
+"7": {
+"ap": "1",
+"area": "窄锥6格",
+"cooldown": "20",
+"dmg": "9D6",
+"hit": "+0",
+"mp": "120",
+"range": "1",
+"slow": "true",
+"slow_duration": "120",
+"slow_power": "3"
+}
+}
+combat_profile = SubResource("Combat")

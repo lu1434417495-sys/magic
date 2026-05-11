@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_ef0"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+min_skill_level = 0
+max_skill_level = -1
+damage_tag = &"physical_blunt"
+params = {
+    "add_weapon_dice": true,
+    "requires_weapon": true,
+    "use_weapon_physical_damage_tag": true,
+    "dice_count": 1,
+    "dice_sides": 4,
+    "grant_status_id": "combo_stack",
+    "grant_status_power": 1,
+    "grant_status_duration_tu": 180,
+    "grant_status_stack_limit": 20
+}
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_anvil_pincer"
+range_value = 1
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 20
+attack_roll_bonus = 0
+level_overrides = {
+	3: {
+		"stamina_cost": 14
+	}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_ef0")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_anvil_pincer"
+display_name = "铁砧夹击"
+description = "另一侧有友军时目标眩晕抗性降低。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = { "strength": 30, "willpower": 30 }
+tags = Array[StringName]([&"warrior", &"melee", &"control", &"team"])
+combat_profile = SubResource("Resource_combat")

@@ -1,0 +1,157 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_wind_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_wind_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_wind_skill"]
+
+[sub_resource type="Resource" id="Push_l0"]
+script = ExtResource("1_wind_effect")
+effect_type = &"forced_move"
+max_skill_level = 0
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"wind_push"
+forced_move_distance = 1
+
+[sub_resource type="Resource" id="Push_l1"]
+script = ExtResource("1_wind_effect")
+effect_type = &"forced_move"
+min_skill_level = 1
+max_skill_level = 2
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"wind_push"
+forced_move_distance = 1
+
+[sub_resource type="Resource" id="Push_l3"]
+script = ExtResource("1_wind_effect")
+effect_type = &"forced_move"
+min_skill_level = 3
+max_skill_level = 4
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"wind_push"
+forced_move_distance = 2
+
+[sub_resource type="Resource" id="Push_l5"]
+script = ExtResource("1_wind_effect")
+effect_type = &"forced_move"
+min_skill_level = 5
+max_skill_level = 6
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"wind_push"
+forced_move_distance = 2
+
+[sub_resource type="Resource" id="Push_l7"]
+script = ExtResource("1_wind_effect")
+effect_type = &"forced_move"
+min_skill_level = 7
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"wind_push"
+forced_move_distance = 3
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_wind_combat")
+skill_id = &"mage_gust_of_wind"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 1
+area_pattern = &"cone"
+area_value = 2
+ap_cost = 1
+mp_cost = 80
+cooldown_tu = 20
+level_overrides = {
+3: {},
+5: {
+"cooldown_tu": 15
+},
+7: {
+"area_value": 3
+}
+}
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"aoe", &"control", &"displacement"])
+effect_defs = Array[ExtResource("1_wind_effect")]([SubResource("Push_l0"), SubResource("Push_l1"), SubResource("Push_l3"), SubResource("Push_l5"), SubResource("Push_l7")])
+
+[resource]
+script = ExtResource("3_wind_skill")
+skill_id = &"mage_gust_of_wind"
+display_name = "强风术"
+icon_id = &"mage_gust_of_wind"
+description = "从施法者前方鼓起强风，锥尖为点击格，范围向外扩张，并沿风向推开敌人。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"air", &"aoe", &"control", &"displacement"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 100,
+"perception": 30,
+"willpower": 50
+}
+level_description_template = "前方{area}，沿风向推动敌人{push}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "1",
+"area": "锥形3列",
+"cooldown": "20",
+"mp": "80",
+"push": "1",
+"range": "1"
+},
+"1": {
+"ap": "1",
+"area": "锥形3列",
+"cooldown": "20",
+"mp": "80",
+"push": "1",
+"range": "1"
+},
+"2": {
+"ap": "1",
+"area": "锥形3列",
+"cooldown": "20",
+"mp": "80",
+"push": "1",
+"range": "1"
+},
+"3": {
+"ap": "1",
+"area": "锥形3列",
+"cooldown": "20",
+"mp": "80",
+"push": "2",
+"range": "1"
+},
+"4": {
+"ap": "1",
+"area": "锥形3列",
+"cooldown": "20",
+"mp": "80",
+"push": "2",
+"range": "1"
+},
+"5": {
+"ap": "1",
+"area": "锥形3列",
+"cooldown": "15",
+"mp": "80",
+"push": "2",
+"range": "1"
+},
+"6": {
+"ap": "1",
+"area": "锥形3列",
+"cooldown": "15",
+"mp": "80",
+"push": "2",
+"range": "1"
+},
+"7": {
+"ap": "1",
+"area": "锥形4列",
+"cooldown": "15",
+"mp": "80",
+"push": "3",
+"range": "1"
+}
+}
+combat_profile = SubResource("Combat")

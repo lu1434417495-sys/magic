@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -8,7 +11,8 @@ const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_s
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -166,6 +170,7 @@ func _build_runtime() -> BattleRuntimeModule:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	return runtime
 
 
@@ -224,4 +229,4 @@ func _find_timed_terrain_effect(cell: BattleCellState, effect_id: StringName):
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

@@ -4,13 +4,16 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _grid_service: BattleGridService = BattleGridService.new()
 
 
@@ -241,4 +244,4 @@ func _build_jump_effect() -> CombatEffectDef:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

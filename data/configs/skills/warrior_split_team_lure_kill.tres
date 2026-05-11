@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_split_team_lure_kill"
+range_value = 5
+ap_cost = 1
+stamina_cost = 24
+cooldown_tu = 60
+attack_roll_bonus = 0
+level_overrides = {
+	5: {
+		"stamina_cost": 18
+	}
+}
+mastery_trigger_mode = &"skill_damage_dice_max"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_split_team_lure_kill"
+display_name = "裂队诱杀"
+description = "标记敌人，离开友军范围则受借机打击。"
+max_level = 9
+non_core_max_level = 7
+mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840, 5640, 7800, 10320, 13200)
+growth_tier = &"advanced"
+attribute_growth_progress = { "strength": 60, "willpower": 120 }
+tags = Array[StringName]([&"warrior", &"melee", &"control", &"mark"])
+combat_profile = SubResource("Resource_combat")
