@@ -2,6 +2,7 @@ class_name SkillPassiveResolver
 extends RefCounted
 
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const PassiveSourceContext = preload("res://scripts/systems/progression/passive_source_context.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
@@ -20,18 +21,17 @@ static func apply_to_unit(unit_state: BattleUnitState, context: PassiveSourceCon
 	if unit_state == null:
 		return
 	var progression_state = context.unit_progress if context != null else null
-	_sync_vajra_body_status(unit_state, progression_state)
+	_sync_vajra_body_status(unit_state, progression_state, skill_defs)
 	_sync_last_stand_status(unit_state, progression_state, skill_defs)
 	_sync_shooting_specialization_status(unit_state, progression_state, skill_defs)
 
 
-static func _sync_vajra_body_status(unit_state: BattleUnitState, progression_state) -> void:
+static func _sync_vajra_body_status(unit_state: BattleUnitState, progression_state, skill_defs: Dictionary) -> void:
 	var skill_progress = progression_state.get_skill_progress(VAJRA_BODY_SKILL_ID) if progression_state != null else null
 	if skill_progress == null or not bool(skill_progress.is_learned):
 		unit_state.erase_status_effect(STATUS_VAJRA_BODY)
 		return
-	var max_status_level := 10 if bool(skill_progress.is_core) else VAJRA_BODY_NON_CORE_MAX_LEVEL
-	var skill_level := clampi(int(skill_progress.skill_level), 0, max_status_level)
+	var skill_level := _resolve_vajra_body_effective_level(skill_progress, progression_state, skill_defs)
 	var passive_reduction := int(floor(float(skill_level + 1) / 2.0)) + 1
 	var control_save_bonus := 0
 	if skill_level >= 9:
@@ -55,6 +55,20 @@ static func _sync_vajra_body_status(unit_state: BattleUnitState, progression_sta
 	status_entry.duration = -1
 	status_entry.params = params
 	unit_state.set_status_effect(status_entry)
+
+
+static func _resolve_vajra_body_effective_level(skill_progress, progression_state, skill_defs: Dictionary) -> int:
+	var raw_level := maxi(int(skill_progress.skill_level), 0)
+	var skill_def = skill_defs.get(VAJRA_BODY_SKILL_ID) as SkillDef
+	if skill_def != null:
+		var effective_max := SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(
+			skill_def,
+			skill_progress,
+			progression_state
+		)
+		return clampi(raw_level, 0, effective_max)
+	var fallback_max := 10 if bool(skill_progress.is_level_trigger_locked) else VAJRA_BODY_NON_CORE_MAX_LEVEL
+	return clampi(raw_level, 0, fallback_max)
 
 
 static func _sync_shooting_specialization_status(unit_state: BattleUnitState, progression_state, skill_defs: Dictionary) -> void:

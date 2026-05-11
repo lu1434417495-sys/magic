@@ -7,19 +7,28 @@ extends RefCounted
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_FATE_ATTACK_RULES_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_attack_rules.gd")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
+const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/fate/low_luck_relic_rules.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
 const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BattleStatusEffectState = BATTLE_STATUS_EFFECT_STATE_SCRIPT
 
 const DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT := 3
 const REPEAT_ATTACK_PREVIEW_STAGE_GUARD := 32
 const ATTACK_CHECK_TARGET := 21
 const NATURAL_MISS_ROLL := 1
 const NATURAL_HIT_ROLL := 20
+const ATTACK_RESOLUTION_HIT: StringName = &"hit"
+const ATTACK_RESOLUTION_MISS: StringName = &"miss"
+const ATTACK_RESOLUTION_CRITICAL_HIT: StringName = &"critical_hit"
+const ATTACK_RESOLUTION_CRITICAL_FAIL: StringName = &"critical_fail"
 const ROLL_DISPOSITION_THRESHOLD_HIT: StringName = &"threshold_hit"
 const ROLL_DISPOSITION_THRESHOLD_MISS: StringName = &"threshold_miss"
 const ROLL_DISPOSITION_NATURAL_AUTO_MISS: StringName = &"natural_1_auto_miss"
@@ -33,6 +42,7 @@ const STATUS_ATTACK_ROLL_BONUS_UP: StringName = &"attack_roll_bonus_up"
 const BLACK_STAR_BRAND_ATTACK_BONUS_DELTA := -3
 
 var _fate_attack_rules = BATTLE_FATE_ATTACK_RULES_SCRIPT.new()
+var _trait_trigger_hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
 
 
 func resolve_repeat_attack_stage_hit(
@@ -244,6 +254,7 @@ func build_skill_attack_check(
 		elif active_unit.known_active_skill_ids.has(skill_def.skill_id):
 			skill_level = 1
 	var skill_attack_bonus := int(skill_def.combat_profile.get_effective_attack_roll_bonus(skill_level)) if skill_def != null and skill_def.combat_profile != null else 0
+	var locked_skill_hit_bonus := _get_skill_lock_hit_bonus(active_unit, skill_def.skill_id if skill_def != null else &"")
 	var status_attack_bonus_delta := _get_attacker_status_attack_bonus_delta(active_unit)
 	var situational_attack_bonus := flat_bonus + maxi(status_attack_bonus_delta, 0)
 	var situational_attack_penalty := flat_penalty + maxi(-status_attack_bonus_delta, 0)
@@ -251,6 +262,7 @@ func build_skill_attack_check(
 		- attacker_base_attack_bonus \
 		- attacker_attack_bonus \
 		- skill_attack_bonus \
+		- locked_skill_hit_bonus \
 		- situational_attack_bonus \
 		+ situational_attack_penalty
 	var hit_rate_percent := _compute_hit_rate_percent(required_roll)
@@ -260,6 +272,7 @@ func build_skill_attack_check(
 		"attacker_bab": attacker_base_attack_bonus,
 		"target_armor_class": target_armor_class,
 		"skill_attack_bonus": skill_attack_bonus,
+		"locked_skill_hit_bonus": locked_skill_hit_bonus,
 		"situational_attack_bonus": situational_attack_bonus,
 		"situational_attack_penalty": situational_attack_penalty,
 		"required_roll": required_roll,
@@ -312,12 +325,27 @@ func _get_target_status_dodge_bonus(target_unit: BattleUnitState) -> int:
 func _get_attacker_status_attack_bonus_delta(active_unit: BattleUnitState) -> int:
 	if active_unit == null:
 		return 0
+	var attack_delta := 0
 	if active_unit.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE):
-		return BLACK_STAR_BRAND_ATTACK_BONUS_DELTA
-	var status_entry = active_unit.get_status_effect(STATUS_ATTACK_ROLL_BONUS_UP)
-	if status_entry != null:
-		return maxi(int(status_entry.power), int(status_entry.stacks))
-	return 0
+		attack_delta = BLACK_STAR_BRAND_ATTACK_BONUS_DELTA
+	else:
+		var status_entry = active_unit.get_status_effect(STATUS_ATTACK_ROLL_BONUS_UP)
+		if status_entry != null:
+			attack_delta = maxi(int(status_entry.power), int(status_entry.stacks))
+	return attack_delta - _get_attacker_status_attack_penalty(active_unit)
+
+
+func _get_attacker_status_attack_penalty(active_unit: BattleUnitState) -> int:
+	if active_unit == null:
+		return 0
+	var penalty := 0
+	for status_id_variant in active_unit.status_effects.keys():
+		var status_id := ProgressionDataUtils.to_string_name(status_id_variant)
+		var status_entry = active_unit.get_status_effect(status_id)
+		if status_entry == null:
+			continue
+		penalty = maxi(penalty, BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT.get_attack_roll_penalty(status_entry))
+	return penalty
 
 
 func _is_target_dodge_bonus_locked(target_unit: BattleUnitState) -> bool:
@@ -404,6 +432,193 @@ func roll_hit_rate(battle_state: BattleState, hit_rate_percent: int) -> Dictiona
 	)
 
 
+func resolve_attack_metadata(
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	attack_check: Dictionary,
+	attack_context: Dictionary
+) -> Dictionary:
+	var hidden_luck_at_birth := _get_hidden_luck_at_birth(source_unit)
+	var faith_luck_bonus := _get_faith_luck_bonus(source_unit)
+	var effective_luck := _get_effective_luck(source_unit)
+	var is_disadvantage := _resolve_attack_disadvantage(source_unit, target_unit, attack_context)
+	var crit_gate_die := FATE_ATTACK_FORMULA_SCRIPT.calc_crit_gate_die_size(effective_luck, is_disadvantage)
+	var force_hit_no_crit := bool(attack_context.get("force_hit_no_crit", false))
+	var crit_locked := _fate_attack_rules.is_attack_crit_locked(source_unit) or force_hit_no_crit
+	var required_roll := int(attack_check.get("required_roll", ATTACK_CHECK_TARGET))
+	var metadata := {
+		"attack_resolution": ATTACK_RESOLUTION_MISS,
+		"attack_success": false,
+		"critical_hit": false,
+		"critical_fail": false,
+		"ordinary_miss": false,
+		"is_disadvantage": is_disadvantage,
+		"hidden_luck_at_birth": hidden_luck_at_birth,
+		"faith_luck_bonus": faith_luck_bonus,
+		"effective_luck": effective_luck,
+		"crit_locked": crit_locked,
+		"crit_gate_die": crit_gate_die,
+		"crit_gate_roll": 0,
+		"hit_roll": 0,
+		"fumble_low_end": FATE_ATTACK_FORMULA_SCRIPT.calc_fumble_low_end(effective_luck),
+		"crit_threshold": FATE_ATTACK_FORMULA_SCRIPT.calc_crit_threshold(hidden_luck_at_birth, faith_luck_bonus),
+		"required_roll": required_roll,
+		"display_required_roll": int(attack_check.get("display_required_roll", clampi(required_roll, 2, NATURAL_HIT_ROLL))),
+		"hit_rate_percent": int(attack_check.get("hit_rate_percent", 0)),
+		"trait_trigger_results": [],
+	}
+	if force_hit_no_crit:
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_HIT
+		metadata["attack_success"] = true
+		return metadata
+
+	if crit_gate_die > NATURAL_HIT_ROLL:
+		var crit_gate_roll := _roll_attack_die(crit_gate_die, is_disadvantage, attack_context)
+		metadata["crit_gate_roll"] = crit_gate_roll
+		if _fate_attack_rules.does_gate_die_crit(crit_gate_roll, crit_gate_die, crit_locked):
+			metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT
+			metadata["attack_success"] = true
+			metadata["critical_hit"] = true
+			return metadata
+
+	var hit_roll := _roll_attack_die(NATURAL_HIT_ROLL, is_disadvantage, attack_context)
+	metadata["hit_roll"] = hit_roll
+	var natural_one_trait_result := _resolve_natural_one_trait_reroll(
+		source_unit,
+		hit_roll,
+		attack_context
+	)
+	if bool(natural_one_trait_result.get("triggered", false)):
+		hit_roll = int(natural_one_trait_result.get("rerolled_roll", hit_roll))
+		metadata["hit_roll"] = hit_roll
+		_append_trait_trigger_result(metadata, natural_one_trait_result)
+
+	if hit_roll <= int(metadata.get("fumble_low_end", 1)):
+		if _try_apply_reverse_fate_amulet(source_unit):
+			metadata["attack_resolution"] = ATTACK_RESOLUTION_MISS
+			metadata["ordinary_miss"] = true
+			metadata["reverse_fate_downgraded"] = true
+			return metadata
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_FAIL
+		metadata["critical_fail"] = true
+		return metadata
+
+	if _fate_attack_rules.is_high_threat_crit_roll(
+		hit_roll,
+		crit_locked,
+		crit_gate_die,
+		int(metadata.get("crit_threshold", NATURAL_HIT_ROLL))
+	):
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT
+		metadata["attack_success"] = true
+		metadata["critical_hit"] = true
+		return metadata
+
+	if _fate_attack_rules.does_attack_roll_hit(hit_roll, attack_check):
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_HIT
+		metadata["attack_success"] = true
+		return metadata
+
+	metadata["ordinary_miss"] = true
+	return metadata
+
+
+func resolve_spell_control_metadata(
+	source_unit: BattleUnitState,
+	attack_context: Dictionary
+) -> Dictionary:
+	var hidden_luck_at_birth := _get_hidden_luck_at_birth(source_unit)
+	var faith_luck_bonus := _get_faith_luck_bonus(source_unit)
+	var effective_luck := _get_effective_luck(source_unit)
+	var is_disadvantage := bool(attack_context.get("is_disadvantage", false))
+	var locked_skill_hit_bonus := _get_skill_lock_hit_bonus_from_context(source_unit, attack_context)
+	var crit_gate_die := FATE_ATTACK_FORMULA_SCRIPT.calc_crit_gate_die_size(effective_luck, is_disadvantage)
+	var crit_locked := _fate_attack_rules.is_attack_crit_locked(source_unit)
+	var metadata := {
+		"attack_resolution": ATTACK_RESOLUTION_HIT,
+		"spell_control_resolution": &"normal",
+		"attack_success": true,
+		"critical_hit": false,
+		"critical_fail": false,
+		"ordinary_miss": false,
+		"is_disadvantage": is_disadvantage,
+		"hidden_luck_at_birth": hidden_luck_at_birth,
+		"faith_luck_bonus": faith_luck_bonus,
+		"effective_luck": effective_luck,
+		"crit_locked": crit_locked,
+		"crit_gate_die": crit_gate_die,
+		"crit_gate_roll": 0,
+		"hit_roll": 0,
+		"fumble_low_end": FATE_ATTACK_FORMULA_SCRIPT.calc_fumble_low_end(effective_luck),
+		"crit_threshold": FATE_ATTACK_FORMULA_SCRIPT.calc_crit_threshold(hidden_luck_at_birth, faith_luck_bonus),
+		"locked_skill_hit_bonus": locked_skill_hit_bonus,
+		"trait_trigger_results": [],
+	}
+
+	if crit_gate_die > NATURAL_HIT_ROLL:
+		var crit_gate_roll := _roll_attack_die(crit_gate_die, is_disadvantage, attack_context)
+		metadata["crit_gate_roll"] = crit_gate_roll
+		if _fate_attack_rules.does_gate_die_crit(crit_gate_roll, crit_gate_die, crit_locked):
+			metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT
+			metadata["spell_control_resolution"] = &"critical_success"
+			metadata["critical_hit"] = true
+			return metadata
+
+	var hit_roll := _roll_attack_die(NATURAL_HIT_ROLL, is_disadvantage, attack_context)
+	metadata["hit_roll"] = hit_roll
+	var natural_one_trait_result := _resolve_natural_one_trait_reroll(
+		source_unit,
+		hit_roll,
+		attack_context
+	)
+	if bool(natural_one_trait_result.get("triggered", false)):
+		hit_roll = int(natural_one_trait_result.get("rerolled_roll", hit_roll))
+		metadata["hit_roll"] = hit_roll
+		_append_trait_trigger_result(metadata, natural_one_trait_result)
+
+	var effective_hit_roll := hit_roll + locked_skill_hit_bonus
+	metadata["effective_hit_roll"] = effective_hit_roll
+	if effective_hit_roll <= int(metadata.get("fumble_low_end", 1)):
+		if _try_apply_reverse_fate_amulet(source_unit):
+			metadata["spell_control_resolution"] = &"reverse_fate_downgraded"
+			metadata["reverse_fate_downgraded"] = true
+			return metadata
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_FAIL
+		metadata["spell_control_resolution"] = &"critical_fail"
+		metadata["attack_success"] = false
+		metadata["critical_fail"] = true
+		return metadata
+
+	if _fate_attack_rules.is_high_threat_crit_roll(
+		effective_hit_roll,
+		crit_locked,
+		crit_gate_die,
+		int(metadata.get("crit_threshold", NATURAL_HIT_ROLL))
+	):
+		metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT
+		metadata["spell_control_resolution"] = &"critical_success"
+		metadata["critical_hit"] = true
+		return metadata
+
+	return metadata
+
+
+func _get_skill_lock_hit_bonus(unit_state: BattleUnitState, skill_id: StringName) -> int:
+	if unit_state == null or skill_id == &"":
+		return 0
+	return maxi(int(unit_state.known_skill_lock_hit_bonus_map.get(skill_id, 0)), 0)
+
+
+func _get_skill_lock_hit_bonus_from_context(unit_state: BattleUnitState, context: Dictionary) -> int:
+	if context == null:
+		return 0
+	return _get_skill_lock_hit_bonus(unit_state, ProgressionDataUtils.to_string_name(context.get("skill_id", "")))
+
+
+func roll_attack_die(die_size: int, is_disadvantage: bool, attack_context: Dictionary) -> int:
+	return _roll_attack_die(die_size, is_disadvantage, attack_context)
+
+
 func format_attack_check_preview(attack_check: Dictionary) -> String:
 	var hit_rate_percent := int(attack_check.get("success_rate_percent", 0))
 	var required_roll := int(attack_check.get("required_roll", ATTACK_CHECK_TARGET))
@@ -435,6 +650,131 @@ func _roll_battle_d20(battle_state: BattleState) -> int:
 	var nonce := maxi(int(battle_state.attack_roll_nonce), 0)
 	battle_state.attack_roll_nonce = nonce + 1
 	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(NATURAL_MISS_ROLL, NATURAL_HIT_ROLL))
+
+
+func _resolve_natural_one_trait_reroll(
+	source_unit: BattleUnitState,
+	hit_roll: int,
+	attack_context: Dictionary
+) -> Dictionary:
+	if _trait_trigger_hooks == null:
+		return {}
+	var hook_result: Dictionary = _trait_trigger_hooks.on_natural_one(source_unit, {
+		"roll": hit_roll,
+		"die_size": NATURAL_HIT_ROLL,
+		"battle_state": attack_context.get("battle_state", null),
+	})
+	if not bool(hook_result.get("triggered", false)):
+		return hook_result
+	if bool(hook_result.get("reroll_die", false)):
+		hook_result["rerolled_roll"] = _roll_attack_die(NATURAL_HIT_ROLL, false, attack_context)
+	return hook_result
+
+
+func _resolve_attack_disadvantage(
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	attack_context: Dictionary
+) -> bool:
+	if attack_context.has("is_disadvantage"):
+		return bool(attack_context.get("is_disadvantage", false))
+	var battle_state := attack_context.get("battle_state", null) as BattleState
+	if battle_state == null:
+		return false
+	return battle_state.is_attack_disadvantage(source_unit, target_unit)
+
+
+func _roll_attack_die(die_size: int, is_disadvantage: bool, attack_context: Dictionary) -> int:
+	var battle_state := attack_context.get("battle_state", null) as BattleState
+	var normalized_die_size := maxi(die_size, 1)
+	var first_roll := _roll_attack_die_once(normalized_die_size, attack_context, battle_state)
+	if not is_disadvantage:
+		return first_roll
+	var second_roll := _roll_attack_die_once(normalized_die_size, attack_context, battle_state)
+	return mini(first_roll, second_roll)
+
+
+func _roll_attack_die_once(die_size: int, attack_context: Dictionary, battle_state: BattleState) -> int:
+	var override_roll := _consume_attack_roll_override(attack_context, die_size)
+	if override_roll > 0:
+		if battle_state != null:
+			battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
+		return override_roll
+	return _roll_true_random_attack_range(1, die_size, battle_state)
+
+
+func _consume_attack_roll_override(attack_context: Dictionary, die_size: int) -> int:
+	if attack_context == null:
+		return 0
+	var normalized_die_size := maxi(die_size, 1)
+	if attack_context.has("attack_roll_overrides"):
+		var raw_overrides = attack_context.get("attack_roll_overrides", [])
+		if raw_overrides is Array and not raw_overrides.is_empty():
+			var override_values: Array = raw_overrides
+			var raw_value = override_values.pop_front()
+			attack_context["attack_roll_overrides"] = override_values
+			return clampi(int(raw_value), 1, normalized_die_size)
+	if attack_context.has("attack_roll_override"):
+		var raw_single = attack_context.get("attack_roll_override", 0)
+		attack_context.erase("attack_roll_override")
+		return clampi(int(raw_single), 1, normalized_die_size)
+	return 0
+
+
+func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state: BattleState) -> int:
+	if battle_state != null:
+		battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
+	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(min_value, max_value))
+
+
+func _try_apply_reverse_fate_amulet(source_unit: BattleUnitState) -> bool:
+	if source_unit == null:
+		return false
+	if not LOW_LUCK_RELIC_RULES_SCRIPT.unit_has_flag(source_unit, LOW_LUCK_RELIC_RULES_SCRIPT.ATTR_REVERSE_FATE_AMULET):
+		return false
+	if bool(source_unit.ai_blackboard.get(LOW_LUCK_RELIC_RULES_SCRIPT.BATTLE_FLAG_REVERSE_FATE_USED, false)):
+		return false
+	source_unit.ai_blackboard[LOW_LUCK_RELIC_RULES_SCRIPT.BATTLE_FLAG_REVERSE_FATE_USED] = true
+	_apply_runtime_status(
+		source_unit,
+		LOW_LUCK_RELIC_RULES_SCRIPT.STATUS_REVERSE_FATE_WEAKENED,
+		LOW_LUCK_RELIC_RULES_SCRIPT.REVERSE_FATE_DURATION_TU,
+		{
+			"outgoing_damage_multiplier": LOW_LUCK_RELIC_RULES_SCRIPT.REVERSE_FATE_DAMAGE_MULTIPLIER,
+			"counts_as_debuff": true,
+		}
+	)
+	return true
+
+
+func _apply_runtime_status(
+	unit_state: BattleUnitState,
+	status_id: StringName,
+	duration_tu: int,
+	params: Dictionary = {},
+	source_unit_id: StringName = &""
+) -> void:
+	if unit_state == null or status_id == &"":
+		return
+	var status_entry := BattleStatusEffectState.new()
+	status_entry.status_id = status_id
+	status_entry.source_unit_id = source_unit_id
+	status_entry.power = 1
+	status_entry.stacks = 1
+	status_entry.duration = maxi(duration_tu, -1)
+	status_entry.params = params.duplicate(true)
+	unit_state.set_status_effect(status_entry)
+
+
+func _append_trait_trigger_result(target: Dictionary, trigger_result: Dictionary) -> void:
+	if target == null or trigger_result == null or not bool(trigger_result.get("triggered", false)):
+		return
+	var results: Array = []
+	var existing_results = target.get("trait_trigger_results", [])
+	if existing_results is Array:
+		results = existing_results.duplicate(true)
+	results.append(trigger_result.duplicate(true))
+	target["trait_trigger_results"] = results
 
 
 func _resolve_repeat_attack_preview_stage_count(
@@ -664,6 +1004,14 @@ func _get_faith_luck_bonus(unit_state: BattleUnitState) -> int:
 	if unit_state == null or unit_state.attribute_snapshot == null:
 		return 0
 	return int(unit_state.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS))
+
+
+func _get_effective_luck(unit_state: BattleUnitState) -> int:
+	return clampi(
+		_get_hidden_luck_at_birth(unit_state) + _get_faith_luck_bonus(unit_state),
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MIN,
+		UNIT_BASE_ATTRIBUTES_SCRIPT.EFFECTIVE_LUCK_MAX
+	)
 
 
 func _average_ints(values: Array[int]) -> float:

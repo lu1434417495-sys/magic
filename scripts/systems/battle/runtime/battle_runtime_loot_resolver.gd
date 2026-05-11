@@ -6,6 +6,7 @@ const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_s
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
 
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const STATUS_CROWN_BREAK_BROKEN_FANG: StringName = &"crown_break_broken_fang"
@@ -14,16 +15,6 @@ const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
 const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 const BOSS_TARGET_STAT_ID: StringName = &"boss_target"
-const CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
-const BLACK_CROWN_CORE_ITEM_ID: StringName = &"black_crown_core"
-const LOOT_DROP_TYPE_ITEM: StringName = &"item"
-const LOOT_DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
-const LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
-const LOOT_SOURCE_KIND_ENEMY_UNIT: StringName = &"enemy_unit"
-const LOOT_SOURCE_KIND_CALAMITY_CONVERSION: StringName = &"calamity_conversion"
-const LOOT_SOURCE_KIND_FATE_STATUS_DROP: StringName = &"fate_status_drop"
-const LOOT_SOURCE_ID_ORDINARY_BATTLE: StringName = &"ordinary_battle"
-const LOOT_SOURCE_ID_ELITE_BOSS_BATTLE: StringName = &"elite_boss_battle"
 const CALAMITY_PER_SHARD := 2
 const DOOM_SENTENCE_REFUND_CALAMITY := 5
 const DROP_DEFINITION_REQUIRED_FIELDS := [
@@ -110,12 +101,12 @@ func _build_defeated_unit_loot_entries(unit_state: BattleUnitState, enemy_templa
 		var drop_type: StringName = parsed_drop_entry["drop_type"]
 		var item_id: StringName = parsed_drop_entry["item_id"]
 		var quantity: int = parsed_drop_entry["quantity"]
-		if drop_type == LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
+		if drop_type == BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT:
 			if _runtime._equipment_drop_service != null and _runtime._equipment_drop_service.has_method("roll_item_instances"):
 				var rolled_instances: Array = _runtime._equipment_drop_service.roll_item_instances(item_id, quantity, normalized_drop_luck)
 				for instance_index in range(rolled_instances.size()):
 					var loot_entry := _build_equipment_instance_loot_entry(
-						LOOT_SOURCE_KIND_ENEMY_UNIT,
+						BattleLootConstants.SOURCE_KIND_ENEMY_UNIT,
 						unit_state.unit_id,
 						source_label,
 						"%s_%s_%d" % [String(unit_state.unit_id), String(drop_entry_id), instance_index + 1],
@@ -125,7 +116,7 @@ func _build_defeated_unit_loot_entries(unit_state: BattleUnitState, enemy_templa
 						loot_entries.append(loot_entry)
 				continue
 			var fallback_entry := _build_formal_loot_entry(
-				LOOT_SOURCE_KIND_ENEMY_UNIT,
+				BattleLootConstants.SOURCE_KIND_ENEMY_UNIT,
 				unit_state.unit_id,
 				source_label,
 				"%s_%s" % [String(unit_state.enemy_template_id if unit_state.enemy_template_id != &"" else unit_state.unit_id), String(drop_entry_id)],
@@ -134,12 +125,12 @@ func _build_defeated_unit_loot_entries(unit_state: BattleUnitState, enemy_templa
 			)
 			if fallback_entry.is_empty():
 				continue
-			fallback_entry["drop_type"] = String(LOOT_DROP_TYPE_RANDOM_EQUIPMENT)
+			fallback_entry["drop_type"] = String(BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT)
 			fallback_entry["drop_luck"] = normalized_drop_luck
 			loot_entries.append(fallback_entry)
 			continue
 		var fixed_entry := _build_formal_loot_entry(
-			LOOT_SOURCE_KIND_ENEMY_UNIT,
+			BattleLootConstants.SOURCE_KIND_ENEMY_UNIT,
 			unit_state.unit_id,
 			source_label,
 			"%s_%s" % [String(unit_state.enemy_template_id if unit_state.enemy_template_id != &"" else unit_state.unit_id), String(drop_entry_id)],
@@ -164,7 +155,7 @@ func _parse_drop_definition(entry_data: Dictionary) -> Dictionary:
 	var item_id := _strict_string_name_value(entry_data["item_id"])
 	if drop_entry_id == &"" or item_id == &"":
 		return {}
-	if drop_type != LOOT_DROP_TYPE_ITEM and drop_type != LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
+	if drop_type != BattleLootConstants.DROP_TYPE_ITEM and drop_type != BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT:
 		return {}
 	if entry_data["quantity"] is not int:
 		return {}
@@ -206,7 +197,7 @@ func _build_equipment_instance_loot_entry(
 	if entry_suffix.is_empty():
 		entry_suffix = "equipment_instance"
 	return {
-		"drop_type": String(LOOT_DROP_TYPE_EQUIPMENT_INSTANCE),
+		"drop_type": String(BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE),
 		"drop_source_kind": String(drop_source_kind),
 		"drop_source_id": String(drop_source_id),
 		"drop_source_label": source_label,
@@ -275,10 +266,37 @@ func _build_player_victory_loot_entries() -> Array:
 	var loot_entries: Array = []
 	for loot_entry_variant in _runtime._active_loot_entries:
 		if loot_entry_variant is Dictionary:
-			loot_entries.append((loot_entry_variant as Dictionary).duplicate(true))
+			var victory_entry := _prepare_player_victory_loot_entry(loot_entry_variant as Dictionary)
+			if not victory_entry.is_empty():
+				loot_entries.append(victory_entry)
 	loot_entries.append_array(_build_status_reward_loot_entries())
 	loot_entries.append_array(_build_calamity_conversion_loot_entries())
 	return loot_entries
+
+
+func _prepare_player_victory_loot_entry(loot_entry_data: Dictionary) -> Dictionary:
+	var entry := loot_entry_data.duplicate(true)
+	var drop_type := ProgressionDataUtils.to_string_name(entry.get("drop_type", ""))
+	if drop_type != BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE:
+		return entry
+	var equipment_payload_variant: Variant = entry.get("equipment_instance", {})
+	if equipment_payload_variant is not Dictionary:
+		return {}
+	var equipment_payload := (equipment_payload_variant as Dictionary).duplicate(true)
+	var instance_id := ProgressionDataUtils.to_string_name(equipment_payload.get("instance_id", ""))
+	if instance_id == &"":
+		instance_id = _allocate_equipment_instance_id()
+		if instance_id == &"":
+			return {}
+		equipment_payload["instance_id"] = String(instance_id)
+	entry["equipment_instance"] = equipment_payload
+	return entry
+
+
+func _allocate_equipment_instance_id() -> StringName:
+	if _runtime == null or not _runtime.has_method("allocate_equipment_instance_id"):
+		return &""
+	return ProgressionDataUtils.to_string_name(_runtime.allocate_equipment_instance_id())
 
 
 func _build_battle_party_resource_commit() -> Dictionary:
@@ -299,20 +317,20 @@ func _build_status_reward_loot_entries() -> Array:
 	for defeated_unit in _get_defeated_enemy_units():
 		if _should_grant_status_calamity_shard(defeated_unit):
 			loot_entries.append(_build_formal_loot_entry(
-				LOOT_SOURCE_KIND_FATE_STATUS_DROP,
+				BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP,
 				defeated_unit.unit_id,
 				defeated_unit.display_name if not defeated_unit.display_name.is_empty() else String(defeated_unit.unit_id),
 				"status_calamity_shard",
-				CALAMITY_SHARD_ITEM_ID,
+				BattleLootConstants.ITEM_CALAMITY_SHARD,
 				1
 			))
 		if _should_grant_black_crown_core(defeated_unit):
 			loot_entries.append(_build_formal_loot_entry(
-				LOOT_SOURCE_KIND_FATE_STATUS_DROP,
+				BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP,
 				defeated_unit.unit_id,
 				defeated_unit.display_name if not defeated_unit.display_name.is_empty() else String(defeated_unit.unit_id),
 				"doom_sentence_black_crown_core",
-				BLACK_CROWN_CORE_ITEM_ID,
+				BattleLootConstants.ITEM_BLACK_CROWN_CORE,
 				1
 			))
 	return loot_entries
@@ -322,14 +340,14 @@ func _build_calamity_conversion_loot_entries() -> Array:
 	var shard_count := _calculate_calamity_conversion_shard_count()
 	if shard_count <= 0:
 		return []
-	var battle_source_id := LOOT_SOURCE_ID_ELITE_BOSS_BATTLE if _battle_has_elite_or_boss_enemy() else LOOT_SOURCE_ID_ORDINARY_BATTLE
-	var battle_source_label := "elite/boss 战未消耗 calamity 结算" if battle_source_id == LOOT_SOURCE_ID_ELITE_BOSS_BATTLE else "普通战未消耗 calamity 结算"
+	var battle_source_id := BattleLootConstants.SOURCE_ID_ELITE_BOSS_BATTLE if _battle_has_elite_or_boss_enemy() else BattleLootConstants.SOURCE_ID_ORDINARY_BATTLE
+	var battle_source_label := "elite/boss 战未消耗 calamity 结算" if battle_source_id == BattleLootConstants.SOURCE_ID_ELITE_BOSS_BATTLE else "普通战未消耗 calamity 结算"
 	return [_build_formal_loot_entry(
-		LOOT_SOURCE_KIND_CALAMITY_CONVERSION,
+		BattleLootConstants.SOURCE_KIND_CALAMITY_CONVERSION,
 		battle_source_id,
 		battle_source_label,
 		"calamity_conversion",
-		CALAMITY_SHARD_ITEM_ID,
+		BattleLootConstants.ITEM_CALAMITY_SHARD,
 		shard_count
 	)]
 

@@ -6,6 +6,9 @@ const DISTANCE_REF_ENEMY_FRONTLINE: StringName = &"enemy_frontline"
 
 @export var skill_ids: Array[StringName] = []
 @export var target_selector: StringName = &"nearest_enemy"
+@export var minimum_effective_target_count := 1
+@export var maximum_friendly_fire_target_count := 0
+@export var allow_friendly_lethal := false
 @export var desired_min_distance := -1
 @export var desired_max_distance := -1
 @export var distance_reference: StringName = &""
@@ -17,6 +20,9 @@ func decide(context):
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "unit_skill",
 		"target_selector": String(target_selector),
+		"minimum_effective_target_count": minimum_effective_target_count,
+		"maximum_friendly_fire_target_count": maximum_friendly_fire_target_count,
+		"allow_friendly_lethal": allow_friendly_lethal,
 		"distance_reference": String(distance_reference),
 		"desired_min_distance": desired_min_distance,
 		"desired_max_distance": desired_max_distance,
@@ -78,6 +84,12 @@ func decide(context):
 					}
 				))
 				continue
+			if int(score_input.effective_target_count) < minimum_effective_target_count:
+				_trace_add_block_reason(action_trace, "minimum_effective_target_count")
+				continue
+			if not _passes_friendly_fire_limits(score_input):
+				_trace_add_block_reason(action_trace, "friendly_fire_limit")
+				continue
 			_trace_offer_candidate(action_trace, _build_candidate_summary(
 				"%s->%s" % [skill_def.display_name, target_unit.display_name],
 				command,
@@ -103,6 +115,16 @@ func decide(context):
 	var resolved_decision: BattleAiDecision = best_decision if best_decision != null else fallback_decision
 	_finalize_action_trace(context, action_trace, resolved_decision)
 	return resolved_decision
+
+
+func _passes_friendly_fire_limits(score_input) -> bool:
+	if score_input == null:
+		return false
+	if int(score_input.estimated_friendly_fire_target_count) > maximum_friendly_fire_target_count:
+		return false
+	if not allow_friendly_lethal and int(score_input.estimated_friendly_lethal_target_count) > 0:
+		return false
+	return true
 
 
 func _build_position_metadata(context, target_unit, skill_def: SkillDef) -> Dictionary:
@@ -139,6 +161,10 @@ func validate_schema() -> Array[String]:
 		errors.append("UseUnitSkillAction %s must declare at least one skill_id." % String(action_id))
 	if target_selector == &"":
 		errors.append("UseUnitSkillAction %s is missing target_selector." % String(action_id))
+	if minimum_effective_target_count < 0:
+		errors.append("UseUnitSkillAction %s minimum_effective_target_count must be >= 0." % String(action_id))
+	if maximum_friendly_fire_target_count < 0:
+		errors.append("UseUnitSkillAction %s maximum_friendly_fire_target_count must be >= 0." % String(action_id))
 	if desired_min_distance < 0:
 		errors.append("UseUnitSkillAction %s desired_min_distance must be >= 0." % String(action_id))
 	if desired_max_distance < desired_min_distance:

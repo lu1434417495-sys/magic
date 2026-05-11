@@ -1,10 +1,15 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
+const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_service.gd")
+const BATTLE_AI_SCORE_INPUT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_input.gd")
 const BATTLE_AI_SCORE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_service.gd")
+const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
@@ -32,21 +37,13 @@ const USE_MULTI_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/action
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
-
-
-class TrapDamageResolver:
-	extends BattleDamageResolver
-
-	var resolve_effects_calls := 0
-
-	func resolve_effects(source_unit, target_unit, effect_defs: Array, damage_context: Dictionary = {}) -> Dictionary:
-		resolve_effects_calls += 1
-		return super.resolve_effects(source_unit, target_unit, effect_defs, damage_context)
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -89,12 +86,22 @@ func _run() -> void:
 	_test_ai_multi_unit_skill_generates_target_unit_ids()
 	_test_ai_multi_unit_skill_scores_role_threat_target_groups()
 	_test_ai_ground_skill_scores_role_threat_area_targets()
+	_test_ai_skill_score_prioritizes_lethal_threat_targets()
+	_test_ai_score_comparison_promotes_lethal_kill_across_buckets()
+	_test_ai_ground_skill_minimum_hit_count_uses_effective_enemies()
+	_test_ai_chain_skill_scores_friendly_bounce_risk()
 	_test_ai_multi_unit_skill_prefers_max_targets_under_candidate_limit()
 	_test_ai_multi_unit_positioning_moves_toward_max_targets()
 	_test_ai_skill_distance_contract_uses_effective_weapon_range()
 	_test_ai_move_to_range_uses_effective_weapon_range()
+	_test_ai_ground_cone_distance_contract_uses_outer_reach()
+	_test_ai_gust_of_wind_can_hit_from_outer_reach()
+	_test_mage_controller_uses_gust_to_protect_threatened_ally()
 	_test_ranged_archer_survival_position_beats_shot_when_too_close()
 	_test_ranged_archer_survival_position_uses_enemy_threat_range()
+	_test_mage_controller_uses_blink_escape_when_unsafe()
+	_test_mage_controller_uses_lethal_fireball_before_blink_escape()
+	_test_mage_retreat_state_still_uses_lethal_offense_when_safe()
 	_test_retreat_action_uses_enemy_threat_range_progress()
 	_test_ranged_archer_prefers_high_ground_position_before_shot()
 	_test_ai_skill_score_input_exposes_ground_metrics()
@@ -567,7 +574,7 @@ func _test_ai_charge_decision_logs_brain_state_action() -> void:
 	state.phase = &"unit_acting"
 	state.active_unit_id = wolf.unit_id
 
-	var batch = runtime.advance(0.0)
+	var batch = runtime.advance(0)
 	_assert_true(batch != null, "AI advance 应返回有效 batch。")
 	_assert_true(
 		batch != null and not batch.log_lines.is_empty() and String(batch.log_lines[0]).contains("AI[melee_aggressor/engage/wolf_charge_open]"),
@@ -600,7 +607,7 @@ func _test_frontline_bulwark_charge_decision_logs_brain_state_action() -> void:
 	state.phase = &"unit_acting"
 	state.active_unit_id = vanguard.unit_id
 
-	var batch = runtime.advance(0.0)
+	var batch = runtime.advance(0)
 	_assert_true(batch != null, "frontline_bulwark AI advance 应返回有效 batch。")
 	_assert_true(
 		batch != null and not batch.log_lines.is_empty() and String(batch.log_lines[0]).contains("AI[frontline_bulwark/engage/vanguard_charge_open]"),
@@ -691,7 +698,7 @@ func _test_melee_close_in_prefers_screening_ranged_ally_when_healthy() -> void:
 	action.desired_min_distance = 1
 	action.desired_max_distance = 1
 	action.screening_mode = &"ranged_ally"
-	action.screening_min_hp_ratio = 0.4
+	action.screening_min_hp_basis_points = 4000
 	var decision = action.decide(ai_context)
 	_assert_eq(
 		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
@@ -762,7 +769,7 @@ func _test_melee_screening_scores_actual_path_cost_block() -> void:
 	action.desired_min_distance = 1
 	action.desired_max_distance = 1
 	action.screening_mode = &"ranged_ally"
-	action.screening_min_hp_ratio = 0.4
+	action.screening_min_hp_basis_points = 4000
 	var screening_context: Dictionary = action._build_screening_context(ai_context)
 	var metrics: Dictionary = action._build_screening_metrics(ai_context, Vector2i(3, 3), screening_context)
 	_assert_true(bool(screening_context.get("enabled", false)), "敌方近战一两步能威胁弓手时，screening context 应启用。")
@@ -816,7 +823,7 @@ func _test_melee_screening_ignores_geometric_line_without_pressure() -> void:
 	action.desired_min_distance = 1
 	action.desired_max_distance = 1
 	action.screening_mode = &"ranged_ally"
-	action.screening_min_hp_ratio = 0.4
+	action.screening_min_hp_basis_points = 4000
 	var screening_context: Dictionary = action._build_screening_context(ai_context)
 	var metrics: Dictionary = action._build_screening_metrics(ai_context, Vector2i(3, 5), screening_context)
 	_assert_true(bool(screening_context.get("enabled", false)), "敌方近战可威胁弓手时，screening context 应启用。")
@@ -1161,8 +1168,12 @@ func _test_ai_ground_skill_generates_legal_command() -> void:
 		24,
 		2
 	)
+	mist.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 20)
+	mist.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS, 4)
 	var player_a = _build_manual_unit(&"player_a", "玩家A", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
 	var player_b = _build_manual_unit(&"player_b", "玩家B", &"player", Vector2i(4, 3), [&"warrior_heavy_strike"])
+	player_a.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 10)
+	player_b.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 10)
 	_add_unit_to_state(runtime, state, mist, true)
 	_add_unit_to_state(runtime, state, player_a, false)
 	_add_unit_to_state(runtime, state, player_b, false)
@@ -1519,6 +1530,317 @@ func _test_ai_ground_skill_scores_role_threat_area_targets() -> void:
 	)
 
 
+func _test_ai_skill_score_prioritizes_lethal_threat_targets() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 6))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"lethal_threat_mage",
+		"击杀威胁法师",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_fireball", &"mage_chain_lightning"],
+		28,
+		1
+	)
+	mage.current_mp = 1000
+	mage.attribute_snapshot.set_value(&"mp_max", 1000)
+	for skill_id in mage.known_active_skill_ids:
+		mage.known_skill_level_map[skill_id] = 7
+	var archer_a = _build_manual_unit(&"lethal_threat_archer_a", "低血远程威胁A", &"player", Vector2i(5, 2), [&"archer_aimed_shot", &"basic_attack"])
+	var archer_b = _build_manual_unit(&"lethal_threat_archer_b", "低血远程威胁B", &"player", Vector2i(5, 4), [&"archer_aimed_shot", &"basic_attack"])
+	for archer in [archer_a, archer_b]:
+		archer.current_hp = 10
+		archer.attribute_snapshot.set_value(&"hp_max", 30)
+		_apply_test_bow_weapon(archer, 5)
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, archer_a, false)
+	_add_unit_to_state(runtime, state, archer_b, false)
+	var ai_context = _build_ai_context(runtime, mage)
+	var fireball_def = runtime._skill_defs.get(&"mage_fireball")
+	var chain_def = runtime._skill_defs.get(&"mage_chain_lightning")
+	var fireball_command = _build_test_ground_skill_command(mage, &"mage_fireball", archer_a.coord)
+	var chain_command = _build_test_unit_skill_command(mage, &"mage_chain_lightning", archer_a)
+	var fireball_preview = runtime.preview_command(fireball_command)
+	var chain_preview = runtime.preview_command(chain_command)
+	_assert_true(fireball_preview != null and fireball_preview.allowed, "击杀威胁火球命令必须通过 preview。")
+	_assert_true(chain_preview != null and chain_preview.allowed, "击杀威胁链闪命令必须通过 preview。")
+	var fireball_score = ai_context.build_skill_score_input(
+		fireball_def,
+		fireball_command,
+		fireball_preview,
+		fireball_def.combat_profile.effect_defs if fireball_def != null and fireball_def.combat_profile != null else [],
+		{"desired_min_distance": 4, "desired_max_distance": 5}
+	)
+	var chain_score = ai_context.build_skill_score_input(
+		chain_def,
+		chain_command,
+		chain_preview,
+		chain_def.combat_profile.effect_defs if chain_def != null and chain_def.combat_profile != null else [],
+		{"desired_min_distance": 4, "desired_max_distance": 5, "position_target_unit": archer_a}
+	)
+	_assert_true(fireball_score != null and chain_score != null, "击杀威胁评分回归应拿到两个合法评分。")
+	if fireball_score == null or chain_score == null:
+		return
+	_assert_true(
+		fireball_score.estimated_lethal_threat_target_count >= 2,
+		"范围技能应识别会死亡的多个威胁目标。"
+	)
+	_assert_eq(
+		chain_score.estimated_lethal_threat_target_count,
+		1,
+		"单体链闪只应识别一个会死亡的威胁目标。"
+	)
+	_assert_true(
+		fireball_score.total_score > chain_score.total_score,
+		"当范围技能能击杀更多威胁单位时，应优先杀人而不是先打单体链闪。"
+	)
+
+
+func _test_ai_score_comparison_promotes_lethal_kill_across_buckets() -> void:
+	var ai_service = BATTLE_AI_SERVICE_SCRIPT.new()
+	var skill_action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	var lethal_threat_offense = _build_score_input_for_ordering_test(&"mist_offense", 100, 80, 1, 1, 1, 0)
+	var lethal_enemy_offense = _build_score_input_for_ordering_test(&"mist_offense", 100, 80, 0, 1, 1, 0)
+	var control = _build_score_input_for_ordering_test(&"mist_control", 110, 900, 0, 0, 2, 0)
+	_assert_true(
+		ai_service._is_better_score_input(lethal_threat_offense, control),
+		"跨 action bucket 比较时，威胁击杀应压过普通控场 bucket。"
+	)
+	_assert_true(
+		not ai_service._is_better_score_input(control, lethal_threat_offense),
+		"普通控场不能因 bucket/total_score 更高反压威胁击杀。"
+	)
+	_assert_true(
+		skill_action._is_better_skill_score_input(lethal_threat_offense, control),
+		"单个 action 内部候选比较也应让威胁击杀压过普通控场。"
+	)
+	var emergency_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
+	emergency_escape.position_current_distance = 2
+	emergency_escape.position_safe_distance = 4
+	emergency_escape.distance_to_primary_coord = 4
+	_assert_true(
+		ai_service._is_better_score_input(lethal_threat_offense, emergency_escape),
+		"能击杀威胁目标时，应压过纯逃生换位，避免法师浪费致命先手。"
+	)
+	_assert_true(
+		not ai_service._is_better_score_input(emergency_escape, lethal_threat_offense),
+		"纯逃生换位不能反压威胁击杀。"
+	)
+	_assert_true(
+		ai_service._is_better_score_input(lethal_enemy_offense, emergency_escape),
+		"普通击杀也应压过纯逃生换位，避免法师在可杀人时空耗先手。"
+	)
+	_assert_true(
+		not ai_service._is_better_score_input(emergency_escape, lethal_enemy_offense),
+		"纯逃生换位不能反压普通击杀。"
+	)
+	var mild_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
+	mild_escape.position_current_distance = 3
+	mild_escape.position_safe_distance = 4
+	mild_escape.distance_to_primary_coord = 4
+	_assert_true(
+		ai_service._is_better_score_input(lethal_threat_offense, mild_escape),
+		"轻度不安全的换位不应压过可击杀目标。"
+	)
+	var short_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 260, 0, 0, 0, 160)
+	short_escape.position_current_distance = 1
+	short_escape.position_safe_distance = 4
+	short_escape.distance_to_primary_coord = 3
+	_assert_true(
+		ai_service._is_better_score_input(lethal_enemy_offense, short_escape),
+		"未真正脱离安全距离的换位不应以紧急生存身份压过击杀。"
+	)
+	var unsafe_lethal_enemy_offense = _build_score_input_for_ordering_test(&"mist_offense", 100, 180, 0, 1, 1, 0)
+	var safe_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 120, 0, 0, 0, 120)
+	_mark_survival_projection(unsafe_lethal_enemy_offense, true, true, 45, -21)
+	_mark_survival_projection(safe_escape, true, false, 0, 24)
+	_assert_true(
+		ai_service._is_better_score_input(safe_escape, unsafe_lethal_enemy_offense),
+		"若击杀后仍会被剩余威胁秒杀，安全换位应跨 bucket 压过普通击杀。"
+	)
+	_assert_true(
+		not ai_service._is_better_score_input(unsafe_lethal_enemy_offense, safe_escape),
+		"仍处于致死风险的击杀不能反压已经解除致死风险的生存动作。"
+	)
+	_assert_true(
+		skill_action._is_better_skill_score_input(safe_escape, unsafe_lethal_enemy_offense),
+		"单个 action 内部候选比较也应使用行动后致死风险。"
+	)
+	_mark_survival_projection(lethal_threat_offense, true, false, 0, 24)
+	_mark_survival_projection(safe_escape, true, false, 0, 24)
+	_assert_true(
+		ai_service._is_better_score_input(lethal_threat_offense, safe_escape),
+		"当击杀动作同样解除致死风险时，威胁击杀应继续压过纯生存动作。"
+	)
+
+
+func _build_score_input_for_ordering_test(
+	bucket_id: StringName,
+	bucket_priority: int,
+	total_score: int,
+	lethal_threat_count: int,
+	lethal_count: int,
+	effective_target_count: int,
+	position_score: int
+):
+	var score_input = BATTLE_AI_SCORE_INPUT_SCRIPT.new()
+	score_input.score_bucket_id = bucket_id
+	score_input.score_bucket_priority = bucket_priority
+	score_input.total_score = total_score
+	score_input.hit_payoff_score = total_score
+	score_input.target_count = effective_target_count
+	score_input.effective_target_count = effective_target_count
+	score_input.enemy_target_count = effective_target_count
+	score_input.estimated_damage = 10 if effective_target_count > 0 else 0
+	score_input.estimated_control_count = effective_target_count if bucket_id == &"mist_control" else 0
+	score_input.estimated_lethal_threat_target_count = lethal_threat_count
+	score_input.estimated_lethal_target_count = lethal_count
+	score_input.position_objective_score = position_score
+	return score_input
+
+
+func _mark_survival_projection(score_input, pre_fatal: bool, post_fatal: bool, post_damage: int, post_margin: int) -> void:
+	if score_input == null:
+		return
+	score_input.has_post_action_threat_projection = true
+	score_input.pre_action_threat_count = 1 if pre_fatal else 0
+	score_input.pre_action_threat_expected_damage = 40 if pre_fatal else 0
+	score_input.pre_action_survival_margin = -16 if pre_fatal else 24
+	score_input.pre_action_is_lethal_survival_risk = pre_fatal
+	score_input.post_action_remaining_threat_count = 1 if post_fatal else 0
+	score_input.post_action_remaining_threat_expected_damage = post_damage
+	score_input.post_action_survival_margin = post_margin
+	score_input.post_action_is_lethal_survival_risk = post_fatal
+
+
+func _test_ai_ground_skill_minimum_hit_count_uses_effective_enemies() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 6))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"friendly_fire_fireball_mage",
+		"友伤火球法师",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_fireball"],
+		28,
+		1
+	)
+	mage.current_mp = 1000
+	mage.attribute_snapshot.set_value(&"mp_max", 1000)
+	mage.known_skill_level_map[&"mage_fireball"] = 7
+	var target = _build_manual_unit(&"friendly_fire_target", "有效敌人", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	var ally = _build_ai_unit(
+		&"friendly_fire_ally",
+		"误伤友军",
+		&"hostile",
+		Vector2i(5, 3),
+		&"melee_aggressor",
+		&"pressure",
+		[&"warrior_heavy_strike"],
+		30,
+		1
+	)
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, target, false)
+	_add_unit_to_state(runtime, state, ally, true)
+	var ai_context = _build_ai_context(runtime, mage)
+	var skill_def = runtime._skill_defs.get(&"mage_fireball")
+	var command = _build_test_ground_skill_command(mage, &"mage_fireball", target.coord)
+	var preview = runtime.preview_command(command)
+	_assert_true(preview != null and preview.allowed, "友伤火球命令必须通过 preview。")
+	var score = ai_context.build_skill_score_input(
+		skill_def,
+		command,
+		preview,
+		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
+		{"desired_min_distance": 4, "desired_max_distance": 5}
+	)
+	_assert_true(score != null, "友伤火球评分应可生成。")
+	if score == null:
+		return
+	_assert_eq(score.enemy_target_count, 1, "minimum_hit_count 应只把敌方有效目标计入收益。")
+	_assert_eq(score.effective_target_count, 1, "友军被火球覆盖不能贡献有效命中数。")
+	_assert_true(score.estimated_friendly_fire_target_count >= 1, "评分应识别火球友伤目标。")
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"friendly_fire_fireball_probe"
+	var skill_ids: Array[StringName] = [&"mage_fireball"]
+	action.skill_ids = skill_ids
+	action.minimum_hit_count = 2
+	action.desired_min_distance = 4
+	action.desired_max_distance = 5
+	action.distance_reference = &"target_coord"
+	var decision = action.decide(ai_context)
+	_assert_true(decision == null, "只有 1 个有效敌人加 1 个友军时，minimum_hit_count=2 的火球候选应被过滤。")
+
+
+func _test_ai_chain_skill_scores_friendly_bounce_risk() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 6))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"friendly_chain_mage",
+		"友伤链闪法师",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_chain_lightning"],
+		28,
+		1
+	)
+	mage.current_mp = 1000
+	mage.attribute_snapshot.set_value(&"mp_max", 1000)
+	mage.known_skill_level_map[&"mage_chain_lightning"] = 7
+	var target = _build_manual_unit(&"friendly_chain_target", "链闪敌人", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	var ally = _build_ai_unit(
+		&"friendly_chain_ally",
+		"链闪友军",
+		&"hostile",
+		Vector2i(5, 3),
+		&"melee_aggressor",
+		&"pressure",
+		[&"warrior_heavy_strike"],
+		30,
+		1
+	)
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, target, false)
+	_add_unit_to_state(runtime, state, ally, true)
+	var ai_context = _build_ai_context(runtime, mage)
+	var skill_def = runtime._skill_defs.get(&"mage_chain_lightning")
+	var command = _build_test_unit_skill_command(mage, &"mage_chain_lightning", target)
+	var preview = runtime.preview_command(command)
+	_assert_true(preview != null and preview.allowed, "友伤链闪命令必须通过 preview。")
+	var score = ai_context.build_skill_score_input(
+		skill_def,
+		command,
+		preview,
+		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
+		{"desired_min_distance": 4, "desired_max_distance": 5, "position_target_unit": target}
+	)
+	_assert_true(score != null, "友伤链闪评分应可生成。")
+	if score == null:
+		return
+	_assert_true(score.estimated_chain_ally_target_count >= 1, "链闪评分应预估会弹射到友军。")
+	_assert_true(score.estimated_friendly_fire_target_count >= 1, "链闪评分应把友军弹射计为友伤风险。")
+	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"friendly_chain_probe"
+	var skill_ids: Array[StringName] = [&"mage_chain_lightning"]
+	action.skill_ids = skill_ids
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 4
+	action.desired_max_distance = 5
+	action.distance_reference = &"target_unit"
+	var decision = action.decide(ai_context)
+	_assert_true(decision == null, "默认 unit skill action 应过滤会弹射友军的链闪候选。")
+
+
 func _test_ai_multi_unit_skill_prefers_max_targets_under_candidate_limit() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(8, 8))
@@ -1740,6 +2062,145 @@ func _test_ai_move_to_range_uses_effective_weapon_range() -> void:
 	)
 
 
+func _test_ai_ground_cone_distance_contract_uses_outer_reach() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(10, 5))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"outer_reach_cone_mage",
+		"外缘寒冰锥法师",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_cone_of_cold"],
+		28,
+		2
+	)
+	mage.current_mp = 200
+	mage.attribute_snapshot.set_value(&"mp_max", 200)
+	mage.known_skill_level_map[&"mage_cone_of_cold"] = 7
+	var target = _build_manual_unit(&"outer_reach_cone_target", "寒冰锥外缘目标", &"player", Vector2i(8, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, mage)
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"outer_reach_cone_probe"
+	var skill_ids: Array[StringName] = [&"mage_cone_of_cold"]
+	action.skill_ids = skill_ids
+	action.minimum_hit_count = 1
+	action.desired_min_distance = 1
+	action.desired_max_distance = 1
+	action.distance_reference = USE_GROUND_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_COORD
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "寒冰锥应能通过外缘覆盖命中 7 格外目标。")
+	_assert_eq(
+		decision.score_input.desired_max_distance if decision != null and decision.score_input != null else -1,
+		7,
+		"地面锥形技能的 AI 距离合同应读取施法范围 + 外缘范围。"
+	)
+	_assert_eq(
+		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
+		Vector2i(2, 2),
+		"寒冰锥外缘命中时，AI 应选择施法者前方相邻格作为锥尖。"
+	)
+	var preview = runtime.preview_command(decision.command if decision != null else null)
+	_assert_true(preview != null and preview.allowed, "寒冰锥外缘命中指令必须通过 runtime preview。")
+	_assert_true(
+		preview != null and preview.target_unit_ids.has(target.unit_id),
+		"寒冰锥 preview 应按实际覆盖格收集外缘目标。"
+	)
+
+
+func _test_ai_gust_of_wind_can_hit_from_outer_reach() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"outer_reach_gust_mage",
+		"外缘强风法师",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_gust_of_wind"],
+		28,
+		2
+	)
+	mage.current_mp = 200
+	mage.attribute_snapshot.set_value(&"mp_max", 200)
+	mage.known_skill_level_map[&"mage_gust_of_wind"] = 7
+	var target = _build_manual_unit(&"outer_reach_gust_target", "强风外缘目标", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var ai_context = _build_ai_context(runtime, mage)
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"outer_reach_gust_probe"
+	var skill_ids: Array[StringName] = [&"mage_gust_of_wind"]
+	action.skill_ids = skill_ids
+	action.minimum_hit_count = 1
+	action.desired_min_distance = 1
+	action.desired_max_distance = 1
+	action.distance_reference = USE_GROUND_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_COORD
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "强风术应能通过外缘覆盖命中 4 格外目标。")
+	_assert_eq(
+		decision.score_input.desired_max_distance if decision != null and decision.score_input != null else -1,
+		4,
+		"强风术的 AI 距离合同应读取 range 1 + cone 外缘 3。"
+	)
+	var preview = runtime.preview_command(decision.command if decision != null else null)
+	_assert_true(preview != null and preview.allowed, "强风术外缘命中指令必须通过 runtime preview。")
+	_assert_true(
+		preview != null and preview.target_unit_ids.has(target.unit_id),
+		"强风术 preview 应按实际覆盖格收集外缘目标。"
+	)
+
+
+func _test_mage_controller_uses_gust_to_protect_threatened_ally() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(7, 5))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"protective_gust_mage",
+		"护卫强风法师",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_blink", &"mage_fireball", &"mage_chain_lightning", &"mage_cone_of_cold", &"mage_gust_of_wind"],
+		28,
+		1
+	)
+	mage.current_mp = 1000
+	mage.attribute_snapshot.set_value(&"mp_max", 1000)
+	for skill_id in mage.known_active_skill_ids:
+		mage.known_skill_level_map[skill_id] = 7
+	var archer_ally = _build_manual_unit(&"protective_gust_archer", "被贴近弓手", &"hostile", Vector2i(4, 2), [&"archer_aimed_shot"])
+	var threat = _build_manual_unit(&"protective_gust_threat", "贴身威胁", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
+	_apply_test_melee_weapon(threat, 1)
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, archer_ally, true)
+	_add_unit_to_state(runtime, state, threat, false)
+	var decision = runtime._ai_service.choose_command(_build_ai_context(runtime, mage))
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"mage_protective_gust",
+		"mage_controller 应在单个敌人威胁友方弓手时使用保护型强风，而不是被 minimum_hit_count=2 挡住。"
+	)
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"mage_gust_of_wind",
+		"保护型动作应施放 mage_gust_of_wind。"
+	)
+	var preview = runtime.preview_command(decision.command if decision != null else null)
+	_assert_true(preview != null and preview.allowed, "保护型强风指令必须通过 runtime preview。")
+	_assert_true(
+		preview != null and preview.target_unit_ids.has(threat.unit_id),
+		"保护型强风应命中正在威胁友军的敌人。"
+	)
+
+
 func _test_ranged_archer_survival_position_beats_shot_when_too_close() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(7, 5))
@@ -1822,6 +2283,129 @@ func _test_ranged_archer_survival_position_uses_enemy_threat_range() -> void:
 		decision.command.command_type if decision != null and decision.command != null else &"",
 		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
 		"动态保命站位应产出移动指令。"
+	)
+
+
+func _test_mage_controller_uses_blink_escape_when_unsafe() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 3))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"mage_escape",
+		"保命法师",
+		&"hostile",
+		Vector2i(2, 1),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_blink", &"mage_fireball", &"mage_chain_lightning", &"mage_cone_of_cold", &"mage_gust_of_wind"],
+		24,
+		2
+	)
+	mage.current_mp = 1000
+	mage.attribute_snapshot.set_value(&"mp_max", 1000)
+	mage.known_skill_level_map[&"mage_blink"] = 7
+	var target = _build_manual_unit(&"mage_escape_target", "贴近威胁", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
+	_apply_test_melee_weapon(target, 1)
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, target, false)
+	var current_distance: int = int(runtime._grid_service.get_distance(mage.coord, target.coord))
+	var ai_context = _build_ai_context(runtime, mage)
+	var decision = runtime._ai_service.choose_command(ai_context)
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"mage_blink_escape",
+		"mage_controller 被敌人压近时应优先使用闪现保命。"
+	)
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"mage_blink",
+		"法师保命 action 应产出 mage_blink 技能指令。"
+	)
+	var landing_distance: int = int(runtime._grid_service.get_distance(decision.command.target_coord, target.coord)) if decision != null and decision.command != null else 0
+	_assert_true(landing_distance > current_distance, "闪现落点应拉开最近威胁距离。")
+
+
+func _test_mage_controller_uses_lethal_fireball_before_blink_escape() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 8))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"mage_escape_killer",
+		"杀敌保命法师",
+		&"hostile",
+		Vector2i(2, 4),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_blink", &"mage_fireball", &"mage_chain_lightning", &"mage_cone_of_cold", &"mage_gust_of_wind"],
+		24,
+		2
+	)
+	mage.current_mp = 1000
+	mage.attribute_snapshot.set_value(&"mp_max", 1000)
+	for skill_id in mage.known_active_skill_ids:
+		mage.known_skill_level_map[skill_id] = 7
+	var targets: Array = [
+		_build_manual_unit(&"mage_escape_kill_a", "可击杀目标A", &"player", Vector2i(4, 3), [&"warrior_heavy_strike"]),
+		_build_manual_unit(&"mage_escape_kill_b", "可击杀目标B", &"player", Vector2i(4, 4), [&"warrior_heavy_strike"]),
+		_build_manual_unit(&"mage_escape_kill_c", "可击杀目标C", &"player", Vector2i(4, 5), [&"warrior_heavy_strike"]),
+	]
+	_add_unit_to_state(runtime, state, mage, true)
+	for target_variant in targets:
+		var target = target_variant as BattleUnitState
+		target.current_hp = 10
+		target.attribute_snapshot.set_value(&"hp_max", 30)
+		_apply_test_melee_weapon(target, 1)
+		_add_unit_to_state(runtime, state, target, false)
+	var decision = runtime._ai_service.choose_command(_build_ai_context(runtime, mage))
+	_assert_eq(
+		decision.action_id if decision != null else &"",
+		&"mage_fireball_cluster",
+		"法师被压近但能火球多杀时，应先杀人而不是先 blink。"
+	)
+	_assert_eq(
+		decision.command.skill_id if decision != null and decision.command != null else &"",
+		&"mage_fireball",
+		"多杀保命决策应产出火球术。"
+	)
+
+
+func _test_mage_retreat_state_still_uses_lethal_offense_when_safe() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var state = _build_flat_state(Vector2i(8, 5))
+	runtime._state = state
+	var mage = _build_ai_unit(
+		&"mage_retreat_killer",
+		"低血杀敌法师",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[&"mage_blink", &"mage_fireball", &"mage_chain_lightning", &"mage_gust_of_wind"],
+		28,
+		1
+	)
+	mage.current_hp = 10
+	mage.attribute_snapshot.set_value(&"hp_max", 40)
+	mage.current_mp = 1000
+	mage.attribute_snapshot.set_value(&"mp_max", 1000)
+	for skill_id in mage.known_active_skill_ids:
+		mage.known_skill_level_map[skill_id] = 7
+	var target_a = _build_manual_unit(&"mage_retreat_kill_a", "低血威胁A", &"player", Vector2i(5, 2), [&"archer_aimed_shot"])
+	var target_b = _build_manual_unit(&"mage_retreat_kill_b", "低血威胁B", &"player", Vector2i(5, 3), [&"archer_aimed_shot"])
+	for target in [target_a, target_b]:
+		target.current_hp = 10
+		target.attribute_snapshot.set_value(&"hp_max", 30)
+		_apply_test_bow_weapon(target, 5)
+	_add_unit_to_state(runtime, state, mage, true)
+	_add_unit_to_state(runtime, state, target_a, false)
+	_add_unit_to_state(runtime, state, target_b, false)
+	var decision = runtime._ai_service.choose_command(_build_ai_context(runtime, mage))
+	_assert_true(decision != null and decision.command != null, "低血但安全的法师应能产生攻击决策。")
+	if decision == null or decision.command == null:
+		return
+	_assert_true(
+		decision.command.skill_id == &"mage_fireball" or decision.command.skill_id == &"mage_chain_lightning",
+		"低血但不危急时，法师 retreat state 应继续使用可击杀输出，而不是只逃跑。"
 	)
 
 
@@ -1938,7 +2522,7 @@ func _test_ranged_archer_prefers_high_ground_position_before_shot() -> void:
 
 func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
 	var runtime = _build_runtime_with_enemy_content()
-	var trap_damage_resolver := TrapDamageResolver.new()
+	var trap_damage_resolver := SharedDamageResolvers.TrapDamageResolver.new()
 	runtime.configure_damage_resolver_for_tests(trap_damage_resolver)
 	var state = _build_flat_state(Vector2i(7, 5))
 	runtime._state = state
@@ -2066,18 +2650,20 @@ func _test_ai_score_low_hp_threshold_uses_formal_param_only() -> void:
 	var formal_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	formal_effect.effect_type = &"damage"
 	formal_effect.bonus_condition = &"target_low_hp"
-	formal_effect.damage_ratio_percent = 200
-	formal_effect.params = {"hp_ratio_threshold": 0.7}
-	var formal_multiplier := score_service._resolve_effect_damage_multiplier(formal_effect, target)
-	_assert_eq(int(round(formal_multiplier * 100.0)), 200, "AI 评分应读取正式 hp_ratio_threshold 计算低血倍率。")
+	formal_effect.params = {"hp_ratio_threshold_percent": 70, "bonus_damage_dice_count": 2, "bonus_damage_dice_sides": 1}
+	_assert_true(
+		score_service._has_bonus_condition(formal_effect, target),
+		"AI 评分应读取正式 hp_ratio_threshold_percent 判定低血追加骰。"
+	)
 
 	var legacy_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	legacy_effect.effect_type = &"damage"
 	legacy_effect.bonus_condition = &"target_low_hp"
-	legacy_effect.damage_ratio_percent = 200
 	legacy_effect.params = {"low_hp_ratio": 0.7}
-	var legacy_multiplier := score_service._resolve_effect_damage_multiplier(legacy_effect, target)
-	_assert_eq(int(round(legacy_multiplier * 100.0)), 100, "AI 评分不应再读取旧 low_hp_ratio alias。")
+	_assert_true(
+		not score_service._has_bonus_condition(legacy_effect, target),
+		"AI 评分不应再读取旧 low_hp_ratio alias。"
+	)
 
 
 func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
@@ -2109,6 +2695,10 @@ func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
 
 	var state = _build_flat_state(Vector2i(5, 3))
 	runtime._state = state
+	var score_profile = BATTLE_AI_SCORE_PROFILE_SCRIPT.new()
+	score_profile.stamina_cost_weight = 0
+	score_profile.cooldown_weight = 0
+	runtime.set_ai_score_profile(score_profile)
 	var wolf = _build_ai_unit(
 		&"wolf_score_melee",
 		"荒狼评分手",
@@ -2926,6 +3516,7 @@ func _build_runtime_with_enemy_content():
 		game_session.get_enemy_ai_brains(),
 		null
 	)
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	game_session.free()
 	return runtime
 
@@ -3108,6 +3699,17 @@ func _build_test_ground_skill_command(source_unit, skill_id: StringName, target_
 	return command
 
 
+func _build_test_unit_skill_command(source_unit, skill_id: StringName, target_unit):
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = command.TYPE_SKILL
+	command.unit_id = source_unit.unit_id if source_unit != null else &""
+	command.skill_id = skill_id
+	if target_unit != null:
+		command.target_unit_id = target_unit.unit_id
+		command.target_coord = target_unit.coord
+	return command
+
+
 func _apply_test_bow_weapon(unit, attack_range: int) -> void:
 	if unit == null:
 		return
@@ -3192,9 +3794,9 @@ func _errors_contain_fragment(errors: Array[String], fragment: String) -> bool:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

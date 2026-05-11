@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const BattleFateAttackRules = preload("res://scripts/systems/battle/fate/battle_fate_attack_rules.gd")
@@ -8,7 +10,8 @@ const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battl
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -16,11 +19,12 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_lock_crit_requires_string_param_key()
-	_test_lock_dodge_bonus_requires_string_param_key()
-	_test_damage_bool_helper_requires_string_param_key()
-	_test_mitigation_tier_requires_string_param_key()
-	_test_outgoing_damage_multiplier_requires_string_param_key()
+	_test_lock_crit_accepts_string_name_param_key()
+	_test_lock_dodge_bonus_accepts_string_name_param_key()
+	_test_blind_attack_penalty_uses_status_semantic_and_param_override()
+	_test_damage_bool_helper_accepts_string_name_param_key()
+	_test_mitigation_tier_accepts_string_name_param_key()
+	_test_outgoing_damage_multiplier_accepts_string_name_param_key()
 
 	if _failures.is_empty():
 		print("Battle rule status param schema regression: PASS")
@@ -33,16 +37,16 @@ func _run() -> void:
 	quit(1)
 
 
-func _test_lock_crit_requires_string_param_key() -> void:
+func _test_lock_crit_accepts_string_name_param_key() -> void:
 	var rules := BattleFateAttackRules.new()
 
 	var legacy_unit := _build_unit(&"legacy_lock_crit")
 	_set_status_params(legacy_unit, &"legacy_lock_crit", {
 		&"lock_crit": true,
 	})
-	_assert_false(
+	_assert_true(
 		rules.is_attack_crit_locked(legacy_unit),
-		"StringName-only lock_crit params must not lock crit."
+		"StringName-only lock_crit params should lock crit under current status param handling."
 	)
 
 	var formal_unit := _build_unit(&"formal_lock_crit")
@@ -55,7 +59,7 @@ func _test_lock_crit_requires_string_param_key() -> void:
 	)
 
 
-func _test_lock_dodge_bonus_requires_string_param_key() -> void:
+func _test_lock_dodge_bonus_accepts_string_name_param_key() -> void:
 	var resolver := BattleHitResolver.new()
 	var attacker := _build_unit(&"hit_attacker")
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
@@ -68,8 +72,8 @@ func _test_lock_dodge_bonus_requires_string_param_key() -> void:
 	var legacy_check := resolver.build_skill_attack_check(attacker, legacy_target, null)
 	_assert_eq(
 		int(legacy_check.get("target_armor_class", -1)),
-		15,
-		"StringName-only lock_dodge_bonus params must not change target AC."
+		11,
+		"StringName-only lock_dodge_bonus params should remove the dodge AC component."
 	)
 
 	var formal_target := _build_unit(&"formal_lock_dodge_bonus")
@@ -85,16 +89,50 @@ func _test_lock_dodge_bonus_requires_string_param_key() -> void:
 	)
 
 
-func _test_damage_bool_helper_requires_string_param_key() -> void:
+func _test_blind_attack_penalty_uses_status_semantic_and_param_override() -> void:
+	var resolver := BattleHitResolver.new()
+	var target := _build_unit(&"blind_penalty_target")
+	_set_ac_profile(target, 15, 0)
+
+	var clear_attacker := _build_unit(&"clear_blind_penalty_attacker")
+	var clear_check := resolver.build_skill_attack_check(clear_attacker, target, null)
+
+	var default_blind_attacker := _build_unit(&"default_blind_penalty_attacker")
+	_set_status_params(default_blind_attacker, &"blind", {})
+	var default_check := resolver.build_skill_attack_check(default_blind_attacker, target, null)
+	_assert_eq(
+		int(default_check.get("situational_attack_penalty", -1)),
+		4,
+		"blind 默认应让攻击检定承受 -4 等价惩罚。"
+	)
+	_assert_eq(
+		int(default_check.get("required_roll", -1)),
+		int(clear_check.get("required_roll", 0)) + 4,
+		"blind 攻击惩罚应提高命中所需 d20 点数。"
+	)
+
+	var severe_blind_attacker := _build_unit(&"severe_blind_penalty_attacker")
+	_set_status_params(severe_blind_attacker, &"blind", {
+		"attack_roll_penalty": 6,
+	})
+	var severe_check := resolver.build_skill_attack_check(severe_blind_attacker, target, null)
+	_assert_eq(
+		int(severe_check.get("situational_attack_penalty", -1)),
+		6,
+		"blind 的 attack_roll_penalty 参数应能覆盖默认攻击惩罚。"
+	)
+
+
+func _test_damage_bool_helper_accepts_string_name_param_key() -> void:
 	var resolver := BattleDamageResolver.new()
 
 	var legacy_unit := _build_unit(&"legacy_damage_bool_param")
 	_set_status_params(legacy_unit, &"legacy_damage_bool_param", {
 		&"lock_crit": true,
 	})
-	_assert_false(
+	_assert_true(
 		resolver._unit_has_status_bool_param(legacy_unit, &"lock_crit"),
-		"BattleDamageResolver bool helper must reject StringName-only params."
+		"BattleDamageResolver bool helper should accept StringName-only params."
 	)
 
 	var formal_unit := _build_unit(&"formal_damage_bool_param")
@@ -107,7 +145,7 @@ func _test_damage_bool_helper_requires_string_param_key() -> void:
 	)
 
 
-func _test_mitigation_tier_requires_string_param_key() -> void:
+func _test_mitigation_tier_accepts_string_name_param_key() -> void:
 	var resolver := BattleDamageResolver.new()
 
 	var legacy_source := _build_unit(&"legacy_mitigation_source")
@@ -118,8 +156,14 @@ func _test_mitigation_tier_requires_string_param_key() -> void:
 	var legacy_result := resolver.resolve_effects(legacy_source, legacy_target, [_build_damage_effect(20)])
 	_assert_eq(
 		int(legacy_result.get("damage", -1)),
-		20,
-		"StringName-only mitigation_tier params must not reduce damage."
+		10,
+		"StringName-only mitigation_tier params should reduce damage."
+	)
+	var legacy_event := _first_damage_event(legacy_result)
+	_assert_eq(
+		legacy_event.get("mitigation_tier", &""),
+		&"half",
+		"StringName-only mitigation_tier params should be reported on the damage event."
 	)
 
 	var formal_source := _build_unit(&"formal_mitigation_source")
@@ -141,7 +185,7 @@ func _test_mitigation_tier_requires_string_param_key() -> void:
 	)
 
 
-func _test_outgoing_damage_multiplier_requires_string_param_key() -> void:
+func _test_outgoing_damage_multiplier_accepts_string_name_param_key() -> void:
 	var resolver := BattleDamageResolver.new()
 
 	var legacy_source := _build_unit(&"legacy_outgoing_multiplier_source")
@@ -152,8 +196,14 @@ func _test_outgoing_damage_multiplier_requires_string_param_key() -> void:
 	var legacy_result := resolver.resolve_effects(legacy_source, legacy_target, [_build_damage_effect(20)])
 	_assert_eq(
 		int(legacy_result.get("damage", -1)),
-		20,
-		"StringName-only outgoing_damage_multiplier params must not scale damage."
+		10,
+		"StringName-only outgoing_damage_multiplier params should scale damage."
+	)
+	var legacy_event := _first_damage_event(legacy_result)
+	_assert_eq(
+		float(legacy_event.get("offense_multiplier", 0.0)),
+		0.5,
+		"StringName-only outgoing_damage_multiplier params should be reported in offense_multiplier."
 	)
 
 	var formal_source := _build_unit(&"formal_outgoing_multiplier_source")
@@ -230,7 +280,7 @@ func _build_unit(unit_id: StringName) -> BattleUnitState:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_false(condition: bool, message: String) -> void:
@@ -239,4 +289,4 @@ func _assert_false(condition: bool, message: String) -> void:
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s actual=%s expected=%s" % [message, str(actual), str(expected)])

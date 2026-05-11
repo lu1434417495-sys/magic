@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
@@ -13,7 +16,6 @@ const ProgressionContentRegistry = preload("res://scripts/player/progression/pro
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT = preload("res://tests/battle_runtime/helpers/deterministic_battle_hit_resolver.gd")
 
 const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
 const SAINT_BLADE_COMBO_SKILL_ID: StringName = &"saint_blade_combo"
@@ -29,7 +31,8 @@ const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class SelectionRuntimeProxy:
@@ -272,6 +275,7 @@ func _test_crown_break_broken_hand_blocks_counterattack_and_follow_up() -> void:
 	var follow_up_preview = runtime.preview_command(follow_up_command)
 	var stage_preview_texts := follow_up_preview.hit_preview.get("stage_preview_texts", []) as Array
 	_assert_eq(stage_preview_texts.size(), 1, "折手分支应把追击预览压成 1 段。")
+	state.attack_roll_nonce = 0
 
 	var aura_before := elite.current_aura
 	var hp_before := ally_target.current_hp
@@ -393,7 +397,7 @@ func _build_runtime() -> BattleRuntimeModule:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
-	runtime.configure_hit_resolver_for_tests(DETERMINISTIC_BATTLE_HIT_RESOLVER_SCRIPT.new())
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	return runtime
 
 
@@ -401,7 +405,7 @@ func _begin_runtime_battle(runtime: BattleRuntimeModule) -> void:
 	if runtime == null:
 		return
 	runtime.calamity_by_member_id.clear()
-	runtime._misfortune_service.begin_battle(runtime.calamity_by_member_id)
+	runtime.get_fate_runtime().begin_battle(runtime.calamity_by_member_id)
 
 
 func _build_skill_test_state(battle_id: StringName, map_size: Vector2i) -> BattleState:
@@ -590,9 +594,9 @@ func _extract_coord_pairs(coords: Array[Vector2i]) -> Array:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s actual=%s expected=%s" % [message, str(actual), str(expected)])

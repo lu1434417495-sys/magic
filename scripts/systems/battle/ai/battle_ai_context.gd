@@ -21,6 +21,7 @@ var action_score_input_callback: Callable = Callable()
 var runtime_actions_by_state: Dictionary = {}
 var trace_enabled := false
 var action_traces: Array[Dictionary] = []
+var score_projection_cache: Dictionary = {}
 var _action_trace_nonce := 0
 
 

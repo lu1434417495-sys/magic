@@ -446,12 +446,17 @@ func _apply_charge_path_step_aoe_effects(
 				target_unit,
 				[stage_effect],
 				attack_check,
-				{"battle_state": _runtime.get_state()}
+				{"battle_state": _runtime.get_state(), "skill_id": skill_def.skill_id if skill_def != null else &""}
 			)
 			if _skill_mastery_service != null:
 				_skill_mastery_service.record_target_result(active_unit, target_unit, skill_def, result, [stage_effect])
 		else:
-			result = _runtime.get_damage_resolver().resolve_effects(active_unit, target_unit, [stage_effect])
+			result = _runtime.get_damage_resolver().resolve_effects(
+				active_unit,
+				target_unit,
+				[stage_effect],
+				{"skill_id": skill_def.skill_id if skill_def != null else &""}
+			)
 		_runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 		_runtime.append_result_source_status_effects(batch, active_unit, result)
 		if not bool(result.get("applied", false)):

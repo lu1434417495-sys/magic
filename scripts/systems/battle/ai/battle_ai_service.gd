@@ -18,6 +18,8 @@ const BattleAiScoreService = preload("res://scripts/systems/battle/ai/battle_ai_
 const BattleAiScoreProfile = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
+const HP_BASIS_POINTS_DENOMINATOR := 10000
+
 var _enemy_ai_brains: Dictionary = {}
 var _score_service: BattleAiScoreService = BATTLE_AI_SCORE_SERVICE_SCRIPT.new()
 
@@ -177,17 +179,84 @@ func _is_better_score_input(candidate, best_candidate) -> bool:
 		return false
 	if best_candidate == null:
 		return true
+	if int(candidate.estimated_friendly_lethal_target_count) != int(best_candidate.estimated_friendly_lethal_target_count):
+		return int(candidate.estimated_friendly_lethal_target_count) < int(best_candidate.estimated_friendly_lethal_target_count)
+	if int(candidate.estimated_friendly_fire_target_count) != int(best_candidate.estimated_friendly_fire_target_count):
+		return int(candidate.estimated_friendly_fire_target_count) < int(best_candidate.estimated_friendly_fire_target_count)
+	if int(candidate.friendly_fire_penalty_score) != int(best_candidate.friendly_fire_penalty_score):
+		return int(candidate.friendly_fire_penalty_score) < int(best_candidate.friendly_fire_penalty_score)
+	var survival_risk_comparison := _compare_post_action_survival_risk(candidate, best_candidate)
+	if survival_risk_comparison != 0:
+		return survival_risk_comparison > 0
+	if int(candidate.estimated_lethal_threat_target_count) != int(best_candidate.estimated_lethal_threat_target_count):
+		return int(candidate.estimated_lethal_threat_target_count) > int(best_candidate.estimated_lethal_threat_target_count)
+	if int(candidate.estimated_lethal_target_count) != int(best_candidate.estimated_lethal_target_count):
+		return int(candidate.estimated_lethal_target_count) > int(best_candidate.estimated_lethal_target_count)
+	var candidate_is_emergency_survival := _is_emergency_survival_score_input(candidate)
+	var best_is_emergency_survival := _is_emergency_survival_score_input(best_candidate)
+	if candidate_is_emergency_survival != best_is_emergency_survival:
+		return candidate_is_emergency_survival
+	if int(candidate.estimated_lethal_target_count) > 0 and int(best_candidate.estimated_lethal_target_count) > 0:
+		if int(candidate.total_score) != int(best_candidate.total_score):
+			return int(candidate.total_score) > int(best_candidate.total_score)
+		if int(candidate.hit_payoff_score) != int(best_candidate.hit_payoff_score):
+			return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
+		if int(candidate.effective_target_count) != int(best_candidate.effective_target_count):
+			return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
+		if int(candidate.resource_cost_score) != int(best_candidate.resource_cost_score):
+			return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
 	if int(candidate.score_bucket_priority) != int(best_candidate.score_bucket_priority):
 		return int(candidate.score_bucket_priority) > int(best_candidate.score_bucket_priority)
 	if int(candidate.total_score) != int(best_candidate.total_score):
 		return int(candidate.total_score) > int(best_candidate.total_score)
 	if int(candidate.hit_payoff_score) != int(best_candidate.hit_payoff_score):
 		return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
+	if int(candidate.effective_target_count) != int(best_candidate.effective_target_count):
+		return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
 	if int(candidate.target_count) != int(best_candidate.target_count):
 		return int(candidate.target_count) > int(best_candidate.target_count)
 	if int(candidate.position_objective_score) != int(best_candidate.position_objective_score):
 		return int(candidate.position_objective_score) > int(best_candidate.position_objective_score)
 	return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
+
+
+func _is_emergency_survival_score_input(score_input) -> bool:
+	if score_input == null:
+		return false
+	if score_input.score_bucket_id != &"archer_survival":
+		return false
+	if bool(score_input.has_post_action_threat_projection):
+		if bool(score_input.pre_action_is_lethal_survival_risk) and not bool(score_input.post_action_is_lethal_survival_risk):
+			return true
+		if int(score_input.pre_action_threat_expected_damage) > int(score_input.post_action_remaining_threat_expected_damage) \
+				and int(score_input.post_action_survival_margin) >= 0:
+			return true
+	if int(score_input.target_count) > 0 or int(score_input.effective_target_count) > 0:
+		return false
+	if int(score_input.enemy_target_count) > 0 or int(score_input.ally_target_count) > 0:
+		return false
+	if int(score_input.estimated_damage) != 0 or int(score_input.estimated_control_count) != 0:
+		return false
+	if int(score_input.position_current_distance) >= 0 and int(score_input.position_safe_distance) > 0:
+		var current_gap := int(score_input.position_safe_distance) - int(score_input.position_current_distance)
+		if current_gap < 2:
+			return false
+		if int(score_input.distance_to_primary_coord) >= 0:
+			return int(score_input.distance_to_primary_coord) >= int(score_input.position_safe_distance)
+		return int(score_input.position_objective_score) > 0
+	return int(score_input.position_objective_score) > 0
+
+
+func _compare_post_action_survival_risk(candidate, best_candidate) -> int:
+	if candidate == null or best_candidate == null:
+		return 0
+	if not bool(candidate.has_post_action_threat_projection) or not bool(best_candidate.has_post_action_threat_projection):
+		return 0
+	var candidate_fatal := bool(candidate.post_action_is_lethal_survival_risk)
+	var best_fatal := bool(best_candidate.post_action_is_lethal_survival_risk)
+	if candidate_fatal != best_fatal:
+		return -1 if candidate_fatal else 1
+	return 0
 
 
 func _get_decision_score_input(decision: BattleAiDecision):
@@ -209,10 +278,9 @@ func _resolve_state_id(context, brain) -> StringName:
 	if context.unit_state != null and brain.has_state(context.unit_state.ai_state_id):
 		current_state_id = context.unit_state.ai_state_id
 
-	var hp_ratio = _get_hp_ratio(context.unit_state)
-	if brain.has_state(&"retreat") and hp_ratio <= float(brain.retreat_hp_ratio):
+	if brain.has_state(&"retreat") and _is_unit_at_or_below_hp_basis_points(context.unit_state, int(brain.retreat_hp_basis_points)):
 		return &"retreat"
-	if brain.has_state(&"support") and _has_support_window(context, float(brain.support_hp_ratio)):
+	if brain.has_state(&"support") and _has_support_window(context, int(brain.support_hp_basis_points)):
 		return &"support"
 
 	var nearest_enemy = _find_nearest_enemy(context)
@@ -228,7 +296,7 @@ func _resolve_state_id(context, brain) -> StringName:
 	return current_state_id
 
 
-func _has_support_window(context, threshold: float) -> bool:
+func _has_support_window(context, threshold_basis_points: int) -> bool:
 	if context == null or context.unit_state == null:
 		return false
 	if not _unit_has_support_skill(context):
@@ -239,7 +307,7 @@ func _has_support_window(context, threshold: float) -> bool:
 			continue
 		if ally_unit.faction_id != context.unit_state.faction_id:
 			continue
-		if _get_hp_ratio(ally_unit) <= threshold:
+		if _is_unit_at_or_below_hp_basis_points(ally_unit, threshold_basis_points):
 			return true
 	return false
 
@@ -346,8 +414,10 @@ func _pick_step_toward(
 	return best_coord
 
 
-func _get_hp_ratio(unit_state: BattleUnitState) -> float:
+func _is_unit_at_or_below_hp_basis_points(unit_state: BattleUnitState, threshold_basis_points: int) -> bool:
 	if unit_state == null or unit_state.attribute_snapshot == null:
-		return 1.0
+		return false
 	var hp_max := maxi(int(unit_state.attribute_snapshot.get_value(&"hp_max")), 1)
-	return clampf(float(unit_state.current_hp) / float(hp_max), 0.0, 1.0)
+	var clamped_threshold := clampi(threshold_basis_points, 0, HP_BASIS_POINTS_DENOMINATOR)
+	var current_hp := clampi(int(unit_state.current_hp), 0, hp_max)
+	return current_hp * HP_BASIS_POINTS_DENOMINATOR <= hp_max * clamped_threshold

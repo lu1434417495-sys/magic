@@ -10,7 +10,7 @@ const SCREENING_PATH_UNREACHABLE_COST := 2147483647
 @export var desired_max_distance := 1
 @export var range_skill_ids: Array[StringName] = []
 @export var screening_mode: StringName = SCREENING_NONE
-@export var screening_min_hp_ratio := 0.4
+@export var screening_min_hp_basis_points := 4000
 @export var screening_ally_min_attack_range := 4
 @export var screening_enemy_max_contact_range := 2
 @export var screening_threat_distance_buffer := 2
@@ -175,7 +175,7 @@ func _build_screening_context(context) -> Dictionary:
 		return {"enabled": false}
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null:
 		return {"enabled": false}
-	if _get_hp_ratio(context.unit_state) < maxf(float(screening_min_hp_ratio), 0.0):
+	if _get_hp_basis_points(context.unit_state) < maxi(int(screening_min_hp_basis_points), 0):
 		return {"enabled": false, "reason": "low_hp"}
 	var protected_allies := _collect_screening_protected_allies(context)
 	if protected_allies.is_empty():
@@ -731,8 +731,8 @@ func validate_schema() -> Array[String]:
 		errors.append("MoveToRangeAction %s desired_min_distance must be >= 0." % String(action_id))
 	if desired_max_distance < desired_min_distance:
 		errors.append("MoveToRangeAction %s desired_max_distance must be >= desired_min_distance." % String(action_id))
-	if screening_min_hp_ratio < 0.0 or screening_min_hp_ratio > 1.0:
-		errors.append("MoveToRangeAction %s screening_min_hp_ratio must be between 0 and 1." % String(action_id))
+	if screening_min_hp_basis_points < 0 or screening_min_hp_basis_points > HP_BASIS_POINTS_DENOMINATOR:
+		errors.append("MoveToRangeAction %s screening_min_hp_basis_points must be between 0 and 10000." % String(action_id))
 	if screening_ally_min_attack_range < 1:
 		errors.append("MoveToRangeAction %s screening_ally_min_attack_range must be >= 1." % String(action_id))
 	if screening_enemy_max_contact_range < 1:

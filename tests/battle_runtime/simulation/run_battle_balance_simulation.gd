@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
 const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
 const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
@@ -12,7 +14,7 @@ func _initialize() -> void:
 func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.is_empty():
-		push_error("Usage: godot --headless --script tests/battle_runtime/run_battle_balance_simulation.gd -- <scenario.tres> [profile.tres ...]")
+		push_error("Usage: godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.gd -- <scenario.tres> [profile.tres ...]")
 		quit(1)
 		return
 	var scenario = load(args[0])

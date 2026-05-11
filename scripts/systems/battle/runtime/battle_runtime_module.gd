@@ -37,13 +37,20 @@ const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/
 const BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_change_equipment_resolver.gd")
 const BATTLE_RUNTIME_LOOT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_loot_resolver.gd")
 const BATTLE_SKILL_TURN_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_skill_turn_resolver.gd")
+const BATTLE_METRICS_COLLECTOR_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_metrics_collector.gd")
+const BATTLE_SHIELD_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_shield_service.gd")
+const BATTLE_GROUND_EFFECT_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_ground_effect_service.gd")
+const BATTLE_SPECIAL_SKILL_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_special_skill_resolver.gd")
+const BATTLE_MOVEMENT_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_movement_service.gd")
+const BATTLE_LAYERED_BARRIER_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_layered_barrier_service.gd")
+const BATTLE_TIMELINE_DRIVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_timeline_driver.gd")
+const BATTLE_SKILL_EXECUTION_ORCHESTRATOR_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd")
 const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/world/encounter_roster_builder.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
 const EQUIPMENT_DROP_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/equipment_drop_service.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
-const FORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/fortune_service.gd")
-const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/fate/low_luck_relic_rules.gd")
+const FATE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/fate/fate_runtime_module.gd")
 const MISFORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/misfortune_service.gd")
 const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -98,10 +105,10 @@ const STATUS_BLACK_CROWN_SEAL_CRIT: StringName = &"black_crown_seal_crit"
 const MISSTEP_TO_SCHEME_SKILL_ID: StringName = &"misstep_to_scheme"
 const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
 const DOOM_SHIFT_SKILL_ID: StringName = &"doom_shift"
-const BLACK_CROWN_SEAL_SKILL_ID: StringName = &"black_crown_seal"
-const BLACK_STAR_BRAND_SKILL_ID: StringName = &"black_star_brand"
-const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
-const DOOM_SENTENCE_SKILL_ID: StringName = &"doom_sentence"
+const BLACK_CROWN_SEAL_SKILL_ID: StringName = MISFORTUNE_SERVICE_SCRIPT.BLACK_CROWN_SEAL_SKILL_ID
+const BLACK_STAR_BRAND_SKILL_ID: StringName = MISFORTUNE_SERVICE_SCRIPT.BLACK_STAR_BRAND_SKILL_ID
+const CROWN_BREAK_SKILL_ID: StringName = MISFORTUNE_SERVICE_SCRIPT.CROWN_BREAK_SKILL_ID
+const DOOM_SENTENCE_SKILL_ID: StringName = MISFORTUNE_SERVICE_SCRIPT.DOOM_SENTENCE_SKILL_ID
 const BLACK_CONTRACT_PUSH_VARIANT_BLOOD: StringName = &"blood_tithe"
 const BLACK_CONTRACT_PUSH_VARIANT_GUARD: StringName = &"guard_tithe"
 const BLACK_CONTRACT_PUSH_VARIANT_ACTION: StringName = &"action_tithe"
@@ -114,16 +121,6 @@ const DOOM_SHIFT_SELF_DEBUFF_DURATION_TU := 60
 const BLACK_CONTRACT_PUSH_HP_COST := 10
 const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 const BOSS_TARGET_STAT_ID: StringName = &"boss_target"
-const CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
-const BLACK_CROWN_CORE_ITEM_ID: StringName = &"black_crown_core"
-const LOOT_DROP_TYPE_ITEM: StringName = &"item"
-const LOOT_DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
-const LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
-const LOOT_SOURCE_KIND_ENEMY_UNIT: StringName = &"enemy_unit"
-const LOOT_SOURCE_KIND_CALAMITY_CONVERSION: StringName = &"calamity_conversion"
-const LOOT_SOURCE_KIND_FATE_STATUS_DROP: StringName = &"fate_status_drop"
-const LOOT_SOURCE_ID_ORDINARY_BATTLE: StringName = &"ordinary_battle"
-const LOOT_SOURCE_ID_ELITE_BOSS_BATTLE: StringName = &"elite_boss_battle"
 const CALAMITY_PER_SHARD := 2
 const DOOM_SENTENCE_REFUND_CALAMITY := 5
 const DEBUFF_STATUS_IDS := {
@@ -197,11 +194,19 @@ var _terrain_topology_service = BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT.new()
 var _target_collection_service = BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT.new()
 var _spawn_reachability_service = BATTLE_SPAWN_REACHABILITY_SERVICE_SCRIPT.new()
 var _equipment_drop_service = EQUIPMENT_DROP_SERVICE_SCRIPT.new()
-var _fortune_service = FORTUNE_SERVICE_SCRIPT.new()
-var _misfortune_service = MISFORTUNE_SERVICE_SCRIPT.new()
+var _equipment_instance_id_allocator: Callable = Callable()
+var _fate_runtime = FATE_RUNTIME_MODULE_SCRIPT.new()
 var _change_equipment_resolver = BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT.new()
 var _loot_resolver = BATTLE_RUNTIME_LOOT_RESOLVER_SCRIPT.new()
 var _skill_turn_resolver = BATTLE_SKILL_TURN_RESOLVER_SCRIPT.new()
+var _metrics_collector = BATTLE_METRICS_COLLECTOR_SCRIPT.new()
+var _shield_service = BATTLE_SHIELD_SERVICE_SCRIPT.new()
+var _ground_effect_service = BATTLE_GROUND_EFFECT_SERVICE_SCRIPT.new()
+var _special_skill_resolver = BATTLE_SPECIAL_SKILL_RESOLVER_SCRIPT.new()
+var _movement_service = BATTLE_MOVEMENT_SERVICE_SCRIPT.new()
+var _layered_barrier_service = BATTLE_LAYERED_BARRIER_SERVICE_SCRIPT.new()
+var _timeline_driver = BATTLE_TIMELINE_DRIVER_SCRIPT.new()
+var _skill_orchestrator = BATTLE_SKILL_EXECUTION_ORCHESTRATOR_SCRIPT.new()
 var _trait_trigger_hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
 ## 字段说明：缓存战斗评分统计字典，集中保存可按键查询的运行时数据。
 var _battle_rating_stats: Dictionary = {}
@@ -236,12 +241,15 @@ func setup(
 	encounter_builder: Object = null,
 	equipment_drop_service: Variant = null,
 	item_defs: Dictionary = {},
-	terrain_generator: Object = null
+	terrain_generator: Object = null,
+	equipment_instance_id_allocator: Callable = Callable()
 ) -> void:
 	_character_gateway = character_gateway
 	_skill_defs = skill_defs if skill_defs != null else {}
 	if _damage_resolver != null and _damage_resolver.has_method("set_skill_defs"):
 		_damage_resolver.set_skill_defs(_skill_defs)
+	if _damage_resolver != null and _damage_resolver.has_method("set_hit_resolver"):
+		_damage_resolver.set_hit_resolver(_hit_resolver)
 	_item_defs = item_defs if item_defs != null else {}
 	if _item_defs.is_empty() and _character_gateway != null and _character_gateway.has_method("get_item_defs"):
 		var gateway_item_defs = _character_gateway.call("get_item_defs")
@@ -251,6 +259,7 @@ func setup(
 	_enemy_ai_brains = enemy_ai_brains if enemy_ai_brains != null else {}
 	_encounter_builder = encounter_builder if encounter_builder != null else ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
 	_equipment_drop_service = equipment_drop_service if equipment_drop_service != null else EQUIPMENT_DROP_SERVICE_SCRIPT.new()
+	_equipment_instance_id_allocator = equipment_instance_id_allocator
 	if terrain_generator != null:
 		_terrain_generator = terrain_generator
 	_ai_action_plans_by_unit_id.clear()
@@ -261,11 +270,18 @@ func setup(
 	_charge_resolver.setup(self, _skill_mastery_service)
 	_repeat_attack_resolver.setup(self, _skill_mastery_service)
 	_skill_mastery_service.clear()
-	_fortune_service.setup(_character_gateway, get_fate_event_bus())
-	_misfortune_service.setup(get_fate_event_bus(), Callable(self, "_find_unit_by_member_id"))
+	_fate_runtime.setup(_character_gateway, get_fate_event_bus(), self, Callable(self, "_find_unit_by_member_id"))
 	_change_equipment_resolver.setup(self)
 	_loot_resolver.setup(self)
 	_skill_turn_resolver.setup(self)
+	_metrics_collector.setup(self)
+	_shield_service.setup(self)
+	_ground_effect_service.setup(self)
+	_special_skill_resolver.setup(self)
+	_movement_service.setup(self)
+	_layered_barrier_service.setup(self)
+	_timeline_driver.setup(self)
+	_skill_orchestrator.setup(self)
 
 
 func start_battle(
@@ -322,10 +338,7 @@ func start_battle(
 		_state.cells = terrain_data.get("cells", {})
 		_state.cell_columns = terrain_data.get("cell_columns", BattleCellState.build_columns_from_surface_cells(_state.cells))
 		_state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.new()
-		_state.timeline.units_per_second = _resolve_timeline_units_per_second(context)
-		_state.timeline.tick_interval_seconds = _resolve_timeline_tick_interval_seconds(context)
 		_state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context)
-		_state.timeline.delta_remainder = 0.0
 
 		var ally_spawn_coords: Array = terrain_data.get("ally_spawns", [])
 		var enemy_spawn_coords: Array = terrain_data.get("enemy_spawns", [])
@@ -366,7 +379,7 @@ func start_battle(
 		_state.attack_roll_nonce = 0
 		_state.reset_log_entries(["战斗开始：%s" % encounter_display_name])
 		_battle_rating_system.initialize_battle_rating_stats()
-		_misfortune_service.begin_battle(calamity_by_member_id)
+		_fate_runtime.begin_battle(calamity_by_member_id)
 		_terrain_effect_nonce = 0
 		_battle_resolution_result = null
 		_battle_resolution_result_consumed = false
@@ -405,7 +418,7 @@ func _resolve_formal_terrain_profile_id(terrain_data: Dictionary) -> StringName:
 	return ProgressionDataUtils.to_string_name(terrain_profile_variant)
 
 
-func advance(delta_seconds: float) -> BattleEventBatch:
+func advance(tick_count: int) -> BattleEventBatch:
 	_ensure_sidecars_ready()
 	var batch := _new_batch()
 	if _state == null or _state.phase == &"battle_ended":
@@ -420,7 +433,12 @@ func advance(delta_seconds: float) -> BattleEventBatch:
 		if active_unit == null or not active_unit.is_alive:
 			_end_active_turn(batch)
 			return batch
-		if active_unit != null and active_unit.is_alive and active_unit.control_mode != &"manual":
+		var madness_ai_control := _skill_turn_resolver.is_turn_ai_override_active(active_unit)
+		if active_unit != null and active_unit.is_alive and (active_unit.control_mode != &"manual" or madness_ai_control):
+			if madness_ai_control and active_unit.ai_brain_id == &"":
+				var madness_command = _skill_turn_resolver.build_madness_fallback_command(active_unit)
+				if madness_command != null:
+					return issue_command(madness_command)
 			var ai_context := BATTLE_AI_CONTEXT_SCRIPT.new()
 			ai_context.state = _state
 			ai_context.unit_state = active_unit
@@ -440,27 +458,36 @@ func advance(delta_seconds: float) -> BattleEventBatch:
 					decision.reason_text,
 				]
 				_state.append_log_entry(ai_line)
+				var ai_turn_trace := {}
+				var ai_trace_unit_snapshots_before := {}
+				var ai_trace_decision_target_unit_ids: Array[StringName] = []
 				if _ai_trace_enabled:
-					_ai_turn_traces.append(ai_context.build_turn_trace(decision))
+					ai_turn_trace = ai_context.build_turn_trace(decision)
+					ai_trace_decision_target_unit_ids = _collect_ai_trace_decision_target_unit_ids(decision, ai_turn_trace)
+					ai_trace_unit_snapshots_before = _build_ai_trace_unit_snapshot_map()
+					ai_turn_trace["decision_target_snapshots"] = _build_ai_trace_snapshots_for_unit_ids(
+						ai_trace_decision_target_unit_ids,
+						ai_trace_unit_snapshots_before
+					)
 				var decision_command: BattleCommand = decision.command
 				var decision_batch := issue_command(decision_command)
+				if _ai_trace_enabled:
+					ai_turn_trace["execution_result"] = _build_ai_trace_execution_result(
+						decision,
+						decision_batch,
+						ai_trace_unit_snapshots_before,
+						ai_trace_decision_target_unit_ids
+					)
+					_ai_turn_traces.append(ai_turn_trace)
 				if decision_batch != null:
 					decision_batch.log_lines.insert(0, ai_line)
 				return decision_batch
 		return batch
 
-	if delta_seconds > 0.0:
-		if _use_discrete_timeline_ticks():
-			_state.timeline.delta_remainder += delta_seconds
-			while _state.timeline.delta_remainder >= _state.timeline.tick_interval_seconds:
-				_state.timeline.delta_remainder -= _state.timeline.tick_interval_seconds
-				_apply_timeline_step(batch, _state.timeline.tick_interval_seconds, _state.timeline.tu_per_tick)
-				if _check_battle_end(batch):
-					return batch
-		else:
-			_apply_continuous_timeline_seconds(batch, delta_seconds)
-			if _check_battle_end(batch):
-				return batch
+	if tick_count > 0:
+		_timeline_driver.advance_timeline(tick_count, batch)
+		if _check_battle_end(batch):
+			return batch
 
 	if _state.phase == &"timeline_running":
 		_activate_next_ready_unit(batch)
@@ -469,140 +496,38 @@ func advance(delta_seconds: float) -> BattleEventBatch:
 
 
 func _use_discrete_timeline_ticks() -> bool:
-	return _state != null \
-		and _state.timeline != null \
-		and _state.timeline.tick_interval_seconds > 0.0 \
-		and _state.timeline.tu_per_tick > 0
+	_ensure_sidecars_ready()
+	return _timeline_driver._use_discrete_timeline_ticks()
 
 
-func _apply_timeline_step(batch: BattleEventBatch, _delta_seconds: float, tu_delta: int) -> void:
-	if _state == null or _state.timeline == null:
-		return
-	if tu_delta > 0 and tu_delta % TU_GRANULARITY != 0:
-		push_error("Battle timeline can only advance in %d TU steps, got %d." % [TU_GRANULARITY, tu_delta])
-		return
-	if tu_delta > 0:
-		_state.timeline.current_tu += tu_delta
-		_resolve_timeline_status_phase(batch, tu_delta)
-	_terrain_effect_system.process_timed_terrain_effects(batch)
-	if tu_delta > 0:
-		_collect_timeline_ready_units(batch, tu_delta)
-	_sort_ready_unit_ids_by_action_priority()
+func _apply_timeline_step(batch: BattleEventBatch, tu_delta: int) -> void:
+	_ensure_sidecars_ready()
+	_timeline_driver._apply_timeline_step(batch, tu_delta)
 
 
 func _resolve_timeline_status_phase(batch: BattleEventBatch, tu_delta: int) -> void:
-	if _state == null or _state.timeline == null or tu_delta <= 0:
-		return
-	for unit_id in _get_units_in_order():
-		var unit_state := _state.units.get(unit_id) as BattleUnitState
-		if unit_state == null or not unit_state.is_alive:
-			continue
-		var status_tick_result := _apply_unit_status_periodic_ticks(unit_state, tu_delta, batch)
-		if bool(status_tick_result.get("changed", false)):
-			_append_changed_unit_id(batch, unit_state.unit_id)
-		if not unit_state.is_alive:
-			var defeat_source_unit_id := ProgressionDataUtils.to_string_name(status_tick_result.get("defeat_source_unit_id", ""))
-			var defeat_source_unit = _state.units.get(defeat_source_unit_id) as BattleUnitState if defeat_source_unit_id != &"" else null
-			_collect_defeated_unit_loot(unit_state, defeat_source_unit)
-			_clear_defeated_unit(unit_state, batch)
-			batch.log_lines.append("%s 因持续效果倒下。" % unit_state.display_name)
-			continue
-		if _advance_unit_status_durations(unit_state, tu_delta, batch):
-			_append_changed_unit_id(batch, unit_state.unit_id)
+	_ensure_sidecars_ready()
+	_timeline_driver._resolve_timeline_status_phase(batch, tu_delta)
 
 
 func _collect_timeline_ready_units(batch: BattleEventBatch, tu_delta: int) -> void:
-	if _state == null or _state.timeline == null or tu_delta <= 0:
-		return
-	for unit_id in _get_units_in_order():
-		var unit_state := _state.units.get(unit_id) as BattleUnitState
-		if unit_state == null or not unit_state.is_alive:
-			continue
-		if _apply_stamina_recovery(unit_state, tu_delta):
-			_append_changed_unit_id(batch, unit_state.unit_id)
-		if not unit_state.is_alive:
-			continue
-		unit_state.action_progress += tu_delta
-		var action_threshold := _resolve_unit_action_threshold(unit_state)
-		while unit_state.action_progress >= action_threshold:
-			unit_state.action_progress -= action_threshold
-			if not _state.timeline.ready_unit_ids.has(unit_id):
-				_state.timeline.ready_unit_ids.append(unit_id)
-
-
-func _apply_continuous_timeline_seconds(batch: BattleEventBatch, delta_seconds: float) -> void:
-	if _state == null or _state.timeline == null or delta_seconds <= 0.0:
-		return
-	_state.timeline.delta_remainder += delta_seconds
-	var units_per_second := maxi(int(_state.timeline.units_per_second), TU_GRANULARITY)
-	if units_per_second % TU_GRANULARITY != 0:
-		push_error("timeline.units_per_second must be a multiple of %d, got %d." % [TU_GRANULARITY, units_per_second])
-		units_per_second = TU_GRANULARITY
-	var pending_tu := int(floor((_state.timeline.delta_remainder * float(units_per_second)) / float(TU_GRANULARITY))) * TU_GRANULARITY
-	if pending_tu <= 0:
-		return
-	var consumed_seconds := float(pending_tu) / float(units_per_second)
-	_state.timeline.delta_remainder = maxf(_state.timeline.delta_remainder - consumed_seconds, 0.0)
-	_apply_timeline_step(batch, consumed_seconds, pending_tu)
+	_ensure_sidecars_ready()
+	_timeline_driver._collect_timeline_ready_units(batch, tu_delta)
 
 
 func _apply_stamina_recovery(unit_state: BattleUnitState, tu_delta: int) -> bool:
-	if unit_state == null or tu_delta <= 0:
-		return false
-	var tick_count := int(tu_delta / TU_GRANULARITY)
-	if tick_count <= 0:
-		return false
-	var stamina_max := _get_unit_stamina_max(unit_state)
-	if stamina_max <= 0:
-		if unit_state.current_stamina != 0 or unit_state.stamina_recovery_progress != 0:
-			unit_state.current_stamina = 0
-			unit_state.stamina_recovery_progress = 0
-			return true
-		return false
-
-	var changed := false
-	if unit_state.current_stamina >= stamina_max:
-		if unit_state.current_stamina != stamina_max or unit_state.stamina_recovery_progress != 0:
-			unit_state.current_stamina = stamina_max
-			unit_state.stamina_recovery_progress = 0
-			changed = true
-		return changed
-
-	var constitution := _get_unit_constitution(unit_state)
-	var progress_gain_per_tick := STAMINA_RECOVERY_PROGRESS_BASE + constitution
-	progress_gain_per_tick = _apply_stamina_recovery_percent_bonus(unit_state, progress_gain_per_tick)
-	if unit_state.is_resting:
-		progress_gain_per_tick *= STAMINA_RESTING_RECOVERY_MULTIPLIER
-
-	for _tick_index in range(tick_count):
-		unit_state.stamina_recovery_progress += progress_gain_per_tick
-		var recovered := int(unit_state.stamina_recovery_progress / STAMINA_RECOVERY_PROGRESS_DENOMINATOR)
-		if recovered <= 0:
-			continue
-		unit_state.current_stamina = mini(unit_state.current_stamina + recovered, stamina_max)
-		unit_state.stamina_recovery_progress %= STAMINA_RECOVERY_PROGRESS_DENOMINATOR
-		changed = true
-		if unit_state.current_stamina >= stamina_max:
-			unit_state.current_stamina = stamina_max
-			unit_state.stamina_recovery_progress = 0
-			break
-
-	return changed
+	_ensure_sidecars_ready()
+	return _timeline_driver._apply_stamina_recovery(unit_state, tu_delta)
 
 
 func _get_unit_constitution(unit_state: BattleUnitState) -> int:
-	if unit_state == null or unit_state.attribute_snapshot == null:
-		return 0
-	return maxi(unit_state.attribute_snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION), 0)
+	_ensure_sidecars_ready()
+	return _timeline_driver._get_unit_constitution(unit_state)
 
 
 func _apply_stamina_recovery_percent_bonus(unit_state: BattleUnitState, base_progress_gain: int) -> int:
-	if unit_state == null or unit_state.attribute_snapshot == null:
-		return base_progress_gain
-	var percent_bonus := maxi(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_RECOVERY_PERCENT_BONUS), 0)
-	if percent_bonus <= 0:
-		return base_progress_gain
-	return int(floor(float(base_progress_gain) * float(100 + percent_bonus) / 100.0))
+	_ensure_sidecars_ready()
+	return _timeline_driver._apply_stamina_recovery_percent_bonus(unit_state, base_progress_gain)
 
 
 func preview_command(command: BattleCommand) -> BattlePreview:
@@ -799,23 +724,50 @@ func get_state() -> BattleState:
 
 
 func get_calamity_by_member_id() -> Dictionary:
-	return ProgressionDataUtils.to_string_name_int_map(calamity_by_member_id).duplicate(true)
+	return _fate_runtime.get_calamity_by_member_id() if _fate_runtime != null else ProgressionDataUtils.to_string_name_int_map(calamity_by_member_id).duplicate(true)
 
 
 func get_member_calamity(member_id: StringName) -> int:
-	return _misfortune_service.get_member_calamity(member_id) if _misfortune_service != null else 0
+	return _fate_runtime.get_member_calamity(member_id) if _fate_runtime != null else 0
 
 
 func get_member_calamity_cap(member_id: StringName) -> int:
-	return _misfortune_service.get_member_calamity_cap(member_id) if _misfortune_service != null else 3
+	return _fate_runtime.get_member_calamity_cap(member_id) if _fate_runtime != null else MISFORTUNE_SERVICE_SCRIPT.BASE_CALAMITY_CAP
 
 
 func get_black_star_brand_cast_cost(member_id: StringName) -> int:
-	return _misfortune_service.get_black_star_brand_calamity_cost(member_id) if _misfortune_service != null else 1
+	return _fate_runtime.get_black_star_brand_cast_cost(member_id) if _fate_runtime != null else MISFORTUNE_SERVICE_SCRIPT.BLACK_STAR_BRAND_REPEAT_CALAMITY_COST
 
 
 func has_misfortune_reason(member_id: StringName, reason_id: StringName) -> bool:
-	return _misfortune_service.has_triggered_reason(member_id, reason_id) if _misfortune_service != null else false
+	return _fate_runtime.has_misfortune_reason(member_id, reason_id) if _fate_runtime != null else false
+
+
+func get_fate_runtime():
+	return _fate_runtime
+
+
+func get_misfortune_skill_cast_block_reason(active_unit: BattleUnitState, skill_id: StringName) -> String:
+	if _fate_runtime == null:
+		return MISFORTUNE_SERVICE_SCRIPT.get_skill_sidecar_missing_message(skill_id)
+	return _fate_runtime.get_misfortune_skill_cast_block_reason(active_unit, skill_id)
+
+
+func consume_misfortune_skill_cast(active_unit: BattleUnitState, skill_id: StringName) -> Dictionary:
+	if _fate_runtime == null:
+		return {
+			"ok": false,
+			"message": MISFORTUNE_SERVICE_SCRIPT.get_skill_sidecar_missing_message(skill_id),
+		}
+	return _fate_runtime.consume_misfortune_skill_cast(active_unit, skill_id)
+
+
+func handle_misfortune_trigger(reason_id: StringName, payload: Dictionary = {}) -> Variant:
+	return _fate_runtime.handle_misfortune_trigger(reason_id, payload) if _fate_runtime != null else {}
+
+
+func handle_fate_battle_resolution(battle_state: BattleState, battle_resolution_result) -> Dictionary:
+	return _fate_runtime.handle_battle_resolution(battle_state, battle_resolution_result) if _fate_runtime != null else {}
 
 
 func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillDef) -> String:
@@ -837,12 +789,7 @@ func is_unit_follow_up_locked(unit_state: BattleUnitState) -> bool:
 
 
 func notify_member_boss_phase_changed(member_id: StringName, phase_id: StringName = &"") -> Dictionary:
-	if _misfortune_service == null:
-		return {}
-	var unit_state := _find_unit_by_member_id(member_id)
-	if unit_state == null:
-		return {}
-	return _misfortune_service.handle_boss_phase_changed(unit_state, phase_id)
+	return _fate_runtime.handle_member_boss_phase_changed(member_id, phase_id) if _fate_runtime != null else {}
 
 
 func _ensure_sidecars_ready() -> void:
@@ -854,6 +801,14 @@ func _ensure_sidecars_ready() -> void:
 	_change_equipment_resolver.setup(self)
 	_loot_resolver.setup(self)
 	_skill_turn_resolver.setup(self)
+	_metrics_collector.setup(self)
+	_shield_service.setup(self)
+	_ground_effect_service.setup(self)
+	_special_skill_resolver.setup(self)
+	_movement_service.setup(self)
+	_layered_barrier_service.setup(self)
+	_timeline_driver.setup(self)
+	_skill_orchestrator.setup(self)
 
 
 func _get_party_backpack_state(party_state):
@@ -870,61 +825,8 @@ func is_battle_active() -> bool:
 
 
 func get_unit_reachable_move_coords(unit_state: BattleUnitState) -> Array[Vector2i]:
-	if _state == null or unit_state == null or not unit_state.is_alive:
-		return []
-	if _is_movement_blocked(unit_state):
-		return []
-
-	var origin := unit_state.coord
-	var max_move_points := _get_available_move_points(unit_state)
-	var origin_has_quickstep_bonus := _has_status(unit_state, STATUS_ARCHER_QUICKSTEP)
-	var best_state_costs := {
-		_build_reachable_move_state_key(origin, origin_has_quickstep_bonus): 0,
-	}
-	var best_coord_costs := {
-		origin: 0,
-	}
-	var buckets := _build_reachable_move_buckets(max_move_points)
-	buckets[0].append({
-		"coord": origin,
-		"spent_cost": 0,
-		"has_quickstep_bonus": origin_has_quickstep_bonus,
-	})
-	for current_cost in range(max_move_points + 1):
-		var bucket_index := 0
-		while bucket_index < buckets[current_cost].size():
-			var frontier_entry: Dictionary = buckets[current_cost][bucket_index]
-			bucket_index += 1
-			var current_coord: Vector2i = frontier_entry.get("coord", origin)
-			var spent_cost := int(frontier_entry.get("spent_cost", current_cost))
-			var has_quickstep_bonus := bool(frontier_entry.get("has_quickstep_bonus", false))
-			var current_state_key := _build_reachable_move_state_key(current_coord, has_quickstep_bonus)
-			if spent_cost != current_cost:
-				continue
-			if spent_cost != int(best_state_costs.get(current_state_key, 2147483647)):
-				continue
-			for neighbor_coord in _grid_service.get_neighbors_4(_state, current_coord):
-				if not _grid_service.can_unit_step_between_anchors(_state, unit_state, current_coord, neighbor_coord):
-					continue
-				var move_cost := _get_move_cost_for_unit_target(unit_state, neighbor_coord, has_quickstep_bonus)
-				var next_cost := spent_cost + move_cost
-				if next_cost > max_move_points:
-					continue
-				var next_has_quickstep_bonus := false
-				var next_state_key := _build_reachable_move_state_key(neighbor_coord, next_has_quickstep_bonus)
-				var best_state_cost := int(best_state_costs.get(next_state_key, 2147483647))
-				if next_cost >= best_state_cost:
-					continue
-				best_state_costs[next_state_key] = next_cost
-				best_coord_costs[neighbor_coord] = mini(int(best_coord_costs.get(neighbor_coord, 2147483647)), next_cost)
-				buckets[next_cost].append({
-					"coord": neighbor_coord,
-					"spent_cost": next_cost,
-					"has_quickstep_bonus": next_has_quickstep_bonus,
-				})
-
-	best_coord_costs.erase(origin)
-	return _sort_coords(_collect_dict_vector2i_keys(best_coord_costs))
+	_ensure_sidecars_ready()
+	return _movement_service.get_unit_reachable_move_coords(unit_state)
 
 
 func end_battle(result: Dictionary = {}) -> void:
@@ -950,7 +852,11 @@ func end_battle(result: Dictionary = {}) -> void:
 
 
 func get_battle_resolution_result():
-	return _battle_resolution_result if not _battle_resolution_result_consumed else null
+	if _battle_resolution_result_consumed:
+		return null
+	if _battle_resolution_result == null and _state != null and _state.phase == &"battle_ended":
+		_battle_resolution_result = _build_battle_resolution_result()
+	return _battle_resolution_result
 
 
 func consume_battle_resolution_result():
@@ -976,21 +882,37 @@ func get_character_gateway():
 	return _character_gateway
 
 
+func allocate_equipment_instance_id() -> StringName:
+	if not _equipment_instance_id_allocator.is_valid():
+		return &""
+	return ProgressionDataUtils.to_string_name(_equipment_instance_id_allocator.call())
+
+
 func get_damage_resolver():
 	return _damage_resolver
 
 
 func configure_damage_resolver_for_tests(damage_resolver: BattleDamageResolver) -> void:
 	_damage_resolver = damage_resolver if damage_resolver != null else BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	if _damage_resolver != null and _damage_resolver.has_method("set_skill_defs"):
+		_damage_resolver.set_skill_defs(_skill_defs)
+	if _damage_resolver != null and _damage_resolver.has_method("set_hit_resolver"):
+		_damage_resolver.set_hit_resolver(_hit_resolver)
 	if _ai_service != null:
 		_ai_service.setup(_enemy_ai_brains, _damage_resolver)
-	if _fortune_service != null:
-		_fortune_service.setup(_character_gateway, get_fate_event_bus())
-	if _misfortune_service != null:
-		_misfortune_service.setup(get_fate_event_bus(), Callable(self, "_find_unit_by_member_id"))
+	if _fate_runtime != null:
+		_fate_runtime.setup(_character_gateway, get_fate_event_bus(), self, Callable(self, "_find_unit_by_member_id"))
 	_change_equipment_resolver.setup(self)
 	_loot_resolver.setup(self)
 	_skill_turn_resolver.setup(self)
+	_metrics_collector.setup(self)
+	_shield_service.setup(self)
+	_ground_effect_service.setup(self)
+	_special_skill_resolver.setup(self)
+	_movement_service.setup(self)
+	_layered_barrier_service.setup(self)
+	_timeline_driver.setup(self)
+	_skill_orchestrator.setup(self)
 
 
 func get_fate_event_bus():
@@ -1003,6 +925,8 @@ func get_hit_resolver():
 
 func configure_hit_resolver_for_tests(hit_resolver: BattleHitResolver) -> void:
 	_hit_resolver = hit_resolver if hit_resolver != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
+	if _damage_resolver != null and _damage_resolver.has_method("set_hit_resolver"):
+		_damage_resolver.set_hit_resolver(_hit_resolver)
 
 
 func get_terrain_generator():
@@ -1045,6 +969,175 @@ func get_ai_turn_traces() -> Array[Dictionary]:
 
 func clear_ai_turn_traces() -> void:
 	_ai_turn_traces.clear()
+
+
+func _collect_ai_trace_decision_target_unit_ids(decision: BattleAiDecision, turn_trace: Dictionary) -> Array[StringName]:
+	var unit_ids: Array[StringName] = []
+	if decision != null and decision.command != null:
+		_add_ai_trace_unit_id(unit_ids, decision.command.target_unit_id)
+		_add_ai_trace_unit_ids(unit_ids, decision.command.target_unit_ids)
+	_append_ai_trace_score_target_unit_ids(unit_ids, turn_trace.get("score_input", {}))
+	return unit_ids
+
+
+func _append_ai_trace_score_target_unit_ids(unit_ids: Array[StringName], score_value: Variant) -> void:
+	if score_value is not Dictionary:
+		return
+	var score: Dictionary = score_value
+	_add_ai_trace_unit_ids(unit_ids, score.get("target_unit_ids", []))
+	_add_ai_trace_unit_id(unit_ids, score.get("target_unit_id", ""))
+
+
+func _add_ai_trace_unit_ids(unit_ids: Array[StringName], raw_unit_ids: Variant) -> void:
+	if raw_unit_ids is Array:
+		for raw_unit_id in raw_unit_ids:
+			_add_ai_trace_unit_id(unit_ids, raw_unit_id)
+		return
+	_add_ai_trace_unit_id(unit_ids, raw_unit_ids)
+
+
+func _add_ai_trace_unit_id(unit_ids: Array[StringName], raw_unit_id: Variant) -> void:
+	var unit_id := ProgressionDataUtils.to_string_name(raw_unit_id)
+	if unit_id == &"" or unit_ids.has(unit_id):
+		return
+	unit_ids.append(unit_id)
+
+
+func _build_ai_trace_unit_snapshot_map() -> Dictionary:
+	var snapshots: Dictionary = {}
+	if _state == null:
+		return snapshots
+	for raw_unit_id in _state.units.keys():
+		var unit_state := _state.units.get(raw_unit_id) as BattleUnitState
+		if unit_state == null:
+			continue
+		snapshots[String(unit_state.unit_id)] = _build_ai_trace_unit_snapshot(unit_state)
+	return snapshots
+
+
+func _build_ai_trace_unit_snapshot(unit_state: BattleUnitState) -> Dictionary:
+	if unit_state == null:
+		return {}
+	var hp_max := 0
+	var mp_max := 0
+	var stamina_max := 0
+	var aura_max := 0
+	if unit_state.attribute_snapshot != null:
+		hp_max = int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX))
+		mp_max = int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX))
+		stamina_max = int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX))
+		aura_max = int(unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX))
+	return {
+		"unit_id": String(unit_state.unit_id),
+		"display_name": String(unit_state.display_name),
+		"faction_id": String(unit_state.faction_id),
+		"coord": _format_ai_trace_coord(unit_state.coord),
+		"alive": bool(unit_state.is_alive),
+		"hp": int(unit_state.current_hp),
+		"hp_max": maxi(hp_max, 1),
+		"mp": int(unit_state.current_mp),
+		"mp_max": maxi(mp_max, 0),
+		"stamina": int(unit_state.current_stamina),
+		"stamina_max": maxi(stamina_max, 0),
+		"aura": int(unit_state.current_aura),
+		"aura_max": maxi(aura_max, 0),
+		"ap": int(unit_state.current_ap),
+		"move_points": int(unit_state.current_move_points),
+		"shield_hp": int(unit_state.current_shield_hp),
+		"shield_max_hp": int(unit_state.shield_max_hp),
+	}
+
+
+func _build_ai_trace_snapshots_for_unit_ids(unit_ids: Array[StringName], snapshot_map: Dictionary) -> Array[Dictionary]:
+	var snapshots: Array[Dictionary] = []
+	for unit_id in unit_ids:
+		var key := String(unit_id)
+		if not snapshot_map.has(key):
+			continue
+		var snapshot_variant = snapshot_map.get(key, {})
+		if snapshot_variant is Dictionary:
+			snapshots.append((snapshot_variant as Dictionary).duplicate(true))
+	return snapshots
+
+
+func _build_ai_trace_execution_result(
+	decision: BattleAiDecision,
+	decision_batch: BattleEventBatch,
+	unit_snapshots_before: Dictionary,
+	decision_target_unit_ids: Array[StringName]
+) -> Dictionary:
+	var unit_snapshots_after := _build_ai_trace_unit_snapshot_map()
+	var tracked_unit_ids: Array[StringName] = []
+	for unit_id in decision_target_unit_ids:
+		_add_ai_trace_unit_id(tracked_unit_ids, unit_id)
+	if decision != null and decision.command != null:
+		_add_ai_trace_unit_id(tracked_unit_ids, decision.command.unit_id)
+	if decision_batch != null:
+		_add_ai_trace_unit_ids(tracked_unit_ids, decision_batch.changed_unit_ids)
+	var command := decision.command if decision != null else null
+	return {
+		"command_type": String(command.command_type) if command != null else "",
+		"skill_id": String(command.skill_id) if command != null else "",
+		"skill_variant_id": String(command.skill_variant_id) if command != null else "",
+		"changed_unit_ids": _ai_trace_stringify_unit_ids(decision_batch.changed_unit_ids if decision_batch != null else []),
+		"tracked_unit_ids": _ai_trace_stringify_unit_ids(tracked_unit_ids),
+		"unit_results": _build_ai_trace_unit_results(tracked_unit_ids, unit_snapshots_before, unit_snapshots_after),
+		"log_lines": decision_batch.log_lines.duplicate(true) if decision_batch != null else [],
+		"report_entries": decision_batch.report_entries.duplicate(true) if decision_batch != null else [],
+	}
+
+
+func _build_ai_trace_unit_results(
+	unit_ids: Array[StringName],
+	unit_snapshots_before: Dictionary,
+	unit_snapshots_after: Dictionary
+) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	for unit_id in unit_ids:
+		var key := String(unit_id)
+		var before: Dictionary = unit_snapshots_before.get(key, {}) if unit_snapshots_before.get(key, {}) is Dictionary else {}
+		var after: Dictionary = unit_snapshots_after.get(key, {}) if unit_snapshots_after.get(key, {}) is Dictionary else {}
+		if before.is_empty() and after.is_empty():
+			continue
+		var hp_before := int(before.get("hp", after.get("hp", 0)))
+		var hp_after := int(after.get("hp", hp_before))
+		var shield_before := int(before.get("shield_hp", after.get("shield_hp", 0)))
+		var shield_after := int(after.get("shield_hp", shield_before))
+		var before_alive := bool(before.get("alive", false))
+		var after_alive := bool(after.get("alive", before_alive))
+		var coord_before := String(before.get("coord", after.get("coord", "")))
+		var coord_after := String(after.get("coord", coord_before))
+		results.append({
+			"unit_id": key,
+			"before": before,
+			"after": after,
+			"hp_delta": hp_after - hp_before,
+			"hp_damage": maxi(hp_before - hp_after, 0),
+			"hp_healing": maxi(hp_after - hp_before, 0),
+			"shield_delta": shield_after - shield_before,
+			"shield_damage": maxi(shield_before - shield_after, 0),
+			"shield_restored": maxi(shield_after - shield_before, 0),
+			"killed": before_alive and not after_alive,
+			"revived": not before_alive and after_alive,
+			"moved": coord_before != coord_after,
+		})
+	return results
+
+
+func _ai_trace_stringify_unit_ids(unit_ids: Variant) -> Array[String]:
+	var results: Array[String] = []
+	if unit_ids is not Array:
+		return results
+	for raw_unit_id in unit_ids:
+		var unit_id := ProgressionDataUtils.to_string_name(raw_unit_id)
+		if unit_id == &"":
+			continue
+		results.append(String(unit_id))
+	return results
+
+
+func _format_ai_trace_coord(coord: Vector2i) -> String:
+	return "(%d, %d)" % [coord.x, coord.y]
 
 
 func get_battle_metrics() -> Dictionary:
@@ -1114,9 +1207,8 @@ func format_skill_variant_label(skill_def: SkillDef, cast_variant: CombatCastVar
 
 func mark_applied_statuses_for_turn_timing(target_unit: BattleUnitState, status_effect_ids: Variant) -> void:
 	_initialize_applied_status_timeline_ticks(target_unit, status_effect_ids)
-	if _misfortune_service == null:
-		return
-	_misfortune_service.handle_applied_statuses(target_unit, status_effect_ids)
+	if _fate_runtime != null:
+		_fate_runtime.handle_applied_statuses(target_unit, status_effect_ids)
 
 
 func _initialize_applied_status_timeline_ticks(target_unit: BattleUnitState, status_effect_ids: Variant) -> void:
@@ -1186,132 +1278,43 @@ func append_result_source_status_effects(batch: BattleEventBatch, source_unit: B
 
 
 func _initialize_battle_metrics() -> void:
-	_battle_metrics = {
-		"battle_id": String(_state.battle_id) if _state != null else "",
-		"seed": int(_state.seed) if _state != null else 0,
-		"units": {},
-		"factions": {},
-	}
-	if _state == null:
-		return
-	for unit_variant in _state.units.values():
-		var unit_state := unit_variant as BattleUnitState
-		if unit_state == null:
-			continue
-		var unit_entry := _build_unit_metric_entry(unit_state)
-		_battle_metrics["units"][String(unit_state.unit_id)] = unit_entry
-		var faction_entry := _ensure_faction_metric_entry(unit_state.faction_id)
-		faction_entry["unit_count"] = int(faction_entry.get("unit_count", 0)) + 1
+	_ensure_sidecars_ready()
+	_metrics_collector._initialize_battle_metrics()
 
 
 func _build_unit_metric_entry(unit_state: BattleUnitState) -> Dictionary:
-	return {
-		"unit_id": String(unit_state.unit_id),
-		"display_name": unit_state.display_name,
-		"faction_id": String(unit_state.faction_id),
-		"control_mode": String(unit_state.control_mode),
-		"source_member_id": String(unit_state.source_member_id),
-		"turn_count": 0,
-		"action_counts": {"move": 0, "skill": 0, "wait": 0},
-		"skill_attempt_counts": {},
-		"skill_success_counts": {},
-		"successful_skill_count": 0,
-		"total_damage_done": 0,
-		"total_healing_done": 0,
-		"total_damage_taken": 0,
-		"total_healing_received": 0,
-		"kill_count": 0,
-		"death_count": 0,
-	}
+	_ensure_sidecars_ready()
+	return _metrics_collector._build_unit_metric_entry(unit_state)
 
 
 func _ensure_unit_metric_entry(unit_state: BattleUnitState) -> Dictionary:
-	if _battle_metrics.is_empty() or unit_state == null:
-		return {}
-	var units: Dictionary = _battle_metrics.get("units", {})
-	var unit_key := String(unit_state.unit_id)
-	if not units.has(unit_key):
-		units[unit_key] = _build_unit_metric_entry(unit_state)
-		_battle_metrics["units"] = units
-	return units.get(unit_key, {})
+	_ensure_sidecars_ready()
+	return _metrics_collector._ensure_unit_metric_entry(unit_state)
 
 
 func _ensure_faction_metric_entry(faction_id: StringName) -> Dictionary:
-	if _battle_metrics.is_empty():
-		return {}
-	var factions: Dictionary = _battle_metrics.get("factions", {})
-	var faction_key := String(faction_id)
-	if not factions.has(faction_key):
-		factions[faction_key] = {
-			"faction_id": faction_key,
-			"unit_count": 0,
-			"turn_count": 0,
-			"action_counts": {"move": 0, "skill": 0, "wait": 0},
-			"skill_attempt_counts": {},
-			"skill_success_counts": {},
-			"successful_skill_count": 0,
-			"total_damage_done": 0,
-			"total_healing_done": 0,
-			"total_damage_taken": 0,
-			"total_healing_received": 0,
-			"kill_count": 0,
-			"death_count": 0,
-		}
-		_battle_metrics["factions"] = factions
-	return factions.get(faction_key, {})
+	_ensure_sidecars_ready()
+	return _metrics_collector._ensure_faction_metric_entry(faction_id)
 
 
 func _record_turn_started(unit_state: BattleUnitState) -> void:
-	var unit_entry := _ensure_unit_metric_entry(unit_state)
-	if unit_entry.is_empty():
-		return
-	unit_entry["turn_count"] = int(unit_entry.get("turn_count", 0)) + 1
-	var faction_entry := _ensure_faction_metric_entry(unit_state.faction_id)
-	faction_entry["turn_count"] = int(faction_entry.get("turn_count", 0)) + 1
+	_ensure_sidecars_ready()
+	_metrics_collector._record_turn_started(unit_state)
 
 
 func _record_action_issued(unit_state: BattleUnitState, command_type: StringName, ap_cost: int = 0) -> void:
-	if unit_state != null:
-		if command_type == BattleCommand.TYPE_MOVE:
-			unit_state.has_moved_this_turn = true
-		elif command_type != BattleCommand.TYPE_WAIT and ap_cost > 0:
-			unit_state.has_taken_action_this_turn = true
-			unit_state.is_resting = false
-	var command_key := String(command_type)
-	if command_key.is_empty():
-		return
-	var unit_entry := _ensure_unit_metric_entry(unit_state)
-	if unit_entry.is_empty():
-		return
-	_increment_metric_count(unit_entry.get("action_counts", {}), command_key, 1)
-	var faction_entry := _ensure_faction_metric_entry(unit_state.faction_id)
-	_increment_metric_count(faction_entry.get("action_counts", {}), command_key, 1)
+	_ensure_sidecars_ready()
+	_metrics_collector._record_action_issued(unit_state, command_type, ap_cost)
 
 
 func _record_skill_attempt(unit_state: BattleUnitState, skill_id: StringName) -> void:
-	var skill_key := String(skill_id)
-	if skill_key.is_empty():
-		return
-	var unit_entry := _ensure_unit_metric_entry(unit_state)
-	if unit_entry.is_empty():
-		return
-	_increment_metric_count(unit_entry.get("skill_attempt_counts", {}), skill_key, 1)
-	var faction_entry := _ensure_faction_metric_entry(unit_state.faction_id)
-	_increment_metric_count(faction_entry.get("skill_attempt_counts", {}), skill_key, 1)
+	_ensure_sidecars_ready()
+	_metrics_collector._record_skill_attempt(unit_state, skill_id)
 
 
 func _record_skill_success(unit_state: BattleUnitState, skill_id: StringName) -> void:
-	var skill_key := String(skill_id)
-	if skill_key.is_empty():
-		return
-	var unit_entry := _ensure_unit_metric_entry(unit_state)
-	if unit_entry.is_empty():
-		return
-	_increment_metric_count(unit_entry.get("skill_success_counts", {}), skill_key, 1)
-	unit_entry["successful_skill_count"] = int(unit_entry.get("successful_skill_count", 0)) + 1
-	var faction_entry := _ensure_faction_metric_entry(unit_state.faction_id)
-	_increment_metric_count(faction_entry.get("skill_success_counts", {}), skill_key, 1)
-	faction_entry["successful_skill_count"] = int(faction_entry.get("successful_skill_count", 0)) + 1
+	_ensure_sidecars_ready()
+	_metrics_collector._record_skill_success(unit_state, skill_id)
 
 
 func _record_effect_metrics(
@@ -1321,38 +1324,18 @@ func _record_effect_metrics(
 	healing: int,
 	kill_count: int
 ) -> void:
-	if source_unit == null or target_unit == null:
-		return
-	var source_entry := _ensure_unit_metric_entry(source_unit)
-	var target_entry := _ensure_unit_metric_entry(target_unit)
-	var source_faction_entry := _ensure_faction_metric_entry(source_unit.faction_id)
-	var target_faction_entry := _ensure_faction_metric_entry(target_unit.faction_id)
-	if damage > 0:
-		source_entry["total_damage_done"] = int(source_entry.get("total_damage_done", 0)) + damage
-		target_entry["total_damage_taken"] = int(target_entry.get("total_damage_taken", 0)) + damage
-		source_faction_entry["total_damage_done"] = int(source_faction_entry.get("total_damage_done", 0)) + damage
-		target_faction_entry["total_damage_taken"] = int(target_faction_entry.get("total_damage_taken", 0)) + damage
-	if healing > 0:
-		source_entry["total_healing_done"] = int(source_entry.get("total_healing_done", 0)) + healing
-		target_entry["total_healing_received"] = int(target_entry.get("total_healing_received", 0)) + healing
-		source_faction_entry["total_healing_done"] = int(source_faction_entry.get("total_healing_done", 0)) + healing
-		target_faction_entry["total_healing_received"] = int(target_faction_entry.get("total_healing_received", 0)) + healing
-	if kill_count > 0:
-		source_entry["kill_count"] = int(source_entry.get("kill_count", 0)) + kill_count
-		source_faction_entry["kill_count"] = int(source_faction_entry.get("kill_count", 0)) + kill_count
+	_ensure_sidecars_ready()
+	_metrics_collector._record_effect_metrics(source_unit, target_unit, damage, healing, kill_count)
 
 
 func _record_unit_defeated(unit_state: BattleUnitState) -> void:
-	var unit_entry := _ensure_unit_metric_entry(unit_state)
-	if unit_entry.is_empty():
-		return
-	unit_entry["death_count"] = int(unit_entry.get("death_count", 0)) + 1
-	var faction_entry := _ensure_faction_metric_entry(unit_state.faction_id)
-	faction_entry["death_count"] = int(faction_entry.get("death_count", 0)) + 1
+	_ensure_sidecars_ready()
+	_metrics_collector._record_unit_defeated(unit_state)
 
 
 func _increment_metric_count(metric_map: Dictionary, key: String, delta: int) -> void:
-	metric_map[key] = int(metric_map.get(key, 0)) + delta
+	_ensure_sidecars_ready()
+	_metrics_collector._increment_metric_count(metric_map, key, delta)
 
 
 func dispose() -> void:
@@ -1372,12 +1355,26 @@ func dispose() -> void:
 		_loot_resolver.dispose()
 	if _skill_turn_resolver != null:
 		_skill_turn_resolver.dispose()
+	if _metrics_collector != null:
+		_metrics_collector.dispose()
+	if _shield_service != null:
+		_shield_service.dispose()
+	if _ground_effect_service != null:
+		_ground_effect_service.dispose()
+	if _special_skill_resolver != null:
+		_special_skill_resolver.dispose()
+	if _movement_service != null:
+		_movement_service.dispose()
+	if _layered_barrier_service != null:
+		_layered_barrier_service.dispose()
+	if _timeline_driver != null:
+		_timeline_driver.dispose()
+	if _skill_orchestrator != null:
+		_skill_orchestrator.dispose()
 	if _skill_mastery_service != null:
 		_skill_mastery_service.clear()
-	if _fortune_service != null:
-		_fortune_service.dispose()
-	if _misfortune_service != null:
-		_misfortune_service.dispose()
+	if _fate_runtime != null:
+		_fate_runtime.dispose()
 	_battle_rating_stats.clear()
 	_pending_post_battle_character_rewards.clear()
 	_active_loot_entries.clear()
@@ -1397,6 +1394,7 @@ func dispose() -> void:
 	_enemy_ai_brains = {}
 	_encounter_builder = null
 	_equipment_drop_service = null
+	_equipment_instance_id_allocator = Callable()
 	if _state != null:
 		_state.cells.clear()
 		_state.units.clear()
@@ -1627,141 +1625,46 @@ func _get_move_cost_for_unit_target(
 	target_coord: Vector2i,
 	allow_quickstep_bonus: bool = true
 ) -> int:
-	if _state == null or unit_state == null:
-		return 1
-	var move_cost := _grid_service.get_unit_move_cost(_state, unit_state, target_coord)
-	if _terrain_effect_system != null:
-		move_cost += _terrain_effect_system.get_move_cost_delta_for_unit_target(unit_state, target_coord)
-	move_cost += _get_status_move_cost_delta(unit_state)
-	if allow_quickstep_bonus and _has_status(unit_state, STATUS_ARCHER_QUICKSTEP):
-		move_cost = maxi(move_cost - 1, 0)
-	return move_cost
+	_ensure_sidecars_ready()
+	return _movement_service._get_move_cost_for_unit_target(unit_state, target_coord, allow_quickstep_bonus)
 
 
 func _get_move_cost_for_unit_target_without_quickstep(
 	unit_state: BattleUnitState,
 	target_coord: Vector2i
 ) -> int:
-	return _get_move_cost_for_unit_target(unit_state, target_coord, false)
+	_ensure_sidecars_ready()
+	return _movement_service._get_move_cost_for_unit_target_without_quickstep(unit_state, target_coord)
 
 
 func _get_move_path_cost(unit_state: BattleUnitState, anchor_path: Array[Vector2i]) -> int:
-	if unit_state == null or anchor_path.size() <= 1:
-		return 0
-	var total_cost := 0
-	var allow_quickstep_bonus := _has_status(unit_state, STATUS_ARCHER_QUICKSTEP)
-	for path_index in range(1, anchor_path.size()):
-		total_cost += _get_move_cost_for_unit_target(unit_state, anchor_path[path_index], allow_quickstep_bonus)
-		allow_quickstep_bonus = false
-	return total_cost
+	_ensure_sidecars_ready()
+	return _movement_service._get_move_path_cost(unit_state, anchor_path)
 
 
 func _get_status_move_cost_delta(unit_state: BattleUnitState) -> int:
-	if unit_state == null:
-		return 0
-	var total_delta := 0
-	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
-		var status_entry = unit_state.get_status_effect(StringName(status_id_str))
-		total_delta += BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT.get_move_cost_delta(status_entry)
-	return maxi(total_delta, 0)
+	_ensure_sidecars_ready()
+	return _movement_service._get_status_move_cost_delta(unit_state)
 
 
 func _resolve_move_path_result(active_unit: BattleUnitState, target_coord: Vector2i) -> Dictionary:
-	if _state == null or active_unit == null:
-		return {
-			"allowed": false,
-			"cost": 0,
-			"path": [],
-			"message": "当前单位数据不可用。",
-		}
-	var available_move_points := _get_available_move_points(active_unit)
-	if available_move_points <= 0:
-		return {
-			"allowed": false,
-			"cost": 0,
-			"path": [],
-			"message": "已行动，移动力被锁定。" if _is_normal_movement_locked(active_unit) else "移动力不足，无法移动。",
-		}
-	var first_step_cost_discount := 1 if _has_status(active_unit, STATUS_ARCHER_QUICKSTEP) else 0
-	var move_result := _grid_service.resolve_unit_move_path(
-		_state,
-		active_unit,
-		active_unit.coord,
-		target_coord,
-		available_move_points,
-		first_step_cost_discount,
-		Callable(self, "_get_move_cost_for_unit_target_without_quickstep")
-	)
-	var anchor_path: Array[Vector2i] = []
-	var path_variant = move_result.get("path", [])
-	if path_variant is Array:
-		for coord_variant in path_variant:
-			if coord_variant is Vector2i:
-				anchor_path.append(coord_variant)
-	if anchor_path.size() > 1:
-		var semantic_cost := _get_move_path_cost(active_unit, anchor_path)
-		move_result["cost"] = semantic_cost
-		if semantic_cost > available_move_points:
-			move_result["allowed"] = false
-			move_result["message"] = "移动力不足，无法移动。"
-	return move_result
+	_ensure_sidecars_ready()
+	return _movement_service._resolve_move_path_result(active_unit, target_coord)
 
 
 func _get_available_move_points(unit_state: BattleUnitState) -> int:
-	if unit_state == null:
-		return 0
-	var normal_move_points := maxi(int(unit_state.current_move_points), 0)
-	if normal_move_points <= 0:
-		return 0
-	if not _is_normal_movement_locked(unit_state):
-		return normal_move_points
-	return normal_move_points if unit_state.can_use_locked_move_points_this_turn else 0
+	_ensure_sidecars_ready()
+	return _movement_service._get_available_move_points(unit_state)
 
 
 func _is_normal_movement_locked(unit_state: BattleUnitState) -> bool:
-	return unit_state != null and (unit_state.has_taken_action_this_turn or unit_state.has_moved_this_turn)
+	_ensure_sidecars_ready()
+	return _movement_service._is_normal_movement_locked(unit_state)
 
 
 func _handle_move_command(active_unit: BattleUnitState, command: BattleCommand, batch: BattleEventBatch) -> void:
-	if _is_movement_blocked(active_unit):
-		batch.log_lines.append("%s 当前被限制移动。" % active_unit.display_name)
-		return
-	var target_coord := command.target_coord
-	var move_result := _resolve_move_path_result(active_unit, target_coord)
-	if not bool(move_result.get("allowed", false)):
-		batch.log_lines.append(String(move_result.get("message", "该移动不可执行。")))
-		return
-	var target_cell := _grid_service.get_cell(_state, target_coord)
-	if target_cell == null:
-		return
-	var move_cost := int(move_result.get("cost", 0))
-	var anchor_path: Array[Vector2i] = []
-	for coord_variant in move_result.get("path", []):
-		if coord_variant is Vector2i:
-			anchor_path.append(coord_variant)
-
-	var previous_anchor := active_unit.coord
-	var previous_coords := active_unit.occupied_coords.duplicate()
-	if _move_unit_along_validated_path(active_unit, anchor_path, target_coord, batch):
-		active_unit.current_move_points = maxi(active_unit.current_move_points - move_cost, 0)
-		_consume_status_if_present(active_unit, STATUS_ARCHER_QUICKSTEP, batch)
-		_record_action_issued(active_unit, BattleCommand.TYPE_MOVE)
-		batch.changed_unit_ids.append(active_unit.unit_id)
-		_append_changed_coords(batch, previous_coords)
-		_append_changed_unit_coords(batch, active_unit)
-		var terrain_name := _grid_service.get_terrain_display_name(String(target_cell.base_terrain)) if target_cell != null else "地格"
-		batch.log_lines.append("%s 从 (%d, %d) 移动到 (%d, %d)，移动距离消耗 %d 点，剩余移动力 %d 点并锁定。%s。" % [
-			active_unit.display_name,
-			previous_anchor.x,
-			previous_anchor.y,
-			target_coord.x,
-			target_coord.y,
-			move_cost,
-			active_unit.current_move_points,
-			terrain_name,
-		])
-	else:
-		batch.log_lines.append("%s 的移动落点已失效，无法执行。" % active_unit.display_name)
+	_ensure_sidecars_ready()
+	_movement_service._handle_move_command(active_unit, command, batch)
 
 
 func _preview_change_equipment_command(active_unit: BattleUnitState, command: BattleCommand, preview: BattlePreview) -> void:
@@ -1803,73 +1706,18 @@ func _move_unit_along_validated_path(
 	target_coord: Vector2i,
 	batch: BattleEventBatch
 ) -> bool:
-	if active_unit == null:
-		return false
-	if anchor_path.is_empty():
-		return false
-	if anchor_path[0] != active_unit.coord or anchor_path[anchor_path.size() - 1] != target_coord:
-		return false
-	if anchor_path.size() == 1:
-		return active_unit.coord == target_coord
-	for path_index in range(1, anchor_path.size()):
-		var next_coord := anchor_path[path_index]
-		if not _grid_service.can_unit_step_between_anchors(_state, active_unit, active_unit.coord, next_coord):
-			if batch != null:
-				batch.log_lines.append("%s 的移动路径第 %d 步已不可通行。" % [active_unit.display_name, path_index])
-			return false
-		if not _grid_service.move_unit(_state, active_unit, next_coord):
-			if batch != null:
-				batch.log_lines.append("%s 的移动路径第 %d 步执行失败。" % [active_unit.display_name, path_index])
-			return false
-	return active_unit.coord == target_coord
+	_ensure_sidecars_ready()
+	return _movement_service._move_unit_along_validated_path(active_unit, anchor_path, target_coord, batch)
 
 
 func _handle_skill_command(active_unit: BattleUnitState, command: BattleCommand, batch: BattleEventBatch) -> void:
-	var skill_def := _skill_defs.get(command.skill_id) as SkillDef
-	if skill_def == null or skill_def.combat_profile == null:
-		return
-	var unit_cast_variant := _resolve_unit_cast_variant(skill_def, active_unit, command)
-	var ground_cast_variant := _resolve_ground_cast_variant(skill_def, active_unit, command)
-	var command_cast_variant := ground_cast_variant if ground_cast_variant != null else unit_cast_variant
-	var unit_execution_cast_variant := unit_cast_variant if unit_cast_variant != null else ground_cast_variant
-	var block_reason := _get_skill_command_block_reason(active_unit, skill_def, command_cast_variant)
-	if not block_reason.is_empty():
-		batch.log_lines.append(block_reason)
-		return
-
-	_record_skill_attempt(active_unit, command.skill_id)
-	_skill_mastery_service.clear()
-	var applied := false
-	if _should_route_skill_command_to_unit_targeting(skill_def, command):
-		applied = _handle_unit_skill_command(active_unit, command, skill_def, unit_execution_cast_variant, batch)
-	else:
-		if ground_cast_variant != null:
-			applied = _handle_ground_skill_command(active_unit, command, skill_def, ground_cast_variant, batch)
-		else:
-			applied = _handle_unit_skill_command(active_unit, command, skill_def, null, batch)
-	if applied:
-		_grant_skill_mastery_if_needed(active_unit, skill_def, batch)
-	_skill_mastery_service.clear()
+	_ensure_sidecars_ready()
+	_skill_orchestrator._handle_skill_command(active_unit, command, batch)
 
 
 func _preview_skill_command(active_unit: BattleUnitState, command: BattleCommand, preview: BattlePreview) -> void:
-	var skill_def := _skill_defs.get(command.skill_id) as SkillDef
-	if skill_def == null or skill_def.combat_profile == null:
-		preview.log_lines.append("技能或目标无效。")
-		return
-	var unit_cast_variant := _resolve_unit_cast_variant(skill_def, active_unit, command)
-	var ground_cast_variant := _resolve_ground_cast_variant(skill_def, active_unit, command)
-	var unit_execution_cast_variant := unit_cast_variant if unit_cast_variant != null else ground_cast_variant
-
-	if _should_route_skill_command_to_unit_targeting(skill_def, command):
-		_preview_unit_skill_command(active_unit, command, skill_def, unit_execution_cast_variant, preview)
-		return
-
-	if ground_cast_variant != null:
-		_preview_ground_skill_command(active_unit, command, skill_def, ground_cast_variant, preview)
-		return
-
-	_preview_unit_skill_command(active_unit, command, skill_def, null, preview)
+	_ensure_sidecars_ready()
+	_skill_orchestrator._preview_skill_command(active_unit, command, preview)
 
 
 func _preview_unit_skill_command(
@@ -1879,43 +1727,8 @@ func _preview_unit_skill_command(
 	cast_variant: CombatCastVariantDef,
 	preview: BattlePreview
 ) -> void:
-	var block_reason := _get_skill_command_block_reason(active_unit, skill_def, cast_variant)
-	if not block_reason.is_empty():
-		preview.log_lines.append(block_reason)
-		return
-
-	var validation := _validate_unit_skill_targets(active_unit, command, skill_def, cast_variant)
-	preview.allowed = bool(validation.get("allowed", false))
-	preview.target_unit_ids.clear()
-	for target_unit_id_variant in validation.get("target_unit_ids", []):
-		preview.target_unit_ids.append(ProgressionDataUtils.to_string_name(target_unit_id_variant))
-	preview.target_coords.clear()
-	for preview_coord_variant in validation.get("preview_coords", []):
-		if preview_coord_variant is Vector2i:
-			preview.target_coords.append(preview_coord_variant)
-	if preview.allowed:
-		var target_units := validation.get("target_units", []) as Array
-		preview.hit_preview = _build_unit_skill_hit_preview(active_unit, target_units, skill_def, cast_variant)
-		preview.damage_preview = _build_unit_skill_damage_preview(active_unit, skill_def, cast_variant)
-		var skill_label := _format_skill_variant_label(skill_def, cast_variant)
-		if target_units.size() == 1:
-			var target_unit := target_units[0] as BattleUnitState
-			if target_unit != null:
-				preview.log_lines.append("%s 可对 %s 使用 %s。" % [active_unit.display_name, target_unit.display_name, skill_label])
-				if not preview.hit_preview.is_empty():
-					preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
-				_append_damage_preview_line(preview)
-				return
-		preview.log_lines.append("%s 可对 %d 个单位使用 %s。" % [
-			active_unit.display_name,
-			preview.target_unit_ids.size(),
-			skill_label,
-		])
-		if not preview.hit_preview.is_empty():
-			preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
-		_append_damage_preview_line(preview)
-		return
-	preview.log_lines.append(String(validation.get("message", "技能或目标无效。")))
+	_ensure_sidecars_ready()
+	_skill_orchestrator._preview_unit_skill_command(active_unit, command, skill_def, cast_variant, preview)
 
 
 func _preview_ground_skill_command(
@@ -1925,54 +1738,8 @@ func _preview_ground_skill_command(
 	cast_variant: CombatCastVariantDef,
 	preview: BattlePreview
 ) -> void:
-	var block_reason := _get_skill_command_block_reason(active_unit, skill_def, cast_variant)
-	if not block_reason.is_empty():
-		preview.log_lines.append(block_reason)
-		return
-	var validation := _validate_ground_skill_command(active_unit, skill_def, cast_variant, command)
-	preview.target_coords.clear()
-	var preview_coords: Array[Vector2i] = validation.get(
-		"preview_coords",
-		_build_ground_effect_coords(skill_def, validation.get("target_coords", []), active_unit.coord if active_unit != null else Vector2i(-1, -1), active_unit, cast_variant)
-	)
-	preview.resolved_anchor_coord = validation.get("resolved_anchor_coord", Vector2i(-1, -1))
-	if bool(validation.get("allowed", false)):
-		var path_step_aoe_effect := _charge_resolver.get_charge_path_step_aoe_effect_def(cast_variant, skill_def, active_unit)
-		if path_step_aoe_effect != null:
-			preview_coords = _charge_resolver.build_charge_step_aoe_preview_coords(
-				active_unit,
-				validation.get("direction", Vector2i.ZERO),
-				int(validation.get("distance", 0)),
-				path_step_aoe_effect
-			)
-	for target_coord in preview_coords:
-		preview.target_coords.append(target_coord)
-	preview.target_unit_ids = _collect_ground_preview_unit_ids(
-		active_unit,
-		skill_def,
-		_collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit),
-		preview.target_coords
-	)
-	if bool(validation.get("allowed", false)):
-		var path_step_aoe_effect := _charge_resolver.get_charge_path_step_aoe_effect_def(cast_variant, skill_def, active_unit)
-		if path_step_aoe_effect != null:
-			var path_step_target_filter := _resolve_effect_target_filter(skill_def, path_step_aoe_effect)
-			for target_unit in _collect_units_in_coords(preview.target_coords):
-				if not _is_unit_valid_for_effect(active_unit, target_unit, path_step_target_filter):
-					continue
-				if preview.target_unit_ids.has(target_unit.unit_id):
-					continue
-				preview.target_unit_ids.append(target_unit.unit_id)
-	preview.allowed = bool(validation.get("allowed", false))
-	if preview.allowed:
-		preview.log_lines.append("%s 可使用 %s，预计影响 %d 个地格、%d 个单位。" % [
-			active_unit.display_name,
-			_format_skill_variant_label(skill_def, cast_variant),
-			preview.target_coords.size(),
-			preview.target_unit_ids.size(),
-		])
-	else:
-		preview.log_lines.append(String(validation.get("message", "地面技能目标无效。")))
+	_ensure_sidecars_ready()
+	_skill_orchestrator._preview_ground_skill_command(active_unit, command, skill_def, cast_variant, preview)
 
 
 func _build_unit_skill_hit_preview(
@@ -1981,31 +1748,8 @@ func _build_unit_skill_hit_preview(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef
 ) -> Dictionary:
-	if active_unit == null or skill_def == null or target_units.size() != 1:
-		return {}
-	var target_unit := target_units[0] as BattleUnitState
-	if target_unit == null:
-		return {}
-	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
-	var repeat_attack_effect := _repeat_attack_resolver.get_repeat_attack_effect_def(
-		effect_defs
-	)
-	if repeat_attack_effect == null:
-		if not _skill_resolution_rules.should_resolve_unit_skill_as_fate_attack(
-			active_unit,
-			target_unit,
-			skill_def,
-			effect_defs
-		):
-			return {}
-		return _hit_resolver.build_skill_attack_preview(
-			_state,
-			active_unit,
-			target_unit,
-			skill_def,
-			_skill_resolution_rules.is_force_hit_no_crit_skill(skill_def)
-		)
-	return _hit_resolver.build_repeat_attack_preview(_state, active_unit, target_unit, skill_def, repeat_attack_effect)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._build_unit_skill_hit_preview(active_unit, target_units, skill_def, cast_variant)
 
 
 func _build_unit_skill_damage_preview(
@@ -2013,27 +1757,23 @@ func _build_unit_skill_damage_preview(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef
 ) -> Dictionary:
-	if active_unit == null or skill_def == null:
-		return {}
-	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
-	return BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT.build_skill_damage_preview(active_unit, effect_defs)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._build_unit_skill_damage_preview(active_unit, skill_def, cast_variant)
 
 
 func _append_damage_preview_line(preview: BattlePreview) -> void:
-	if preview == null or preview.damage_preview.is_empty():
-		return
-	var damage_preview_text := String(preview.damage_preview.get("summary_text", ""))
-	if damage_preview_text.is_empty():
-		return
-	preview.log_lines.append(damage_preview_text)
+	_ensure_sidecars_ready()
+	_skill_orchestrator._append_damage_preview_line(preview)
 
 
 func summarize_damage_result(result: Dictionary) -> Dictionary:
-	return _report_formatter.summarize_damage_result(result)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator.summarize_damage_result(result)
 
 
 func build_damage_absorb_reason_text(summary: Dictionary) -> String:
-	return _report_formatter.build_damage_absorb_reason_text(summary)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator.build_damage_absorb_reason_text(summary)
 
 
 func append_damage_result_log_lines(
@@ -2042,7 +1782,8 @@ func append_damage_result_log_lines(
 	target_display_name: String,
 	result: Dictionary
 ) -> void:
-	_report_formatter.append_damage_result_log_lines(batch, subject_label, target_display_name, result)
+	_ensure_sidecars_ready()
+	_skill_orchestrator.append_damage_result_log_lines(batch, subject_label, target_display_name, result)
 
 
 func _build_unit_skill_resolution_preview_lines(
@@ -2051,14 +1792,8 @@ func _build_unit_skill_resolution_preview_lines(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef
 ) -> Array[String]:
-	var lines: Array[String] = []
-	if active_unit == null or target_unit == null or skill_def == null:
-		return lines
-	var damage_preview := _build_unit_skill_damage_preview(active_unit, skill_def, cast_variant)
-	var damage_preview_text := String(damage_preview.get("summary_text", ""))
-	if not damage_preview_text.is_empty():
-		lines.append(damage_preview_text)
-	return lines
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._build_unit_skill_resolution_preview_lines(active_unit, target_unit, skill_def, cast_variant)
 
 
 func _build_skill_log_subject_label(
@@ -2066,13 +1801,8 @@ func _build_skill_log_subject_label(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef = null
 ) -> String:
-	var actor_label := source_unit.display_name if source_unit != null and not source_unit.display_name.is_empty() else "未知单位"
-	var skill_label := _format_skill_variant_label(skill_def, cast_variant)
-	if skill_label.is_empty() and skill_def != null:
-		skill_label = skill_def.display_name
-	if skill_label.is_empty():
-		skill_label = "技能"
-	return "%s 使用 %s" % [actor_label, skill_label]
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._build_skill_log_subject_label(source_unit, skill_def, cast_variant)
 
 
 func _handle_unit_skill_command(
@@ -2082,45 +1812,13 @@ func _handle_unit_skill_command(
 	cast_variant: CombatCastVariantDef,
 	batch: BattleEventBatch
 ) -> bool:
-	var validation := _validate_unit_skill_targets(active_unit, command, skill_def, cast_variant)
-	if not bool(validation.get("allowed", false)):
-		return false
-
-	var target_units := validation.get("target_units", []) as Array
-	if target_units.is_empty():
-		return false
-
-	if not _consume_skill_costs(active_unit, skill_def, cast_variant, batch):
-		return false
-	var costs := _get_effective_skill_costs(active_unit, skill_def)
-	_record_action_issued(active_unit, BattleCommand.TYPE_SKILL, int(costs.get("ap_cost", skill_def.combat_profile.ap_cost)))
-	_append_changed_unit_id(batch, active_unit.unit_id)
-
-	var spell_control_context := _resolve_unit_spell_control_after_cost(active_unit, skill_def, batch)
-	if bool(spell_control_context.get("skip_effects", false)):
-		return true
-
-	var applied := false
-	var effect_defs := _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
-	var repeat_attack_effect := _repeat_attack_resolver.get_repeat_attack_effect_def(effect_defs)
-	for target_unit_variant in target_units:
-		var target_unit := target_unit_variant as BattleUnitState
-		if target_unit == null:
-			continue
-		if repeat_attack_effect != null:
-			if _repeat_attack_resolver.apply_repeat_attack_skill_result(active_unit, target_unit, skill_def, effect_defs, repeat_attack_effect, batch):
-				applied = true
-			continue
-		if _apply_unit_skill_result(active_unit, target_unit, skill_def, cast_variant, effect_defs, batch, spell_control_context):
-			applied = true
-	return applied
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._handle_unit_skill_command(active_unit, command, skill_def, cast_variant, batch)
 
 
 func _should_route_skill_command_to_unit_targeting(skill_def: SkillDef, command: BattleCommand) -> bool:
-	return _skill_resolution_rules.should_route_skill_command_to_unit_targeting(
-		skill_def,
-		_normalize_target_unit_ids(command)
-	)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._should_route_skill_command_to_unit_targeting(skill_def, command)
 
 
 func _validate_unit_skill_targets(
@@ -2129,120 +1827,28 @@ func _validate_unit_skill_targets(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef = null
 ) -> Dictionary:
-	var result := {
-		"allowed": false,
-		"message": "技能或目标无效。",
-		"target_unit_ids": [],
-		"target_units": [],
-		"preview_coords": [],
-	}
-	if _state == null or active_unit == null or command == null or skill_def == null or skill_def.combat_profile == null:
-		return result
-
-	var target_unit_ids := _normalize_target_unit_ids(command)
-	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
-	var min_target_count := 1
-	var max_target_count := 1
-	if _is_multi_unit_skill(skill_def):
-		min_target_count = maxi(int(skill_def.combat_profile.min_target_count), 1)
-		max_target_count = maxi(int(skill_def.combat_profile.get_effective_max_target_count(skill_level)), min_target_count)
-	if target_unit_ids.is_empty():
-		return result
-	if target_unit_ids.size() < min_target_count:
-		result.message = "至少需要选择 %d 个单位目标。" % min_target_count
-		return result
-	if target_unit_ids.size() > max_target_count:
-		result.message = "最多只能选择 %d 个单位目标。" % max_target_count
-		return result
-	if not _is_multi_unit_skill(skill_def) and target_unit_ids.size() != 1:
-		result.message = "当前技能只允许选择 1 个单位目标。"
-		return result
-	if StringName(skill_def.combat_profile.selection_order_mode) != &"manual":
-		target_unit_ids = _sort_target_unit_ids_for_execution(target_unit_ids)
-
-	var target_units: Array = []
-	for target_unit_id in target_unit_ids:
-		var target_unit := _state.units.get(target_unit_id) as BattleUnitState
-		var special_validation_message := _get_unit_skill_target_validation_message(active_unit, target_unit, skill_def, cast_variant)
-		if not special_validation_message.is_empty():
-			result.message = special_validation_message
-			return result
-		if target_unit == null or not _can_skill_target_unit(active_unit, target_unit, skill_def):
-			result.message = "技能目标超出范围或不满足筛选条件。"
-			return result
-		target_units.append(target_unit)
-
-	result.allowed = true
-	result.message = ""
-	result.target_unit_ids = target_unit_ids
-	result.target_units = target_units
-	var collected_target_coords := _target_collection_service.collect_combat_profile_target_coords(
-		_state,
-		_grid_service,
-		active_unit.coord if active_unit != null else Vector2i(-1, -1),
-		skill_def.combat_profile,
-		[],
-		active_unit,
-		target_units,
-		skill_level
-	)
-	result.preview_coords = _sort_coords(collected_target_coords.get("target_coords", []))
-	return result
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._validate_unit_skill_targets(active_unit, command, skill_def, cast_variant)
 
 
 func _normalize_target_unit_ids(command: BattleCommand) -> Array[StringName]:
-	var target_unit_ids: Array[StringName] = []
-	if command == null:
-		return target_unit_ids
-	var seen_ids: Dictionary = {}
-	var single_target_id := ProgressionDataUtils.to_string_name(command.target_unit_id)
-	if single_target_id != &"":
-		seen_ids[single_target_id] = true
-		target_unit_ids.append(single_target_id)
-	for target_unit_id_variant in command.target_unit_ids:
-		var target_unit_id := ProgressionDataUtils.to_string_name(target_unit_id_variant)
-		if target_unit_id == &"" or seen_ids.has(target_unit_id):
-			continue
-		seen_ids[target_unit_id] = true
-		target_unit_ids.append(target_unit_id)
-	return target_unit_ids
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._normalize_target_unit_ids(command)
 
 
 func _sort_target_unit_ids_for_execution(target_unit_ids: Array[StringName]) -> Array[StringName]:
-	var sorted_ids := target_unit_ids.duplicate()
-	if _state == null:
-		return sorted_ids
-	sorted_ids.sort_custom(func(a: StringName, b: StringName) -> bool:
-		var unit_a := _state.units.get(a) as BattleUnitState
-		var unit_b := _state.units.get(b) as BattleUnitState
-		if unit_a == null or unit_b == null:
-			return String(a) < String(b)
-		return unit_a.coord.y < unit_b.coord.y \
-			or (unit_a.coord.y == unit_b.coord.y and (unit_a.coord.x < unit_b.coord.x \
-			or (unit_a.coord.x == unit_b.coord.x and String(a) < String(b))))
-	)
-	return sorted_ids
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._sort_target_unit_ids_for_execution(target_unit_ids)
 
 
 func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
-	return skill_def != null \
-		and skill_def.combat_profile != null \
-		and StringName(skill_def.combat_profile.target_selection_mode) == &"multi_unit"
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_multi_unit_skill(skill_def)
 
 
-func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def: SkillDef) -> bool:
-	if active_unit == null or target_unit == null or skill_def == null or skill_def.combat_profile == null:
-		return false
-	var costs := _get_effective_skill_costs(active_unit, skill_def)
-	if active_unit.current_ap < int(costs.get("ap_cost", skill_def.combat_profile.ap_cost)):
-		return false
-	if not _is_unit_valid_for_effect(active_unit, target_unit, skill_def.combat_profile.target_team_filter):
-		return false
-	if not _get_unit_skill_target_validation_message(active_unit, target_unit, skill_def, null).is_empty():
-		return false
-	active_unit.refresh_footprint()
-	target_unit.refresh_footprint()
-	return _grid_service.get_distance_between_units(active_unit, target_unit) <= _get_effective_skill_range(active_unit, skill_def)
+func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def: SkillDef, require_ap: bool = true) -> bool:
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._can_skill_target_unit(active_unit, target_unit, skill_def, require_ap)
 
 
 func _resolve_unit_skill_effect_result(
@@ -2251,26 +1857,8 @@ func _resolve_unit_skill_effect_result(
 	skill_def: SkillDef,
 	effect_defs: Array[CombatEffectDef]
 ) -> Dictionary:
-	if _should_resolve_unit_skill_as_fate_attack(active_unit, target_unit, skill_def, effect_defs):
-		var attack_check := _hit_resolver.build_skill_attack_check(active_unit, target_unit, skill_def)
-		var attack_context := {
-			"battle_state": _state,
-		}
-		if _skill_resolution_rules.is_force_hit_no_crit_skill(skill_def):
-			attack_context["force_hit_no_crit"] = true
-		var result := _damage_resolver.resolve_attack_effects(
-			active_unit,
-			target_unit,
-			effect_defs,
-			attack_check,
-			attack_context
-		)
-		if _skill_resolution_rules.is_force_hit_no_crit_skill(skill_def):
-			result["custom_log_lines"] = [
-				"黑契推进压低了命运摆幅：这次攻击必定命中，且不会触发暴击。",
-			]
-		return result
-	return _damage_resolver.resolve_effects(active_unit, target_unit, effect_defs) if not effect_defs.is_empty() else _damage_resolver.resolve_skill(active_unit, target_unit, skill_def)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._resolve_unit_skill_effect_result(active_unit, target_unit, skill_def, effect_defs)
 
 
 func _should_resolve_unit_skill_as_fate_attack(
@@ -2279,12 +1867,8 @@ func _should_resolve_unit_skill_as_fate_attack(
 	skill_def: SkillDef,
 	effect_defs: Array[CombatEffectDef]
 ) -> bool:
-	return _skill_resolution_rules.should_resolve_unit_skill_as_fate_attack(
-		active_unit,
-		target_unit,
-		skill_def,
-		effect_defs
-	)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._should_resolve_unit_skill_as_fate_attack(active_unit, target_unit, skill_def, effect_defs)
 
 
 func _apply_unit_skill_result(
@@ -2296,137 +1880,8 @@ func _apply_unit_skill_result(
 	batch: BattleEventBatch,
 	spell_control_context: Dictionary = {}
 ) -> bool:
-	var result := _resolve_unit_skill_effect_result(active_unit, target_unit, skill_def, effect_defs)
-	_skill_mastery_service.record_target_result(active_unit, target_unit, skill_def, result, effect_defs)
-	_flush_last_stand_mastery_records(batch)
-	var guard_mastery_grant := _skill_mastery_service.build_guard_mastery_grant_from_incoming_hit(
-		active_unit,
-		target_unit,
-		effect_defs,
-		result,
-		_skill_defs
-	)
-	var shield_roll_context := {}
-	var shield_result := _apply_unit_shield_effects(
-		active_unit,
-		target_unit,
-		skill_def,
-		effect_defs,
-		shield_roll_context
-	)
-	mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
-	_append_changed_unit_id(batch, target_unit.unit_id)
-	_append_changed_unit_coords(batch, target_unit)
-	append_result_source_status_effects(batch, active_unit, result)
-	var special_result := _apply_unit_skill_special_effects(active_unit, target_unit, skill_def, cast_variant, effect_defs, batch)
-	mark_applied_statuses_for_turn_timing(target_unit, special_result.get("status_effect_ids", []))
-	var applied := bool(result.get("applied", false)) \
-		or bool(shield_result.get("applied", false)) \
-		or bool(special_result.get("applied", false))
-	if not applied:
-		_append_result_report_entry(batch, result)
-		for custom_line_variant in result.get("custom_log_lines", []):
-			var custom_line := String(custom_line_variant)
-			if not custom_line.is_empty():
-				batch.log_lines.append(custom_line)
-		for special_line_variant in special_result.get("log_lines", []):
-			var special_line := String(special_line_variant)
-			if not special_line.is_empty():
-				batch.log_lines.append(special_line)
-		return false
-
-	var skill_label := _format_skill_variant_label(skill_def, cast_variant)
-	var skill_subject := _build_skill_log_subject_label(active_unit, skill_def, cast_variant)
-	var damage := int(result.get("damage", 0))
-	var healing := int(result.get("healing", 0))
-	var moved_steps := int(special_result.get("moved_steps", 0))
-	_record_vajra_body_mastery_from_incoming_damage(active_unit, target_unit, skill_def, result, batch)
-	if moved_steps > 0:
-		batch.log_lines.append("%s 使用 %s，向更安全位置移动 %d 格。" % [
-			active_unit.display_name,
-			skill_label,
-			moved_steps,
-		])
-	append_damage_result_log_lines(
-		batch,
-		skill_subject,
-		target_unit.display_name,
-		result
-	)
-	_append_result_report_entry(batch, result)
-	if _is_doom_sentence_skill(skill_def.skill_id):
-		_append_report_entry_to_batch(
-			batch,
-			_report_formatter.build_skill_event_entry(
-				active_unit,
-				target_unit,
-				skill_def.skill_id,
-				BATTLE_REPORT_FORMATTER_SCRIPT.REASON_DOOM_SENTENCE_APPLIED,
-				[BATTLE_REPORT_FORMATTER_SCRIPT.TAG_DOOM_SENTENCE]
-			)
-		)
-	if healing > 0:
-		batch.log_lines.append("%s 为 %s 恢复 %d 点生命。" % [
-			skill_subject,
-			target_unit.display_name,
-			healing,
-		])
-	if bool(shield_result.get("applied", false)):
-		batch.log_lines.append("%s 使 %s 的护盾值变为 %d。" % [
-			skill_subject,
-			target_unit.display_name,
-			int(shield_result.get("current_shield_hp", 0)),
-		])
-	for status_id in result.get("status_effect_ids", []):
-		batch.log_lines.append("%s 获得状态 %s。" % [target_unit.display_name, String(status_id)])
-	_apply_chain_damage_effects(active_unit, target_unit, skill_def, effect_defs, result, batch, skill_subject, spell_control_context)
-	for custom_line_variant in result.get("custom_log_lines", []):
-		var custom_line := String(custom_line_variant)
-		if not custom_line.is_empty():
-			batch.log_lines.append(custom_line)
-	for special_line_variant in special_result.get("log_lines", []):
-		var special_line := String(special_line_variant)
-		if not special_line.is_empty():
-			batch.log_lines.append(special_line)
-	var terrain_effect_ids: Array = result.get("terrain_effect_ids", [])
-	if not terrain_effect_ids.is_empty():
-		for terrain_effect_id in terrain_effect_ids:
-			var target_cell := _grid_service.get_cell(_state, target_unit.coord)
-			if target_cell != null and not target_cell.terrain_effect_ids.has(terrain_effect_id):
-				target_cell.terrain_effect_ids.append(terrain_effect_id)
-				_append_changed_coord(batch, target_unit.coord)
-				batch.log_lines.append("%s 使 %s 所在的地格附加效果 %s。" % [
-					skill_subject,
-					target_unit.display_name,
-					String(terrain_effect_id),
-				])
-	var height_delta := int(result.get("height_delta", 0))
-	var target_coord := target_unit.coord
-	var target_cell_before := _grid_service.get_cell(_state, target_coord)
-	var before_height := int(target_cell_before.current_height) if target_cell_before != null else 0
-	if height_delta != 0 and _grid_service.apply_height_delta(_state, target_coord, height_delta):
-		_append_changed_coord(batch, target_coord)
-		var target_cell_after := _grid_service.get_cell(_state, target_coord)
-		var after_height := int(target_cell_after.current_height) if target_cell_after != null else before_height + height_delta
-		batch.log_lines.append("%s 使 (%d, %d) 的高度由 %d 变为 %d。" % [
-			skill_subject,
-			target_coord.x,
-			target_coord.y,
-			before_height,
-			after_height,
-		])
-	if not target_unit.is_alive:
-		_apply_on_kill_gain_resources_effects(active_unit, target_unit, skill_def, effect_defs, batch)
-		_collect_defeated_unit_loot(target_unit, active_unit)
-		_clear_defeated_unit(target_unit, batch)
-		batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-		_battle_rating_system.record_enemy_defeated_achievement(active_unit, target_unit)
-		_record_unit_defeated(target_unit)
-	if active_unit != null and target_unit != null:
-		_record_effect_metrics(active_unit, target_unit, damage, healing, 1 if not target_unit.is_alive else 0)
-	_battle_rating_system.record_skill_effect_result(active_unit, damage, healing, 1 if not target_unit.is_alive else 0)
-	_apply_skill_mastery_grant(target_unit, guard_mastery_grant, batch)
-	return true
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._apply_unit_skill_result(active_unit, target_unit, skill_def, cast_variant, effect_defs, batch, spell_control_context)
 
 
 func _apply_chain_damage_effects(
@@ -2439,87 +1894,26 @@ func _apply_chain_damage_effects(
 	skill_subject: String,
 	spell_control_context: Dictionary = {}
 ) -> void:
-	if _state == null or source_unit == null or primary_target == null or skill_def == null or batch == null:
-		return
-	if not bool(primary_result.get("applied", false)):
-		return
-	var chain_effects := _collect_chain_damage_effect_defs(effect_defs)
-	if chain_effects.is_empty():
-		return
-
-	for chain_effect in chain_effects:
-		var chain_target_effects := _build_chain_target_effect_defs(effect_defs, chain_effect)
-		if chain_target_effects.is_empty():
-			continue
-		var chain_targets := _collect_chain_damage_targets(source_unit, primary_target, skill_def, chain_effect, spell_control_context)
-		if chain_targets.is_empty():
-			continue
-
-		var total_damage := 0
-		var total_healing := 0
-		var total_kill_count := 0
-		for chain_target in chain_targets:
-			if chain_target == null or not chain_target.is_alive:
-				continue
-			var chain_result := _damage_resolver.resolve_effects(source_unit, chain_target, chain_target_effects)
-			_skill_mastery_service.record_target_result(source_unit, chain_target, skill_def, chain_result, chain_target_effects)
-			mark_applied_statuses_for_turn_timing(chain_target, chain_result.get("status_effect_ids", []))
-			if not bool(chain_result.get("applied", false)):
-				continue
-
-			_append_changed_unit_id(batch, source_unit.unit_id)
-			_append_changed_unit_id(batch, chain_target.unit_id)
-			_append_changed_unit_coords(batch, chain_target)
-			append_result_source_status_effects(batch, source_unit, chain_result)
-			append_damage_result_log_lines(batch, "%s 的连锁闪电" % skill_subject, chain_target.display_name, chain_result)
-			for status_id in chain_result.get("status_effect_ids", []):
-				batch.log_lines.append("%s 获得状态 %s。" % [chain_target.display_name, String(status_id)])
-
-			var chain_damage := int(chain_result.get("damage", 0))
-			var chain_healing := int(chain_result.get("healing", 0))
-			total_damage += chain_damage
-			total_healing += chain_healing
-			if not chain_target.is_alive:
-				total_kill_count += 1
-				_apply_on_kill_gain_resources_effects(source_unit, chain_target, skill_def, chain_target_effects, batch)
-				_collect_defeated_unit_loot(chain_target, source_unit)
-				_clear_defeated_unit(chain_target, batch)
-				batch.log_lines.append("%s 被击倒。" % chain_target.display_name)
-				_battle_rating_system.record_enemy_defeated_achievement(source_unit, chain_target)
-				_record_unit_defeated(chain_target)
-			_record_effect_metrics(source_unit, chain_target, chain_damage, chain_healing, 1 if not chain_target.is_alive else 0)
-
-		if total_damage > 0 or total_healing > 0 or total_kill_count > 0:
-			_battle_rating_system.record_skill_effect_result(source_unit, total_damage, total_healing, total_kill_count)
+	_ensure_sidecars_ready()
+	_skill_orchestrator._apply_chain_damage_effects(source_unit, primary_target, skill_def, effect_defs, primary_result, batch, skill_subject, spell_control_context)
 
 
 func _collect_chain_damage_effect_defs(effect_defs: Array[CombatEffectDef]) -> Array[CombatEffectDef]:
-	var chain_effects: Array[CombatEffectDef] = []
-	for effect_def in effect_defs:
-		if effect_def != null and effect_def.effect_type == CHAIN_DAMAGE_EFFECT_TYPE:
-			chain_effects.append(effect_def)
-	return chain_effects
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._collect_chain_damage_effect_defs(effect_defs)
 
 
 func _get_effect_params(effect_def: CombatEffectDef) -> Dictionary:
-	if effect_def == null or effect_def.params == null:
-		return {}
-	return effect_def.params
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._get_effect_params(effect_def)
 
 
 func _build_chain_target_effect_defs(
 	effect_defs: Array[CombatEffectDef],
 	chain_effect: CombatEffectDef
 ) -> Array[CombatEffectDef]:
-	var chain_target_effects: Array[CombatEffectDef] = []
-	for effect_def in effect_defs:
-		if effect_def == null or effect_def.effect_type == CHAIN_DAMAGE_EFFECT_TYPE:
-			continue
-		var runtime_effect := effect_def.duplicate_for_runtime()
-		if runtime_effect == null:
-			continue
-		chain_target_effects.append(runtime_effect)
-	return chain_target_effects
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._build_chain_target_effect_defs(effect_defs, chain_effect)
 
 
 func _collect_chain_damage_targets(
@@ -2529,85 +1923,18 @@ func _collect_chain_damage_targets(
 	chain_effect: CombatEffectDef,
 	spell_control_context: Dictionary = {}
 ) -> Array[BattleUnitState]:
-	var targets: Array[BattleUnitState] = []
-	if _state == null or source_unit == null or primary_target == null or chain_effect == null:
-		return targets
-
-	var chain_params := _get_effect_params(chain_effect)
-	var prevent_repeat_target := bool(chain_params.get("prevent_repeat_target", true))
-	var target_filter := _resolve_effect_target_filter(skill_def, chain_effect)
-	if target_filter == &"":
-		target_filter = skill_def.combat_profile.target_team_filter if skill_def != null and skill_def.combat_profile != null else &"enemy"
-
-	var visited: Dictionary = {}
-	var queue: Array[BattleUnitState] = []
-	visited[primary_target.unit_id] = true
-	queue.append(primary_target)
-
-	while not queue.is_empty():
-		var current := queue.pop_front() as BattleUnitState
-		var radius := _resolve_chain_damage_radius(current, chain_effect, spell_control_context)
-		if radius <= 0:
-			continue
-
-		for unit_variant in _state.units.values():
-			var candidate := unit_variant as BattleUnitState
-			if candidate == null or not candidate.is_alive:
-				continue
-			if prevent_repeat_target and visited.has(candidate.unit_id):
-				continue
-			if not _is_unit_valid_for_effect(source_unit, candidate, target_filter):
-				continue
-			if not _is_unit_in_chain_radius(current, candidate, radius, chain_effect):
-				continue
-			if not _is_chain_height_valid(current, candidate):
-				continue
-
-			visited[candidate.unit_id] = true
-			targets.append(candidate)
-			queue.append(candidate)
-
-	targets.sort_custom(func(a: BattleUnitState, b: BattleUnitState) -> bool:
-		var distance_a := _grid_service.get_distance_between_units(primary_target, a)
-		var distance_b := _grid_service.get_distance_between_units(primary_target, b)
-		if distance_a != distance_b:
-			return distance_a < distance_b
-		if a.coord.y != b.coord.y:
-			return a.coord.y < b.coord.y
-		if a.coord.x != b.coord.x:
-			return a.coord.x < b.coord.x
-		return String(a.unit_id) < String(b.unit_id)
-	)
-	return targets
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._collect_chain_damage_targets(source_unit, primary_target, skill_def, chain_effect, spell_control_context)
 
 
 func _resolve_chain_damage_radius(primary_target: BattleUnitState, chain_effect: CombatEffectDef, spell_control_context: Dictionary = {}) -> int:
-	var chain_params := _get_effect_params(chain_effect)
-	var base_radius := maxi(int(chain_params.get("base_chain_radius", 1)), 0)
-	var bonus_effect_id := ProgressionDataUtils.to_string_name(chain_params.get("bonus_terrain_effect_id", ""))
-	var radius := base_radius
-	if bonus_effect_id != &"" and primary_target != null and _unit_stands_on_terrain_effect(primary_target, bonus_effect_id):
-		radius = maxi(int(chain_params.get("wet_chain_radius", base_radius)), base_radius)
-	if bool(spell_control_context.get("backlash_triggered", false)):
-		radius += 1
-	return radius
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._resolve_chain_damage_radius(primary_target, chain_effect, spell_control_context)
 
 
 func _unit_stands_on_terrain_effect(unit_state: BattleUnitState, terrain_effect_id: StringName) -> bool:
-	if _state == null or unit_state == null or terrain_effect_id == &"":
-		return false
-	unit_state.refresh_footprint()
-	for occupied_coord in unit_state.occupied_coords:
-		var cell := _grid_service.get_cell(_state, occupied_coord) as BattleCellState
-		if cell == null:
-			continue
-		if cell.terrain_effect_ids.has(terrain_effect_id):
-			return true
-		for effect_state_variant in cell.timed_terrain_effects:
-			var effect_state := effect_state_variant as BattleTerrainEffectState
-			if effect_state != null and effect_state.effect_id == terrain_effect_id:
-				return true
-	return false
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._unit_stands_on_terrain_effect(unit_state, terrain_effect_id)
 
 
 func _is_unit_in_chain_radius(
@@ -2616,33 +1943,28 @@ func _is_unit_in_chain_radius(
 	radius: int,
 	chain_effect: CombatEffectDef
 ) -> bool:
-	if primary_target == null or candidate == null or radius <= 0:
-		return false
-	var chain_shape := String(_get_effect_params(chain_effect).get("chain_shape", "diamond"))
-	primary_target.refresh_footprint()
-	candidate.refresh_footprint()
-	for primary_coord in primary_target.occupied_coords:
-		for candidate_coord in candidate.occupied_coords:
-			match chain_shape:
-				"square", "radius":
-					if _grid_service.get_chebyshev_distance(primary_coord, candidate_coord) <= radius:
-						return true
-				_:
-					if _grid_service.get_distance(primary_coord, candidate_coord) <= radius:
-						return true
-	return false
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_unit_in_chain_radius(primary_target, candidate, radius, chain_effect)
+
+
+func _is_within_chain_radius(primary_target: BattleUnitState, candidate: BattleUnitState, max_radius: int) -> bool:
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_within_chain_radius(primary_target, candidate, max_radius)
 
 
 func _is_chain_height_valid(from_unit: BattleUnitState, to_unit: BattleUnitState) -> bool:
-	if _state == null or from_unit == null or to_unit == null or _grid_service == null:
-		return false
-	from_unit.refresh_footprint()
-	to_unit.refresh_footprint()
-	for from_coord in from_unit.occupied_coords:
-		for to_coord in to_unit.occupied_coords:
-			if _grid_service.get_height_difference(_state, from_coord, to_coord) <= 1:
-				return true
-	return false
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_chain_height_valid(from_unit, to_unit)
+
+
+func _get_line_coords(from: Vector2i, to: Vector2i) -> Array[Vector2i]:
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._get_line_coords(from, to)
+
+
+func _is_chain_path_clear(source_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_chain_path_clear(source_unit, target_unit)
 
 
 func _apply_on_kill_gain_resources_effects(
@@ -2652,35 +1974,8 @@ func _apply_on_kill_gain_resources_effects(
 	effect_defs: Array[CombatEffectDef],
 	batch: BattleEventBatch
 ) -> void:
-	if source_unit == null or defeated_unit == null or skill_def == null or batch == null:
-		return
-	if defeated_unit.is_alive:
-		return
-	for effect_def in effect_defs:
-		if effect_def == null or effect_def.effect_type != &"on_kill_gain_resources":
-			continue
-		var params := effect_def.params if effect_def.params != null else {}
-		var ap_gain := maxi(int(params.get("ap_gain", 0)), 0)
-		var free_move_points_gain := maxi(int(params.get("free_move_points_gain", 0)), 0)
-		if ap_gain <= 0 and free_move_points_gain <= 0:
-			continue
-		if ap_gain > 0:
-			source_unit.current_ap += ap_gain
-		if free_move_points_gain > 0:
-			source_unit.current_move_points += free_move_points_gain
-			source_unit.can_use_locked_move_points_this_turn = true
-		_append_changed_unit_id(batch, source_unit.unit_id)
-		var gain_parts: Array[String] = []
-		if ap_gain > 0:
-			gain_parts.append("恢复 %d AP" % ap_gain)
-		if free_move_points_gain > 0:
-			gain_parts.append("获得 %d 点普通移动力并可在行动后移动" % free_move_points_gain)
-		batch.log_lines.append("%s 击倒 %s，触发 %s：%s。" % [
-			source_unit.display_name,
-			defeated_unit.display_name,
-			skill_def.display_name if not skill_def.display_name.is_empty() else String(skill_def.skill_id),
-			"，".join(gain_parts),
-		])
+	_ensure_sidecars_ready()
+	_special_skill_resolver._apply_on_kill_gain_resources_effects(source_unit, defeated_unit, skill_def, effect_defs, batch)
 
 
 func _apply_unit_skill_special_effects(
@@ -2689,44 +1984,11 @@ func _apply_unit_skill_special_effects(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef,
 	effect_defs: Array[CombatEffectDef],
-	batch: BattleEventBatch
+	batch: BattleEventBatch,
+	forced_move_context: Dictionary = {}
 ) -> Dictionary:
-	var result := {
-		"applied": false,
-		"moved_steps": 0,
-		"status_effect_ids": [],
-		"log_lines": [],
-	}
-	if active_unit == null or skill_def == null:
-		return result
-	if _is_black_star_brand_skill(skill_def.skill_id):
-		return _apply_black_star_brand_effect(active_unit, target_unit)
-	if _is_doom_shift_skill(skill_def.skill_id):
-		return _apply_doom_shift_effect(active_unit, target_unit, batch)
-	if effect_defs.is_empty():
-		return result
-
-	for effect_def in effect_defs:
-		if effect_def == null:
-			continue
-		if effect_def.effect_type == BODY_SIZE_CATEGORY_OVERRIDE_EFFECT_TYPE:
-			var body_size_result := _apply_body_size_category_override_effect(active_unit, target_unit if target_unit != null else active_unit, effect_def, batch)
-			if bool(body_size_result.get("applied", false)):
-				result["applied"] = true
-				for status_id in body_size_result.get("status_effect_ids", []):
-					if not result["status_effect_ids"].has(status_id):
-						result["status_effect_ids"].append(status_id)
-				for log_line in body_size_result.get("log_lines", []):
-					result["log_lines"].append(String(log_line))
-			continue
-		if effect_def.effect_type != &"forced_move":
-			continue
-		var move_target := target_unit if target_unit != null else active_unit
-		var moved_steps := _apply_forced_move_effect(active_unit, move_target, effect_def, batch)
-		if moved_steps > 0:
-			result["applied"] = true
-			result["moved_steps"] = maxi(int(result.get("moved_steps", 0)), moved_steps)
-	return result
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._apply_unit_skill_special_effects(active_unit, target_unit, skill_def, cast_variant, effect_defs, batch, forced_move_context)
 
 
 func _apply_doom_shift_effect(
@@ -2734,32 +1996,8 @@ func _apply_doom_shift_effect(
 	target_unit: BattleUnitState,
 	batch: BattleEventBatch
 ) -> Dictionary:
-	var result := {
-		"applied": false,
-		"moved_steps": 0,
-		"status_effect_ids": [],
-		"log_lines": [],
-	}
-	if _state == null or active_unit == null or target_unit == null:
-		return result
-	if target_unit.unit_id == active_unit.unit_id:
-		return result
-	if not _swap_unit_positions(active_unit, target_unit, batch):
-		return result
-	_set_runtime_status_effect(
-		active_unit,
-		STATUS_MARKED,
-		DOOM_SHIFT_SELF_DEBUFF_DURATION_TU,
-		active_unit.unit_id,
-		1,
-		{"counts_as_debuff": true}
-	)
-	_append_changed_unit_id(batch, active_unit.unit_id)
-	result["applied"] = true
-	result["log_lines"] = [
-		"%s 先承受 marked，再与 %s 交换位置。" % [active_unit.display_name, target_unit.display_name],
-	]
-	return result
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._apply_doom_shift_effect(active_unit, target_unit, batch)
 
 
 func _swap_unit_positions(
@@ -2767,67 +2005,16 @@ func _swap_unit_positions(
 	second_unit: BattleUnitState,
 	batch: BattleEventBatch
 ) -> bool:
-	if _state == null or first_unit == null or second_unit == null:
-		return false
-	if first_unit.unit_id == second_unit.unit_id:
-		return false
-	var first_previous_coords := first_unit.occupied_coords.duplicate()
-	var second_previous_coords := second_unit.occupied_coords.duplicate()
-	var first_coord := first_unit.coord
-	var second_coord := second_unit.coord
-	_grid_service.clear_unit_occupancy(_state, first_unit)
-	_grid_service.clear_unit_occupancy(_state, second_unit)
-	var can_swap := _grid_service.can_place_unit(_state, first_unit, second_coord, true) \
-		and _grid_service.can_place_unit(_state, second_unit, first_coord, true)
-	if not can_swap:
-		_grid_service.set_occupants(_state, first_previous_coords, first_unit.unit_id)
-		_grid_service.set_occupants(_state, second_previous_coords, second_unit.unit_id)
-		return false
-	_grid_service.place_unit(_state, first_unit, second_coord, true)
-	_grid_service.place_unit(_state, second_unit, first_coord, true)
-	_append_changed_coords(batch, first_previous_coords)
-	_append_changed_coords(batch, second_previous_coords)
-	_append_changed_unit_coords(batch, first_unit)
-	_append_changed_unit_coords(batch, second_unit)
-	_append_changed_unit_id(batch, first_unit.unit_id)
-	_append_changed_unit_id(batch, second_unit.unit_id)
-	return true
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._swap_unit_positions(first_unit, second_unit, batch)
 
 
 func _apply_black_star_brand_effect(
 	active_unit: BattleUnitState,
 	target_unit: BattleUnitState
 ) -> Dictionary:
-	var result := {
-		"applied": false,
-		"moved_steps": 0,
-		"status_effect_ids": [],
-		"log_lines": [],
-	}
-	if active_unit == null or target_unit == null:
-		return result
-	_clear_black_star_brand_statuses(target_unit)
-	if _is_black_star_brand_elite_target(target_unit):
-		_set_runtime_status_effect(target_unit, STATUS_BLACK_STAR_BRAND_ELITE, BLACK_STAR_BRAND_DURATION_TU, active_unit.unit_id)
-		_set_runtime_status_effect(
-			target_unit,
-			STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW,
-			BLACK_STAR_BRAND_DURATION_TU,
-			active_unit.unit_id
-		)
-		result["status_effect_ids"] = [STATUS_BLACK_STAR_BRAND_ELITE, STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW]
-		result["log_lines"] = [
-			"%s 被施加黑星烙印：暴击失效、命中下降，且第一次受击会被穿透部分格挡。" % target_unit.display_name,
-		]
-	else:
-		_set_runtime_status_effect(target_unit, STATUS_BLACK_STAR_BRAND_NORMAL, BLACK_STAR_BRAND_DURATION_TU, active_unit.unit_id)
-		target_unit.erase_status_effect(STATUS_GUARDING)
-		result["status_effect_ids"] = [STATUS_BLACK_STAR_BRAND_NORMAL]
-		result["log_lines"] = [
-			"%s 被施加黑星烙印：无法反击，且无法进入格挡。" % target_unit.display_name,
-		]
-	result["applied"] = true
-	return result
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._apply_black_star_brand_effect(active_unit, target_unit)
 
 
 func _set_runtime_status_effect(
@@ -2838,93 +2025,78 @@ func _set_runtime_status_effect(
 	power: int = 1,
 	params: Dictionary = {}
 ) -> void:
-	if unit_state == null or status_id == &"":
-		return
-	var status_entry := BattleStatusEffectState.new()
-	status_entry.status_id = status_id
-	status_entry.source_unit_id = source_unit_id
-	status_entry.power = maxi(power, 1)
-	status_entry.stacks = 1
-	status_entry.duration = maxi(duration_tu, -1)
-	status_entry.params = params.duplicate(true)
-	unit_state.set_status_effect(status_entry)
+	_ensure_sidecars_ready()
+	_special_skill_resolver._set_runtime_status_effect(unit_state, status_id, duration_tu, source_unit_id, power, params)
 
 
 func _clear_black_star_brand_statuses(unit_state: BattleUnitState) -> void:
-	if unit_state == null:
-		return
-	unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_NORMAL)
-	unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE)
-	unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW)
+	_ensure_sidecars_ready()
+	_special_skill_resolver._clear_black_star_brand_statuses(unit_state)
 
 
 func _is_black_star_brand_elite_target(unit_state: BattleUnitState) -> bool:
-	return _is_elite_or_boss_target(unit_state)
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_black_star_brand_elite_target(unit_state)
 
 
 func _is_elite_or_boss_target(unit_state: BattleUnitState) -> bool:
-	return unit_state != null \
-		and unit_state.attribute_snapshot != null \
-		and int(unit_state.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 0
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_elite_or_boss_target(unit_state)
 
 
 func _is_boss_target(unit_state: BattleUnitState) -> bool:
-	return unit_state != null \
-		and unit_state.attribute_snapshot != null \
-		and (
-			int(unit_state.attribute_snapshot.get_value(BOSS_TARGET_STAT_ID)) > 0
-			or int(unit_state.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 1
-		)
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_boss_target(unit_state)
 
 
 func _is_black_star_brand_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == BLACK_STAR_BRAND_SKILL_ID
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_black_star_brand_skill(skill_id)
 
 
 func _is_black_contract_push_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CONTRACT_PUSH_SKILL_ID
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_black_contract_push_skill(skill_id)
 
 
 func _is_doom_shift_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == DOOM_SHIFT_SKILL_ID
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_doom_shift_skill(skill_id)
 
 
 func _is_black_crown_seal_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CROWN_SEAL_SKILL_ID
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_black_crown_seal_skill(skill_id)
 
 
 func _clear_crown_break_seal_statuses(unit_state: BattleUnitState) -> void:
-	if unit_state == null:
-		return
-	unit_state.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG)
-	unit_state.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND)
-	unit_state.erase_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE)
+	_ensure_sidecars_ready()
+	_special_skill_resolver._clear_crown_break_seal_statuses(unit_state)
 
 
 func _is_crown_break_target_eligible(active_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
-	return target_unit != null \
-		and _is_unit_valid_for_effect(active_unit, target_unit, &"enemy") \
-		and target_unit.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE)
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_crown_break_target_eligible(active_unit, target_unit)
 
 
 func _is_crown_break_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == CROWN_BREAK_SKILL_ID
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_crown_break_skill(skill_id)
 
 
 func _is_doom_sentence_target_eligible(active_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
-	return target_unit != null \
-		and _is_unit_valid_for_effect(active_unit, target_unit, &"enemy") \
-		and _is_elite_or_boss_target(target_unit)
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_doom_sentence_target_eligible(active_unit, target_unit)
 
 
 func _is_black_crown_seal_target_eligible(active_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
-	return target_unit != null \
-		and _is_unit_valid_for_effect(active_unit, target_unit, &"enemy") \
-		and _is_boss_target(target_unit)
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_black_crown_seal_target_eligible(active_unit, target_unit)
 
 
 func _is_doom_sentence_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == DOOM_SENTENCE_SKILL_ID
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._is_doom_sentence_skill(skill_id)
 
 
 func _get_unit_skill_target_validation_message(
@@ -2933,26 +2105,8 @@ func _get_unit_skill_target_validation_message(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef = null
 ) -> String:
-	var body_size_override_message := _get_body_size_category_override_validation_message(
-		active_unit,
-		target_unit,
-		skill_def,
-		cast_variant
-	)
-	if not body_size_override_message.is_empty():
-		return body_size_override_message
-	if _is_black_crown_seal_skill(skill_def.skill_id) and not _is_black_crown_seal_target_eligible(active_unit, target_unit):
-		return "黑冠封印只能对 boss 施放。"
-	if _is_doom_shift_skill(skill_def.skill_id):
-		if target_unit == null or active_unit == null:
-			return "断命换位的目标无效。"
-		if target_unit.unit_id == active_unit.unit_id:
-			return "断命换位不能以自己为目标。"
-	if _is_crown_break_skill(skill_def.skill_id) and not _is_crown_break_target_eligible(active_unit, target_unit):
-		return "折冠只能对已被黑星烙印的 elite / boss 施放。"
-	if _is_doom_sentence_skill(skill_def.skill_id) and not _is_doom_sentence_target_eligible(active_unit, target_unit):
-		return "厄命宣判只能对 elite / boss 施放。"
-	return ""
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._get_unit_skill_target_validation_message(active_unit, target_unit, skill_def, cast_variant)
 
 
 func _get_body_size_category_override_validation_message(
@@ -2961,80 +2115,24 @@ func _get_body_size_category_override_validation_message(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef = null
 ) -> String:
-	if _state == null or target_unit == null or skill_def == null:
-		return ""
-	for effect_def in _collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit):
-		if effect_def == null or effect_def.effect_type != BODY_SIZE_CATEGORY_OVERRIDE_EFFECT_TYPE:
-			continue
-		var target_category := ProgressionDataUtils.to_string_name(effect_def.body_size_category)
-		if not BodySizeRules.is_valid_body_size_category(target_category):
-			continue
-		var target_footprint := BodySizeRules.get_footprint_for_category(target_category)
-		if not _grid_service.can_place_footprint(_state, target_unit.coord, target_footprint, target_unit.unit_id, target_unit):
-			return "%s 周围空间不足，无法改变体型。" % target_unit.display_name
-	return ""
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._get_body_size_category_override_validation_message(active_unit, target_unit, skill_def, cast_variant)
 
 
 func _skill_grants_guarding(skill_def: SkillDef) -> bool:
-	if skill_def == null or skill_def.combat_profile == null:
-		return false
-	for effect_def_variant in _collect_unit_skill_effect_defs(skill_def, null):
-		var effect_def := effect_def_variant as CombatEffectDef
-		if effect_def == null:
-			continue
-		if effect_def.effect_type in [&"status", &"apply_status"] and effect_def.status_id == STATUS_GUARDING:
-			return true
-	for cast_variant in skill_def.combat_profile.cast_variants:
-		if cast_variant == null:
-			continue
-		for effect_def_variant in cast_variant.effect_defs:
-			var effect_def := effect_def_variant as CombatEffectDef
-			if effect_def == null:
-				continue
-			if effect_def.effect_type in [&"status", &"apply_status"] and effect_def.status_id == STATUS_GUARDING:
-				return true
-	return false
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._skill_grants_guarding(skill_def)
 
 
 func _apply_forced_move_effect(
 	source_unit: BattleUnitState,
 	unit_state: BattleUnitState,
 	effect_def: CombatEffectDef,
-	batch: BattleEventBatch
+	batch: BattleEventBatch,
+	forced_move_context: Dictionary = {}
 ) -> int:
-	if _state == null or unit_state == null or effect_def == null:
-		return 0
-	var move_distance := maxi(int(effect_def.forced_move_distance), 0)
-	if move_distance <= 0:
-		return 0
-	if _blocks_enemy_forced_move(source_unit, unit_state):
-		if batch != null:
-			batch.log_lines.append("%s 稳如金刚，未被强制位移。" % unit_state.display_name)
-		return 0
-
-	var mode := effect_def.forced_move_mode
-	if mode == &"":
-		return 0
-	if mode == &"jump":
-		# 跳跃位移由 _apply_ground_jump_relocation 在 precast 阶段处理（含 can_jump_arc 校验）；
-		# 这里不做逐格推动，避免落地后再被推一格。
-		return 0
-
-	var moved_steps := 0
-	for _step in range(move_distance):
-		var next_coord := _pick_forced_move_coord(unit_state, mode)
-		if next_coord == Vector2i(-1, -1) or next_coord == unit_state.coord:
-			break
-		if not _grid_service.can_traverse(_state, unit_state.coord, next_coord, unit_state):
-			break
-		var previous_coords := unit_state.occupied_coords.duplicate()
-		if not _grid_service.move_unit(_state, unit_state, next_coord):
-			break
-		moved_steps += 1
-		_append_changed_coords(batch, previous_coords)
-		_append_changed_unit_coords(batch, unit_state)
-		_append_changed_unit_id(batch, unit_state.unit_id)
-	return moved_steps
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._apply_forced_move_effect(source_unit, unit_state, effect_def, batch, forced_move_context)
 
 
 func _apply_body_size_category_override_effect(
@@ -3043,75 +2141,13 @@ func _apply_body_size_category_override_effect(
 	effect_def: CombatEffectDef,
 	batch: BattleEventBatch
 ) -> Dictionary:
-	var result := {
-		"applied": false,
-		"status_effect_ids": [],
-		"log_lines": [],
-	}
-	if _state == null or target_unit == null or effect_def == null:
-		return result
-	var status_id := ProgressionDataUtils.to_string_name(effect_def.status_id)
-	var target_category := ProgressionDataUtils.to_string_name(effect_def.body_size_category)
-	if status_id == &"" or not BodySizeRules.is_valid_body_size_category(target_category):
-		return result
-	var duration_tu := maxi(int(effect_def.duration_tu), 0)
-	if duration_tu <= 0:
-		return result
-
-	var existing_entry = target_unit.get_status_effect(status_id) as BattleStatusEffectState
-	var restore_category := target_unit.body_size_category
-	if existing_entry != null and existing_entry.params != null:
-		var existing_restore_category := ProgressionDataUtils.to_string_name(existing_entry.params.get(STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY, ""))
-		if BodySizeRules.is_valid_body_size_category(existing_restore_category):
-			restore_category = existing_restore_category
-
-	var previous_category := target_unit.body_size_category
-	var previous_body_size := int(target_unit.body_size)
-	var previous_footprint := target_unit.footprint_size
-	var previous_coords := target_unit.occupied_coords.duplicate()
-	_grid_service.clear_unit_occupancy(_state, target_unit)
-	target_unit.set_body_size_category(target_category)
-	if not _grid_service.can_place_footprint(_state, target_unit.coord, target_unit.footprint_size, target_unit.unit_id, target_unit):
-		target_unit.body_size_category = previous_category
-		target_unit.body_size = previous_body_size
-		target_unit.footprint_size = previous_footprint
-		target_unit.occupied_coords = previous_coords
-		_grid_service.set_occupants(_state, target_unit.occupied_coords, target_unit.unit_id)
-		result["log_lines"].append("%s 周围空间不足，无法改变体型。" % target_unit.display_name)
-		return result
-	_grid_service.set_occupants(_state, target_unit.occupied_coords, target_unit.unit_id)
-
-	var status_params := effect_def.params.duplicate(true) if effect_def.params != null else {}
-	status_params[STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE] = String(target_category)
-	status_params[STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY] = String(restore_category)
-	_set_runtime_status_effect(
-		target_unit,
-		status_id,
-		duration_tu,
-		source_unit.unit_id if source_unit != null else &"",
-		maxi(int(effect_def.power), 1),
-		status_params
-	)
-	_append_changed_coords(batch, previous_coords)
-	_append_changed_unit_coords(batch, target_unit)
-	_append_changed_unit_id(batch, target_unit.unit_id)
-	result["applied"] = true
-	result["status_effect_ids"] = [status_id]
-	result["log_lines"].append("%s 的体型临时变为 %s。" % [target_unit.display_name, String(target_category)])
-	return result
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._apply_body_size_category_override_effect(source_unit, target_unit, effect_def, batch)
 
 
 func _blocks_enemy_forced_move(source_unit: BattleUnitState, target_unit: BattleUnitState) -> bool:
-	if source_unit == null or target_unit == null:
-		return false
-	if source_unit.unit_id == target_unit.unit_id:
-		return false
-	if String(source_unit.faction_id) == String(target_unit.faction_id):
-		return false
-	var status_entry = target_unit.get_status_effect(STATUS_VAJRA_BODY)
-	if status_entry == null or status_entry.params == null:
-		return false
-	return bool(status_entry.params.get("forced_move_immune", false))
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._blocks_enemy_forced_move(source_unit, target_unit)
 
 
 func _record_vajra_body_mastery_from_incoming_damage(
@@ -3121,62 +2157,34 @@ func _record_vajra_body_mastery_from_incoming_damage(
 	result: Dictionary,
 	batch: BattleEventBatch = null
 ) -> void:
-	var grant := _skill_mastery_service.build_vajra_body_mastery_grant(
-		source_unit,
-		target_unit,
-		skill_def,
-		result,
-		_skill_defs
-	)
-	_apply_skill_mastery_grant(target_unit, grant, batch)
+	_ensure_sidecars_ready()
+	_special_skill_resolver._record_vajra_body_mastery_from_incoming_damage(source_unit, target_unit, skill_def, result, batch)
 
 
-func _pick_forced_move_coord(unit_state: BattleUnitState, mode: StringName) -> Vector2i:
-	if _state == null or unit_state == null:
-		return Vector2i(-1, -1)
-	unit_state.refresh_footprint()
-	var best_coord := Vector2i(-1, -1)
-	var best_score := -999999
-	for direction in [Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.DOWN]:
-		var candidate_coord: Vector2i = unit_state.coord + direction
-		if not _grid_service.can_traverse(_state, unit_state.coord, candidate_coord, unit_state):
-			continue
-		var candidate_score := _score_forced_move_coord(unit_state, candidate_coord, mode)
-		if candidate_score > best_score or (candidate_score == best_score and (best_coord == Vector2i(-1, -1) or candidate_coord.y < best_coord.y or (candidate_coord.y == best_coord.y and candidate_coord.x < best_coord.x))):
-			best_score = candidate_score
-			best_coord = candidate_coord
-	return best_coord
+func _pick_forced_move_coord(
+	unit_state: BattleUnitState,
+	mode: StringName,
+	source_unit: BattleUnitState = null,
+	forced_move_context: Dictionary = {}
+) -> Vector2i:
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._pick_forced_move_coord(unit_state, mode, source_unit, forced_move_context)
 
 
-func _score_forced_move_coord(unit_state: BattleUnitState, candidate_coord: Vector2i, mode: StringName) -> int:
-	if _state == null or unit_state == null:
-		return -999999
-	var hostile_units := _collect_hostile_units_for(unit_state)
-	var closest_hostile_distance := 0
-	if not hostile_units.is_empty():
-		closest_hostile_distance = 999999
-		for hostile_unit in hostile_units:
-			closest_hostile_distance = mini(closest_hostile_distance, _grid_service.get_distance(candidate_coord, hostile_unit.coord))
-	var score := closest_hostile_distance * 100
-	score -= _grid_service.get_distance(unit_state.coord, candidate_coord) * 10
-	score -= candidate_coord.y * 2 + candidate_coord.x
-	if mode == &"evasive":
-		score += 5
-	return score
+func _score_forced_move_coord(
+	unit_state: BattleUnitState,
+	candidate_coord: Vector2i,
+	mode: StringName,
+	source_unit: BattleUnitState = null,
+	forced_move_context: Dictionary = {}
+) -> int:
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._score_forced_move_coord(unit_state, candidate_coord, mode, source_unit, forced_move_context)
 
 
 func _collect_hostile_units_for(unit_state: BattleUnitState) -> Array[BattleUnitState]:
-	var hostile_units: Array[BattleUnitState] = []
-	if _state == null or unit_state == null:
-		return hostile_units
-	for other_unit_variant in _state.units.values():
-		var other_unit := other_unit_variant as BattleUnitState
-		if other_unit == null or other_unit.unit_id == unit_state.unit_id or not other_unit.is_alive:
-			continue
-		if String(other_unit.faction_id) == String(unit_state.faction_id):
-			continue
-		hostile_units.append(other_unit)
-	return hostile_units
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._collect_hostile_units_for(unit_state)
 
 
 func _collect_unit_skill_effect_defs(
@@ -3184,7 +2192,8 @@ func _collect_unit_skill_effect_defs(
 	cast_variant: CombatCastVariantDef,
 	active_unit: BattleUnitState = null
 ) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
 
 
 func _handle_ground_skill_command(
@@ -3194,84 +2203,8 @@ func _handle_ground_skill_command(
 	cast_variant: CombatCastVariantDef,
 	batch: BattleEventBatch
 ) -> bool:
-	var validation := _validate_ground_skill_command(active_unit, skill_def, cast_variant, command)
-	if not bool(validation.get("allowed", false)):
-		return false
-
-	var target_coords: Array[Vector2i] = []
-	for target_coord_variant in validation.get("target_coords", []):
-		if target_coord_variant is Vector2i:
-			target_coords.append(target_coord_variant)
-	var precast_validation_message := _get_ground_special_effect_validation_message(
-		active_unit,
-		skill_def,
-		cast_variant,
-		target_coords
-	)
-	if not precast_validation_message.is_empty():
-		batch.log_lines.append(precast_validation_message)
-		return false
-
-	var mp_before_cost := int(active_unit.current_mp)
-	if not _consume_skill_costs(active_unit, skill_def, null, batch):
-		return false
-	var spent_mp := maxi(mp_before_cost - int(active_unit.current_mp), 0)
-	var costs := _get_effective_skill_costs(active_unit, skill_def)
-	_record_action_issued(active_unit, BattleCommand.TYPE_SKILL, int(costs.get("ap_cost", skill_def.combat_profile.ap_cost)))
-	_append_changed_unit_id(batch, active_unit.unit_id)
-	if _charge_resolver.is_charge_variant(cast_variant):
-		return _charge_resolver.handle_charge_skill_command(active_unit, skill_def, cast_variant, validation, batch)
-	var spell_control_context := _resolve_ground_spell_control_after_cost(
-		active_unit,
-		skill_def,
-		spent_mp,
-		batch
-	)
-	if bool(spell_control_context.get("skip_effects", false)):
-		return false
-	if not _apply_ground_precast_special_effects(active_unit, skill_def, cast_variant, target_coords, batch):
-		return false
-
-	var drift_context := _magic_backlash_resolver.build_ground_backlash_target_coords(
-		skill_def,
-		target_coords,
-		_state,
-		_grid_service,
-		spell_control_context
-	)
-	if bool(drift_context.get("backlash_triggered", false)):
-		var drift_target_coords: Array[Vector2i] = []
-		for drift_coord_variant in drift_context.get("target_coords", target_coords):
-			if drift_coord_variant is Vector2i:
-				drift_target_coords.append(drift_coord_variant)
-		if not drift_target_coords.is_empty():
-			target_coords = drift_target_coords
-		_magic_backlash_resolver.append_ground_backlash_log(active_unit, skill_def, drift_context, batch)
-	var effect_coords := _build_ground_effect_coords(skill_def, target_coords, active_unit.coord if active_unit != null else Vector2i(-1, -1), active_unit, cast_variant)
-	var unit_result := _apply_ground_unit_effects(
-		active_unit,
-		skill_def,
-		_collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit),
-		effect_coords,
-		batch
-	)
-	var terrain_result := _apply_ground_terrain_effects(
-		active_unit,
-		skill_def,
-		_collect_ground_terrain_effect_defs(skill_def, cast_variant, active_unit),
-		effect_coords,
-		batch
-	)
-	var applied := bool(unit_result.get("applied", false)) or bool(terrain_result.get("applied", false))
-
-	if applied:
-		batch.log_lines.append("%s 使用 %s，影响了 %d 个地格、%d 个单位。" % [
-			active_unit.display_name,
-			_format_skill_variant_label(skill_def, cast_variant),
-			effect_coords.size(),
-			int(unit_result.get("affected_unit_count", 0)),
-		])
-	return applied
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._handle_ground_skill_command(active_unit, command, skill_def, cast_variant, batch)
 
 
 func _resolve_ground_spell_control_after_cost(
@@ -3280,25 +2213,8 @@ func _resolve_ground_spell_control_after_cost(
 	spent_mp: int,
 	batch: BattleEventBatch
 ) -> Dictionary:
-	if _damage_resolver == null or _magic_backlash_resolver == null:
-		return {}
-	if not _magic_backlash_resolver.should_resolve_spell_control(skill_def):
-		return {}
-	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id if skill_def != null else &"")
-	var control_metadata := _damage_resolver.resolve_spell_control_check(active_unit, {
-		"battle_state": _state,
-		"skill_id": skill_def.skill_id if skill_def != null else &"",
-	})
-	var control_context := _magic_backlash_resolver.apply_spell_control_after_cost(
-		active_unit,
-		skill_def,
-		skill_level,
-		spent_mp,
-		control_metadata,
-		batch
-	)
-	_append_changed_unit_id(batch, active_unit.unit_id if active_unit != null else &"")
-	return control_context
+	_ensure_sidecars_ready()
+	return _ground_effect_service._resolve_ground_spell_control_after_cost(active_unit, skill_def, spent_mp, batch)
 
 
 func _resolve_unit_spell_control_after_cost(
@@ -3306,27 +2222,8 @@ func _resolve_unit_spell_control_after_cost(
 	skill_def: SkillDef,
 	batch: BattleEventBatch
 ) -> Dictionary:
-	if _damage_resolver == null or _magic_backlash_resolver == null:
-		return {}
-	if not _magic_backlash_resolver.should_resolve_spell_control(skill_def):
-		return {}
-	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id if skill_def != null else &"")
-	var costs := _get_effective_skill_costs(active_unit, skill_def)
-	var spent_mp := int(costs.get("mp_cost", skill_def.combat_profile.mp_cost if skill_def != null and skill_def.combat_profile != null else 0))
-	var control_metadata := _damage_resolver.resolve_spell_control_check(active_unit, {
-		"battle_state": _state,
-		"skill_id": skill_def.skill_id if skill_def != null else &"",
-	})
-	var control_context := _magic_backlash_resolver.apply_spell_control_after_cost(
-		active_unit,
-		skill_def,
-		skill_level,
-		spent_mp,
-		control_metadata,
-		batch
-	)
-	_append_changed_unit_id(batch, active_unit.unit_id if active_unit != null else &"")
-	return control_context
+	_ensure_sidecars_ready()
+	return _ground_effect_service._resolve_unit_spell_control_after_cost(active_unit, skill_def, batch)
 
 
 func _apply_ground_precast_special_effects(
@@ -3336,9 +2233,8 @@ func _apply_ground_precast_special_effects(
 	target_coords: Array[Vector2i],
 	batch: BattleEventBatch
 ) -> bool:
-	if _get_ground_jump_effect_def(skill_def, cast_variant) == null:
-		return true
-	return _apply_ground_jump_relocation(active_unit, target_coords, batch)
+	_ensure_sidecars_ready()
+	return _ground_effect_service._apply_ground_precast_special_effects(active_unit, skill_def, cast_variant, target_coords, batch)
 
 
 func _apply_ground_jump_relocation(
@@ -3346,55 +2242,23 @@ func _apply_ground_jump_relocation(
 	target_coords: Array[Vector2i],
 	batch: BattleEventBatch
 ) -> bool:
-	if _state == null or active_unit == null or target_coords.is_empty():
-		return false
-
-	var landing_coord := target_coords[0]
-	if active_unit.coord == landing_coord:
-		return true
-
-	var previous_anchor := active_unit.coord
-	var previous_coords := active_unit.occupied_coords.duplicate()
-	if not _grid_service.move_unit_force(_state, active_unit, landing_coord):
-		return false
-
-	_append_changed_coords(batch, previous_coords)
-	_append_changed_unit_coords(batch, active_unit)
-	_append_changed_unit_id(batch, active_unit.unit_id)
-	batch.log_lines.append("%s 从 (%d, %d) 跳至 (%d, %d)。" % [
-		active_unit.display_name,
-		previous_anchor.x,
-		previous_anchor.y,
-		landing_coord.x,
-		landing_coord.y,
-	])
-	return true
+	_ensure_sidecars_ready()
+	return _ground_effect_service._apply_ground_jump_relocation(active_unit, target_coords, batch)
 
 
 func _get_ground_jump_effect_def(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> CombatEffectDef:
-	if cast_variant != null:
-		for effect_def in cast_variant.effect_defs:
-			if _is_ground_jump_effect(effect_def):
-				return effect_def
-	if skill_def != null and skill_def.combat_profile != null:
-		for effect_def in skill_def.combat_profile.effect_defs:
-			if _is_ground_jump_effect(effect_def):
-				return effect_def
-	return null
+	_ensure_sidecars_ready()
+	return _ground_effect_service._get_ground_jump_effect_def(skill_def, cast_variant)
 
 
 func _is_ground_jump_effect(effect_def: CombatEffectDef) -> bool:
-	return effect_def != null \
-		and effect_def.effect_type == &"forced_move" \
-		and _get_effect_forced_move_mode(effect_def) == &"jump"
+	_ensure_sidecars_ready()
+	return _ground_effect_service._is_ground_jump_effect(effect_def)
 
 
 func _get_effect_forced_move_mode(effect_def: CombatEffectDef) -> StringName:
-	if effect_def == null:
-		return &""
-	if effect_def.forced_move_mode != &"":
-		return effect_def.forced_move_mode
-	return &""
+	_ensure_sidecars_ready()
+	return _ground_effect_service._get_effect_forced_move_mode(effect_def)
 
 
 func _build_ground_effect_coords(
@@ -3404,55 +2268,16 @@ func _build_ground_effect_coords(
 	active_unit: BattleUnitState = null,
 	cast_variant = null
 ) -> Array[Vector2i]:
-	var normalized_target_coords: Array[Vector2i] = []
-	for target_coord in target_coords:
-		normalized_target_coords.append(target_coord)
-	if cast_variant != null and cast_variant.params != null \
-			and cast_variant.params.has("square2_corner") and normalized_target_coords.size() == 1:
-		var center: Vector2i = normalized_target_coords[0]
-		var expanded: Array[Vector2i] = []
-		match cast_variant.params["square2_corner"]:
-			"top_left":
-				expanded = [center, Vector2i(center.x + 1, center.y),
-					Vector2i(center.x, center.y + 1), Vector2i(center.x + 1, center.y + 1)]
-			"top_right":
-				expanded = [Vector2i(center.x - 1, center.y), center,
-					Vector2i(center.x - 1, center.y + 1), Vector2i(center.x, center.y + 1)]
-			"bottom_left":
-				expanded = [Vector2i(center.x, center.y - 1), Vector2i(center.x + 1, center.y - 1),
-					center, Vector2i(center.x + 1, center.y)]
-			"bottom_right":
-				expanded = [Vector2i(center.x - 1, center.y - 1), Vector2i(center.x, center.y - 1),
-					Vector2i(center.x - 1, center.y), center]
-		var valid: Array[Vector2i] = []
-		for c in expanded:
-			if _state != null and _grid_service.is_inside(_state, c):
-				valid.append(c)
-		if not valid.is_empty():
-			return _sort_coords(valid)
-	if _state == null or skill_def == null or skill_def.combat_profile == null:
-		return _sort_coords(normalized_target_coords)
-	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
-	var collected_target_coords := _target_collection_service.collect_combat_profile_target_coords(
-		_state,
-		_grid_service,
-		source_coord,
-		skill_def.combat_profile,
-		normalized_target_coords,
-		null,
-		[],
-		skill_level
-	)
-	if bool(collected_target_coords.get("handled", false)):
-		return _sort_coords(collected_target_coords.get("target_coords", []))
-	return _sort_coords(normalized_target_coords)
+	_ensure_sidecars_ready()
+	return _ground_effect_service._build_ground_effect_coords(skill_def, target_coords, source_coord, active_unit, cast_variant)
 
 func _collect_ground_unit_effect_defs(
 	skill_def: SkillDef,
 	cast_variant: CombatCastVariantDef,
 	active_unit: BattleUnitState = null
 ) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit)
+	_ensure_sidecars_ready()
+	return _ground_effect_service._collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit)
 
 
 func _collect_ground_terrain_effect_defs(
@@ -3460,7 +2285,8 @@ func _collect_ground_terrain_effect_defs(
 	cast_variant: CombatCastVariantDef,
 	active_unit: BattleUnitState = null
 ) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_ground_terrain_effect_defs(skill_def, cast_variant, active_unit)
+	_ensure_sidecars_ready()
+	return _ground_effect_service._collect_ground_terrain_effect_defs(skill_def, cast_variant, active_unit)
 
 
 func _collect_ground_effect_defs(
@@ -3468,7 +2294,8 @@ func _collect_ground_effect_defs(
 	cast_variant: CombatCastVariantDef,
 	active_unit: BattleUnitState = null
 ) -> Array[CombatEffectDef]:
-	return _skill_resolution_rules.collect_ground_effect_defs(skill_def, cast_variant, active_unit)
+	_ensure_sidecars_ready()
+	return _ground_effect_service._collect_ground_effect_defs(skill_def, cast_variant, active_unit)
 
 
 func _collect_ground_preview_unit_ids(
@@ -3477,13 +2304,8 @@ func _collect_ground_preview_unit_ids(
 	effect_defs: Array[CombatEffectDef],
 	effect_coords: Array[Vector2i]
 ) -> Array[StringName]:
-	var target_unit_ids: Array[StringName] = []
-	for target_unit in _collect_units_in_coords(effect_coords):
-		for effect_def in effect_defs:
-			if _is_unit_valid_for_effect(source_unit, target_unit, _resolve_effect_target_filter(skill_def, effect_def)):
-				target_unit_ids.append(target_unit.unit_id)
-				break
-	return target_unit_ids
+	_ensure_sidecars_ready()
+	return _ground_effect_service._collect_ground_preview_unit_ids(source_unit, skill_def, effect_defs, effect_coords)
 
 
 func _apply_ground_unit_effects(
@@ -3491,97 +2313,11 @@ func _apply_ground_unit_effects(
 	skill_def: SkillDef,
 	effect_defs: Array[CombatEffectDef],
 	effect_coords: Array[Vector2i],
-	batch: BattleEventBatch
+	batch: BattleEventBatch,
+	target_coords: Array[Vector2i] = []
 ) -> Dictionary:
-	var applied := false
-	var total_damage := 0
-	var total_healing := 0
-	var total_kill_count := 0
-	var affected_unit_count := 0
-	var shield_roll_context := {}
-
-	for target_unit in _collect_units_in_coords(effect_coords):
-		var applicable_effects: Array[CombatEffectDef] = []
-		for effect_def in effect_defs:
-			if _is_unit_valid_for_effect(source_unit, target_unit, _resolve_effect_target_filter(skill_def, effect_def)):
-				applicable_effects.append(effect_def)
-		if applicable_effects.is_empty():
-			continue
-
-		var result := _resolve_ground_unit_effect_result(source_unit, target_unit, skill_def, applicable_effects)
-		_skill_mastery_service.record_target_result(source_unit, target_unit, skill_def, result, applicable_effects)
-		var shield_result := _apply_unit_shield_effects(
-			source_unit,
-			target_unit,
-			skill_def,
-			applicable_effects,
-			shield_roll_context
-		)
-		_record_vajra_body_mastery_from_incoming_damage(source_unit, target_unit, skill_def, result, batch)
-		mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
-		var attack_resolved := result.has("attack_success")
-		var attack_hit := attack_resolved and bool(result.get("attack_success", false))
-		var unit_applied := bool(result.get("applied", false)) or bool(shield_result.get("applied", false)) or attack_hit
-		if not unit_applied:
-			if attack_resolved:
-				_append_result_report_entry(batch, result)
-			continue
-
-		applied = true
-		affected_unit_count += 1
-		_append_changed_unit_id(batch, source_unit.unit_id if source_unit != null else &"")
-		_append_changed_unit_id(batch, target_unit.unit_id)
-		_append_changed_unit_coords(batch, target_unit)
-		append_result_source_status_effects(batch, source_unit, result)
-
-		var damage := int(result.get("damage", 0))
-		var healing := int(result.get("healing", 0))
-		total_damage += damage
-		total_healing += healing
-		append_damage_result_log_lines(
-			batch,
-			_build_skill_log_subject_label(source_unit, skill_def),
-			target_unit.display_name,
-			result
-		)
-		if attack_resolved and not bool(result.get("applied", false)):
-			_append_result_report_entry(batch, result)
-		if healing > 0:
-			batch.log_lines.append("%s 为 %s 恢复 %d 点生命。" % [
-				_build_skill_log_subject_label(source_unit, skill_def),
-				target_unit.display_name,
-				healing,
-			])
-		if bool(shield_result.get("applied", false)):
-			batch.log_lines.append("%s 使 %s 的护盾值变为 %d。" % [
-				_build_skill_log_subject_label(source_unit, skill_def),
-				target_unit.display_name,
-				int(shield_result.get("current_shield_hp", 0)),
-			])
-		for status_id in result.get("status_effect_ids", []):
-			batch.log_lines.append("%s 获得状态 %s。" % [target_unit.display_name, String(status_id)])
-
-		if not target_unit.is_alive:
-			total_kill_count += 1
-			_apply_on_kill_gain_resources_effects(source_unit, target_unit, skill_def, effect_defs, batch)
-			_collect_defeated_unit_loot(target_unit, source_unit)
-			_clear_defeated_unit(target_unit, batch)
-			batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-			_battle_rating_system.record_enemy_defeated_achievement(source_unit, target_unit)
-			_record_unit_defeated(target_unit)
-		if source_unit != null and target_unit != null:
-			_record_effect_metrics(source_unit, target_unit, damage, healing, 1 if not target_unit.is_alive else 0)
-
-	_flush_last_stand_mastery_records(batch)
-	if applied and source_unit != null:
-		_battle_rating_system.record_skill_effect_result(source_unit, total_damage, total_healing, total_kill_count)
-	return {
-		"applied": applied,
-		"affected_unit_count": affected_unit_count,
-		"damage": total_damage,
-		"healing": total_healing,
-		"kill_count": total_kill_count,
-	}
+	_ensure_sidecars_ready()
+	return _ground_effect_service._apply_ground_unit_effects(source_unit, skill_def, effect_defs, effect_coords, batch, target_coords)
 
 
 func _resolve_ground_unit_effect_result(
@@ -3590,40 +2326,18 @@ func _resolve_ground_unit_effect_result(
 	skill_def: SkillDef,
 	effect_defs: Array[CombatEffectDef]
 ) -> Dictionary:
-	if _should_resolve_ground_effects_as_attack(effect_defs):
-		var attack_effect_defs := _dedupe_effect_defs_by_instance(effect_defs)
-		var attack_check := _hit_resolver.build_skill_attack_check(source_unit, target_unit, skill_def)
-		return _damage_resolver.resolve_attack_effects(
-			source_unit,
-			target_unit,
-			attack_effect_defs,
-			attack_check,
-			{"battle_state": _state}
-		)
-	return _damage_resolver.resolve_effects(source_unit, target_unit, effect_defs)
+	_ensure_sidecars_ready()
+	return _ground_effect_service._resolve_ground_unit_effect_result(source_unit, target_unit, skill_def, effect_defs)
 
 
 func _should_resolve_ground_effects_as_attack(effect_defs: Array[CombatEffectDef]) -> bool:
-	for effect_def in effect_defs:
-		if effect_def == null or effect_def.params == null:
-			continue
-		if bool(effect_def.params.get("resolve_as_weapon_attack", false)):
-			return true
-	return false
+	_ensure_sidecars_ready()
+	return _ground_effect_service._should_resolve_ground_effects_as_attack(effect_defs)
 
 
 func _dedupe_effect_defs_by_instance(effect_defs: Array[CombatEffectDef]) -> Array[CombatEffectDef]:
-	var deduped: Array[CombatEffectDef] = []
-	var seen: Dictionary = {}
-	for effect_def in effect_defs:
-		if effect_def == null:
-			continue
-		var instance_id := effect_def.get_instance_id()
-		if seen.has(instance_id):
-			continue
-		seen[instance_id] = true
-		deduped.append(effect_def)
-	return deduped
+	_ensure_sidecars_ready()
+	return _ground_effect_service._dedupe_effect_defs_by_instance(effect_defs)
 
 
 func _apply_ground_terrain_effects(
@@ -3633,55 +2347,8 @@ func _apply_ground_terrain_effects(
 	effect_coords: Array[Vector2i],
 	batch: BattleEventBatch
 ) -> Dictionary:
-	var applied := false
-	var requires_topology_reconcile := false
-
-	for effect_def in effect_defs:
-		if effect_def == null:
-			continue
-		match effect_def.effect_type:
-			&"terrain", &"terrain_replace", &"terrain_replace_to", &"height", &"height_delta":
-				requires_topology_reconcile = true
-				for effect_coord in effect_coords:
-					if _apply_ground_cell_effect(source_unit, skill_def, effect_coord, effect_def, batch):
-						applied = true
-			&"terrain_effect":
-				if effect_def.duration_tu > 0 and effect_def.tick_interval_tu > 0:
-					var field_instance_id := _build_terrain_effect_instance_id(effect_def.terrain_effect_id)
-					var applied_coord_count := 0
-					for effect_coord in effect_coords:
-						if _terrain_effect_system.upsert_timed_terrain_effect(effect_coord, source_unit, skill_def, effect_def, field_instance_id):
-							applied = true
-							applied_coord_count += 1
-							_append_changed_coord(batch, effect_coord)
-					if applied_coord_count > 0:
-						batch.log_lines.append("%s 在 %d 个地格留下 %s。" % [
-							_build_skill_log_subject_label(source_unit, skill_def),
-							applied_coord_count,
-							_get_terrain_effect_display_name(effect_def),
-						])
-				elif effect_def.terrain_effect_id != &"":
-					var tagged_coord_count := 0
-					for effect_coord in effect_coords:
-						var cell := _grid_service.get_cell(_state, effect_coord)
-						if cell == null or cell.terrain_effect_ids.has(effect_def.terrain_effect_id):
-							continue
-						cell.terrain_effect_ids.append(effect_def.terrain_effect_id)
-						_append_changed_coord(batch, effect_coord)
-						tagged_coord_count += 1
-						applied = true
-					if tagged_coord_count > 0:
-						batch.log_lines.append("%s 使 %d 个地格附加效果 %s。" % [
-							_build_skill_log_subject_label(source_unit, skill_def),
-							tagged_coord_count,
-							_get_terrain_effect_display_name(effect_def),
-						])
-			_:
-				pass
-
-	if requires_topology_reconcile and _reconcile_water_topology(effect_coords, batch):
-		applied = true
-	return {"applied": applied}
+	_ensure_sidecars_ready()
+	return _ground_effect_service._apply_ground_terrain_effects(source_unit, skill_def, effect_defs, effect_coords, batch)
 
 
 func _apply_ground_cell_effect(
@@ -3691,151 +2358,23 @@ func _apply_ground_cell_effect(
 	effect_def: CombatEffectDef,
 	batch: BattleEventBatch
 ) -> bool:
-	var cell := _grid_service.get_cell(_state, target_coord)
-	if cell == null:
-		return false
-
-	var cell_applied := false
-	var before_terrain := cell.base_terrain
-	var before_height := int(cell.current_height)
-	var occupant_unit := _state.units.get(cell.occupant_unit_id) as BattleUnitState if cell.occupant_unit_id != &"" else null
-
-	match effect_def.effect_type:
-		&"terrain", &"terrain_replace", &"terrain_replace_to":
-			if effect_def.terrain_replace_to != &"" and cell.base_terrain != effect_def.terrain_replace_to:
-				if _grid_service.set_base_terrain(_state, target_coord, effect_def.terrain_replace_to):
-					cell_applied = true
-		&"height", &"height_delta":
-			if effect_def.height_delta != 0:
-				var height_result := _grid_service.apply_height_delta_result(_state, target_coord, int(effect_def.height_delta))
-				if bool(height_result.get("changed", false)):
-					cell_applied = true
-		_:
-			pass
-
-	var after_height := int(cell.current_height)
-	if before_terrain != cell.base_terrain or before_height != after_height:
-		_append_changed_coord(batch, target_coord)
-	if before_terrain != cell.base_terrain:
-		batch.log_lines.append("%s 使 (%d, %d) 的地形由 %s 变为 %s。" % [
-			_build_skill_log_subject_label(source_unit, skill_def),
-			target_coord.x,
-			target_coord.y,
-			_grid_service.get_terrain_display_name(String(before_terrain)),
-			_grid_service.get_terrain_display_name(String(cell.base_terrain)),
-		])
-	if before_height != after_height:
-		batch.log_lines.append("%s 使 (%d, %d) 的高度由 %d 变为 %d。" % [
-			_build_skill_log_subject_label(source_unit, skill_def),
-			target_coord.x,
-			target_coord.y,
-			before_height,
-			after_height,
-		])
-
-	if occupant_unit != null and occupant_unit.is_alive and after_height < before_height:
-		var fall_layers := before_height - after_height
-		var fall_result := _damage_resolver.resolve_fall_damage(occupant_unit, fall_layers)
-		var fall_damage := int(fall_result.get("damage", 0))
-		var shield_absorbed := int(fall_result.get("shield_absorbed", 0))
-		if fall_damage > 0 or shield_absorbed > 0:
-			cell_applied = true
-			_append_changed_coord(batch, target_coord)
-			_append_changed_unit_id(batch, occupant_unit.unit_id)
-			if fall_damage > 0:
-				batch.log_lines.append("%s 使 (%d, %d) 的高度下降 %d 层，导致 %s 坠落并受到 %d 点伤害。" % [
-					_build_skill_log_subject_label(source_unit, skill_def),
-					target_coord.x,
-					target_coord.y,
-					fall_layers,
-					occupant_unit.display_name,
-					fall_damage,
-				])
-				if shield_absorbed > 0:
-					batch.log_lines.append("%s 的护盾吸收了 %d 点坠落伤害。" % [
-						occupant_unit.display_name,
-						shield_absorbed,
-					])
-			else:
-				batch.log_lines.append("%s 使 (%d, %d) 的高度下降 %d 层，导致 %s 坠落，但被护盾吸收了 %d 点坠落伤害。" % [
-					_build_skill_log_subject_label(source_unit, skill_def),
-					target_coord.x,
-					target_coord.y,
-					fall_layers,
-					occupant_unit.display_name,
-					shield_absorbed,
-				])
-			if bool(fall_result.get("shield_broken", false)):
-				batch.log_lines.append("%s 的护盾被击碎。" % occupant_unit.display_name)
-			if not occupant_unit.is_alive:
-				_collect_defeated_unit_loot(occupant_unit, source_unit)
-				_clear_defeated_unit(occupant_unit, batch)
-				batch.log_lines.append("%s 被击倒。" % occupant_unit.display_name)
-
-	_flush_last_stand_mastery_records(batch)
-	return cell_applied
+	_ensure_sidecars_ready()
+	return _ground_effect_service._apply_ground_cell_effect(source_unit, skill_def, target_coord, effect_def, batch)
 
 
 func _reconcile_water_topology(effect_coords: Array[Vector2i], batch: BattleEventBatch) -> bool:
-	if _state == null or _state.map_size == Vector2i.ZERO or effect_coords.is_empty():
-		return false
-
-	var changes: Array[Dictionary] = _terrain_topology_service.reclassify_water_terrain_near_coords(
-		_state.cells,
-		_state.map_size,
-		effect_coords
-	)
-	var applied := false
-	for change in changes:
-		var coord: Vector2i = change.get("coord", Vector2i.ZERO)
-		var cell: BattleCellState = _grid_service.get_cell(_state, coord)
-		if cell == null:
-			continue
-		var before_terrain: StringName = cell.base_terrain
-		var before_flow_direction: Vector2i = cell.flow_direction
-		var after_terrain: StringName = change.get("after_terrain", before_terrain)
-		var after_flow_direction: Vector2i = change.get("after_flow_direction", before_flow_direction)
-		if before_terrain != after_terrain:
-			_grid_service.set_base_terrain(_state, coord, after_terrain)
-			cell = _grid_service.get_cell(_state, coord)
-			if cell == null:
-				continue
-		if cell.flow_direction != after_flow_direction:
-			cell.flow_direction = after_flow_direction
-			_grid_service.recalculate_cell(cell)
-			_grid_service.sync_column_from_surface_cell(_state, coord)
-		if before_terrain != cell.base_terrain or before_flow_direction != cell.flow_direction:
-			applied = true
-			_append_changed_coord(batch, coord)
-		if before_terrain != cell.base_terrain:
-			batch.log_lines.append("相邻水域在 (%d, %d) 重分类为 %s。" % [
-				coord.x,
-				coord.y,
-				_grid_service.get_terrain_display_name(String(cell.base_terrain)),
-			])
-	return applied
+	_ensure_sidecars_ready()
+	return _ground_effect_service._reconcile_water_topology(effect_coords, batch)
 
 
 func _collect_units_in_coords(effect_coords: Array[Vector2i]) -> Array[BattleUnitState]:
-	var units: Array[BattleUnitState] = []
-	var seen_unit_ids: Dictionary = {}
-	for effect_coord in effect_coords:
-		var target_unit := _grid_service.get_unit_at_coord(_state, effect_coord)
-		if target_unit == null or not target_unit.is_alive or seen_unit_ids.has(target_unit.unit_id):
-			continue
-		seen_unit_ids[target_unit.unit_id] = true
-		units.append(target_unit)
-	return units
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._collect_units_in_coords(effect_coords)
 
 
 func _is_unit_effect(effect_def: CombatEffectDef) -> bool:
-	if effect_def == null:
-		return false
-	return effect_def.effect_type == &"damage" \
-		or effect_def.effect_type == &"heal" \
-		or effect_def.effect_type == &"shield" \
-		or effect_def.effect_type == &"status" \
-		or effect_def.effect_type == &"apply_status"
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_unit_effect(effect_def)
 
 
 func _apply_unit_shield_effects(
@@ -3845,30 +2384,8 @@ func _apply_unit_shield_effects(
 	effect_defs: Array[CombatEffectDef],
 	shield_roll_context: Dictionary = {}
 ) -> Dictionary:
-	var result := {
-		"applied": false,
-		"current_shield_hp": 0,
-		"shield_max_hp": 0,
-		"shield_duration": -1,
-		"shield_family": &"",
-	}
-	if target_unit == null or effect_defs.is_empty():
-		return result
-
-	for effect_def in effect_defs:
-		if effect_def == null or effect_def.effect_type != &"shield":
-			continue
-		var shield_apply_result := _apply_shield_effect_to_target(
-			source_unit,
-			target_unit,
-			skill_def,
-			effect_def,
-			shield_roll_context
-		)
-		if not bool(shield_apply_result.get("applied", false)):
-			continue
-		result = shield_apply_result
-	return result
+	_ensure_sidecars_ready()
+	return _shield_service._apply_unit_shield_effects(source_unit, target_unit, skill_def, effect_defs, shield_roll_context)
 
 
 func _apply_shield_effect_to_target(
@@ -3878,78 +2395,8 @@ func _apply_shield_effect_to_target(
 	effect_def: CombatEffectDef,
 	shield_roll_context: Dictionary = {}
 ) -> Dictionary:
-	var result := {
-		"applied": false,
-		"current_shield_hp": int(target_unit.current_shield_hp) if target_unit != null else 0,
-		"shield_max_hp": int(target_unit.shield_max_hp) if target_unit != null else 0,
-		"shield_duration": int(target_unit.shield_duration) if target_unit != null else -1,
-		"shield_family": target_unit.shield_family if target_unit != null else &"",
-	}
-	if target_unit == null or effect_def == null:
-		return result
-
-	var shield_hp := _resolve_shield_hp(effect_def, shield_roll_context)
-	if shield_hp <= 0:
-		return result
-	var shield_duration := _resolve_shield_duration_tu(effect_def)
-	if shield_duration <= 0:
-		return result
-	var shield_family := _resolve_shield_family(skill_def, effect_def)
-	var shield_params := effect_def.params.duplicate(true) if effect_def.params != null else {}
-	shield_params["resolved_shield_hp"] = shield_hp
-	var shield_source_unit_id := source_unit.unit_id if source_unit != null else &""
-	var shield_source_skill_id := skill_def.skill_id if skill_def != null else &""
-
-	target_unit.normalize_shield_state()
-	if not target_unit.has_shield():
-		_write_unit_shield(
-			target_unit,
-			shield_hp,
-			shield_duration,
-			shield_family,
-			shield_source_unit_id,
-			shield_source_skill_id,
-			shield_params
-		)
-		return _build_unit_shield_result(target_unit, true)
-
-	if target_unit.shield_family == shield_family:
-		var next_shield_max_hp := maxi(target_unit.shield_max_hp, shield_hp)
-		var next_current_shield_hp := maxi(target_unit.current_shield_hp, shield_hp)
-		var next_shield_duration := maxi(target_unit.shield_duration, shield_duration)
-		if next_shield_max_hp == target_unit.shield_max_hp \
-				and next_current_shield_hp == target_unit.current_shield_hp \
-				and next_shield_duration == target_unit.shield_duration:
-			return result
-		target_unit.shield_max_hp = next_shield_max_hp
-		target_unit.current_shield_hp = next_current_shield_hp
-		target_unit.shield_duration = next_shield_duration
-		target_unit.shield_source_unit_id = shield_source_unit_id
-		target_unit.shield_source_skill_id = shield_source_skill_id
-		target_unit.shield_params = shield_params.duplicate(true)
-		target_unit.normalize_shield_state()
-		return _build_unit_shield_result(target_unit, true)
-
-	var should_replace := false
-	if shield_hp > target_unit.current_shield_hp:
-		should_replace = true
-	elif shield_hp == target_unit.current_shield_hp:
-		if shield_duration > target_unit.shield_duration:
-			should_replace = true
-
-	if not should_replace:
-		return result
-
-	_write_unit_shield(
-		target_unit,
-		shield_hp,
-		shield_duration,
-		shield_family,
-		shield_source_unit_id,
-		shield_source_skill_id,
-		shield_params
-	)
-	return _build_unit_shield_result(target_unit, true)
+	_ensure_sidecars_ready()
+	return _shield_service._apply_shield_effect_to_target(source_unit, target_unit, skill_def, effect_def, shield_roll_context)
 
 
 func _write_unit_shield(
@@ -3961,120 +2408,58 @@ func _write_unit_shield(
 	shield_source_skill_id: StringName,
 	shield_params: Dictionary
 ) -> void:
-	if target_unit == null:
-		return
-	target_unit.current_shield_hp = maxi(shield_hp, 0)
-	target_unit.shield_max_hp = maxi(shield_hp, 0)
-	target_unit.shield_duration = shield_duration
-	target_unit.shield_family = shield_family
-	target_unit.shield_source_unit_id = shield_source_unit_id
-	target_unit.shield_source_skill_id = shield_source_skill_id
-	target_unit.shield_params = shield_params.duplicate(true)
-	target_unit.normalize_shield_state()
+	_ensure_sidecars_ready()
+	_shield_service._write_unit_shield(target_unit, shield_hp, shield_duration, shield_family, shield_source_unit_id, shield_source_skill_id, shield_params)
 
 
 func _build_unit_shield_result(target_unit: BattleUnitState, applied: bool) -> Dictionary:
-	return {
-		"applied": applied,
-		"current_shield_hp": int(target_unit.current_shield_hp) if target_unit != null else 0,
-		"shield_max_hp": int(target_unit.shield_max_hp) if target_unit != null else 0,
-		"shield_duration": int(target_unit.shield_duration) if target_unit != null else -1,
-		"shield_family": target_unit.shield_family if target_unit != null else &"",
-	}
+	_ensure_sidecars_ready()
+	return _shield_service._build_unit_shield_result(target_unit, applied)
 
 
 func _resolve_shield_hp(effect_def: CombatEffectDef, shield_roll_context: Dictionary = {}) -> int:
-	if effect_def == null:
-		return 0
-	var fallback_shield_hp := maxi(int(effect_def.power), 0)
-	if not _has_shield_dice_config(effect_def):
-		return fallback_shield_hp
-	var cache_key := _get_shield_roll_cache_key(effect_def)
-	if shield_roll_context.has(cache_key):
-		return maxi(int(shield_roll_context.get(cache_key, fallback_shield_hp)), 0)
-	var rolled_shield_hp := _roll_shield_hp(effect_def)
-	shield_roll_context[cache_key] = rolled_shield_hp
-	return maxi(rolled_shield_hp, 0)
+	_ensure_sidecars_ready()
+	return _shield_service._resolve_shield_hp(effect_def, shield_roll_context)
 
 
 func _roll_shield_hp(effect_def: CombatEffectDef) -> int:
-	if effect_def == null:
-		return 0
-	var shield_hp := maxi(int(effect_def.power), 0)
-	if effect_def.params == null:
-		return shield_hp
-	var dice_count := maxi(int(effect_def.params.get("dice_count", 0)), 0)
-	var dice_sides := maxi(int(effect_def.params.get("dice_sides", 0)), 0)
-	if dice_count <= 0 or dice_sides <= 0:
-		return shield_hp
-	shield_hp += int(effect_def.params.get("dice_bonus", 0))
-	for _roll_index in range(dice_count):
-		shield_hp += _roll_battle_effect_die(dice_sides)
-	return maxi(shield_hp, 0)
+	_ensure_sidecars_ready()
+	return _shield_service._roll_shield_hp(effect_def)
 
 
 func _has_shield_dice_config(effect_def: CombatEffectDef) -> bool:
-	return effect_def != null \
-		and effect_def.params != null \
-		and int(effect_def.params.get("dice_count", 0)) > 0 \
-		and int(effect_def.params.get("dice_sides", 0)) > 0
+	_ensure_sidecars_ready()
+	return _shield_service._has_shield_dice_config(effect_def)
 
 
 func _get_shield_roll_cache_key(effect_def: CombatEffectDef) -> int:
-	return effect_def.get_instance_id() if effect_def != null else 0
+	_ensure_sidecars_ready()
+	return _shield_service._get_shield_roll_cache_key(effect_def)
 
 
 func _roll_battle_effect_die(dice_sides: int) -> int:
-	if dice_sides <= 0:
-		return 0
-	if _state == null:
-		return 1
-
-	return int(TRUE_RANDOM_SEED_SERVICE_SCRIPT.randi_range(1, dice_sides))
+	_ensure_sidecars_ready()
+	return _shield_service._roll_battle_effect_die(dice_sides)
 
 
 func _resolve_shield_duration_tu(effect_def: CombatEffectDef) -> int:
-	if effect_def == null:
-		return 0
-	if int(effect_def.duration_tu) > 0:
-		return int(effect_def.duration_tu)
-	if effect_def.params == null:
-		return 0
-	if effect_def.params.has("duration_tu"):
-		return maxi(int(effect_def.params.get("duration_tu", 0)), 0)
-	return 0
+	_ensure_sidecars_ready()
+	return _shield_service._resolve_shield_duration_tu(effect_def)
 
 
 func _resolve_shield_family(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:
-	if effect_def != null and effect_def.params != null:
-		var explicit_family := ProgressionDataUtils.to_string_name(effect_def.params.get("shield_family", ""))
-		if explicit_family != &"":
-			return explicit_family
-		explicit_family = ProgressionDataUtils.to_string_name(effect_def.params.get("family", ""))
-		if explicit_family != &"":
-			return explicit_family
-	if skill_def != null and skill_def.skill_id != &"":
-		return skill_def.skill_id
-	return &"shield"
+	_ensure_sidecars_ready()
+	return _shield_service._resolve_shield_family(skill_def, effect_def)
 
 
 func _is_terrain_effect(effect_def: CombatEffectDef) -> bool:
-	if effect_def == null:
-		return false
-	return effect_def.effect_type == &"terrain" \
-		or effect_def.effect_type == &"terrain_replace" \
-		or effect_def.effect_type == &"terrain_replace_to" \
-		or effect_def.effect_type == &"height" \
-		or effect_def.effect_type == &"height_delta" \
-		or effect_def.effect_type == &"terrain_effect"
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_terrain_effect(effect_def)
 
 
 func _resolve_effect_target_filter(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:
-	if effect_def != null and effect_def.effect_target_team_filter != &"":
-		return effect_def.effect_target_team_filter
-	if skill_def != null and skill_def.combat_profile != null:
-		return skill_def.combat_profile.target_team_filter
-	return &"any"
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._resolve_effect_target_filter(skill_def, effect_def)
 
 
 func _is_unit_valid_for_effect(
@@ -4082,34 +2467,18 @@ func _is_unit_valid_for_effect(
 	target_unit: BattleUnitState,
 	target_team_filter: StringName
 ) -> bool:
-	if target_unit == null or not target_unit.is_alive:
-		return false
-	match target_team_filter:
-		&"", &"any":
-			return true
-		&"self":
-			return source_unit != null and target_unit.unit_id == source_unit.unit_id
-		&"ally", &"friendly":
-			return source_unit != null and target_unit.faction_id == source_unit.faction_id
-		&"enemy", &"hostile":
-			return source_unit != null and target_unit.faction_id != source_unit.faction_id
-		_:
-			return true
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._is_unit_valid_for_effect(source_unit, target_unit, target_team_filter)
 
 
 func _build_terrain_effect_instance_id(effect_id: StringName) -> StringName:
-	_terrain_effect_nonce += 1
-	return StringName("%s_%d_%d" % [
-		String(effect_id),
-		int(_state.timeline.current_tu) if _state != null and _state.timeline != null else 0,
-		_terrain_effect_nonce,
-	])
+	_ensure_sidecars_ready()
+	return _ground_effect_service._build_terrain_effect_instance_id(effect_id)
 
 
 func _get_terrain_effect_display_name(effect_def: CombatEffectDef) -> String:
-	if effect_def != null and effect_def.params.has("display_name"):
-		return String(effect_def.params.get("display_name", ""))
-	return String(effect_def.terrain_effect_id) if effect_def != null else "地格效果"
+	_ensure_sidecars_ready()
+	return _ground_effect_service._get_terrain_effect_display_name(effect_def)
 
 
 func _append_batch_log(batch: BattleEventBatch, message: String) -> void:
@@ -4210,11 +2579,8 @@ func _resolve_ground_cast_variant(
 	active_unit: BattleUnitState,
 	command: BattleCommand
 ) -> CombatCastVariantDef:
-	return _skill_resolution_rules.resolve_ground_cast_variant(
-		skill_def,
-		active_unit,
-		command.skill_variant_id if command != null else &""
-	)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._resolve_ground_cast_variant(skill_def, active_unit, command)
 
 
 func _resolve_unit_cast_variant(
@@ -4222,29 +2588,18 @@ func _resolve_unit_cast_variant(
 	active_unit: BattleUnitState,
 	command: BattleCommand
 ) -> CombatCastVariantDef:
-	return _skill_resolution_rules.resolve_unit_cast_variant(
-		skill_def,
-		active_unit,
-		command.skill_variant_id if command != null else &""
-	)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._resolve_unit_cast_variant(skill_def, active_unit, command)
 
 
 func _get_cast_variant_target_mode(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> StringName:
-	return _skill_resolution_rules.get_cast_variant_target_mode(skill_def, cast_variant)
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._get_cast_variant_target_mode(skill_def, cast_variant)
 
 
 func _build_implicit_ground_cast_variant(skill_def: SkillDef) -> CombatCastVariantDef:
-	var cast_variant := CombatCastVariantDef.new()
-	cast_variant.variant_id = &""
-	cast_variant.display_name = ""
-	cast_variant.target_mode = &"ground"
-	cast_variant.footprint_pattern = &"single"
-	cast_variant.required_coord_count = 1
-	if skill_def != null and skill_def.combat_profile != null:
-		cast_variant.effect_defs = skill_def.combat_profile.effect_defs.duplicate()
-	else:
-		cast_variant.effect_defs = []
-	return cast_variant
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._build_implicit_ground_cast_variant(skill_def)
 
 
 func _validate_ground_skill_command(
@@ -4253,83 +2608,8 @@ func _validate_ground_skill_command(
 	cast_variant: CombatCastVariantDef,
 	command: BattleCommand
 ) -> Dictionary:
-	var normalized_coords := _normalize_target_coords(command)
-	var result := {
-		"allowed": false,
-		"message": "地面技能目标无效。",
-		"target_coords": normalized_coords,
-	}
-	if _state == null or active_unit == null or skill_def == null or skill_def.combat_profile == null or cast_variant == null:
-		return result
-	if cast_variant.target_mode != &"ground":
-		result.message = "该技能形态不是地面施法。"
-		return result
-	var block_reason := _get_skill_cast_block_reason(active_unit, skill_def)
-	if not block_reason.is_empty():
-		result.message = block_reason
-		return result
-	if normalized_coords.size() != int(cast_variant.required_coord_count):
-		result.message = "该技能形态需要选择 %d 个地格。" % int(cast_variant.required_coord_count)
-		return result
-	if _charge_resolver.is_charge_variant(cast_variant):
-		return _charge_resolver.validate_charge_command(active_unit, skill_def, cast_variant, normalized_coords, result)
-
-	var jump_effect_def := _get_ground_jump_effect_def(skill_def, cast_variant)
-	var effective_skill_range := _get_effective_skill_range(active_unit, skill_def)
-	var seen_coords: Dictionary = {}
-	for target_coord in normalized_coords:
-		var coord: Vector2i = target_coord
-		if seen_coords.has(coord):
-			result.message = "同一地格不能重复选择。"
-			return result
-		seen_coords[coord] = true
-		if not _grid_service.is_inside(_state, coord):
-			result.message = "存在超出战场范围的目标地格。"
-			return result
-		var target_distance: int = _grid_service.get_chebyshev_distance(active_unit.coord, coord) \
-			if jump_effect_def != null else _grid_service.get_distance_from_unit_to_coord(active_unit, coord)
-		if target_distance > effective_skill_range:
-			result.message = "目标地格超出技能施放距离。"
-			return result
-		var cell := _grid_service.get_cell(_state, coord)
-		if cell == null:
-			result.message = "目标地格数据不可用。"
-			return result
-		if not cast_variant.allowed_base_terrains.is_empty():
-			var normalized_allowed := false
-			var normalized_cell_terrain := BattleTerrainRules.normalize_terrain_id(cell.base_terrain)
-			for allowed_terrain in cast_variant.allowed_base_terrains:
-				if BattleTerrainRules.normalize_terrain_id(allowed_terrain) == normalized_cell_terrain:
-					normalized_allowed = true
-					break
-			if not normalized_allowed:
-				result.message = "目标地格地形不符合该技能形态的要求。"
-				return result
-		if _is_crown_break_skill(skill_def.skill_id):
-			var target_unit := _grid_service.get_unit_at_coord(_state, coord)
-			if not _is_crown_break_target_eligible(active_unit, target_unit):
-				result.message = "折冠只能对已被黑星烙印的 elite / boss 施放。"
-				return result
-
-	if not _validate_target_coords_shape(cast_variant.footprint_pattern, normalized_coords):
-		result.message = "目标地格排布不符合该技能形态。"
-		return result
-
-	var sorted_target_coords := _sort_coords(normalized_coords)
-	var special_validation_message := _get_ground_special_effect_validation_message(
-		active_unit,
-		skill_def,
-		cast_variant,
-		sorted_target_coords
-	)
-	if not special_validation_message.is_empty():
-		result.message = special_validation_message
-		return result
-
-	result.target_coords = sorted_target_coords
-	result.allowed = true
-	result.message = "可施放。"
-	return result
+	_ensure_sidecars_ready()
+	return _ground_effect_service._validate_ground_skill_command(active_unit, skill_def, cast_variant, command)
 
 
 func _get_ground_special_effect_validation_message(
@@ -4338,69 +2618,18 @@ func _get_ground_special_effect_validation_message(
 	cast_variant: CombatCastVariantDef,
 	target_coords: Array[Vector2i]
 ) -> String:
-	var jump_effect_def := _get_ground_jump_effect_def(skill_def, cast_variant)
-	if jump_effect_def == null:
-		return ""
-	if active_unit == null or _state == null:
-		return "跳跃落点无效。"
-	if _is_movement_blocked(active_unit):
-		return "当前状态下无法跳跃移动。"
-	if target_coords.is_empty():
-		return "跳跃落点无效。"
-
-	var landing_coord := target_coords[0]
-	if not _grid_service.can_jump_arc(_state, active_unit, landing_coord, jump_effect_def):
-		return "目标地格无法作为跳跃落点。"
-	return ""
+	_ensure_sidecars_ready()
+	return _ground_effect_service._get_ground_special_effect_validation_message(active_unit, skill_def, cast_variant, target_coords)
 
 
 func _validate_target_coords_shape(footprint_pattern: StringName, target_coords: Array[Vector2i]) -> bool:
-	match footprint_pattern:
-		&"single":
-			return target_coords.size() == 1
-		&"line2":
-			if target_coords.size() != 2:
-				return false
-			var first := target_coords[0]
-			var second := target_coords[1]
-			return (first.x == second.x and absi(first.y - second.y) == 1) \
-				or (first.y == second.y and absi(first.x - second.x) == 1)
-		&"square2":
-			if target_coords.size() != 4:
-				return false
-			var min_x := target_coords[0].x
-			var max_x := target_coords[0].x
-			var min_y := target_coords[0].y
-			var max_y := target_coords[0].y
-			var coord_set: Dictionary = {}
-			for coord in target_coords:
-				min_x = mini(min_x, coord.x)
-				max_x = maxi(max_x, coord.x)
-				min_y = mini(min_y, coord.y)
-				max_y = maxi(max_y, coord.y)
-				coord_set[coord] = true
-			if max_x - min_x != 1 or max_y - min_y != 1:
-				return false
-			for x in range(min_x, max_x + 1):
-				for y in range(min_y, max_y + 1):
-					if not coord_set.has(Vector2i(x, y)):
-						return false
-			return true
-		&"unordered":
-			return not target_coords.is_empty()
-		_:
-			return false
+	_ensure_sidecars_ready()
+	return _ground_effect_service._validate_target_coords_shape(footprint_pattern, target_coords)
 
 
 func _normalize_target_coords(command: BattleCommand) -> Array[Vector2i]:
-	var coords: Array[Vector2i] = []
-	if command == null:
-		return coords
-	for target_coord in command.target_coords:
-		coords.append(target_coord)
-	if coords.is_empty() and command.target_coord != Vector2i(-1, -1):
-		coords.append(command.target_coord)
-	return coords
+	_ensure_sidecars_ready()
+	return _ground_effect_service._normalize_target_coords(command)
 
 
 func _append_changed_coord(batch: BattleEventBatch, coord: Vector2i) -> void:
@@ -4433,6 +2662,37 @@ func _append_changed_unit_coords(batch: BattleEventBatch, unit_state: BattleUnit
 
 func _collect_defeated_unit_loot(unit_state: BattleUnitState, killer_unit: BattleUnitState = null) -> void:
 	_loot_resolver.collect_defeated_unit_loot(unit_state, killer_unit)
+
+
+func handle_unit_defeated_by_runtime_effect(
+	unit_state: BattleUnitState,
+	source_unit: BattleUnitState,
+	batch: BattleEventBatch,
+	log_line: String = ""
+) -> void:
+	if unit_state == null:
+		return
+	_collect_defeated_unit_loot(unit_state, source_unit)
+	_clear_defeated_unit(unit_state, batch)
+	_record_unit_defeated(unit_state)
+	if not log_line.is_empty() and batch != null:
+		batch.log_lines.append(log_line)
+	_check_battle_end(batch)
+
+
+func remove_summoned_unit_from_battle(unit_state: BattleUnitState, batch: BattleEventBatch, log_line: String = "") -> void:
+	if _state == null or unit_state == null:
+		return
+	var previous_coords := unit_state.occupied_coords.duplicate()
+	unit_state.is_alive = false
+	_grid_service.clear_unit_occupancy(_state, unit_state)
+	_append_changed_coords(batch, previous_coords)
+	_append_changed_unit_id(batch, unit_state.unit_id)
+	if not log_line.is_empty() and batch != null:
+		batch.log_lines.append(log_line)
+	_record_unit_defeated(unit_state)
+	_check_battle_end(batch)
+
 
 func _clear_defeated_unit(unit_state: BattleUnitState, batch: BattleEventBatch = null) -> void:
 	if _state == null or unit_state == null:
@@ -4472,268 +2732,94 @@ func _sort_coords(target_coords: Variant) -> Array[Vector2i]:
 	return sorted_coords
 
 
-func _resolve_timeline_units_per_second(context: Dictionary) -> int:
-	var units_per_second := int(context.get("units_per_second", TU_GRANULARITY))
-	if units_per_second <= 0:
-		return TU_GRANULARITY
-	if units_per_second % TU_GRANULARITY != 0:
-		push_error("timeline.units_per_second must be a multiple of %d, got %d." % [TU_GRANULARITY, units_per_second])
-		return TU_GRANULARITY
-	return units_per_second
-
-
 func _normalize_unit_action_threshold(action_threshold: int) -> int:
-	if action_threshold <= 0:
-		push_error("Battle unit action_threshold must be positive, got %d." % [action_threshold])
-		return BattleUnitState.DEFAULT_ACTION_THRESHOLD
-	if action_threshold % TU_GRANULARITY != 0:
-		push_error("Battle unit action_threshold must be a multiple of %d, got %d." % [TU_GRANULARITY, action_threshold])
-		return BattleUnitState.DEFAULT_ACTION_THRESHOLD
-	return action_threshold
+	_ensure_sidecars_ready()
+	return _timeline_driver._normalize_unit_action_threshold(action_threshold)
 
 
 func _initialize_unit_action_thresholds() -> void:
-	if _state == null or _state.units == null:
-		return
-	for unit_variant in _state.units.values():
-		_resolve_unit_action_threshold(unit_variant as BattleUnitState)
+	_ensure_sidecars_ready()
+	_timeline_driver._initialize_unit_action_thresholds()
 
 
 func _initialize_unit_trait_hooks() -> void:
-	if _state == null or _state.units == null or _trait_trigger_hooks == null:
-		return
-	for unit_id_str in ProgressionDataUtils.sorted_string_keys(_state.units):
-		var unit_state := _state.units.get(StringName(unit_id_str)) as BattleUnitState
-		if unit_state == null:
-			continue
-		_trait_trigger_hooks.on_battle_start(unit_state, {"battle_state": _state})
+	_ensure_sidecars_ready()
+	_timeline_driver._initialize_unit_trait_hooks()
 
 
 func _resolve_unit_action_threshold(unit_state: BattleUnitState) -> int:
-	if unit_state == null:
-		return BattleUnitState.DEFAULT_ACTION_THRESHOLD
-	var threshold := int(unit_state.action_threshold)
-	if threshold <= 0:
-		threshold = BattleUnitState.DEFAULT_ACTION_THRESHOLD
-		unit_state.action_threshold = threshold
-	var normalized_threshold := _normalize_unit_action_threshold(threshold)
-	if normalized_threshold != threshold:
-		unit_state.action_threshold = normalized_threshold
-	return normalized_threshold
-
-
-func _resolve_timeline_tick_interval_seconds(context: Dictionary) -> float:
-	var tick_interval_seconds := float(context.get("tick_interval_seconds", DEFAULT_TICK_INTERVAL_SECONDS))
-	return tick_interval_seconds if tick_interval_seconds > 0.0 else DEFAULT_TICK_INTERVAL_SECONDS
+	_ensure_sidecars_ready()
+	return _timeline_driver._resolve_unit_action_threshold(unit_state)
 
 
 func _resolve_timeline_tu_per_tick(context: Dictionary) -> int:
-	var tu_per_tick := int(context.get("tu_per_tick", TU_GRANULARITY))
-	if tu_per_tick <= 0:
-		return TU_GRANULARITY
-	if tu_per_tick % TU_GRANULARITY != 0:
-		push_error("timeline.tu_per_tick must be a multiple of %d, got %d." % [TU_GRANULARITY, tu_per_tick])
-		return TU_GRANULARITY
-	return tu_per_tick
+	_ensure_sidecars_ready()
+	return _timeline_driver._resolve_timeline_tu_per_tick(context)
 
 
 func _collect_dict_vector2i_keys(values: Dictionary) -> Array[Vector2i]:
-	var coords: Array[Vector2i] = []
-	for coord_variant in values.keys():
-		if coord_variant is Vector2i:
-			coords.append(coord_variant)
-	return coords
+	_ensure_sidecars_ready()
+	return _movement_service._collect_dict_vector2i_keys(values)
 
 
 func _build_reachable_move_buckets(max_move_points: int) -> Array:
-	var bucket_count := maxi(max_move_points, 0) + 1
-	var buckets: Array = []
-	buckets.resize(bucket_count)
-	for bucket_index in range(bucket_count):
-		buckets[bucket_index] = []
-	return buckets
+	_ensure_sidecars_ready()
+	return _movement_service._build_reachable_move_buckets(max_move_points)
 
 
 func _build_reachable_move_state_key(coord: Vector2i, has_quickstep_bonus: bool) -> String:
-	return "%d:%d:%d" % [coord.x, coord.y, 1 if has_quickstep_bonus else 0]
+	_ensure_sidecars_ready()
+	return _movement_service._build_reachable_move_state_key(coord, has_quickstep_bonus)
 
 
 func _get_unit_skill_level(unit_state: BattleUnitState, skill_id: StringName) -> int:
-	if unit_state == null or skill_id == &"":
-		return 0
-	if unit_state.known_skill_level_map.has(skill_id):
-		return int(unit_state.known_skill_level_map.get(skill_id, 0))
-	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._get_unit_skill_level(unit_state, skill_id)
 
 
 func _format_skill_variant_label(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> String:
-	if skill_def == null:
-		return ""
-	if cast_variant == null or cast_variant.display_name.is_empty():
-		return skill_def.display_name
-	return "%s·%s" % [skill_def.display_name, cast_variant.display_name]
+	_ensure_sidecars_ready()
+	return _skill_orchestrator._format_skill_variant_label(skill_def, cast_variant)
 
 
 func _check_battle_end(batch: BattleEventBatch) -> bool:
-	if _state == null or batch == null:
-		return false
-	var living_allies := _count_living_units(_state.ally_unit_ids)
-	var living_enemies := _count_living_units(_state.enemy_unit_ids)
-	if living_allies > 0 and living_enemies > 0:
-		return false
-
-	_state.phase = &"battle_ended"
-	if living_allies <= 0 and living_enemies <= 0:
-		_state.winner_faction_id = &"draw"
-	elif living_allies > 0:
-		_state.winner_faction_id = &"player"
-	else:
-		_state.winner_faction_id = &"hostile"
-	_state.active_unit_id = &""
-	_state.timeline.ready_unit_ids.clear()
-	_state.timeline.frozen = true
-	_battle_rating_system.record_battle_won_achievements()
-	_battle_rating_system.finalize_battle_rating_rewards()
-	if _battle_resolution_result == null:
-		_battle_resolution_result = _build_battle_resolution_result()
-	_battle_resolution_result_consumed = false
-	batch.phase_changed = true
-	batch.battle_ended = true
-	batch.log_lines.append("战斗结束，胜利方：%s。" % String(_state.winner_faction_id))
-	return true
+	_ensure_sidecars_ready()
+	return _timeline_driver._check_battle_end(batch)
 
 
 func _count_living_units(unit_ids: Array[StringName]) -> int:
-	var count := 0
-	for unit_id in unit_ids:
-		var unit_state := _state.units.get(unit_id) as BattleUnitState
-		if unit_state != null and unit_state.is_alive:
-			count += 1
-	return count
+	_ensure_sidecars_ready()
+	return _timeline_driver._count_living_units(unit_ids)
 
 
 func _end_active_turn(batch: BattleEventBatch) -> void:
-	if _state == null or batch == null:
-		return
-	var active_unit := _state.units.get(_state.active_unit_id) as BattleUnitState
-	if active_unit != null and active_unit.is_alive and not active_unit.has_taken_action_this_turn:
-		active_unit.is_resting = true
-		_append_changed_unit_id(batch, active_unit.unit_id)
-	if active_unit != null and _misfortune_service != null:
-		_misfortune_service.handle_low_hp_turn_end(active_unit)
-	if active_unit != null and active_unit.control_mode != &"manual":
-		_cleanup_ai_turn(active_unit)
-	_state.phase = &"timeline_running"
-	_state.active_unit_id = &""
-	batch.phase_changed = true
+	_ensure_sidecars_ready()
+	_timeline_driver._end_active_turn(batch)
 
 
 func _handle_adjacent_ally_defeat(defeated_unit: BattleUnitState) -> void:
-	if _state == null or _misfortune_service == null or defeated_unit == null:
-		return
-	if defeated_unit.is_alive or defeated_unit.source_member_id == &"":
-		return
-	var adjacent_allies := _collect_adjacent_living_allies(defeated_unit)
-	if adjacent_allies.is_empty():
-		return
-	_misfortune_service.handle_adjacent_ally_defeat(defeated_unit, adjacent_allies)
+	_ensure_sidecars_ready()
+	_special_skill_resolver._handle_adjacent_ally_defeat(defeated_unit)
 
 
 func _handle_low_luck_relic_ally_defeat(defeated_unit: BattleUnitState, batch: BattleEventBatch = null) -> void:
-	if _state == null or defeated_unit == null or defeated_unit.is_alive:
-		return
-	for unit_variant in _state.units.values():
-		var candidate := unit_variant as BattleUnitState
-		if candidate == null or not candidate.is_alive:
-			continue
-		if candidate.unit_id == defeated_unit.unit_id:
-			continue
-		if candidate.faction_id != defeated_unit.faction_id:
-			continue
-		if not LOW_LUCK_RELIC_RULES_SCRIPT.unit_has_flag(candidate, LOW_LUCK_RELIC_RULES_SCRIPT.ATTR_BLOOD_DEBT_SHAWL):
-			continue
-		candidate.current_ap += LOW_LUCK_RELIC_RULES_SCRIPT.BLOOD_DEBT_ALLY_DOWN_AP_GAIN
-		_append_changed_unit_id(batch, candidate.unit_id)
-		if batch != null:
-			batch.log_lines.append("%s 目睹队友倒地，血债披肩返还 %d 点行动点。" % [
-				candidate.display_name,
-				LOW_LUCK_RELIC_RULES_SCRIPT.BLOOD_DEBT_ALLY_DOWN_AP_GAIN,
-			])
+	_ensure_sidecars_ready()
+	_special_skill_resolver._handle_low_luck_relic_ally_defeat(defeated_unit, batch)
 
 
 func _collect_adjacent_living_allies(defeated_unit: BattleUnitState) -> Array[BattleUnitState]:
-	var adjacent_allies: Array[BattleUnitState] = []
-	if defeated_unit == null:
-		return adjacent_allies
-	defeated_unit.refresh_footprint()
-	for unit_variant in _state.units.values():
-		var candidate := unit_variant as BattleUnitState
-		if candidate == null or not candidate.is_alive:
-			continue
-		if candidate.unit_id == defeated_unit.unit_id:
-			continue
-		if candidate.faction_id != defeated_unit.faction_id or candidate.source_member_id == &"":
-			continue
-		candidate.refresh_footprint()
-		if _are_units_adjacent(candidate, defeated_unit):
-			adjacent_allies.append(candidate)
-	return adjacent_allies
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._collect_adjacent_living_allies(defeated_unit)
 
 
 func _are_units_adjacent(first_unit: BattleUnitState, second_unit: BattleUnitState) -> bool:
-	if first_unit == null or second_unit == null:
-		return false
-	for first_coord in first_unit.occupied_coords:
-		for second_coord in second_unit.occupied_coords:
-			if absi(first_coord.x - second_coord.x) + absi(first_coord.y - second_coord.y) == 1:
-				return true
-	return false
+	_ensure_sidecars_ready()
+	return _special_skill_resolver._are_units_adjacent(first_unit, second_unit)
 
 
 func _activate_next_ready_unit(batch: BattleEventBatch) -> void:
-	while not _state.timeline.ready_unit_ids.is_empty():
-		var next_unit_id: StringName = _state.timeline.ready_unit_ids.pop_front()
-		var unit_state := _state.units.get(next_unit_id) as BattleUnitState
-		if unit_state == null or not unit_state.is_alive:
-			continue
-		_state.phase = &"unit_acting"
-		_state.active_unit_id = next_unit_id
-		unit_state.has_taken_action_this_turn = false
-		unit_state.has_moved_this_turn = false
-		unit_state.can_use_locked_move_points_this_turn = false
-		unit_state.reset_per_turn_charges()
-		var trait_turn_start_result: Dictionary = _trait_trigger_hooks.on_turn_start(unit_state, {"battle_state": _state}) if _trait_trigger_hooks != null else {}
-		if bool(trait_turn_start_result.get("changed", false)):
-			_append_changed_unit_id(batch, unit_state.unit_id)
-		_advance_unit_turn_timers(unit_state, batch)
-		_record_turn_started(unit_state)
-		var action_points := 1
-		if unit_state.attribute_snapshot != null:
-			action_points = maxi(unit_state.attribute_snapshot.get_value(&"action_points"), 1)
-		unit_state.current_ap = action_points
-		unit_state.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
-		var turn_start_result := _apply_turn_start_statuses(unit_state, batch)
-		if not unit_state.is_alive:
-			var defeat_source_unit_id := ProgressionDataUtils.to_string_name(turn_start_result.get("defeat_source_unit_id", ""))
-			var defeat_source_unit = _state.units.get(defeat_source_unit_id) as BattleUnitState if defeat_source_unit_id != &"" else null
-			_collect_defeated_unit_loot(unit_state, defeat_source_unit)
-			_clear_defeated_unit(unit_state, batch)
-			_state.phase = &"timeline_running"
-			_state.active_unit_id = &""
-			batch.phase_changed = true
-			batch.changed_unit_ids.append(next_unit_id)
-			batch.log_lines.append("%s 因持续效果倒下。" % unit_state.display_name)
-			_state.append_log_entry(String(batch.log_lines[-1]))
-			if _check_battle_end(batch):
-				return
-			continue
-		if unit_state.control_mode != &"manual":
-			_prepare_ai_turn(unit_state)
-		batch.phase_changed = true
-		batch.changed_unit_ids.append(next_unit_id)
-		batch.log_lines.append("轮到 %s 行动。" % unit_state.display_name)
-		_state.append_log_entry(String(batch.log_lines[-1]))
-		return
+	_ensure_sidecars_ready()
+	_timeline_driver._activate_next_ready_unit(batch)
 
 
 func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillDef) -> String:
@@ -4886,6 +2972,8 @@ func _cleanup_ai_turn(unit_state: BattleUnitState) -> void:
 		return
 	unit_state.ai_blackboard.erase("turn_started_tu")
 	unit_state.ai_blackboard.erase("turn_decision_count")
+	if _skill_turn_resolver != null:
+		_skill_turn_resolver.clear_turn_ai_override(unit_state)
 
 
 func _find_unit_by_member_id(member_id: StringName) -> BattleUnitState:
@@ -4897,63 +2985,28 @@ func _find_unit_by_member_id(member_id: StringName) -> BattleUnitState:
 
 
 func _sort_ready_unit_ids_by_action_priority() -> void:
-	if _state == null or _state.timeline == null:
-		return
-	var ordered_ready_ids: Array[StringName] = []
-	var seen_ids: Dictionary = {}
-	for unit_id_variant in _state.timeline.ready_unit_ids:
-		var unit_id := ProgressionDataUtils.to_string_name(unit_id_variant)
-		if unit_id == &"" or seen_ids.has(unit_id):
-			continue
-		var unit_state := _state.units.get(unit_id) as BattleUnitState
-		if unit_state == null or not unit_state.is_alive:
-			continue
-		seen_ids[unit_id] = true
-		ordered_ready_ids.append(unit_id)
-	ordered_ready_ids.sort_custom(Callable(self, "_is_left_ready_unit_higher_priority"))
-	_state.timeline.ready_unit_ids = ordered_ready_ids
+	_ensure_sidecars_ready()
+	_timeline_driver._sort_ready_unit_ids_by_action_priority()
 
 
 func _is_left_ready_unit_higher_priority(left_unit_id: StringName, right_unit_id: StringName) -> bool:
-	var left_unit := _state.units.get(left_unit_id) as BattleUnitState if _state != null else null
-	var right_unit := _state.units.get(right_unit_id) as BattleUnitState if _state != null else null
-	if left_unit == null or not left_unit.is_alive:
-		return false
-	if right_unit == null or not right_unit.is_alive:
-		return true
-	var left_agility := _get_unit_turn_order_attribute(left_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY)
-	var right_agility := _get_unit_turn_order_attribute(right_unit, UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY)
-	if left_agility != right_agility:
-		return left_agility > right_agility
-	var left_action_points := _get_unit_turn_order_action_points(left_unit)
-	var right_action_points := _get_unit_turn_order_action_points(right_unit)
-	if left_action_points != right_action_points:
-		return left_action_points > right_action_points
-	var left_move_points := maxi(int(left_unit.current_move_points), 0)
-	var right_move_points := maxi(int(right_unit.current_move_points), 0)
-	if left_move_points != right_move_points:
-		return left_move_points > right_move_points
-	return String(left_unit_id) < String(right_unit_id)
+	_ensure_sidecars_ready()
+	return _timeline_driver._is_left_ready_unit_higher_priority(left_unit_id, right_unit_id)
 
 
 func _get_unit_turn_order_attribute(unit_state: BattleUnitState, attribute_id: StringName) -> int:
-	if unit_state == null or unit_state.attribute_snapshot == null:
-		return 0
-	return int(unit_state.attribute_snapshot.get_value(attribute_id))
+	_ensure_sidecars_ready()
+	return _timeline_driver._get_unit_turn_order_attribute(unit_state, attribute_id)
 
 
 func _get_unit_turn_order_action_points(unit_state: BattleUnitState) -> int:
-	var snapshot_action_points := _get_unit_turn_order_attribute(unit_state, ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS)
-	if snapshot_action_points > 0:
-		return snapshot_action_points
-	return maxi(int(unit_state.current_ap), 0)
+	_ensure_sidecars_ready()
+	return _timeline_driver._get_unit_turn_order_action_points(unit_state)
 
 
 func _get_units_in_order() -> Array[StringName]:
-	var ordered_ids: Array[StringName] = []
-	for unit_id_str in ProgressionDataUtils.sorted_string_keys(_state.units):
-		ordered_ids.append(StringName(unit_id_str))
-	return ordered_ids
+	_ensure_sidecars_ready()
+	return _timeline_driver._get_units_in_order()
 
 
 func _new_batch() -> BattleEventBatch:

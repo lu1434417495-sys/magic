@@ -1,9 +1,12 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const EquipmentDropService = preload("res://scripts/systems/inventory/equipment_drop_service.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class FixedRollRng:
@@ -100,14 +103,14 @@ func _assert_rarity_roll(label: String, rolls: Array[int], drop_luck: int, expec
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String, format_args: Array = []) -> void:
 	if actual == expected:
 		return
 	var resolved_message := message % format_args if not format_args.is_empty() else message
-	_failures.append("%s | actual=%s expected=%s" % [resolved_message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [resolved_message, str(actual), str(expected)])
 
 
 func _finish() -> void:

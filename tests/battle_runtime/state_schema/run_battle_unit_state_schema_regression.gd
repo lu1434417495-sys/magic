@@ -1,10 +1,13 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const BodySizeRules = preload("res://scripts/systems/progression/body_size_rules.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -334,9 +337,9 @@ func _assert_rejected(payload: Variant, message: String) -> void:
 
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s Actual=%s Expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s Actual=%s Expected=%s" % [message, str(actual), str(expected)])

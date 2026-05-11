@@ -2,7 +2,6 @@
 ## 审查重点：重点核对字段含义、节点绑定、信号联动以及界面状态切换是否仍与对应场景保持一致。
 ## 备注：后续如果调整场景节点命名、层级或交互路径，需要同步检查成员字段与信号连接。
 
-class_name BattleHudAdapter
 extends RefCounted
 
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -34,6 +33,36 @@ var _equipment_preview_cache: Dictionary = {}
 var _grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
 var _hit_resolver = BATTLE_HIT_RESOLVER_SCRIPT.new()
 var _skill_resolution_rules = BATTLE_SKILL_RESOLUTION_RULES_SCRIPT.new()
+var _party_member_state_resolver: Callable = Callable()
+var _skill_defs_provider: Callable = Callable()
+var _item_defs_provider: Callable = Callable()
+
+
+func set_party_member_state_resolver(resolver: Callable) -> void:
+	_party_member_state_resolver = resolver
+
+
+func set_content_def_providers(skill_defs_provider: Callable, item_defs_provider: Callable) -> void:
+	_skill_defs_provider = skill_defs_provider
+	_item_defs_provider = item_defs_provider
+
+
+func _normalize_vector2i_array(values: Array) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for value in values:
+		if value is Vector2i:
+			result.append(value)
+	return result
+
+
+func _normalize_string_name_array(values: Array) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value in values:
+		if value is StringName:
+			result.append(value)
+		elif value is String:
+			result.append(StringName(value))
+	return result
 
 
 func build_snapshot(
@@ -42,9 +71,9 @@ func build_snapshot(
 	selected_skill_id: StringName = &"",
 	selected_skill_name: String = "",
 	selected_skill_variant_name: String = "",
-	selected_skill_target_coords: Array[Vector2i] = [],
+	selected_skill_target_coords: Array = [],
 	selected_skill_required_coord_count: int = 0,
-	selected_skill_target_unit_ids: Array[StringName] = [],
+	selected_skill_target_unit_ids: Array = [],
 	selected_skill_variant_id: StringName = &"",
 	change_equipment_preview_callback: Callable = Callable(),
 	encounter_display_name: String = ""
@@ -52,11 +81,13 @@ func build_snapshot(
 	if battle_state == null:
 		return {}
 
+	var target_coords := _normalize_vector2i_array(selected_skill_target_coords)
+	var target_unit_ids := _normalize_string_name_array(selected_skill_target_unit_ids)
 	var active_unit := battle_state.units.get(battle_state.active_unit_id) as BattleUnitState
 	var selected_cell := battle_state.cells.get(selected_coord) as BattleCellState
 	var selected_unit := _get_unit_at_coord(battle_state, selected_coord)
 	var focus_unit := selected_unit if selected_unit != null else active_unit
-	var selected_target_count := selected_skill_target_coords.size()
+	var selected_target_count := target_coords.size()
 	var selection_info := _build_skill_target_selection_info(
 		battle_state,
 		active_unit,
@@ -68,8 +99,8 @@ func build_snapshot(
 		active_unit,
 		selected_coord,
 		selected_skill_id,
-		selected_skill_target_coords,
-		selected_skill_target_unit_ids,
+		target_coords,
+		target_unit_ids,
 		selected_skill_variant_id
 	)
 	var damage_preview := _build_selected_skill_damage_preview(
@@ -77,8 +108,8 @@ func build_snapshot(
 		active_unit,
 		selected_coord,
 		selected_skill_id,
-		selected_skill_target_coords,
-		selected_skill_target_unit_ids,
+		target_coords,
+		target_unit_ids,
 		selected_skill_variant_id
 	)
 	var fate_preview := _build_selected_skill_fate_preview(
@@ -86,8 +117,8 @@ func build_snapshot(
 		active_unit,
 		selected_coord,
 		selected_skill_id,
-		selected_skill_target_coords,
-		selected_skill_target_unit_ids,
+		target_coords,
+		target_unit_ids,
 		selected_skill_variant_id
 	)
 	var preview_tooltip_text := _build_selected_skill_preview_tooltip(hit_preview, fate_preview, damage_preview)
@@ -791,13 +822,11 @@ func _build_backpack_view_signature(backpack_view) -> String:
 	for instance in backpack_view.get_non_empty_instances():
 		if instance == null:
 			continue
-		parts.append("%s:%s:%d:%d:%s:%s" % [
+		parts.append("%s:%s:%d:%d" % [
 			String(ProgressionDataUtils.to_string_name(instance.instance_id)),
 			String(ProgressionDataUtils.to_string_name(instance.item_id)),
 			int(instance.rarity),
 			int(instance.current_durability),
-			str(float(instance.armor_wear_progress)),
-			str(float(instance.weapon_wear_progress)),
 		])
 	return ";".join(parts)
 
@@ -860,8 +889,10 @@ func _get_final_occupied_slot_ids(item_def, entry_slot_id: StringName) -> Array[
 
 
 func _get_item_defs() -> Dictionary:
-	var session = _get_game_session()
-	return session.call("get_item_defs") if session != null and session.has_method("get_item_defs") else {}
+	if not _item_defs_provider.is_valid():
+		return {}
+	var item_defs_variant = _item_defs_provider.call()
+	return item_defs_variant if item_defs_variant is Dictionary else {}
 
 
 func _get_item_display_name(item_defs: Dictionary, item_id: StringName) -> String:
@@ -1069,8 +1100,10 @@ func _get_skill_icon_key(skill_def, skill_id: StringName) -> String:
 
 
 func _get_skill_defs() -> Dictionary:
-	var session = _get_game_session()
-	return session.call("get_skill_defs") if session != null else {}
+	if not _skill_defs_provider.is_valid():
+		return {}
+	var skill_defs_variant = _skill_defs_provider.call()
+	return skill_defs_variant if skill_defs_variant is Dictionary else {}
 
 
 func _build_selected_skill_hit_preview(
@@ -1550,18 +1583,9 @@ func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:
 
 
 func _get_party_member_state(member_id: StringName):
-	var session = _get_game_session()
-	if session == null or member_id == &"":
+	if member_id == &"" or not _party_member_state_resolver.is_valid():
 		return null
-	return session.call("get_party_member_state", member_id)
-
-
-func _get_game_session():
-	var main_loop := Engine.get_main_loop()
-	if main_loop is SceneTree:
-		var scene_tree := main_loop as SceneTree
-		return scene_tree.root.get_node_or_null("GameSession")
-	return null
+	return _party_member_state_resolver.call(member_id)
 
 
 func _queue_candidate_before(a: BattleUnitState, b: BattleUnitState) -> bool:

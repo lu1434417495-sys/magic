@@ -2,29 +2,23 @@ class_name TraitTriggerHooks
 extends RefCounted
 
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
+const TRAIT_TRIGGER_CONTENT_RULES = preload("res://scripts/player/progression/trait_trigger_content_rules.gd")
 const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 
-const TRIGGER_PASSIVE: StringName = &"passive"
-const TRIGGER_ON_NATURAL_ONE: StringName = &"on_natural_one"
-const TRIGGER_ON_CRIT: StringName = &"on_crit"
-const TRIGGER_ON_FATAL_DAMAGE: StringName = &"on_fatal_damage"
-const TRIGGER_ON_BATTLE_START: StringName = &"on_battle_start"
-const TRIGGER_ON_TURN_START: StringName = &"on_turn_start"
+const TRIGGER_PASSIVE: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRIGGER_PASSIVE
+const TRIGGER_ON_NATURAL_ONE: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRIGGER_ON_NATURAL_ONE
+const TRIGGER_ON_CRIT: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRIGGER_ON_CRIT
+const TRIGGER_ON_FATAL_DAMAGE: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRIGGER_ON_FATAL_DAMAGE
+const TRIGGER_ON_BATTLE_START: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRIGGER_ON_BATTLE_START
+const TRIGGER_ON_TURN_START: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRIGGER_ON_TURN_START
 
-const TRAIT_HALFLING_LUCK: StringName = &"halfling_luck"
-const TRAIT_SAVAGE_ATTACKS: StringName = &"savage_attacks"
-const TRAIT_RELENTLESS_ENDURANCE: StringName = &"relentless_endurance"
+const TRAIT_HALFLING_LUCK: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRAIT_HALFLING_LUCK
+const TRAIT_SAVAGE_ATTACKS: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRAIT_SAVAGE_ATTACKS
+const TRAIT_RELENTLESS_ENDURANCE: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRAIT_RELENTLESS_ENDURANCE
 
-const VALID_TRIGGER_TYPES := {
-	TRIGGER_PASSIVE: true,
-	TRIGGER_ON_NATURAL_ONE: true,
-	TRIGGER_ON_CRIT: true,
-	TRIGGER_ON_FATAL_DAMAGE: true,
-	TRIGGER_ON_BATTLE_START: true,
-	TRIGGER_ON_TURN_START: true,
-}
+const VALID_TRIGGER_TYPES := TRAIT_TRIGGER_CONTENT_RULES.VALID_TRIGGER_TYPES
 
 const _DISPATCH := {
 	TRAIT_HALFLING_LUCK: {
@@ -40,22 +34,14 @@ const _DISPATCH := {
 
 
 static func has_dispatch_for_trait_trigger(trait_id: StringName, trigger_type: StringName) -> bool:
-	var normalized_trait_id := ProgressionDataUtils.to_string_name(trait_id)
-	var normalized_trigger_type := ProgressionDataUtils.to_string_name(trigger_type)
-	if normalized_trait_id == &"" or normalized_trigger_type == &"":
-		return false
-	var dispatch_entry: Dictionary = _DISPATCH.get(normalized_trait_id, {})
-	return dispatch_entry.has(normalized_trigger_type)
+	return TRAIT_TRIGGER_CONTENT_RULES.has_dispatch_for_trait_trigger(
+		ProgressionDataUtils.to_string_name(trait_id),
+		ProgressionDataUtils.to_string_name(trigger_type)
+	)
 
 
 static func get_dispatch_trait_ids() -> Array[StringName]:
-	var trait_ids: Array[StringName] = []
-	for trait_id_variant in _DISPATCH.keys():
-		var trait_id := ProgressionDataUtils.to_string_name(trait_id_variant)
-		if trait_id != &"":
-			trait_ids.append(trait_id)
-	trait_ids.sort()
-	return trait_ids
+	return TRAIT_TRIGGER_CONTENT_RULES.get_dispatch_trait_ids()
 
 
 func on_natural_one(unit_state: BattleUnitState, context: Dictionary = {}) -> Dictionary:

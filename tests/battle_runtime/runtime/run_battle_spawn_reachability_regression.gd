@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
@@ -10,7 +12,8 @@ const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attri
 
 const SPAWN_REACHABILITY_SERVICE_PATH := "res://scripts/systems/battle/runtime/battle_spawn_reachability_service.gd"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -171,7 +174,7 @@ func _build_service_fixture() -> Dictionary:
 	var skill_data := _find_enemy_unit_attack_skill(skill_defs)
 	game_session.free()
 	if skill_data.is_empty():
-		_failures.append("正式 GameSession 技能表中应存在 target_mode == unit 且敌方可攻击玩家的 range >= 1 技能。")
+		_test.fail("正式 GameSession 技能表中应存在 target_mode == unit 且敌方可攻击玩家的 range >= 1 技能。")
 		return {}
 
 	var service_script = load(SPAWN_REACHABILITY_SERVICE_PATH)
@@ -318,9 +321,9 @@ func _collect_details_for_unit(details, unit_id: StringName) -> Array[Dictionary
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

@@ -4,6 +4,8 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -21,6 +23,7 @@ const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/item_def.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const WAREHOUSE_STACK_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
@@ -28,7 +31,8 @@ const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/
 const WEAPON_DAMAGE_DICE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
 const WEAPON_PROFILE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class FakeCharacterGateway:
@@ -138,6 +142,8 @@ func _run() -> void:
 	_test_battle_local_writeback_detects_instance_conflict_invariant()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
 	_test_battle_unit_factory_clones_explicit_unit_charge_state()
+	_test_battle_unit_factory_projects_locked_skill_hit_bonus()
+	_test_battle_unit_factory_clamps_vajra_body_to_locked_effective_level()
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh()
 	_test_runtime_syncs_member_aura_into_battle_and_back()
@@ -474,6 +480,76 @@ func _test_battle_unit_factory_clones_explicit_unit_charge_state() -> void:
 	_assert_eq(int(cloned_unit.per_battle_charges.get(&"dragon_breath", -1)), 1, "显式 BattleUnitState clone 应保留 per_battle charge。")
 	_assert_eq(int(cloned_unit.per_turn_charges.get(&"nimble_escape", -1)), 1, "显式 BattleUnitState clone 应保留 per_turn charge。")
 	_assert_eq(int(cloned_unit.per_turn_charge_limits.get(&"nimble_escape", -1)), 1, "显式 BattleUnitState clone 应保留 per_turn charge limit。")
+
+
+func _test_battle_unit_factory_projects_locked_skill_hit_bonus() -> void:
+	var skill_id := &"locked_factory_skill"
+	var party_state := _make_party_state([&"hero"])
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var skill_progress := UNIT_SKILL_PROGRESS_SCRIPT.new()
+	skill_progress.skill_id = skill_id
+	skill_progress.is_learned = true
+	skill_progress.is_level_trigger_locked = true
+	skill_progress.bonus_to_hit_from_lock = 2
+	member_state.progression.set_skill_progress(skill_progress)
+
+	var skill_def = SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = skill_id
+	var runtime := FakeRuntime.new()
+	runtime._skill_defs = {skill_id: skill_def}
+	var factory := BattleUnitFactory.new()
+	factory.setup(runtime)
+
+	var units: Array = factory.build_ally_units(party_state, {})
+	_assert_eq(units.size(), 1, "测试前置：应构造出一个友方单位。")
+	if units.is_empty():
+		return
+	var unit_state: BattleUnitState = units[0] as BattleUnitState
+	_assert_eq(
+		int(unit_state.known_skill_lock_hit_bonus_map.get(skill_id, 0)),
+		2,
+		"BattleUnitFactory 应把成长锁定技能加值投影到 BattleUnitState。"
+	)
+
+
+func _test_battle_unit_factory_clamps_vajra_body_to_locked_effective_level() -> void:
+	var party_state := _make_party_state([&"hero"])
+	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
+	var skill_progress := UNIT_SKILL_PROGRESS_SCRIPT.new()
+	skill_progress.skill_id = &"vajra_body"
+	skill_progress.is_learned = true
+	skill_progress.is_core = true
+	skill_progress.skill_level = 10
+	member_state.progression.set_skill_progress(skill_progress)
+
+	var skill_def = SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = &"vajra_body"
+	skill_def.max_level = 10
+	skill_def.non_core_max_level = 9
+	var runtime := FakeRuntime.new()
+	runtime._skill_defs = {skill_def.skill_id: skill_def}
+	var factory := BattleUnitFactory.new()
+	factory.setup(runtime)
+
+	var units: Array = factory.build_ally_units(party_state, {})
+	_assert_eq(units.size(), 1, "测试前置：应构造出一个友方单位。")
+	if units.is_empty():
+		return
+	var unit_state: BattleUnitState = units[0] as BattleUnitState
+	var status_entry = unit_state.get_status_effect(&"vajra_body")
+	_assert_true(status_entry != null, "学会金刚不坏后应同步 vajra_body 状态。")
+	if status_entry != null:
+		_assert_eq(int(status_entry.params.get("skill_level", -1)), 9, "未锁定核心金刚不坏不应突破 non-core 上限。")
+		_assert_true(not bool(status_entry.params.get("forced_move_immune", false)), "未锁定核心金刚不坏不应获得强制位移免疫。")
+
+	skill_progress.is_level_trigger_locked = true
+	member_state.progression.set_skill_progress(skill_progress)
+	units = factory.build_ally_units(party_state, {})
+	unit_state = units[0] as BattleUnitState
+	status_entry = unit_state.get_status_effect(&"vajra_body")
+	if status_entry != null:
+		_assert_eq(int(status_entry.params.get("skill_level", -1)), 10, "锁定核心金刚不坏应允许同步到 10 级。")
+		_assert_true(bool(status_entry.params.get("forced_move_immune", false)), "锁定 10 级金刚不坏应获得强制位移免疫。")
 
 
 func _test_battle_unit_factory_projects_player_equipment_weapon_profiles() -> void:
@@ -1011,9 +1087,9 @@ func _make_attribute_snapshot() -> AttributeSnapshot:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
@@ -17,7 +19,8 @@ const AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT
 const GameRuntimeSnapshotBuilder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT
 const MisfortuneService = MISFORTUNE_SERVICE_SCRIPT
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class TestEncounterAnchor:
@@ -403,9 +406,9 @@ func _dispatch_fate_event(runtime: BattleRuntimeModule, event_type: StringName, 
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

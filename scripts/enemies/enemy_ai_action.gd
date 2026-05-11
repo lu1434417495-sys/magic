@@ -5,6 +5,7 @@ const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battl
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
+const ENEMY_AI_ACTION_HELPER_SCRIPT = preload("res://scripts/enemies/enemy_ai_action_helper.gd")
 const BattleAiDecision = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
@@ -12,6 +13,7 @@ const CombatCastVariantDef = preload("res://scripts/player/progression/combat_ca
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
 const TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY: StringName = &"nearest_role_threat_enemy"
+const HP_BASIS_POINTS_DENOMINATOR := 10000
 const ROLE_THREAT_MIN_EFFECTIVE_RANGE := 4
 const ROLE_THREAT_DISTANCE_WINDOW := 4
 const ROLE_THREAT_MAX_APPROACH_DISTANCE := 7
@@ -73,19 +75,11 @@ func _append_declared_skill_id(results: Array[StringName], seen: Dictionary, raw
 
 
 func _create_decision(command, reason_text: String = "") -> BattleAiDecision:
-	var decision = BATTLE_AI_DECISION_SCRIPT.new()
-	decision.command = command
-	decision.action_id = action_id
-	decision.reason_text = reason_text
-	decision.score_bucket_id = score_bucket_id
-	return decision
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.create_decision(action_id, score_bucket_id, command, reason_text)
 
 
 func _create_scored_decision(command, score_input, reason_text: String = "") -> BattleAiDecision:
-	var decision = _create_decision(command, reason_text)
-	decision.skill_score_input = score_input
-	decision.score_input = score_input
-	return decision
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.create_scored_decision(action_id, score_bucket_id, command, score_input, reason_text)
 
 
 func _resolve_known_skill_ids(context, preferred_skill_ids: Array[StringName]) -> Array[StringName]:
@@ -179,12 +173,40 @@ func _is_better_skill_score_input(candidate, best_candidate) -> bool:
 		return false
 	if best_candidate == null:
 		return true
+	if int(candidate.estimated_friendly_lethal_target_count) != int(best_candidate.estimated_friendly_lethal_target_count):
+		return int(candidate.estimated_friendly_lethal_target_count) < int(best_candidate.estimated_friendly_lethal_target_count)
+	if int(candidate.estimated_friendly_fire_target_count) != int(best_candidate.estimated_friendly_fire_target_count):
+		return int(candidate.estimated_friendly_fire_target_count) < int(best_candidate.estimated_friendly_fire_target_count)
+	if int(candidate.friendly_fire_penalty_score) != int(best_candidate.friendly_fire_penalty_score):
+		return int(candidate.friendly_fire_penalty_score) < int(best_candidate.friendly_fire_penalty_score)
+	var survival_risk_comparison := _compare_post_action_survival_risk(candidate, best_candidate)
+	if survival_risk_comparison != 0:
+		return survival_risk_comparison > 0
+	if int(candidate.estimated_lethal_threat_target_count) != int(best_candidate.estimated_lethal_threat_target_count):
+		return int(candidate.estimated_lethal_threat_target_count) > int(best_candidate.estimated_lethal_threat_target_count)
+	if int(candidate.estimated_lethal_target_count) != int(best_candidate.estimated_lethal_target_count):
+		return int(candidate.estimated_lethal_target_count) > int(best_candidate.estimated_lethal_target_count)
+	var candidate_is_emergency_survival := _is_emergency_survival_score_input(candidate)
+	var best_is_emergency_survival := _is_emergency_survival_score_input(best_candidate)
+	if candidate_is_emergency_survival != best_is_emergency_survival:
+		return candidate_is_emergency_survival
+	if int(candidate.estimated_lethal_target_count) > 0 and int(best_candidate.estimated_lethal_target_count) > 0:
+		if int(candidate.total_score) != int(best_candidate.total_score):
+			return int(candidate.total_score) > int(best_candidate.total_score)
+		if int(candidate.hit_payoff_score) != int(best_candidate.hit_payoff_score):
+			return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
+		if int(candidate.effective_target_count) != int(best_candidate.effective_target_count):
+			return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
+		if int(candidate.resource_cost_score) != int(best_candidate.resource_cost_score):
+			return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
 	if int(candidate.score_bucket_priority) != int(best_candidate.score_bucket_priority):
 		return int(candidate.score_bucket_priority) > int(best_candidate.score_bucket_priority)
 	if int(candidate.total_score) != int(best_candidate.total_score):
 		return int(candidate.total_score) > int(best_candidate.total_score)
 	if int(candidate.hit_payoff_score) != int(best_candidate.hit_payoff_score):
 		return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
+	if int(candidate.effective_target_count) != int(best_candidate.effective_target_count):
+		return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
 	if int(candidate.target_count) != int(best_candidate.target_count):
 		return int(candidate.target_count) > int(best_candidate.target_count)
 	if int(candidate.position_objective_score) != int(best_candidate.position_objective_score):
@@ -192,49 +214,59 @@ func _is_better_skill_score_input(candidate, best_candidate) -> bool:
 	return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
 
 
+func _is_emergency_survival_score_input(score_input) -> bool:
+	if score_input == null:
+		return false
+	if score_input.score_bucket_id != &"archer_survival":
+		return false
+	if bool(score_input.has_post_action_threat_projection):
+		if bool(score_input.pre_action_is_lethal_survival_risk) and not bool(score_input.post_action_is_lethal_survival_risk):
+			return true
+		if int(score_input.pre_action_threat_expected_damage) > int(score_input.post_action_remaining_threat_expected_damage) \
+				and int(score_input.post_action_survival_margin) >= 0:
+			return true
+	if int(score_input.target_count) > 0 or int(score_input.effective_target_count) > 0:
+		return false
+	if int(score_input.enemy_target_count) > 0 or int(score_input.ally_target_count) > 0:
+		return false
+	if int(score_input.estimated_damage) != 0 or int(score_input.estimated_control_count) != 0:
+		return false
+	if int(score_input.position_current_distance) >= 0 and int(score_input.position_safe_distance) > 0:
+		var current_gap := int(score_input.position_safe_distance) - int(score_input.position_current_distance)
+		if current_gap < 2:
+			return false
+		if int(score_input.distance_to_primary_coord) >= 0:
+			return int(score_input.distance_to_primary_coord) >= int(score_input.position_safe_distance)
+		return int(score_input.position_objective_score) > 0
+	return int(score_input.position_objective_score) > 0
+
+
+func _compare_post_action_survival_risk(candidate, best_candidate) -> int:
+	if candidate == null or best_candidate == null:
+		return 0
+	if not bool(candidate.has_post_action_threat_projection) or not bool(best_candidate.has_post_action_threat_projection):
+		return 0
+	var candidate_fatal := bool(candidate.post_action_is_lethal_survival_risk)
+	var best_fatal := bool(best_candidate.post_action_is_lethal_survival_risk)
+	if candidate_fatal != best_fatal:
+		return -1 if candidate_fatal else 1
+	return 0
+
+
 func _build_wait_command(context):
-	if context == null or context.unit_state == null:
-		return null
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BattleCommand.TYPE_WAIT
-	command.unit_id = context.unit_state.unit_id
-	return command
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_wait_command(context)
 
 
 func _build_move_command(context, target_coord: Vector2i):
-	if context == null or context.unit_state == null:
-		return null
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BattleCommand.TYPE_MOVE
-	command.unit_id = context.unit_state.unit_id
-	command.target_coord = target_coord
-	return command
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_move_command(context, target_coord)
 
 
 func _build_unit_skill_command(context, skill_id: StringName, target_unit):
-	if context == null or context.unit_state == null or target_unit == null:
-		return null
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BattleCommand.TYPE_SKILL
-	command.unit_id = context.unit_state.unit_id
-	command.skill_id = skill_id
-	command.target_unit_id = target_unit.unit_id
-	command.target_coord = target_unit.coord
-	return command
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_unit_skill_command(context, skill_id, target_unit)
 
 
 func _build_ground_skill_command(context, skill_id: StringName, skill_variant_id: StringName, target_coords: Array):
-	if context == null or context.unit_state == null:
-		return null
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BattleCommand.TYPE_SKILL
-	command.unit_id = context.unit_state.unit_id
-	command.skill_id = skill_id
-	command.skill_variant_id = skill_variant_id
-	command.target_coords = _sort_coords(target_coords)
-	if not command.target_coords.is_empty():
-		command.target_coord = command.target_coords[0]
-	return command
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_ground_skill_command(context, skill_id, skill_variant_id, target_coords)
 
 
 func _collect_units_by_filter(context, target_filter: StringName) -> Array:
@@ -254,6 +286,9 @@ func _collect_units_by_filter(context, target_filter: StringName) -> Array:
 func _matches_target_filter(context, unit_state: BattleUnitState, target_filter: StringName) -> bool:
 	if context == null or context.unit_state == null or unit_state == null:
 		return false
+	if bool(context.unit_state.ai_blackboard.get("madness_target_any_team", false)) \
+			and target_filter != &"self":
+		return unit_state.unit_id != context.unit_state.unit_id
 	match target_filter:
 		&"enemy":
 			return unit_state.faction_id != context.unit_state.faction_id
@@ -267,7 +302,12 @@ func _matches_target_filter(context, unit_state: BattleUnitState, target_filter:
 
 func _sort_target_units(context, target_filter: StringName, selector: StringName) -> Array:
 	var effective_filter = target_filter
-	if selector == &"nearest_enemy" \
+	if context != null \
+			and context.unit_state != null \
+			and bool(context.unit_state.ai_blackboard.get("madness_target_any_team", false)) \
+			and selector != &"self":
+		effective_filter = &"any"
+	elif selector == &"nearest_enemy" \
 			or selector == &"lowest_hp_enemy" \
 			or selector == TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY:
 		effective_filter = &"enemy"
@@ -283,8 +323,8 @@ func _sort_target_units(context, target_filter: StringName, selector: StringName
 		return units
 	var nearest_distance := _resolve_nearest_distance(context, units)
 	units.sort_custom(func(left: BattleUnitState, right: BattleUnitState) -> bool:
-		var left_hp_ratio = _get_hp_ratio(left)
-		var right_hp_ratio = _get_hp_ratio(right)
+		var left_hp_basis_points := _get_hp_basis_points(left)
+		var right_hp_basis_points := _get_hp_basis_points(right)
 		var left_distance = _distance_between_units(context, context.unit_state, left)
 		var right_distance = _distance_between_units(context, context.unit_state, right)
 		if selector == TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY:
@@ -293,11 +333,11 @@ func _sort_target_units(context, target_filter: StringName, selector: StringName
 			if left_threat_score != right_threat_score:
 				return left_threat_score > right_threat_score
 		if selector == &"lowest_hp_enemy" or selector == &"lowest_hp_ally":
-			if !is_equal_approx(left_hp_ratio, right_hp_ratio):
-				return left_hp_ratio < right_hp_ratio
+			if left_hp_basis_points != right_hp_basis_points:
+				return left_hp_basis_points < right_hp_basis_points
 			return left_distance < right_distance
 		if left_distance == right_distance:
-			return left_hp_ratio < right_hp_ratio
+			return left_hp_basis_points < right_hp_basis_points
 		return left_distance < right_distance
 	)
 	return units
@@ -363,11 +403,12 @@ func _resolve_forced_target_unit(context, target_filter: StringName):
 	return context.resolve_forced_target_unit(target_filter)
 
 
-func _get_hp_ratio(unit_state: BattleUnitState) -> float:
+func _get_hp_basis_points(unit_state: BattleUnitState) -> int:
 	if unit_state == null or unit_state.attribute_snapshot == null:
-		return 1.0
+		return HP_BASIS_POINTS_DENOMINATOR
 	var hp_max = maxi(int(unit_state.attribute_snapshot.get_value(&"hp_max")), 1)
-	return clampf(float(unit_state.current_hp) / float(hp_max), 0.0, 1.0)
+	var current_hp := clampi(int(unit_state.current_hp), 0, hp_max)
+	return clampi(int((current_hp * HP_BASIS_POINTS_DENOMINATOR) / hp_max), 0, HP_BASIS_POINTS_DENOMINATOR)
 
 
 func _distance_between_units(context, first_unit: BattleUnitState, second_unit: BattleUnitState) -> int:
@@ -423,7 +464,7 @@ func _resolve_effective_attack_range(context, skill_def: SkillDef = null, range_
 	if context == null or context.unit_state == null:
 		return -1
 	if skill_def != null:
-		return BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(context.unit_state, skill_def)
+		return BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(context.unit_state, skill_def)
 	var best_range := -1
 	for skill_id in _resolve_known_skill_ids(context, range_skill_ids):
 		var candidate_skill_def := _get_skill_def(context, skill_id)
@@ -432,7 +473,7 @@ func _resolve_effective_attack_range(context, skill_def: SkillDef = null, range_
 		var block_reason := _get_skill_cast_block_reason(context, candidate_skill_def)
 		if not block_reason.is_empty():
 			continue
-		best_range = maxi(best_range, BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(context.unit_state, candidate_skill_def))
+		best_range = maxi(best_range, BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(context.unit_state, candidate_skill_def))
 	return best_range
 
 
@@ -460,7 +501,7 @@ func _resolve_unit_effective_threat_range(context, threat_unit: BattleUnitState)
 		var skill_def = context.skill_defs.get(skill_id) as SkillDef
 		if not _is_hostile_threat_skill(skill_def):
 			continue
-		best_range = maxi(best_range, BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(threat_unit, skill_def))
+		best_range = maxi(best_range, BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(threat_unit, skill_def))
 	if best_range < 0:
 		best_range = BATTLE_RANGE_SERVICE_SCRIPT.get_weapon_attack_range(threat_unit)
 	return best_range
@@ -616,116 +657,40 @@ func _enumerate_ground_target_coord_sets(context, cast_variant: CombatCastVarian
 
 
 func _sort_coords(coords: Array) -> Array[Vector2i]:
-	var sorted_coords: Array[Vector2i] = []
-	for coord_variant in coords:
-		if coord_variant is Vector2i:
-			sorted_coords.append(coord_variant)
-	sorted_coords.sort_custom(func(left: Vector2i, right: Vector2i) -> bool:
-		return left.y < right.y or (left.y == right.y and left.x < right.x)
-	)
-	return sorted_coords
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.sort_coords(coords)
 
 
 func _coord_set_key(coords: Array[Vector2i]) -> String:
-	var parts: Array[String] = []
-	for coord in _sort_coords(coords):
-		parts.append("%d:%d" % [coord.x, coord.y])
-	return "|".join(parts)
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.coord_set_key(coords)
 
 
 func _begin_action_trace(context, metadata: Dictionary = {}) -> Dictionary:
-	var trace_id: StringName = context.next_action_trace_id(action_id) if context != null and context.has_method("next_action_trace_id") else action_id
-	var action_trace := {
-		"trace_id": trace_id,
-		"action_id": String(action_id),
-		"score_bucket_id": String(score_bucket_id),
-		"metadata": metadata.duplicate(true),
-		"evaluation_count": 0,
-		"blocked_count": 0,
-		"preview_reject_count": 0,
-		"candidate_count": 0,
-		"block_reasons": {},
-		"top_candidates": [],
-		"chosen": false,
-	}
-	return action_trace
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.begin_action_trace(action_id, score_bucket_id, context, metadata)
 
 
 func _trace_count_increment(action_trace: Dictionary, key: String, amount: int = 1) -> void:
-	if action_trace.is_empty() or key.is_empty():
-		return
-	action_trace[key] = int(action_trace.get(key, 0)) + amount
+	ENEMY_AI_ACTION_HELPER_SCRIPT.trace_count_increment(action_trace, key, amount)
 
 
 func _trace_add_block_reason(action_trace: Dictionary, reason_key: String) -> void:
-	if action_trace.is_empty() or reason_key.is_empty():
-		return
-	_trace_count_increment(action_trace, "blocked_count", 1)
-	var block_reasons: Dictionary = action_trace.get("block_reasons", {})
-	block_reasons[reason_key] = int(block_reasons.get(reason_key, 0)) + 1
-	action_trace["block_reasons"] = block_reasons
+	ENEMY_AI_ACTION_HELPER_SCRIPT.trace_add_block_reason(action_trace, reason_key)
 
 
 func _trace_offer_candidate(action_trace: Dictionary, candidate_summary: Dictionary, keep_count: int = 5) -> void:
-	if action_trace.is_empty() or candidate_summary.is_empty():
-		return
-	_trace_count_increment(action_trace, "candidate_count", 1)
-	var top_candidates = action_trace.get("top_candidates", [])
-	if top_candidates is not Array:
-		top_candidates = []
-	top_candidates.append(candidate_summary.duplicate(true))
-	top_candidates.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
-		return int(left.get("total_score", -999999)) > int(right.get("total_score", -999999))
-	)
-	while top_candidates.size() > keep_count:
-		top_candidates.pop_back()
-	action_trace["top_candidates"] = top_candidates
+	ENEMY_AI_ACTION_HELPER_SCRIPT.trace_offer_candidate(action_trace, candidate_summary, keep_count)
 
 
 func _finalize_action_trace(context, action_trace: Dictionary, best_decision: BattleAiDecision = null) -> StringName:
-	if action_trace.is_empty():
-		return &""
-	if best_decision != null:
-		action_trace["best_reason_text"] = best_decision.reason_text
-		action_trace["best_command"] = _build_command_summary(best_decision.command)
-		var score_input = best_decision.score_input if best_decision.score_input != null else best_decision.skill_score_input
-		action_trace["best_score_input"] = score_input.to_dict() if score_input != null else {}
-		best_decision.action_trace_id = ProgressionDataUtils.to_string_name(action_trace.get("trace_id", ""))
-	if context != null and context.has_method("record_action_trace"):
-		context.record_action_trace(action_trace)
-	return ProgressionDataUtils.to_string_name(action_trace.get("trace_id", ""))
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.finalize_action_trace(context, action_trace, best_decision)
 
 
 func _build_candidate_summary(label: String, command, score_input = null, extra: Dictionary = {}) -> Dictionary:
-	var summary := {
-		"label": label,
-		"command": _build_command_summary(command),
-		"total_score": int(score_input.total_score) if score_input != null else int(extra.get("total_score", 0)),
-		"score_input": score_input.to_dict() if score_input != null else {},
-	}
-	for key in extra.keys():
-		summary[key] = extra.get(key)
-	return summary
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_candidate_summary(label, command, score_input, extra)
 
 
 func _format_skill_variant_label(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> String:
-	if skill_def == null:
-		return ""
-	if cast_variant == null or cast_variant.display_name.is_empty():
-		return skill_def.display_name
-	return "%s·%s" % [skill_def.display_name, cast_variant.display_name]
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.format_skill_variant_label(skill_def, cast_variant)
 
 
 func _build_command_summary(command) -> Dictionary:
-	if command == null:
-		return {}
-	return {
-		"command_type": String(command.command_type),
-		"unit_id": String(command.unit_id),
-		"skill_id": String(command.skill_id),
-		"skill_variant_id": String(command.skill_variant_id),
-		"target_unit_id": String(command.target_unit_id),
-		"target_unit_ids": command.target_unit_ids.duplicate(),
-		"target_coord": command.target_coord,
-		"target_coords": command.target_coords.duplicate(),
-	}
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_command_summary(command)

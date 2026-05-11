@@ -4,6 +4,8 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
 const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
@@ -48,7 +50,8 @@ const CANYON_MIN_HEIGHT := 4
 const GLOBAL_MIN_HEIGHT := 4
 
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 ## 字段说明：记录网格服务，用于构造测试场景、记录结果并支撑回归断言。
 var _grid_service := BattleGridService.new()
 ## 字段说明：记录边缘面服务，用于统一验证渲染层与规则层读取同一套 edge cache。
@@ -2325,17 +2328,17 @@ func _stringify_prop_ids(prop_ids: Array[StringName]) -> Array[String]:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _assert_approx(actual: float, expected: float, tolerance: float, message: String) -> void:
 	if absf(actual - expected) > tolerance:
-		_failures.append(
+		_test.fail(
 			"%s | actual=%s expected=%s tolerance=%s" % [
 				message,
 				str(actual),
@@ -2347,7 +2350,7 @@ func _assert_approx(actual: float, expected: float, tolerance: float, message: S
 
 func _assert_rect_approx(actual: Rect2, expected: Rect2, tolerance: float, message: String) -> void:
 	if actual.position.distance_to(expected.position) > tolerance or actual.size.distance_to(expected.size) > tolerance:
-		_failures.append(
+		_test.fail(
 			"%s | actual=%s expected=%s tolerance=%s" % [
 				message,
 				str(actual),

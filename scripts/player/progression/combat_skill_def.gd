@@ -66,12 +66,18 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var area_direction_mode: StringName = &"target_vector"
 ## 字段说明：在编辑器中暴露 AI 标签集合配置，便于后续评分模型读取技能意图。
 @export var ai_tags: Array[StringName] = []
+## 字段说明：正式投射 / 施放类别；屏障、反制和类似规则只读取此字段，不从技能 ID 或标签猜测。
+@export var delivery_categories: Array[StringName] = []
 ## 字段说明：在编辑器中暴露目标选择模式配置，便于表达单体、多单位或其他特殊选目标协议。
 @export var target_selection_mode: StringName = &"single_unit"
 ## 字段说明：在编辑器中暴露最小目标数量配置，便于表达多目标技能的下限要求。
 @export var min_target_count := 1
 ## 字段说明：在编辑器中暴露最大目标数量配置，便于表达多目标技能的上限要求。
 @export var max_target_count := 1
+## 字段说明：允许多次选择同一单位作为目标（如奥术飞弹可多发射向同一目标）。
+@export var allow_repeat_target: bool = false
+## 字段说明：同一目标被允许重复选择的最大次数；0 或 1 表示无额外限制（仅受 allow_repeat_target 控制）。
+@export var max_hits_per_target := 0
 ## 字段说明：在编辑器中暴露目标结算顺序模式配置，便于保持预览与实际执行顺序一致。
 @export var selection_order_mode: StringName = &"stable"
 ## 字段说明：在编辑器中暴露效果定义集合配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。

@@ -16,7 +16,7 @@ const BattleSimUnitSpec = preload("res://scripts/systems/battle/sim/battle_sim_u
 @export var ally_units: Array = []
 @export var enemy_units: Array = []
 @export var cell_overrides: Array[Dictionary] = []
-@export var tick_interval_seconds := 1.0
+@export var timeline_ticks_per_step := 1
 @export var tu_per_tick := 5
 @export var max_iterations := 200
 @export var manual_policy: StringName = &"wait"
@@ -37,7 +37,6 @@ func build_start_context() -> Dictionary:
 	var context := {
 		"battle_party": _build_unit_payloads(ally_units, &"player", &"manual"),
 		"enemy_units": _build_unit_payloads(enemy_units, &"hostile", &"ai"),
-		"tick_interval_seconds": tick_interval_seconds,
 		"tu_per_tick": tu_per_tick,
 		"battle_terrain_profile": terrain_profile_id,
 		"world_coord": world_coord,
@@ -62,7 +61,7 @@ func to_dict() -> Dictionary:
 		"terrain_profile_id": String(terrain_profile_id),
 		"use_formal_terrain_generation": use_formal_terrain_generation,
 		"world_coord": world_coord,
-		"tick_interval_seconds": tick_interval_seconds,
+		"timeline_ticks_per_step": timeline_ticks_per_step,
 		"tu_per_tick": tu_per_tick,
 		"max_iterations": max_iterations,
 		"manual_policy": String(manual_policy),

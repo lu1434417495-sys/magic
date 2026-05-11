@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_PANEL_SCENE = preload("res://scenes/ui/battle_map_panel.tscn")
 const BATTLE_MAP_PANEL_SCRIPT = preload("res://scripts/ui/battle_map_panel.gd")
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
@@ -16,7 +18,8 @@ const ENEMY_COUNT := 40
 const ITERATIONS := 24
 const MAX_READY_FRAMES := 24
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
 
 
@@ -49,7 +52,7 @@ func _run_async() -> void:
 	var preview_target_coords: Array[Vector2i] = []
 	var target_unit_ids: Array[StringName] = []
 	if selected_cycle.is_empty():
-		_failures.append("BattlePanelRefreshBenchmark could not build a selected cycle.")
+		_test.fail("BattlePanelRefreshBenchmark could not build a selected cycle.")
 
 	if _failures.is_empty():
 		panel.refresh(
@@ -65,7 +68,7 @@ func _run_async() -> void:
 		)
 		var warmup_ready := await _wait_for_panel_render_ready(panel)
 		if not warmup_ready:
-			_failures.append("BattlePanelRefreshBenchmark did not reach render-ready state before timing.")
+			_test.fail("BattlePanelRefreshBenchmark did not reach render-ready state before timing.")
 
 	var full_refresh := await _run_panel_pass(
 		"full_refresh",
@@ -112,7 +115,7 @@ func _run_panel_pass(
 	if not panel.is_battle_render_content_ready():
 		var baseline_ready := await _wait_for_panel_render_ready(panel)
 		if not baseline_ready:
-			_failures.append("BattlePanelRefreshBenchmark pass %s started before render content became ready." % pass_id)
+			_test.fail("BattlePanelRefreshBenchmark pass %s started before render content became ready." % pass_id)
 			return {
 				"pass_id": pass_id,
 				"iterations": 0,
@@ -160,7 +163,7 @@ func _run_panel_pass(
 		var ready := await _wait_for_panel_render_ready(panel)
 		frame_usec += Time.get_ticks_usec() - frame_start
 		if not ready:
-			_failures.append("BattlePanelRefreshBenchmark pass %s iteration %d did not regain render-ready state." % [pass_id, iteration])
+			_test.fail("BattlePanelRefreshBenchmark pass %s iteration %d did not regain render-ready state." % [pass_id, iteration])
 			break
 
 	return {
@@ -315,7 +318,7 @@ func _add_unit_to_state(state, unit, is_enemy: bool) -> void:
 		state.ally_unit_ids.append(unit.unit_id)
 	var placed: bool = _grid_service.place_unit(state, unit, unit.coord, true)
 	if not placed:
-		_failures.append("BattlePanelRefreshBenchmark could not place unit %s." % String(unit.unit_id))
+		_test.fail("BattlePanelRefreshBenchmark could not place unit %s." % String(unit.unit_id))
 
 
 func _build_selected_cycle(state) -> Array[Vector2i]:

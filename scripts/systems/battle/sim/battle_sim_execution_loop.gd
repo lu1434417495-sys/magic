@@ -6,7 +6,7 @@ const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
 const DEFAULT_MAX_IDLE_LOOPS := 25
-const DEFAULT_TICK_INTERVAL_SECONDS := 1.0
+const DEFAULT_TIMELINE_TICKS_PER_STEP := 1
 const DEFAULT_MANUAL_POLICY: StringName = &"wait"
 
 
@@ -18,7 +18,7 @@ func run(runtime, state, scenario_def, options: Dictionary = {}) -> Dictionary:
 	var max_iterations := _resolve_max_iterations(scenario_def, options)
 	var max_idle_loops := _resolve_max_idle_loops(options)
 	var manual_policy := _resolve_manual_policy(scenario_def, options)
-	var tick_interval_seconds := _resolve_tick_interval_seconds(scenario_def, options)
+	var timeline_ticks_per_step := _resolve_timeline_ticks_per_step(scenario_def, options)
 	var progress_iteration_interval := maxi(int(options.get("progress_iteration_interval", 0)), 0)
 	var progress_callback: Callable = options.get("progress_callback", Callable())
 	var progress_context: Dictionary = options.get("progress_context", {}) if options.get("progress_context", {}) is Dictionary else {}
@@ -27,7 +27,7 @@ func run(runtime, state, scenario_def, options: Dictionary = {}) -> Dictionary:
 		iterations += 1
 		var previous_tu := int(state.timeline.current_tu) if state.timeline != null else 0
 		var previous_signature := build_progress_signature(state)
-		advance_step(runtime, state, manual_policy, tick_interval_seconds)
+		advance_step(runtime, state, manual_policy, timeline_ticks_per_step)
 		var next_tu := int(state.timeline.current_tu) if state != null and state.timeline != null else previous_tu
 		if next_tu != previous_tu:
 			timeline_steps += 1
@@ -62,7 +62,7 @@ func advance_step(
 	runtime,
 	state,
 	manual_policy: StringName = DEFAULT_MANUAL_POLICY,
-	tick_interval_seconds: float = DEFAULT_TICK_INTERVAL_SECONDS
+	timeline_ticks_per_step: int = DEFAULT_TIMELINE_TICKS_PER_STEP
 ) -> void:
 	if runtime == null or state == null:
 		return
@@ -71,12 +71,12 @@ func advance_step(
 		if active_unit != null and active_unit.is_alive and active_unit.control_mode == &"manual":
 			_issue_manual_policy(runtime, manual_policy, active_unit.unit_id)
 		else:
-			runtime.advance(0.0)
+			runtime.advance(0)
 		return
 	if has_ready_units(state):
-		runtime.advance(0.0)
+		runtime.advance(0)
 		return
-	runtime.advance(tick_interval_seconds if tick_interval_seconds > 0.0 else DEFAULT_TICK_INTERVAL_SECONDS)
+	runtime.advance(maxi(int(timeline_ticks_per_step), DEFAULT_TIMELINE_TICKS_PER_STEP))
 
 
 func has_ready_units(state) -> bool:
@@ -139,10 +139,10 @@ func _resolve_manual_policy(scenario_def, options: Dictionary) -> StringName:
 	return ProgressionDataUtils.to_string_name(scenario_def.manual_policy) if scenario_def != null else DEFAULT_MANUAL_POLICY
 
 
-func _resolve_tick_interval_seconds(scenario_def, options: Dictionary) -> float:
-	var value := DEFAULT_TICK_INTERVAL_SECONDS
-	if options.has("tick_interval_seconds"):
-		value = float(options.get("tick_interval_seconds", DEFAULT_TICK_INTERVAL_SECONDS))
+func _resolve_timeline_ticks_per_step(scenario_def, options: Dictionary) -> int:
+	var value := DEFAULT_TIMELINE_TICKS_PER_STEP
+	if options.has("timeline_ticks_per_step"):
+		value = int(options.get("timeline_ticks_per_step", DEFAULT_TIMELINE_TICKS_PER_STEP))
 	elif scenario_def != null:
-		value = float(scenario_def.tick_interval_seconds)
-	return value if value > 0.0 else DEFAULT_TICK_INTERVAL_SECONDS
+		value = int(scenario_def.timeline_ticks_per_step)
+	return maxi(value, DEFAULT_TIMELINE_TICKS_PER_STEP)

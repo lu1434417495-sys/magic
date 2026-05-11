@@ -1,11 +1,12 @@
 ## 文件说明：装备实例状态，表达一件已实例化装备的唯一身份与可变属性。
 ## 审查重点：instance_id 必须由 world-level 分配器传入；其余字段均为可序列化的值类型。
-## 备注：current_durability 为 -1 表示当前无耐久数据（Phase 2 阶段占位）。
+## 备注：current_durability 始终为正整数；耐久归零的装备会被持有方移除并销毁。
 
 class_name EquipmentInstanceState
 extends RefCounted
 
 const SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const EQUIPMENT_DURABILITY_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_durability_rules.gd")
 const SAVE_PAYLOAD_LABEL := "save equipment instance payload"
 const TRANSIENT_LOOT_PAYLOAD_LABEL := "transient loot equipment instance payload"
 
@@ -23,12 +24,8 @@ var instance_id: StringName = &""
 var item_id: StringName = &""
 ## 字段说明：装备品质层级。
 var rarity: int = RarityTier.COMMON
-## 字段说明：当前剩余耐久；-1 表示耐久功能尚未启用。
-var current_durability: int = -1
-## 字段说明：护甲磨损累计进度；0.0 为未磨损（阈值由规则层决定）。
-var armor_wear_progress: float = 0.0
-## 字段说明：武器磨耗累计进度；0.0 为未磨耗（阈值由规则层决定）。
-var weapon_wear_progress: float = 0.0
+## 字段说明：当前剩余耐久；必须为 1..当前稀有度耐久上限，0 耐久装备不进入持久状态。
+var current_durability: int = EQUIPMENT_DURABILITY_RULES_SCRIPT.get_default_current_durability(RarityTier.COMMON)
 
 
 ## 创建新实例；instance_id 由持有 world_data 的服务路径分配。
@@ -36,6 +33,7 @@ static func create(p_item_id: StringName, p_instance_id: StringName = &"") -> Eq
 	var inst := SCRIPT.new()
 	inst.instance_id = ProgressionDataUtils.to_string_name(p_instance_id)
 	inst.item_id = ProgressionDataUtils.to_string_name(p_item_id)
+	inst.current_durability = EQUIPMENT_DURABILITY_RULES_SCRIPT.get_default_current_durability(inst.rarity)
 	return inst
 
 
@@ -53,8 +51,6 @@ func to_dict() -> Dictionary:
 		"item_id": String(item_id),
 		"rarity": rarity,
 		"current_durability": current_durability,
-		"armor_wear_progress": armor_wear_progress,
-		"weapon_wear_progress": weapon_wear_progress,
 	}
 
 
@@ -85,8 +81,6 @@ static func _from_dict(
 	inst.item_id = ProgressionDataUtils.to_string_name(payload["item_id"])
 	inst.rarity = int(payload["rarity"])
 	inst.current_durability = int(payload["current_durability"])
-	inst.armor_wear_progress = float(payload["armor_wear_progress"])
-	inst.weapon_wear_progress = float(payload["weapon_wear_progress"])
 	return inst
 
 
@@ -103,8 +97,6 @@ static func _get_payload_validation_error(
 		"item_id",
 		"rarity",
 		"current_durability",
-		"armor_wear_progress",
-		"weapon_wear_progress",
 	]
 	for field_name in required_fields:
 		if not payload.has(field_name):
@@ -126,19 +118,11 @@ static func _get_payload_validation_error(
 	var current_durability_variant: Variant = payload["current_durability"]
 	if current_durability_variant is not int:
 		return "Corrupt %s: current_durability must be int." % payload_label
-	var armor_wear_progress_variant: Variant = payload["armor_wear_progress"]
-	if armor_wear_progress_variant is not float:
-		return "Corrupt %s: armor_wear_progress must be float." % payload_label
-	var weapon_wear_progress_variant: Variant = payload["weapon_wear_progress"]
-	if weapon_wear_progress_variant is not float:
-		return "Corrupt %s: weapon_wear_progress must be float." % payload_label
 
 	var instance_id := ProgressionDataUtils.to_string_name(instance_id_variant)
 	var item_id := ProgressionDataUtils.to_string_name(item_id_variant)
 	var rarity_value := int(rarity_variant)
 	var current_durability := int(current_durability_variant)
-	var armor_wear_progress := float(armor_wear_progress_variant)
-	var weapon_wear_progress := float(weapon_wear_progress_variant)
 	if instance_id == &"" and not allow_empty_instance_id:
 		return "Corrupt %s: instance_id is required." % payload_label
 	if item_id == &"":
@@ -149,20 +133,11 @@ static func _get_payload_validation_error(
 			rarity_value,
 			String(instance_id),
 		]
-	if current_durability < -1:
-		return "Corrupt %s: invalid current_durability %d for instance '%s'." % [
+	if not EQUIPMENT_DURABILITY_RULES_SCRIPT.is_valid_current_durability(current_durability, rarity_value):
+		return "Corrupt %s: invalid current_durability %d for rarity %d on instance '%s'." % [
 			payload_label,
 			current_durability,
-			String(instance_id),
-		]
-	if armor_wear_progress < 0.0:
-		return "Corrupt %s: armor_wear_progress must be non-negative for instance '%s'." % [
-			payload_label,
-			String(instance_id),
-		]
-	if weapon_wear_progress < 0.0:
-		return "Corrupt %s: weapon_wear_progress must be non-negative for instance '%s'." % [
-			payload_label,
+			rarity_value,
 			String(instance_id),
 		]
 	return ""

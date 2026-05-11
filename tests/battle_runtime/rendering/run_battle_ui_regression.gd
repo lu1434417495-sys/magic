@@ -1,8 +1,10 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
-const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -30,7 +32,8 @@ const ARCHER_MULTISHOT_SKILL_ID: StringName = &"archer_multishot"
 const ARCHER_MULTISHOT_VARIANT_ID: StringName = &"multishot_volley"
 const ACTION_TITHE_VARIANT_ID: StringName = &"action_tithe"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class MockGameSession:
@@ -136,9 +139,9 @@ func _test_multi_unit_hud_copy_and_selection_state() -> void:
 	game_session.skill_defs = {
 		&"archer_multishot": _build_multi_unit_skill_def(),
 	}
-	var adapter := BattleHudAdapter.new()
+	var adapter = _build_hud_adapter()
 	var state := _build_state()
-	var snapshot := adapter.build_snapshot(
+	var snapshot = adapter.build_snapshot(
 		state,
 		Vector2i(0, 0),
 		&"archer_multishot",
@@ -157,7 +160,7 @@ func _test_multi_unit_hud_copy_and_selection_state() -> void:
 
 
 func _test_focus_resource_rows_hide_locked_mp_and_aura() -> void:
-	var adapter := BattleHudAdapter.new()
+	var adapter = _build_hud_adapter()
 	var state := _build_state()
 	var unit := state.units.get(&"ally_ui") as BattleUnitState
 	unit.current_stamina = 16
@@ -167,7 +170,7 @@ func _test_focus_resource_rows_hide_locked_mp_and_aura() -> void:
 	unit.attribute_snapshot.set_value(&"mp_max", 9)
 	unit.attribute_snapshot.set_value(&"aura_max", 7)
 
-	var locked_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var locked_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
 	var locked_focus := locked_snapshot.get("focus_unit", {}) as Dictionary
 	var locked_resources: Dictionary = locked_focus.get("resource_info", {})
 	var locked_hp := locked_resources.get("hp", {}) as Dictionary
@@ -181,7 +184,7 @@ func _test_focus_resource_rows_hide_locked_mp_and_aura() -> void:
 
 	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
 	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
-	var unlocked_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var unlocked_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
 	var unlocked_focus := unlocked_snapshot.get("focus_unit", {}) as Dictionary
 	var unlocked_resources: Dictionary = unlocked_focus.get("resource_info", {})
 	var unlocked_mp := unlocked_resources.get("mp", {}) as Dictionary
@@ -223,7 +226,7 @@ func _test_battle_panel_uses_formal_hud_snapshot_fields() -> void:
 	]
 	state.set_party_backpack_view(backpack)
 
-	var snapshot := BattleHudAdapter.new().build_snapshot(state, Vector2i(0, 0))
+	var snapshot = _build_hud_adapter().build_snapshot(state, Vector2i(0, 0))
 	var focus := snapshot.get("focus_unit", {}) as Dictionary
 	_assert_true(focus.has("move_current") and focus.has("move_max"), "BattleHudAdapter 应提供正式 move_current/move_max 字段。")
 	var equipment_panel := snapshot.get("equipment_panel", {}) as Dictionary
@@ -235,6 +238,7 @@ func _test_battle_panel_uses_formal_hud_snapshot_fields() -> void:
 	var panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(panel)
 	await process_frame
+	_configure_battle_panel(panel)
 	panel.size = VIEWPORT_SIZE
 	panel._apply_snapshot(snapshot)
 	await process_frame
@@ -272,6 +276,7 @@ func _test_battle_panel_does_not_recover_legacy_hud_snapshot_fields() -> void:
 	var panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(panel)
 	await process_frame
+	_configure_battle_panel(panel)
 	panel.size = VIEWPORT_SIZE
 
 	panel._apply_snapshot(_build_legacy_missing_field_panel_snapshot())
@@ -312,7 +317,7 @@ func _test_equipment_preview_cache_reuses_stable_snapshot_results() -> void:
 	var game_session := await _install_mock_game_session()
 	game_session.item_defs = ItemContentRegistry.new().get_item_defs()
 
-	var adapter := BattleHudAdapter.new()
+	var adapter = _build_hud_adapter()
 	var state := _build_state()
 	state.phase = &"unit_acting"
 	state.modal_state = &""
@@ -334,7 +339,7 @@ func _test_equipment_preview_cache_reuses_stable_snapshot_results() -> void:
 
 	var preview_callback := CountingEquipmentPreviewCallback.new()
 	var callback := Callable(preview_callback, "preview")
-	var first_snapshot := adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	var first_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
 	var first_panel := first_snapshot.get("equipment_panel", {}) as Dictionary
 	var first_entries := first_panel.get("backpack_entries", []) as Array
 	_assert_eq(first_entries.size(), 2, "装备预览缓存回归前置：HUD 应看到 2 件 battle-local 背包装备。")
@@ -360,7 +365,7 @@ func _test_large_equipment_preview_cache_reuses_stable_snapshot_results() -> voi
 	var game_session := await _install_mock_game_session()
 	game_session.item_defs = ItemContentRegistry.new().get_item_defs()
 
-	var adapter := BattleHudAdapter.new()
+	var adapter = _build_hud_adapter()
 	var state := _build_state()
 	state.phase = &"unit_acting"
 	state.modal_state = &""
@@ -383,7 +388,7 @@ func _test_large_equipment_preview_cache_reuses_stable_snapshot_results() -> voi
 
 	var preview_callback := CountingEquipmentPreviewCallback.new()
 	var callback := Callable(preview_callback, "preview")
-	var first_snapshot := adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	var first_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
 	var first_panel := first_snapshot.get("equipment_panel", {}) as Dictionary
 	var first_entries := first_panel.get("backpack_entries", []) as Array
 	_assert_eq(first_entries.size(), 64, "大背包装备预览缓存回归前置：HUD 应看到全部 battle-local 背包装备。")
@@ -423,7 +428,7 @@ func _test_equipment_preview_uses_default_failure_message_for_silent_preview() -
 	state.set_party_backpack_view(backpack)
 
 	var silent_callback := BlockingEquipmentPreviewCallback.new()
-	var silent_snapshot := BattleHudAdapter.new().build_snapshot(
+	var silent_snapshot = _build_hud_adapter().build_snapshot(
 		state,
 		Vector2i(0, 0),
 		&"",
@@ -449,7 +454,7 @@ func _test_equipment_preview_uses_default_failure_message_for_silent_preview() -
 
 	var explicit_callback := BlockingEquipmentPreviewCallback.new()
 	explicit_callback.message = "行动点不足，无法换装。"
-	var explicit_snapshot := BattleHudAdapter.new().build_snapshot(
+	var explicit_snapshot = _build_hud_adapter().build_snapshot(
 		state,
 		Vector2i(0, 0),
 		&"",
@@ -535,8 +540,8 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	for stage_preview_text in stage_preview_texts:
 		_assert_true(String(stage_preview_text).contains("需 "), "repeat_attack 每段预览文案都应包含 required roll。")
 
-	var adapter := BattleHudAdapter.new()
-	var snapshot := adapter.build_snapshot(
+	var adapter = _build_hud_adapter()
+	var snapshot = adapter.build_snapshot(
 		state,
 		defender.coord,
 		skill_def.skill_id,
@@ -615,8 +620,8 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 	_assert_true(hit_preview_text.begins_with("预计命中率 "), "普通单段技能命中预览摘要应使用统一 resolver 文案前缀。")
 	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 1, "普通单段技能命中预览应暴露单段命中率。")
 
-	var adapter := BattleHudAdapter.new()
-	var snapshot := adapter.build_snapshot(
+	var adapter = _build_hud_adapter()
+	var snapshot = adapter.build_snapshot(
 		state,
 		defender.coord,
 		skill_def.skill_id,
@@ -686,6 +691,7 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 	var panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(panel)
 	await process_frame
+	_configure_battle_panel(panel)
 	panel.size = VIEWPORT_SIZE
 	panel.refresh(
 		state,
@@ -751,7 +757,7 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	game_session.skill_defs = {
 		skill_def.skill_id: skill_def,
 	}
-	var adapter := BattleHudAdapter.new()
+	var adapter = _build_hud_adapter()
 	var state := _build_state()
 	var active_unit := state.units.get(state.active_unit_id) as BattleUnitState
 	if active_unit == null:
@@ -765,7 +771,7 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	active_unit.current_stamina = 1
 	active_unit.attribute_snapshot.set_value(&"stamina_max", 2)
 
-	var stamina_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var stamina_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
 	var stamina_slots: Array = stamina_snapshot.get("skill_slots", [])
 	var stamina_slot: Dictionary = stamina_slots[0] if not stamina_slots.is_empty() and stamina_slots[0] is Dictionary else {}
 	_assert_true(bool(stamina_slot.get("is_disabled", false)), "体力不足时 HUD skill slot 应保持禁用。")
@@ -775,7 +781,7 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	active_unit.current_stamina = 4
 	active_unit.attribute_snapshot.set_value(&"stamina_max", 4)
 	active_unit.cooldowns[skill_def.skill_id] = 10
-	var cooldown_snapshot := adapter.build_snapshot(state, Vector2i(0, 0))
+	var cooldown_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
 	var cooldown_slots: Array = cooldown_snapshot.get("skill_slots", [])
 	var cooldown_slot: Dictionary = cooldown_slots[0] if not cooldown_slots.is_empty() and cooldown_slots[0] is Dictionary else {}
 	_assert_true(bool(cooldown_slot.get("is_disabled", false)), "冷却未结束时 HUD skill slot 应保持禁用。")
@@ -901,6 +907,7 @@ func _test_fate_preview_badges_surface_high_threat_and_mercy_states() -> void:
 	var high_threat_panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(high_threat_panel)
 	await process_frame
+	_configure_battle_panel(high_threat_panel)
 	high_threat_panel.size = VIEWPORT_SIZE
 	var high_threat_state := _build_fate_preview_state(&"battle_ui_fate_high_threat", 2, 0, skill_def.skill_id)
 	var high_threat_target := high_threat_state.units.get(&"fate_enemy") as BattleUnitState
@@ -937,6 +944,7 @@ func _test_fate_preview_badges_surface_high_threat_and_mercy_states() -> void:
 	var mercy_panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(mercy_panel)
 	await process_frame
+	_configure_battle_panel(mercy_panel)
 	mercy_panel.size = VIEWPORT_SIZE
 	var mercy_state := _build_fate_preview_state(&"battle_ui_fate_mercy", -5, 0, skill_def.skill_id)
 	var mercy_target := mercy_state.units.get(&"fate_enemy") as BattleUnitState
@@ -1039,8 +1047,8 @@ func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
 	for stage_preview_text in stage_preview_texts:
 		_assert_true(String(stage_preview_text).contains("需 "), "命中预览阶段文案应包含 required roll。")
 
-	var adapter := BattleHudAdapter.new()
-	var snapshot := adapter.build_snapshot(
+	var adapter = _build_hud_adapter()
+	var snapshot = adapter.build_snapshot(
 		state,
 		defender.coord,
 		skill_def.skill_id,
@@ -1079,6 +1087,7 @@ func _test_force_hit_no_crit_skill_hides_standard_fate_badges() -> void:
 	var panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(panel)
 	await process_frame
+	_configure_battle_panel(panel)
 	panel.size = VIEWPORT_SIZE
 	var state := _build_fate_preview_state(&"battle_ui_force_hit_no_crit", -5, 0, skill_def.skill_id)
 	var target := state.units.get(&"fate_enemy") as BattleUnitState
@@ -1124,7 +1133,7 @@ func _test_hybrid_multi_unit_skill_uses_shared_fate_policy() -> void:
 		skill_def.skill_id: skill_def,
 	}
 
-	var adapter := BattleHudAdapter.new()
+	var adapter = _build_hud_adapter()
 	var state := _build_hybrid_multi_unit_fate_preview_state()
 	var enemy := state.units.get(&"hybrid_enemy_a") as BattleUnitState
 	var target_coords: Array[Vector2i] = []
@@ -1132,7 +1141,7 @@ func _test_hybrid_multi_unit_skill_uses_shared_fate_policy() -> void:
 	if enemy != null:
 		target_coords.append(enemy.coord)
 		target_unit_ids.append(enemy.unit_id)
-	var snapshot := adapter.build_snapshot(
+	var snapshot = adapter.build_snapshot(
 		state,
 		enemy.coord if enemy != null else Vector2i.ZERO,
 		skill_def.skill_id,
@@ -1175,8 +1184,8 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 90)
 
-	var adapter := BattleHudAdapter.new()
-	var expected_hover_snapshot := adapter.build_snapshot(
+	var adapter = _build_hud_adapter()
+	var expected_hover_snapshot = adapter.build_snapshot(
 		state,
 		enemy_b.coord,
 		skill_def.skill_id,
@@ -1187,7 +1196,7 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 		[],
 		ARCHER_MULTISHOT_VARIANT_ID
 	)
-	var queued_first_snapshot := adapter.build_snapshot(
+	var queued_first_snapshot = adapter.build_snapshot(
 		state,
 		enemy_a.coord,
 		skill_def.skill_id,
@@ -1198,7 +1207,7 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 		[enemy_a.unit_id],
 		ARCHER_MULTISHOT_VARIANT_ID
 	)
-	var hover_after_queue_snapshot := adapter.build_snapshot(
+	var hover_after_queue_snapshot = adapter.build_snapshot(
 		state,
 		enemy_b.coord,
 		skill_def.skill_id,
@@ -1292,6 +1301,7 @@ func _test_battle_panel_flushes_to_ultrawide_edges() -> void:
 	var panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(panel)
 	await process_frame
+	_configure_battle_panel(panel)
 	panel.size = Vector2(ULTRAWIDE_PANEL_SIZE)
 	panel.show_battle(_build_state(), Vector2i(0, 0))
 	await process_frame
@@ -1316,6 +1326,7 @@ func _test_battle_panel_loading_overlay_waits_for_first_presented_frame() -> voi
 	var panel := BattlePanelScene.instantiate() as BattleMapPanel
 	root.add_child(panel)
 	await process_frame
+	_configure_battle_panel(panel)
 	panel.size = VIEWPORT_SIZE
 	var state := _build_state()
 	state.battle_id = &"battle_ui_loading_overlay"
@@ -1351,6 +1362,31 @@ func _install_mock_game_session() -> MockGameSession:
 	root.add_child(game_session)
 	await process_frame
 	return game_session
+
+
+func _build_hud_adapter():
+	var adapter = BattleHudAdapter.new()
+	var game_session = root.get_node_or_null("GameSession")
+	if game_session != null:
+		adapter.set_content_def_providers(
+			Callable(game_session, "get_skill_defs") if game_session.has_method("get_skill_defs") else Callable(),
+			Callable(game_session, "get_item_defs") if game_session.has_method("get_item_defs") else Callable()
+		)
+	return adapter
+
+
+func _configure_battle_panel(panel: BattleMapPanel) -> void:
+	if panel == null:
+		return
+	var game_session = root.get_node_or_null("GameSession")
+	if game_session == null:
+		return
+	panel.set_content_def_providers(
+		Callable(game_session, "get_skill_defs") if game_session.has_method("get_skill_defs") else Callable(),
+		Callable(game_session, "get_item_defs") if game_session.has_method("get_item_defs") else Callable()
+	)
+	if game_session.has_method("get_party_member_state"):
+		panel.set_party_member_state_resolver(Callable(game_session, "get_party_member_state"))
 
 
 func _build_multi_unit_skill_def() -> SkillDef:
@@ -1799,9 +1835,9 @@ func _wait_seconds(duration_seconds: float) -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

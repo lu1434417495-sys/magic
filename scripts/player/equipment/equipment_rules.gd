@@ -5,16 +5,28 @@ const MAIN_HAND: StringName = &"main_hand"
 const OFF_HAND: StringName = &"off_hand"
 const HEAD: StringName = &"head"
 const BODY: StringName = &"body"
-const ACCESSORY_1: StringName = &"accessory_1"
-const ACCESSORY_2: StringName = &"accessory_2"
+const HANDS: StringName = &"hands"
+const FEET: StringName = &"feet"
+const CLOAK: StringName = &"cloak"
+const NECKLACE: StringName = &"necklace"
+const RING_1: StringName = &"ring_1"
+const RING_2: StringName = &"ring_2"
+const SPECIAL_TRINKET: StringName = &"special_trinket"
+const BADGE: StringName = &"badge"
 
 const SLOT_ORDER := [
 	MAIN_HAND,
 	OFF_HAND,
 	HEAD,
 	BODY,
-	ACCESSORY_1,
-	ACCESSORY_2,
+	HANDS,
+	FEET,
+	CLOAK,
+	NECKLACE,
+	RING_1,
+	RING_2,
+	SPECIAL_TRINKET,
+	BADGE,
 ]
 
 
@@ -49,9 +61,21 @@ static func get_slot_label(slot_id: StringName) -> String:
 			return "头部"
 		BODY:
 			return "身躯"
-		ACCESSORY_1:
-			return "饰品一"
-		ACCESSORY_2:
-			return "饰品二"
+		HANDS:
+			return "手部"
+		FEET:
+			return "脚部"
+		CLOAK:
+			return "披风"
+		NECKLACE:
+			return "项链"
+		RING_1:
+			return "戒指一"
+		RING_2:
+			return "戒指二"
+		SPECIAL_TRINKET:
+			return "特殊饰品"
+		BADGE:
+			return "徽章"
 		_:
 			return String(slot_id)

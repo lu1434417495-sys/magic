@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GAME_RUNTIME_BATTLE_SELECTION_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_battle_selection.gd")
@@ -12,7 +15,8 @@ const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attri
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -56,6 +60,7 @@ func _test_selection_sidecar_tracks_multi_unit_targets() -> void:
 		return
 	skill_def.combat_profile.min_target_count = 2
 	skill_def.combat_profile.max_target_count = 2
+	skill_def.combat_profile.level_overrides = {}
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
@@ -460,6 +465,8 @@ func _test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready() -> v
 		return
 	skill_def.combat_profile.min_target_count = 2
 	skill_def.combat_profile.max_target_count = 3
+	skill_def.combat_profile.range_value = 4
+	skill_def.combat_profile.level_overrides = {}
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
@@ -496,9 +503,17 @@ func _test_selection_sidecar_focuses_caster_when_multi_unit_confirm_ready() -> v
 		caster.coord,
 		"进入 multi_unit 确认态后，棋盘焦点应回到施法者自身，而不是最后一个锁定目标。"
 	)
+	var remaining_target_coords := _extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords())
+	var block_reason := facade.get_battle_skill_cast_block_reason(caster, skill_def)
 	_assert_true(
-		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()).has([enemy_c.coord.x, enemy_c.coord.y]),
-		"进入确认态后，剩余合法目标仍应继续保留。"
+		remaining_target_coords.has([enemy_c.coord.x, enemy_c.coord.y]),
+		"进入确认态后，剩余合法目标仍应继续保留。 coords=%s selected=%s ap=%d mp=%d block=%s" % [
+			str(remaining_target_coords),
+			str(_extract_string_array(selection.get_selected_battle_skill_target_unit_ids())),
+			int(caster.current_ap),
+			int(caster.current_mp),
+			block_reason,
+		]
 	)
 
 	_cleanup_test_session(game_session)
@@ -679,7 +694,7 @@ func _test_promotion_modal_pauses_battle_timeline() -> void:
 	_apply_battle_state(facade, state)
 	facade.set_runtime_active_modal_id("promotion")
 
-	var changed := facade.advance(1.0)
+	var changed := facade.advance(1)
 	_assert_true(not changed, "promotion_choice 打开时 facade.advance() 不应继续推进 battle timeline。")
 	var battle_state := facade.get_battle_state()
 	_assert_eq(
@@ -737,7 +752,7 @@ func _test_character_info_blocks_commands_without_pausing_battle_timeline() -> v
 		"character_info 打开时 battle command 的失败文案应明确指向角色信息窗。"
 	)
 
-	var changed := facade.advance(1.0)
+	var changed := facade.advance(1)
 	_assert_true(changed, "character_info 打开时 facade.advance() 仍应正式推进 battle TU。")
 	var battle_state := facade.get_battle_state()
 	_assert_eq(
@@ -848,6 +863,7 @@ func _add_unit_to_state(facade, state: BattleState, unit: BattleUnitState, is_en
 
 
 func _apply_battle_state(facade, state: BattleState) -> void:
+	BattleRuntimeTestHelpers.configure_fixed_combat_for_facade(facade)
 	facade._battle_runtime._state = state
 	facade._battle_state = state
 	facade._battle_selected_coord = Vector2i(-1, -1)
@@ -870,9 +886,9 @@ func _extract_coord_pairs(coords: Array[Vector2i]) -> Array:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

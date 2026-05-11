@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
@@ -7,7 +9,8 @@ const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/batt
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -18,7 +21,10 @@ func _run() -> void:
 	_test_save_resolver_handles_immunity_before_roll()
 	_test_save_resolver_handles_advantage_and_disadvantage()
 	_test_save_resolver_forces_natural_one_and_twenty()
+	_test_save_resolver_estimates_success_probability()
 	_test_caster_spell_save_dc_uses_source_ability_and_spell_proficiency()
+	_test_locked_skill_bonus_increases_static_save_dc()
+	_test_locked_skill_bonus_increases_caster_spell_save_dc()
 	_test_damage_save_success_halves_partial_damage()
 	_test_status_save_success_blocks_and_failure_applies_status()
 	if _failures.is_empty():
@@ -90,6 +96,58 @@ func _test_save_resolver_forces_natural_one_and_twenty() -> void:
 	_assert_true(bool(natural_twenty_result.get("success", false)), "natural 20 should force save success.")
 
 
+func _test_save_resolver_estimates_success_probability() -> void:
+	var target = _make_unit(&"save_probability_target", &"player")
+	var normal_probability: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.estimate_save_success_probability(
+		null,
+		target,
+		_make_save_damage_effect(&"poison", UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 11, false)
+	)
+	_assert_eq(
+		int(normal_probability.get("success_probability_basis_points", -1)),
+		5000,
+		"DC11 且无属性修正时，普通 d20 豁免成功率应为 50%。"
+	)
+
+	target.save_advantage_tags.append(&"poison")
+	var advantage_probability: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.estimate_save_success_probability(
+		null,
+		target,
+		_make_save_damage_effect(&"poison", UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 15, false)
+	)
+	_assert_eq(
+		int(advantage_probability.get("success_probability_basis_points", -1)),
+		5100,
+		"DC15 且无属性修正时，优势豁免成功率应为 51%。"
+	)
+
+	target.save_advantage_tags.clear()
+	target.save_advantage_tags.append(&"poison_disadvantage")
+	var disadvantage_probability: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.estimate_save_success_probability(
+		null,
+		target,
+		_make_save_damage_effect(&"poison", UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 15, false)
+	)
+	_assert_eq(
+		int(disadvantage_probability.get("success_probability_basis_points", -1)),
+		900,
+		"DC15 且无属性修正时，劣势豁免成功率应为 9%。"
+	)
+
+	target.save_advantage_tags.clear()
+	target.save_advantage_tags.append(&"poison_immunity")
+	var immune_probability: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.estimate_save_success_probability(
+		null,
+		target,
+		_make_save_damage_effect(&"poison", UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 40, false)
+	)
+	_assert_eq(
+		int(immune_probability.get("success_probability_basis_points", -1)),
+		10000,
+		"免疫豁免应作为 100% 成功处理。"
+	)
+
+
 func _test_caster_spell_save_dc_uses_source_ability_and_spell_proficiency() -> void:
 	var source = _make_unit(&"spell_dc_source", &"enemy")
 	source.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 18)
@@ -105,6 +163,37 @@ func _test_caster_spell_save_dc_uses_source_ability_and_spell_proficiency() -> v
 
 	var success_result: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source, target, effect, {"save_roll_override": 15})
 	_assert_true(bool(success_result.get("success", false)), "达到动态 DC 的敏捷豁免应成功。")
+
+
+func _test_locked_skill_bonus_increases_static_save_dc() -> void:
+	var source = _make_unit(&"locked_static_source", &"enemy")
+	source.known_skill_lock_hit_bonus_map[&"locked_fire"] = 2
+	var target = _make_unit(&"locked_static_target", &"player")
+	target.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 10)
+	var effect = _make_save_damage_effect(&"fireball", UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 12, false)
+
+	var result: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source, target, effect, {
+		"skill_id": &"locked_fire",
+		"save_roll_override": 13,
+	})
+	_assert_eq(int(result.get("dc", -1)), 14, "锁定技能加值应提高静态豁免 DC。")
+	_assert_true(not bool(result.get("success", true)), "目标豁免也应受到锁定技能 DC 加值影响。")
+
+
+func _test_locked_skill_bonus_increases_caster_spell_save_dc() -> void:
+	var source = _make_unit(&"locked_spell_source", &"enemy")
+	source.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 18)
+	source.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS, 3)
+	source.known_skill_lock_hit_bonus_map[&"locked_spell"] = 2
+	var target = _make_unit(&"locked_spell_target", &"player")
+	var effect = _make_caster_spell_save_damage_effect()
+
+	var result: Dictionary = BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source, target, effect, {
+		"skill_id": &"locked_spell",
+		"save_roll_override": 16,
+	})
+	_assert_eq(int(result.get("dc", -1)), 17, "锁定技能加值应提高施法者动态豁免 DC。")
+	_assert_true(not bool(result.get("success", true)), "动态 DC 提高后，目标同样应更难豁免成功。")
 
 
 func _test_damage_save_success_halves_partial_damage() -> void:
@@ -209,9 +298,9 @@ func _first_damage_event(result: Dictionary) -> Dictionary:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

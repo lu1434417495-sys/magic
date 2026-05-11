@@ -1,0 +1,135 @@
+[gd_resource type="Resource" script_class="BarrierProfileDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/barrier_profile_def.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/player/progression/barrier_layer_def.gd" id="2_layer"]
+[ext_resource type="Script" path="res://scripts/player/progression/barrier_outcome_def.gd" id="3_outcome"]
+
+[sub_resource type="Resource" id="Outcome_red"]
+script = ExtResource("3_outcome")
+outcome_type = &"damage"
+amount = 20
+damage_tag = &"fire"
+half_on_success = true
+save_ability = &"willpower"
+save_tag = &"magic"
+
+[sub_resource type="Resource" id="Layer_red"]
+script = ExtResource("2_layer")
+layer_id = &"red"
+display_name = "红色层"
+order = 1
+blocked_categories = Array[StringName]([&"nonmagical_missile"])
+breaker_skill_ids = Array[StringName]([&"mage_cone_of_cold"])
+passage_outcomes = Array[ExtResource("3_outcome")]([SubResource("Outcome_red")])
+
+[sub_resource type="Resource" id="Outcome_orange"]
+script = ExtResource("3_outcome")
+outcome_type = &"damage"
+amount = 40
+damage_tag = &"acid"
+half_on_success = true
+save_ability = &"willpower"
+save_tag = &"magic"
+
+[sub_resource type="Resource" id="Layer_orange"]
+script = ExtResource("2_layer")
+layer_id = &"orange"
+display_name = "橙色层"
+order = 2
+blocked_categories = Array[StringName]([&"magical_missile"])
+breaker_skill_ids = Array[StringName]([&"mage_gust_of_wind"])
+passage_outcomes = Array[ExtResource("3_outcome")]([SubResource("Outcome_orange")])
+
+[sub_resource type="Resource" id="Outcome_yellow"]
+script = ExtResource("3_outcome")
+outcome_type = &"damage"
+amount = 80
+damage_tag = &"lightning"
+half_on_success = true
+save_ability = &"willpower"
+save_tag = &"magic"
+
+[sub_resource type="Resource" id="Layer_yellow"]
+script = ExtResource("2_layer")
+layer_id = &"yellow"
+display_name = "黄色层"
+order = 3
+blocked_categories = Array[StringName]([&"poison", &"gas", &"petrification"])
+breaker_skill_ids = Array[StringName]([&"mage_spell_disjunction"])
+passage_outcomes = Array[ExtResource("3_outcome")]([SubResource("Outcome_yellow")])
+
+[sub_resource type="Resource" id="Outcome_green"]
+script = ExtResource("3_outcome")
+outcome_type = &"poison_death"
+success_amount = 20
+success_damage_tag = &"poison"
+fatal_damage = 99999
+save_ability = &"constitution"
+save_tag = &"poison"
+
+[sub_resource type="Resource" id="Layer_green"]
+script = ExtResource("2_layer")
+layer_id = &"green"
+display_name = "绿色层"
+order = 4
+blocked_categories = Array[StringName]([&"breath_weapon"])
+breaker_skill_ids = Array[StringName]([&"mage_passwall"])
+passage_outcomes = Array[ExtResource("3_outcome")]([SubResource("Outcome_green")])
+
+[sub_resource type="Resource" id="Outcome_blue"]
+script = ExtResource("3_outcome")
+outcome_type = &"status"
+status_id = &"petrified"
+save_ability = &"constitution"
+save_tag = &"constitution"
+
+[sub_resource type="Resource" id="Layer_blue"]
+script = ExtResource("2_layer")
+layer_id = &"blue"
+display_name = "蓝色层"
+order = 5
+blocked_categories = Array[StringName]([&"location", &"detection", &"mental_attack", &"psychic"])
+breaker_skill_ids = Array[StringName]([&"mage_arcane_missile"])
+passage_outcomes = Array[ExtResource("3_outcome")]([SubResource("Outcome_blue")])
+
+[sub_resource type="Resource" id="Outcome_indigo"]
+script = ExtResource("3_outcome")
+outcome_type = &"status"
+status_id = &"madness"
+save_ability = &"willpower"
+save_tag = &"willpower"
+
+[sub_resource type="Resource" id="Layer_indigo"]
+script = ExtResource("2_layer")
+layer_id = &"indigo"
+display_name = "靛色层"
+order = 6
+blocked_categories = Array[StringName]([&"spell"])
+breaker_skill_ids = Array[StringName]([&"mage_continual_light"])
+passage_outcomes = Array[ExtResource("3_outcome")]([SubResource("Outcome_indigo")])
+
+[sub_resource type="Resource" id="Outcome_violet"]
+script = ExtResource("3_outcome")
+outcome_type = &"banish"
+save_ability = &"willpower"
+save_tag = &"magic"
+
+[sub_resource type="Resource" id="Layer_violet"]
+script = ExtResource("2_layer")
+layer_id = &"violet"
+display_name = "紫色层"
+order = 7
+blocked_categories = Array[StringName]([&"force_effect", &"antimagic"])
+breaker_skill_ids = Array[StringName]([&"mage_dispel_magic"])
+passage_outcomes = Array[ExtResource("3_outcome")]([SubResource("Outcome_violet")])
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"prismatic_sphere"
+display_name = "虹光法球"
+anchor_mode = &"fixed"
+area_pattern = &"diamond"
+radius_cells = 2
+duration_tu = 120
+catch_all_projected_effects = true
+layers = Array[ExtResource("2_layer")]([SubResource("Layer_red"), SubResource("Layer_orange"), SubResource("Layer_yellow"), SubResource("Layer_green"), SubResource("Layer_blue"), SubResource("Layer_indigo"), SubResource("Layer_violet")])

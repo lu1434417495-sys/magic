@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
 
 const AI_VS_AI_SCENARIO_PATH := "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres"
 const BASELINE_PROFILE_PATH := "res://data/configs/battle_sim/profiles/baseline.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -87,4 +90,4 @@ func _finish() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

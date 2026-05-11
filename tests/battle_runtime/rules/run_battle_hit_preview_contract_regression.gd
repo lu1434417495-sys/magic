@@ -1,9 +1,10 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
-const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
@@ -11,22 +12,14 @@ const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_s
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 
 const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
 const ACTION_TITHE_VARIANT_ID: StringName = &"action_tithe"
 const WARRIOR_HEAVY_STRIKE_SKILL_ID: StringName = &"warrior_heavy_strike"
 
-var _failures: Array[String] = []
-
-
-class TrapDamageResolver:
-	extends BattleDamageResolver
-
-	var resolve_effects_calls := 0
-
-	func resolve_effects(source_unit: BattleUnitState, target_unit: BattleUnitState, effect_defs: Array, damage_context: Dictionary = {}) -> Dictionary:
-		resolve_effects_calls += 1
-		return super.resolve_effects(source_unit, target_unit, effect_defs, damage_context)
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class MockGameSession:
@@ -118,7 +111,7 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 	var game_session := await _install_mock_game_session(skill_defs)
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, skill_defs, {}, {}, null)
-	var trap_damage_resolver := TrapDamageResolver.new()
+	var trap_damage_resolver := SharedDamageResolvers.TrapDamageResolver.new()
 	runtime.configure_damage_resolver_for_tests(trap_damage_resolver)
 	var state := _build_state(&"preview_contract_single_hit")
 	var attacker := _build_unit(
@@ -172,6 +165,7 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 	)
 
 	var adapter := BattleHudAdapter.new()
+	adapter.set_content_def_providers(Callable(game_session, "get_skill_defs"), Callable())
 	var snapshot := adapter.build_snapshot(
 		state,
 		target.coord,
@@ -314,9 +308,9 @@ func _build_skill_command(
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

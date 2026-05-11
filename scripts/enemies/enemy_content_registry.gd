@@ -82,15 +82,15 @@ func rebuild() -> void:
 
 
 func get_enemy_templates() -> Dictionary:
-	return _enemy_templates
+	return _enemy_templates.duplicate()
 
 
 func get_enemy_ai_brains() -> Dictionary:
-	return _enemy_ai_brains
+	return _enemy_ai_brains.duplicate()
 
 
 func get_wild_encounter_rosters() -> Dictionary:
-	return _wild_encounter_rosters
+	return _wild_encounter_rosters.duplicate()
 
 
 func validate() -> Array[String]:

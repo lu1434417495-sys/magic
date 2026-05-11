@@ -1,0 +1,70 @@
+class_name BattleSaveContentRules
+extends RefCounted
+
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+
+const SAVE_TAG_SLEEP: StringName = &"sleep"
+const SAVE_TAG_PARALYSIS: StringName = &"paralysis"
+const SAVE_TAG_CHARM: StringName = &"charm"
+const SAVE_TAG_POISON: StringName = &"poison"
+const SAVE_TAG_DRAGON_BREATH: StringName = &"dragon_breath"
+const SAVE_TAG_FIREBALL: StringName = &"fireball"
+const SAVE_TAG_CHAIN_LIGHTNING: StringName = &"chain_lightning"
+const SAVE_TAG_EQUIPMENT_DISJUNCTION: StringName = &"equipment_disjunction"
+const SAVE_TAG_MAGIC: StringName = &"magic"
+const SAVE_TAG_ILLUSION: StringName = &"illusion"
+const SAVE_TAG_FRIGHTENED: StringName = &"frightened"
+const SAVE_TAG_STRENGTH: StringName = UNIT_BASE_ATTRIBUTES_SCRIPT.STRENGTH
+const SAVE_TAG_AGILITY: StringName = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
+const SAVE_TAG_CONSTITUTION: StringName = UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION
+const SAVE_TAG_PERCEPTION: StringName = UNIT_BASE_ATTRIBUTES_SCRIPT.PERCEPTION
+const SAVE_TAG_INTELLIGENCE: StringName = UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE
+const SAVE_TAG_WILLPOWER: StringName = UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER
+
+const ADVANTAGE_STATE_NORMAL: StringName = &"normal"
+const ADVANTAGE_STATE_ADVANTAGE: StringName = &"advantage"
+const ADVANTAGE_STATE_DISADVANTAGE: StringName = &"disadvantage"
+const SAVE_DC_MODE_STATIC: StringName = &"static"
+const SAVE_DC_MODE_CASTER_SPELL: StringName = &"caster_spell"
+
+const VALID_SAVE_TAGS := {
+	SAVE_TAG_SLEEP: true,
+	SAVE_TAG_PARALYSIS: true,
+	SAVE_TAG_CHARM: true,
+	SAVE_TAG_POISON: true,
+	SAVE_TAG_DRAGON_BREATH: true,
+	SAVE_TAG_FIREBALL: true,
+	SAVE_TAG_CHAIN_LIGHTNING: true,
+	SAVE_TAG_EQUIPMENT_DISJUNCTION: true,
+	SAVE_TAG_MAGIC: true,
+	SAVE_TAG_ILLUSION: true,
+	SAVE_TAG_FRIGHTENED: true,
+	SAVE_TAG_STRENGTH: true,
+	SAVE_TAG_AGILITY: true,
+	SAVE_TAG_CONSTITUTION: true,
+	SAVE_TAG_PERCEPTION: true,
+	SAVE_TAG_INTELLIGENCE: true,
+	SAVE_TAG_WILLPOWER: true,
+}
+
+const VALID_SAVE_ABILITIES := {
+	UNIT_BASE_ATTRIBUTES_SCRIPT.STRENGTH: true,
+	UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY: true,
+	UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION: true,
+	UNIT_BASE_ATTRIBUTES_SCRIPT.PERCEPTION: true,
+	UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE: true,
+	UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER: true,
+}
+
+const CONTROL_SAVE_TAGS := {
+	SAVE_TAG_SLEEP: true,
+	SAVE_TAG_PARALYSIS: true,
+	SAVE_TAG_CHARM: true,
+	SAVE_TAG_ILLUSION: true,
+	SAVE_TAG_FRIGHTENED: true,
+}
+
+const VALID_SAVE_DC_MODES := {
+	SAVE_DC_MODE_STATIC: true,
+	SAVE_DC_MODE_CASTER_SPELL: true,
+}

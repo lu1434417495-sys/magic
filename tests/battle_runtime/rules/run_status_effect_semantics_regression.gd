@@ -1,17 +1,20 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
+
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const BattleRuntimeSkillTurnResolver = preload("res://scripts/systems/battle/runtime/battle_skill_turn_resolver.gd")
 const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _battle_fixture := BattleTestFixture.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -68,7 +71,7 @@ func _test_staggered_refreshes_without_stacking_and_expires_on_tu_progress() -> 
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(target.unit_id)
-	runtime.advance(0.0)
+	runtime.advance(0)
 	_assert_eq(target.current_ap, 1, "staggered 刷新后仍只应在回合开始扣 1 点行动点。")
 
 	var wait_command := BattleCommand.new()
@@ -107,7 +110,7 @@ func _test_burning_stacks_and_ticks_on_timeline_interval() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(target.unit_id)
-	runtime.advance(0.0)
+	runtime.advance(0)
 	_assert_eq(target.current_hp, 20, "burning 不应在回合开始隐式结算伤害。")
 	var first_wait := BattleCommand.new()
 	first_wait.command_type = BattleCommand.TYPE_WAIT
@@ -125,7 +128,7 @@ func _test_burning_stacks_and_ticks_on_timeline_interval() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(target.unit_id)
-	runtime.advance(0.0)
+	runtime.advance(0)
 	_assert_eq(target.current_hp, 18, "burning 不应因进入第二个行动窗口额外结算伤害。")
 	var second_wait := BattleCommand.new()
 	second_wait.command_type = BattleCommand.TYPE_WAIT
@@ -177,7 +180,7 @@ func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(target.unit_id)
-	runtime.advance(0.0)
+	runtime.advance(0)
 	_assert_true(target.has_status_effect(&"slow"), "slow 应在受影响单位回合开始后仍保持生效。")
 
 	var move_command := BattleCommand.new()
@@ -262,7 +265,7 @@ func _test_taunted_uses_timeline_decay_without_turn_end_decay() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(target.unit_id)
-	runtime.advance(0.0)
+	runtime.advance(0)
 	var wait_command := BattleCommand.new()
 	wait_command.command_type = BattleCommand.TYPE_WAIT
 	wait_command.unit_id = target.unit_id
@@ -364,21 +367,32 @@ func _test_damage_resolver_reads_only_formal_damage_status_params() -> void:
 
 	var formal_low_hp_effect := _build_damage_effect(10, &"physical_slash")
 	formal_low_hp_effect.bonus_condition = &"target_low_hp"
-	formal_low_hp_effect.damage_ratio_percent = 200
-	formal_low_hp_effect.params["hp_ratio_threshold"] = 0.7
+	formal_low_hp_effect.params["hp_ratio_threshold_percent"] = 70
+	formal_low_hp_effect.params["bonus_damage_dice_count"] = 4
+	formal_low_hp_effect.params["bonus_damage_dice_sides"] = 1
 	var formal_low_hp_target := _build_unit(&"formal_low_hp_target", Vector2i.ZERO, 2)
 	formal_low_hp_target.current_hp = 18
 	var formal_low_hp_result: Dictionary = runtime._damage_resolver.resolve_effects(source, formal_low_hp_target, [formal_low_hp_effect])
-	_assert_eq(int(formal_low_hp_result.get("damage", -1)), 20, "正式 hp_ratio_threshold 应控制低血伤害倍率阈值。")
+	_assert_eq(int(formal_low_hp_result.get("damage", -1)), 14, "正式 hp_ratio_threshold_percent 应控制低血追加伤害骰阈值。")
+	var formal_low_hp_crit_target := _build_unit(&"formal_low_hp_crit_target", Vector2i.ZERO, 2)
+	formal_low_hp_crit_target.current_hp = 18
+	var formal_low_hp_crit_result: Dictionary = runtime._damage_resolver.resolve_effects(
+		source,
+		formal_low_hp_crit_target,
+		[formal_low_hp_effect],
+		{"critical_hit": true}
+	)
+	_assert_eq(int(formal_low_hp_crit_result.get("damage", -1)), 18, "低血暴击应额外掷一组处决追加骰。")
 
 	var legacy_low_hp_effect := _build_damage_effect(10, &"physical_slash")
 	legacy_low_hp_effect.bonus_condition = &"target_low_hp"
-	legacy_low_hp_effect.damage_ratio_percent = 200
 	legacy_low_hp_effect.params["low_hp_ratio"] = 0.7
+	legacy_low_hp_effect.params["bonus_damage_dice_count"] = 4
+	legacy_low_hp_effect.params["bonus_damage_dice_sides"] = 1
 	var legacy_low_hp_target := _build_unit(&"legacy_low_hp_target", Vector2i.ZERO, 2)
 	legacy_low_hp_target.current_hp = 18
 	var legacy_low_hp_result: Dictionary = runtime._damage_resolver.resolve_effects(source, legacy_low_hp_target, [legacy_low_hp_effect])
-	_assert_eq(int(legacy_low_hp_result.get("damage", -1)), 10, "旧 params.low_hp_ratio 不应再覆盖默认低血阈值。")
+	_assert_eq(int(legacy_low_hp_result.get("damage", -1)), 10, "旧 params.low_hp_ratio 不应再覆盖默认低血阈值或触发追加骰。")
 
 
 func _test_skill_turn_status_params_require_formal_string_keys() -> void:
@@ -612,17 +626,12 @@ func _build_runtime() -> BattleRuntimeModule:
 
 
 func _build_state(map_size: Vector2i) -> BattleState:
-	var state := BattleState.new()
-	state.battle_id = &"status_effect_semantics"
-	state.phase = &"unit_acting"
-	state.map_size = map_size
-	state.timeline = BattleTimelineState.new()
-	state.cells = {}
-	for y in range(map_size.y):
-		for x in range(map_size.x):
-			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
-	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
-	return state
+	return _battle_fixture.build_state({
+		"battle_id": &"status_effect_semantics",
+		"map_size": map_size,
+		"base_height": 4,
+		"height_offset": 0,
+	})
 
 
 func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, total_tu: int) -> void:
@@ -631,38 +640,23 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
-	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
 	for unit_variant in state.units.values():
 		var unit_state := unit_variant as BattleUnitState
 		if unit_state != null:
 			unit_state.action_threshold = 1000000
-	runtime.advance(float(total_tu) / 5.0)
-
-
-func _build_cell(coord: Vector2i) -> BattleCellState:
-	var cell := BattleCellState.new()
-	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
-	cell.base_height = 4
-	cell.height_offset = 0
-	cell.recalculate_runtime_values()
-	return cell
+	runtime.advance(int(total_tu / 5))
 
 
 func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> BattleUnitState:
-	var unit := BattleUnitState.new()
-	unit.unit_id = unit_id
-	unit.display_name = String(unit_id)
-	unit.faction_id = &"player"
-	unit.current_ap = current_ap
-	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
-	unit.current_hp = 30
-	unit.current_mp = 4
+	var unit := _battle_fixture.build_unit(unit_id, {
+		"coord": coord,
+		"current_ap": current_ap,
+		"current_hp": 30,
+		"current_mp": 4,
+		"current_aura": 0,
+	})
 	unit.current_stamina = 4
-	unit.current_aura = 0
-	unit.is_alive = true
-	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 30)
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
 	unit.attribute_snapshot.set_value(&"stamina_max", 4)
@@ -677,9 +671,9 @@ func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUni
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s actual=%s expected=%s" % [message, str(actual), str(expected)])

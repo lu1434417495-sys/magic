@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
 const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
 const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_unit_spec.gd")
 const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -33,6 +36,10 @@ func _run() -> void:
 				var first_trace: Dictionary = (first_run.get("ai_turn_traces", []) as Array)[0]
 				_assert_true(first_trace.has("action_traces"), "AI turn trace 应包含候选动作 trace 列表。")
 				_assert_true(first_trace.has("score_input"), "AI turn trace 应包含最终选择的评分摘要。")
+				_assert_true(first_trace.has("decision_target_snapshots"), "AI turn trace 应包含决策目标执行前快照。")
+				_assert_true(first_trace.has("execution_result"), "AI turn trace 应包含命令执行结果摘要。")
+				var execution_result: Dictionary = first_trace.get("execution_result", {}) if first_trace.get("execution_result", {}) is Dictionary else {}
+				_assert_true(execution_result.has("unit_results"), "AI turn trace 执行结果应包含单位前后资源变化。")
 		var baseline_summary: Dictionary = baseline_entry.get("summary", {})
 		var patched_summary: Dictionary = patched_entry.get("summary", {})
 		var baseline_skills: Dictionary = baseline_summary.get("skill_usage_totals", {})
@@ -95,7 +102,7 @@ func _build_ready_queue_scenario():
 	scenario.scenario_id = &"simulation_ready_queue_regression"
 	scenario.display_name = "Simulation Ready Queue Regression"
 	scenario.map_size = Vector2i(5, 3)
-	scenario.tick_interval_seconds = 1.0
+	scenario.timeline_ticks_per_step = 1
 	scenario.tu_per_tick = 5
 	scenario.max_iterations = 4
 	scenario.manual_policy = &"wait"
@@ -141,7 +148,7 @@ func _build_scenario():
 	scenario.scenario_id = &"simulation_regression_archer"
 	scenario.display_name = "Simulation Regression Archer"
 	scenario.map_size = Vector2i(7, 5)
-	scenario.tick_interval_seconds = 1.0
+	scenario.timeline_ticks_per_step = 1
 	scenario.tu_per_tick = 5
 	scenario.max_iterations = 40
 	scenario.manual_policy = &"wait"
@@ -226,4 +233,4 @@ func _build_suppressive_fire_blocked_profile():
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

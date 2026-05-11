@@ -77,6 +77,8 @@ func should_route_skill_command_to_unit_targeting(skill_def: SkillDef, target_un
 		return false
 	if not target_unit_ids.is_empty():
 		return true
+	if ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_selection_mode) == &"random_chain":
+		return true
 	return skill_def.combat_profile.target_mode == &"unit"
 
 
@@ -251,13 +253,17 @@ func is_unit_effect(effect_def: CombatEffectDef) -> bool:
 		return false
 	return effect_def.effect_type == &"damage" \
 		or effect_def.effect_type == &"chain_damage" \
+		or effect_def.effect_type == &"equipment_durability_damage" \
+		or effect_def.effect_type == &"dispel_magic" \
 		or effect_def.effect_type == &"heal" \
 		or effect_def.effect_type == &"stamina_restore" \
 		or effect_def.effect_type == &"shield" \
+		or effect_def.effect_type == &"layered_barrier" \
 		or effect_def.effect_type == &"on_kill_gain_resources" \
 		or effect_def.effect_type == &"status" \
 		or effect_def.effect_type == &"apply_status" \
-		or effect_def.effect_type == &"body_size_category_override"
+		or effect_def.effect_type == &"body_size_category_override" \
+		or effect_def.effect_type == &"forced_move"
 
 
 func is_terrain_effect(effect_def: CombatEffectDef) -> bool:
@@ -268,7 +274,8 @@ func is_terrain_effect(effect_def: CombatEffectDef) -> bool:
 		or effect_def.effect_type == &"terrain_replace_to" \
 		or effect_def.effect_type == &"height" \
 		or effect_def.effect_type == &"height_delta" \
-		or effect_def.effect_type == &"terrain_effect"
+		or effect_def.effect_type == &"terrain_effect" \
+		or effect_def.effect_type == &"edge_clear"
 
 
 func resolve_effect_target_filter(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:

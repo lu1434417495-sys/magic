@@ -8,8 +8,8 @@ extends RefCounted
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
-const BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
 const TOP_LEVEL_FIELDS := [
 	"battle_id",
 	"seed",
@@ -253,7 +253,7 @@ static func _drop_entry_from_payload(entry_data: Dictionary):
 
 	var drop_type := ProgressionDataUtils.to_string_name(entry_data["drop_type"])
 	var allowed_field_count := required_fields.size()
-	if drop_type == BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE:
+	if drop_type == BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE:
 		allowed_field_count += 1
 		if entry_data.size() != allowed_field_count:
 			return null
@@ -319,7 +319,7 @@ static func _normalize_drop_entry_variants(loot_entry_variants: Variant) -> Arra
 			"item_id": String(item_id),
 			"quantity": quantity,
 		}
-		if drop_type == BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE:
+		if drop_type == BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE:
 			if not loot_entry_data.has("equipment_instance"):
 				continue
 			var equipment_instance_data := _normalize_equipment_instance_data(
@@ -411,7 +411,9 @@ static func _normalize_equipment_instance_data(value: Variant) -> Dictionary:
 	if value == null:
 		return {}
 	if value is Dictionary:
-		var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_transient_loot_dict(value)
+		if not EQUIPMENT_INSTANCE_STATE_SCRIPT.get_payload_validation_error(value).is_empty():
+			return {}
+		var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(value)
 		if instance == null or instance.item_id == &"":
 			return {}
 		return instance.to_dict()

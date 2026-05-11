@@ -22,6 +22,8 @@ const MIN_JUMP_ARC_RATIO := 0.15
 @export var damage_ratio_percent := 100
 ## 字段说明：在编辑器中暴露伤害标签配置，便于命中后选择伤害分类、减伤和日志语义。
 @export var damage_tag: StringName = &""
+## 字段说明：正式效果载荷类别；屏障、反制和类似规则只读取此字段，不从 params 或技能 ID 猜测。
+@export var effect_categories: Array = []
 ## 字段说明：在编辑器中暴露效果目标队伍过滤配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var effect_target_team_filter: StringName = &""
 ## 字段说明：在编辑器中暴露状态唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
@@ -34,7 +36,7 @@ const MIN_JUMP_ARC_RATIO := 0.15
 @export var height_delta := 0
 ## 字段说明：在编辑器中暴露临时体型分类配置，供战斗内持续性体型覆盖效果使用。
 @export var body_size_category: StringName = &""
-## 字段说明：在编辑器中暴露强制位移模式配置，用于表达击退、拉拽、跳斩等位移效果。
+## 字段说明：在编辑器中暴露强制位移模式配置，用于表达击退、拉拽、跳斩、闪现等位移效果。
 @export var forced_move_mode: StringName = &""
 ## 字段说明：在编辑器中暴露强制位移距离配置；mode=jump 时复用为 max_range 硬上限（0 = 不设上限）。
 @export var forced_move_distance := 0
@@ -76,6 +78,12 @@ const MIN_JUMP_ARC_RATIO := 0.15
 @export var save_partial_on_success := false
 ## 字段说明：豁免标签，用于 advantage / disadvantage / immunity 查找。
 @export var save_tag: StringName = &""
+## 字段说明：命中后消耗的状态 ID（读取其 stack 数追加伤害骰，然后擦除该状态）。
+@export var consumed_status_id: StringName = &""
+## 字段说明：每消耗 1 层 consumed_status 追加的骰子数量；0 表示不追加。
+@export var dice_per_consumed_stack := 0
+## 字段说明：每消耗 1 层 consumed_status 追加的骰子面数；0 表示不追加。
+@export var dice_sides_per_stack := 0
 ## 字段说明：在编辑器中暴露参数配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var params: Dictionary = {}
 

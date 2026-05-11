@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
@@ -14,6 +16,7 @@ const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd"
 const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
 const EquipmentState = preload("res://scripts/player/equipment/equipment_state.gd")
 const EquipmentEntryState = preload("res://scripts/player/equipment/equipment_entry_state.gd")
+const EquipmentDurabilityRules = preload("res://scripts/player/equipment/equipment_durability_rules.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 
@@ -51,7 +54,8 @@ const BG3_WEAPON_SEED_ITEMS := {
 	&"longbow": &"ash_longbow",
 }
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -80,6 +84,7 @@ func _run() -> void:
 	_test_equipped_instance_fields_survive_round_trip_and_unequip()
 	_test_equipment_instance_rarity_round_trip_and_strict_schema()
 	_test_duplicate_same_item_instance_id_selection()
+	_test_party_state_rejects_duplicate_equipment_instance_ids()
 	_finish()
 
 
@@ -303,10 +308,10 @@ func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:
 
 	warehouse_service.add_item(&"bronze_sword", 1)
 	warehouse_service.add_item(&"leather_cap", 1)
-	warehouse_service.add_item(&"scout_charm", 2)
+	warehouse_service.add_item(&"scout_charm", 1)
 	var charm_instance_ids := _get_instance_ids_for_item(party_state, &"scout_charm")
-	_assert_eq(charm_instance_ids.size(), 2, "前置：两枚饰品应生成两个实例 ID。")
-	if charm_instance_ids.size() < 2:
+	_assert_eq(charm_instance_ids.size(), 1, "前置：一枚饰品应生成一个实例 ID。")
+	if charm_instance_ids.size() < 1:
 		return
 
 	var sword_result := equipment_service.equip_item(&"hero", &"bronze_sword")
@@ -320,24 +325,19 @@ func _test_equipment_service_moves_items_between_warehouse_and_slots() -> void:
 	_assert_eq(warehouse_service.count_item(&"leather_cap"), 0, "装备头部护具后，共享仓库中的对应库存应扣减。")
 
 	var first_charm_result := equipment_service.equip_item(&"hero", &"scout_charm", &"", StringName(charm_instance_ids[0]))
-	_assert_true(bool(first_charm_result.get("success", false)), "第一枚饰品应能自动装备。")
-	_assert_eq(String(first_charm_result.get("slot_id", "")), "accessory_1", "第一枚饰品应优先进入饰品一槽。")
-
-	var second_charm_result := equipment_service.equip_item(&"hero", &"scout_charm", &"", StringName(charm_instance_ids[1]))
-	_assert_true(bool(second_charm_result.get("success", false)), "第二枚饰品应能继续自动装备。")
-	_assert_eq(String(second_charm_result.get("slot_id", "")), "accessory_2", "第二枚饰品应自动进入空闲饰品槽。")
-	_assert_eq(warehouse_service.count_item(&"scout_charm"), 0, "两枚饰品都装备后，仓库中不应残留对应库存。")
+	_assert_true(bool(first_charm_result.get("success", false)), "饰品应能自动装备。")
+	_assert_eq(String(first_charm_result.get("slot_id", "")), "necklace", "饰品应优先进入项链槽。")
+	_assert_eq(warehouse_service.count_item(&"scout_charm"), 0, "饰品装备后，仓库中不应残留对应库存。")
 
 	var equipment_state = party_state.get_member_state(&"hero").equipment_state
 	_assert_eq(String(equipment_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "角色主手状态应记录已装备武器。")
 	_assert_eq(String(equipment_state.get_equipped_item_id(&"head")), "leather_cap", "头部槽应记录皮革护帽。")
-	_assert_eq(String(equipment_state.get_equipped_item_id(&"accessory_1")), "scout_charm", "饰品一槽应记录首个饰品。")
-	_assert_eq(String(equipment_state.get_equipped_item_id(&"accessory_2")), "scout_charm", "饰品二槽应记录第二个饰品。")
+	_assert_eq(String(equipment_state.get_equipped_item_id(&"necklace")), "scout_charm", "项链槽应记录饰品。")
 
-	var unequip_result := equipment_service.unequip_item(&"hero", &"accessory_1")
+	var unequip_result := equipment_service.unequip_item(&"hero", &"necklace")
 	_assert_true(bool(unequip_result.get("success", false)), "已装备饰品应能卸回共享仓库。")
 	_assert_eq(warehouse_service.count_item(&"scout_charm"), 1, "卸装后物品应回到共享仓库。")
-	_assert_eq(String(equipment_state.get_equipped_item_id(&"accessory_1")), "", "卸装后的槽位应清空。")
+	_assert_eq(String(equipment_state.get_equipped_item_id(&"necklace")), "", "卸装后的槽位应清空。")
 
 
 func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> void:
@@ -449,7 +449,7 @@ func _test_equipment_state_requires_canonical_payload() -> void:
 
 	var mismatched_entry_slot_state = EquipmentState.from_dict({
 		"equipped_slots": {
-			"main_hand": _make_equipment_entry_payload(&"scout_charm", &"eq_schema_mismatched_slot", ["accessory_1"]),
+			"main_hand": _make_equipment_entry_payload(&"scout_charm", &"eq_schema_mismatched_slot", ["necklace"]),
 		},
 	})
 	_assert_true(mismatched_entry_slot_state == null, "entry key 必须包含在 occupied_slot_ids 内。")
@@ -810,20 +810,16 @@ func _test_two_items_of_same_type_get_different_instance_ids() -> void:
 	var equipment_service := PartyEquipmentService.new()
 	equipment_service.setup(party_state, item_defs, warehouse_service)
 
-	warehouse_service.add_item(&"scout_charm", 2)
+	warehouse_service.add_item(&"scout_charm", 1)
 	var charm_instance_ids := _get_instance_ids_for_item(party_state, &"scout_charm")
-	_assert_eq(charm_instance_ids.size(), 2, "前置：同种饰品应生成两个实例 ID。")
-	if charm_instance_ids.size() < 2:
+	_assert_eq(charm_instance_ids.size(), 1, "前置：同种饰品应生成一个实例 ID。")
+	if charm_instance_ids.size() < 1:
 		return
 	equipment_service.equip_item(&"hero", &"scout_charm", &"", StringName(charm_instance_ids[0]))
-	equipment_service.equip_item(&"hero", &"scout_charm", &"", StringName(charm_instance_ids[1]))
 
 	var equipment_state = party_state.get_member_state(&"hero").equipment_state
-	var id1: StringName = equipment_state.get_equipped_instance_id(&"accessory_1")
-	var id2: StringName = equipment_state.get_equipped_instance_id(&"accessory_2")
-	_assert_true(id1 != &"", "饰品一槽应有 instance_id。")
-	_assert_true(id2 != &"", "饰品二槽应有 instance_id。")
-	_assert_true(id1 != id2, "同种装备的两个实例应拥有不同的 instance_id。")
+	var id1: StringName = equipment_state.get_equipped_instance_id(&"necklace")
+	_assert_true(id1 != &"", "项链槽应有 instance_id。")
 
 
 func _test_weapon_profile_equipment_entry_round_trip() -> void:
@@ -899,8 +895,6 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 	var epic_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_epic_equipped_bronze_sword")
 	epic_instance.rarity = EquipmentInstanceState.RarityTier.EPIC
 	epic_instance.current_durability = 17
-	epic_instance.armor_wear_progress = 1.25
-	epic_instance.weapon_wear_progress = 2.5
 	party_state.warehouse_state.equipment_instances = [epic_instance]
 
 	var equip_result := equipment_service.equip_item(&"hero", &"bronze_sword")
@@ -912,8 +906,6 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 		"eq_epic_equipped_bronze_sword",
 		EquipmentInstanceState.RarityTier.EPIC,
 		17,
-		1.25,
-		2.5,
 		"装备位应持有完整装备实例字段。"
 	)
 
@@ -931,8 +923,6 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 		"eq_epic_equipped_bronze_sword",
 		EquipmentInstanceState.RarityTier.EPIC,
 		17,
-		1.25,
-		2.5,
 		"round-trip 后装备位应保留完整装备实例字段。"
 	)
 
@@ -946,8 +936,6 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 			"eq_epic_equipped_bronze_sword",
 			EquipmentInstanceState.RarityTier.EPIC,
 			17,
-			1.25,
-			2.5,
 			"卸装回仓后应保留完整装备实例字段。"
 		)
 
@@ -956,6 +944,7 @@ func _test_equipment_instance_rarity_round_trip_and_strict_schema() -> void:
 	var party_state := _build_party_with_member(&"hero", "Hero", 8)
 	var epic_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_epic_bronze_sword")
 	epic_instance.rarity = EquipmentInstanceState.RarityTier.EPIC
+	epic_instance.current_durability = EquipmentDurabilityRules.get_default_current_durability(epic_instance.rarity)
 	party_state.warehouse_state.equipment_instances = [epic_instance]
 
 	var restored_party_state = PartyState.from_dict(party_state.to_dict())
@@ -978,9 +967,7 @@ func _test_equipment_instance_rarity_round_trip_and_strict_schema() -> void:
 	var missing_rarity_error := EquipmentInstanceState.get_payload_validation_error({
 		"instance_id": "eq_missing_rarity_bronze_sword",
 		"item_id": "bronze_sword",
-		"current_durability": -1,
-		"armor_wear_progress": 0.0,
-		"weapon_wear_progress": 0.0,
+		"current_durability": EquipmentDurabilityRules.get_default_current_durability(EquipmentInstanceState.RarityTier.COMMON),
 	})
 	_assert_true(
 		missing_rarity_error.contains("missing required field 'rarity'"),
@@ -991,9 +978,7 @@ func _test_equipment_instance_rarity_round_trip_and_strict_schema() -> void:
 		"instance_id": "eq_invalid_rarity_bronze_sword",
 		"item_id": "bronze_sword",
 		"rarity": 999,
-		"current_durability": -1,
-		"armor_wear_progress": 0.0,
-		"weapon_wear_progress": 0.0,
+		"current_durability": EquipmentDurabilityRules.get_default_current_durability(EquipmentInstanceState.RarityTier.COMMON),
 	})
 	_assert_true(
 		invalid_rarity_error.contains("invalid rarity 999"),
@@ -1032,30 +1017,13 @@ func _test_equipment_instance_rarity_round_trip_and_strict_schema() -> void:
 		"装备实例 current_durability 不应从字符串兼容转换。"
 	)
 
-	var negative_durability_payload := _make_equipment_instance_payload("eq_schema_negative_durability")
-	negative_durability_payload["current_durability"] = -2
+	var zero_durability_payload := _make_equipment_instance_payload("eq_schema_zero_durability")
+	zero_durability_payload["current_durability"] = 0
 	_assert_equipment_instance_validation_error(
-		negative_durability_payload,
-		"invalid current_durability -2",
-		"装备实例 current_durability 只允许 -1 占位或非负值。"
+		zero_durability_payload,
+		"invalid current_durability 0",
+		"装备实例 current_durability 不允许 0 或负数。"
 	)
-
-	var string_armor_wear_payload := _make_equipment_instance_payload("eq_schema_string_armor_wear")
-	string_armor_wear_payload["armor_wear_progress"] = "1.0"
-	_assert_equipment_instance_validation_error(
-		string_armor_wear_payload,
-		"armor_wear_progress must be float",
-		"装备实例 armor_wear_progress 不应从字符串兼容转换。"
-	)
-
-	var negative_weapon_wear_payload := _make_equipment_instance_payload("eq_schema_negative_weapon_wear")
-	negative_weapon_wear_payload["weapon_wear_progress"] = -0.5
-	_assert_equipment_instance_validation_error(
-		negative_weapon_wear_payload,
-		"weapon_wear_progress must be non-negative",
-		"装备实例 weapon_wear_progress 不应接受负数。"
-	)
-
 
 func _test_duplicate_same_item_instance_id_selection() -> void:
 	var item_defs := ItemContentRegistry.new().get_item_defs()
@@ -1094,8 +1062,6 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 		"eq_duplicate_rare_sword",
 		EquipmentInstanceState.RarityTier.RARE,
 		23,
-		0.0,
-		0.0,
 		"指定 instance_id 装备后"
 	)
 	_assert_true(
@@ -1121,8 +1087,6 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 		"eq_duplicate_rare_sword",
 		EquipmentInstanceState.RarityTier.RARE,
 		23,
-		0.0,
-		0.0,
 		"指定 instance_id 装备 round-trip 后"
 	)
 	var unequip_result := restored_equipment_service.unequip_item(&"hero", &"main_hand")
@@ -1135,9 +1099,80 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 		"eq_duplicate_rare_sword",
 		EquipmentInstanceState.RarityTier.RARE,
 		23,
-		0.0,
-		0.0,
 		"指定 duplicate instance_id 卸回仓库后"
+	)
+
+
+func _test_party_state_rejects_duplicate_equipment_instance_ids() -> void:
+	var warehouse_duplicate_party := _build_party_with_member(&"hero", "Hero", 8)
+	warehouse_duplicate_party.warehouse_state.equipment_instances = [
+		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_duplicate"),
+		EquipmentInstanceState.create(&"scout_charm", &"eq_party_duplicate"),
+	]
+	_assert_true(
+		PartyState.from_dict(warehouse_duplicate_party.to_dict()) == null,
+		"同一个 instance_id 在仓库中出现两次时，PartyState.from_dict() 应拒绝整份 payload。"
+	)
+
+	var warehouse_and_equipped_party := _build_party_with_member(&"hero", "Hero", 8)
+	warehouse_and_equipped_party.warehouse_state.equipment_instances = [
+		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_shared"),
+	]
+	var hero_equipment = warehouse_and_equipped_party.get_member_state(&"hero").equipment_state
+	hero_equipment.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		Array([&"main_hand"], TYPE_STRING_NAME, &"", null),
+		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_shared")
+	)
+	_assert_true(
+		PartyState.from_dict(warehouse_and_equipped_party.to_dict()) == null,
+		"同一个 instance_id 同时存在于仓库和装备位时，PartyState.from_dict() 应拒绝整份 payload。"
+	)
+
+	var same_member_duplicate_party := _build_party_with_member(&"hero", "Hero", 8)
+	var same_member_equipment = same_member_duplicate_party.get_member_state(&"hero").equipment_state
+	same_member_equipment.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		Array([&"main_hand"], TYPE_STRING_NAME, &"", null),
+		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_same_member")
+	)
+	same_member_equipment.set_equipped_entry(
+		&"necklace",
+		&"scout_charm",
+		Array([&"necklace"], TYPE_STRING_NAME, &"", null),
+		EquipmentInstanceState.create(&"scout_charm", &"eq_party_same_member")
+	)
+	_assert_true(
+		PartyState.from_dict(same_member_duplicate_party.to_dict()) == null,
+		"同一个 member 的多个装备 entry 复用 instance_id 时，PartyState.from_dict() 应拒绝整份 payload。"
+	)
+
+	var cross_member_duplicate_party := _build_party_with_member(&"hero", "Hero", 8)
+	var ally := PartyMemberState.new()
+	ally.member_id = &"ally"
+	ally.display_name = "Ally"
+	ally.progression = UnitProgress.new()
+	ally.progression.unit_id = ally.member_id
+	ally.progression.display_name = ally.display_name
+	cross_member_duplicate_party.set_member_state(ally)
+	cross_member_duplicate_party.reserve_member_ids = [&"ally"]
+	cross_member_duplicate_party.get_member_state(&"hero").equipment_state.set_equipped_entry(
+		&"main_hand",
+		&"bronze_sword",
+		Array([&"main_hand"], TYPE_STRING_NAME, &"", null),
+		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_cross_member")
+	)
+	cross_member_duplicate_party.get_member_state(&"ally").equipment_state.set_equipped_entry(
+		&"necklace",
+		&"scout_charm",
+		Array([&"necklace"], TYPE_STRING_NAME, &"", null),
+		EquipmentInstanceState.create(&"scout_charm", &"eq_party_cross_member")
+	)
+	_assert_true(
+		PartyState.from_dict(cross_member_duplicate_party.to_dict()) == null,
+		"不同 members 的装备位复用 instance_id 时，PartyState.from_dict() 应拒绝整份 payload。"
 	)
 
 
@@ -1175,9 +1210,7 @@ func _make_equipment_instance_payload(instance_id: String, item_id: String = "br
 		"instance_id": instance_id,
 		"item_id": item_id,
 		"rarity": EquipmentInstanceState.RarityTier.COMMON,
-		"current_durability": -1,
-		"armor_wear_progress": 0.0,
-		"weapon_wear_progress": 0.0,
+		"current_durability": EquipmentDurabilityRules.get_default_current_durability(EquipmentInstanceState.RarityTier.COMMON),
 	}
 
 
@@ -1217,8 +1250,6 @@ func _assert_equipment_instance_fields(
 	expected_instance_id: String,
 	expected_rarity: int,
 	expected_current_durability: int,
-	expected_armor_wear_progress: float,
-	expected_weapon_wear_progress: float,
 	message_prefix: String
 ) -> void:
 	_assert_true(instance != null, "%s 实例不应为空。" % message_prefix)
@@ -1227,8 +1258,6 @@ func _assert_equipment_instance_fields(
 	_assert_eq(String(instance.instance_id), expected_instance_id, "%s instance_id 应保持。" % message_prefix)
 	_assert_eq(int(instance.rarity), expected_rarity, "%s rarity 应保持。" % message_prefix)
 	_assert_eq(int(instance.current_durability), expected_current_durability, "%s current_durability 应保持。" % message_prefix)
-	_assert_eq(float(instance.armor_wear_progress), expected_armor_wear_progress, "%s armor_wear_progress 应保持。" % message_prefix)
-	_assert_eq(float(instance.weapon_wear_progress), expected_weapon_wear_progress, "%s weapon_wear_progress 应保持。" % message_prefix)
 
 
 func _assert_equipment_instance_validation_error(payload: Dictionary, expected_fragment: String, message: String) -> void:
@@ -1242,13 +1271,13 @@ func _assert_equipment_instance_validation_error(payload: Dictionary, expected_f
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _finish() -> void:

@@ -7,6 +7,7 @@ extends RefCounted
 
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const EQUIPMENT_DURABILITY_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_durability_rules.gd")
 
 var _rng: Variant = null
 
@@ -44,6 +45,7 @@ func roll_item_instances(item_id: StringName, quantity: int, drop_luck: int) -> 
 	for _index in range(resolved_quantity):
 		var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.create(normalized_item_id)
 		instance.rarity = roll_drop_rarity(drop_luck)
+		instance.current_durability = EQUIPMENT_DURABILITY_RULES_SCRIPT.get_default_current_durability(instance.rarity)
 		instances.append(instance)
 	return instances
 

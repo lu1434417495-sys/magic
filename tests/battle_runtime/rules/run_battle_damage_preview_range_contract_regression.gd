@@ -3,8 +3,11 @@ extends SceneTree
 const BattleDamagePreviewRangeService = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
+const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-var _failures: Array[String] = []
+var _fixture := BattleTestFixture.new()
+var _test := TestRunner.new()
 
 
 func _initialize() -> void:
@@ -18,14 +21,7 @@ func _run() -> void:
 	_test_multiple_damage_effects_are_summed()
 	_test_two_handed_weapon_dice_ignores_alias_skill_dice_fields()
 	_test_dice_bonus_without_dice_is_ignored()
-	if _failures.is_empty():
-		print("Battle damage preview range contract regression: PASS")
-		quit(0)
-		return
-	for failure in _failures:
-		push_error(failure)
-	print("Battle damage preview range contract regression: FAIL (%d)" % _failures.size())
-	quit(1)
+	_test.finish(self, "Battle damage preview range contract regression")
 
 
 func _test_empty_preview_contract() -> void:
@@ -149,14 +145,7 @@ func _build_damage_effect(
 
 
 func _build_unit(unit_id: StringName) -> BattleUnitState:
-	var unit := BattleUnitState.new()
-	unit.unit_id = unit_id
-	unit.display_name = String(unit_id)
-	unit.faction_id = &"player"
-	unit.current_hp = 100
-	unit.is_alive = true
-	unit.attribute_snapshot.set_value(&"hp_max", 100)
-	return unit
+	return _fixture.build_unit(unit_id, {"current_hp": 100, "hp_max": 100})
 
 
 func _apply_weapon(unit: BattleUnitState, dice_count: int, dice_sides: int, flat_bonus: int) -> void:
@@ -173,10 +162,8 @@ func _apply_weapon(unit: BattleUnitState, dice_count: int, dice_sides: int, flat
 
 
 func _assert_true(condition: bool, message: String) -> void:
-	if not condition:
-		_failures.append(message)
+	_test.assert_true(condition, message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
-	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.assert_eq(actual, expected, message)

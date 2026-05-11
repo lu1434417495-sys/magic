@@ -1,12 +1,20 @@
 class_name BattleAiScoreProfile
 extends Resource
 
+const THREAT_MULTIPLIER_BASIS_POINTS_DENOMINATOR := 10000
+
 @export var damage_weight := 10
 @export var heal_weight := 8
 @export var status_weight := 25
 @export var terrain_weight := 15
 @export var height_weight := 12
+@export var lethal_target_weight := 500
+@export var lethal_threat_target_weight := 900
 @export var target_count_weight := 40
+@export var friendly_fire_damage_weight := 35
+@export var friendly_fire_target_weight := 250
+@export var friendly_control_target_weight := 350
+@export var friendly_lethal_target_weight := 5000
 @export var ap_cost_weight := 25
 @export var mp_cost_weight := 15
 @export var stamina_cost_weight := 2
@@ -17,11 +25,11 @@ extends Resource
 @export var position_distance_step := 4
 @export var position_undershoot_penalty := 15
 @export var position_overshoot_penalty := 12
-@export var threat_healer_bias := 0.15
-@export var threat_control_bias := 0.05
-@export var threat_ranged_bias := 0.08
-@export var threat_range_step_bias := 0.02
-@export var threat_multiplier_cap := 1.5
+@export var threat_healer_bias_basis_points := 1500
+@export var threat_control_bias_basis_points := 500
+@export var threat_ranged_bias_basis_points := 800
+@export var threat_range_step_bias_basis_points := 200
+@export var threat_multiplier_cap_basis_points := 15000
 @export var action_base_scores: Dictionary = {
 	"skill": 0,
 	"move": 20,
@@ -63,7 +71,13 @@ func to_dict() -> Dictionary:
 		"status_weight": status_weight,
 		"terrain_weight": terrain_weight,
 		"height_weight": height_weight,
+		"lethal_target_weight": lethal_target_weight,
+		"lethal_threat_target_weight": lethal_threat_target_weight,
 		"target_count_weight": target_count_weight,
+		"friendly_fire_damage_weight": friendly_fire_damage_weight,
+		"friendly_fire_target_weight": friendly_fire_target_weight,
+		"friendly_control_target_weight": friendly_control_target_weight,
+		"friendly_lethal_target_weight": friendly_lethal_target_weight,
 		"ap_cost_weight": ap_cost_weight,
 		"mp_cost_weight": mp_cost_weight,
 		"stamina_cost_weight": stamina_cost_weight,
@@ -74,11 +88,11 @@ func to_dict() -> Dictionary:
 		"position_distance_step": position_distance_step,
 		"position_undershoot_penalty": position_undershoot_penalty,
 		"position_overshoot_penalty": position_overshoot_penalty,
-		"threat_healer_bias": threat_healer_bias,
-		"threat_control_bias": threat_control_bias,
-		"threat_ranged_bias": threat_ranged_bias,
-		"threat_range_step_bias": threat_range_step_bias,
-		"threat_multiplier_cap": threat_multiplier_cap,
+		"threat_healer_bias_basis_points": threat_healer_bias_basis_points,
+		"threat_control_bias_basis_points": threat_control_bias_basis_points,
+		"threat_ranged_bias_basis_points": threat_ranged_bias_basis_points,
+		"threat_range_step_bias_basis_points": threat_range_step_bias_basis_points,
+		"threat_multiplier_cap_basis_points": threat_multiplier_cap_basis_points,
 		"action_base_scores": action_base_scores.duplicate(true),
 		"default_bucket_priority": default_bucket_priority,
 		"bucket_priorities": bucket_priorities.duplicate(true),

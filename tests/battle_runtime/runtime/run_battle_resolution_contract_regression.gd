@@ -4,10 +4,13 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const GameRuntimeBattleLootCommitService = preload("res://scripts/systems/game_runtime/game_runtime_battle_loot_commit_service.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const BattleSessionFacade = preload("res://scripts/systems/game_runtime/battle_session_facade.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -26,7 +29,8 @@ const AchievementRewardDef = preload("res://scripts/player/progression/achieveme
 const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class _FakeBattleSelection extends RefCounted:
@@ -42,6 +46,9 @@ class _FakeBattleRuntimeWithResult extends RefCounted:
 	func get_state() -> BattleState:
 		return state
 
+	func get_battle_resolution_result():
+		return resolution_result
+
 	func consume_battle_resolution_result():
 		consume_result_called = true
 		var result = resolution_result
@@ -55,6 +62,9 @@ class _FakeBattleRuntimeWithoutResult extends RefCounted:
 	func get_state() -> BattleState:
 		return state
 
+	func get_battle_resolution_result():
+		return null
+
 	func consume_battle_resolution_result():
 		return null
 
@@ -62,11 +72,13 @@ class _FakeBattleRuntimeWithoutResult extends RefCounted:
 class _FakeLootCommitGameSession extends RefCounted:
 	var item_defs: Dictionary = {}
 	var _next_equipment_instance_serial := 1
+	var allocation_call_count := 0
 
 	func get_item_defs() -> Dictionary:
 		return item_defs
 
 	func allocate_equipment_instance_id() -> StringName:
+		allocation_call_count += 1
 		var allocated_id := StringName("eq_contract_%06d" % _next_equipment_instance_serial)
 		_next_equipment_instance_serial += 1
 		return allocated_id
@@ -92,6 +104,7 @@ class _FakeLootCommitRuntime extends RefCounted:
 class _FakeRuntimeBridge extends RefCounted:
 	var battle_selection = _FakeBattleSelection.new()
 	var battle_runtime = null
+	var finalize_should_succeed := true
 	var finalization_calls: Array[Dictionary] = []
 	var status_updates: Array[String] = []
 
@@ -107,13 +120,14 @@ class _FakeRuntimeBridge extends RefCounted:
 	func get_battle_state() -> BattleState:
 		return battle_runtime.get_state() if battle_runtime != null and battle_runtime.has_method("get_state") else null
 
-	func finalize_battle_resolution(battle_resolution_result) -> void:
+	func finalize_battle_resolution(battle_resolution_result) -> bool:
 		finalization_calls.append({
 			"battle_resolution_result": battle_resolution_result,
 			"winner_faction_id": String(battle_resolution_result.winner_faction_id) if battle_resolution_result != null else "",
 			"pending_character_rewards": battle_resolution_result.get_pending_character_rewards_copy() if battle_resolution_result != null else [],
 			"quest_progress_events": battle_resolution_result.quest_progress_events.duplicate(true) if battle_resolution_result != null else [],
 		})
+		return finalize_should_succeed
 
 	func build_command_ok(message: String = "", battle_refresh_mode: String = "") -> Dictionary:
 		return {
@@ -131,9 +145,140 @@ class _FakeRuntimeBridge extends RefCounted:
 	func update_status(_message: String) -> void:
 		status_updates.append(_message)
 
+	func get_active_modal_id() -> String:
+		return ""
+
+	func is_modal_window_open() -> bool:
+		return false
+
+
+class _FakeBattleLockGameSession extends RefCounted:
+	var lock_enabled := true
+	var release_call_count := 0
+	var set_party_state_call_count := 0
+	var set_world_data_call_count := 0
+	var flush_call_count := 0
+	var discard_call_count := 0
+
+	func set_battle_save_lock(enabled: bool) -> void:
+		lock_enabled = enabled
+		if not enabled:
+			release_call_count += 1
+
+	func set_party_state(_party_state) -> int:
+		set_party_state_call_count += 1
+		return OK
+
+	func set_world_data(_world_data: Dictionary) -> int:
+		set_world_data_call_count += 1
+		return OK
+
+	func flush_game_state() -> int:
+		flush_call_count += 1
+		return OK
+
+	func discard_pending_save() -> void:
+		discard_call_count += 1
+
+	func get_item_defs() -> Dictionary:
+		return {}
+
+	func log_event(_level: String, _domain: String, _event_id: String, _message: String, _context: Dictionary = {}) -> Dictionary:
+		return {}
+
+
+class _FakeFinalizationCharacterManagement extends RefCounted:
+	var party_state: PartyState = null
+	var enqueue_call_count := 0
+	var quest_progress_call_count := 0
+
+	func get_party_state():
+		return party_state
+
+	func enqueue_pending_character_rewards(_rewards: Array) -> void:
+		enqueue_call_count += 1
+
+	func apply_quest_progress_events(_events: Array, _world_step: int = 0) -> Dictionary:
+		quest_progress_call_count += 1
+		return {}
+
+
+class _FakeFinalizationBattleRuntime extends RefCounted:
+	var end_battle_call_count := 0
+	var fate_call_count := 0
+
+	func handle_fate_battle_resolution(_battle_state, _battle_resolution_result) -> Dictionary:
+		fate_call_count += 1
+		return {}
+
+	func end_battle(_options: Dictionary = {}) -> void:
+		end_battle_call_count += 1
+
+
+class _FakeBattleWritebackService extends RefCounted:
+	var ok := true
+	var commit_call_count := 0
+	var report_call_count := 0
+
+	func setup(_runtime) -> void:
+		pass
+
+	func commit_battle_local_views_to_party_state(_battle_state, _party_state) -> Dictionary:
+		commit_call_count += 1
+		return {"ok": ok, "error_code": "" if ok else "writeback_conflict"}
+
+	func report_invariant_failure(_writeback_result: Dictionary, _battle_summary: Dictionary, _winner_faction_id: String) -> void:
+		report_call_count += 1
+
+
+class _FakeBattleLootCommitService extends RefCounted:
+	var ok := true
+	var commit_call_count := 0
+
+	func setup(_runtime) -> void:
+		pass
+
+	func commit_battle_loot_to_shared_warehouse(_battle_resolution_result) -> Dictionary:
+		commit_call_count += 1
+		return {
+			"ok": ok,
+			"error_code": "" if ok else "battle_loot_item_missing_def",
+			"blocked_item_id": "missing_item" if not ok else "",
+			"committed_item_count": 0,
+			"overflow_entries": [],
+			"overflow_entry_count": 0,
+		}
+
+	func build_battle_resolution_status_message(
+		battle_name: String,
+		winner_faction_id: String,
+		loot_commit_result: Dictionary,
+		persisted_ok: bool
+	) -> String:
+		return "%s %s %s" % [battle_name, winner_faction_id, str(persisted_ok)]
+
+	func build_last_battle_loot_snapshot(
+		_battle_name: String,
+		_winner_faction_id: String,
+		_battle_resolution_result,
+		_loot_commit_result: Dictionary
+	) -> Dictionary:
+		return {}
+
+	func clear_regular_battle_calamity_shard_flags() -> void:
+		pass
+
 
 class _FakeBattleGateway extends RefCounted:
 	var achievement_event_calls: Array[Dictionary] = []
+	var _next_equipment_instance_serial := 1
+	var equipment_instance_allocation_call_count := 0
+
+	func allocate_equipment_instance_id() -> StringName:
+		equipment_instance_allocation_call_count += 1
+		var allocated_id := StringName("eq_contract_%06d" % _next_equipment_instance_serial)
+		_next_equipment_instance_serial += 1
+		return allocated_id
 
 	func build_pending_skill_mastery_reward(
 		member_id: StringName,
@@ -187,17 +332,23 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_battle_resolution_result_round_trip()
+	_test_battle_resolution_equipment_instance_ids_round_trip_and_overflow()
 	_test_battle_resolution_rejects_bad_top_level_schema()
 	_test_battle_resolution_rejects_bad_drop_entry_schema()
 	_test_battle_resolution_rejects_bad_equipment_drop_schema()
 	_test_battle_resolution_rejects_bad_nested_array_entries()
 	_test_battle_resolution_rejects_loot_alias_only_payloads()
 	_test_battle_loot_commit_rejects_equipment_instance_data_alias()
+	_test_battle_runtime_assigns_equipment_instance_ids_on_player_victory()
 	_test_battle_runtime_builds_resolution_result_on_battle_end()
 	_test_battle_runtime_draws_when_both_sides_are_cleared()
 	_test_battle_runtime_battle_end_integration_uses_real_character_gateway()
 	_test_battle_session_facade_prefers_canonical_resolution_result()
+	_test_battle_session_facade_keeps_result_when_finalize_fails()
+	_test_battle_session_command_propagates_finalize_failure()
 	_test_battle_session_facade_requires_canonical_resolution_result()
+	_test_game_runtime_finalize_writeback_failure_keeps_battle_lock()
+	_test_game_runtime_finalize_loot_failure_keeps_battle_lock()
 	if _failures.is_empty():
 		print("Battle resolution contract regression: PASS")
 		quit(0)
@@ -249,6 +400,40 @@ func _test_battle_resolution_result_round_trip() -> void:
 		round_tripped.pending_character_rewards[0] is PendingCharacterReward,
 		"pending_character_rewards 的元素在 round trip 后应仍是正式角色奖励。"
 	)
+
+
+func _test_battle_resolution_equipment_instance_ids_round_trip_and_overflow() -> void:
+	var result := BattleResolutionResult.new()
+	result.battle_id = &"battle_equipment_instance_contract"
+	result.seed = 77
+	result.world_coord = Vector2i(4, 9)
+	result.encounter_anchor_id = &"encounter_equipment_instance_contract"
+	result.terrain_profile_id = &"canyon"
+	result.winner_faction_id = &"player"
+	result.encounter_resolution = &"player_victory"
+	var loot_entry := _build_persisted_equipment_instance_loot_entry()
+	var overflow_entry := _build_persisted_equipment_instance_loot_entry()
+	overflow_entry["drop_entry_id"] = &"wolf_unit_overflow_bronze_sword"
+	var overflow_equipment_payload := _build_persisted_equipment_instance_payload()
+	overflow_equipment_payload["instance_id"] = "eq_contract_000002"
+	overflow_entry["equipment_instance"] = overflow_equipment_payload
+	result.set_loot_entries([loot_entry])
+	result.set_overflow_entries([overflow_entry])
+
+	_assert_equipment_entry_instance_id(result.loot_entries, "eq_contract_000001", "equipment loot 正规化")
+	_assert_equipment_entry_instance_id(result.overflow_entries, "eq_contract_000002", "equipment overflow 正规化")
+
+	var round_tripped: BattleResolutionResult = BattleResolutionResult.from_dict(result.to_dict())
+	_assert_true(round_tripped != null, "装备掉落 instance_id 应支持 BattleResolutionResult to_dict/from_dict 往返。")
+	if round_tripped == null:
+		return
+	_assert_equipment_entry_instance_id(round_tripped.loot_entries, "eq_contract_000001", "equipment loot round trip")
+	_assert_equipment_entry_instance_id(round_tripped.overflow_entries, "eq_contract_000002", "equipment overflow round trip")
+
+	result.set_loot_entries([_build_formal_equipment_instance_loot_entry()])
+	_assert_eq(result.loot_entries.size(), 0, "equipment loot 缺少非空 instance_id 时不应被正规化。")
+	result.set_overflow_entries([_build_formal_equipment_instance_loot_entry()])
+	_assert_eq(result.overflow_entries.size(), 0, "equipment overflow 缺少非空 instance_id 时不应被正规化。")
 
 
 func _test_battle_resolution_rejects_bad_top_level_schema() -> void:
@@ -408,6 +593,28 @@ func _test_battle_resolution_rejects_bad_equipment_drop_schema() -> void:
 		"equipment_instance payload 不是有效 EquipmentInstanceState 字典时，BattleResolutionResult.from_dict() 应拒绝 payload。"
 	)
 
+	var empty_instance_id_payload := _build_strict_battle_resolution_payload()
+	var empty_instance_id_entry := _build_persisted_equipment_instance_loot_entry()
+	var empty_instance_equipment_payload: Dictionary = empty_instance_id_entry["equipment_instance"]
+	empty_instance_equipment_payload["instance_id"] = ""
+	empty_instance_id_entry["equipment_instance"] = empty_instance_equipment_payload
+	empty_instance_id_payload["loot_entries"] = [empty_instance_id_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(empty_instance_id_payload) == null,
+		"equipment_instance 掉落 instance_id 为空时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
+	var empty_overflow_instance_id_payload := _build_strict_battle_resolution_payload()
+	var empty_overflow_entry := _build_persisted_equipment_instance_loot_entry()
+	var empty_overflow_equipment_payload: Dictionary = empty_overflow_entry["equipment_instance"]
+	empty_overflow_equipment_payload["instance_id"] = ""
+	empty_overflow_entry["equipment_instance"] = empty_overflow_equipment_payload
+	empty_overflow_instance_id_payload["overflow_entries"] = [empty_overflow_entry]
+	_assert_true(
+		BattleResolutionResult.from_dict(empty_overflow_instance_id_payload) == null,
+		"equipment_instance overflow entry instance_id 为空时，BattleResolutionResult.from_dict() 应拒绝 payload。"
+	)
+
 	var mismatch_payload := _build_strict_battle_resolution_payload()
 	var mismatch_entry := _build_persisted_equipment_instance_loot_entry()
 	var equipment_payload: Dictionary = mismatch_entry["equipment_instance"]
@@ -473,13 +680,17 @@ func _test_battle_resolution_rejects_loot_alias_only_payloads() -> void:
 	_assert_eq(result.loot_entries.size(), 0, "只提供旧 equipment_instance_data alias 的装备掉落不应归一化为正式掉落。")
 
 	result.set_loot_entries([_build_formal_equipment_instance_loot_entry()])
-	_assert_eq(result.loot_entries.size(), 1, "正式 equipment_instance 掉落 payload 应继续通过归一化。")
+	_assert_eq(result.loot_entries.size(), 0, "equipment_instance 掉落缺少正式 instance_id 时不应归一化为正式掉落。")
+
+	result.set_loot_entries([_build_persisted_equipment_instance_loot_entry()])
+	_assert_eq(result.loot_entries.size(), 1, "带正式 instance_id 的 equipment_instance 掉落 payload 应继续通过归一化。")
 	if result.loot_entries.size() > 0 and result.loot_entries[0] is Dictionary:
 		var loot_entry := result.loot_entries[0] as Dictionary
 		_assert_true(loot_entry.has("equipment_instance"), "正式装备掉落应保留 equipment_instance 字段。")
 		_assert_true(not loot_entry.has("equipment_instance_data"), "正式装备掉落不应暴露 equipment_instance_data alias。")
 		var equipment_payload: Dictionary = loot_entry.get("equipment_instance", {}) if loot_entry.get("equipment_instance", {}) is Dictionary else {}
 		_assert_eq(String(equipment_payload.get("item_id", "")), "bronze_sword", "正式装备掉落应保留 equipment_instance.item_id。")
+		_assert_eq(String(equipment_payload.get("instance_id", "")), "eq_contract_000001", "正式装备掉落应保留 equipment_instance.instance_id。")
 
 
 func _test_battle_loot_commit_rejects_equipment_instance_data_alias() -> void:
@@ -488,7 +699,7 @@ func _test_battle_loot_commit_rejects_equipment_instance_data_alias() -> void:
 	service.setup(runtime)
 	var formal_result := BattleResolutionResult.new()
 	formal_result.winner_faction_id = &"player"
-	formal_result.set_loot_entries([_build_formal_equipment_instance_loot_entry()])
+	formal_result.set_loot_entries([_build_persisted_equipment_instance_loot_entry()])
 
 	var commit_result: Dictionary = service.commit_battle_loot_to_shared_warehouse(formal_result)
 	_assert_true(bool(commit_result.get("ok", false)), "正式 equipment_instance battle loot 应能提交到共享仓库。")
@@ -497,7 +708,8 @@ func _test_battle_loot_commit_rejects_equipment_instance_data_alias() -> void:
 	if runtime._party_state.warehouse_state.equipment_instances.size() > 0:
 		var committed_instance = runtime._party_state.warehouse_state.equipment_instances[0]
 		_assert_eq(String(committed_instance.item_id), "bronze_sword", "提交后的装备实例应保留正式 item_id。")
-		_assert_true(String(committed_instance.instance_id).begins_with("eq_contract_"), "提交后的装备实例应走 world-level instance_id 分配。")
+		_assert_eq(String(committed_instance.instance_id), "eq_contract_000001", "提交后的装备实例应保留战斗结算已分配的正式 instance_id。")
+	_assert_eq(runtime._game_session.allocation_call_count, 0, "提交 battle loot equipment_instance 时不应重新分配 instance_id。")
 
 	runtime = _build_loot_commit_runtime()
 	service = GameRuntimeBattleLootCommitService.new()
@@ -518,6 +730,28 @@ func _test_battle_loot_commit_rejects_equipment_instance_data_alias() -> void:
 	_assert_true(bool(public_commit_result.get("ok", false)), "public commit 遇到 alias-only loot 时应按空掉落完成结算。")
 	_assert_eq(int(public_commit_result.get("committed_item_count", -1)), 0, "public commit 不应提交 alias-only equipment_instance_data payload。")
 	_assert_eq(alias_public_result.loot_entries.size(), 0, "public commit 应把 alias-only loot payload 归一化为空。")
+
+
+func _test_battle_runtime_assigns_equipment_instance_ids_on_player_victory() -> void:
+	var runtime := BattleRuntimeModule.new()
+	var gateway := _FakeBattleGateway.new()
+	runtime.setup(gateway, {}, {}, {}, null, null, {}, null, Callable(gateway, "allocate_equipment_instance_id"))
+	runtime._state = _build_battle_state_for_end_test()
+	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime._active_loot_entries = [_build_formal_equipment_instance_loot_entry()]
+
+	var batch := BattleEventBatch.new()
+	_assert_true(runtime._check_battle_end(batch), "战斗胜利结束时应生成正式结算结果。")
+	var result: BattleResolutionResult = runtime.get_battle_resolution_result()
+	_assert_true(result != null, "战斗胜利结束后应缓存 BattleResolutionResult。")
+	if result == null:
+		return
+	_assert_equipment_entry_instance_id(result.loot_entries, "eq_contract_000001", "battle victory equipment loot")
+	_assert_eq(
+		gateway.equipment_instance_allocation_call_count,
+		1,
+		"battle victory canonical result 应在战斗胜利时通过正式接口分配一次 equipment instance_id。"
+	)
 
 
 func _test_battle_runtime_builds_resolution_result_on_battle_end() -> void:
@@ -631,7 +865,43 @@ func _test_battle_session_facade_prefers_canonical_resolution_result() -> void:
 		"resolve_active_battle() 应传递正式角色奖励对象。"
 	)
 	_assert_eq((call.get("quest_progress_events", []) as Array).size(), 1, "resolve_active_battle() 应把 canonical result 的 quest_progress_events 一并传给运行时。")
-	_assert_true(battle_runtime.consume_result_called, "resolve_active_battle() 应消费 canonical battle result。")
+	_assert_true(battle_runtime.consume_result_called, "resolve_active_battle() 应在成功回写后消费 canonical battle result。")
+
+
+func _test_battle_session_facade_keeps_result_when_finalize_fails() -> void:
+	var runtime_bridge := _FakeRuntimeBridge.new()
+	runtime_bridge.finalize_should_succeed = false
+	var battle_runtime := _FakeBattleRuntimeWithResult.new()
+	battle_runtime.state = _build_ended_battle_state()
+	var expected_result := _build_resolution_result_with_reward(_build_canonical_reward(&"hero", &"battle_skill"))
+	battle_runtime.resolution_result = expected_result
+	runtime_bridge.battle_runtime = battle_runtime
+
+	var facade := BattleSessionFacade.new()
+	facade.setup(runtime_bridge)
+	facade.resolve_active_battle()
+
+	_assert_eq(runtime_bridge.finalization_calls.size(), 1, "finalize 失败前仍应尝试一次战后回写。")
+	_assert_true(not battle_runtime.consume_result_called, "finalize 失败时不应消费 canonical battle result。")
+	_assert_true(battle_runtime.resolution_result == expected_result, "finalize 失败时应保留原始 canonical result 供重试。")
+
+
+func _test_battle_session_command_propagates_finalize_failure() -> void:
+	var runtime_bridge := _FakeRuntimeBridge.new()
+	runtime_bridge.finalize_should_succeed = false
+	var battle_runtime := _FakeBattleRuntimeWithResult.new()
+	battle_runtime.state = _build_ended_battle_state()
+	var expected_result := _build_resolution_result_with_reward(_build_canonical_reward(&"hero", &"battle_skill"))
+	battle_runtime.resolution_result = expected_result
+	runtime_bridge.battle_runtime = battle_runtime
+
+	var facade := BattleSessionFacade.new()
+	facade.setup(runtime_bridge)
+	var command_result := facade.command_battle_wait_or_resolve()
+
+	_assert_true(not bool(command_result.get("ok", true)), "战后 finalize 失败时，battle.wait_or_resolve 应返回 ok=false。")
+	_assert_true(not battle_runtime.consume_result_called, "命令级 finalize 失败时不应消费 canonical battle result。")
+	_assert_true(battle_runtime.resolution_result == expected_result, "命令级 finalize 失败时应保留 canonical battle result 供重试。")
 
 
 func _test_battle_session_facade_requires_canonical_resolution_result() -> void:
@@ -649,6 +919,44 @@ func _test_battle_session_facade_requires_canonical_resolution_result() -> void:
 		not runtime_bridge.status_updates.is_empty() and runtime_bridge.status_updates[-1].contains("缺少正式结算结果"),
 		"缺少 canonical result 时应显式报告错误状态。"
 	)
+
+
+func _test_game_runtime_finalize_writeback_failure_keeps_battle_lock() -> void:
+	var runtime := _build_runtime_for_finalize_failure_test()
+	var game_session: _FakeBattleLockGameSession = runtime._game_session
+	var battle_runtime: _FakeFinalizationBattleRuntime = runtime._battle_runtime
+	var writeback_service: _FakeBattleWritebackService = runtime._battle_writeback_service
+	writeback_service.ok = false
+
+	var result := _build_resolution_result_with_reward(_build_canonical_reward(&"hero", &"battle_skill"))
+	var finalized := bool(runtime.finalize_battle_resolution(result))
+
+	_assert_true(not finalized, "battle-local writeback 失败时 finalize_battle_resolution() 应返回 false。")
+	_assert_true(game_session.lock_enabled, "battle-local writeback 失败时不应释放 battle save lock。")
+	_assert_eq(game_session.release_call_count, 0, "battle-local writeback 失败时不应调用 set_battle_save_lock(false)。")
+	_assert_eq(battle_runtime.end_battle_call_count, 0, "battle-local writeback 失败时不应 end_battle。")
+	_assert_true(runtime._battle_state != null, "battle-local writeback 失败时不应清理 battle context。")
+	_assert_eq(game_session.flush_call_count, 0, "battle-local writeback 失败时不应 flush save。")
+
+
+func _test_game_runtime_finalize_loot_failure_keeps_battle_lock() -> void:
+	var runtime := _build_runtime_for_finalize_failure_test()
+	var game_session: _FakeBattleLockGameSession = runtime._game_session
+	var battle_runtime: _FakeFinalizationBattleRuntime = runtime._battle_runtime
+	var loot_service: _FakeBattleLootCommitService = runtime._battle_loot_commit_service
+	loot_service.ok = false
+
+	var result := _build_resolution_result_with_reward(_build_canonical_reward(&"hero", &"battle_skill"))
+	var finalized := bool(runtime.finalize_battle_resolution(result))
+
+	_assert_true(not finalized, "loot commit hard failure 时 finalize_battle_resolution() 应返回 false。")
+	_assert_true(game_session.lock_enabled, "loot commit hard failure 时不应释放 battle save lock。")
+	_assert_eq(game_session.release_call_count, 0, "loot commit hard failure 时不应调用 set_battle_save_lock(false)。")
+	_assert_eq(battle_runtime.end_battle_call_count, 0, "loot commit hard failure 时不应 end_battle。")
+	_assert_true(runtime._battle_state != null, "loot commit hard failure 时不应清理 battle context。")
+	_assert_eq(game_session.set_party_state_call_count, 0, "loot commit hard failure 时不应写回 party_state。")
+	_assert_eq(game_session.set_world_data_call_count, 0, "loot commit hard failure 时不应移除 encounter 并写回 world_data。")
+	_assert_eq(game_session.flush_call_count, 0, "loot commit hard failure 时不应 flush save。")
 
 
 func _build_canonical_reward(member_id: StringName, skill_id: StringName) -> PendingCharacterReward:
@@ -682,6 +990,33 @@ func _build_resolution_result_with_reward(reward: PendingCharacterReward) -> Bat
 	result.pending_character_rewards = [reward]
 	result.quest_progress_events = [{"quest_id": "battle_contract", "objective_id": "defeat_enemy", "progress_delta": 1}]
 	return result
+
+
+func _build_runtime_for_finalize_failure_test() -> GameRuntimeFacade:
+	var runtime := GameRuntimeFacade.new()
+	var party_state := PartyState.new()
+	var hero := PartyMemberState.new()
+	hero.member_id = &"hero"
+	hero.display_name = "Hero"
+	hero.progression.unit_id = hero.member_id
+	hero.progression.display_name = hero.display_name
+	party_state.set_member_state(hero)
+	party_state.active_member_ids = [&"hero"]
+	party_state.leader_member_id = &"hero"
+	party_state.main_character_member_id = &"hero"
+
+	var character_management := _FakeFinalizationCharacterManagement.new()
+	character_management.party_state = party_state
+	runtime._game_session = _FakeBattleLockGameSession.new()
+	runtime._character_management = character_management
+	runtime._battle_runtime = _FakeFinalizationBattleRuntime.new()
+	runtime._battle_writeback_service = _FakeBattleWritebackService.new()
+	runtime._battle_loot_commit_service = _FakeBattleLootCommitService.new()
+	runtime._party_state = party_state
+	runtime._battle_state = _build_ended_battle_state()
+	runtime._active_battle_encounter_id = &"encounter_session"
+	runtime._active_battle_encounter_name = "Session Battle"
+	return runtime
 
 
 func _build_strict_battle_resolution_payload() -> Dictionary:
@@ -779,9 +1114,7 @@ func _build_transient_equipment_instance_payload() -> Dictionary:
 		"instance_id": "",
 		"item_id": "bronze_sword",
 		"rarity": EquipmentInstanceState.RarityTier.RARE,
-		"current_durability": -1,
-		"armor_wear_progress": 0.0,
-		"weapon_wear_progress": 0.0,
+		"current_durability": 120,
 	}
 
 
@@ -789,6 +1122,16 @@ func _build_persisted_equipment_instance_payload() -> Dictionary:
 	var payload := _build_transient_equipment_instance_payload()
 	payload["instance_id"] = "eq_contract_000001"
 	return payload
+
+
+func _assert_equipment_entry_instance_id(entries: Array, expected_id: String, context: String) -> void:
+	_assert_eq(entries.size(), 1, "%s 应保留 1 条 equipment_instance entry。" % context)
+	if entries.is_empty() or entries[0] is not Dictionary:
+		return
+	var entry := entries[0] as Dictionary
+	_assert_true(entry.has("equipment_instance"), "%s 应保留 equipment_instance payload。" % context)
+	var equipment_payload: Dictionary = entry.get("equipment_instance", {}) if entry.get("equipment_instance", {}) is Dictionary else {}
+	_assert_eq(String(equipment_payload.get("instance_id", "")), expected_id, "%s 应保留非空 instance_id。" % context)
 
 
 func _build_loot_commit_runtime():
@@ -975,10 +1318,10 @@ func _has_achievement_event_call(calls: Array[Dictionary], member_id: String, ev
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

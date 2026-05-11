@@ -1,8 +1,12 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_formal_combat_fixture.gd")
 const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
+const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/character_creation_service.gd")
+const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/progression_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
@@ -16,7 +20,8 @@ const ATTRIBUTE_IDS: Array[StringName] = [
 	&"willpower",
 ]
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -29,6 +34,7 @@ func _run() -> void:
 	_test_selected_main_character_uses_configured_reroll_count()
 	_test_hostile_main_character_option_falls_back_to_first_ally()
 	_test_mixed_6v12_rolls_creation_attributes_from_seed()
+	_test_mixed_6v12_profession_hp_uses_independent_rank_rolls()
 	_test_mixed_6v12_omits_explicit_action_threshold()
 	_test_mixed_6v12_elite_archers_get_shooting_specialization()
 	_test_mixed_6v12_starts_all_units_at_full_effective_hp()
@@ -76,12 +82,12 @@ func _test_selected_main_character_uses_configured_reroll_count() -> void:
 	var fixture = _build_fixture(
 		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12,
 		{
-			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID: &"elite_archer_1",
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID: &"elite_mage_0",
 			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_REROLL_COUNT: 10000,
 		}
 	)
 
-	_assert_eq(_get_hidden_luck(fixture, &"elite_archer_1"), -3, "主角应按传入 reroll_count=10000 烘焙 -3。")
+	_assert_eq(_get_hidden_luck(fixture, &"elite_mage_0"), -3, "主角应按传入 reroll_count=10000 烘焙 -3。")
 	_assert_eq(_get_hidden_luck(fixture, &"elite_archer_0"), 0, "未选中弓手不应获得出生幸运。")
 
 
@@ -121,16 +127,50 @@ func _test_mixed_6v12_rolls_creation_attributes_from_seed() -> void:
 	_assert_rolled_attribute_range(fixture_a, &"hostile_archer_0")
 
 
+func _test_mixed_6v12_profession_hp_uses_independent_rank_rolls() -> void:
+	var seed := 24680
+	var fixture = _build_fixture(
+		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12,
+		{
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED: seed,
+		}
+	)
+	var mage = fixture.get_member_state(&"elite_mage_0")
+	if mage == null or mage.progression == null or mage.progression.unit_base_attributes == null:
+		_test.fail("缺少 6v12 法师。")
+		return
+	var attrs = mage.progression.unit_base_attributes
+	var constitution := int(attrs.get_attribute_value(UnitBaseAttributes.CONSTITUTION))
+	var expected_hp := CHARACTER_CREATION_SERVICE_SCRIPT.calculate_initial_hp_max(constitution)
+	var hp_rng := RandomNumberGenerator.new()
+	hp_rng.seed = seed + BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.HP_ROLL_SEED_OFFSET
+	for _sword_rank in range(4 * 2):
+		hp_rng.randi_range(1, 10)
+	for _archer_rank in range(2):
+		hp_rng.randi_range(1, 8)
+	for _mage_rank in range(5):
+		var hp_roll := hp_rng.randi_range(1, 6)
+		expected_hp += PROGRESSION_SERVICE_SCRIPT.calculate_profession_hit_point_gain(hp_roll, constitution)
+	var old_aggregate_hp := CHARACTER_CREATION_SERVICE_SCRIPT.calculate_initial_hp_max(constitution)
+	old_aggregate_hp += PROGRESSION_SERVICE_SCRIPT.calculate_profession_hit_point_gain(5, constitution) * 5
+	_assert_true(expected_hp != old_aggregate_hp, "测试 seed 应能区分逐 rank 独立掷骰与旧的单 roll 乘 rank 逻辑。")
+	_assert_eq(
+		attrs.get_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX),
+		expected_hp,
+		"6v12 法师职业生命应按每个 rank 独立掷生命骰后累加。"
+	)
+
+
 func _test_mixed_6v12_omits_explicit_action_threshold() -> void:
 	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
 	var party_state = fixture.get_party_state()
 	if party_state == null:
-		_failures.append("缺少 fixture party_state。")
+		_test.fail("缺少 fixture party_state。")
 		return
 	for member_id in party_state.member_states.keys():
 		var member_state = fixture.get_member_state(member_id)
 		if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
-			_failures.append("缺少成员属性：%s" % String(member_id))
+			_test.fail("缺少成员属性：%s" % String(member_id))
 			continue
 		var base_attributes = member_state.progression.unit_base_attributes
 		_assert_true(
@@ -156,7 +196,7 @@ func _test_formal_fixture_requests_bidirectional_spawn_reachability() -> void:
 
 func _test_mixed_6v12_elite_archers_get_shooting_specialization() -> void:
 	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
-	for member_id in [&"elite_archer_0", &"elite_archer_1"]:
+	for member_id in [&"elite_archer_0"]:
 		var member_state = fixture.get_member_state(member_id)
 		var skill_progress = member_state.progression.get_skill_progress(&"archer_shooting_specialization") if member_state != null and member_state.progression != null else null
 		_assert_true(
@@ -178,13 +218,13 @@ func _test_mixed_6v12_starts_all_units_at_full_effective_hp() -> void:
 	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
 	var party_state = fixture.get_party_state()
 	if party_state == null:
-		_failures.append("缺少 fixture party_state。")
+		_test.fail("缺少 fixture party_state。")
 		return
 	for member_id_variant in party_state.member_states.keys():
 		var member_id := StringName(String(member_id_variant))
 		var member_state = fixture.get_member_state(member_id)
 		if member_state == null:
-			_failures.append("缺少成员：%s" % String(member_id))
+			_test.fail("缺少成员：%s" % String(member_id))
 			continue
 		var snapshot = fixture.get_member_attribute_snapshot_for_equipment_view(member_id, member_state.equipment_state)
 		var hp_max := maxi(int(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 1)
@@ -213,10 +253,12 @@ func _test_mixed_6v12_equips_role_armor() -> void:
 		var elite_sword_member_id := StringName("elite_sword_%d" % index)
 		_assert_equipped_item(fixture, elite_sword_member_id, EQUIPMENT_RULES_SCRIPT.MAIN_HAND, &"steel_longsword", "6v12 精英剑士应装备长剑：%s" % String(elite_sword_member_id))
 		_assert_equipped_item(fixture, elite_sword_member_id, EQUIPMENT_RULES_SCRIPT.BODY, &"iron_scale_mail", "6v12 精英剑士应装备中甲：%s" % String(elite_sword_member_id))
-	for index in range(2):
+	for index in range(1):
 		var elite_archer_member_id := StringName("elite_archer_%d" % index)
 		_assert_equipped_item(fixture, elite_archer_member_id, EQUIPMENT_RULES_SCRIPT.MAIN_HAND, &"ash_longbow", "6v12 精英弓手应装备长弓：%s" % String(elite_archer_member_id))
 		_assert_equipped_item(fixture, elite_archer_member_id, EQUIPMENT_RULES_SCRIPT.BODY, &"leather_jerkin", "6v12 精英弓手应装备皮甲：%s" % String(elite_archer_member_id))
+	_assert_no_equipped_item(fixture, &"elite_mage_0", EQUIPMENT_RULES_SCRIPT.MAIN_HAND, "6v12 精英法师不应装备武器。")
+	_assert_equipped_item(fixture, &"elite_mage_0", EQUIPMENT_RULES_SCRIPT.BODY, &"leather_jerkin", "6v12 精英法师应装备皮甲。")
 	for index in range(8):
 		var hostile_sword_member_id := StringName("hostile_sword_%d" % index)
 		_assert_equipped_item(fixture, hostile_sword_member_id, EQUIPMENT_RULES_SCRIPT.MAIN_HAND, &"steel_longsword", "6v12 敌方剑士应装备长剑：%s" % String(hostile_sword_member_id))
@@ -245,7 +287,7 @@ func _build_fixture(roster_id: StringName, roster_options: Dictionary = {}):
 func _get_hidden_luck(fixture, member_id: StringName) -> int:
 	var member_state = fixture.get_member_state(member_id)
 	if member_state == null:
-		_failures.append("缺少成员：%s" % String(member_id))
+		_test.fail("缺少成员：%s" % String(member_id))
 		return 0
 	return int(member_state.get_hidden_luck_at_birth())
 
@@ -254,7 +296,7 @@ func _build_all_member_attribute_map(fixture) -> Dictionary:
 	var result := {}
 	var party_state = fixture.get_party_state()
 	if party_state == null:
-		_failures.append("缺少 fixture party_state。")
+		_test.fail("缺少 fixture party_state。")
 		return result
 	var member_ids: Array[String] = []
 	for member_id_variant in party_state.member_states.keys():
@@ -269,7 +311,7 @@ func _build_all_member_attribute_map(fixture) -> Dictionary:
 func _get_base_attributes(fixture, member_id: StringName) -> Dictionary:
 	var member_state = fixture.get_member_state(member_id)
 	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
-		_failures.append("缺少成员属性：%s" % String(member_id))
+		_test.fail("缺少成员属性：%s" % String(member_id))
 		return {}
 	var attrs = member_state.progression.unit_base_attributes
 	var result := {}
@@ -291,19 +333,29 @@ func _assert_rolled_attribute_range(fixture, member_id: StringName) -> void:
 func _assert_equipped_item(fixture, member_id: StringName, slot_id: StringName, expected_item_id: StringName, message: String) -> void:
 	var member_state = fixture.get_member_state(member_id)
 	if member_state == null:
-		_failures.append("缺少成员：%s" % String(member_id))
+		_test.fail("缺少成员：%s" % String(member_id))
 		return
 	if member_state.equipment_state == null:
-		_failures.append("成员缺少装备状态：%s" % String(member_id))
+		_test.fail("成员缺少装备状态：%s" % String(member_id))
 		return
 	_assert_eq(member_state.equipment_state.get_equipped_item_id(slot_id), expected_item_id, message)
 
 
+func _assert_no_equipped_item(fixture, member_id: StringName, slot_id: StringName, message: String) -> void:
+	var member_state = fixture.get_member_state(member_id)
+	if member_state == null:
+		_test.fail("缺少成员：%s" % String(member_id))
+		return
+	if member_state.equipment_state == null:
+		return
+	_assert_eq(member_state.equipment_state.get_equipped_item_id(slot_id), &"", message)
+
+
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

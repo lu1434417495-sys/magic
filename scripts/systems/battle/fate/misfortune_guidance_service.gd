@@ -13,6 +13,7 @@ const MISFORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/mis
 const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/item_def.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
 const BattleState = BATTLE_STATE_SCRIPT
 const BattleResolutionResult = BATTLE_RESOLUTION_RESULT_SCRIPT
 const BattleStatusEffectState = BATTLE_STATUS_EFFECT_STATE_SCRIPT
@@ -35,8 +36,6 @@ const STATUS_CROWN_BREAK_BROKEN_FANG: StringName = &"crown_break_broken_fang"
 const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_CROWN_BREAK_BLINDED_EYE: StringName = &"crown_break_blinded_eye"
 const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
-const CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
-const BLACK_CROWN_CORE_ITEM_ID: StringName = &"black_crown_core"
 const EXALTED_READY_FLAG_PREFIX := "misfortune_guidance_exalted_ready:"
 const CALAMITY_REASON_CRITICAL_FAIL: StringName = MISFORTUNE_SERVICE_SCRIPT.CALAMITY_REASON_CRITICAL_FAIL
 const CALAMITY_REASON_STRONG_DEBUFF: StringName = MISFORTUNE_SERVICE_SCRIPT.CALAMITY_REASON_STRONG_DEBUFF
@@ -215,7 +214,7 @@ func _forge_result_uses_fixed_material(result: Dictionary) -> bool:
 		if removed_entry_variant is not Dictionary:
 			continue
 		var item_id := ProgressionDataUtils.to_string_name((removed_entry_variant as Dictionary).get("item_id", ""))
-		if item_id == CALAMITY_SHARD_ITEM_ID or item_id == BLACK_CROWN_CORE_ITEM_ID:
+		if item_id == BattleLootConstants.ITEM_CALAMITY_SHARD or item_id == BattleLootConstants.ITEM_BLACK_CROWN_CORE:
 			return true
 	return false
 

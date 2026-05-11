@@ -30,8 +30,8 @@ ai_score_profile = SubResource("Resource_score")
 override_patches = Array[Dictionary]([{
 "target_type": "brain",
 "target_id": "ranged_suppressor",
-"path": "retreat_hp_ratio",
-"value": 0.6
+"path": "retreat_hp_basis_points",
+"value": 6000
 }, {
 "target_type": "action",
 "brain_id": "ranged_suppressor",

@@ -83,6 +83,7 @@ const TO_DICT_FIELDS: Array[String] = [
 	"action_threshold",
 	"known_active_skill_ids",
 	"known_skill_level_map",
+	"known_skill_lock_hit_bonus_map",
 	"movement_tags",
 	"vision_tags",
 	"proficiency_tags",
@@ -204,6 +205,8 @@ var action_threshold := DEFAULT_ACTION_THRESHOLD
 var known_active_skill_ids: Array[StringName] = []
 ## 字段说明：按键缓存已知技能等级映射表，便于在较多对象中快速定位目标并减少重复遍历。
 var known_skill_level_map: Dictionary = {}
+## 字段说明：按技能记录成长锁定后提供的命中 / 法术检定 / 豁免 DC 加值。
+var known_skill_lock_hit_bonus_map: Dictionary = {}
 ## 字段说明：记录单位移动标签，供战斗网格规则按地形动态修正通行性与移动消耗。
 var movement_tags: Array[StringName] = []
 ## 字段说明：记录身份投影的视觉标签，例如 darkvision。
@@ -581,6 +584,7 @@ func to_dict() -> Dictionary:
 		"action_threshold": action_threshold,
 		"known_active_skill_ids": _string_name_array_to_strings(known_active_skill_ids),
 		"known_skill_level_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_level_map),
+		"known_skill_lock_hit_bonus_map": ProgressionDataUtils.string_name_int_map_to_string_dict(known_skill_lock_hit_bonus_map),
 		"movement_tags": _string_name_array_to_strings(movement_tags),
 		"vision_tags": _string_name_array_to_strings(vision_tags),
 		"proficiency_tags": _string_name_array_to_strings(proficiency_tags),
@@ -720,6 +724,7 @@ static func from_dict(data: Variant):
 		"weapon_two_handed_dice",
 		"cooldowns",
 		"known_skill_level_map",
+		"known_skill_lock_hit_bonus_map",
 		"status_effects",
 		"combo_state",
 		"damage_resistances",
@@ -734,6 +739,12 @@ static func from_dict(data: Variant):
 	var known_skill_level_map: Variant = _string_name_int_map_from_dict(payload["known_skill_level_map"], true)
 	if known_skill_level_map == null:
 		return null
+	var known_skill_lock_hit_bonus_map: Variant = _string_name_int_map_from_dict(payload["known_skill_lock_hit_bonus_map"], true)
+	if known_skill_lock_hit_bonus_map == null:
+		return null
+	for skill_id in known_skill_lock_hit_bonus_map.keys():
+		if int(known_skill_lock_hit_bonus_map[skill_id]) < 0:
+			return null
 	var unlocked_resources := _combat_resource_array_from_payload(payload["unlocked_combat_resource_ids"])
 	if unlocked_resources.is_empty():
 		return null
@@ -830,6 +841,7 @@ static func from_dict(data: Variant):
 	unit_state.action_threshold = int(payload["action_threshold"])
 	unit_state.known_active_skill_ids = known_active_skill_ids
 	unit_state.known_skill_level_map = known_skill_level_map
+	unit_state.known_skill_lock_hit_bonus_map = known_skill_lock_hit_bonus_map
 	unit_state.movement_tags = movement_tags
 	unit_state.vision_tags = vision_tags
 	unit_state.proficiency_tags = proficiency_tags

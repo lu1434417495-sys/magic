@@ -11,6 +11,7 @@ const TICK_TURN_START_AP_PENALTY: StringName = &"turn_start_ap_penalty"
 const TICK_TURN_START_DAMAGE: StringName = &"turn_start_damage"
 const TICK_TIMELINE_DAMAGE: StringName = &"timeline_damage"
 const TU_GRANULARITY := 5
+const DEFAULT_BLIND_ATTACK_ROLL_PENALTY := 4
 
 const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_ARCHER_PRE_AIM: StringName = &"archer_pre_aim"
@@ -19,6 +20,7 @@ const STATUS_ARCHER_SHOOTING_SPECIALIZATION: StringName = &"archer_shooting_spec
 const STATUS_ATTACK_UP: StringName = &"attack_up"
 const STATUS_ATTACK_ROLL_BONUS_UP: StringName = &"attack_roll_bonus_up"
 const STATUS_BURNING: StringName = &"burning"
+const STATUS_BLIND: StringName = &"blind"
 const STATUS_DEATH_WARD: StringName = &"death_ward"
 const STATUS_DAMAGE_REDUCTION_UP: StringName = &"damage_reduction_up"
 const STATUS_DODGE_BONUS_UP: StringName = &"dodge_bonus_up"
@@ -29,6 +31,8 @@ const STATUS_MAGIC_SHIELD: StringName = &"magic_shield"
 const STATUS_MARKED: StringName = &"marked"
 const STATUS_PINNED: StringName = &"pinned"
 const STATUS_PRISMATIC_BARRIER: StringName = &"prismatic_barrier"
+const STATUS_PETRIFIED: StringName = &"petrified"
+const STATUS_MADNESS: StringName = &"madness"
 const STATUS_ROOTED: StringName = &"rooted"
 const STATUS_SHOCKED: StringName = &"shocked"
 const STATUS_SLOW: StringName = &"slow"
@@ -50,17 +54,83 @@ static func has_semantic(status_id: StringName) -> bool:
 
 static func is_harmful_status(status_id: StringName) -> bool:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_BURNING, STATUS_SLOW, STATUS_STAGGERED, STATUS_HEX_OF_FRAILTY, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT, &"black_star_brand_normal", &"black_star_brand_elite":
+		STATUS_ARMOR_BREAK, STATUS_BLIND, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_BURNING, STATUS_SLOW, STATUS_STAGGERED, STATUS_HEX_OF_FRAILTY, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT, STATUS_PETRIFIED, STATUS_MADNESS, &"black_star_brand_normal", &"black_star_brand_elite":
 			return true
 		_:
 			return false
+
+
+static func is_cleansable_harmful_status(status_id: StringName) -> bool:
+	match ProgressionDataUtils.to_string_name(status_id):
+		STATUS_PETRIFIED:
+			return false
+		_:
+			return is_harmful_status(status_id)
+
+
+static func is_dispellable_harmful_status(status_id: StringName) -> bool:
+	match ProgressionDataUtils.to_string_name(status_id):
+		STATUS_BLIND, STATUS_BURNING, STATUS_DOOM_SENTENCE_VERDICT, STATUS_FROZEN, STATUS_HEX_OF_FRAILTY, STATUS_MADNESS, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_SLOW, STATUS_STAGGERED, STATUS_TAUNTED:
+			return true
+		_:
+			return false
+
+
+static func is_dispellable_beneficial_status(status_id: StringName) -> bool:
+	match ProgressionDataUtils.to_string_name(status_id):
+		STATUS_ATTACK_UP, STATUS_ATTACK_ROLL_BONUS_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_DODGE_BONUS_UP, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD, STATUS_WILLPOWER_SAVE_BONUS_UP:
+			return true
+		_:
+			return false
+
+
+static func is_dispellable_harmful_status_entry(status_entry: BattleStatusEffectState) -> bool:
+	if status_entry == null:
+		return false
+	if _get_status_param_bool(status_entry.params, &"undispellable", false):
+		return false
+	if _get_status_param_bool(status_entry.params, &"dispellable_harmful_magic", false):
+		return true
+	if _get_status_param_bool(status_entry.params, &"dispellable_magic", false):
+		return is_harmful_status(status_entry.status_id)
+	return is_dispellable_harmful_status(status_entry.status_id)
+
+
+static func is_dispellable_beneficial_status_entry(status_entry: BattleStatusEffectState) -> bool:
+	if status_entry == null:
+		return false
+	if _get_status_param_bool(status_entry.params, &"undispellable", false):
+		return false
+	if _get_status_param_bool(status_entry.params, &"dispellable_beneficial_magic", false):
+		return true
+	if _get_status_param_bool(status_entry.params, &"dispellable_magic", false):
+		return not is_harmful_status(status_entry.status_id)
+	return is_dispellable_beneficial_status(status_entry.status_id)
+
+
+static func get_dispel_priority(status_id: StringName) -> int:
+	match ProgressionDataUtils.to_string_name(status_id):
+		STATUS_DEATH_WARD, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD:
+			return 100
+		STATUS_BLIND, STATUS_FROZEN, STATUS_MADNESS, STATUS_ROOTED:
+			return 90
+		STATUS_ATTACK_UP, STATUS_ATTACK_ROLL_BONUS_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DODGE_BONUS_UP, STATUS_WILLPOWER_SAVE_BONUS_UP:
+			return 80
+		STATUS_BURNING, STATUS_HEX_OF_FRAILTY, STATUS_PINNED, STATUS_SHOCKED, STATUS_SLOW, STATUS_STAGGERED, STATUS_TAUNTED:
+			return 70
+		_:
+			return 50
 
 
 static func get_semantic(status_id: StringName) -> Dictionary:
 	match ProgressionDataUtils.to_string_name(status_id):
 		STATUS_ARCHER_PRE_AIM, STATUS_ARCHER_RANGE_UP, STATUS_ARCHER_SHOOTING_SPECIALIZATION, STATUS_ATTACK_UP, STATUS_ATTACK_ROLL_BONUS_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DEATH_WARD, STATUS_DODGE_BONUS_UP, STATUS_GUARDING, STATUS_HEX_OF_FRAILTY, STATUS_MAGIC_SHIELD, STATUS_PRISMATIC_BARRIER, STATUS_SPELLWARD, STATUS_LAST_STAND_ACTIVE, STATUS_WILLPOWER_SAVE_BONUS_UP:
 			return _build_refresh_timeline_semantic()
-		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT:
+		STATUS_BLIND:
+			var blind_semantic := _build_refresh_timeline_semantic()
+			blind_semantic["attack_roll_penalty"] = DEFAULT_BLIND_ATTACK_ROLL_PENALTY
+			return blind_semantic
+		STATUS_ARMOR_BREAK, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT, STATUS_PETRIFIED, STATUS_MADNESS:
 			return _build_refresh_timeline_semantic()
 		STATUS_BURNING:
 			return {
@@ -161,6 +231,14 @@ static func get_move_cost_delta(status_entry: BattleStatusEffectState) -> int:
 	return base_delta * _get_effect_intensity(status_entry)
 
 
+static func get_attack_roll_penalty(status_entry: BattleStatusEffectState) -> int:
+	if status_entry == null:
+		return 0
+	var semantic := get_semantic(status_entry.status_id)
+	var default_penalty := maxi(int(semantic.get("attack_roll_penalty", 0)), 0)
+	return maxi(_get_status_param_int(status_entry.params, &"attack_roll_penalty", default_penalty), 0)
+
+
 static func advance_timeline_duration(status_entry: BattleStatusEffectState, elapsed_tu: int) -> Dictionary:
 	if status_entry == null or elapsed_tu <= 0 or not status_entry.has_duration():
 		return {"expired": false, "changed": false}
@@ -204,6 +282,46 @@ static func _clone_effect_params(effect_def) -> Dictionary:
 	if effect_def == null or effect_def.params == null:
 		return {}
 	return effect_def.params.duplicate(true)
+
+
+static func _get_status_param_int(params: Dictionary, param_key: StringName, fallback: int) -> int:
+	if params == null or param_key == &"":
+		return fallback
+	var raw_value = fallback
+	var param_name := String(param_key)
+	if params.has(param_key):
+		raw_value = params[param_key]
+	elif params.has(param_name):
+		raw_value = params[param_name]
+	else:
+		for key_variant in params.keys():
+			if ProgressionDataUtils.to_string_name(key_variant) == param_key:
+				raw_value = params[key_variant]
+				break
+	if raw_value is int:
+		return int(raw_value)
+	if raw_value is float:
+		return int(raw_value)
+	return fallback
+
+
+static func _get_status_param_bool(params: Dictionary, param_key: StringName, fallback: bool) -> bool:
+	if params == null or param_key == &"":
+		return fallback
+	var raw_value = fallback
+	var param_name := String(param_key)
+	if params.has(param_key):
+		raw_value = params[param_key]
+	elif params.has(param_name):
+		raw_value = params[param_name]
+	else:
+		for key_variant in params.keys():
+			if ProgressionDataUtils.to_string_name(key_variant) == param_key:
+				raw_value = params[key_variant]
+				break
+	if raw_value is bool:
+		return bool(raw_value)
+	return fallback
 
 
 static func _get_effect_intensity(status_entry: BattleStatusEffectState) -> int:

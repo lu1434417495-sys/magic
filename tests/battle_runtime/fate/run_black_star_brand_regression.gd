@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
@@ -20,7 +23,8 @@ const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW: StringName = &"black_star_brand_elite_guard_window"
 const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -224,6 +228,7 @@ func _build_runtime() -> BattleRuntimeModule:
 	var registry := ProgressionContentRegistry.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	return runtime
 
 
@@ -231,7 +236,7 @@ func _begin_runtime_battle(runtime: BattleRuntimeModule) -> void:
 	if runtime == null:
 		return
 	runtime.calamity_by_member_id.clear()
-	runtime._misfortune_service.begin_battle(runtime.calamity_by_member_id)
+	runtime.get_fate_runtime().begin_battle(runtime.calamity_by_member_id)
 
 
 func _build_skill_test_state(battle_id: StringName, map_size: Vector2i) -> BattleState:
@@ -320,9 +325,9 @@ func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUni
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s actual=%s expected=%s" % [message, str(actual), str(expected)])

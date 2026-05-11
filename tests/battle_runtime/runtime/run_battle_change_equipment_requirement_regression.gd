@@ -1,10 +1,12 @@
 extends SceneTree
 
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
@@ -22,7 +24,9 @@ const DUPLICATE_HELM_ID: StringName = &"duplicate_test_helm"
 const DUPLICATE_HELM_COMMON_INSTANCE_ID: StringName = &"duplicate_test_helm_common_001"
 const DUPLICATE_HELM_RARE_INSTANCE_ID: StringName = &"duplicate_test_helm_rare_001"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _battle_fixture := BattleTestFixture.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -53,6 +57,7 @@ func _test_battle_change_equipment_enforces_item_requirement() -> void:
 
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(gateway, {}, {}, {}, null, null, item_defs)
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	var state := _build_state()
 	var unit := _build_unit(&"requirement_hero", Vector2i(0, 0), 2)
 	unit.source_member_id = &"requirement_hero"
@@ -119,6 +124,7 @@ func _test_duplicate_same_item_battle_equip_and_unequip_preserves_instance() -> 
 
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(gateway, {}, {}, {}, null, null, item_defs)
+	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	var state := _build_state()
 	state.battle_id = &"change_equipment_duplicate_regression"
 	var unit := _build_unit(&"duplicate_hero", Vector2i(0, 0), 4)
@@ -157,8 +163,10 @@ func _test_duplicate_same_item_battle_equip_and_unequip_preserves_instance() -> 
 	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"head")), String(DUPLICATE_HELM_RARE_INSTANCE_ID), "battle-local 装备位应写入指定 rare instance_id。")
 	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [String(DUPLICATE_HELM_COMMON_INSTANCE_ID)], "装备 rare 后 common 实例应留在背包。")
 	var equipped_instance = unit.get_equipment_view().get_equipped_instance(&"head")
-	_assert_eq(int(equipped_instance.rarity if equipped_instance != null else -1), int(EquipmentInstanceState.RarityTier.RARE), "battle-local 装备位应保留 rare 品质。")
-	_assert_eq(int(equipped_instance.current_durability if equipped_instance != null else -1), 29, "battle-local 装备位应保留 rare 耐久。")
+	_assert_true(equipped_instance != null, "battle-local 装备位应保留完整 rare 实例。")
+	if equipped_instance != null:
+		_assert_eq(int(equipped_instance.rarity), int(EquipmentInstanceState.RarityTier.RARE), "battle-local 装备位应保留 rare 品质。")
+		_assert_eq(int(equipped_instance.current_durability), 29, "battle-local 装备位应保留 rare 耐久。")
 
 	unit.current_ap = 2
 	var unequip_command := _build_unequip_command(unit.unit_id, &"head", DUPLICATE_HELM_RARE_INSTANCE_ID)
@@ -168,8 +176,10 @@ func _test_duplicate_same_item_battle_equip_and_unequip_preserves_instance() -> 
 	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"head")), "", "卸装后 head 槽应清空。")
 	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), [String(DUPLICATE_HELM_COMMON_INSTANCE_ID), String(DUPLICATE_HELM_RARE_INSTANCE_ID)], "卸装后 common 与 rare 实例都应在背包。")
 	var returned_instance = _find_backpack_instance(state.get_party_backpack_view(), DUPLICATE_HELM_RARE_INSTANCE_ID)
-	_assert_eq(int(returned_instance.rarity if returned_instance != null else -1), int(EquipmentInstanceState.RarityTier.RARE), "卸回背包的 rare 实例应保留品质。")
-	_assert_eq(int(returned_instance.current_durability if returned_instance != null else -1), 29, "卸回背包的 rare 实例应保留耐久。")
+	_assert_true(returned_instance != null, "卸回背包后应能按 instance_id 找到 rare 实例。")
+	if returned_instance != null:
+		_assert_eq(int(returned_instance.rarity), int(EquipmentInstanceState.RarityTier.RARE), "卸回背包的 rare 实例应保留品质。")
+		_assert_eq(int(returned_instance.current_durability), 29, "卸回背包的 rare 实例应保留耐久。")
 
 
 func _build_restricted_helm_item(item_id: StringName) -> ItemDef:
@@ -221,39 +231,19 @@ func _build_party(member_id: StringName, body_size: int) -> PartyState:
 
 
 func _build_state() -> BattleState:
-	var state := BattleState.new()
-	state.battle_id = &"change_equipment_requirement_regression"
-	state.phase = &"unit_acting"
-	state.map_size = Vector2i(3, 1)
-	state.timeline = BattleTimelineState.new()
-	state.cells = {}
-	for x in range(state.map_size.x):
-		var coord := Vector2i(x, 0)
-		state.cells[coord] = _build_cell(coord)
-	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
-	return state
-
-
-func _build_cell(coord: Vector2i) -> BattleCellState:
-	var cell := BattleCellState.new()
-	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
-	cell.base_height = 4
-	cell.recalculate_runtime_values()
-	return cell
+	return _battle_fixture.build_state({
+		"battle_id": &"change_equipment_requirement_regression",
+		"map_size": Vector2i(3, 1),
+		"base_height": 4,
+	})
 
 
 func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> BattleUnitState:
-	var unit := BattleUnitState.new()
-	unit.unit_id = unit_id
-	unit.display_name = String(unit_id)
-	unit.faction_id = &"player"
-	unit.current_ap = current_ap
-	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
-	unit.current_hp = 20
-	unit.is_alive = true
-	unit.set_anchor_coord(coord)
-	return unit
+	return _battle_fixture.build_unit(unit_id, {
+		"coord": coord,
+		"current_ap": current_ap,
+		"current_hp": 20,
+	})
 
 
 func _build_equip_command(
@@ -334,9 +324,9 @@ func _find_backpack_instance(backpack_view, instance_id: StringName):
 
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

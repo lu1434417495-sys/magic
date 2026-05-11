@@ -120,7 +120,7 @@ func decide(context):
 func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 	return skill_def != null \
 		and skill_def.combat_profile != null \
-		and StringName(skill_def.combat_profile.target_selection_mode) == &"multi_unit"
+		and StringName(skill_def.combat_profile.target_selection_mode) in [&"multi_unit", &"random_chain"]
 
 
 func _get_multi_unit_cast_variants(context, skill_def: SkillDef) -> Array:

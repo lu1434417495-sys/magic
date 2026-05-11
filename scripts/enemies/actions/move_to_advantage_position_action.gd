@@ -77,6 +77,8 @@ func decide(context):
 			{
 				"position_target_unit": focus_target,
 				"position_anchor_coord": destination,
+				"position_current_distance": int(current_metrics.get("nearest_distance", -1)),
+				"position_safe_distance": int(current_metrics.get("nearest_safe_distance", -1)),
 				"desired_min_distance": int(distance_contract.get("desired_min_distance", desired_min_distance)),
 				"desired_max_distance": int(distance_contract.get("desired_max_distance", desired_max_distance)),
 				"position_objective_kind": &"distance_band_progress",
@@ -236,10 +238,10 @@ func _get_reject_reason(current_metrics: Dictionary, candidate_metrics: Dictiona
 		MODE_HIGH_GROUND:
 			if height_gain <= 0:
 				return "does_not_gain_height"
+			if candidate_band_gap > 0:
+				return "outside_attack_band"
 			if candidate_unsafe_gap > current_unsafe_gap:
 				return "worsens_safety"
-			if candidate_band_gap > int(current_metrics.get("band_gap", 0)):
-				return "worsens_range_band"
 			return ""
 		_:
 			if current_unsafe_gap > 0 and candidate_nearest > current_nearest and safety_gain > 0:

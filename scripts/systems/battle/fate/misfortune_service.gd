@@ -25,6 +25,8 @@ const CALAMITY_CAPACITY_BONUS_STAT_ID: StringName = &"calamity_capacity_bonus"
 const REVERSE_FORTUNE_STATUS_ID: StringName = &"reverse_fortune"
 const MISSTEP_TO_SCHEME_SKILL_ID: StringName = &"misstep_to_scheme"
 const BLACK_STAR_BRAND_SKILL_ID: StringName = &"black_star_brand"
+const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
+const DOOM_SENTENCE_SKILL_ID: StringName = &"doom_sentence"
 const BLACK_CROWN_SEAL_SKILL_ID: StringName = &"black_crown_seal"
 const BASE_CALAMITY_CAP := 3
 const MAX_CALAMITY_CAPACITY_BONUS := 2
@@ -32,6 +34,32 @@ const REVERSE_FORTUNE_DURATION_TU := 60
 const BLACK_STAR_BRAND_REPEAT_CALAMITY_COST := 1
 const CROWN_BREAK_CALAMITY_COST := 2
 const DOOM_SENTENCE_CALAMITY_COST := 5
+const MISFORTUNE_SKILL_GATE_TYPE_BLACK_STAR_BRAND: StringName = &"black_star_brand"
+const MISFORTUNE_SKILL_GATE_TYPE_CROWN_BREAK: StringName = &"crown_break"
+const MISFORTUNE_SKILL_GATE_TYPE_DOOM_SENTENCE: StringName = &"doom_sentence"
+const MISFORTUNE_SKILL_GATE_TYPE_BLACK_CROWN_SEAL: StringName = &"black_crown_seal"
+const MISFORTUNE_SKILL_GATE_RULES := {
+	&"black_star_brand": {
+		"gate_type": MISFORTUNE_SKILL_GATE_TYPE_BLACK_STAR_BRAND,
+		"sidecar_missing_message": "黑星烙印的 calamity sidecar 未初始化。",
+		"default_block_message": "calamity 不足，无法施放黑星烙印。",
+	},
+	&"crown_break": {
+		"gate_type": MISFORTUNE_SKILL_GATE_TYPE_CROWN_BREAK,
+		"sidecar_missing_message": "折冠的 calamity sidecar 未初始化。",
+		"default_block_message": "calamity 不足，无法施放折冠。",
+	},
+	&"doom_sentence": {
+		"gate_type": MISFORTUNE_SKILL_GATE_TYPE_DOOM_SENTENCE,
+		"sidecar_missing_message": "厄命宣判的 calamity sidecar 未初始化。",
+		"default_block_message": "calamity 不足，无法施放厄命宣判。",
+	},
+	&"black_crown_seal": {
+		"gate_type": MISFORTUNE_SKILL_GATE_TYPE_BLACK_CROWN_SEAL,
+		"sidecar_missing_message": "黑冠封印的 battle sidecar 未初始化。",
+		"default_block_message": "黑冠封印每战只能施放 1 次。",
+	},
+}
 
 var _fate_event_bus: BattleFateEventBus = null
 var _unit_by_member_id_callback: Callable = Callable()
@@ -42,6 +70,26 @@ var _misstep_to_scheme_used_by_member_id: Dictionary = {}
 var _black_star_brand_free_used_by_member_id: Dictionary = {}
 var _black_crown_seal_used_by_member_id: Dictionary = {}
 var _doom_sentence_used_by_member_id: Dictionary = {}
+
+
+static func is_misfortune_gated_skill(skill_id: StringName) -> bool:
+	return MISFORTUNE_SKILL_GATE_RULES.has(ProgressionDataUtils.to_string_name(skill_id))
+
+
+static func get_skill_sidecar_missing_message(skill_id: StringName) -> String:
+	var rule := _get_skill_gate_rule(skill_id)
+	return String(rule.get("sidecar_missing_message", "Misfortune battle sidecar 未初始化。"))
+
+
+static func get_skill_default_block_message(skill_id: StringName) -> String:
+	var rule := _get_skill_gate_rule(skill_id)
+	return String(rule.get("default_block_message", "calamity 不足，无法施放该技能。"))
+
+
+static func _get_skill_gate_rule(skill_id: StringName) -> Dictionary:
+	var normalized_skill_id := ProgressionDataUtils.to_string_name(skill_id)
+	var rule_variant: Variant = MISFORTUNE_SKILL_GATE_RULES.get(normalized_skill_id, {})
+	return rule_variant if rule_variant is Dictionary else {}
 
 
 func setup(
@@ -113,6 +161,54 @@ func can_cast_black_star_brand(unit_state: BattleUnitState) -> bool:
 		return false
 	var calamity_cost := get_black_star_brand_calamity_cost(member_id)
 	return calamity_cost <= 0 or get_member_calamity(member_id) >= calamity_cost
+
+
+func get_skill_cast_block_reason(unit_state: BattleUnitState, skill_id: StringName) -> String:
+	var rule := _get_skill_gate_rule(skill_id)
+	if rule.is_empty():
+		return ""
+	var gate_type := ProgressionDataUtils.to_string_name(rule.get("gate_type", ""))
+	match gate_type:
+		MISFORTUNE_SKILL_GATE_TYPE_BLACK_STAR_BRAND:
+			if can_cast_black_star_brand(unit_state):
+				return ""
+			return get_skill_default_block_message(skill_id)
+		MISFORTUNE_SKILL_GATE_TYPE_CROWN_BREAK:
+			if can_cast_crown_break(unit_state):
+				return ""
+			return get_skill_default_block_message(skill_id)
+		MISFORTUNE_SKILL_GATE_TYPE_DOOM_SENTENCE:
+			return get_doom_sentence_cast_block_reason(unit_state)
+		MISFORTUNE_SKILL_GATE_TYPE_BLACK_CROWN_SEAL:
+			return get_black_crown_seal_cast_block_reason(unit_state)
+		_:
+			return ""
+
+
+func consume_skill_cast(unit_state: BattleUnitState, skill_id: StringName) -> Dictionary:
+	var rule := _get_skill_gate_rule(skill_id)
+	if rule.is_empty():
+		return {
+			"ok": true,
+			"gated": false,
+			"member_id": String(ProgressionDataUtils.to_string_name(unit_state.source_member_id)) if unit_state != null else "",
+		}
+	var gate_type := ProgressionDataUtils.to_string_name(rule.get("gate_type", ""))
+	match gate_type:
+		MISFORTUNE_SKILL_GATE_TYPE_BLACK_STAR_BRAND:
+			return consume_black_star_brand_cast(unit_state)
+		MISFORTUNE_SKILL_GATE_TYPE_CROWN_BREAK:
+			return consume_crown_break_cast(unit_state)
+		MISFORTUNE_SKILL_GATE_TYPE_DOOM_SENTENCE:
+			return consume_doom_sentence_cast(unit_state)
+		MISFORTUNE_SKILL_GATE_TYPE_BLACK_CROWN_SEAL:
+			return consume_black_crown_seal_cast(unit_state)
+		_:
+			return {
+				"ok": true,
+				"gated": false,
+				"member_id": String(ProgressionDataUtils.to_string_name(unit_state.source_member_id)) if unit_state != null else "",
+			}
 
 
 func consume_black_star_brand_cast(unit_state: BattleUnitState) -> Dictionary:
@@ -283,10 +379,64 @@ func has_triggered_reason(member_id: StringName, reason_id: StringName) -> bool:
 	return bool(member_reason_flags.get(normalized_reason_id, false))
 
 
+func handle_trigger(reason_id: StringName, payload: Dictionary = {}) -> Variant:
+	var normalized_reason_id := ProgressionDataUtils.to_string_name(reason_id)
+	match normalized_reason_id:
+		CALAMITY_REASON_STRONG_DEBUFF:
+			return _handle_strong_debuff_trigger(payload)
+		CALAMITY_REASON_ADJACENT_ALLY_DEFEATED:
+			return _handle_adjacent_ally_defeat_trigger(payload)
+		CALAMITY_REASON_LOW_HP_END_TURN:
+			return _handle_low_hp_turn_end_trigger(payload)
+		CALAMITY_REASON_BOSS_PHASE_CHANGED:
+			return _handle_boss_phase_changed_trigger(payload)
+		CALAMITY_REASON_ORDINARY_MISS, CALAMITY_REASON_CRITICAL_FAIL:
+			return _handle_member_reason_trigger(payload, normalized_reason_id)
+		_:
+			return {}
+
+
 func handle_applied_statuses(target_unit: BattleUnitState, status_effect_ids: Variant) -> Dictionary:
+	var result = handle_trigger(CALAMITY_REASON_STRONG_DEBUFF, {
+		"target_unit": target_unit,
+		"status_effect_ids": status_effect_ids,
+	})
+	return result if result is Dictionary else {}
+
+
+func handle_adjacent_ally_defeat(defeated_unit: BattleUnitState, adjacent_units: Array) -> Array[Dictionary]:
+	var result = handle_trigger(CALAMITY_REASON_ADJACENT_ALLY_DEFEATED, {
+		"defeated_unit": defeated_unit,
+		"adjacent_units": adjacent_units,
+	})
+	var typed_results: Array[Dictionary] = []
+	if result is Array:
+		for result_entry in result:
+			if result_entry is Dictionary:
+				typed_results.append(result_entry)
+	return typed_results
+
+
+func handle_low_hp_turn_end(unit_state: BattleUnitState) -> Dictionary:
+	var result = handle_trigger(CALAMITY_REASON_LOW_HP_END_TURN, {
+		"unit_state": unit_state,
+	})
+	return result if result is Dictionary else {}
+
+
+func handle_boss_phase_changed(unit_state: BattleUnitState, phase_id: StringName = &"") -> Dictionary:
+	var result = handle_trigger(CALAMITY_REASON_BOSS_PHASE_CHANGED, {
+		"unit_state": unit_state,
+		"phase_id": phase_id,
+	})
+	return result if result is Dictionary else {}
+
+
+func _handle_strong_debuff_trigger(payload: Dictionary) -> Dictionary:
+	var target_unit := payload.get("target_unit", null) as BattleUnitState
 	if target_unit == null:
 		return {}
-	var strong_status_ids := _extract_strong_attack_debuff_ids(status_effect_ids)
+	var strong_status_ids := _extract_strong_attack_debuff_ids(payload.get("status_effect_ids", []))
 	if strong_status_ids.is_empty():
 		return {}
 	return _register_reason(target_unit, CALAMITY_REASON_STRONG_DEBUFF, {
@@ -294,7 +444,9 @@ func handle_applied_statuses(target_unit: BattleUnitState, status_effect_ids: Va
 	})
 
 
-func handle_adjacent_ally_defeat(defeated_unit: BattleUnitState, adjacent_units: Array) -> Array[Dictionary]:
+func _handle_adjacent_ally_defeat_trigger(payload: Dictionary) -> Array[Dictionary]:
+	var defeated_unit := payload.get("defeated_unit", null) as BattleUnitState
+	var adjacent_units: Array = payload.get("adjacent_units", [])
 	var results: Array[Dictionary] = []
 	if defeated_unit == null or defeated_unit.unit_id == &"":
 		return results
@@ -313,16 +465,32 @@ func handle_adjacent_ally_defeat(defeated_unit: BattleUnitState, adjacent_units:
 	return results
 
 
-func handle_low_hp_turn_end(unit_state: BattleUnitState) -> Dictionary:
+func _handle_low_hp_turn_end_trigger(payload: Dictionary) -> Dictionary:
+	var unit_state := payload.get("unit_state", null) as BattleUnitState
 	if unit_state == null or not unit_state.is_alive or not _is_low_hp_hardship(unit_state):
 		return {}
 	return _register_reason(unit_state, CALAMITY_REASON_LOW_HP_END_TURN)
 
 
-func handle_boss_phase_changed(unit_state: BattleUnitState, phase_id: StringName = &"") -> Dictionary:
+func _handle_boss_phase_changed_trigger(payload: Dictionary) -> Dictionary:
+	var unit_state := payload.get("unit_state", null) as BattleUnitState
+	var phase_id := ProgressionDataUtils.to_string_name(payload.get("phase_id", ""))
 	return _register_reason(unit_state, CALAMITY_REASON_BOSS_PHASE_CHANGED, {
 		"phase_id": String(ProgressionDataUtils.to_string_name(phase_id)),
 	})
+
+
+func _handle_member_reason_trigger(payload: Dictionary, reason_id: StringName) -> Dictionary:
+	var unit_state := payload.get("unit_state", null) as BattleUnitState
+	if unit_state != null:
+		return _register_reason(unit_state, reason_id)
+	var member_id := ProgressionDataUtils.to_string_name(payload.get("member_id", ""))
+	if member_id == &"":
+		return {}
+	var resolved_unit := _resolve_unit_by_member_id(member_id)
+	if resolved_unit == null:
+		return {}
+	return _register_reason(resolved_unit, reason_id)
 
 
 func _on_fate_event(event_type: StringName, payload: Dictionary) -> void:
@@ -339,10 +507,7 @@ func _handle_fate_payload_reason(payload: Dictionary, reason_id: StringName) -> 
 	var member_id := ProgressionDataUtils.to_string_name(payload.get("attacker_member_id", ""))
 	if member_id == &"":
 		return
-	var unit_state := _resolve_unit_by_member_id(member_id)
-	if unit_state == null:
-		return
-	_register_reason(unit_state, reason_id)
+	handle_trigger(reason_id, {"member_id": member_id})
 
 
 func _register_reason(unit_state: BattleUnitState, reason_id: StringName, metadata: Dictionary = {}) -> Dictionary:

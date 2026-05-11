@@ -43,6 +43,12 @@ static func get_effective_skill_range(unit_state: BattleUnitState, skill_def) ->
 	return maxi(skill_range, 0)
 
 
+static func get_effective_skill_threat_range(unit_state: BattleUnitState, skill_def) -> int:
+	var skill_range := get_effective_skill_range(unit_state, skill_def)
+	skill_range += _get_ground_effect_reach_bonus(unit_state, skill_def)
+	return maxi(skill_range, 0)
+
+
 static func requires_current_melee_weapon(skill_def) -> bool:
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
@@ -65,11 +71,13 @@ static func is_weapon_range_skill(skill_def) -> bool:
 
 
 static func resolve_base_skill_range(unit_state: BattleUnitState, skill_def) -> int:
+	if skill_def == null or skill_def.combat_profile == null:
+		return 0
 	var skill_level := 0
-	if unit_state != null and skill_def != null and skill_def.combat_profile != null:
+	if unit_state != null:
 		skill_level = int(unit_state.known_skill_level_map.get(skill_def.skill_id, 0))
 	var configured_range := maxi(int(skill_def.combat_profile.get_effective_range_value(skill_level)), 0)
-	if is_ground_jump_skill(skill_def):
+	if is_ground_relocation_skill(skill_def):
 		return configured_range
 	if requires_current_melee_weapon(skill_def):
 		return get_weapon_attack_range(unit_state)
@@ -83,18 +91,22 @@ static func resolve_base_skill_range(unit_state: BattleUnitState, skill_def) -> 
 
 
 static func is_ground_jump_skill(skill_def) -> bool:
+	return is_ground_relocation_skill(skill_def)
+
+
+static func is_ground_relocation_skill(skill_def) -> bool:
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
 	if ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_mode) != &"ground":
 		return false
 	for effect_def in skill_def.combat_profile.effect_defs:
-		if _is_jump_forced_move_effect(effect_def):
+		if _is_ground_relocation_effect(effect_def):
 			return true
 	for cast_variant in skill_def.combat_profile.cast_variants:
 		if cast_variant == null:
 			continue
 		for effect_def in cast_variant.effect_defs:
-			if _is_jump_forced_move_effect(effect_def):
+			if _is_ground_relocation_effect(effect_def):
 				return true
 	return false
 
@@ -113,6 +125,28 @@ static func _get_range_modifier_bonus(unit_state: BattleUnitState, _skill_def) -
 	return bonus
 
 
+static func _get_ground_effect_reach_bonus(unit_state: BattleUnitState, skill_def) -> int:
+	if skill_def == null or skill_def.combat_profile == null:
+		return 0
+	if ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_mode) != &"ground":
+		return 0
+	if is_ground_relocation_skill(skill_def):
+		return 0
+	var area_pattern := ProgressionDataUtils.to_string_name(skill_def.combat_profile.area_pattern)
+	if area_pattern == &"" or area_pattern == &"single" or area_pattern == &"self":
+		return 0
+	var skill_level := _get_unit_skill_level(unit_state, skill_def.skill_id)
+	return maxi(int(skill_def.combat_profile.get_effective_area_value(skill_level)), 0)
+
+
+static func _get_unit_skill_level(unit_state: BattleUnitState, skill_id: StringName) -> int:
+	if unit_state == null or skill_id == &"":
+		return 0
+	if unit_state.known_skill_level_map.has(skill_id):
+		return int(unit_state.known_skill_level_map.get(skill_id, 0))
+	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
+
+
 static func effect_uses_weapon_physical_damage_tag(effect_def) -> bool:
 	return effect_def != null \
 		and effect_def.params != null \
@@ -129,6 +163,13 @@ static func _is_jump_forced_move_effect(effect_def) -> bool:
 	return effect_def != null \
 		and ProgressionDataUtils.to_string_name(effect_def.effect_type) == &"forced_move" \
 		and ProgressionDataUtils.to_string_name(effect_def.forced_move_mode) == &"jump"
+
+
+static func _is_ground_relocation_effect(effect_def) -> bool:
+	var mode := ProgressionDataUtils.to_string_name(effect_def.forced_move_mode) if effect_def != null else &""
+	return effect_def != null \
+		and ProgressionDataUtils.to_string_name(effect_def.effect_type) == &"forced_move" \
+		and (mode == &"jump" or mode == &"blink")
 
 
 static func _skill_has_tag(skill_def, expected_tag: StringName) -> bool:

@@ -6,6 +6,11 @@ const DISTANCE_REF_ENEMY_FRONTLINE: StringName = &"enemy_frontline"
 
 @export var skill_ids: Array[StringName] = []
 @export var minimum_hit_count := 1
+@export var minimum_ally_threat_hit_count := 0
+@export var maximum_friendly_fire_target_count := 0
+@export var allow_friendly_lethal := false
+@export var threat_minimum_safe_distance := 0
+@export var threat_safe_distance_margin := 0
 @export var desired_min_distance := -1
 @export var desired_max_distance := -1
 @export var distance_reference: StringName = &""
@@ -17,6 +22,11 @@ func decide(context):
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "ground_skill",
 		"minimum_hit_count": minimum_hit_count,
+		"minimum_ally_threat_hit_count": minimum_ally_threat_hit_count,
+		"maximum_friendly_fire_target_count": maximum_friendly_fire_target_count,
+		"allow_friendly_lethal": allow_friendly_lethal,
+		"threat_minimum_safe_distance": threat_minimum_safe_distance,
+		"threat_safe_distance_margin": threat_safe_distance_margin,
 		"distance_reference": String(distance_reference),
 		"desired_min_distance": desired_min_distance,
 		"desired_max_distance": desired_max_distance,
@@ -47,9 +57,10 @@ func decide(context):
 				if preview == null or not bool(preview.allowed):
 					_trace_count_increment(action_trace, "preview_reject_count", 1)
 					continue
-				var hit_count = preview.target_unit_ids.size()
-				if hit_count < minimum_hit_count:
-					_trace_add_block_reason(action_trace, "minimum_hit_count")
+				var raw_hit_count = preview.target_unit_ids.size()
+				var ally_threat_hit_count := _count_ally_threatening_preview_targets(context, preview)
+				if minimum_ally_threat_hit_count > 0 and ally_threat_hit_count < minimum_ally_threat_hit_count:
+					_trace_add_block_reason(action_trace, "minimum_ally_threat_hit_count")
 					continue
 				var position_metadata := _build_position_metadata(context, command, skill_def)
 				position_metadata["action_label"] = _format_skill_variant_label(skill_def, cast_variant)
@@ -65,24 +76,33 @@ func decide(context):
 					if fallback_decision == null:
 						fallback_decision = _create_decision(
 							command,
-							"%s 准备用 %s 覆盖 %d 个单位。" % [context.unit_state.display_name, skill_def.display_name, hit_count]
+							"%s 准备用 %s 覆盖 %d 个单位。" % [context.unit_state.display_name, skill_def.display_name, raw_hit_count]
 						)
 					_trace_offer_candidate(action_trace, _build_candidate_summary(
 						_format_skill_variant_label(skill_def, cast_variant),
 						command,
 						null,
 						{
-							"hit_count": hit_count,
+							"raw_hit_count": raw_hit_count,
+							"ally_threat_hit_count": ally_threat_hit_count,
 							"skill_id": String(skill_id),
 						}
 					))
+					continue
+				if int(score_input.effective_target_count) < minimum_hit_count:
+					_trace_add_block_reason(action_trace, "minimum_effective_hit_count")
+					continue
+				if not _passes_friendly_fire_limits(score_input):
+					_trace_add_block_reason(action_trace, "friendly_fire_limit")
 					continue
 				_trace_offer_candidate(action_trace, _build_candidate_summary(
 					_format_skill_variant_label(skill_def, cast_variant),
 					command,
 					score_input,
 					{
-						"hit_count": hit_count,
+						"raw_hit_count": raw_hit_count,
+						"effective_hit_count": int(score_input.effective_target_count),
+						"ally_threat_hit_count": ally_threat_hit_count,
 						"skill_id": String(skill_id),
 					}
 				))
@@ -92,16 +112,26 @@ func decide(context):
 				best_decision = _create_scored_decision(
 					command,
 					score_input,
-					"%s 准备用 %s 覆盖 %d 个单位（评分 %d）。" % [
+					"%s 准备用 %s 覆盖 %d 个有效目标（评分 %d）。" % [
 						context.unit_state.display_name,
 						skill_def.display_name,
-						hit_count,
+						int(score_input.effective_target_count),
 						int(score_input.total_score),
 					]
 				)
 	var resolved_decision: BattleAiDecision = best_decision if best_decision != null else fallback_decision
 	_finalize_action_trace(context, action_trace, resolved_decision)
 	return resolved_decision
+
+
+func _passes_friendly_fire_limits(score_input) -> bool:
+	if score_input == null:
+		return false
+	if int(score_input.estimated_friendly_fire_target_count) > maximum_friendly_fire_target_count:
+		return false
+	if not allow_friendly_lethal and int(score_input.estimated_friendly_lethal_target_count) > 0:
+		return false
+	return true
 
 
 func _build_position_metadata(context, command, skill_def: SkillDef) -> Dictionary:
@@ -120,6 +150,42 @@ func _build_position_metadata(context, command, skill_def: SkillDef) -> Dictiona
 		_:
 			metadata["position_objective_kind"] = &"none"
 	return metadata
+
+
+func _count_ally_threatening_preview_targets(context, preview) -> int:
+	if minimum_ally_threat_hit_count <= 0:
+		return 0
+	if context == null or context.state == null or context.unit_state == null or preview == null:
+		return 0
+	var allies := _collect_units_by_filter(context, &"ally")
+	if allies.is_empty():
+		return 0
+	var count := 0
+	for target_unit_id in preview.target_unit_ids:
+		var target_unit = context.state.units.get(target_unit_id) as BattleUnitState
+		if target_unit == null or target_unit.faction_id == context.unit_state.faction_id:
+			continue
+		if _is_target_threatening_any_ally(context, target_unit, allies):
+			count += 1
+	return count
+
+
+func _is_target_threatening_any_ally(context, target_unit: BattleUnitState, allies: Array) -> bool:
+	if context == null or target_unit == null:
+		return false
+	var safe_distance := _resolve_target_safe_distance(
+		context,
+		target_unit,
+		threat_minimum_safe_distance,
+		threat_safe_distance_margin
+	)
+	for ally_variant in allies:
+		var ally_unit = ally_variant as BattleUnitState
+		if ally_unit == null or not ally_unit.is_alive:
+			continue
+		if _distance_between_units(context, target_unit, ally_unit) <= safe_distance:
+			return true
+	return false
 
 
 func _collect_ground_skill_effect_defs(skill_def: SkillDef, cast_variant) -> Array:
@@ -162,6 +228,14 @@ func validate_schema() -> Array[String]:
 		errors.append("UseGroundSkillAction %s must declare at least one skill_id." % String(action_id))
 	if minimum_hit_count <= 0:
 		errors.append("UseGroundSkillAction %s minimum_hit_count must be >= 1." % String(action_id))
+	if minimum_ally_threat_hit_count < 0:
+		errors.append("UseGroundSkillAction %s minimum_ally_threat_hit_count must be >= 0." % String(action_id))
+	if maximum_friendly_fire_target_count < 0:
+		errors.append("UseGroundSkillAction %s maximum_friendly_fire_target_count must be >= 0." % String(action_id))
+	if threat_minimum_safe_distance < 0:
+		errors.append("UseGroundSkillAction %s threat_minimum_safe_distance must be >= 0." % String(action_id))
+	if threat_safe_distance_margin < 0:
+		errors.append("UseGroundSkillAction %s threat_safe_distance_margin must be >= 0." % String(action_id))
 	if desired_min_distance < 0:
 		errors.append("UseGroundSkillAction %s desired_min_distance must be >= 0." % String(action_id))
 	if desired_max_distance < desired_min_distance:

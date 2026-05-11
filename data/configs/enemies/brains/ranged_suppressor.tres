@@ -86,6 +86,6 @@ actions = Array[Resource]([SubResource("Action_retreat_cover"), SubResource("Act
 script = ExtResource("1_brain")
 brain_id = &"ranged_suppressor"
 default_state_id = &"pressure"
-retreat_hp_ratio = 0.3
+retreat_hp_basis_points = 3000
 pressure_distance = 4
 states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_retreat")])

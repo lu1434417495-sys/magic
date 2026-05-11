@@ -14,11 +14,13 @@ const LOW_HP_ATTACK_DISADVANTAGE_PERCENT := 30
 const LOG_ENTRY_LIMIT := 10000
 const LOG_TEXT_BYTE_LIMIT := 10 * 1024 * 1024
 const STRONG_ATTACK_DISADVANTAGE_STATUS_IDS := {
+	&"blind": true,
 	&"blinded": true,
 	&"fear": true,
 	&"feared": true,
 	&"frozen": true,
 	&"heavy_fatigue": true,
+	&"petrified": true,
 	&"shocked": true,
 	&"staggered": true,
 	&"stunned": true,
@@ -74,6 +76,8 @@ var modal_state: StringName = &""
 var runtime_edge_faces: Dictionary = {}
 ## 字段说明：用于标记运行时边缓存是否脏，供边服务延迟重建和跨系统共享。
 var runtime_edges_dirty := true
+## 字段说明：缓存战斗内分层屏障实例；当前由虹光法球运行时服务维护，不进入单位状态。
+var layered_barrier_fields: Dictionary = {}
 ## 字段说明：缓存当前 battle log 文本字节预算，供 ring buffer 按 10 MiB 上限裁剪。
 var _log_text_byte_size := 0
 

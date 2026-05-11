@@ -4,6 +4,9 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
@@ -26,7 +29,8 @@ const ENEMY_CONTENT_SEED_PATH := "res://data/configs/enemies/enemy_content_seed.
 const FIXTURE_MISSING_BRAIN_SEED_PATH := "res://tests/fixtures/enemy_content/missing_brain/enemy_content_seed.tres"
 const FIXTURE_INVALID_ROSTER_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -81,7 +85,7 @@ func _test_enemy_content_registry_loads_formal_seed_resource() -> void:
 	registry.configure_seed_resource(ENEMY_CONTENT_SEED_PATH)
 	var validation_errors := registry.validate()
 	_assert_true(validation_errors.is_empty(), "EnemyContentRegistry 的正式 seed 资源不应产出校验错误。")
-	_assert_eq(registry.get_enemy_ai_brains().size(), 5, "正式 enemy brain 资源目录应注册 5 个 brain。")
+	_assert_eq(registry.get_enemy_ai_brains().size(), 7, "正式 enemy brain 资源目录应注册 7 个 brain。")
 	_assert_eq(registry.get_enemy_templates().size(), 8, "正式 enemy template 资源目录应注册 8 个模板。")
 	_assert_eq(registry.get_wild_encounter_rosters().size(), 2, "正式 roster 资源目录应注册 2 个编队。")
 	var wolf_pack = registry.get_enemy_templates().get(&"wolf_pack")
@@ -713,8 +717,7 @@ func _test_game_runtime_facade_move_advances_world_step() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 
 	var before_snapshot: Dictionary = facade.build_headless_snapshot()
 	var before_world: Dictionary = before_snapshot.get("world", {})
@@ -744,10 +747,8 @@ func _test_test_preset_uses_same_battle_terrain_profile_as_small_preset() -> voi
 		_cleanup_test_session(small_session)
 		return
 
-	var test_facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	var small_facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	test_facade.setup(test_session)
-	small_facade.setup(small_session)
+	var test_facade = _create_facade(test_session)
+	var small_facade = _create_facade(small_session)
 
 	var test_anchor = _find_encounter_anchor_by_region_tag(test_session.get_world_data(), &"north_wilds")
 	var small_anchor = _find_encounter_anchor_by_region_tag(small_session.get_world_data(), &"north_wilds")
@@ -785,8 +786,7 @@ func _test_main_world_wilds_use_canyon_battle_terrain_profile() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 
 	for region_tag in [&"north_wilds", &"south_wilds"]:
 		var encounter_anchor = _find_encounter_anchor_by_region_tag(game_session.get_world_data(), region_tag)
@@ -815,8 +815,7 @@ func _test_formal_wolf_den_battle_prefers_charge_over_wait_when_far() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 
 	var encounter_anchor = _find_encounter_anchor_by_region_tag(game_session.get_world_data(), &"north_wilds")
 	_assert_true(encounter_anchor != null, "正式狼巢 AI 接敌回归需要一个 north_wilds 遭遇。")
@@ -911,8 +910,7 @@ func _test_game_runtime_facade_battle_requires_confirm_before_tu_advances() -> v
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
@@ -931,7 +929,7 @@ func _test_game_runtime_facade_battle_requires_confirm_before_tu_advances() -> v
 	_assert_eq(String(started_snapshot.get("modal_state", "")), "start_confirm", "确认前 battle modal_state 应保持在 start_confirm。")
 	_assert_eq(facade._battle_runtime.get_state().timeline.current_tu, 0, "确认前 TU 应从 0 开始。")
 
-	facade.advance(2.0)
+	facade.advance(2)
 	_assert_eq(facade._battle_runtime.get_state().timeline.current_tu, 0, "未确认开始战斗前，TU 不应增长。")
 
 	var confirm_result: Dictionary = facade.command_confirm_battle_start()
@@ -940,7 +938,7 @@ func _test_game_runtime_facade_battle_requires_confirm_before_tu_advances() -> v
 	_assert_true(not bool(confirmed_snapshot.get("start_confirm_visible", false)), "确认后开始战斗确认窗应关闭。")
 	_assert_eq(String(confirmed_snapshot.get("modal_state", "")), "", "确认后 battle modal_state 应清空。")
 
-	facade.command_battle_tick(1.0)
+	facade.command_battle_tick(1)
 	_assert_eq(facade._battle_runtime.get_state().timeline.current_tu, 5, "确认后 battle tick 1 秒应推进 5 TU。")
 
 	_cleanup_test_session(game_session)
@@ -950,14 +948,13 @@ func _test_game_runtime_facade_commit_battle_loot_records_overflow_entries() -> 
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 	_force_party_storage_capacity(facade.get_party_state(), 1)
 	facade.get_party_state().warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
 
 	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
 	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
-	warehouse_service.add_item(&"bronze_sword", 1)
+	warehouse_service.add_item(&"healing_herb", 1)
 
 	var resolution_result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
 	resolution_result.winner_faction_id = &"player"
@@ -972,7 +969,7 @@ func _test_game_runtime_facade_commit_battle_loot_records_overflow_entries() -> 
 		var overflow_entry: Dictionary = resolution_result.overflow_entries[0]
 		_assert_eq(String(overflow_entry.get("item_id", "")), "beast_hide", "overflow entry 应保留原始掉落物品。")
 		_assert_eq(int(overflow_entry.get("quantity", 0)), 2, "overflow entry 应保留未装下的数量。")
-	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 1, "battle loot overflow 不应影响原有仓库物品。")
+	_assert_eq(warehouse_service.count_item(&"healing_herb"), 1, "battle loot overflow 不应影响原有仓库物品。")
 	_assert_eq(warehouse_service.count_item(&"beast_hide"), 0, "battle loot overflow 不应静默写入 beast_hide。")
 	_cleanup_test_session(game_session)
 
@@ -981,8 +978,7 @@ func _test_game_runtime_facade_commit_battle_loot_partially_fills_existing_stack
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 	_force_party_storage_capacity(facade.get_party_state(), 1)
 	facade.get_party_state().warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
 
@@ -1011,8 +1007,7 @@ func _test_game_runtime_facade_single_victory_removes_encounter() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
@@ -1045,8 +1040,7 @@ func _test_game_runtime_facade_can_start_second_battle_after_first_victory() -> 
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 
 	var first_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
@@ -1081,8 +1075,7 @@ func _test_game_runtime_facade_settlement_victory_downgrades_encounter() -> void
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
 	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
 
@@ -1122,14 +1115,13 @@ func _test_game_runtime_facade_battle_overflow_feedback_surfaces_in_message_and_
 	var game_session = _create_test_session()
 	if game_session == null:
 		return
-	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
-	facade.setup(game_session)
+	var facade = _create_facade(game_session)
 	_force_party_storage_capacity(facade.get_party_state(), 1)
 	facade.get_party_state().warehouse_state = WAREHOUSE_STATE_SCRIPT.new()
 
 	var warehouse_service = PARTY_WAREHOUSE_SERVICE_SCRIPT.new()
 	warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
-	warehouse_service.add_item(&"bronze_sword", 1)
+	warehouse_service.add_item(&"healing_herb", 1)
 	var beast_hide_def = game_session.get_item_defs().get(&"beast_hide")
 	var beast_hide_label := String(beast_hide_def.display_name) if beast_hide_def != null else "beast_hide"
 
@@ -1154,12 +1146,12 @@ func _test_game_runtime_facade_battle_overflow_feedback_surfaces_in_message_and_
 	_assert_true(bool(resolve_result.get("ok", false)), "battle overflow 反馈回归中，结束战斗命令应成功返回。")
 	_assert_true(String(resolve_result.get("message", "")).find("未装下的掉落") >= 0, "battle 结算 message 应显式提示未装下的掉落。")
 	_assert_true(String(resolve_result.get("message", "")).find(beast_hide_label) >= 0, "battle 结算 message 应包含未装下的掉落名称。")
-	_assert_eq(warehouse_service.count_item(&"bronze_sword"), 1, "battle overflow 后原有仓库占位物应保留。")
+	_assert_eq(warehouse_service.count_item(&"healing_herb"), 1, "battle overflow 后原有仓库占位物应保留。")
 	_assert_eq(warehouse_service.count_item(&"beast_hide"), 0, "battle overflow 后 beast_hide 不应误写入共享仓库。")
 
 	var snapshot: Dictionary = facade.build_headless_snapshot()
 	var status_text := String(snapshot.get("status", {}).get("text", ""))
-	var text_snapshot := facade.build_text_snapshot()
+	var text_snapshot: String = facade.build_text_snapshot()
 	var loot_snapshot: Dictionary = snapshot.get("loot", {})
 	_assert_true(status_text.find("未装下的掉落") >= 0, "headless snapshot status.text 应显式提示未装下的掉落。")
 	_assert_true(status_text.find(beast_hide_label) >= 0, "headless snapshot status.text 应包含未装下的掉落名称。")
@@ -1192,6 +1184,13 @@ func _create_session(config_path: String):
 		_cleanup_test_session(game_session)
 		return null
 	return game_session
+
+
+func _create_facade(game_session):
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+	BattleRuntimeTestHelpers.configure_fixed_combat_for_facade(facade)
+	return facade
 
 
 func _cleanup_test_session(game_session) -> void:
@@ -1444,12 +1443,12 @@ func _find_first_unit_with_brain(units: Array, brain_id: StringName):
 
 func _assert_snapshot_has_all_base_attributes(unit_state, scope: String) -> void:
 	if unit_state == null:
-		_failures.append("%s 应产出有效单位。" % scope)
+		_test.fail("%s 应产出有效单位。" % scope)
 		return
 	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
 		var value := int(unit_state.attribute_snapshot.get_value(attribute_id))
 		if value <= 0:
-			_failures.append("%s 缺失基础六维 %s。" % [scope, String(attribute_id)])
+			_test.fail("%s 缺失基础六维 %s。" % [scope, String(attribute_id)])
 
 
 func _find_first_enemy_unit_with_brain(battle_state, brain_id: StringName):
@@ -1573,9 +1572,9 @@ func _expected_template_stamina_max(template) -> int:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

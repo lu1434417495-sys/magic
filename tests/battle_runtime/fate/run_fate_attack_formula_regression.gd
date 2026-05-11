@@ -1,29 +1,11 @@
 extends SceneTree
 
 const FateAttackFormula = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
+const StubRng = preload("res://tests/shared/stub_rng.gd")
+const TestRunner = preload("res://tests/shared/test_runner.gd")
 
 
-class StubRng:
-	extends RefCounted
-
-	var _rolls: Array[int] = []
-	var call_count := 0
-
-
-	func _init(rolls: Array[int] = []) -> void:
-		_rolls = rolls.duplicate()
-
-
-	func randi_range(min_value: int, max_value: int) -> int:
-		if call_count >= _rolls.size():
-			call_count += 1
-			return min_value
-		var roll := clampi(int(_rolls[call_count]), min_value, max_value)
-		call_count += 1
-		return roll
-
-
-var _failures: Array[String] = []
+var _test := TestRunner.new()
 
 
 func _initialize() -> void:
@@ -36,16 +18,7 @@ func _run() -> void:
 	_test_combat_luck_score_and_crit_threshold_cases()
 	_test_roll_die_uses_injected_rng_without_disadvantage()
 	_test_roll_die_uses_injected_rng_with_disadvantage()
-
-	if _failures.is_empty():
-		print("Fate attack formula regression: PASS")
-		quit(0)
-		return
-
-	for failure in _failures:
-		push_error(failure)
-	print("Fate attack formula regression: FAIL (%d)" % _failures.size())
-	quit(1)
+	_test.finish(self, "Fate attack formula regression")
 
 
 func _test_crit_gate_die_size_cases() -> void:
@@ -111,5 +84,4 @@ func _test_roll_die_uses_injected_rng_with_disadvantage() -> void:
 
 
 func _assert_eq(actual, expected, message: String) -> void:
-	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.assert_eq(actual, expected, message)

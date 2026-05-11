@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BATTLE_SIM_CONTENT_PROVIDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_content_provider.gd")
@@ -35,7 +37,7 @@ func _initialize() -> void:
 		start_seed_source = "explicit_seeds"
 		run_count = explicit_seeds.size()
 	var output_path := OS.get_environment("OUTPUT_FILE") if OS.has_environment("OUTPUT_FILE") else ""
-	var trace_ai := _read_bool_environment("TRACE_AI", false)
+	var trace_ai := _read_bool_environment("TRACE_AI", true)
 	var timeout_seconds := _read_int_environment(ENV_SIMULATION_TIMEOUT_SECONDS, DEFAULT_SIMULATION_TIMEOUT_SECONDS)
 	_progress_enabled = _read_bool_environment(ENV_PROGRESS_ENABLED, true)
 	_progress_interval_msec = maxi(int(_read_float_environment(ENV_PROGRESS_INTERVAL_SECONDS, DEFAULT_PROGRESS_INTERVAL_SECONDS) * 1000.0), 250)

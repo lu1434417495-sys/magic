@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_EVENT_BATCH_SCRIPT = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
@@ -21,9 +23,9 @@ const MISFORTUNE_BLACK_OMEN_SERVICE_SCRIPT = preload("res://scripts/systems/prog
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const PROGRESSION_DATA_UTILS_SCRIPT = preload("res://scripts/player/progression/progression_data_utils.gd")
+const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 
 const BattleEventBatch = BATTLE_EVENT_BATCH_SCRIPT
 const BattleFateEventBus = BATTLE_FATE_EVENT_BUS_SCRIPT
@@ -45,14 +47,14 @@ const MisfortuneBlackOmenService = MISFORTUNE_BLACK_OMEN_SERVICE_SCRIPT
 const PartyMemberState = PARTY_MEMBER_STATE_SCRIPT
 const PartyState = PARTY_STATE_SCRIPT
 const AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT
-const BattleDamageResolver = BATTLE_DAMAGE_RESOLVER_SCRIPT
 const BattleRuntimeModule = BATTLE_RUNTIME_MODULE_SCRIPT
 const ProgressionDataUtils = PROGRESSION_DATA_UTILS_SCRIPT
 
 const HERO_ID: StringName = &"hero"
 const ALLY_ID: StringName = &"ally"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class SettlementRuntimeStub:
@@ -188,7 +190,7 @@ func _test_fixed_reward_pool_uses_low_luck_fixed_loot_path() -> void:
 
 
 func _test_black_star_wedge_first_hit_ignores_guard_and_applies_exposed() -> void:
-	var resolver = BattleDamageResolver.new()
+	var resolver = SharedDamageResolvers.FixedHitMaxDamageResolver.new()
 	var baseline_source = _build_battle_unit("基准楔钉者", &"player")
 	var baseline_target = _build_guarded_target("守住的敌人")
 	var baseline_damage_result = resolver.resolve_effects(baseline_source, baseline_target, [_build_damage_effect(18)])
@@ -230,7 +232,7 @@ func _test_black_star_wedge_first_hit_ignores_guard_and_applies_exposed() -> voi
 
 
 func _test_blood_debt_shawl_low_hp_reduction_ally_down_ap_and_recovery_penalty() -> void:
-	var resolver = BattleDamageResolver.new()
+	var resolver = SharedDamageResolvers.FixedHitMaxDamageResolver.new()
 	var enemy_attacker = _build_battle_unit("压迫者", &"enemy")
 	var baseline_target = _build_battle_unit("普通目标", &"player", 100, 35)
 	var shawl_target = _build_battle_unit("披肩目标", &"player", 100, 35)
@@ -310,9 +312,9 @@ func _test_dead_road_lantern_reveals_hidden_paths_and_grants_black_omen_mark() -
 	member_state.progression.display_name = "Hero"
 	member_state.progression.unit_base_attributes.set_attribute_value(MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID, 0)
 	member_state.equipment_state.set_equipped_entry(
-		EquipmentRules.ACCESSORY_1,
+		EquipmentRules.SPECIAL_TRINKET,
 		LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
-		_build_slot_array(EquipmentRules.ACCESSORY_1),
+		_build_slot_array(EquipmentRules.SPECIAL_TRINKET),
 		EquipmentInstanceState.create(
 			LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
 			&"eq_dead_road_lantern_black_omen"
@@ -355,7 +357,18 @@ func _build_equipped_member_snapshot(item_defs: Dictionary, item_id: StringName)
 	member_state.display_name = "Hero"
 	member_state.progression.unit_id = HERO_ID
 	member_state.progression.display_name = "Hero"
-	var slot_id = EquipmentRules.ACCESSORY_2 if item_id == LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL else EquipmentRules.ACCESSORY_1
+	var slot_id: StringName
+	match item_id:
+		LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN:
+			slot_id = EquipmentRules.SPECIAL_TRINKET
+		LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL:
+			slot_id = EquipmentRules.CLOAK
+		LowLuckRelicRules.ITEM_REVERSE_FATE_AMULET:
+			slot_id = EquipmentRules.NECKLACE
+		LowLuckRelicRules.ITEM_BLACK_STAR_WEDGE:
+			slot_id = EquipmentRules.BADGE
+		_:
+			slot_id = EquipmentRules.NECKLACE
 	member_state.equipment_state.set_equipped_entry(
 		slot_id,
 		item_id,
@@ -567,9 +580,9 @@ func _find_loot_entry(loot_entries_variant: Variant, item_id: StringName) -> Dic
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

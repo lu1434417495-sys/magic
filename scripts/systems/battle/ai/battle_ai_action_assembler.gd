@@ -195,7 +195,7 @@ func _apply_unit_distance_style(action, unit_state: BattleUnitState, state_actio
 		action.desired_max_distance = int(template_action.get("desired_max_distance"))
 		action.distance_reference = ProgressionDataUtils.to_string_name(template_action.get("distance_reference"))
 		return
-	var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(unit_state, skill_def)
+	var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(unit_state, skill_def)
 	action.desired_min_distance = mini(1, effective_range) if effective_range > 0 else 0
 	action.desired_max_distance = maxi(effective_range, action.desired_min_distance)
 	action.distance_reference = USE_UNIT_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_UNIT
@@ -208,7 +208,7 @@ func _apply_ground_distance_style(action, unit_state: BattleUnitState, state_act
 		action.desired_max_distance = int(template_action.get("desired_max_distance"))
 		action.distance_reference = ProgressionDataUtils.to_string_name(template_action.get("distance_reference"))
 		return
-	var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(unit_state, skill_def)
+	var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(unit_state, skill_def)
 	action.desired_min_distance = 0
 	action.desired_max_distance = maxi(effective_range, 0)
 	action.distance_reference = USE_GROUND_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_COORD
@@ -289,7 +289,7 @@ func _is_offensive_effect(skill_def: SkillDef, effect_def: CombatEffectDef) -> b
 func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 	return skill_def != null \
 		and skill_def.combat_profile != null \
-		and ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_selection_mode) == &"multi_unit"
+		and ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_selection_mode) in [&"multi_unit", &"random_chain"]
 
 
 func _find_charge_path_step_aoe_variant(skill_def: SkillDef, skill_level: int):

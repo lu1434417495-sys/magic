@@ -1,8 +1,11 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_SIM_TRACE_SUMMARY_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -41,6 +44,27 @@ func _test_compacts_top_level_analysis_report() -> void:
 	_assert_eq((compact_run.get("focus_turns", []) as Array).size(), 1, "默认 focus faction 应只保留 player 回合。")
 	_assert_eq((compact_run.get("focus_wait_turns", []) as Array).size(), 1, "默认 focus wait 应只保留 player wait。")
 	var focus_turn: Dictionary = (compact_run.get("focus_turns", []) as Array)[0]
+	var compact_score_input: Dictionary = focus_turn.get("score", {})
+	var save_estimates_by_target: Dictionary = compact_score_input.get("save_estimates_by_target_id", {})
+	_assert_true(save_estimates_by_target.has("enemy_sword"), "summary 应保留 score_input 中的目标豁免概率估算。")
+	if save_estimates_by_target.has("enemy_sword"):
+		var save_estimates: Array = save_estimates_by_target.get("enemy_sword", [])
+		_assert_eq(int((save_estimates[0] as Dictionary).get("save_success_rate_percent", 0)), 50, "summary 应保留豁免成功率。")
+		_assert_eq(int((save_estimates[0] as Dictionary).get("damage_after_save_estimate", 0)), 9, "summary 应保留豁免加权后的期望伤害。")
+	_assert_true(bool(compact_score_input.get("has_post_action_threat_projection", false)), "summary 应保留行动后威胁投影标记。")
+	_assert_eq(int(compact_score_input.get("post_action_remaining_threat_expected_damage", 0)), 7, "summary 应保留行动后剩余威胁期望伤害。")
+	_assert_eq((compact_score_input.get("post_action_remaining_threat_unit_ids", []) as Array).size(), 1, "summary 应保留剩余威胁单位列表。")
+	var decision_target_snapshots: Array = focus_turn.get("decision_target_snapshots", [])
+	_assert_eq(decision_target_snapshots.size(), 1, "summary 应保留决策目标执行前快照。")
+	if not decision_target_snapshots.is_empty():
+		_assert_eq(int((decision_target_snapshots[0] as Dictionary).get("hp", 0)), 12, "目标快照应保留执行前 HP。")
+	var execution_result: Dictionary = focus_turn.get("execution_result", {})
+	var unit_results: Array = execution_result.get("unit_results", [])
+	_assert_eq(unit_results.size(), 1, "summary 应保留执行结果中的单位资源变化。")
+	if not unit_results.is_empty():
+		var unit_result: Dictionary = unit_results[0]
+		_assert_eq(int(unit_result.get("hp_damage", 0)), 7, "执行结果应保留实际 HP 伤害。")
+		_assert_eq(int((unit_result.get("after", {}) as Dictionary).get("hp", 0)), 5, "执行结果应保留执行后 HP。")
 	var action_trace: Dictionary = (focus_turn.get("action_traces", []) as Array)[0]
 	_assert_eq((action_trace.get("top_candidates", []) as Array).size(), 2, "action trace 默认只保留前 2 个 candidate。")
 	var top_candidate: Dictionary = (action_trace.get("top_candidates", []) as Array)[0]
@@ -95,7 +119,69 @@ func _build_run() -> Dictionary:
 				"action_id": "wait_action",
 				"reason_text": "wait",
 				"command": {"command_type": "wait", "unit_id": "hero"},
-				"score_input": {"total_score": -40, "command_type": "wait"},
+				"score_input": {
+					"total_score": -40,
+					"command_type": "wait",
+					"estimated_lethal_target_ids": ["enemy_sword"],
+					"estimated_lethal_threat_target_ids": ["enemy_sword"],
+					"estimated_control_target_ids": ["enemy_archer"],
+					"estimated_control_threat_target_ids": ["enemy_archer"],
+					"has_post_action_threat_projection": true,
+					"projected_actor_coord": "(2, 2)",
+					"pre_action_threat_unit_ids": ["enemy_sword", "enemy_archer"],
+					"pre_action_threat_count": 2,
+					"pre_action_threat_expected_damage": 19,
+					"pre_action_survival_margin": -4,
+					"pre_action_is_lethal_survival_risk": true,
+					"post_action_remaining_threat_unit_ids": ["enemy_archer"],
+					"post_action_remaining_threat_count": 1,
+					"post_action_remaining_threat_expected_damage": 7,
+					"post_action_survival_margin": 8,
+					"post_action_is_lethal_survival_risk": false,
+					"save_estimates_by_target_id": {
+						"enemy_sword": [
+							{
+								"damage_before_save": 12,
+								"damage_after_save_estimate": 9,
+								"damage_on_save_success": 6,
+								"save_success_rate_percent": 50,
+								"dc": 11,
+								"ability": "agility",
+								"save_tag": "fireball",
+								"advantage_state": "normal",
+								"immune": false,
+								"hit_count": 1,
+							},
+						],
+					},
+				},
+				"decision_target_snapshots": [
+					{"unit_id": "enemy_sword", "display_name": "Enemy Sword", "faction_id": "hostile", "coord": "(1, 1)", "alive": true, "hp": 12, "hp_max": 20, "shield_hp": 0, "shield_max_hp": 0, "ap": 1, "move_points": 2},
+				],
+				"execution_result": {
+					"command_type": "skill",
+					"skill_id": "sample_skill",
+					"changed_unit_ids": ["enemy_sword"],
+					"tracked_unit_ids": ["enemy_sword"],
+					"unit_results": [
+						{
+							"unit_id": "enemy_sword",
+							"before": {"unit_id": "enemy_sword", "display_name": "Enemy Sword", "faction_id": "hostile", "coord": "(1, 1)", "alive": true, "hp": 12, "hp_max": 20, "shield_hp": 0, "shield_max_hp": 0, "ap": 1, "move_points": 2},
+							"after": {"unit_id": "enemy_sword", "display_name": "Enemy Sword", "faction_id": "hostile", "coord": "(1, 1)", "alive": true, "hp": 5, "hp_max": 20, "shield_hp": 0, "shield_max_hp": 0, "ap": 1, "move_points": 2},
+							"hp_delta": -7,
+							"hp_damage": 7,
+							"hp_healing": 0,
+							"shield_delta": 0,
+							"shield_damage": 0,
+							"shield_restored": 0,
+							"killed": false,
+							"revived": false,
+							"moved": false,
+						},
+					],
+					"log_lines": ["Hero 对 Enemy Sword 造成 7 点伤害。"],
+					"report_entries": [],
+				},
 				"action_traces": [
 					{
 						"trace_id": "skill_1",
@@ -150,9 +236,9 @@ func _build_run() -> Dictionary:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

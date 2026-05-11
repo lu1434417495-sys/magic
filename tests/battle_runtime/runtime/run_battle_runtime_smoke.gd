@@ -4,9 +4,10 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const BattleHitResolver = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
 const BattleRangeService = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -30,71 +31,18 @@ const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const CharacterProgressionDelta = preload("res://scripts/systems/progression/character_progression_delta.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
 const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
 const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
+const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
+const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
+const StubBattleMasteryGateway = preload("res://tests/shared/stub_battle_mastery_gateway.gd")
 
-var _failures: Array[String] = []
-
-
-class MasteryGatewayStub:
-	extends RefCounted
-
-	var grants: Array[Dictionary] = []
-	var skill_used_events := 0
-
-	func record_achievement_event(
-		_member_id: StringName,
-		event_type: StringName,
-		_amount: int = 1,
-		_subject_id: StringName = &"",
-		_meta: Dictionary = {}
-	) -> Array[StringName]:
-		if event_type == &"skill_used":
-			skill_used_events += 1
-		return []
-
-	func grant_battle_mastery(member_id: StringName, skill_id: StringName, amount: int) -> CharacterProgressionDelta:
-		grants.append({
-			"member_id": member_id,
-			"skill_id": skill_id,
-			"amount": amount,
-		})
-		var delta := CharacterProgressionDelta.new()
-		delta.member_id = member_id
-		delta.mastery_changes.append({
-			"skill_id": skill_id,
-			"mastery_amount": amount,
-		})
-		return delta
-
-	func get_member_state(_member_id: StringName):
-		return null
-
-
-class FixedHitOneDamageResolver:
-	extends BattleDamageResolver
-
-	func _roll_damage_die(_dice_sides: int) -> int:
-		return 1
-
-	func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state: BattleState) -> int:
-		if battle_state != null:
-			battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
-		return clampi(10, mini(min_value, max_value), maxi(min_value, max_value))
-
-
-class FixedCriticalOneDamageResolver:
-	extends FixedHitOneDamageResolver
-
-	func _roll_true_random_attack_range(min_value: int, max_value: int, battle_state: BattleState) -> int:
-		if battle_state != null:
-			battle_state.attack_roll_nonce = maxi(int(battle_state.attack_roll_nonce), 0) + 1
-		return maxi(min_value, max_value)
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -142,8 +90,10 @@ func _run() -> void:
 	_test_archer_multishot_level_scaled_target_limits()
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
+	_test_battle_range_service_base_range_handles_null_skill()
 	_test_weapon_skill_range_uses_weapon_attack_range_not_skill_range()
 	_test_battle_range_service_layers_modifiers_without_snapshot_truth()
+	_test_battle_range_service_threat_range_includes_ground_area_outer_edge()
 	_test_weapon_skill_damage_tag_uses_current_weapon_type()
 	_test_weapon_damage_tag_override_does_not_require_weapon()
 	_test_requires_weapon_rejects_unarmed_and_natural_weapons()
@@ -192,7 +142,7 @@ func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 
 func _test_armor_break_lowers_target_ac_without_damage_vulnerability() -> void:
 	var hit_resolver := BattleHitResolver.new()
-	var damage_resolver := BattleDamageResolver.new()
+	var damage_resolver := SharedDamageResolvers.FixedHitMaxDamageResolver.new()
 	var attacker := _build_unit(&"armor_break_attacker", Vector2i.ZERO, 1)
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 4)
 	var target := _build_enemy_unit(&"armor_break_target", Vector2i(1, 0))
@@ -245,7 +195,7 @@ func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:
 	}
 
 	runtime._state = state
-	var batch = runtime.advance(1.0)
+	var batch = runtime.advance(1)
 	_assert_true(batch != null, "advance() 应返回有效 batch。")
 	_assert_true(
 		trailing_cell.timed_terrain_effects.size() == 1,
@@ -709,8 +659,6 @@ func _test_change_equipment_preserves_full_instance_fields() -> void:
 	var backpack_instance = state.get_party_backpack_view().equipment_instances[0]
 	backpack_instance.rarity = EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE
 	backpack_instance.current_durability = 9
-	backpack_instance.armor_wear_progress = 3.5
-	backpack_instance.weapon_wear_progress = 0.75
 
 	var equip_command := _build_change_equipment_command(
 		unit.unit_id,
@@ -726,8 +674,6 @@ func _test_change_equipment_preserves_full_instance_fields() -> void:
 		"battle_full_instance_cap_001",
 		EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE,
 		9,
-		3.5,
-		0.75,
 		"战斗装备位"
 	)
 
@@ -750,8 +696,6 @@ func _test_change_equipment_preserves_full_instance_fields() -> void:
 			"battle_full_instance_cap_001",
 			EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE,
 			9,
-			3.5,
-			0.75,
 			"战斗背包"
 		)
 
@@ -1626,7 +1570,7 @@ func _test_large_unit_charge_trap_stops_after_first_step() -> void:
 
 func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	var registry := ProgressionContentRegistry.new()
-	var gateway := MasteryGatewayStub.new()
+	var gateway := StubBattleMasteryGateway.new()
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(gateway, registry.get_skill_defs(), {}, {})
 
@@ -1662,6 +1606,24 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	runtime.issue_command(line_command)
 	_assert_true(line_enemy_front.current_hp < 30, "炎枪术应命中正前方敌人。")
 	_assert_eq(line_enemy_side.current_hp, 30, "炎枪术不应误伤侧向敌人。")
+
+	var narrow_cone_state := _build_skill_test_state(Vector2i(12, 11))
+	var narrow_cone_coords := runtime._grid_service.get_area_coords(
+		narrow_cone_state,
+		Vector2i(6, 5),
+		&"narrow_cone",
+		5,
+		Vector2i.RIGHT
+	)
+	_assert_eq(narrow_cone_coords.size(), 10, "narrow_cone 半径 5 应形成近端 3/3 宽、远端单格长尾，共 10 格。")
+	_assert_true(narrow_cone_coords.has(Vector2i(6, 4)), "narrow_cone 近端第一列应向侧面展开到 3 格宽。")
+	_assert_true(narrow_cone_coords.has(Vector2i(6, 5)), "narrow_cone 应包含指向的近端中心格。")
+	_assert_true(narrow_cone_coords.has(Vector2i(6, 6)), "narrow_cone 近端第一列应保留另一侧边缘格。")
+	_assert_true(narrow_cone_coords.has(Vector2i(7, 4)), "narrow_cone 第二列仍应保持最大 3 格宽。")
+	_assert_true(narrow_cone_coords.has(Vector2i(7, 6)), "narrow_cone 第二列仍应保持最大 3 格宽。")
+	_assert_true(narrow_cone_coords.has(Vector2i(11, 5)), "narrow_cone 远端应沿中线延伸成长尾。")
+	_assert_true(not narrow_cone_coords.has(Vector2i(8, 4)), "narrow_cone 远离施法者后不应继续横向扩散。")
+	_assert_true(not narrow_cone_coords.has(Vector2i(10, 3)), "narrow_cone 最大宽度不应超过 3 格。")
 
 	var front_arc_state := _build_skill_test_state(Vector2i(5, 5))
 	var front_arc_user := _build_unit(&"front_arc_skill_user", Vector2i(2, 2), 3)
@@ -1700,7 +1662,8 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	_assert_true(runtime._grid_service.place_unit(front_arc_state, front_arc_enemy_side, front_arc_enemy_side.coord, true), "前弧技能侧前敌人应能成功放入战场。")
 	_assert_true(runtime._grid_service.place_unit(front_arc_state, front_arc_enemy_beyond, front_arc_enemy_beyond.coord, true), "前弧技能第二排敌人应能成功放入战场。")
 	runtime._state = front_arc_state
-	runtime.configure_damage_resolver_for_tests(FixedHitOneDamageResolver.new())
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
 
 	var front_arc_command := BattleCommand.new()
 	front_arc_command.command_type = BattleCommand.TYPE_SKILL
@@ -1908,7 +1871,7 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(mage.unit_id), "奥术飞弹应记录施法者变更。")
-	_assert_eq(mage.current_mp, 60, "奥术飞弹应只按一次施放消耗法力。")
+	_assert_eq(mage.current_mp, 100, "奥术飞弹应只按一次施放消耗法力。")
 	_assert_eq(
 		_extract_string_name_array(batch.changed_unit_ids),
 		[String(mage.unit_id), String(enemy_b.unit_id), String(enemy_c.unit_id), String(enemy_a.unit_id)],
@@ -2001,6 +1964,23 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 	_assert_eq(warrior.current_ap, 1, "武器攻击范围内的技能应正常扣除 AP。")
 
 
+func _test_battle_range_service_base_range_handles_null_skill() -> void:
+	var unit := _build_unit(&"range_null_guard_unit", Vector2i.ZERO, 2)
+	var skill := _build_direct_damage_skill(&"range_null_guard_skill", 1)
+	skill.combat_profile = null
+
+	_assert_eq(
+		BattleRangeService.resolve_base_skill_range(unit, null),
+		0,
+		"resolve_base_skill_range 直接收到 null skill_def 时应返回 0。"
+	)
+	_assert_eq(
+		BattleRangeService.resolve_base_skill_range(unit, skill),
+		0,
+		"resolve_base_skill_range 直接收到缺 combat_profile 的 skill_def 时应返回 0。"
+	)
+
+
 func _test_battle_range_service_layers_modifiers_without_snapshot_truth() -> void:
 	var skill := _build_direct_damage_skill(&"range_layer_contract", 1)
 	skill.tags = [&"archer", &"bow"]
@@ -2032,8 +2012,36 @@ func _test_battle_range_service_layers_modifiers_without_snapshot_truth() -> voi
 	_assert_eq(archer.weapon_attack_range, 2, "状态射程修正不应写回 BattleUnitState.weapon_attack_range 基础投影。")
 
 
+func _test_battle_range_service_threat_range_includes_ground_area_outer_edge() -> void:
+	var skill := _build_direct_damage_skill(&"ground_outer_reach_contract", 1)
+	skill.combat_profile.target_mode = &"ground"
+	skill.combat_profile.target_team_filter = &"enemy"
+	skill.combat_profile.range_value = 1
+	skill.combat_profile.area_pattern = &"narrow_cone"
+	skill.combat_profile.area_value = 5
+	skill.combat_profile.level_overrides = {
+		7: {
+			"area_value": 6,
+		},
+	}
+	var caster := _build_unit(&"ground_outer_reach_caster", Vector2i.ZERO, 2)
+	caster.known_active_skill_ids = [skill.skill_id]
+	caster.known_skill_level_map[skill.skill_id] = 7
+
+	_assert_eq(
+		BattleRangeService.get_effective_skill_range(caster, skill),
+		1,
+		"合法施法锚点距离仍应保持配置射程。"
+	)
+	_assert_eq(
+		BattleRangeService.get_effective_skill_threat_range(caster, skill),
+		7,
+		"AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
+	)
+
+
 func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
-	var resolver := BattleDamageResolver.new()
+	var resolver := SharedDamageResolvers.FixedHitOneDamageResolver.new()
 	var effect := CombatEffectDef.new()
 	effect.effect_type = &"damage"
 	effect.power = 1
@@ -2071,7 +2079,8 @@ func _test_weapon_damage_tag_override_does_not_require_weapon() -> void:
 	}
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
-	runtime.configure_damage_resolver_for_tests(FixedHitOneDamageResolver.new())
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
 
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	var attacker := _build_unit(&"weapon_tag_only_user", Vector2i(0, 0), 2)
@@ -2119,7 +2128,8 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	}
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
-	runtime.configure_damage_resolver_for_tests(FixedHitOneDamageResolver.new())
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
 
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	var attacker := _build_unit(&"requires_weapon_user", Vector2i(0, 0), 2)
@@ -2193,7 +2203,8 @@ func _test_required_weapon_families_restricts_equipped_weapon_family() -> void:
 	}
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
-	runtime.configure_damage_resolver_for_tests(FixedHitOneDamageResolver.new())
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
 
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	var attacker := _build_unit(&"required_bow_family_user", Vector2i(0, 0), 2)
@@ -2274,7 +2285,7 @@ func _test_required_weapon_families_restricts_equipped_weapon_family() -> void:
 
 
 func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank() -> void:
-	var gateway := MasteryGatewayStub.new()
+	var gateway := StubBattleMasteryGateway.new()
 	var skill := _build_ground_damage_dice_skill(&"mastery_rank_test", 0, 1, 1)
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(gateway, {skill.skill_id: skill}, {}, {})
@@ -2363,7 +2374,8 @@ func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 		"weapon_physical_damage_tag": "physical_slash",
 	})
 	runtime.setup(gateway, {weapon_only_skill.skill_id: weapon_only_skill}, {}, {})
-	runtime.configure_damage_resolver_for_tests(FixedCriticalOneDamageResolver.new())
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedCriticalOneDamageResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedCriticalHitResolver.new())
 	runtime._state = state
 	runtime.issue_command(command)
 	_assert_eq(gateway.grants.size(), 2, "配置 weapon_attack_quality 后，武器攻击质量事件应能触发熟练度。")
@@ -2455,7 +2467,6 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	state.phase = &"timeline_running"
-	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
 	var archer := _build_unit(&"aa_cooldown_turn_user", Vector2i(0, 0), 1)
 	archer.action_threshold = 5
@@ -2474,7 +2485,7 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "冷却递减回归中的目标应能成功放入战场。")
 	runtime._state = state
 
-	var tu_batch := runtime.advance(1.0)
+	var tu_batch := runtime.advance(1)
 	_assert_eq(state.timeline.current_tu, 5, "战斗时间轴推进后 current_tu 应增长 5。")
 	_assert_true(tu_batch.changed_unit_ids.has(archer.unit_id), "TU 推进触发新回合时应记录 cooldown 单位变更。")
 	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 10, "经过 5 TU 后，技能冷却应正式递减 5。")
@@ -2484,7 +2495,7 @@ func _test_cooldowns_reduce_on_tu_progress_and_zero_tu_turn_switch() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(archer.unit_id)
-	var turn_batch := runtime.advance(0.0)
+	var turn_batch := runtime.advance(0)
 	_assert_true(turn_batch.changed_unit_ids.has(archer.unit_id), "零 TU 的队列回合切换仍应记录行动单位变更。")
 	_assert_eq(int(archer.cooldowns.get(&"archer_long_draw", 0)), 10, "零 TU 回合切换不应继续递减 cooldown。")
 	_assert_eq(archer.last_turn_tu, 5, "零 TU 回合切换不应篡改当前的 timeline TU 锚点。")
@@ -2496,7 +2507,6 @@ func _test_timeline_tick_uses_per_unit_action_threshold() -> void:
 
 	var state := _build_skill_test_state(Vector2i(3, 1))
 	state.phase = &"timeline_running"
-	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
 	var first_unit := _build_unit(&"aa_timeline_threshold_10", Vector2i(0, 0), 1)
 	first_unit.action_threshold = 10
@@ -2513,14 +2523,14 @@ func _test_timeline_tick_uses_per_unit_action_threshold() -> void:
 	_assert_true(runtime._grid_service.place_unit(state, second_unit, second_unit.coord, true), "15 TU 阈值测试单位应能成功放入战场。")
 	runtime._state = state
 
-	runtime.advance(1.0)
+	runtime.advance(1)
 	_assert_eq(state.timeline.current_tu, 5, "第一个离散 tick 应只推进 5 TU。")
 	_assert_eq(first_unit.action_progress, 5, "10 TU 阈值单位的行动进度应按 tu_per_tick 累加。")
 	_assert_eq(second_unit.action_progress, 5, "15 TU 阈值单位的行动进度也应按 tu_per_tick 累加。")
 	_assert_true(state.timeline.ready_unit_ids.is_empty(), "所有单位未达到各自 action_threshold 前不应产生行动单位。")
 	_assert_eq(state.phase, &"timeline_running", "未达到任一行动阈值前应保持时间轴推进阶段。")
 
-	runtime.advance(1.0)
+	runtime.advance(1)
 	_assert_eq(state.timeline.current_tu, 10, "第二个离散 tick 后 current_tu 应累计到 10。")
 	_assert_eq(first_unit.action_progress, 0, "达到该单位 action_threshold 后应扣除一次阈值。")
 	_assert_eq(second_unit.action_progress, 10, "未达到自己阈值的单位不应提前入队。")
@@ -2534,7 +2544,6 @@ func _test_timeline_ready_units_sort_after_status_resolution() -> void:
 
 	var state := _build_skill_test_state(Vector2i(5, 1))
 	state.phase = &"timeline_running"
-	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
 	var doomed_fast_unit := _build_unit(&"aa_doomed_fast_unit", Vector2i(0, 0), 5)
 	var agile_unit := _build_unit(&"bb_agile_unit", Vector2i(1, 0), 1)
@@ -2583,7 +2592,7 @@ func _test_timeline_ready_units_sort_after_status_resolution() -> void:
 		_assert_true(runtime._grid_service.place_unit(state, unit_state, unit_state.coord, true), "ready 排序测试单位应能成功放入战场：%s" % String(unit_state.unit_id))
 	runtime._state = state
 
-	runtime.advance(1.0)
+	runtime.advance(1)
 	_assert_true(not doomed_fast_unit.is_alive, "时间推进后应先结算持续状态，击倒单位不应进入行动排序。")
 	_assert_eq(state.active_unit_id, agile_unit.unit_id, "同一 tick 就绪时应先按敏捷高的单位行动。")
 	_assert_eq(
@@ -2662,7 +2671,7 @@ func _test_status_duration_serialization_preserves_tu_window() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(archer.unit_id)
-	runtime.advance(0.0)
+	runtime.advance(0)
 	_assert_true(archer.has_status_effect(&"archer_pre_aim"), "自施放状态应在下一次行动窗口开始时仍然保留。")
 
 	_advance_timeline_tu(runtime, state, 55)
@@ -2714,7 +2723,7 @@ func _test_status_duration_slow_expires_correctly() -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.ready_unit_ids.append(enemy.unit_id)
-	runtime.advance(0.0)
+	runtime.advance(0)
 	_assert_true(enemy.has_status_effect(&"slow"), "目标进入行动窗口时，slow 不应在 turn start 前被提前清除。")
 
 	var wait_command := BattleCommand.new()
@@ -3053,8 +3062,6 @@ func _assert_equipment_instance_fields(
 	expected_instance_id: String,
 	expected_rarity: int,
 	expected_current_durability: int,
-	expected_armor_wear_progress: float,
-	expected_weapon_wear_progress: float,
 	owner_label: String
 ) -> void:
 	_assert_true(instance != null, "%s 应持有装备实例。" % owner_label)
@@ -3063,8 +3070,6 @@ func _assert_equipment_instance_fields(
 	_assert_eq(String(instance.instance_id), expected_instance_id, "%s 应保留 instance_id。" % owner_label)
 	_assert_eq(int(instance.rarity), expected_rarity, "%s 应保留 rarity。" % owner_label)
 	_assert_eq(int(instance.current_durability), expected_current_durability, "%s 应保留 current_durability。" % owner_label)
-	_assert_eq(float(instance.armor_wear_progress), expected_armor_wear_progress, "%s 应保留 armor_wear_progress。" % owner_label)
-	_assert_eq(float(instance.weapon_wear_progress), expected_weapon_wear_progress, "%s 应保留 weapon_wear_progress。" % owner_label)
 
 
 func _build_enemy_unit(unit_id: StringName, coord: Vector2i) -> BattleUnitState:
@@ -3169,13 +3174,12 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.phase = &"timeline_running"
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
-	state.timeline.tick_interval_seconds = 1.0
 	state.timeline.tu_per_tick = 5
 	for unit_variant in state.units.values():
 		var unit_state := unit_variant as BattleUnitState
 		if unit_state != null:
 			unit_state.action_threshold = 1000000
-	runtime.advance(float(total_tu) / 5.0)
+	runtime.advance(int(total_tu / 5))
 
 
 func _get_large_charge_direction_cases() -> Array[Dictionary]:
@@ -3289,9 +3293,9 @@ func _set_cell_height(state: BattleState, coord: Vector2i, height: int) -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

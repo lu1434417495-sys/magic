@@ -99,6 +99,7 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 	)
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+	unit_state.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(member_state.progression)
 	_sync_unlocked_resources_from_progression(unit_state, member_state.progression)
 	_filter_skills_by_equipment_requirements(unit_state)
 	_ensure_basic_attack_skill(unit_state)
@@ -117,6 +118,7 @@ func refresh_known_skills(unit_state: BattleUnitState) -> void:
 		return
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+	unit_state.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(member_state.progression)
 	_sync_unlocked_resources_from_progression(unit_state, member_state.progression)
 	_filter_skills_by_equipment_requirements(unit_state)
 	_ensure_basic_attack_skill(unit_state)
@@ -229,6 +231,7 @@ func _build_runtime_ally_unit(member_id: StringName, member_state, index: int, c
 	)
 	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression if member_state != null else null)
 	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression if member_state != null else null)
+	unit_state.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(member_state.progression if member_state != null else null)
 	_sync_unlocked_resources_from_progression(unit_state, member_state.progression if member_state != null else null)
 	_sync_passive_battle_statuses(unit_state, member_state.progression if member_state != null else null, member_state)
 	_filter_skills_by_equipment_requirements(unit_state)
@@ -653,6 +656,29 @@ func _collect_known_skill_level_map(progression_state) -> Dictionary:
 		skill_levels[skill_id] = int(skill_progress.skill_level)
 
 	return skill_levels
+
+
+func _collect_known_skill_lock_hit_bonus_map(progression_state) -> Dictionary:
+	var skill_bonuses: Dictionary = {}
+	if progression_state == null:
+		return skill_bonuses
+
+	for skill_key in ProgressionDataUtils.sorted_string_keys(progression_state.skills):
+		var skill_id: StringName = StringName(skill_key)
+		var skill_progress: Variant = progression_state.get_skill_progress(skill_id)
+		var skill_def: SkillDef = _skill_def_from_runtime(skill_id)
+		if skill_progress == null or skill_def == null:
+			continue
+		if not skill_progress.is_learned:
+			continue
+		if not bool(skill_progress.is_level_trigger_locked):
+			continue
+		var bonus := int(skill_progress.bonus_to_hit_from_lock)
+		if bonus <= 0:
+			continue
+		skill_bonuses[skill_id] = bonus
+
+	return skill_bonuses
 
 
 func _sync_passive_battle_statuses(unit_state: BattleUnitState, progression_state, member_state = null) -> void:

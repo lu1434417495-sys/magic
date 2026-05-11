@@ -20,7 +20,7 @@ const ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID := "main_character_member_id"
 const ROSTER_OPTION_LEADER_MEMBER_ID := "leader_member_id"
 const ROSTER_OPTION_MAIN_CHARACTER_REROLL_COUNT := "main_character_reroll_count"
 const ROSTER_OPTION_ATTRIBUTE_ROLL_SEED := "attribute_roll_seed"
-const HP_ROLL_AVERAGE = 5
+const HP_ROLL_SEED_OFFSET := 104729
 const ATTRIBUTE_ROLL_DICE_COUNT := 5
 const ATTRIBUTE_ROLL_DICE_SIDES := 3
 const ATTRIBUTE_ROLL_OFFSET := -1
@@ -58,6 +58,7 @@ var _ai_brain_by_member_id: Dictionary = {}
 var _ai_state_by_member_id: Dictionary = {}
 var _roster_options: Dictionary = {}
 var _attribute_roll_rng := RandomNumberGenerator.new()
+var _hp_roll_rng := RandomNumberGenerator.new()
 
 
 func setup_content(content: Dictionary) -> void:
@@ -228,6 +229,14 @@ func _build_mixed_6v12_roster() -> void:
 		{"skill_id": &"archer_aimed_shot", "level": 3, "is_core": true},
 		{"skill_id": &"archer_multishot", "level": 7, "is_core": true},
 	]
+	var elite_mage_skills: Array = [
+		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
+		{"skill_id": &"mage_fireball", "level": 7, "is_core": true},
+		{"skill_id": &"mage_cone_of_cold", "level": 7, "is_core": true},
+		{"skill_id": &"mage_blink", "level": 7, "is_core": true},
+		{"skill_id": &"mage_gust_of_wind", "level": 7, "is_core": true},
+		{"skill_id": &"mage_chain_lightning", "level": 7, "is_core": true},
+	]
 	var hostile_sword_skills: Array = [
 		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
 		{"skill_id": &"charge", "level": 1, "is_core": false},
@@ -240,11 +249,12 @@ func _build_mixed_6v12_roster() -> void:
 	]
 	for index in range(4):
 		_add_member(StringName("elite_sword_%d" % index), "Elite Sword %d" % index, &"player", _roll_creation_attributes(), USE_DEFAULT_ACTION_THRESHOLD, elite_sword_skills, &"warrior", 2, &"steel_longsword", WARRIOR_BODY_ARMOR_ITEM_ID, &"melee_aggressor", &"engage")
-	for index in range(2):
-		_add_member(StringName("elite_archer_%d" % index), "Elite Archer %d" % index, &"player", _roll_creation_attributes(), USE_DEFAULT_ACTION_THRESHOLD, elite_archer_skills, &"archer", 2, &"ash_longbow", ARCHER_BODY_ARMOR_ITEM_ID, &"ranged_archer", &"pressure")
-	for index in range(8):
-		_add_member(StringName("hostile_sword_%d" % index), "Hostile Sword %d" % index, &"hostile", _roll_creation_attributes(), USE_DEFAULT_ACTION_THRESHOLD, hostile_sword_skills, &"", 0, &"steel_longsword", WARRIOR_BODY_ARMOR_ITEM_ID, &"melee_aggressor", &"engage")
-	for index in range(4):
+	_add_member(StringName("elite_archer_0"), "Elite Archer 0", &"player", _roll_creation_attributes(), USE_DEFAULT_ACTION_THRESHOLD, elite_archer_skills, &"archer", 2, &"ash_longbow", ARCHER_BODY_ARMOR_ITEM_ID, &"ranged_archer", &"pressure")
+	_add_member(StringName("elite_mage_0"), "Elite Mage 0", &"player", _roll_creation_attributes(), USE_DEFAULT_ACTION_THRESHOLD, elite_mage_skills, &"mage", 5, &"", ARCHER_BODY_ARMOR_ITEM_ID, &"mage_controller", &"pressure")
+	_set_member_mp_max(StringName("elite_mage_0"), 1000)
+	for index in range(6):
+		_add_member(StringName("hostile_sword_%d" % index), "Hostile Elite Sword %d" % index, &"hostile", _roll_creation_attributes(), USE_DEFAULT_ACTION_THRESHOLD, elite_sword_skills, &"warrior", 2, &"steel_longsword", WARRIOR_BODY_ARMOR_ITEM_ID, &"melee_aggressor", &"engage")
+	for index in range(6):
 		_add_member(StringName("hostile_archer_%d" % index), "Hostile Archer %d" % index, &"hostile", _roll_creation_attributes(), USE_DEFAULT_ACTION_THRESHOLD, hostile_archer_skills, &"", 0, &"ash_longbow", ARCHER_BODY_ARMOR_ITEM_ID, &"ranged_archer", &"pressure")
 
 
@@ -280,6 +290,14 @@ func _add_member(
 		ally_member_ids.append(member_id)
 	_ai_brain_by_member_id[member_id] = ai_brain_id
 	_ai_state_by_member_id[member_id] = ai_state_id
+
+
+func _set_member_mp_max(member_id: StringName, mp_max: int) -> void:
+	var member_state = party_state.get_member_state(member_id)
+	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
+		return
+	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, mp_max)
+	member_state.current_mp = mp_max
 
 
 func _finalize_roster_identity() -> void:
@@ -336,6 +354,7 @@ func _setup_attribute_roll_rng() -> void:
 		ROSTER_OPTION_ATTRIBUTE_ROLL_SEED,
 		DEFAULT_ATTRIBUTE_ROLL_SEED
 	))
+	_hp_roll_rng.seed = _attribute_roll_rng.seed + HP_ROLL_SEED_OFFSET
 
 
 func _roll_creation_attributes() -> Dictionary:
@@ -435,7 +454,7 @@ func _apply_profession_rank(member_state, profession_id: StringName, rank: int, 
 			member_state.progression.set_skill_progress(skill_progress)
 	_apply_profession_granted_skills(member_state, profession_id, rank, profession_progress)
 	member_state.progression.set_profession_progress(profession_progress)
-	var hp_gain_total = _calculate_profession_hp_gain_total(member_state, profession_id, rank, HP_ROLL_AVERAGE)
+	var hp_gain_total = _calculate_profession_hp_gain_total(member_state, profession_id, rank)
 	var attributes = member_state.progression.unit_base_attributes
 	attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, attributes.get_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX) + hp_gain_total)
 	member_state.current_hp = attributes.get_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)
@@ -467,7 +486,7 @@ func _apply_profession_granted_skills(member_state, profession_id: StringName, r
 			member_state.progression.set_skill_progress(skill_progress)
 
 
-func _calculate_profession_hp_gain_total(member_state, profession_id: StringName, rank: int, hp_roll: int) -> int:
+func _calculate_profession_hp_gain_total(member_state, profession_id: StringName, rank: int) -> int:
 	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 		return 0
 	var profession_def = _profession_defs.get(profession_id)
@@ -475,9 +494,11 @@ func _calculate_profession_hp_gain_total(member_state, profession_id: StringName
 		return 0
 	var constitution = int(member_state.progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.CONSTITUTION))
 	var hit_die_sides = maxi(int(profession_def.hit_die_sides), 1)
-	var resolved_roll = clampi(hp_roll, 1, hit_die_sides)
-	var per_rank = PROGRESSION_SERVICE_SCRIPT.calculate_profession_hit_point_gain(resolved_roll, constitution)
-	return per_rank * maxi(rank, 0)
+	var total := 0
+	for _rank_index in range(maxi(rank, 0)):
+		var hp_roll := _hp_roll_rng.randi_range(1, hit_die_sides)
+		total += PROGRESSION_SERVICE_SCRIPT.calculate_profession_hit_point_gain(hp_roll, constitution)
+	return total
 
 
 func _equip_member(member_state, weapon_item_id: StringName, body_armor_item_id: StringName) -> void:
@@ -588,7 +609,11 @@ func _collect_core_skill_ids(skill_configs: Array) -> Array[StringName]:
 	return result
 
 
-func _build_creation_payload(display_name: String, attrs: Dictionary, action_threshold: int) -> Dictionary:
+func _build_creation_payload(
+	display_name: String,
+	attrs: Dictionary,
+	action_threshold: int
+) -> Dictionary:
 	var payload := {
 		"display_name": display_name,
 		"race_id": &"human",

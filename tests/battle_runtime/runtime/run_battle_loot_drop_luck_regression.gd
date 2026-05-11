@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
@@ -11,9 +14,9 @@ const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
-const LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class _SpyEquipmentDropService:
@@ -89,7 +92,7 @@ func _test_per_kill_loot_uses_killer_luck_and_commits_fixed_item() -> void:
 	var resolution_result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
 	resolution_result.winner_faction_id = &"player"
 	resolution_result.set_loot_entries(facade._battle_runtime._active_loot_entries)
-	var equipment_entries := _count_drop_type(resolution_result.loot_entries, LOOT_DROP_TYPE_EQUIPMENT_INSTANCE)
+	var equipment_entries := _count_drop_type(resolution_result.loot_entries, BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE)
 	var commit_result: Dictionary = facade._commit_battle_loot_to_shared_warehouse(resolution_result)
 
 	_assert_eq(drop_service.calls.size(), 1, "fixed item 掉落不应重复调用 equipment_drop_service。")
@@ -363,10 +366,10 @@ func _count_stack_quantity(party_state, item_id: StringName) -> int:
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

@@ -14,6 +14,7 @@ const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/batt
 const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/fate/low_luck_relic_rules.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
 const BattleFateEventBus = BATTLE_FATE_EVENT_BUS_SCRIPT
 const BattleState = BATTLE_STATE_SCRIPT
 const BattleResolutionResult = BATTLE_RESOLUTION_RESULT_SCRIPT
@@ -32,10 +33,7 @@ const EVENT_DEAD_ROAD_LANTERN_REWARD: StringName = &"dead_road_lantern_reward"
 const META_FLAG_PREFIX := "low_luck_event:"
 const LOW_LUCK_THRESHOLD := -4
 const SOURCE_TYPE_STORY_EVENT: StringName = &"story_event"
-const SOURCE_KIND_LOW_LUCK_EVENT: StringName = &"low_luck_event"
-const DROP_TYPE_ITEM: StringName = &"item"
 const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
-const CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
 const KNOWLEDGE_LAMP_WITHOUT_WITNESS: StringName = &"low_luck_black_market_hint"
 const KNOWLEDGE_BORROWED_ROAD: StringName = &"low_luck_borrowed_road"
 
@@ -97,7 +95,7 @@ func handle_battle_resolution(
 				_build_fixed_item_loot_entry(
 					EVENT_BROKEN_BRIDGE_SURVIVAL,
 					member_id,
-					CALAMITY_SHARD_ITEM_ID,
+					BattleLootConstants.ITEM_CALAMITY_SHARD,
 					1,
 					"断桥生还"
 				)
@@ -323,8 +321,8 @@ func _build_fixed_item_loot_entry(
 	source_label: String
 ) -> Dictionary:
 	return {
-		"drop_type": String(DROP_TYPE_ITEM),
-		"drop_source_kind": String(SOURCE_KIND_LOW_LUCK_EVENT),
+		"drop_type": String(BattleLootConstants.DROP_TYPE_ITEM),
+		"drop_source_kind": String(BattleLootConstants.SOURCE_KIND_LOW_LUCK_EVENT),
 		"drop_source_id": String(event_id),
 		"drop_source_label": source_label,
 		"drop_entry_id": "%s:%s" % [String(event_id), String(member_id)],

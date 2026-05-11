@@ -2,11 +2,12 @@ class_name EnemyAiBrainDef
 extends Resource
 
 const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
+const HP_BASIS_POINTS_DENOMINATOR := 10000
 
 @export var brain_id: StringName = &""
 @export var default_state_id: StringName = &"engage"
-@export var retreat_hp_ratio := 0.35
-@export var support_hp_ratio := 0.55
+@export var retreat_hp_basis_points := 3500
+@export var support_hp_basis_points := 5500
 @export var pressure_distance := 2
 @export var states: Variant = []
 
@@ -46,10 +47,10 @@ func validate_schema(skill_defs: Dictionary = {}) -> Array[String]:
 		return errors
 	if default_state_id == &"":
 		errors.append("Enemy brain %s is missing default_state_id." % String(brain_id))
-	if retreat_hp_ratio < 0.0 or retreat_hp_ratio > 1.0:
-		errors.append("Enemy brain %s retreat_hp_ratio must be within [0, 1]." % String(brain_id))
-	if support_hp_ratio < 0.0 or support_hp_ratio > 1.0:
-		errors.append("Enemy brain %s support_hp_ratio must be within [0, 1]." % String(brain_id))
+	if retreat_hp_basis_points < 0 or retreat_hp_basis_points > HP_BASIS_POINTS_DENOMINATOR:
+		errors.append("Enemy brain %s retreat_hp_basis_points must be within [0, 10000]." % String(brain_id))
+	if support_hp_basis_points < 0 or support_hp_basis_points > HP_BASIS_POINTS_DENOMINATOR:
+		errors.append("Enemy brain %s support_hp_basis_points must be within [0, 10000]." % String(brain_id))
 	if pressure_distance < 0:
 		errors.append("Enemy brain %s pressure_distance must be >= 0." % String(brain_id))
 	if states is Array and (states as Array).is_empty():

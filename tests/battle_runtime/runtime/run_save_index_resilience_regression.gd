@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -8,7 +10,8 @@ const SAVE_INDEX_PATH := "%s/index.dat" % SAVE_DIRECTORY
 const SAVE_INDEX_VERSION := 3
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -18,6 +21,9 @@ func _initialize() -> void:
 func _run() -> void:
 	await _test_corrupt_save_index_recovers_cleanly()
 	await _test_save_index_schema_rejects_old_entry_shapes()
+	await _test_bak_only_restore_for_save_payload()
+	await _test_index_rebuild_filters_payloads_that_fail_full_decode()
+	await _test_ensure_world_ready_skips_newest_bad_save()
 	if _failures.is_empty():
 		print("Save index resilience regression: PASS")
 		quit(0)
@@ -225,14 +231,176 @@ func _test_save_index_schema_rejects_old_entry_shapes() -> void:
 	await process_frame
 
 
+func _test_bak_only_restore_for_save_payload() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	root.add_child(game_session)
+	await process_frame
+
+	var clear_error := int(game_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "bak restore 回归前应能清理旧存档目录。")
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "bak restore 回归应能创建测试存档。")
+	if create_error != OK:
+		game_session.queue_free()
+		await process_frame
+		return
+
+	var save_id := String(game_session.get_active_save_id())
+	var save_path := String(game_session.get_active_save_path())
+	var bak_path := "%s.bak" % save_path
+	var rename_error := DirAccess.rename_absolute(ProjectSettings.globalize_path(save_path), ProjectSettings.globalize_path(bak_path))
+	_assert_eq(rename_error, OK, "bak restore 回归前置：应能把正式 save 移成 .bak。")
+	if rename_error == OK:
+		_assert_true(not FileAccess.file_exists(save_path), "bak restore 前置：target 应暂时缺失。")
+		_assert_true(FileAccess.file_exists(bak_path), "bak restore 前置：.bak 应存在。")
+		var load_error := int(game_session.load_save(save_id))
+		_assert_eq(load_error, OK, "target 缺失但有效 .bak 存在时，load_save() 应恢复并加载。")
+		_assert_true(FileAccess.file_exists(save_path), "从 .bak 恢复后 target save 应重新存在。")
+
+	var cleanup_error := int(game_session.clear_persisted_game())
+	_assert_eq(cleanup_error, OK, "bak restore 回归结束后应能清理 save 目录。")
+	game_session.queue_free()
+	await process_frame
+
+
+func _test_index_rebuild_filters_payloads_that_fail_full_decode() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	root.add_child(game_session)
+	await process_frame
+
+	var clear_error := int(game_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "bad payload index rebuild 回归前应能清理旧存档目录。")
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "bad payload index rebuild 回归应能创建测试存档。")
+	if create_error != OK:
+		game_session.queue_free()
+		await process_frame
+		return
+
+	var payload := _build_payload_for_session(game_session)
+	var world_state: Dictionary = (payload.get("world_state", {}) as Dictionary).duplicate(true)
+	var world_data: Dictionary = (world_state.get("world_data", {}) as Dictionary).duplicate(true)
+	world_data.erase("next_equipment_instance_serial")
+	world_state["world_data"] = world_data
+	payload["world_state"] = world_state
+	var write_error := _overwrite_payload_at_path(game_session.get_active_save_path(), payload)
+	_assert_eq(write_error, OK, "bad payload index rebuild 回归前置：应能写入坏 payload。")
+
+	var corrupt_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.WRITE)
+	_assert_true(corrupt_file != null, "bad payload index rebuild 回归前置：应能写入坏 index 以触发 rebuild。")
+	if corrupt_file != null:
+		corrupt_file.store_buffer(PackedByteArray([0xCC, 0x80, 0x01, 0x02]))
+		corrupt_file.close()
+	game_session.queue_free()
+	await process_frame
+
+	var fresh_session = GAME_SESSION_SCRIPT.new()
+	root.add_child(fresh_session)
+	await process_frame
+	var slots := fresh_session.list_save_slots()
+	_assert_eq(slots.size(), 0, "index rebuild 不应收录无法完整 current-schema decode 的坏 payload。")
+
+	var cleanup_error := int(fresh_session.clear_persisted_game())
+	_assert_eq(cleanup_error, OK, "bad payload index rebuild 回归结束后应能清理 save 目录。")
+	fresh_session.queue_free()
+	await process_frame
+
+
+func _test_ensure_world_ready_skips_newest_bad_save() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	root.add_child(game_session)
+	await process_frame
+
+	var clear_error := int(game_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "ensure fallback 回归前应能清理旧存档目录。")
+	var old_create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(old_create_error, OK, "ensure fallback 回归应能创建旧测试存档。")
+	if old_create_error != OK:
+		game_session.queue_free()
+		await process_frame
+		return
+	var old_save_id := String(game_session.get_active_save_id())
+	var old_save_path := String(game_session.get_active_save_path())
+	var old_payload := _build_payload_for_session(game_session)
+	var old_meta := game_session.get_active_save_meta()
+	old_meta["created_at_unix_time"] = 100
+	old_meta["updated_at_unix_time"] = 100
+	old_payload["save_slot_meta"] = old_meta.duplicate(true)
+	_assert_eq(_overwrite_payload_at_path(old_save_path, old_payload), OK, "ensure fallback 前置：应能重写旧好档 meta。")
+
+	var new_create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(new_create_error, OK, "ensure fallback 回归应能创建新测试存档。")
+	if new_create_error != OK:
+		game_session.clear_persisted_game()
+		game_session.queue_free()
+		await process_frame
+		return
+	var new_payload := _build_payload_for_session(game_session)
+	var new_meta := game_session.get_active_save_meta()
+	new_meta["created_at_unix_time"] = 200
+	new_meta["updated_at_unix_time"] = 200
+	new_payload["save_slot_meta"] = new_meta.duplicate(true)
+	var new_world_state: Dictionary = (new_payload.get("world_state", {}) as Dictionary).duplicate(true)
+	var new_world_data: Dictionary = (new_world_state.get("world_data", {}) as Dictionary).duplicate(true)
+	new_world_data.erase("next_equipment_instance_serial")
+	new_world_state["world_data"] = new_world_data
+	new_payload["world_state"] = new_world_state
+	_assert_eq(_overwrite_payload_at_path(game_session.get_active_save_path(), new_payload), OK, "ensure fallback 前置：应能写入新坏档。")
+
+	var serializer = game_session._save_serializer
+	var index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
+	_assert_true(index_file != null, "ensure fallback 前置：应能写入双存档 index。")
+	if index_file != null:
+		var index_entries: Array[Dictionary] = [old_meta, new_meta]
+		index_file.store_var(serializer.build_save_index_payload(index_entries), false)
+		index_file.close()
+	game_session.queue_free()
+	await process_frame
+
+	var fresh_session = GAME_SESSION_SCRIPT.new()
+	root.add_child(fresh_session)
+	await process_frame
+	var ensure_error := int(fresh_session.ensure_world_ready(TEST_WORLD_CONFIG))
+	_assert_eq(ensure_error, OK, "ensure_world_ready() 应在最新坏档失败后继续尝试旧好档。")
+	_assert_eq(String(fresh_session.get_active_save_id()), old_save_id, "ensure_world_ready() 应加载同 config 下较旧的好档，而不是新建世界。")
+
+	var cleanup_error := int(fresh_session.clear_persisted_game())
+	_assert_eq(cleanup_error, OK, "ensure fallback 回归结束后应能清理 save 目录。")
+	fresh_session.queue_free()
+	await process_frame
+
+
+func _build_payload_for_session(game_session) -> Dictionary:
+	var serializer = game_session._save_serializer
+	return serializer.build_save_payload(
+		game_session.get_active_save_id(),
+		game_session.get_generation_config_path(),
+		game_session.get_active_save_meta(),
+		game_session.get_world_data(),
+		game_session.get_player_coord(),
+		game_session.get_player_faction_id(),
+		game_session.get_party_state(),
+		int(Time.get_unix_time_from_system())
+	)
+
+
+func _overwrite_payload_at_path(save_path: String, payload: Dictionary) -> int:
+	var save_file := FileAccess.open_compressed(save_path, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
+	if save_file == null:
+		return FileAccess.get_open_error()
+	save_file.store_var(payload, false)
+	save_file.close()
+	return OK
+
+
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, var_to_str(actual), var_to_str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, var_to_str(actual), var_to_str(expected)])
 
 
 func _assert_save_index_file_uses_current_schema(context: String) -> void:
@@ -253,7 +421,7 @@ func _assert_save_index_file_uses_current_schema(context: String) -> void:
 	compressed_index_file.close()
 	index_file.close()
 	if index_payload_variant is not Dictionary:
-		_failures.append("%s重建后的 save index 应是 Godot Variant 二进制 Dictionary。" % context)
+		_test.fail("%s重建后的 save index 应是 Godot Variant 二进制 Dictionary。" % context)
 		return
 	var index_payload := index_payload_variant as Dictionary
 	var version_variant: Variant = index_payload.get(&"version", null)
@@ -262,7 +430,7 @@ func _assert_save_index_file_uses_current_schema(context: String) -> void:
 	_assert_true(index_payload.get(&"saves", null) is Array, "%s重建后的 save index 应使用当前 saves 数组字段。" % context)
 	for raw_entry in index_payload.get(&"saves", []):
 		if raw_entry is not Dictionary:
-			_failures.append("%s重建后的 save index saves 只能包含 Dictionary entry。" % context)
+			_test.fail("%s重建后的 save index saves 只能包含 Dictionary entry。" % context)
 			continue
 		var entry := raw_entry as Dictionary
 		_assert_true(entry.has(&"display_name"), "%s重建后的 save index 不应保留缺字段 entry。" % context)

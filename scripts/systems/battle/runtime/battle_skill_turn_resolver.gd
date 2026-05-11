@@ -2,27 +2,29 @@ class_name BattleRuntimeSkillTurnResolver
 extends RefCounted
 
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
+const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleSaveResolver = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
 const BodySizeRules = preload("res://scripts/systems/progression/body_size_rules.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const MISFORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/misfortune_service.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
 const STATUS_PINNED: StringName = &"pinned"
 const STATUS_ROOTED: StringName = &"rooted"
 const STATUS_TENDON_CUT: StringName = &"tendon_cut"
 const STATUS_STAGGERED: StringName = &"staggered"
+const STATUS_PETRIFIED: StringName = &"petrified"
+const STATUS_MADNESS: StringName = &"madness"
 const STATUS_GUARDING: StringName = &"guarding"
 const STATUS_BLACK_STAR_BRAND_NORMAL: StringName = &"black_star_brand_normal"
 const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
-const BLACK_CROWN_SEAL_SKILL_ID: StringName = &"black_crown_seal"
-const BLACK_STAR_BRAND_SKILL_ID: StringName = &"black_star_brand"
-const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
-const DOOM_SENTENCE_SKILL_ID: StringName = &"doom_sentence"
 const BLACK_CONTRACT_PUSH_VARIANT_BLOOD: StringName = &"blood_tithe"
 const BLACK_CONTRACT_PUSH_VARIANT_GUARD: StringName = &"guard_tithe"
 const BLACK_CONTRACT_PUSH_VARIANT_ACTION: StringName = &"action_tithe"
@@ -46,6 +48,7 @@ const DEBUFF_STATUS_IDS := {
 	&"hex_of_frailty": true,
 	&"marked": true,
 	&"pinned": true,
+	&"petrified": true,
 	&"rooted": true,
 	&"shocked": true,
 	&"slow": true,
@@ -56,6 +59,8 @@ const DEBUFF_STATUS_IDS := {
 const TU_GRANULARITY := 5
 const STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE := "body_size_category_override"
 const STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY := "previous_body_size_category"
+const AI_BLACKBOARD_TURN_OVERRIDE := "madness_ai_control"
+const AI_BLACKBOARD_ANY_UNIT_TARGETING := "madness_target_any_team"
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -73,6 +78,93 @@ func dispose() -> void:
 	_runtime = null
 
 
+func resolve_turn_control_status(unit_state: BattleUnitState, batch: BattleEventBatch) -> Dictionary:
+	var result := {
+		"skip_turn": false,
+		"changed": false,
+		"ai_controlled": false,
+		"ai_target_policy": "",
+		"cleanup_on_turn_end": false,
+		"status_removed": false,
+	}
+	if unit_state == null or not unit_state.is_alive:
+		return result
+	if unit_state.has_status_effect(STATUS_PETRIFIED):
+		var petrified_entry := unit_state.get_status_effect(STATUS_PETRIFIED) as BattleStatusEffectState
+		var petrified_save := _resolve_status_self_save(unit_state, petrified_entry, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION)
+		if bool(petrified_save.get("success", false)):
+			unit_state.erase_status_effect(STATUS_PETRIFIED)
+			_append_changed_unit(batch, unit_state)
+			_append_log(batch, "%s 通过体质检定，解除石化并立刻恢复行动。" % unit_state.display_name)
+			result["changed"] = true
+			result["status_removed"] = true
+			return result
+		unit_state.current_ap = 0
+		unit_state.current_move_points = 0
+		_append_changed_unit(batch, unit_state)
+		_append_log(batch, "%s 石化未解除，无法行动。" % unit_state.display_name)
+		result["skip_turn"] = true
+		result["changed"] = true
+		return result
+	if unit_state.has_status_effect(STATUS_MADNESS):
+		var madness_entry := unit_state.get_status_effect(STATUS_MADNESS) as BattleStatusEffectState
+		var madness_save := _resolve_status_self_save(unit_state, madness_entry, UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER, UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER)
+		if bool(madness_save.get("success", false)):
+			unit_state.erase_status_effect(STATUS_MADNESS)
+			clear_turn_ai_override(unit_state)
+			_append_changed_unit(batch, unit_state)
+			_append_log(batch, "%s 通过意志检定，摆脱疯狂并立刻恢复行动。" % unit_state.display_name)
+			result["changed"] = true
+			result["status_removed"] = true
+			return result
+		unit_state.ai_blackboard[AI_BLACKBOARD_TURN_OVERRIDE] = true
+		unit_state.ai_blackboard[AI_BLACKBOARD_ANY_UNIT_TARGETING] = true
+		_append_changed_unit(batch, unit_state)
+		_append_log(batch, "%s 疯狂未解除，本次行动由 AI 接管且不区分敌我。" % unit_state.display_name)
+		result["changed"] = true
+		result["ai_controlled"] = true
+		result["ai_target_policy"] = "any_unit"
+		result["cleanup_on_turn_end"] = true
+	return result
+
+
+func is_turn_ai_override_active(unit_state: BattleUnitState) -> bool:
+	return unit_state != null and bool(unit_state.ai_blackboard.get(AI_BLACKBOARD_TURN_OVERRIDE, false))
+
+
+func clear_turn_ai_override(unit_state: BattleUnitState) -> void:
+	if unit_state == null:
+		return
+	unit_state.ai_blackboard.erase(AI_BLACKBOARD_TURN_OVERRIDE)
+	unit_state.ai_blackboard.erase(AI_BLACKBOARD_ANY_UNIT_TARGETING)
+
+
+func build_madness_fallback_command(unit_state: BattleUnitState):
+	if _runtime == null or _runtime._state == null or unit_state == null:
+		return null
+	for raw_skill_id in unit_state.known_active_skill_ids:
+		var skill_id := ProgressionDataUtils.to_string_name(raw_skill_id)
+		var skill_def = _runtime._skill_defs.get(skill_id) as SkillDef
+		if skill_def == null or skill_def.combat_profile == null:
+			continue
+		if skill_def.combat_profile.target_mode != &"unit":
+			continue
+		var target_unit: BattleUnitState = _find_madness_unit_target(unit_state, skill_def)
+		if target_unit == null:
+			continue
+		var command := BattleCommand.new()
+		command.command_type = BattleCommand.TYPE_SKILL
+		command.unit_id = unit_state.unit_id
+		command.skill_id = skill_id
+		command.target_unit_id = target_unit.unit_id
+		command.target_coord = target_unit.coord
+		return command
+	var wait_command := BattleCommand.new()
+	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.unit_id = unit_state.unit_id
+	return wait_command
+
+
 func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillDef) -> String:
 	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return "技能或目标无效。"
@@ -87,6 +179,8 @@ func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillD
 		return "法力不足，无法施放该技能。"
 	if active_unit.current_stamina < int(costs.get("stamina_cost", combat_profile.stamina_cost)):
 		return "体力不足，无法施放该技能。"
+	if has_status(active_unit, STATUS_PETRIFIED):
+		return "当前处于石化状态，无法施放技能。"
 	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
 	var racial_charge_block_reason := get_racial_skill_charge_block_reason(active_unit, skill_def)
@@ -103,24 +197,9 @@ func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillD
 		return "当前武器类型无法施放该技能。"
 	if is_main_skill_locked_by_status(active_unit, skill_def):
 		return "厄命宣判压制了主技能，无法施放该技能。"
-	if _is_black_star_brand_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null or not _runtime._misfortune_service.can_cast_black_star_brand(active_unit):
-			return "calamity 不足，无法施放黑星烙印。"
-	if _is_crown_break_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null or not _runtime._misfortune_service.can_cast_crown_break(active_unit):
-			return "calamity 不足，无法施放折冠。"
-	if _is_doom_sentence_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null:
-			return "厄命宣判的 calamity sidecar 未初始化。"
-		var doom_sentence_block_reason: String = _runtime._misfortune_service.get_doom_sentence_cast_block_reason(active_unit)
-		if not doom_sentence_block_reason.is_empty():
-			return doom_sentence_block_reason
-	if _is_black_crown_seal_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null:
-			return "黑冠封印的 battle sidecar 未初始化。"
-		var black_crown_seal_block_reason: String = _runtime._misfortune_service.get_black_crown_seal_cast_block_reason(active_unit)
-		if not black_crown_seal_block_reason.is_empty():
-			return black_crown_seal_block_reason
+	var misfortune_block_reason := get_misfortune_skill_cast_block_reason(active_unit, skill_def)
+	if not misfortune_block_reason.is_empty():
+		return misfortune_block_reason
 	if has_status(active_unit, STATUS_BLACK_STAR_BRAND_NORMAL) and _runtime._skill_grants_guarding(skill_def):
 		return "黑星烙印封锁了格挡，无法施放该技能。"
 	return ""
@@ -155,6 +234,14 @@ func get_skill_command_block_reason(
 	return ""
 
 
+func get_misfortune_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillDef) -> String:
+	if skill_def == null or not MISFORTUNE_SERVICE_SCRIPT.is_misfortune_gated_skill(skill_def.skill_id):
+		return ""
+	if _runtime == null or not _runtime.has_method("get_misfortune_skill_cast_block_reason"):
+		return MISFORTUNE_SERVICE_SCRIPT.get_skill_sidecar_missing_message(skill_def.skill_id)
+	return _runtime.get_misfortune_skill_cast_block_reason(active_unit, skill_def.skill_id)
+
+
 func consume_skill_costs(
 	active_unit: BattleUnitState,
 	skill_def: SkillDef,
@@ -166,46 +253,8 @@ func consume_skill_costs(
 	if _is_black_contract_push_skill(skill_def.skill_id):
 		if not consume_black_contract_push_cast(active_unit, cast_variant, batch):
 			return false
-	if _is_black_star_brand_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null:
-			if batch != null:
-				batch.log_lines.append("黑星烙印的 calamity sidecar 未初始化。")
-			return false
-		var consume_result: Dictionary = _runtime._misfortune_service.consume_black_star_brand_cast(active_unit)
-		if not bool(consume_result.get("ok", false)):
-			if batch != null:
-				batch.log_lines.append(String(consume_result.get("message", "calamity 不足，无法施放黑星烙印。")))
-			return false
-	if _is_crown_break_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null:
-			if batch != null:
-				batch.log_lines.append("折冠的 calamity sidecar 未初始化。")
-			return false
-		var crown_break_consume_result: Dictionary = _runtime._misfortune_service.consume_crown_break_cast(active_unit)
-		if not bool(crown_break_consume_result.get("ok", false)):
-			if batch != null:
-				batch.log_lines.append(String(crown_break_consume_result.get("message", "calamity 不足，无法施放折冠。")))
-			return false
-	if _is_doom_sentence_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null:
-			if batch != null:
-				batch.log_lines.append("厄命宣判的 calamity sidecar 未初始化。")
-			return false
-		var doom_sentence_consume_result: Dictionary = _runtime._misfortune_service.consume_doom_sentence_cast(active_unit)
-		if not bool(doom_sentence_consume_result.get("ok", false)):
-			if batch != null:
-				batch.log_lines.append(String(doom_sentence_consume_result.get("message", "calamity 不足，无法施放厄命宣判。")))
-			return false
-	if _is_black_crown_seal_skill(skill_def.skill_id):
-		if _runtime._misfortune_service == null:
-			if batch != null:
-				batch.log_lines.append("黑冠封印的 battle sidecar 未初始化。")
-			return false
-		var black_crown_seal_consume_result: Dictionary = _runtime._misfortune_service.consume_black_crown_seal_cast(active_unit)
-		if not bool(black_crown_seal_consume_result.get("ok", false)):
-			if batch != null:
-				batch.log_lines.append(String(black_crown_seal_consume_result.get("message", "黑冠封印每战只能施放 1 次。")))
-			return false
+	if not consume_misfortune_skill_gate(active_unit, skill_def, batch):
+		return false
 	if not consume_racial_skill_charge(active_unit, skill_def, batch):
 		return false
 	var combat_profile = skill_def.combat_profile
@@ -217,6 +266,25 @@ func consume_skill_costs(
 	var cooldown := maxi(int(costs.get("cooldown_tu", combat_profile.cooldown_tu)), 0)
 	if cooldown > 0:
 		active_unit.cooldowns[skill_def.skill_id] = cooldown
+	return true
+
+
+func consume_misfortune_skill_gate(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	batch: BattleEventBatch = null
+) -> bool:
+	if skill_def == null or not MISFORTUNE_SERVICE_SCRIPT.is_misfortune_gated_skill(skill_def.skill_id):
+		return true
+	if _runtime == null or not _runtime.has_method("consume_misfortune_skill_cast"):
+		if batch != null:
+			batch.log_lines.append(MISFORTUNE_SERVICE_SCRIPT.get_skill_sidecar_missing_message(skill_def.skill_id))
+		return false
+	var consume_result: Dictionary = _runtime.consume_misfortune_skill_cast(active_unit, skill_def.skill_id)
+	if not bool(consume_result.get("ok", false)):
+		if batch != null:
+			batch.log_lines.append(String(consume_result.get("message", MISFORTUNE_SERVICE_SCRIPT.get_skill_default_block_message(skill_def.skill_id))))
+		return false
 	return true
 
 
@@ -551,13 +619,70 @@ func skill_has_tag(skill_def: SkillDef, expected_tag: StringName) -> bool:
 
 
 func is_movement_blocked(unit_state: BattleUnitState) -> bool:
-	return has_status(unit_state, STATUS_PINNED) or has_status(unit_state, STATUS_ROOTED) or has_status(unit_state, STATUS_TENDON_CUT)
+	return has_status(unit_state, STATUS_PINNED) \
+		or has_status(unit_state, STATUS_ROOTED) \
+		or has_status(unit_state, STATUS_TENDON_CUT) \
+		or has_status(unit_state, STATUS_PETRIFIED)
 
 
 func has_status(unit_state: BattleUnitState, status_id: StringName) -> bool:
 	if unit_state == null or status_id == &"":
 		return false
 	return unit_state.has_status_effect(status_id)
+
+
+func _resolve_status_self_save(
+	unit_state: BattleUnitState,
+	status_entry: BattleStatusEffectState,
+	fallback_ability: StringName,
+	fallback_tag: StringName
+) -> Dictionary:
+	var params: Dictionary = status_entry.params if status_entry != null and status_entry.params != null else {}
+	var effect := CombatEffectDef.new()
+	effect.effect_type = &"status"
+	effect.save_dc = maxi(int(params.get("self_save_dc", 16)), 1)
+	effect.save_dc_mode = BattleSaveResolver.SAVE_DC_MODE_STATIC
+	effect.save_ability = ProgressionDataUtils.to_string_name(params.get("self_save_ability", fallback_ability))
+	effect.save_tag = ProgressionDataUtils.to_string_name(params.get("self_save_tag", fallback_tag))
+	var context := {}
+	if params.has("self_save_roll_override"):
+		context["save_roll_override"] = int(params.get("self_save_roll_override", 0))
+	var source_unit: BattleUnitState = null
+	if _runtime != null and _runtime._state != null and status_entry != null and status_entry.source_unit_id != &"":
+		source_unit = _runtime._state.units.get(status_entry.source_unit_id) as BattleUnitState
+	return BattleSaveResolver.resolve_save(source_unit, unit_state, effect, context)
+
+
+func _find_madness_unit_target(unit_state: BattleUnitState, skill_def: SkillDef):
+	if _runtime == null or _runtime._state == null or unit_state == null:
+		return null
+	var best_unit: BattleUnitState = null
+	var best_distance := 999999
+	var effective_range: int = _runtime._get_effective_skill_range(unit_state, skill_def)
+	for unit_variant in _runtime._state.units.values():
+		var candidate := unit_variant as BattleUnitState
+		if candidate == null or not candidate.is_alive or candidate.unit_id == unit_state.unit_id:
+			continue
+		var distance: int = _runtime._grid_service.get_distance_between_units(unit_state, candidate)
+		if distance > effective_range:
+			continue
+		if best_unit == null or distance < best_distance:
+			best_unit = candidate
+			best_distance = distance
+	return best_unit
+
+
+func _append_changed_unit(batch: BattleEventBatch, unit_state: BattleUnitState) -> void:
+	if _runtime == null or batch == null or unit_state == null:
+		return
+	_runtime._append_changed_unit_id(batch, unit_state.unit_id)
+	_runtime._append_changed_unit_coords(batch, unit_state)
+
+
+func _append_log(batch: BattleEventBatch, line: String) -> void:
+	if batch == null or line.is_empty():
+		return
+	batch.log_lines.append(line)
 
 
 func consume_status_if_present(unit_state: BattleUnitState, status_id: StringName, batch: BattleEventBatch = null) -> void:
@@ -647,19 +772,3 @@ func _status_params_get_formal_value(params: Dictionary, param_key: String, defa
 
 func _is_black_contract_push_skill(skill_id: StringName) -> bool:
 	return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CONTRACT_PUSH_SKILL_ID
-
-
-func _is_black_star_brand_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == BLACK_STAR_BRAND_SKILL_ID
-
-
-func _is_crown_break_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == CROWN_BREAK_SKILL_ID
-
-
-func _is_doom_sentence_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == DOOM_SENTENCE_SKILL_ID
-
-
-func _is_black_crown_seal_skill(skill_id: StringName) -> bool:
-	return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CROWN_SEAL_SKILL_ID

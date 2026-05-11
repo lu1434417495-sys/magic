@@ -1,0 +1,130 @@
+[gd_resource type="Resource" script_class="EnemyAiBrainDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_brain_def.gd" id="1_brain"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_state_def.gd" id="2_state"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_ground_skill_action.gd" id="3_ground"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_unit_skill_action.gd" id="4_unit"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/move_to_range_action.gd" id="5_move"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/wait_action.gd" id="6_wait"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/retreat_action.gd" id="7_retreat"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/move_to_advantage_position_action.gd" id="8_adv_pos"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/use_ground_reposition_skill_action.gd" id="9_reposition"]
+
+[sub_resource type="Resource" id="Action_blink_escape"]
+script = ExtResource("9_reposition")
+action_id = &"mage_blink_escape"
+score_bucket_id = &"archer_survival"
+skill_ids = Array[StringName]([&"mage_blink"])
+target_selector = &"nearest_enemy"
+minimum_safe_distance = 4
+safe_distance_margin = 0
+desired_max_distance_bonus = 3
+
+[sub_resource type="Resource" id="Action_survival_position"]
+script = ExtResource("8_adv_pos")
+action_id = &"mage_survival_position"
+score_bucket_id = &"archer_survival"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"mage_fireball", &"mage_chain_lightning"])
+minimum_safe_distance = 4
+safe_distance_margin = 1
+positioning_mode = &"survival"
+
+[sub_resource type="Resource" id="Action_high_ground_position"]
+script = ExtResource("8_adv_pos")
+action_id = &"mage_high_ground_position"
+score_bucket_id = &"archer_positioning"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"mage_fireball", &"mage_chain_lightning"])
+minimum_safe_distance = 4
+safe_distance_margin = 1
+positioning_mode = &"high_ground"
+
+[sub_resource type="Resource" id="Action_control_cone"]
+script = ExtResource("3_ground")
+action_id = &"mage_control_cone"
+score_bucket_id = &"mist_control"
+skill_ids = Array[StringName]([&"mage_cone_of_cold", &"mage_gust_of_wind"])
+minimum_hit_count = 2
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Action_protective_gust"]
+script = ExtResource("3_ground")
+action_id = &"mage_protective_gust"
+score_bucket_id = &"archer_survival"
+skill_ids = Array[StringName]([&"mage_gust_of_wind"])
+minimum_hit_count = 1
+minimum_ally_threat_hit_count = 1
+threat_minimum_safe_distance = 1
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Action_fireball"]
+script = ExtResource("3_ground")
+action_id = &"mage_fireball_cluster"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_fireball"])
+minimum_hit_count = 1
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Action_chain_lightning"]
+script = ExtResource("4_unit")
+action_id = &"mage_chain_lightning"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_chain_lightning"])
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_take_position"]
+script = ExtResource("5_move")
+action_id = &"mage_take_position"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"mage_fireball", &"mage_chain_lightning"])
+
+[sub_resource type="Resource" id="Action_retreat_move"]
+script = ExtResource("7_retreat")
+action_id = &"mage_retreat"
+score_bucket_id = &"archer_survival"
+minimum_safe_distance = 4
+use_dynamic_threat_safe_distance = true
+safe_distance_margin = 1
+
+[sub_resource type="Resource" id="Action_wait"]
+script = ExtResource("6_wait")
+action_id = &"mage_wait"
+
+[sub_resource type="Resource" id="State_engage"]
+script = ExtResource("2_state")
+state_id = &"engage"
+actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_high_ground_position"), SubResource("Action_fireball"), SubResource("Action_chain_lightning"), SubResource("Action_take_position"), SubResource("Action_wait")])
+
+[sub_resource type="Resource" id="State_pressure"]
+script = ExtResource("2_state")
+state_id = &"pressure"
+actions = Array[Resource]([SubResource("Action_blink_escape"), SubResource("Action_survival_position"), SubResource("Action_protective_gust"), SubResource("Action_control_cone"), SubResource("Action_fireball"), SubResource("Action_chain_lightning"), SubResource("Action_take_position"), SubResource("Action_wait")])
+
+[sub_resource type="Resource" id="State_retreat"]
+script = ExtResource("2_state")
+state_id = &"retreat"
+actions = Array[Resource]([SubResource("Action_blink_escape"), SubResource("Action_survival_position"), SubResource("Action_fireball"), SubResource("Action_chain_lightning"), SubResource("Action_protective_gust"), SubResource("Action_retreat_move"), SubResource("Action_wait")])
+
+[resource]
+script = ExtResource("1_brain")
+brain_id = &"mage_controller"
+default_state_id = &"pressure"
+retreat_hp_basis_points = 6500
+pressure_distance = 5
+states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_retreat")])

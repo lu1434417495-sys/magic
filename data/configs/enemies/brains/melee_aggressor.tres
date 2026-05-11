@@ -22,7 +22,7 @@ target_selector = &"nearest_role_threat_enemy"
 desired_min_distance = 1
 desired_max_distance = 1
 screening_mode = &"ranged_ally"
-screening_min_hp_ratio = 0.4
+screening_min_hp_basis_points = 4000
 screening_path_bonus = 45
 
 [sub_resource type="Resource" id="Action_engage_basic"]
@@ -59,7 +59,7 @@ target_selector = &"nearest_role_threat_enemy"
 desired_min_distance = 1
 desired_max_distance = 1
 screening_mode = &"ranged_ally"
-screening_min_hp_ratio = 0.4
+screening_min_hp_basis_points = 4000
 screening_path_bonus = 45
 
 [sub_resource type="Resource" id="State_pressure"]
@@ -95,7 +95,7 @@ actions = Array[Resource]([SubResource("Action_retreat"), SubResource("Action_wa
 script = ExtResource("1_brain")
 brain_id = &"melee_aggressor"
 default_state_id = &"engage"
-retreat_hp_ratio = 0.35
-support_hp_ratio = 0.4
+retreat_hp_basis_points = 3500
+support_hp_basis_points = 4000
 pressure_distance = 1
 states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_support"), SubResource("State_retreat")])

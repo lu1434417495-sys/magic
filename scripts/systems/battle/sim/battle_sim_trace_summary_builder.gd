@@ -148,6 +148,8 @@ func _build_compact_run_trace(
 			"reason_text": _as_string(trace_entry.get("reason_text", "")),
 			"command": command_summary,
 			"score": _summarize_score_input(trace_entry.get("score_input", {})),
+			"decision_target_snapshots": _summarize_unit_snapshots(trace_entry.get("decision_target_snapshots", [])),
+			"execution_result": _summarize_execution_result(trace_entry.get("execution_result", {})),
 			"action_traces": action_traces,
 		}
 		focus_turns.append(turn_summary)
@@ -272,6 +274,77 @@ func _summarize_trace_command(command_value: Variant) -> Dictionary:
 	}
 
 
+func _summarize_execution_result(result_value: Variant) -> Dictionary:
+	if result_value is not Dictionary:
+		return {}
+	var result: Dictionary = result_value
+	return {
+		"command_type": _as_string(result.get("command_type", "")),
+		"skill_id": _as_string(result.get("skill_id", "")),
+		"skill_variant_id": _as_string(result.get("skill_variant_id", "")),
+		"changed_unit_ids": _stringify_array(result.get("changed_unit_ids", [])),
+		"tracked_unit_ids": _stringify_array(result.get("tracked_unit_ids", [])),
+		"unit_results": _summarize_unit_results(result.get("unit_results", [])),
+		"log_lines": _stringify_array(result.get("log_lines", [])),
+		"report_entries": result.get("report_entries", []) if result.get("report_entries", []) is Array else [],
+	}
+
+
+func _summarize_unit_results(results_value: Variant) -> Array:
+	var summaries: Array = []
+	if results_value is not Array:
+		return summaries
+	for result_value in results_value:
+		if result_value is not Dictionary:
+			continue
+		var result: Dictionary = result_value
+		summaries.append({
+			"unit_id": _as_string(result.get("unit_id", "")),
+			"before": _summarize_unit_snapshot(result.get("before", {})),
+			"after": _summarize_unit_snapshot(result.get("after", {})),
+			"hp_delta": int(result.get("hp_delta", 0)),
+			"hp_damage": int(result.get("hp_damage", 0)),
+			"hp_healing": int(result.get("hp_healing", 0)),
+			"shield_delta": int(result.get("shield_delta", 0)),
+			"shield_damage": int(result.get("shield_damage", 0)),
+			"shield_restored": int(result.get("shield_restored", 0)),
+			"killed": bool(result.get("killed", false)),
+			"revived": bool(result.get("revived", false)),
+			"moved": bool(result.get("moved", false)),
+		})
+	return summaries
+
+
+func _summarize_unit_snapshots(snapshots_value: Variant) -> Array:
+	var summaries: Array = []
+	if snapshots_value is not Array:
+		return summaries
+	for snapshot_value in snapshots_value:
+		var summary := _summarize_unit_snapshot(snapshot_value)
+		if not summary.is_empty():
+			summaries.append(summary)
+	return summaries
+
+
+func _summarize_unit_snapshot(snapshot_value: Variant) -> Dictionary:
+	if snapshot_value is not Dictionary:
+		return {}
+	var snapshot: Dictionary = snapshot_value
+	return {
+		"unit_id": _as_string(snapshot.get("unit_id", "")),
+		"display_name": _as_string(snapshot.get("display_name", "")),
+		"faction_id": _as_string(snapshot.get("faction_id", "")),
+		"coord": _as_string(snapshot.get("coord", "")),
+		"alive": bool(snapshot.get("alive", false)),
+		"hp": int(snapshot.get("hp", 0)),
+		"hp_max": int(snapshot.get("hp_max", 0)),
+		"shield_hp": int(snapshot.get("shield_hp", 0)),
+		"shield_max_hp": int(snapshot.get("shield_max_hp", 0)),
+		"ap": int(snapshot.get("ap", 0)),
+		"move_points": int(snapshot.get("move_points", 0)),
+	}
+
+
 func _summarize_score_input(score_value: Variant) -> Dictionary:
 	if score_value is not Dictionary:
 		return {}
@@ -283,8 +356,32 @@ func _summarize_score_input(score_value: Variant) -> Dictionary:
 		"command_type": _as_string(score.get("command_type", "")),
 		"skill_id": _as_string(score.get("skill_id", "")),
 		"target_count": int(score.get("target_count", 0)),
+		"effective_target_count": int(score.get("effective_target_count", 0)),
+		"enemy_target_count": int(score.get("enemy_target_count", 0)),
+		"ally_target_count": int(score.get("ally_target_count", 0)),
+		"target_unit_ids": _stringify_array(score.get("target_unit_ids", [])),
+		"target_coords": _stringify_array(score.get("target_coords", [])),
 		"estimated_damage": int(score.get("estimated_damage", 0)),
 		"estimated_hit_rate_percent": int(score.get("estimated_hit_rate_percent", 0)),
+		"save_estimates_by_target_id": _summarize_save_estimates_by_target_id(score.get("save_estimates_by_target_id", {})),
+		"estimated_lethal_target_count": int(score.get("estimated_lethal_target_count", 0)),
+		"estimated_lethal_threat_target_count": int(score.get("estimated_lethal_threat_target_count", 0)),
+		"estimated_lethal_target_ids": _stringify_array(score.get("estimated_lethal_target_ids", [])),
+		"estimated_lethal_threat_target_ids": _stringify_array(score.get("estimated_lethal_threat_target_ids", [])),
+		"estimated_control_target_ids": _stringify_array(score.get("estimated_control_target_ids", [])),
+		"estimated_control_threat_target_ids": _stringify_array(score.get("estimated_control_threat_target_ids", [])),
+		"has_post_action_threat_projection": bool(score.get("has_post_action_threat_projection", false)),
+		"projected_actor_coord": _as_string(score.get("projected_actor_coord", "")),
+		"pre_action_threat_unit_ids": _stringify_array(score.get("pre_action_threat_unit_ids", [])),
+		"pre_action_threat_count": int(score.get("pre_action_threat_count", 0)),
+		"pre_action_threat_expected_damage": int(score.get("pre_action_threat_expected_damage", 0)),
+		"pre_action_survival_margin": int(score.get("pre_action_survival_margin", 0)),
+		"pre_action_is_lethal_survival_risk": bool(score.get("pre_action_is_lethal_survival_risk", false)),
+		"post_action_remaining_threat_unit_ids": _stringify_array(score.get("post_action_remaining_threat_unit_ids", [])),
+		"post_action_remaining_threat_count": int(score.get("post_action_remaining_threat_count", 0)),
+		"post_action_remaining_threat_expected_damage": int(score.get("post_action_remaining_threat_expected_damage", 0)),
+		"post_action_survival_margin": int(score.get("post_action_survival_margin", 0)),
+		"post_action_is_lethal_survival_risk": bool(score.get("post_action_is_lethal_survival_risk", false)),
 		"hit_payoff_score": int(score.get("hit_payoff_score", 0)),
 		"position_objective_kind": _as_string(score.get("position_objective_kind", "")),
 		"position_objective_score": int(score.get("position_objective_score", 0)),
@@ -296,6 +393,40 @@ func _summarize_score_input(score_value: Variant) -> Dictionary:
 		"aura_cost": int(score.get("aura_cost", 0)),
 		"move_cost": int(score.get("move_cost", 0)),
 	}
+
+
+func _summarize_save_estimates_by_target_id(value: Variant) -> Dictionary:
+	var summary := {}
+	if value is not Dictionary:
+		return summary
+	var estimates_by_target := value as Dictionary
+	var target_keys := estimates_by_target.keys()
+	target_keys.sort()
+	for target_key_variant in target_keys:
+		var target_key := _as_string(target_key_variant)
+		var estimates_value = estimates_by_target.get(target_key_variant, [])
+		if estimates_value is not Array:
+			continue
+		var compact_estimates: Array[Dictionary] = []
+		for estimate_variant in estimates_value:
+			if estimate_variant is not Dictionary:
+				continue
+			var estimate: Dictionary = estimate_variant
+			compact_estimates.append({
+				"damage_before_save": int(estimate.get("damage_before_save", 0)),
+				"damage_after_save_estimate": int(estimate.get("damage_after_save_estimate", 0)),
+				"damage_on_save_success": int(estimate.get("damage_on_save_success", 0)),
+				"save_success_rate_percent": int(estimate.get("save_success_rate_percent", 0)),
+				"dc": int(estimate.get("dc", 0)),
+				"ability": _as_string(estimate.get("ability", "")),
+				"save_tag": _as_string(estimate.get("save_tag", "")),
+				"advantage_state": _as_string(estimate.get("advantage_state", "")),
+				"immune": bool(estimate.get("immune", false)),
+				"hit_count": int(estimate.get("hit_count", 1)),
+			})
+		if not compact_estimates.is_empty():
+			summary[target_key] = compact_estimates
+	return summary
 
 
 func _increment_nested_counter(counters: Dictionary, outer_key: String, inner_key: String, amount: int = 1) -> void:

@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleHitResolver = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
-const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
 const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd")
 const BattleAiScoreService = preload("res://scripts/systems/battle/ai/battle_ai_score_service.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class FakeHitResolver:
@@ -200,16 +203,16 @@ func _test_ai_score_service_requires_success_rate() -> void:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
+	_test.fail("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
 
 
 func _assert_false(value: bool, message: String) -> void:
 	if not value:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_true(value: bool, message: String) -> void:
 	if value:
 		return
-	_failures.append(message)
+	_test.fail(message)

@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
@@ -7,7 +9,7 @@ const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_st
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BATTLE_HUD_ADAPTER_SCRIPT = preload("res://scripts/ui/battle_hud_adapter.gd")
+const BATTLE_HUD_ADAPTER_SCRIPT = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
 const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
 const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
 const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
@@ -21,7 +23,7 @@ const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attri
 const MAP_SIZE := Vector2i(20, 14)
 const DEFAULT_TARGET_TU := 200
 const MAX_ITERATIONS := 5000
-const TIMELINE_TICK_SECONDS := 1.0
+const TIMELINE_TICKS_PER_STEP := 1
 const TIMELINE_TU_PER_TICK := 5
 const ACTION_THRESHOLD := 120
 const ALLY_COUNT := 6
@@ -31,7 +33,8 @@ const SCENARIO_GROUND_SKILL_HEAVY := &"ground_skill_heavy"
 const HEAVY_GROUND_SKILL_ID := &"benchmark_ground_barrage"
 const HEAVY_GROUND_BRAIN_ID := &"benchmark_ground_barrage_brain"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -112,7 +115,7 @@ func _run_pass(
 		if state.phase == &"unit_acting":
 			var active_unit = state.units.get(state.active_unit_id) as BattleUnitState
 			if active_unit == null or not active_unit.is_alive:
-				_failures.append(
+				_test.fail(
 					"Benchmark scenario %s pass %s hit an invalid active unit state." % [
 						String(scenario_id),
 						pass_id,
@@ -123,11 +126,11 @@ func _run_pass(
 				manual_turns += 1
 			else:
 				ai_turns += 1
-			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICK_SECONDS)
+			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICKS_PER_STEP)
 		elif execution_loop.has_ready_units(state):
-			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICK_SECONDS)
+			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICKS_PER_STEP)
 		else:
-			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICK_SECONDS)
+			execution_loop.advance_step(runtime, state, &"wait", TIMELINE_TICKS_PER_STEP)
 			timeline_steps += 1
 		logic_usec += Time.get_ticks_usec() - logic_start
 
@@ -148,7 +151,7 @@ func _run_pass(
 		else:
 			idle_loops += 1
 			if idle_loops >= 25:
-				_failures.append(
+				_test.fail(
 					"Benchmark scenario %s pass %s stalled for %d loops at TU=%d phase=%s." % [
 						String(scenario_id),
 						pass_id,
@@ -208,7 +211,6 @@ func _build_flat_state(map_size: Vector2i, scenario_id: StringName):
 	state.phase = &"timeline_running"
 	state.map_size = map_size
 	state.timeline = BATTLE_TIMELINE_STATE_SCRIPT.new()
-	state.timeline.tick_interval_seconds = TIMELINE_TICK_SECONDS
 	state.timeline.tu_per_tick = TIMELINE_TU_PER_TICK
 	state.timeline.frozen = false
 	for y in range(map_size.y):
@@ -484,7 +486,7 @@ func _add_unit_to_state(runtime, state, unit: BattleUnitState, is_enemy: bool) -
 		state.ally_unit_ids.append(unit.unit_id)
 	var placed: bool = runtime._grid_service.place_unit(state, unit, unit.coord, true)
 	if not placed:
-		_failures.append("Benchmark unit %s could not be placed on the benchmark map." % String(unit.unit_id))
+		_test.fail("Benchmark unit %s could not be placed on the benchmark map." % String(unit.unit_id))
 
 
 func _resolve_selected_coord(state) -> Vector2i:
@@ -525,7 +527,7 @@ func _assert_consistent_outcome(scenario_id: StringName, logic_only: Dictionary,
 		var field_name := String(field_name_variant)
 		if logic_only.get(field_name) == logic_plus_hud.get(field_name):
 			continue
-		_failures.append(
+		_test.fail(
 			"Benchmark scenario %s produced divergent battle outcomes between logic_only and logic_plus_hud_snapshot for %s. logic_only=%s logic_plus_hud=%s" % [
 				String(scenario_id),
 				field_name,

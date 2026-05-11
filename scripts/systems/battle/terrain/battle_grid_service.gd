@@ -165,6 +165,8 @@ func get_area_coords(
 			return _build_line_coords(state, center_coord, radius, facing_direction)
 		&"cone":
 			return _build_cone_coords(state, center_coord, radius, facing_direction)
+		&"narrow_cone":
+			return _build_narrow_cone_coords(state, center_coord, radius, facing_direction)
 		&"front_arc":
 			return _build_front_arc_coords(state, center_coord, radius, facing_direction)
 		_:
@@ -233,6 +235,54 @@ func _build_cone_coords(
 			for step in range(1, radius + 1):
 				var y := center_coord.y - step
 				for offset in range(-step, step + 1):
+					var coord := Vector2i(center_coord.x + offset, y)
+					if is_inside(state, coord):
+						coords.append(coord)
+	return _sort_unique_coords(coords)
+
+
+func _build_narrow_cone_coords(
+	state: BattleState,
+	center_coord: Vector2i,
+	radius: int,
+	facing_direction: Vector2i
+) -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	if radius <= 0:
+		coords.append(center_coord)
+		return coords
+
+	var wide_steps := mini(radius, 1)
+	match _resolve_area_direction(state, center_coord, facing_direction):
+		Vector2i.RIGHT:
+			for step in range(0, radius + 1):
+				var x := center_coord.x + step
+				var half_width := 1 if step <= wide_steps else 0
+				for offset in range(-half_width, half_width + 1):
+					var coord := Vector2i(x, center_coord.y + offset)
+					if is_inside(state, coord):
+						coords.append(coord)
+		Vector2i.LEFT:
+			for step in range(0, radius + 1):
+				var x := center_coord.x - step
+				var half_width := 1 if step <= wide_steps else 0
+				for offset in range(-half_width, half_width + 1):
+					var coord := Vector2i(x, center_coord.y + offset)
+					if is_inside(state, coord):
+						coords.append(coord)
+		Vector2i.DOWN:
+			for step in range(0, radius + 1):
+				var y := center_coord.y + step
+				var half_width := 1 if step <= wide_steps else 0
+				for offset in range(-half_width, half_width + 1):
+					var coord := Vector2i(center_coord.x + offset, y)
+					if is_inside(state, coord):
+						coords.append(coord)
+		Vector2i.UP:
+			for step in range(0, radius + 1):
+				var y := center_coord.y - step
+				var half_width := 1 if step <= wide_steps else 0
+				for offset in range(-half_width, half_width + 1):
 					var coord := Vector2i(center_coord.x + offset, y)
 					if is_inside(state, coord):
 						coords.append(coord)
@@ -1055,6 +1105,25 @@ func can_jump_arc(
 		if arc_h_at_t <= float(blocker_h):
 			return false
 	return true
+
+
+func can_blink_to_coord(
+	state: BattleState,
+	unit_state: BattleUnitState,
+	target_coord: Vector2i,
+	effect_def: CombatEffectDef
+) -> bool:
+	if state == null or unit_state == null or effect_def == null:
+		return false
+	if target_coord == unit_state.coord:
+		return false
+	if not is_inside(state, target_coord):
+		return false
+	var max_range := int(effect_def.forced_move_distance)
+	var actual_range := get_chebyshev_distance(unit_state.coord, target_coord)
+	if max_range > 0 and actual_range > max_range:
+		return false
+	return actual_range >= 1 and can_place_unit(state, unit_state, target_coord, true)
 
 
 func _supercover_jump_path(from_coord: Vector2i, to_coord: Vector2i) -> Array[Vector2i]:

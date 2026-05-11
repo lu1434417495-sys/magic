@@ -193,7 +193,7 @@ func _resolve_repeat_attack_stage_result(
 		target_unit,
 		stage_effects,
 		attack_check,
-		{"battle_state": battle_state}
+		{"battle_state": battle_state, "skill_id": skill_def.skill_id if skill_def != null else &""}
 	) if damage_resolver != null else {
 		"attack_success": false,
 		"hit_rate_percent": attack_success_rate_percent,

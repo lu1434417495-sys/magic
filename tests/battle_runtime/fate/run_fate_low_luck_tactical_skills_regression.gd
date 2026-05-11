@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
@@ -48,7 +50,8 @@ const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 const BOSS_TARGET_STAT_ID: StringName = &"boss_target"
 const BLACK_CONTRACT_PUSH_HP_COST := 10
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -652,7 +655,7 @@ func _begin_runtime_battle(runtime: BattleRuntimeModule) -> void:
 	if runtime == null:
 		return
 	runtime.calamity_by_member_id.clear()
-	runtime._misfortune_service.begin_battle(runtime.calamity_by_member_id)
+	runtime.get_fate_runtime().begin_battle(runtime.calamity_by_member_id)
 
 
 func _build_skill_test_state(battle_id: StringName, map_size: Vector2i) -> BattleState:
@@ -976,14 +979,14 @@ func _assert_log_contains(lines: Array, needle: String, message: String) -> void
 	for line_variant in lines:
 		if String(line_variant).contains(needle):
 			return
-	_failures.append("%s log=%s" % [message, str(lines)])
+	_test.fail("%s log=%s" % [message, str(lines)])
 
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s actual=%s expected=%s" % [message, str(actual), str(expected)])
