@@ -5,21 +5,7 @@
 
 ; External scripts, scenes, and shared assets referenced by this scene.
 [ext_resource type="Script" path="res://scripts/ui/world_preset_picker_window.gd" id="1_2n8fp"]
-
-; Local sub-resources defined inline for this scene only.
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-bg_color = Color(0.0823529, 0.109804, 0.188235, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.407843, 0.537255, 0.784314, 0.9)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0, 0, 0, 0.35)
-shadow_size = 18
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
 
 ; Root node and primary scene tree.
 [node name="WorldPresetPickerWindow" type="Control"]
@@ -55,7 +41,7 @@ mouse_filter = 2
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
 custom_minimum_size = Vector2(560, 460)
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+theme_override_styles/panel = ExtResource("2_panel_default")
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
 layout_mode = 2
@@ -91,7 +77,15 @@ theme_override_font_sizes/font_size = 15
 autowrap_mode = 3
 text = "开始游戏前先选择世界类型。开发验证默认推荐使用测试地图。"
 
-[node name="PresetList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content"]
+[node name="EmptyLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_font_sizes/font_size = 16
+text = "当前没有可用的世界预设。"
+
+[node name="List" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 180)
 layout_mode = 2
@@ -126,5 +120,6 @@ layout_mode = 2
 text = "创建存档"
 
 [node name="FooterCancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "关闭"

@@ -9,6 +9,7 @@ const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SkillLevelDescriptionFormatter = preload("res://scripts/systems/progression/skill_level_description_formatter.gd")
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 
 ## 信号说明：当界面请求队长变化时发出的信号，具体处理由外层系统或控制器负责。
 signal leader_change_requested(member_id: StringName)
@@ -400,12 +401,7 @@ func _build_overview_text(member_state: PartyMemberState, snapshot) -> String:
 		"等级：%d" % int(progression.character_level if progression != null else 0),
 	])
 	lines.append_array(_build_identity_overview_lines(member_state))
-	lines.append("当前资源：HP %d / %d  MP %d / %d" % [
-		int(member_state.current_hp),
-		_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.HP_MAX),
-		int(member_state.current_mp),
-		_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.MP_MAX),
-	])
+	lines.append("当前资源：%s" % _format_current_resource_summary(member_state, snapshot))
 	lines.append("")
 	lines.append("核心属性：")
 	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
@@ -451,6 +447,42 @@ func _build_identity_overview_lines(member_state: PartyMemberState) -> PackedStr
 			" · %s" % ascension_stage_label if not ascension_stage_label.is_empty() else "",
 		])
 	return lines
+
+
+func _format_current_resource_summary(member_state: PartyMemberState, snapshot) -> String:
+	var progression: UnitProgress = member_state.progression if member_state != null else null
+	var parts := PackedStringArray()
+	parts.append("HP %d / %d" % [
+		int(member_state.current_hp) if member_state != null else 0,
+		_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.HP_MAX),
+	])
+	if _is_combat_resource_visible(
+		progression,
+		UnitProgress.COMBAT_RESOURCE_MP,
+		int(member_state.current_mp) if member_state != null else 0,
+		_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.MP_MAX)
+	):
+		parts.append("MP %d / %d" % [
+			int(member_state.current_mp) if member_state != null else 0,
+			_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.MP_MAX),
+		])
+	if _is_combat_resource_visible(
+		progression,
+		UnitProgress.COMBAT_RESOURCE_AURA,
+		int(member_state.current_aura) if member_state != null else 0,
+		_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX)
+	):
+		parts.append("Aura %d / %d" % [
+			int(member_state.current_aura) if member_state != null else 0,
+			_get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX),
+		])
+	return "  ".join(parts)
+
+
+func _is_combat_resource_visible(progression: UnitProgress, resource_id: StringName, current_value: int, max_value: int) -> bool:
+	if progression != null and progression.unlocked_combat_resource_ids.has(resource_id):
+		return true
+	return current_value > 0 or max_value > 0
 
 
 func _get_identity_summary(member_id: StringName) -> Dictionary:
@@ -540,6 +572,10 @@ func _build_skill_detail_lines(progression: UnitProgress, snapshot = null) -> Pa
 		var tags := PackedStringArray()
 		if skill_progress.is_core:
 			tags.append("核心")
+		if skill_progress.is_level_trigger_active:
+			tags.append("升级触发")
+		if skill_progress.is_level_trigger_locked:
+			tags.append("锁定：命中/检定/DC +%d" % int(skill_progress.bonus_to_hit_from_lock))
 		if skill_progress.profession_granted_by != &"":
 			tags.append("职业授予：%s" % _get_profession_display_name(skill_progress.profession_granted_by))
 		elif skill_progress.assigned_profession_id != &"":
@@ -561,6 +597,7 @@ func _build_skill_detail_lines(progression: UnitProgress, snapshot = null) -> Pa
 			if snapshot != null and snapshot.has_method("get_value"):
 				runtime_context["con_mod"] = _get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.CONSTITUTION_MODIFIER)
 				runtime_context["will_mod"] = _get_snapshot_value(snapshot, ATTRIBUTE_SERVICE_SCRIPT.WILLPOWER_MODIFIER)
+			runtime_context["dynamic_max_level"] = str(SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(skill_def, skill_progress, progression))
 			var level_desc: String = SkillLevelDescriptionFormatter.build_level_description(skill_def, current_level, runtime_context)
 			if not level_desc.is_empty():
 				lines.append("  当前效果：%s" % level_desc)

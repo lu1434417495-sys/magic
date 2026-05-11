@@ -7,7 +7,7 @@ extends Control
 
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleHudAdapter = preload("res://scripts/ui/battle_hud_adapter.gd")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleUiTheme = preload("res://scripts/ui/battle_ui_theme.gd")
 const BattleSkillSlotButton = preload("res://scripts/ui/battle_skill_slot_button.gd")
@@ -87,6 +87,9 @@ var _battle_equipment_details_label: Label = null
 var _battle_equipment_slot_selector: OptionButton = null
 var _battle_equipment_equip_button: Button = null
 var _battle_equipment_close_button: Button = null
+var _battle_command_preview_callable: Callable = Callable()
+var _battle_command_submit_callable: Callable = Callable()
+var _battle_encounter_display_name_callable: Callable = Callable()
 
 ## 字段说明：缓存地图框架节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
 @onready var map_frame: PanelContainer = %MapFrame
@@ -198,6 +201,24 @@ func pan_battle_camera(direction: Vector2i) -> bool:
 	if did_pan:
 		_request_map_viewport_update()
 	return did_pan
+
+
+func set_battle_command_handlers(
+	preview_callable: Callable,
+	submit_callable: Callable,
+	encounter_display_name_callable: Callable = Callable()
+) -> void:
+	_battle_command_preview_callable = preview_callable
+	_battle_command_submit_callable = submit_callable
+	_battle_encounter_display_name_callable = encounter_display_name_callable
+
+
+func set_party_member_state_resolver(resolver: Callable) -> void:
+	_hud_adapter.set_party_member_state_resolver(resolver)
+
+
+func set_content_def_providers(skill_defs_provider: Callable, item_defs_provider: Callable) -> void:
+	_hud_adapter.set_content_def_providers(skill_defs_provider, item_defs_provider)
 
 
 func show_battle(
@@ -1452,68 +1473,29 @@ func _on_battle_equipment_unequip_pressed(slot_id: StringName, instance_id: Stri
 
 
 func _submit_battle_equipment_command(command: BattleCommand) -> void:
-	var host := _find_battle_runtime_host()
-	if host == null:
+	if not _battle_command_submit_callable.is_valid():
 		_set_battle_equipment_feedback(BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT)
 		return
-	var runtime = _read_object_property(host, "_runtime")
-	if runtime == null or not (runtime is Object) or not runtime.has_method("issue_battle_command"):
+	var result_variant = _battle_command_submit_callable.call(command)
+	if not (result_variant is Dictionary):
 		_set_battle_equipment_feedback(BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT)
 		return
-	var refresh_mode := String(runtime.call("issue_battle_command", command))
-	if refresh_mode.is_empty():
-		refresh_mode = "full"
-	var status_text := "换装命令已提交。"
-	if runtime.has_method("get_status_text"):
-		var runtime_status := String(runtime.call("get_status_text"))
-		if not runtime_status.is_empty():
-			status_text = runtime_status
+	var result := result_variant as Dictionary
+	var status_text := String(result.get("message", ""))
+	if status_text.is_empty():
+		status_text = "换装命令已提交。" if bool(result.get("ok", false)) else BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT
 	_battle_equipment_feedback_text = status_text
-	if host.has_method("_render_from_runtime"):
-		host.call("_render_from_runtime", true, {"battle_refresh_mode": refresh_mode})
-	else:
-		_refresh_battle_equipment_ui()
-
-
-func _find_battle_runtime_host() -> Node:
-	var node := get_parent()
-	while node != null:
-		var runtime = _read_object_property(node, "_runtime")
-		if runtime != null and runtime is Object and runtime.has_method("issue_battle_command"):
-			return node
-		node = node.get_parent()
-	return null
+	_refresh_battle_equipment_ui()
 
 
 func _resolve_battle_command_preview_callable() -> Callable:
-	var host := _find_battle_runtime_host()
-	if host == null:
-		return Callable()
-	var runtime = _read_object_property(host, "_runtime")
-	if runtime != null and runtime is Object and runtime.has_method("preview_battle_command"):
-		return Callable(runtime, "preview_battle_command")
-	return Callable()
+	return _battle_command_preview_callable if _battle_command_preview_callable.is_valid() else Callable()
 
 
 func _resolve_encounter_display_name() -> String:
-	# 通过既有的 host 探测找到 GameRuntimeFacade，再读其 _active_battle_encounter_name。
-	# 找不到 host / runtime 时返回空串，由 adapter 回退到占位标题。
-	var host := _find_battle_runtime_host()
-	if host == null:
+	if not _battle_encounter_display_name_callable.is_valid():
 		return ""
-	var runtime = _read_object_property(host, "_runtime")
-	if runtime == null or not (runtime is Object) or not runtime.has_method("get_active_battle_encounter_name"):
-		return ""
-	return String(runtime.call("get_active_battle_encounter_name"))
-
-
-func _read_object_property(object: Object, property_name: String) -> Variant:
-	if object == null:
-		return null
-	for property in object.get_property_list():
-		if String(property.get("name", "")) == property_name:
-			return object.get(property_name)
-	return null
+	return String(_battle_encounter_display_name_callable.call())
 
 
 func _set_battle_equipment_feedback(message: String) -> void:

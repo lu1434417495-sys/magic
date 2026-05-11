@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const PARTY_MANAGEMENT_WINDOW_SCENE = preload("res://scenes/ui/party_management_window.tscn")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
@@ -7,7 +9,8 @@ const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_p
 const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class SnapshotProvider:
@@ -235,14 +238,14 @@ func _make_member(member_id: StringName, display_name: String) -> PartyMemberSta
 
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s (actual=%s expected=%s)" % [message, str(actual), str(expected)])
+		_test.fail("%s (actual=%s expected=%s)" % [message, str(actual), str(expected)])
 
 
 func _assert_vector2_near(actual: Vector2, expected: Vector2, tolerance: float, message: String) -> void:
 	if absf(actual.x - expected.x) > tolerance or absf(actual.y - expected.y) > tolerance:
-		_failures.append("%s (actual=%s expected=%s)" % [message, str(actual), str(expected)])
+		_test.fail("%s (actual=%s expected=%s)" % [message, str(actual), str(expected)])

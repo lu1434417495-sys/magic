@@ -1,9 +1,12 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameRuntimeCharacterInfoBuilder = preload("res://scripts/systems/game_runtime/game_runtime_character_info_builder.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class FakeCharacterManagement:
@@ -118,4 +121,4 @@ func _has_text_entry(entries: Array, text: String) -> bool:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

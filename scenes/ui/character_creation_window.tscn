@@ -1,22 +1,9 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 ; Scene purpose: Character creation modal with atmospheric styling — name entry, dice tumble animation, threshold-met row glow, scan-line indicator, and birth-luck tier readout.
 ; Review focus: verify unique node names match @onready bindings, per-row PanelContainer wraps badge/name/value/threshold cells, and ScanContainer clip_contents stays enabled.
 
 [ext_resource type="Script" path="res://scripts/ui/character_creation_window.gd" id="1_ccw"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_outer"]
-bg_color = Color(0.05, 0.063, 0.117, 0.98)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.78, 0.62, 0.3, 0.9)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0, 0, 0, 0.55)
-shadow_size = 28
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_warm.tres" id="2_panel_warm"]
 
 [node name="CharacterCreationWindow" type="Control"]
 visible = false
@@ -49,7 +36,7 @@ mouse_filter = 2
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
 custom_minimum_size = Vector2(660, 600)
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel_outer")
+theme_override_styles/panel = ExtResource("2_panel_warm")
 
 [node name="Margin" type="MarginContainer" parent="CenterContainer/Panel"]
 layout_mode = 2

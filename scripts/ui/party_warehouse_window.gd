@@ -218,7 +218,7 @@ func _refresh_details() -> void:
 	if not instance_id.is_empty():
 		lines.append("装备实例：%s" % instance_id)
 		lines.append("品质：%d" % int(entry_data.get("rarity", 0)))
-		lines.append("耐久：%d" % int(entry_data.get("current_durability", -1)))
+		lines.append("耐久：%d" % int(entry_data.get("current_durability", 0)))
 	if bool(entry_data.get("is_skill_book", false)):
 		lines.append("技能书效果：使目标角色学会 %s。" % String(entry_data.get("granted_skill_name", "")))
 		if _selected_target_member_id != &"":

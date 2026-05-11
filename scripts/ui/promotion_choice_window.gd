@@ -16,8 +16,8 @@ signal cancelled
 @onready var title_label: Label = $CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/TitleLabel
 ## 字段说明：缓存副标题标签节点，用于显示补充状态、来源信息或筛选摘要。
 @onready var meta_label: Label = $CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/MetaLabel
-## 字段说明：缓存选择列表节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
-@onready var choice_list: ItemList = $CenterContainer/Panel/MarginContainer/Content/Body/ChoiceList
+## 字段说明：缓存横向卡片容器，作为候选项的承载节点。
+@onready var choice_cards: HBoxContainer = $CenterContainer/Panel/MarginContainer/Content/Body/ChoiceCards
 ## 字段说明：缓存详情标签节点，用于展示较长的说明文本或选中对象详情。
 @onready var details_label: RichTextLabel = $CenterContainer/Panel/MarginContainer/Content/Body/DetailsLabel
 ## 字段说明：缓存确认按钮节点，供用户提交当前选择结果。
@@ -33,12 +33,19 @@ var _member_name := ""
 var _choices: Array[Dictionary] = []
 ## 字段说明：记录已选索引，作为界面刷新、输入处理和窗口联动的重要依据。
 var _selected_index := -1
+## 字段说明：缓存当前已经实例化的卡片节点，供选中态切换与清理流程使用。
+var _cards: Array[PanelContainer] = []
+## 字段说明：缓存常态卡片样式，避免每次选中切换都重新创建。
+var _card_style_normal: StyleBoxFlat
+## 字段说明：缓存选中态卡片样式，避免每次选中切换都重新创建。
+var _card_style_selected: StyleBoxFlat
 
 
 func _ready() -> void:
+	_card_style_normal = SelectionCardBuilder.make_style(false)
+	_card_style_selected = SelectionCardBuilder.make_style(true)
 	hide_window()
 	shade.gui_input.connect(_on_shade_gui_input)
-	choice_list.item_selected.connect(_on_choice_selected)
 	confirm_button.pressed.connect(_on_confirm_button_pressed)
 	cancel_button.pressed.connect(_on_cancel_button_pressed)
 
@@ -54,7 +61,7 @@ func show_promotion(prompt_data: Dictionary) -> void:
 	visible = true
 	title_label.text = "职业晋升"
 	meta_label.text = "%s 触发了新的职业晋升选择。" % _member_name
-	_rebuild_choice_list()
+	_rebuild_choice_cards()
 	_select_choice(0 if not _choices.is_empty() else -1)
 
 
@@ -64,58 +71,95 @@ func hide_window() -> void:
 	_member_name = ""
 	_choices.clear()
 	_selected_index = -1
-	if choice_list != null:
-		choice_list.clear()
+	_clear_cards()
 	if details_label != null:
 		details_label.text = ""
 	if confirm_button != null:
 		confirm_button.disabled = true
 
 
-func _rebuild_choice_list() -> void:
-	choice_list.clear()
-	for choice_data in _choices:
-		var profession_id := ProgressionDataUtils.to_string_name(choice_data.get("profession_id", ""))
-		var display_name := String(choice_data.get("display_name", profession_id))
-		var summary := String(choice_data.get("summary", ""))
-		var label := display_name if summary.is_empty() else "%s  |  %s" % [display_name, summary]
-		choice_list.add_item(label)
-		choice_list.set_item_metadata(choice_list.item_count - 1, profession_id)
+func _clear_cards() -> void:
+	if choice_cards == null:
+		return
+	for card in _cards:
+		if is_instance_valid(card):
+			card.queue_free()
+	_cards.clear()
+
+
+func _rebuild_choice_cards() -> void:
+	_clear_cards()
+	for index in _choices.size():
+		var card := _create_card(index, _choices[index])
+		choice_cards.add_child(card)
+		_cards.append(card)
+
+
+func _create_card(index: int, choice: Dictionary) -> PanelContainer:
+	var profession_id := ProgressionDataUtils.to_string_name(choice.get("profession_id", ""))
+	var display_name := String(choice.get("display_name", profession_id))
+	var summary := String(choice.get("summary", ""))
+	var granted_skill_ids := ProgressionDataUtils.to_string_name_array(choice.get("granted_skill_ids", []))
+
+	var skill_strings: PackedStringArray = []
+	for skill_id in granted_skill_ids:
+		skill_strings.append(String(skill_id))
+
+	var card := SelectionCardBuilder.build_card({
+		"title": display_name,
+		"summary": summary,
+		"chip_header": "授予技能" if not skill_strings.is_empty() else "",
+		"chips": skill_strings,
+	})
+	card.gui_input.connect(_on_card_gui_input.bind(index))
+	return card
 
 
 func _select_choice(index: int) -> void:
 	_selected_index = index
-	choice_list.deselect_all()
-	if index >= 0 and index < choice_list.item_count:
-		choice_list.select(index)
+	for i in _cards.size():
+		if not is_instance_valid(_cards[i]):
+			continue
+		var style := _card_style_selected if i == index else _card_style_normal
+		_cards[i].add_theme_stylebox_override("panel", style)
 	_refresh_details()
 
 
 func _refresh_details() -> void:
 	if _selected_index < 0 or _selected_index >= _choices.size():
-		details_label.text = "当前没有可用晋升项。"
+		details_label.text = "[i]当前没有可用晋升项。[/i]"
 		confirm_button.disabled = true
 		return
 
 	var choice_data: Dictionary = _choices[_selected_index]
-	var profession_id := ProgressionDataUtils.to_string_name(choice_data.get("profession_id", ""))
-	var display_name := String(choice_data.get("display_name", profession_id))
+	var display_name := String(choice_data.get("display_name", ""))
 	var description := String(choice_data.get("description", ""))
 	var granted_skill_ids := ProgressionDataUtils.to_string_name_array(choice_data.get("granted_skill_ids", []))
 	var selection_hint := String(choice_data.get("selection_hint", "确认后将在战斗中立即生效。"))
 
-	details_label.text = "\n".join(PackedStringArray([
-		"成员：%s" % _member_name,
-		"职业：%s" % display_name,
-		"ID：%s" % String(profession_id),
-		"描述：%s" % (description if not description.is_empty() else "暂无"),
-		"授予技能：%s" % (", ".join(granted_skill_ids) if not granted_skill_ids.is_empty() else "暂无"),
-		"说明：%s" % selection_hint,
-	]))
+	var skill_names: PackedStringArray = []
+	for skill_id in granted_skill_ids:
+		skill_names.append(String(skill_id))
+	var skills_text := ", ".join(skill_names) if not skill_names.is_empty() else "暂无"
+
+	var lines := PackedStringArray([
+		"[color=#fadc6f][b]%s[/b][/color]" % display_name,
+		"",
+		description if not description.is_empty() else "[i]暂无描述[/i]",
+		"",
+		"[color=#a3c1ee]授予技能：[/color]%s" % skills_text,
+		"[color=#a3c1ee]说明：[/color][i]%s[/i]" % selection_hint,
+	])
+	details_label.text = "\n".join(lines)
 	confirm_button.disabled = false
 
 
-func _on_choice_selected(index: int) -> void:
+func _on_card_gui_input(event: InputEvent, index: int) -> void:
+	if event is not InputEventMouseButton:
+		return
+	var mouse_event := event as InputEventMouseButton
+	if not mouse_event.pressed or mouse_event.button_index != MOUSE_BUTTON_LEFT:
+		return
 	_select_choice(index)
 
 

@@ -5,21 +5,7 @@
 
 ; External scripts, scenes, and shared assets referenced by this scene.
 [ext_resource type="Script" path="res://scripts/ui/save_list_window.gd" id="1_l0af2"]
-
-; Local sub-resources defined inline for this scene only.
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-bg_color = Color(0.0823529, 0.109804, 0.188235, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.407843, 0.537255, 0.784314, 0.9)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0, 0, 0, 0.35)
-shadow_size = 18
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
 
 ; Root node and primary scene tree.
 [node name="SaveListWindow" type="Control"]
@@ -55,7 +41,7 @@ mouse_filter = 2
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
 custom_minimum_size = Vector2(700, 500)
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+theme_override_styles/panel = ExtResource("2_panel_default")
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
 layout_mode = 2
@@ -79,7 +65,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 30
 text = "读取存档"
 
-[node name="CloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+[node name="CancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "关闭"
@@ -99,7 +85,7 @@ theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
 theme_override_font_sizes/font_size = 16
 text = "当前没有可读取的存档。"
 
-[node name="SaveList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content"]
+[node name="List" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
@@ -127,12 +113,13 @@ layout_mode = 2
 alignment = 2
 theme_override_constants/separation = 12
 
-[node name="LoadButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+[node name="ConfirmButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 44)
 layout_mode = 2
 text = "读取"
 
-[node name="FooterCloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+[node name="FooterCancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "关闭"

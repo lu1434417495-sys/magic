@@ -5,21 +5,7 @@
 
 ; External scripts, scenes, and shared assets referenced by this scene.
 [ext_resource type="Script" path="res://scripts/ui/promotion_choice_window.gd" id="1_5m02p"]
-
-; Local sub-resources defined inline for this scene only.
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-bg_color = Color(0.0823529, 0.109804, 0.188235, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.407843, 0.537255, 0.784314, 0.9)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_right = 22
-corner_radius_bottom_left = 22
-shadow_color = Color(0, 0, 0, 0.35)
-shadow_size = 18
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_warm.tres" id="2_panel_warm"]
 
 ; Root node and primary scene tree.
 [node name="PromotionChoiceWindow" type="Control"]
@@ -54,9 +40,9 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(720, 520)
+custom_minimum_size = Vector2(780, 620)
 layout_mode = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+theme_override_styles/panel = ExtResource("2_panel_warm")
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
 layout_mode = 2
@@ -81,7 +67,7 @@ theme_override_constants/separation = 8
 [node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_color = Color(0.98, 0.86, 0.46, 1)
 theme_override_font_sizes/font_size = 30
 text = "职业晋升"
 
@@ -103,12 +89,12 @@ theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
 theme_override_font_sizes/font_size = 20
 text = "可选职业"
 
-[node name="ChoiceList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+[node name="ChoiceCards" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 180)
+custom_minimum_size = Vector2(0, 220)
 layout_mode = 2
 size_flags_vertical = 3
-select_mode = 0
+theme_override_constants/separation = 14
 
 [node name="DetailsTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
 layout_mode = 2
@@ -121,7 +107,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 180)
 layout_mode = 2
 size_flags_vertical = 3
-bbcode_enabled = false
+bbcode_enabled = true
 scroll_active = true
 fit_content = false
 text = "详情"

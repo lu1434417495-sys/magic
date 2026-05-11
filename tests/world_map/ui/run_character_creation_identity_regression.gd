@@ -1,10 +1,13 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const CHARACTER_CREATION_WINDOW_SCENE = preload("res://scenes/ui/character_creation_window.tscn")
 const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
 const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -156,9 +159,9 @@ func _set_uniform_attributes(window, value: int) -> void:
 
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
+		_test.fail("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
