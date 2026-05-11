@@ -16,9 +16,10 @@ godot --path . scenes/main/login_screen.tscn
 Run focused headless regressions with Godot scripts:
 
 ```bash
-godot --headless --script tests/battle_runtime/run_battle_runtime_smoke.gd
-godot --headless --script tests/battle_runtime/run_battle_board_regression.gd
-godot --headless --script tests/progression/run_progression_tests.gd
+python tests/run_regression_suite.py
+godot --headless --script tests/battle_runtime/runtime/run_battle_runtime_smoke.gd
+godot --headless --script tests/battle_runtime/rendering/run_battle_board_regression.gd
+godot --headless --script tests/progression/core/run_progression_tests.gd
 godot --headless --script tests/warehouse/run_party_warehouse_regression.gd
 ```
 
@@ -30,7 +31,7 @@ Follow existing GDScript style: tabs for indentation, `snake_case` for files, fu
 ## Testing Guidelines
 Tests are standalone `.gd` runners named `run_*_regression.gd`, `run_*_smoke.gd`, or similar. Add tests beside the system you changed, and run the narrowest relevant scripts before opening a PR. UI or battle-layout work should include a regression script when feasible and a screenshot when behavior is visual.
 
-Battle simulation and balance runners are not part of the routine full regression suite. Do not include numeric simulation entry points such as `tests/battle_runtime/run_battle_simulation_regression.gd`, `tests/battle_runtime/run_battle_ai_vs_ai_simulation_regression.gd`, or `tests/battle_runtime/run_battle_balance_simulation.gd` in a normal "run all tests" pass unless the user explicitly asks for battle simulation or balance analysis.
+Battle simulation and balance runners are not part of the routine full regression suite. Do not include numeric simulation entry points such as `tests/battle_runtime/simulation/run_battle_simulation_regression.gd`, `tests/battle_runtime/simulation/run_battle_ai_vs_ai_simulation_regression.gd`, or `tests/battle_runtime/simulation/run_battle_balance_simulation.gd` in a normal "run all tests" pass unless the user explicitly asks for battle simulation or balance analysis.
 
 ## Commit & Pull Request Guidelines
 Recent history uses short subjects with Conventional Commit prefixes, for example `feat:` and `chore:`. Keep using that pattern: `feat: add warehouse item stacking`, `fix: preserve battle save lock`. Pull requests should include a brief summary, affected scenes/scripts, test commands run, and screenshots for UI changes. Call out save-format or serialization impacts explicitly.
