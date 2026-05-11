@@ -1,34 +1,18 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const FortuneService = preload("res://scripts/systems/battle/fate/fortune_service.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const BattleFateEventBus = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
+const StubRng = preload("res://tests/shared/stub_rng.gd")
 
 
-class StubRng:
-	extends RefCounted
-
-	var _rolls: Array[int] = []
-	var call_count := 0
-
-
-	func _init(rolls: Array[int] = []) -> void:
-		_rolls = rolls.duplicate()
-
-
-	func randi_range(min_value: int, max_value: int) -> int:
-		if call_count >= _rolls.size():
-			call_count += 1
-			return min_value
-		var roll := clampi(int(_rolls[call_count]), min_value, max_value)
-		call_count += 1
-		return roll
-
-
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -219,9 +203,9 @@ func _build_attempt_flag_id(member_id: StringName) -> StringName:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

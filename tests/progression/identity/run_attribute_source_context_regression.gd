@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
 const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
 const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
@@ -17,7 +19,8 @@ const RaceDef = preload("res://scripts/player/progression/race_def.gd")
 const StageAdvancementModifier = preload("res://scripts/player/progression/stage_advancement_modifier.gd")
 const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -273,9 +276,9 @@ func _typed_modifiers(values: Array) -> Array[AttributeModifier]:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

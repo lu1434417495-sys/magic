@@ -1,4 +1,3 @@
-class_name ContentValidationRunner
 extends RefCounted
 
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")

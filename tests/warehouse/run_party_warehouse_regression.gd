@@ -4,6 +4,8 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 const PartyWarehouseWindowScene = preload("res://scenes/ui/party_warehouse_window.tscn")
@@ -49,7 +51,8 @@ const QUEST_ITEM_QUANTITIES := {
 	&"moonfern_sample": 2,
 }
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 ## 字段说明：记录游戏会话，用于构造测试场景、记录结果并支撑回归断言。
 var _game_session = null
 
@@ -221,6 +224,8 @@ func _test_world_level_equipment_instance_ids_are_incremental() -> void:
 	var seeded_instance := EquipmentInstanceState.create(&"watchman_mace", &"eq_000001")
 	party.warehouse_state.equipment_instances = [seeded_instance]
 	var persist_error := int(_game_session.set_party_state(party))
+	if persist_error == OK:
+		persist_error = int(_game_session.commit_runtime_state(&"test.seed_party_equipment"))
 	_assert_eq(persist_error, OK, "写入预置装备实例的 PartyState 应成功。")
 	if persist_error != OK:
 		return
@@ -241,6 +246,8 @@ func _test_world_level_equipment_instance_ids_are_incremental() -> void:
 	party = _game_session.get_party_state()
 	party.warehouse_state.equipment_instances.clear()
 	persist_error = int(_game_session.set_party_state(party))
+	if persist_error == OK:
+		persist_error = int(_game_session.commit_runtime_state(&"test.clear_party_equipment"))
 	_assert_eq(persist_error, OK, "清空预置装备实例后写回 PartyState 应成功。")
 	if persist_error != OK:
 		return
@@ -1027,6 +1034,8 @@ func _test_save_round_trip() -> void:
 	]
 
 	var persist_error := int(_game_session.set_party_state(party_state))
+	if persist_error == OK:
+		persist_error = int(_game_session.commit_runtime_state(&"test.warehouse_roundtrip"))
 	_assert_eq(persist_error, OK, "写入带仓库数据的 PartyState 应成功。")
 	if persist_error != OK:
 		return
@@ -1069,6 +1078,8 @@ func _test_world_map_entry_paths() -> void:
 	prefill_service.setup(party_state, _game_session.get_item_defs())
 	prefill_service.add_item(skill_book_item_id, 1)
 	var persist_error := int(_game_session.set_party_state(party_state))
+	if persist_error == OK:
+		persist_error = int(_game_session.commit_runtime_state(&"test.prefill_warehouse"))
 	_assert_eq(persist_error, OK, "UI 测试前写入预置仓库物品应成功。")
 	if persist_error != OK:
 		return
@@ -1392,7 +1403,7 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_warehouse_state_rejects(payload: Variant, message: String) -> void:
@@ -1401,4 +1412,4 @@ func _assert_warehouse_state_rejects(payload: Variant, message: String) -> void:
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

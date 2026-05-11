@@ -28,7 +28,7 @@ func setup(
 	_character_management = character_management
 
 
-func use_item(item_id: StringName, member_id: StringName) -> Dictionary:
+func use_item(item_id: StringName, member_id: StringName, options: Dictionary = {}) -> Dictionary:
 	var normalized_item_id := ProgressionDataUtils.to_string_name(item_id)
 	var normalized_member_id := ProgressionDataUtils.to_string_name(member_id)
 	var result := {
@@ -38,6 +38,8 @@ func use_item(item_id: StringName, member_id: StringName) -> Dictionary:
 		"member_id": normalized_member_id,
 		"skill_id": StringName(""),
 		"consumed_quantity": 0,
+		"needs_confirmation": false,
+		"practice_replacement_preview": {},
 	}
 	if normalized_item_id == &"" or normalized_member_id == &"":
 		return result
@@ -67,7 +69,13 @@ func use_item(item_id: StringName, member_id: StringName) -> Dictionary:
 	if skill_def == null:
 		result["reason"] = &"missing_skill_def"
 		return result
-	if not _character_management.learn_skill(normalized_member_id, skill_id):
+	var practice_status := _get_practice_skill_learn_status(normalized_member_id, skill_id)
+	if bool(practice_status.get("needs_replacement", false)) and not bool(options.get("confirm_practice_replacement", false)):
+		result["reason"] = &"practice_replacement_confirmation_required"
+		result["needs_confirmation"] = true
+		result["practice_replacement_preview"] = practice_status.duplicate(true)
+		return result
+	if not _character_management.learn_skill(normalized_member_id, skill_id, options):
 		result["reason"] = &"learn_failed"
 		return result
 
@@ -81,3 +89,10 @@ func use_item(item_id: StringName, member_id: StringName) -> Dictionary:
 	result["reason"] = &"ok"
 	result["consumed_quantity"] = removed_quantity
 	return result
+
+
+func _get_practice_skill_learn_status(member_id: StringName, skill_id: StringName) -> Dictionary:
+	if _character_management == null or not _character_management.has_method("get_practice_skill_learn_status"):
+		return {"is_practice_skill": false}
+	var status = _character_management.call("get_practice_skill_learn_status", member_id, skill_id)
+	return status if status is Dictionary else {"is_practice_skill": false}

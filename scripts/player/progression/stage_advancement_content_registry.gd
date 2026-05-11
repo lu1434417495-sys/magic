@@ -24,7 +24,7 @@ func load_from_directory(directory_path: String) -> void:
 
 
 func get_stage_advancement_defs() -> Dictionary:
-	return _stage_advancement_defs
+	return _stage_advancement_defs.duplicate()
 
 
 func _register_resource(resource_path: String) -> void:

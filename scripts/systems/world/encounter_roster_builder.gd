@@ -11,10 +11,9 @@ const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attri
 const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_template_def.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const BASIC_ATTACK_SKILL_ID: StringName = &"basic_attack"
-const DROP_TYPE_ITEM: StringName = &"item"
-const DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
 
 const DROP_DEFINITION_REQUIRED_FIELDS := [
 	"drop_entry_id",
@@ -224,7 +223,7 @@ func _parse_drop_definition(entry_data: Dictionary) -> Dictionary:
 	var item_id := _strict_string_name_value(entry_data["item_id"])
 	if drop_entry_id == &"" or item_id == &"":
 		return {}
-	if drop_type != DROP_TYPE_ITEM and drop_type != DROP_TYPE_RANDOM_EQUIPMENT:
+	if drop_type != BattleLootConstants.DROP_TYPE_ITEM and drop_type != BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT:
 		return {}
 	if entry_data["quantity"] is not int:
 		return {}

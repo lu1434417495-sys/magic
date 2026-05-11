@@ -25,7 +25,7 @@ const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_de
 @export var dynamic_max_level_stat_id: StringName = &""
 ## 字段说明：动态等级上限基础值；配置 dynamic_max_level_stat_id 后作为公式起点。
 @export var dynamic_max_level_base := 0
-## 字段说明：动态等级上限随 stat 每点增加的等级数；配置 dynamic_max_level_stat_id 后必须为正数。
+## 字段说明：动态等级上限随 stat 每点增加的等级数；配置 dynamic_max_level_stat_id 后必须非 0，负数表示按绝对值作整除并与基础值取较大值。
 @export var dynamic_max_level_per_stat := 0
 ## 字段说明：在编辑器中暴露熟练度曲线配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var mastery_curve: PackedInt32Array = PackedInt32Array()

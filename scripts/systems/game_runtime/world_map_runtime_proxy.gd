@@ -141,6 +141,10 @@ func get_selected_battle_skill_required_coord_count() -> int:
 	return int(_call_runtime_read(&"get_selected_battle_skill_required_coord_count", 0))
 
 
+func get_active_battle_encounter_name() -> String:
+	return String(_call_runtime_read(&"get_active_battle_encounter_name", ""))
+
+
 func get_settlement_window_data(settlement_id: String = "") -> Dictionary:
 	return _call_runtime_read(&"get_settlement_window_data", {}, [settlement_id])
 
@@ -269,8 +273,8 @@ func command_warehouse_discard_all(item_id: StringName, instance_id: StringName 
 	return _call_runtime_command(&"command_warehouse_discard_all", [item_id, instance_id])
 
 
-func command_warehouse_use_item(item_id: StringName, member_id: StringName = &"") -> Dictionary:
-	return _call_runtime_command(&"command_warehouse_use_item", [item_id, member_id])
+func command_warehouse_use_item(item_id: StringName, member_id: StringName = &"", options: Dictionary = {}) -> Dictionary:
+	return _call_runtime_command(&"command_warehouse_use_item", [item_id, member_id, options])
 
 
 func command_execute_settlement_action(action_id: String, payload: Dictionary = {}) -> Dictionary:
@@ -289,8 +293,8 @@ func command_stagecoach_travel(settlement_id: String) -> Dictionary:
 	return _call_runtime_command(&"command_stagecoach_travel", [settlement_id])
 
 
-func command_battle_tick(total_seconds: float, step_seconds: float = 1.0 / 60.0) -> Dictionary:
-	return _call_runtime_command(&"command_battle_tick", [total_seconds, step_seconds])
+func command_battle_tick(tick_count: int) -> Dictionary:
+	return _call_runtime_command(&"command_battle_tick", [tick_count])
 
 
 func command_battle_select_skill(slot_index: int) -> Dictionary:
@@ -319,6 +323,34 @@ func command_battle_wait_or_resolve() -> Dictionary:
 
 func command_battle_inspect(coord: Vector2i) -> Dictionary:
 	return _call_runtime_command(&"command_battle_inspect", [coord])
+
+
+func preview_battle_command(command):
+	return _call_runtime_read(&"preview_battle_command", null, [command])
+
+
+func issue_battle_command(command) -> Dictionary:
+	if _runtime == null:
+		return _runtime_unavailable_error()
+	if not _runtime.has_method("issue_battle_command"):
+		return {
+			"ok": false,
+			"message": "运行时缺少接口 issue_battle_command。",
+		}
+	var refresh_mode := String(_runtime.call("issue_battle_command", command))
+	if refresh_mode.is_empty():
+		refresh_mode = "full"
+	var message := ""
+	if _runtime.has_method("get_status_text"):
+		message = String(_runtime.call("get_status_text"))
+	var result := {
+		"ok": true,
+		"message": message,
+		"battle_refresh_mode": refresh_mode,
+	}
+	if _render_callback.is_valid():
+		_render_callback.call(true, result)
+	return result
 
 
 func command_confirm_pending_reward() -> Dictionary:

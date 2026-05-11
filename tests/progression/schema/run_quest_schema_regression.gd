@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
@@ -11,7 +13,8 @@ const QUEST_ITEM_IDS := [
 	&"moonfern_sample",
 ]
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -613,12 +616,12 @@ func _build_gold_reward_quest_def(quest_id: StringName, display_name: String, am
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _has_error_containing(errors: Array[String], expected_fragment: String) -> bool:

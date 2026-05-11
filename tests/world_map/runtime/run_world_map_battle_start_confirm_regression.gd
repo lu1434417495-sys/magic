@@ -1,12 +1,15 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _game_session = null
 
 
@@ -154,9 +157,9 @@ func _cleanup() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

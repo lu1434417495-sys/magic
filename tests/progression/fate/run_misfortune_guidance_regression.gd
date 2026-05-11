@@ -1,5 +1,8 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
+
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
@@ -25,9 +28,9 @@ const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
-const CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class StubMisfortuneBattleGateway:
@@ -269,7 +272,7 @@ func _build_item_defs() -> Dictionary:
 	dark_weapon.crafting_groups = [&"dark", &"misfortune"]
 
 	var calamity_shard := ItemDef.new()
-	calamity_shard.item_id = CALAMITY_SHARD_ITEM_ID
+	calamity_shard.item_id = BattleLootConstants.ITEM_CALAMITY_SHARD
 	calamity_shard.display_name = "灾厄碎片"
 	calamity_shard.item_category = ItemDef.ITEM_CATEGORY_MISC
 	calamity_shard.is_stackable = true
@@ -358,7 +361,7 @@ func _build_forge_result(output_item_id: StringName) -> Dictionary:
 		"inventory_delta": {
 			"recipe_id": "shadow_halberd_recipe",
 			"removed_entries": [{
-				"item_id": String(CALAMITY_SHARD_ITEM_ID),
+				"item_id": String(BattleLootConstants.ITEM_CALAMITY_SHARD),
 				"quantity": 1,
 			}],
 			"added_entries": [{
@@ -408,9 +411,9 @@ func _get_custom_stat(party_state: PartyState, stat_id: StringName) -> int:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

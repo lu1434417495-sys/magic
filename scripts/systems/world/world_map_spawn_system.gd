@@ -555,18 +555,18 @@ func _pick_weighted_facility(optional_pool: Array) -> String:
 	if optional_pool.is_empty():
 		return ""
 
-	var total_weight := 0.0
+	var total_weight := 0
 	for entry in optional_pool:
-		total_weight += max(entry.weight, 0.0)
+		total_weight += maxi(int(entry.weight), 0)
 
-	if total_weight <= 0.0:
+	if total_weight <= 0:
 		return ""
 
-	var roll := _rng.randf_range(0.0, total_weight)
-	var cursor := 0.0
+	var roll := _rng.randi_range(1, total_weight)
+	var cursor := 0
 
 	for entry in optional_pool:
-		cursor += max(entry.weight, 0.0)
+		cursor += maxi(int(entry.weight), 0)
 		if roll <= cursor:
 			return _get_weighted_facility_template_id(entry)
 

@@ -1,11 +1,13 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
-const ContentValidationRunner = preload("res://tests/runtime/content_validation_runner.gd")
+const CONTENT_VALIDATION_RUNNER_SCRIPT = preload("res://tests/runtime/validation/content_validation_runner.gd")
 const WorldMapGenerationConfig = preload("res://scripts/utils/world_map_generation_config.gd")
 const SettlementConfig = preload("res://scripts/utils/settlement_config.gd")
 const FacilityConfig = preload("res://scripts/utils/facility_config.gd")
@@ -19,7 +21,6 @@ const OFFICIAL_PROFESSION_DIRECTORY := "res://data/configs/professions"
 const OFFICIAL_ITEM_DIRECTORY := "res://data/configs/items"
 const OFFICIAL_RECIPE_DIRECTORY := "res://data/configs/recipes"
 const OFFICIAL_ENEMY_SEED_PATH := "res://data/configs/enemies/enemy_content_seed.tres"
-
 const SKILL_INVALID_DIRECTORY := "res://tests/progression/fixtures/skill_registry_invalid"
 const PROFESSION_INVALID_DIRECTORY := "res://tests/progression/fixtures/profession_registry_invalid"
 const ITEM_INVALID_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_invalid"
@@ -32,7 +33,8 @@ const ENEMY_MISSING_ID_SEED_PATH := "res://tests/fixtures/enemy_content/missing_
 const ENEMY_DUPLICATE_ID_SEED_PATH := "res://tests/fixtures/enemy_content/duplicate_template_id/enemy_content_seed.tres"
 const ENEMY_INVALID_REFERENCE_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _reports: Array[String] = []
 
 
@@ -41,7 +43,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var validation_runner := ContentValidationRunner.new()
+	var validation_runner := CONTENT_VALIDATION_RUNNER_SCRIPT.new()
 	var progression_registry := ProgressionContentRegistry.new()
 	var skill_defs := progression_registry.get_skill_defs()
 	var item_registry := ItemContentRegistry.new()
@@ -67,7 +69,8 @@ func _run() -> void:
 		),
 	])
 	_reports.append(validation_runner.format_report(official_report))
-	_assert_true(bool(official_report.get("ok", false)), "正式内容 validation runner 不应报告错误。")
+	_assert_true(bool(official_report.get("ok", false)), "正式内容 validation runner 应通过。")
+	_assert_true(int(official_report.get("error_count", -1)) == 0, "正式内容 validation runner 不应报告错误。")
 
 	var skill_result := validation_runner.validate_skill_directory(SKILL_INVALID_DIRECTORY, true)
 	var profession_result := validation_runner.validate_profession_directory(PROFESSION_INVALID_DIRECTORY, skill_defs)
@@ -294,7 +297,7 @@ func _build_invalid_world_generation_config():
 
 	var optional_missing_facility := WeightedFacilityEntry.new()
 	optional_missing_facility.facility_id = "missing_optional_facility"
-	optional_missing_facility.weight = 1.0
+	optional_missing_facility.weight = 1
 
 	var settlement := SettlementConfig.new()
 	settlement.settlement_id = "known_settlement"
@@ -344,13 +347,21 @@ func _assert_domain_has_fragment(domain_result: Dictionary, fragment: String, me
 	_assert_messages_have_fragment(_combine_domain_errors([domain_result]), fragment, message)
 
 
+func _assert_report_has_fragment(report: Dictionary, fragment: String, message: String) -> void:
+	var domain_results: Array[Dictionary] = []
+	for domain_variant in report.get("domains", []):
+		if domain_variant is Dictionary:
+			domain_results.append(domain_variant)
+	_assert_messages_have_fragment(_combine_domain_errors(domain_results), fragment, message)
+
+
 func _assert_messages_have_fragment(messages: Array[String], fragment: String, message: String) -> void:
 	for error_message in messages:
 		if error_message.contains(fragment):
 			return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_settlement_command_handler.gd")
 const SettlementShopService = preload("res://scripts/systems/settlement/settlement_shop_service.gd")
@@ -13,7 +15,8 @@ const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_p
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class MockAttributeSnapshot:
@@ -451,10 +454,10 @@ class MockShopItemDef:
 	var buy_price := 0
 	var sell_price := 0
 
-	func get_buy_price(price_multiplier: float = 1.0) -> int:
-		return maxi(int(round(float(buy_price) * maxf(price_multiplier, 0.0))), 0)
+	func get_buy_price(price_basis_points: int = 10000) -> int:
+		return int((maxi(int(buy_price), 0) * maxi(int(price_basis_points), 0) + 5000) / 10000)
 
-	func get_sell_price(_price_multiplier: float = 0.5) -> int:
+	func get_sell_price(_price_basis_points: int = 10000) -> int:
 		return maxi(int(sell_price), 0)
 
 
@@ -1719,9 +1722,9 @@ func _get_first_reward_entry(reward_data) -> Dictionary:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

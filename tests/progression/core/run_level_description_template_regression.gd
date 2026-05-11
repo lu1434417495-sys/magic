@@ -1,10 +1,13 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const SkillLevelDescriptionFormatter = preload("res://scripts/systems/progression/skill_level_description_formatter.gd")
 const BATTLE_RECOVERY_SKILL_PATH := "res://data/configs/skills/warrior_battle_recovery.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -145,7 +148,7 @@ func _test_level_description_requires_template_config() -> void:
 func _test_battle_recovery_description_derives_display_dice() -> void:
 	var skill_def := load(BATTLE_RECOVERY_SKILL_PATH) as SkillDef
 	if skill_def == null:
-		_failures.append("战斗回复技能资源应能加载。")
+		_test.fail("战斗回复技能资源应能加载。")
 		return
 
 	var low_stat_description := SkillLevelDescriptionFormatter.build_level_description(skill_def, 5, {
@@ -161,4 +164,4 @@ func _test_battle_recovery_description_derives_display_dice() -> void:
 
 func _assert_eq(actual: String, expected: String, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, actual, expected])
+		_test.fail("%s | actual=%s expected=%s" % [message, actual, expected])

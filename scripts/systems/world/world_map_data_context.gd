@@ -52,6 +52,12 @@ func get_active_generation_config():
 	return active_generation_config
 
 
+func get_active_world_size_cells() -> Vector2i:
+	if active_generation_config == null:
+		return Vector2i.ZERO
+	return active_generation_config.get_world_size_cells()
+
+
 func get_active_map_id() -> String:
 	return active_map_id
 
@@ -90,6 +96,27 @@ func sync_active_world_context(root_generation_config, grid_system, player_coord
 		"player_coord": resolved_player_coord,
 		"selected_coord": resolved_selected_coord,
 	}
+
+
+func validate_world_system_size_consistency(grid_system, fog_system) -> bool:
+	var expected_world_size := get_active_world_size_cells()
+	if expected_world_size == Vector2i.ZERO:
+		return true
+	if grid_system == null or not grid_system.has_method("get_world_size_cells"):
+		push_error("World map grid system is missing while validating active world size.")
+		return false
+	if fog_system == null or not fog_system.has_method("get_world_size_cells"):
+		push_error("World map fog system is missing while validating active world size.")
+		return false
+	var grid_world_size: Vector2i = grid_system.get_world_size_cells()
+	var fog_world_size: Vector2i = fog_system.get_world_size_cells()
+	if grid_world_size != expected_world_size:
+		push_error("World map grid size mismatch: expected %s, got %s." % [str(expected_world_size), str(grid_world_size)])
+		return false
+	if fog_world_size != expected_world_size:
+		push_error("World map fog size mismatch: expected %s, got %s." % [str(expected_world_size), str(fog_world_size)])
+		return false
+	return true
 
 
 func get_settlement_at(coord: Vector2i) -> Dictionary:

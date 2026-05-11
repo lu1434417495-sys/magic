@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const FaithDeityDef = preload("res://scripts/player/progression/faith_deity_def.gd")
@@ -17,7 +19,8 @@ const DOOM_MARKED_STAT_ID: StringName = &"doom_marked"
 const DOOM_AUTHORITY_STAT_ID: StringName = &"doom_authority"
 const CALAMITY_CAPACITY_BONUS_STAT_ID: StringName = &"calamity_capacity_bonus"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -333,9 +336,9 @@ func _get_custom_stat(party_state: PartyState, stat_id: StringName) -> int:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

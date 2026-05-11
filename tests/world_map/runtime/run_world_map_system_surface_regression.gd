@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const WorldMapRuntimeProxy = preload("res://scripts/systems/game_runtime/world_map_runtime_proxy.gd")
 const WorldMapSystem = preload("res://scripts/systems/game_runtime/world_map_system.gd")
 
@@ -9,7 +11,8 @@ class StagecoachTravelProxySpy:
 	func command_stagecoach_travel(target_settlement_id: String) -> void:
 		travel_calls.append(target_settlement_id)
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -161,4 +164,4 @@ func _test_world_map_runtime_proxy_keeps_expected_contract() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

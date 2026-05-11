@@ -1,12 +1,15 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GameRuntimeRewardFlowHandler = preload("res://scripts/systems/game_runtime/game_runtime_reward_flow_handler.gd")
 const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class MockRewardFlowHandler:
@@ -286,9 +289,9 @@ func _has_call(calls: Array[Dictionary], method_name: String) -> bool:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

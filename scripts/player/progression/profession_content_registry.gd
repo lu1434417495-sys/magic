@@ -54,7 +54,7 @@ func rebuild() -> void:
 
 
 func get_profession_defs() -> Dictionary:
-	return _profession_defs
+	return _profession_defs.duplicate()
 
 
 func validate() -> Array[String]:

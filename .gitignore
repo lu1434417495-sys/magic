@@ -43,4 +43,3 @@ tests/battle_runtime/reports/
 
 # Runtime save files; keep committed fixtures explicit
 data/saves/*
-!data/saves/fixed_test_world_save.dat

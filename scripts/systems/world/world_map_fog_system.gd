@@ -28,6 +28,10 @@ func setup(world_size_cells: Vector2i, persistent_state: Dictionary = {}) -> voi
 		load_persistent_state(persistent_state)
 
 
+func get_world_size_cells() -> Vector2i:
+	return _world_size_cells
+
+
 func rebuild_visibility_for_faction(faction_id: String, sources: Array) -> void:
 	var faction_state = _get_or_create_state(faction_id)
 	faction_state.clear_visible()

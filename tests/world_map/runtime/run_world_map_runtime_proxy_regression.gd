@@ -1,8 +1,11 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const WorldMapRuntimeProxy = preload("res://scripts/systems/game_runtime/world_map_runtime_proxy.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class MockRuntime:
@@ -343,9 +346,9 @@ func _string_name_array_to_string_array(values: Array[StringName]) -> Array[Stri
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s 实际=%s 预期=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s 实际=%s 预期=%s" % [message, str(actual), str(expected)])

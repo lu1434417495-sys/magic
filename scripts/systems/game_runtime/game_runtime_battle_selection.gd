@@ -102,6 +102,23 @@ func select_battle_skill_slot(index: int) -> Dictionary:
 	_set_selected_skill_id(skill_id)
 	_set_selected_skill_variant_id(&"")
 	_clear_battle_skill_target_selection()
+
+	# random_chain 技能不需要选择目标，直接施放
+	if StringName(skill_def.combat_profile.target_selection_mode) == &"random_chain":
+		var chain_cmd: BattleCommand = BATTLE_COMMAND_SCRIPT.new()
+		chain_cmd.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+		chain_cmd.unit_id = active_unit.unit_id
+		chain_cmd.skill_id = skill_id
+		chain_cmd.skill_variant_id = _get_default_unit_skill_variant_id(active_unit, skill_def)
+		chain_cmd.target_unit_ids = []
+		var chain_preview = _preview_battle_command(chain_cmd)
+		if chain_preview != null and chain_preview.allowed:
+			_issue_battle_command(chain_cmd)
+			return _selection_ok()
+		_refresh_battle_selection_state()
+		_update_status(String(chain_preview.log_lines[-1]) if chain_preview != null and not chain_preview.log_lines.is_empty() else "无法执行连锁攻击。")
+		return _selection_error("无法执行连锁攻击。")
+
 	var unlocked_variants := _get_unlocked_cast_variants(active_unit, skill_def)
 	if not unlocked_variants.is_empty():
 		_set_selected_skill_variant_id(unlocked_variants[0].variant_id)
@@ -573,7 +590,7 @@ func _are_ground_target_coords_individually_valid(
 	var battle_grid_service = _get_battle_grid_service()
 	if battle_state == null or battle_grid_service == null or active_unit == null or skill_def == null or skill_def.combat_profile == null or cast_variant == null:
 		return false
-	var jump_effect_def := _resolve_ground_jump_effect_def(skill_def, cast_variant)
+	var relocation_effect_def := _resolve_ground_relocation_effect_def(skill_def, cast_variant)
 	var seen_coords: Dictionary = {}
 	for coord_variant in target_coords:
 		if coord_variant is not Vector2i:
@@ -585,7 +602,7 @@ func _are_ground_target_coords_individually_valid(
 		if not battle_state.cells.has(coord):
 			return false
 		var target_distance: int = battle_grid_service.get_chebyshev_distance(active_unit.coord, coord) \
-			if jump_effect_def != null else battle_grid_service.get_distance_from_unit_to_coord(active_unit, coord)
+			if relocation_effect_def != null else battle_grid_service.get_distance_from_unit_to_coord(active_unit, coord)
 		if target_distance > _get_effective_skill_range(active_unit, skill_def):
 			return false
 		var cell = battle_state.cells.get(coord)
@@ -602,22 +619,47 @@ func _are_ground_target_coords_individually_valid(
 				return false
 		if _is_crown_break_skill(skill_def) and not _is_crown_break_target_eligible(active_unit, _get_runtime_unit_at_coord(coord)):
 			return false
-		if jump_effect_def != null:
-			if not battle_grid_service.can_jump_arc(battle_state, active_unit, coord, jump_effect_def):
+		if relocation_effect_def != null:
+			if not _can_use_ground_relocation(battle_state, battle_grid_service, active_unit, coord, relocation_effect_def):
 				return false
 	return true
 
 
-func _resolve_ground_jump_effect_def(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> CombatEffectDef:
+func _resolve_ground_relocation_effect_def(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> CombatEffectDef:
 	if cast_variant != null:
 		for effect_def in cast_variant.effect_defs:
-			if effect_def != null and effect_def.effect_type == &"forced_move" and effect_def.forced_move_mode == &"jump":
+			if _is_ground_relocation_effect(effect_def):
 				return effect_def
 	if skill_def != null and skill_def.combat_profile != null:
 		for effect_def in skill_def.combat_profile.effect_defs:
-			if effect_def != null and effect_def.effect_type == &"forced_move" and effect_def.forced_move_mode == &"jump":
+			if _is_ground_relocation_effect(effect_def):
 				return effect_def
 	return null
+
+
+func _is_ground_relocation_effect(effect_def: CombatEffectDef) -> bool:
+	if effect_def == null or effect_def.effect_type != &"forced_move":
+		return false
+	var mode := effect_def.forced_move_mode
+	return mode == &"jump" or mode == &"blink"
+
+
+func _can_use_ground_relocation(
+	battle_state,
+	battle_grid_service,
+	active_unit: BattleUnitState,
+	coord: Vector2i,
+	effect_def: CombatEffectDef
+) -> bool:
+	if effect_def == null:
+		return false
+	match effect_def.forced_move_mode:
+		&"jump":
+			return battle_grid_service.can_jump_arc(battle_state, active_unit, coord, effect_def)
+		&"blink":
+			return battle_grid_service.can_blink_to_coord(battle_state, active_unit, coord, effect_def)
+		_:
+			return false
 
 
 func _is_ground_target_combo_allowed(active_unit: BattleUnitState, skill_def, cast_variant, target_coords: Array) -> bool:
@@ -889,6 +931,8 @@ func _build_battle_skill_selection_status(skill_def, active_unit) -> String:
 		return "%s按 Esc 清除选择。" % block_reason
 	var cast_variant = _get_selected_battle_skill_variant(active_unit)
 	var selection_mode := _get_selected_battle_skill_target_selection_mode(active_unit)
+	if selection_mode == &"random_chain":
+		return "已选择技能 %s，将自动攻击范围内随机敌军。Esc 清除选择。" % skill_def.display_name
 	if selection_mode == &"multi_unit":
 		var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
 		var min_target_count := maxi(int(skill_def.combat_profile.min_target_count), 1)
@@ -938,7 +982,13 @@ func _toggle_selected_multi_unit_skill_target(active_unit: BattleUnitState, targ
 
 	var target_unit_id: StringName = target_unit.unit_id
 	var existing_index: int = queued_target_unit_ids.find(target_unit_id)
-	if existing_index >= 0:
+	var allow_repeat := bool(skill_def.combat_profile.get("allow_repeat_target")) if skill_def.combat_profile != null else false
+	var max_hits_per_target := maxi(int(skill_def.combat_profile.get("max_hits_per_target")), 0) if skill_def.combat_profile != null else 0
+	var existing_count := 0
+	for tid in queued_target_unit_ids:
+		if tid == target_unit_id:
+			existing_count += 1
+	if existing_index >= 0 and not allow_repeat:
 		queued_target_unit_ids.remove_at(existing_index)
 		_set_target_unit_ids_state(queued_target_unit_ids)
 		_refresh_selected_unit_target_coords_from_queue()
@@ -954,8 +1004,13 @@ func _toggle_selected_multi_unit_skill_target(active_unit: BattleUnitState, targ
 		_update_status("该单位不是当前技能的合法目标。")
 		return &"overlay"
 
+	if max_hits_per_target > 0 and existing_count >= max_hits_per_target:
+		_update_status("该目标已达到最大命中次数限制 (%d 次)。" % max_hits_per_target)
+		return &"overlay"
+
 	if queued_target_unit_ids.size() >= max_target_count:
-		_update_status("该技能最多选择 %d 个单位目标；点击已选目标可取消。" % max_target_count)
+		var hint := "点击已选目标可取消。" if not allow_repeat else "按 Esc 清除选择。"
+		_update_status("该技能最多选择 %d 个单位目标；%s" % [max_target_count, hint])
 		return &"overlay"
 
 	queued_target_unit_ids.append(target_unit_id)
@@ -979,8 +1034,7 @@ func _issue_selected_multi_unit_skill(active_unit: BattleUnitState, skill_def) -
 	skill_command.skill_variant_id = _get_selected_skill_variant_id()
 	skill_command.target_unit_ids = _get_target_unit_ids_state().duplicate()
 	if not skill_command.target_unit_ids.is_empty():
-		skill_command.target_unit_id = skill_command.target_unit_ids[0]
-		var first_target: BattleUnitState = _get_battle_unit_by_id(skill_command.target_unit_id)
+		var first_target: BattleUnitState = _get_battle_unit_by_id(skill_command.target_unit_ids[0])
 		if first_target != null:
 			skill_command.target_coord = first_target.coord
 	var preview = _preview_battle_command(skill_command)
@@ -1005,21 +1059,26 @@ func _sync_multi_unit_confirm_focus(active_unit: BattleUnitState, min_target_cou
 func _build_multi_unit_target_status(skill_def, min_target_count: int, max_target_count: int) -> String:
 	var selected_count: int = _get_target_unit_ids_state().size()
 	var title: String = skill_def.display_name if skill_def != null else "技能"
+	var allow_repeat := bool(skill_def.combat_profile.get("allow_repeat_target")) if skill_def != null and skill_def.combat_profile != null else false
+	var cancel_hint := "点击已选目标可追加" if allow_repeat else "点击已选目标可取消"
 	if selected_count <= 0:
-		return "已选择技能 %s。左键逐个点选单位目标，Esc 清除选择。" % title
+		return "已选择技能 %s。左键逐个点选单位目标，%s，Esc 清除选择。" % [title, cancel_hint]
 	if selected_count < min_target_count:
-		return "已选择 %s，已选择 %d / %d 个单位目标。继续点选，或点击已选目标取消，Esc 清除选择。" % [
+		return "已选择 %s，已选择 %d / %d 个单位目标。继续点选，%s，Esc 清除选择。" % [
 			title,
 			selected_count,
 			min_target_count,
+			cancel_hint,
 		]
 	if selected_count < max_target_count:
-		return "已选择 %s，已选择 %d / %d 个单位目标。还可继续添加，点击已选目标可取消，Esc 清除选择。" % [
+		return "已选择 %s，已选择 %d / %d 个单位目标。还可继续添加，%s，Esc 清除选择。" % [
 			title,
 			selected_count,
 			max_target_count,
+			cancel_hint,
 		]
-	return "已选择 %s，已选择 %d / %d 个单位目标。已达到上限，点击已选目标可取消，Esc 清除选择。" % [
+	var max_hint := "按 Esc 清除选择。" if allow_repeat else "点击已选目标可取消，Esc 清除选择。"
+	return "已选择 %s，已选择 %d / %d 个单位目标。已达到上限，%s" % [
 		title,
 		selected_count,
 		max_target_count,

@@ -5,6 +5,14 @@
 class_name ProfessionPromotionRecord
 extends RefCounted
 
+const TO_DICT_FIELDS: Array[String] = [
+	"new_rank",
+	"consumed_skill_ids",
+	"qualifier_skill_ids",
+	"snapshot_unit_base_attributes",
+	"timestamp",
+]
+
 ## 字段说明：记录新阶位，会参与成长规则判定、序列化和界面展示。
 var new_rank := 0
 ## 字段说明：保存已消耗技能标识列表，便于批量遍历、交叉查找和界面展示。
@@ -28,15 +36,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary) -> ProfessionPromotionRecord:
-	for field_name in [
-		"new_rank",
-		"consumed_skill_ids",
-		"qualifier_skill_ids",
-		"snapshot_unit_base_attributes",
-		"timestamp",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var consumed_skill_ids_variant: Variant = data["consumed_skill_ids"]
 	var qualifier_skill_ids_variant: Variant = data["qualifier_skill_ids"]
 	var snapshot_unit_base_attributes_variant: Variant = data["snapshot_unit_base_attributes"]
@@ -66,6 +67,15 @@ static func from_dict(data: Dictionary) -> ProfessionPromotionRecord:
 	record.snapshot_unit_base_attributes = snapshot_unit_base_attributes_variant.duplicate(true)
 	record.timestamp = int(timestamp_variant)
 	return record
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func _parse_string_name_field(value: Variant):

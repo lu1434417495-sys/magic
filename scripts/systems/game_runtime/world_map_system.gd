@@ -7,7 +7,6 @@ extends Control
 
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const WORLD_MAP_RUNTIME_PROXY_SCRIPT = preload("res://scripts/systems/game_runtime/world_map_runtime_proxy.gd")
-const RuntimeLogDock = preload("res://scripts/ui/runtime_log_dock.gd")
 const WORLD_MOVE_REPEAT_INTERVAL := 0.5
 const STARTUP_SCENE_SETTING := "application/run/main_scene"
 const BATTLE_LOADING_LABEL_TEXT := "LOADING..."
@@ -32,7 +31,7 @@ const LOG_DOCK_BATTLE_BOTTOM_MARGIN := 184.0
 @onready var map_viewport := $MapViewport as Control
 @onready var world_map_background := get_node_or_null("MapViewport/WorldMapBackground") as CanvasItem
 @onready var battle_map_panel: BattleMapPanel = $MapViewport/BattleMapPanel
-@onready var runtime_log_dock: RuntimeLogDock = %RuntimeLogDock
+@onready var runtime_log_dock = %RuntimeLogDock
 @onready var status_label := get_node_or_null("StatusPanel/StatusMargin/StatusLabel") as Label
 @onready var settlement_window = $SettlementWindow
 @onready var contract_board_service_modal = $ContractBoardServiceModal
@@ -76,6 +75,16 @@ func _ready() -> void:
 	_runtime = GAME_RUNTIME_FACADE_SCRIPT.new()
 	_runtime.setup(_game_session)
 	_runtime_proxy.setup(_runtime, Callable(self, "_render_from_runtime"))
+	battle_map_panel.set_battle_command_handlers(
+		Callable(_runtime_proxy, "preview_battle_command"),
+		Callable(_runtime_proxy, "issue_battle_command"),
+		Callable(_runtime_proxy, "get_active_battle_encounter_name")
+	)
+	battle_map_panel.set_party_member_state_resolver(Callable(_game_session, "get_party_member_state"))
+	battle_map_panel.set_content_def_providers(
+		Callable(_game_session, "get_skill_defs"),
+		Callable(_game_session, "get_item_defs")
+	)
 
 	resized.connect(_update_responsive_log_layout)
 	if runtime_log_dock != null:
@@ -152,7 +161,7 @@ func _update_responsive_log_layout() -> void:
 	var viewport_size := size
 	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
 		return
-	var design_panel_size := runtime_log_dock.get_design_panel_size()
+	var design_panel_size: Vector2 = runtime_log_dock.get_design_panel_size()
 	var right_margin := LOG_DOCK_DESIGN_RIGHT_MARGIN
 	var is_battle_active := _runtime_proxy != null and _runtime_proxy.is_battle_active()
 	var top_margin := LOG_DOCK_BATTLE_TOP_MARGIN if is_battle_active else LOG_DOCK_DESIGN_TOP_MARGIN

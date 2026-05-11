@@ -700,6 +700,4 @@ func _build_inventory_entry(item_id: StringName, quantity: int, storage_mode: St
 		entry["instance_id"] = String(ProgressionDataUtils.to_string_name(equipment_instance.instance_id))
 		entry["rarity"] = int(equipment_instance.rarity)
 		entry["current_durability"] = int(equipment_instance.current_durability)
-		entry["armor_wear_progress"] = float(equipment_instance.armor_wear_progress)
-		entry["weapon_wear_progress"] = float(equipment_instance.weapon_wear_progress)
 	return entry

@@ -11,6 +11,10 @@ const MORALITY: StringName = &"morality"
 const STANDARD_STATE_IDS := [
 	MORALITY,
 ]
+const TO_DICT_FIELDS: Array[String] = [
+	"morality",
+	"custom_states",
+]
 
 ## 字段说明：记录道德，会参与成长规则判定、序列化和界面展示。
 var morality := 0
@@ -46,12 +50,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	for field_name in [
-		"morality",
-		"custom_states",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var custom_states_variant: Variant = data["custom_states"]
 	if custom_states_variant is not Dictionary:
 		return null
@@ -65,6 +65,15 @@ static func from_dict(data: Dictionary):
 	state.morality = data["morality"]
 	state.custom_states = parsed_custom_states
 	return state
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func _parse_int_map(values: Dictionary):

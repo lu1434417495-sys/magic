@@ -32,7 +32,7 @@ func rebuild() -> void:
 
 
 func get_recipe_defs() -> Dictionary:
-	return _recipe_defs
+	return _recipe_defs.duplicate()
 
 
 func validate() -> Array[String]:

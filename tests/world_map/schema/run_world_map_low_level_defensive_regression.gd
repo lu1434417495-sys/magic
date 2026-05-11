@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_grid_system.gd")
 const WORLD_MAP_OCCUPANT_STATE_SCRIPT = preload("res://scripts/systems/world/world_map_occupant_state.gd")
 const WORLD_MAP_FOG_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_fog_system.gd")
 const VISION_SOURCE_DATA_SCRIPT = preload("res://scripts/utils/vision_source_data.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -117,12 +120,12 @@ func _test_fog_reveal_export_load_keeps_revealed_cells() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _property_list_has_name(instance: Object, property_name: String) -> bool:

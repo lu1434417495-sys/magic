@@ -394,27 +394,27 @@ slot_tag = "support"
 [sub_resource type="Resource" id="Resource_optional_supply"]
 script = ExtResource("4_weighted")
 facility_id = "supply_stall"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_workshop"]
 script = ExtResource("4_weighted")
 facility_id = "workshop"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_market"]
 script = ExtResource("4_weighted")
 facility_id = "market_square"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_library"]
 script = ExtResource("4_weighted")
 facility_id = "grand_library"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_command"]
 script = ExtResource("4_weighted")
 facility_id = "command_post"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_village"]
 script = ExtResource("2_settlement")

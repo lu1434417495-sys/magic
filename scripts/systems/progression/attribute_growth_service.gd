@@ -4,15 +4,12 @@
 class_name AttributeGrowthService
 extends RefCounted
 
+const ATTRIBUTE_GROWTH_CONTENT_RULES = preload("res://scripts/player/progression/attribute_growth_content_rules.gd")
+
 const ATTRIBUTE_PROGRESS_THRESHOLD := 100
 const BASE_ATTRIBUTE_PROGRESS_CONVERSION_CAP := 20
 
-const VALID_GROWTH_TIERS := {
-	&"basic": 60,
-	&"intermediate": 120,
-	&"advanced": 180,
-	&"ultimate": 240,
-}
+const VALID_GROWTH_TIERS := ATTRIBUTE_GROWTH_CONTENT_RULES.VALID_GROWTH_TIERS
 
 var _unit_progress: UnitProgress = null
 
@@ -22,15 +19,15 @@ func setup(unit_progress: UnitProgress) -> void:
 
 
 static func get_tier_budget(growth_tier: StringName) -> int:
-	return int(VALID_GROWTH_TIERS.get(growth_tier, 0))
+	return ATTRIBUTE_GROWTH_CONTENT_RULES.get_tier_budget(growth_tier)
 
 
 static func is_valid_growth_tier(growth_tier: StringName) -> bool:
-	return VALID_GROWTH_TIERS.has(growth_tier)
+	return ATTRIBUTE_GROWTH_CONTENT_RULES.is_valid_growth_tier(growth_tier)
 
 
 static func is_valid_attribute_id(attribute_id: StringName) -> bool:
-	return UnitBaseAttributes.BASE_ATTRIBUTE_IDS.has(attribute_id)
+	return ATTRIBUTE_GROWTH_CONTENT_RULES.is_valid_attribute_id(attribute_id)
 
 
 func apply_attribute_progress(attribute_id: StringName, amount: int, reason_text: String = "") -> Dictionary:

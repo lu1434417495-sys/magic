@@ -5,6 +5,24 @@ const ProgressionDataUtils = preload("res://scripts/player/progression/progressi
 const SAVE_DIRECTORY := "user://saves"
 const WORLD_MAP_SEED_KEY := "map_seed"
 const WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY := "next_equipment_instance_serial"
+const SAVE_PAYLOAD_REQUIRED_KEYS := [
+	"version",
+	"save_id",
+	"generation_config_path",
+	"world_state",
+	"party_state",
+	"meta",
+	"save_slot_meta",
+]
+const WORLD_STATE_REQUIRED_KEYS := [
+	"world_data",
+	"player_coord",
+	"player_faction_id",
+]
+const SAVE_PAYLOAD_META_REQUIRED_KEYS := [
+	"saved_at_unix_time",
+	"save_format",
+]
 const SAVE_META_REQUIRED_KEYS := [
 	"save_id",
 	"display_name",
@@ -24,6 +42,134 @@ const SAVE_INDEX_REQUIRED_KEYS := [
 	"world_size_cells",
 	"created_at_unix_time",
 	"updated_at_unix_time",
+]
+const MOUNTED_SUBMAP_REQUIRED_KEYS := [
+	"submap_id",
+	"display_name",
+	"generation_config_path",
+	"return_hint_text",
+	"is_generated",
+	"player_coord",
+	"world_data",
+]
+const WORLD_DATA_REQUIRED_KEYS := [
+	"map_seed",
+	"world_step",
+	"next_equipment_instance_serial",
+	"active_submap_id",
+	"submap_return_stack",
+	"settlements",
+	"world_events",
+	"encounter_anchors",
+	"mounted_submaps",
+]
+const WORLD_DATA_OPTIONAL_KEYS := [
+	"world_npcs",
+	"player_start_coord",
+	"player_start_settlement_id",
+	"player_start_settlement_name",
+	"fog_states",
+]
+const WORLDMAP_NPC_REQUIRED_KEYS := [
+	"entity_id",
+	"display_name",
+	"coord",
+	"kind",
+	"faction_id",
+	"vision_range",
+]
+const WORLD_EVENT_REQUIRED_KEYS := [
+	"event_id",
+	"display_name",
+	"world_coord",
+	"event_type",
+	"target_submap_id",
+	"discovery_condition_id",
+	"prompt_title",
+	"prompt_text",
+	"is_discovered",
+]
+const SUBMAP_RETURN_STACK_ENTRY_REQUIRED_KEYS := [
+	"map_id",
+	"coord",
+]
+const SETTLEMENT_REQUIRED_KEYS := [
+	"entity_id",
+	"template_id",
+	"settlement_id",
+	"display_name",
+	"tier",
+	"tier_name",
+	"faction_id",
+	"origin",
+	"footprint_size",
+	"facilities",
+	"service_npcs",
+	"available_services",
+	"is_player_start",
+	"settlement_state",
+]
+const SETTLEMENT_FACILITY_REQUIRED_KEYS := [
+	"template_id",
+	"facility_id",
+	"display_name",
+	"category",
+	"interaction_type",
+	"slot_id",
+	"slot_tag",
+	"local_coord",
+	"world_coord",
+	"settlement_id",
+	"service_npcs",
+]
+const SETTLEMENT_SERVICE_NPC_REQUIRED_KEYS := [
+	"template_id",
+	"npc_id",
+	"display_name",
+	"service_type",
+	"interaction_script_id",
+	"local_slot_id",
+	"facility_id",
+	"facility_template_id",
+	"facility_name",
+	"settlement_id",
+]
+const SETTLEMENT_SERVICE_REQUIRED_KEYS := [
+	"settlement_id",
+	"facility_id",
+	"facility_template_id",
+	"facility_name",
+	"npc_id",
+	"npc_template_id",
+	"npc_name",
+	"service_type",
+	"action_id",
+	"interaction_script_id",
+]
+const SETTLEMENT_STATE_REQUIRED_KEYS := [
+	"visited",
+	"reputation",
+	"active_conditions",
+	"cooldowns",
+	"shop_inventory_seed",
+	"shop_last_refresh_step",
+	"shop_states",
+]
+const SETTLEMENT_STATE_OPTIONAL_KEYS := [
+	"world_step",
+	"shop_feedback_text",
+]
+const SHOP_STATE_REQUIRED_KEYS := [
+	"shop_id",
+	"current_inventory",
+	"seed",
+	"last_refresh_step",
+]
+const SHOP_INVENTORY_ENTRY_REQUIRED_KEYS := [
+	"item_id",
+	"quantity",
+	"unit_price",
+	"sold_out",
 ]
 
 var _progression_serialization = null
@@ -101,9 +247,16 @@ func decode_payload(
 	payload: Dictionary,
 	generation_config_path: String,
 	generation_config,
-	_save_meta: Dictionary
+	save_meta: Dictionary
 ) -> Dictionary:
+	var normalized_requested_meta := normalize_save_meta(save_meta)
+	if normalized_requested_meta.is_empty():
+		return {"error": ERR_INVALID_DATA}
+	if String(normalized_requested_meta.get("generation_config_path", "")) != generation_config_path:
+		return {"error": ERR_INVALID_DATA}
 	var payload_data := restore_minimized_save_payload_strings(payload)
+	if not _has_exact_dictionary_keys(payload_data, SAVE_PAYLOAD_REQUIRED_KEYS):
+		return {"error": ERR_INVALID_DATA}
 	if not payload_data.has("version") or payload_data.get("version") is not int:
 		return {"error": ERR_INVALID_DATA}
 	var save_version := int(payload_data.get("version"))
@@ -114,6 +267,21 @@ func decode_payload(
 	if typeof(world_state_data) != TYPE_DICTIONARY:
 		return {"error": ERR_INVALID_DATA}
 	var world_state: Dictionary = world_state_data
+	if not _has_exact_dictionary_keys(world_state, WORLD_STATE_REQUIRED_KEYS):
+		return {"error": ERR_INVALID_DATA}
+
+	var payload_meta_data = payload_data.get("meta", {})
+	if typeof(payload_meta_data) != TYPE_DICTIONARY:
+		return {"error": ERR_INVALID_DATA}
+	var payload_meta: Dictionary = payload_meta_data
+	if not _has_exact_dictionary_keys(payload_meta, SAVE_PAYLOAD_META_REQUIRED_KEYS):
+		return {"error": ERR_INVALID_DATA}
+	if payload_meta.get("saved_at_unix_time") is not int:
+		return {"error": ERR_INVALID_DATA}
+	if payload_meta.get("save_format") is not String:
+		return {"error": ERR_INVALID_DATA}
+	if String(payload_meta.get("save_format", "")) != "multi_save_total_save":
+		return {"error": ERR_INVALID_DATA}
 
 	var world_data_raw = world_state.get("world_data", {})
 	if typeof(world_data_raw) != TYPE_DICTIONARY:
@@ -126,8 +294,10 @@ func decode_payload(
 
 	if not payload_data.has("save_id") or payload_data.get("save_id") is not String:
 		return {"error": ERR_INVALID_DATA}
-	var payload_save_id := String(payload_data.get("save_id", "")).strip_edges()
-	if payload_save_id.is_empty():
+	var payload_save_id := String(payload_data.get("save_id", ""))
+	if not is_valid_save_id_token(payload_save_id):
+		return {"error": ERR_INVALID_DATA}
+	if payload_save_id != String(normalized_requested_meta.get("save_id", "")):
 		return {"error": ERR_INVALID_DATA}
 	if not payload_data.has("generation_config_path") or payload_data.get("generation_config_path") is not String:
 		return {"error": ERR_INVALID_DATA}
@@ -141,9 +311,13 @@ func decode_payload(
 	var normalized_meta := normalize_save_meta(slot_meta_raw)
 	if normalized_meta.is_empty():
 		return {"error": ERR_INVALID_DATA}
-	if String(normalized_meta.get("save_id", "")).strip_edges() != payload_save_id:
+	if String(normalized_meta.get("save_id", "")) != payload_save_id:
 		return {"error": ERR_INVALID_DATA}
-	if String(normalized_meta.get("generation_config_path", "")).strip_edges() != payload_generation_config_path:
+	if String(normalized_meta.get("save_id", "")) != String(normalized_requested_meta.get("save_id", "")):
+		return {"error": ERR_INVALID_DATA}
+	if String(normalized_meta.get("generation_config_path", "")) != payload_generation_config_path:
+		return {"error": ERR_INVALID_DATA}
+	if String(normalized_meta.get("generation_config_path", "")) != String(normalized_requested_meta.get("generation_config_path", "")):
 		return {"error": ERR_INVALID_DATA}
 	var player_coord_variant: Variant = world_state.get("player_coord", null)
 	if not _is_supported_vector2i_value(player_coord_variant):
@@ -199,8 +373,14 @@ func extract_save_meta_from_payload(payload: Dictionary) -> Dictionary:
 	var payload_data := restore_minimized_save_payload_strings(payload)
 	if payload_data.is_empty():
 		return {}
+	if not _has_exact_dictionary_keys(payload_data, SAVE_PAYLOAD_REQUIRED_KEYS):
+		return {}
 
 	if not payload_data.has("save_id") or payload_data.get("save_id") is not String:
+		return {}
+	if not payload_data.has("version") or payload_data.get("version") is not int:
+		return {}
+	if int(payload_data.get("version", -1)) != _save_version:
 		return {}
 	if not payload_data.has("generation_config_path") or payload_data.get("generation_config_path") is not String:
 		return {}
@@ -223,9 +403,8 @@ func extract_save_meta_from_payload(payload: Dictionary) -> Dictionary:
 
 
 func normalize_save_meta(raw_meta: Dictionary) -> Dictionary:
-	for required_key in SAVE_META_REQUIRED_KEYS:
-		if not raw_meta.has(required_key):
-			return {}
+	if not _has_exact_dictionary_keys(raw_meta, SAVE_META_REQUIRED_KEYS):
+		return {}
 	for string_key in [
 		"save_id",
 		"display_name",
@@ -239,8 +418,8 @@ func normalize_save_meta(raw_meta: Dictionary) -> Dictionary:
 		return {}
 	if raw_meta.get("updated_at_unix_time") is not int:
 		return {}
-	var save_id := String(raw_meta.get("save_id", "")).strip_edges()
-	if save_id.is_empty():
+	var save_id := String(raw_meta.get("save_id", ""))
+	if not is_valid_save_id_token(save_id):
 		return {}
 
 	var generation_config_path := String(raw_meta.get("generation_config_path", "")).strip_edges()
@@ -334,12 +513,64 @@ func get_world_data_validation_error(world_data: Dictionary) -> String:
 	var world_step_error := get_world_data_step_validation_error(world_data)
 	if not world_step_error.is_empty():
 		return world_step_error
-	return get_equipment_instance_serial_validation_error(world_data)
+	var equipment_serial_error := get_equipment_instance_serial_validation_error(world_data)
+	if not equipment_serial_error.is_empty():
+		return equipment_serial_error
+	var schema_error := get_world_data_schema_validation_error(world_data)
+	if not schema_error.is_empty():
+		return schema_error
+	var nested_schema_error := get_world_data_nested_schema_validation_error(world_data)
+	if not nested_schema_error.is_empty():
+		return nested_schema_error
+	return get_mounted_submaps_validation_error(world_data.get("mounted_submaps", {}))
+
+
+func get_world_data_schema_validation_error(world_data: Dictionary) -> String:
+	if not _has_required_and_allowed_dictionary_keys(world_data, WORLD_DATA_REQUIRED_KEYS, WORLD_DATA_OPTIONAL_KEYS):
+		return "Corrupt save world_data: fields must match current schema."
+	if world_data.get("active_submap_id") is not String and world_data.get("active_submap_id") is not StringName:
+		return "Corrupt save world_data: active_submap_id must be a String."
+	for array_field in ["submap_return_stack", "settlements", "world_events", "encounter_anchors"]:
+		if world_data.get(array_field) is not Array:
+			return "Corrupt save world_data: %s must be an Array." % array_field
+	if world_data.has("world_npcs") and world_data.get("world_npcs") is not Array:
+		return "Corrupt save world_data: world_npcs must be an Array."
+	if world_data.get("mounted_submaps") is not Dictionary:
+		return "Corrupt save world_data: mounted_submaps must be a Dictionary."
+	if world_data.has("player_start_coord") and not _is_supported_vector2i_value(world_data.get("player_start_coord")):
+		return "Corrupt save world_data: player_start_coord must be a Vector2i payload."
+	for optional_string_field in ["player_start_settlement_id", "player_start_settlement_name"]:
+		if world_data.has(optional_string_field) and world_data.get(optional_string_field) is not String and world_data.get(optional_string_field) is not StringName:
+			return "Corrupt save world_data: %s must be a String." % optional_string_field
+	if world_data.has("fog_states") and world_data.get("fog_states") is not Dictionary:
+		return "Corrupt save world_data: fog_states must be a Dictionary."
+	return ""
+
+
+func get_world_data_nested_schema_validation_error(world_data: Dictionary) -> String:
+	var return_stack_error := _get_submap_return_stack_validation_error(world_data.get("submap_return_stack", []))
+	if not return_stack_error.is_empty():
+		return return_stack_error
+	var settlement_error := _get_settlements_validation_error(world_data.get("settlements", []))
+	if not settlement_error.is_empty():
+		return settlement_error
+	var event_error := _get_world_events_validation_error(world_data.get("world_events", []))
+	if not event_error.is_empty():
+		return event_error
+	var npc_error := _get_world_npcs_validation_error(world_data.get("world_npcs", []))
+	if not npc_error.is_empty():
+		return npc_error
+	return _get_encounter_anchors_validation_error(world_data.get("encounter_anchors", []))
 
 
 func get_world_data_seed_validation_error(world_data: Dictionary) -> String:
 	if not world_data.has(WORLD_MAP_SEED_KEY):
 		return "Corrupt save world_data: missing required field '%s'." % WORLD_MAP_SEED_KEY
+	if world_data.get(WORLD_MAP_SEED_KEY) is not int:
+		return "Corrupt save world_data: %s must be an int, got %s." % [
+			WORLD_MAP_SEED_KEY,
+			type_string(typeof(world_data.get(WORLD_MAP_SEED_KEY))),
+		]
 	var seed := int(world_data.get(WORLD_MAP_SEED_KEY, 0))
 	if seed < 1:
 		return "Corrupt save world_data: %s must be >= 1, got %s." % [
@@ -363,6 +594,11 @@ func get_world_data_step_validation_error(world_data: Dictionary) -> String:
 func get_equipment_instance_serial_validation_error(world_data: Dictionary) -> String:
 	if not world_data.has(WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY):
 		return "Corrupt save world_data: missing required field '%s'." % WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY
+	if world_data.get(WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY) is not int:
+		return "Corrupt save world_data: %s must be an int, got %s." % [
+			WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY,
+			type_string(typeof(world_data.get(WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY))),
+		]
 	var serial := int(world_data.get(WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY, 0))
 	if serial < 1:
 		return "Corrupt save world_data: %s must be >= 1, got %s." % [
@@ -396,6 +632,328 @@ func get_mounted_submap_world_data_validation_error(
 	if validation_error.is_empty():
 		return ""
 	return _format_mounted_submap_world_data_error(submap_id, validation_error)
+
+
+func get_mounted_submaps_validation_error(submaps_variant: Variant) -> String:
+	if submaps_variant is not Dictionary:
+		return "Corrupt save world_data: mounted_submaps must be a Dictionary."
+	var submaps: Dictionary = submaps_variant
+	for submap_key in submaps.keys():
+		var entry_variant = submaps.get(submap_key, {})
+		if entry_variant is not Dictionary:
+			return "Corrupt save mounted_submaps[%s]: expected Dictionary." % String(submap_key)
+		var entry: Dictionary = entry_variant
+		if not _has_exact_dictionary_keys(entry, MOUNTED_SUBMAP_REQUIRED_KEYS):
+			return "Corrupt save mounted_submaps[%s]: fields must exactly match current schema." % String(submap_key)
+		var submap_id := String(entry.get("submap_id", String(submap_key)))
+		if submap_id.is_empty():
+			return "Corrupt save mounted_submaps[%s]: submap_id is required." % String(submap_key)
+		if entry.get("display_name") is not String:
+			return "Corrupt save mounted_submaps[%s]: display_name must be a String." % String(submap_key)
+		if entry.get("generation_config_path") is not String:
+			return "Corrupt save mounted_submaps[%s]: generation_config_path must be a String." % String(submap_key)
+		if entry.get("return_hint_text") is not String:
+			return "Corrupt save mounted_submaps[%s]: return_hint_text must be a String." % String(submap_key)
+		if entry.get("is_generated") is not bool:
+			return "Corrupt save mounted_submaps[%s]: is_generated must be a bool." % String(submap_key)
+		if not _is_supported_vector2i_value(entry.get("player_coord", null)):
+			return "Corrupt save mounted_submaps[%s]: player_coord must be a Vector2i payload." % String(submap_key)
+		var validation_error := get_mounted_submap_world_data_validation_error(
+			submap_id,
+			bool(entry.get("is_generated", false)),
+			entry.get("world_data", null),
+			entry.has("world_data")
+		)
+		if not validation_error.is_empty():
+			return validation_error
+	return ""
+
+
+func _get_submap_return_stack_validation_error(stack_variant: Variant) -> String:
+	if stack_variant is not Array:
+		return "Corrupt save world_data.submap_return_stack: expected Array."
+	var stack: Array = stack_variant
+	for index in range(stack.size()):
+		var entry_variant = stack[index]
+		if entry_variant is not Dictionary:
+			return "Corrupt save world_data.submap_return_stack[%d]: expected Dictionary." % index
+		var entry: Dictionary = entry_variant
+		if not _has_exact_dictionary_keys(entry, SUBMAP_RETURN_STACK_ENTRY_REQUIRED_KEYS):
+			return "Corrupt save world_data.submap_return_stack[%d]: fields must exactly match current schema." % index
+		if entry.get("map_id") is not String and entry.get("map_id") is not StringName:
+			return "Corrupt save world_data.submap_return_stack[%d]: map_id must be a String." % index
+		if not _is_supported_vector2i_value(entry.get("coord", null)):
+			return "Corrupt save world_data.submap_return_stack[%d]: coord must be a Vector2i payload." % index
+	return ""
+
+
+func _get_world_events_validation_error(world_events_variant: Variant) -> String:
+	if world_events_variant is not Array:
+		return "Corrupt save world_data.world_events: expected Array."
+	var world_events: Array = world_events_variant
+	for index in range(world_events.size()):
+		var event_variant = world_events[index]
+		if event_variant is not Dictionary:
+			return "Corrupt save world_data.world_events[%d]: expected Dictionary." % index
+		var event_data: Dictionary = event_variant
+		if not _has_exact_dictionary_keys(event_data, WORLD_EVENT_REQUIRED_KEYS):
+			return "Corrupt save world_data.world_events[%d]: fields must exactly match current schema." % index
+		for string_field in [
+			"event_id",
+			"display_name",
+			"event_type",
+			"target_submap_id",
+			"discovery_condition_id",
+			"prompt_title",
+			"prompt_text",
+		]:
+			if event_data.get(string_field) is not String and event_data.get(string_field) is not StringName:
+				return "Corrupt save world_data.world_events[%d]: %s must be a String." % [index, string_field]
+		if not _is_supported_vector2i_value(event_data.get("world_coord", null)):
+			return "Corrupt save world_data.world_events[%d]: world_coord must be a Vector2i payload." % index
+		if event_data.get("is_discovered") is not bool:
+			return "Corrupt save world_data.world_events[%d]: is_discovered must be a bool." % index
+	return ""
+
+
+func _get_world_npcs_validation_error(world_npcs_variant: Variant) -> String:
+	if world_npcs_variant is not Array:
+		return "Corrupt save world_data.world_npcs: expected Array."
+	var world_npcs: Array = world_npcs_variant
+	for index in range(world_npcs.size()):
+		var npc_variant = world_npcs[index]
+		if npc_variant is not Dictionary:
+			return "Corrupt save world_data.world_npcs[%d]: expected Dictionary." % index
+		var npc_data: Dictionary = npc_variant
+		if not _has_exact_dictionary_keys(npc_data, WORLDMAP_NPC_REQUIRED_KEYS):
+			return "Corrupt save world_data.world_npcs[%d]: fields must exactly match current schema." % index
+		for string_field in ["entity_id", "display_name", "kind", "faction_id"]:
+			if npc_data.get(string_field) is not String and npc_data.get(string_field) is not StringName:
+				return "Corrupt save world_data.world_npcs[%d]: %s must be a String." % [index, string_field]
+		if not _is_supported_vector2i_value(npc_data.get("coord", null)):
+			return "Corrupt save world_data.world_npcs[%d]: coord must be a Vector2i payload." % index
+		if npc_data.get("vision_range") is not int or int(npc_data.get("vision_range", 0)) < 0:
+			return "Corrupt save world_data.world_npcs[%d]: vision_range must be a non-negative int." % index
+	return ""
+
+
+func _get_encounter_anchors_validation_error(encounter_anchors_variant: Variant) -> String:
+	if encounter_anchors_variant is not Array:
+		return "Corrupt save world_data.encounter_anchors: expected Array."
+	var encounter_anchors: Array = encounter_anchors_variant
+	for index in range(encounter_anchors.size()):
+		var encounter_variant = encounter_anchors[index]
+		if encounter_variant is RefCounted and _encounter_anchor_script != null and encounter_variant.get_script() == _encounter_anchor_script:
+			continue
+		if encounter_variant is not Dictionary:
+			return "Corrupt save world_data.encounter_anchors[%d]: expected Dictionary or EncounterAnchorData." % index
+		if _deserialize_encounter_anchor(encounter_variant) == null:
+			return "Corrupt save world_data.encounter_anchors[%d]: fields must exactly match current schema." % index
+	return ""
+
+
+func _get_settlements_validation_error(settlements_variant: Variant) -> String:
+	if settlements_variant is not Array:
+		return "Corrupt save world_data.settlements: expected Array."
+	var settlements: Array = settlements_variant
+	for index in range(settlements.size()):
+		var settlement_variant = settlements[index]
+		if settlement_variant is not Dictionary:
+			return "Corrupt save world_data.settlements[%d]: expected Dictionary." % index
+		var settlement_data: Dictionary = settlement_variant
+		if not _has_exact_dictionary_keys(settlement_data, SETTLEMENT_REQUIRED_KEYS):
+			return "Corrupt save world_data.settlements[%d]: fields must exactly match current schema." % index
+		for string_field in ["entity_id", "template_id", "settlement_id", "display_name", "tier_name", "faction_id"]:
+			if settlement_data.get(string_field) is not String and settlement_data.get(string_field) is not StringName:
+				return "Corrupt save world_data.settlements[%d]: %s must be a String." % [index, string_field]
+		if settlement_data.get("tier") is not int or int(settlement_data.get("tier", 0)) < 0:
+			return "Corrupt save world_data.settlements[%d]: tier must be a non-negative int." % index
+		for coord_field in ["origin", "footprint_size"]:
+			if not _is_supported_vector2i_value(settlement_data.get(coord_field, null)):
+				return "Corrupt save world_data.settlements[%d]: %s must be a Vector2i payload." % [index, coord_field]
+		if settlement_data.get("facilities") is not Array:
+			return "Corrupt save world_data.settlements[%d]: facilities must be an Array." % index
+		if settlement_data.get("service_npcs") is not Array:
+			return "Corrupt save world_data.settlements[%d]: service_npcs must be an Array." % index
+		if settlement_data.get("available_services") is not Array:
+			return "Corrupt save world_data.settlements[%d]: available_services must be an Array." % index
+		if settlement_data.get("is_player_start") is not bool:
+			return "Corrupt save world_data.settlements[%d]: is_player_start must be a bool." % index
+		if settlement_data.get("settlement_state") is not Dictionary:
+			return "Corrupt save world_data.settlements[%d]: settlement_state must be a Dictionary." % index
+		var facility_error := _get_settlement_facilities_validation_error(settlement_data.get("facilities", []), "world_data.settlements[%d].facilities" % index)
+		if not facility_error.is_empty():
+			return facility_error
+		var npc_error := _get_settlement_service_npcs_validation_error(settlement_data.get("service_npcs", []), "world_data.settlements[%d].service_npcs" % index)
+		if not npc_error.is_empty():
+			return npc_error
+		var service_error := _get_settlement_services_validation_error(settlement_data.get("available_services", []), "world_data.settlements[%d].available_services" % index)
+		if not service_error.is_empty():
+			return service_error
+		var state_error := _get_settlement_state_validation_error(settlement_data.get("settlement_state", {}), "world_data.settlements[%d].settlement_state" % index)
+		if not state_error.is_empty():
+			return state_error
+	return ""
+
+
+func _get_settlement_facilities_validation_error(facilities_variant: Variant, context_path: String) -> String:
+	if facilities_variant is not Array:
+		return "Corrupt save %s: expected Array." % context_path
+	var facilities: Array = facilities_variant
+	for index in range(facilities.size()):
+		var facility_variant = facilities[index]
+		if facility_variant is not Dictionary:
+			return "Corrupt save %s[%d]: expected Dictionary." % [context_path, index]
+		var facility_data: Dictionary = facility_variant
+		if not _has_exact_dictionary_keys(facility_data, SETTLEMENT_FACILITY_REQUIRED_KEYS):
+			return "Corrupt save %s[%d]: fields must exactly match current schema." % [context_path, index]
+		for string_field in [
+			"template_id",
+			"facility_id",
+			"display_name",
+			"category",
+			"interaction_type",
+			"slot_id",
+			"slot_tag",
+			"settlement_id",
+		]:
+			if facility_data.get(string_field) is not String and facility_data.get(string_field) is not StringName:
+				return "Corrupt save %s[%d]: %s must be a String." % [context_path, index, string_field]
+		for coord_field in ["local_coord", "world_coord"]:
+			if not _is_supported_vector2i_value(facility_data.get(coord_field, null)):
+				return "Corrupt save %s[%d]: %s must be a Vector2i payload." % [context_path, index, coord_field]
+		var npc_error := _get_settlement_service_npcs_validation_error(facility_data.get("service_npcs", []), "%s[%d].service_npcs" % [context_path, index])
+		if not npc_error.is_empty():
+			return npc_error
+	return ""
+
+
+func _get_settlement_service_npcs_validation_error(service_npcs_variant: Variant, context_path: String) -> String:
+	if service_npcs_variant is not Array:
+		return "Corrupt save %s: expected Array." % context_path
+	var service_npcs: Array = service_npcs_variant
+	for index in range(service_npcs.size()):
+		var npc_variant = service_npcs[index]
+		if npc_variant is not Dictionary:
+			return "Corrupt save %s[%d]: expected Dictionary." % [context_path, index]
+		var npc_data: Dictionary = npc_variant
+		if not _has_exact_dictionary_keys(npc_data, SETTLEMENT_SERVICE_NPC_REQUIRED_KEYS):
+			return "Corrupt save %s[%d]: fields must exactly match current schema." % [context_path, index]
+		for string_field in SETTLEMENT_SERVICE_NPC_REQUIRED_KEYS:
+			if npc_data.get(string_field) is not String and npc_data.get(string_field) is not StringName:
+				return "Corrupt save %s[%d]: %s must be a String." % [context_path, index, string_field]
+	return ""
+
+
+func _get_settlement_services_validation_error(services_variant: Variant, context_path: String) -> String:
+	if services_variant is not Array:
+		return "Corrupt save %s: expected Array." % context_path
+	var services: Array = services_variant
+	for index in range(services.size()):
+		var service_variant = services[index]
+		if service_variant is not Dictionary:
+			return "Corrupt save %s[%d]: expected Dictionary." % [context_path, index]
+		var service_data: Dictionary = service_variant
+		if not _has_exact_dictionary_keys(service_data, SETTLEMENT_SERVICE_REQUIRED_KEYS):
+			return "Corrupt save %s[%d]: fields must exactly match current schema." % [context_path, index]
+		for string_field in SETTLEMENT_SERVICE_REQUIRED_KEYS:
+			if service_data.get(string_field) is not String and service_data.get(string_field) is not StringName:
+				return "Corrupt save %s[%d]: %s must be a String." % [context_path, index, string_field]
+	return ""
+
+
+func _get_settlement_state_validation_error(state_variant: Variant, context_path: String) -> String:
+	if state_variant is not Dictionary:
+		return "Corrupt save %s: expected Dictionary." % context_path
+	var state_data: Dictionary = state_variant
+	if not _has_required_and_allowed_dictionary_keys(state_data, SETTLEMENT_STATE_REQUIRED_KEYS, SETTLEMENT_STATE_OPTIONAL_KEYS):
+		return "Corrupt save %s: fields must match current schema." % context_path
+	if state_data.get("visited") is not bool:
+		return "Corrupt save %s: visited must be a bool." % context_path
+	if state_data.get("reputation") is not int:
+		return "Corrupt save %s: reputation must be an int." % context_path
+	if state_data.get("active_conditions") is not Array:
+		return "Corrupt save %s: active_conditions must be an Array." % context_path
+	if state_data.get("cooldowns") is not Dictionary:
+		return "Corrupt save %s: cooldowns must be a Dictionary." % context_path
+	if state_data.get("shop_inventory_seed") is not int or int(state_data.get("shop_inventory_seed", 0)) < 0:
+		return "Corrupt save %s: shop_inventory_seed must be a non-negative int." % context_path
+	if state_data.get("shop_last_refresh_step") is not int or int(state_data.get("shop_last_refresh_step", 0)) < 0:
+		return "Corrupt save %s: shop_last_refresh_step must be a non-negative int." % context_path
+	if state_data.get("shop_states") is not Dictionary:
+		return "Corrupt save %s: shop_states must be a Dictionary." % context_path
+	if state_data.has("world_step") and (state_data.get("world_step") is not int or int(state_data.get("world_step", 0)) < 0):
+		return "Corrupt save %s: world_step must be a non-negative int." % context_path
+	if state_data.has("shop_feedback_text") and state_data.get("shop_feedback_text") is not String:
+		return "Corrupt save %s: shop_feedback_text must be a String." % context_path
+	for value in state_data.get("active_conditions", []):
+		if value is not String and value is not StringName:
+			return "Corrupt save %s: active_conditions values must be Strings." % context_path
+	var cooldown_error := _get_int_dictionary_validation_error(state_data.get("cooldowns", {}), "%s.cooldowns" % context_path)
+	if not cooldown_error.is_empty():
+		return cooldown_error
+	return _get_shop_states_validation_error(state_data.get("shop_states", {}), "%s.shop_states" % context_path)
+
+
+func _get_shop_states_validation_error(shop_states_variant: Variant, context_path: String) -> String:
+	if shop_states_variant is not Dictionary:
+		return "Corrupt save %s: expected Dictionary." % context_path
+	var shop_states: Dictionary = shop_states_variant
+	for shop_key in shop_states.keys():
+		var shop_id := String(shop_key)
+		var state_variant = shop_states.get(shop_key, {})
+		if state_variant is not Dictionary:
+			return "Corrupt save %s[%s]: expected Dictionary." % [context_path, shop_id]
+		var shop_state: Dictionary = state_variant
+		if not _has_exact_dictionary_keys(shop_state, SHOP_STATE_REQUIRED_KEYS):
+			return "Corrupt save %s[%s]: fields must exactly match current schema." % [context_path, shop_id]
+		if shop_state.get("shop_id") is not String and shop_state.get("shop_id") is not StringName:
+			return "Corrupt save %s[%s]: shop_id must be a String." % [context_path, shop_id]
+		if shop_state.get("current_inventory") is not Array:
+			return "Corrupt save %s[%s]: current_inventory must be an Array." % [context_path, shop_id]
+		if shop_state.get("seed") is not int or int(shop_state.get("seed", 0)) < 0:
+			return "Corrupt save %s[%s]: seed must be a non-negative int." % [context_path, shop_id]
+		if shop_state.get("last_refresh_step") is not int or int(shop_state.get("last_refresh_step", 0)) < 0:
+			return "Corrupt save %s[%s]: last_refresh_step must be a non-negative int." % [context_path, shop_id]
+		var inventory_error := _get_shop_inventory_validation_error(shop_state.get("current_inventory", []), "%s[%s].current_inventory" % [context_path, shop_id])
+		if not inventory_error.is_empty():
+			return inventory_error
+	return ""
+
+
+func _get_shop_inventory_validation_error(inventory_variant: Variant, context_path: String) -> String:
+	if inventory_variant is not Array:
+		return "Corrupt save %s: expected Array." % context_path
+	var inventory: Array = inventory_variant
+	for index in range(inventory.size()):
+		var entry_variant = inventory[index]
+		if entry_variant is not Dictionary:
+			return "Corrupt save %s[%d]: expected Dictionary." % [context_path, index]
+		var entry_data: Dictionary = entry_variant
+		if not _has_exact_dictionary_keys(entry_data, SHOP_INVENTORY_ENTRY_REQUIRED_KEYS):
+			return "Corrupt save %s[%d]: fields must exactly match current schema." % [context_path, index]
+		if entry_data.get("item_id") is not String and entry_data.get("item_id") is not StringName:
+			return "Corrupt save %s[%d]: item_id must be a String." % [context_path, index]
+		if entry_data.get("quantity") is not int or int(entry_data.get("quantity", 0)) < 0:
+			return "Corrupt save %s[%d]: quantity must be a non-negative int." % [context_path, index]
+		if entry_data.get("unit_price") is not int or int(entry_data.get("unit_price", 0)) < 0:
+			return "Corrupt save %s[%d]: unit_price must be a non-negative int." % [context_path, index]
+		if entry_data.get("sold_out") is not bool:
+			return "Corrupt save %s[%d]: sold_out must be a bool." % [context_path, index]
+	return ""
+
+
+func _get_int_dictionary_validation_error(values_variant: Variant, context_path: String) -> String:
+	if values_variant is not Dictionary:
+		return "Corrupt save %s: expected Dictionary." % context_path
+	var values: Dictionary = values_variant
+	for key in values.keys():
+		var key_type := typeof(key)
+		if key_type != TYPE_STRING and key_type != TYPE_STRING_NAME:
+			return "Corrupt save %s: keys must be Strings." % context_path
+		if values.get(key) is not int:
+			return "Corrupt save %s[%s]: value must be an int." % [context_path, String(key)]
+	return ""
 
 
 func normalize_party_state(party_state):
@@ -493,7 +1051,8 @@ func normalize_save_index_entries(raw_entries: Array) -> Array[Dictionary]:
 		var entry := normalize_save_meta(deserialize_save_index_entry(raw_entry))
 		if entry.is_empty():
 			continue
-		if not FileAccess.file_exists(_build_save_file_path(String(entry.get("save_id", "")))):
+		var save_path := _build_save_file_path(String(entry.get("save_id", "")))
+		if save_path.is_empty() or not FileAccess.file_exists(save_path):
 			continue
 		entries.append(entry)
 	entries.sort_custom(sort_save_meta_newest_first)
@@ -668,12 +1227,7 @@ func _is_supported_vector2i_value(value: Variant) -> bool:
 
 
 func is_save_index_integer_value(value: Variant) -> bool:
-	if value is int:
-		return true
-	if value is float:
-		var float_value := float(value)
-		return float_value == floor(float_value)
-	return false
+	return value is int
 
 
 func sort_save_meta_newest_first(a: Dictionary, b: Dictionary) -> bool:
@@ -689,7 +1243,48 @@ func sort_save_meta_newest_first(a: Dictionary, b: Dictionary) -> bool:
 
 
 func _build_save_file_path(save_id: String) -> String:
+	if not is_valid_save_id_token(save_id):
+		return ""
 	return "%s/%s.dat" % [SAVE_DIRECTORY, save_id]
+
+
+func is_valid_save_id_token(save_id: String) -> bool:
+	if save_id.is_empty():
+		return false
+	if save_id != save_id.strip_edges():
+		return false
+	if save_id.contains("/") or save_id.contains("\\"):
+		return false
+	if save_id == "." or save_id == ".." or save_id.contains(".."):
+		return false
+	return true
+
+
+func _has_exact_dictionary_keys(data: Dictionary, required_keys: Array) -> bool:
+	if data.size() != required_keys.size():
+		return false
+	for required_key in required_keys:
+		if not data.has(required_key):
+			return false
+	return true
+
+
+func _has_required_and_allowed_dictionary_keys(data: Dictionary, required_keys: Array, optional_keys: Array = []) -> bool:
+	for required_key in required_keys:
+		if not data.has(required_key):
+			return false
+	var allowed_keys: Dictionary = {}
+	for required_key in required_keys:
+		allowed_keys[String(required_key)] = true
+	for optional_key in optional_keys:
+		allowed_keys[String(optional_key)] = true
+	for raw_key in data.keys():
+		var key_type := typeof(raw_key)
+		if key_type != TYPE_STRING and key_type != TYPE_STRING_NAME:
+			return false
+		if not allowed_keys.has(String(raw_key)):
+			return false
+	return true
 
 
 func _get_generation_player_start_coord(generation_config) -> Vector2i:
@@ -958,7 +1553,7 @@ func _normalize_settlement_services(services_variant: Variant) -> Array[Dictiona
 
 func _normalize_settlement_state(state_variant: Variant) -> Dictionary:
 	var state_data: Dictionary = state_variant.duplicate(true) if state_variant is Dictionary else {}
-	return {
+	var normalized_state := {
 		"visited": bool(state_data.get("visited", false)),
 		"reputation": clampi(int(state_data.get("reputation", 0)), -100, 100),
 		"active_conditions": _normalize_string_array(state_data.get("active_conditions", [])),
@@ -967,6 +1562,11 @@ func _normalize_settlement_state(state_variant: Variant) -> Dictionary:
 		"shop_last_refresh_step": maxi(int(state_data.get("shop_last_refresh_step", 0)), 0),
 		"shop_states": _normalize_shop_states(state_data.get("shop_states", {})),
 	}
+	if state_data.has("world_step"):
+		normalized_state["world_step"] = maxi(int(state_data.get("world_step", 0)), 0)
+	if state_data.has("shop_feedback_text"):
+		normalized_state["shop_feedback_text"] = String(state_data.get("shop_feedback_text", ""))
+	return normalized_state
 
 
 func _normalize_shop_states(shop_states_variant: Variant) -> Dictionary:

@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_RUNTIME_REWARD_FLOW_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_reward_flow_handler.gd")
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -486,10 +489,10 @@ class _FakeRuntime extends RefCounted:
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

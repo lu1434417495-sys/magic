@@ -7,6 +7,13 @@ extends RefCounted
 
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 const SKILL_MASTERY_ENTRY_TYPE: StringName = &"skill_mastery"
+const TO_DICT_FIELDS: Array[String] = [
+	"entry_type",
+	"target_id",
+	"target_label",
+	"amount",
+	"reason_text",
+]
 
 ## 字段说明：记录条目类型，用于区分不同规则、资源类别或行为分支。
 var entry_type: StringName = &""
@@ -35,15 +42,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	for field_name in [
-		"entry_type",
-		"target_id",
-		"target_label",
-		"amount",
-		"reason_text",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var entry_type = _parse_string_name_field(data["entry_type"], false)
 	var target_id = _parse_string_name_field(data["target_id"], false)
 	if entry_type == null or target_id == null:
@@ -71,6 +71,15 @@ static func _parse_string_name_field(value: Variant, allow_empty: bool):
 	if parsed_value == &"" and not allow_empty:
 		return null
 	return parsed_value
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func from_variant(entry_variant):

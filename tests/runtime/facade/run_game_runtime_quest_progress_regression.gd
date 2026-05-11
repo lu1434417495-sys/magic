@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
@@ -11,7 +13,8 @@ const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_a
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -40,10 +43,10 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	_inject_item_reward_quest_defs(game_session)
 	_inject_submit_item_quest_defs(game_session)
 	_inject_string_key_only_quest_def(game_session)
+	_inject_pending_reward_quest_def(game_session, game_session.get_party_state().leader_member_id)
 
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
-	_inject_pending_reward_quest_def(game_session, facade.get_party_state().leader_member_id)
 
 	var accept_result := facade.command_accept_quest(&"contract_manual_drill")
 	_assert_true(bool(accept_result.get("ok", false)), "quest accept 命令应成功。")
@@ -221,16 +224,19 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	overflow_quest.mark_accepted(25)
 	overflow_quest.mark_completed(29)
 	facade.get_party_state().set_claimable_quest_state(overflow_quest)
+	_force_party_storage_capacity(facade.get_party_state(), 1)
 	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
 	var warehouse_capacity := runtime_warehouse_service.get_total_capacity()
-	runtime_warehouse_service.add_item(&"bronze_sword", warehouse_capacity)
-	var bronze_sword_count_before_overflow_claim := runtime_warehouse_service.count_item(&"bronze_sword")
+	runtime_warehouse_service.add_item(&"healing_herb", warehouse_capacity)
+	var filler_count_before_overflow_claim := runtime_warehouse_service.count_item(&"healing_herb")
 	var overflow_claim_result := facade.command_claim_quest(&"contract_reward_overflow")
 	_assert_true(not bool(overflow_claim_result.get("ok", true)), "容量不足时 item reward claim 应正式失败。")
 	_assert_eq(String(overflow_claim_result.get("message", "")), "共享仓库空间不足，领取任务《仓储超额》奖励会溢出，当前无法领取。", "容量不足时应返回明确 overflow 反馈。")
 	_assert_true(facade.get_party_state().has_claimable_quest(&"contract_reward_overflow"), "容量不足时任务应继续停留在 claimable_quests。")
 	_assert_true(not facade.get_party_state().has_completed_quest(&"contract_reward_overflow"), "容量不足时任务不应误写入 completed_quest_ids。")
-	_assert_eq(runtime_warehouse_service.count_item(&"bronze_sword"), bronze_sword_count_before_overflow_claim, "容量不足时不应额外写入奖励物品。")
+	_assert_eq(runtime_warehouse_service.count_item(&"healing_herb"), filler_count_before_overflow_claim, "容量不足时不应额外写入奖励物品。")
+	runtime_warehouse_service.remove_item(&"healing_herb", filler_count_before_overflow_claim)
+	_force_party_storage_capacity(facade.get_party_state(), 20)
 
 	var submit_accept_result := facade.command_accept_quest(&"contract_supply_delivery")
 	_assert_true(bool(submit_accept_result.get("ok", false)), "submit_item 任务接取应成功。")
@@ -278,17 +284,17 @@ func _test_runtime_quest_commands_and_battle_progress_pipeline() -> void:
 	var wrong_item_iron_ore_to_clear := runtime_warehouse_service.count_item(&"iron_ore")
 	if wrong_item_iron_ore_to_clear > 0:
 		runtime_warehouse_service.remove_item(&"iron_ore", wrong_item_iron_ore_to_clear)
-	var bronze_sword_to_clear := runtime_warehouse_service.count_item(&"bronze_sword")
-	if bronze_sword_to_clear > 0:
-		runtime_warehouse_service.remove_item(&"bronze_sword", bronze_sword_to_clear)
-	runtime_warehouse_service.add_item(&"bronze_sword", 1)
-	var bronze_sword_count_before_wrong_submit := runtime_warehouse_service.count_item(&"bronze_sword")
+	var healing_herb_to_clear := runtime_warehouse_service.count_item(&"healing_herb")
+	if healing_herb_to_clear > 0:
+		runtime_warehouse_service.remove_item(&"healing_herb", healing_herb_to_clear)
+	runtime_warehouse_service.add_item(&"healing_herb", 1)
+	var healing_herb_count_before_wrong_submit := runtime_warehouse_service.count_item(&"healing_herb")
 	var submit_wrong_item_result := facade.command_submit_quest_item(&"contract_supply_delivery_wrong_item")
 	var wrong_item_quest: QuestState = facade.get_party_state().get_active_quest_state(&"contract_supply_delivery_wrong_item")
 	runtime_warehouse_service.setup(facade.get_party_state(), game_session.get_item_defs())
 	_assert_true(not bool(submit_wrong_item_result.get("ok", true)), "共享仓库只有错误物品时 submit_item 命令应失败。")
 	_assert_eq(String(submit_wrong_item_result.get("message", "")), "共享仓库缺少铁矿石 x2，无法提交给任务《物资缴纳错货》。", "错误物品时 submit_item 应继续指向缺失的正式目标物资。")
-	_assert_eq(runtime_warehouse_service.count_item(&"bronze_sword"), bronze_sword_count_before_wrong_submit, "错误物品时不应吞掉共享仓库中的其他物资。")
+	_assert_eq(runtime_warehouse_service.count_item(&"healing_herb"), healing_herb_count_before_wrong_submit, "错误物品时不应吞掉共享仓库中的其他物资。")
 	_assert_true(wrong_item_quest != null, "错误物品时任务应继续停留在 active_quests。")
 	if wrong_item_quest != null:
 		_assert_eq(wrong_item_quest.get_objective_progress(&"deliver_ore"), 0, "错误物品时不应推进 quest objective。")
@@ -376,6 +382,19 @@ func _cleanup_test_session(game_session) -> void:
 	game_session.free()
 
 
+func _force_party_storage_capacity(party_state, capacity: int) -> void:
+	if party_state == null:
+		return
+	var resolved_capacity := maxi(capacity, 0)
+	var first_member_assigned := false
+	for member_variant in party_state.member_states.values():
+		var member_state = member_variant
+		if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
+			continue
+		member_state.progression.unit_base_attributes.custom_stats[&"storage_space"] = resolved_capacity if not first_member_assigned else 0
+		first_member_assigned = true
+
+
 func _inject_repeatable_quest_def(game_session) -> void:
 	if game_session == null:
 		return
@@ -396,7 +415,7 @@ func _inject_repeatable_quest_def(game_session) -> void:
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 15},
 	]
 	repeatable_quest.is_repeatable = true
-	game_session.get_quest_defs()[repeatable_quest.quest_id] = repeatable_quest
+	game_session.install_test_content_def(&"quest", repeatable_quest.quest_id, repeatable_quest)
 
 
 func _inject_item_reward_quest_defs(game_session) -> void:
@@ -419,7 +438,7 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 12},
 		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "iron_ore", "quantity": 2},
 	])
-	game_session.get_quest_defs()[item_reward_quest.quest_id] = item_reward_quest
+	game_session.install_test_content_def(&"quest", item_reward_quest.quest_id, item_reward_quest)
 
 	var overflow_quest := QuestDef.new()
 	overflow_quest.quest_id = &"contract_reward_overflow"
@@ -430,7 +449,7 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 	overflow_quest.reward_entries = _build_reward_entries([
 		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "bronze_sword", "quantity": 1},
 	])
-	game_session.get_quest_defs()[overflow_quest.quest_id] = overflow_quest
+	game_session.install_test_content_def(&"quest", overflow_quest.quest_id, overflow_quest)
 
 	var missing_display_name_quest := QuestDef.new()
 	missing_display_name_quest.quest_id = &"contract_missing_display_name_reward"
@@ -440,7 +459,7 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 	missing_display_name_quest.reward_entries = _build_reward_entries([
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 1},
 	])
-	game_session.get_quest_defs()[missing_display_name_quest.quest_id] = missing_display_name_quest
+	game_session.install_test_content_def(&"quest", missing_display_name_quest.quest_id, missing_display_name_quest)
 
 	var legacy_alias_quest := QuestDef.new()
 	legacy_alias_quest.quest_id = &"contract_legacy_item_reward_alias"
@@ -451,13 +470,13 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 	legacy_alias_quest.reward_entries = _build_reward_entries([
 		{"reward_type": QuestDef.REWARD_ITEM, "target_id": "iron_ore", "amount": 2},
 	])
-	game_session.get_quest_defs()[legacy_alias_quest.quest_id] = legacy_alias_quest
+	game_session.install_test_content_def(&"quest", legacy_alias_quest.quest_id, legacy_alias_quest)
 
 	var nameless_reward_item := ItemDef.new()
 	nameless_reward_item.item_id = &"nameless_reward_item"
 	nameless_reward_item.display_name = ""
 	nameless_reward_item.description = "用于验证 quest item reward 不再把 item_id 当展示名。"
-	game_session.get_item_defs()[nameless_reward_item.item_id] = nameless_reward_item
+	game_session.install_test_content_def(&"item", nameless_reward_item.item_id, nameless_reward_item)
 
 	var invalid_item_display_name_quest_def := QuestDef.new()
 	invalid_item_display_name_quest_def.quest_id = &"contract_invalid_item_display_name_reward"
@@ -469,7 +488,7 @@ func _inject_item_reward_quest_defs(game_session) -> void:
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 7},
 		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "nameless_reward_item", "quantity": 1},
 	])
-	game_session.get_quest_defs()[invalid_item_display_name_quest_def.quest_id] = invalid_item_display_name_quest_def
+	game_session.install_test_content_def(&"quest", invalid_item_display_name_quest_def.quest_id, invalid_item_display_name_quest_def)
 
 
 func _inject_submit_item_quest_defs(game_session) -> void:
@@ -491,7 +510,7 @@ func _inject_submit_item_quest_defs(game_session) -> void:
 	submit_item_quest.reward_entries = _build_reward_entries([
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 18},
 	])
-	game_session.get_quest_defs()[submit_item_quest.quest_id] = submit_item_quest
+	game_session.install_test_content_def(&"quest", submit_item_quest.quest_id, submit_item_quest)
 
 	var submit_item_shortage_quest := QuestDef.new()
 	submit_item_shortage_quest.quest_id = &"contract_supply_delivery_shortage"
@@ -502,7 +521,7 @@ func _inject_submit_item_quest_defs(game_session) -> void:
 	submit_item_shortage_quest.reward_entries = _build_reward_entries([
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 10},
 	])
-	game_session.get_quest_defs()[submit_item_shortage_quest.quest_id] = submit_item_shortage_quest
+	game_session.install_test_content_def(&"quest", submit_item_shortage_quest.quest_id, submit_item_shortage_quest)
 
 	var submit_item_wrong_item_quest := QuestDef.new()
 	submit_item_wrong_item_quest.quest_id = &"contract_supply_delivery_wrong_item"
@@ -513,7 +532,7 @@ func _inject_submit_item_quest_defs(game_session) -> void:
 	submit_item_wrong_item_quest.reward_entries = _build_reward_entries([
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 11},
 	])
-	game_session.get_quest_defs()[submit_item_wrong_item_quest.quest_id] = submit_item_wrong_item_quest
+	game_session.install_test_content_def(&"quest", submit_item_wrong_item_quest.quest_id, submit_item_wrong_item_quest)
 
 
 func _inject_string_key_only_quest_def(game_session) -> void:
@@ -535,7 +554,7 @@ func _inject_string_key_only_quest_def(game_session) -> void:
 	string_key_quest.reward_entries = _build_reward_entries([
 		{"reward_type": QuestDef.REWARD_GOLD, "amount": 1},
 	])
-	game_session.get_quest_defs()[String(string_key_quest.quest_id)] = string_key_quest
+	game_session.install_test_content_def(&"quest", String(string_key_quest.quest_id), string_key_quest)
 
 
 func _inject_pending_reward_quest_def(game_session, member_id: StringName) -> void:
@@ -569,7 +588,7 @@ func _inject_pending_reward_quest_def(game_session, member_id: StringName) -> vo
 			],
 		},
 	])
-	game_session.get_quest_defs()[growth_reward_quest.quest_id] = growth_reward_quest
+	game_session.install_test_content_def(&"quest", growth_reward_quest.quest_id, growth_reward_quest)
 
 
 func _find_any_uncleared_encounter_anchor(world_data: Dictionary):
@@ -603,15 +622,15 @@ func _build_reward_entries(reward_variants: Array) -> Array[Dictionary]:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _assert_text_contains(text: String, expected_fragment: String, message: String) -> void:
 	if text.contains(expected_fragment):
 		return
-	_failures.append("%s | missing=%s text=%s" % [message, expected_fragment, text])
+	_test.fail("%s | missing=%s text=%s" % [message, expected_fragment, text])

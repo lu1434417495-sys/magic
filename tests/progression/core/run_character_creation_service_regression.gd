@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
 const CharacterCreationService = preload("res://scripts/systems/progression/character_creation_service.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -150,9 +153,9 @@ func _build_creation_payload(reroll_count: int) -> Dictionary:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

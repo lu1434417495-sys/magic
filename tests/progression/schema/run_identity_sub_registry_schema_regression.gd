@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const AgeContentRegistry = preload("res://scripts/player/progression/age_content_registry.gd")
 const AscensionContentRegistry = preload("res://scripts/player/progression/ascension_content_registry.gd")
 const BloodlineContentRegistry = preload("res://scripts/player/progression/bloodline_content_registry.gd")
@@ -10,7 +12,8 @@ const SubraceContentRegistry = preload("res://scripts/player/progression/subrace
 
 const MISSING_RACE_FIXTURE_PATH := "user://identity_registry_missing_race.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -176,14 +179,14 @@ func _cleanup_temp_fixture() -> void:
 		return
 	var cleanup_error := DirAccess.remove_absolute(ProjectSettings.globalize_path(MISSING_RACE_FIXTURE_PATH))
 	if cleanup_error != OK:
-		_failures.append("测试临时资源应能清理：%s error=%s" % [MISSING_RACE_FIXTURE_PATH, cleanup_error])
+		_test.fail("测试临时资源应能清理：%s error=%s" % [MISSING_RACE_FIXTURE_PATH, cleanup_error])
 
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

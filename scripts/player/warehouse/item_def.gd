@@ -17,6 +17,7 @@ const EQUIPMENT_TYPE_ACCESSORY: StringName = &"accessory"
 const DAMAGE_TAG_PHYSICAL_SLASH: StringName = &"physical_slash"
 const DAMAGE_TAG_PHYSICAL_PIERCE: StringName = &"physical_pierce"
 const DAMAGE_TAG_PHYSICAL_BLUNT: StringName = &"physical_blunt"
+const PRICE_BASIS_POINTS_DENOMINATOR := 10000
 
 ## 字段说明：在编辑器中暴露物品唯一标识配置，便于策划或关卡制作者在不改代码的情况下调整该脚本行为。
 @export var item_id: StringName = &""
@@ -80,16 +81,16 @@ func get_base_price() -> int:
 	return maxi(int(base_price), 0)
 
 
-func get_buy_price(price_multiplier: float = 1.0) -> int:
+func get_buy_price(price_basis_points: int = PRICE_BASIS_POINTS_DENOMINATOR) -> int:
 	var resolved_buy_price := maxi(int(buy_price), 0)
-	return maxi(int(round(float(resolved_buy_price) * maxf(price_multiplier, 0.0))), 0)
+	return _apply_price_basis_points(resolved_buy_price, price_basis_points)
 
 
-func get_sell_price(price_multiplier: float = 0.5) -> int:
+func get_sell_price(price_basis_points: int = PRICE_BASIS_POINTS_DENOMINATOR) -> int:
 	if not sellable:
 		return 0
 	var resolved_sell_price := maxi(int(sell_price), 0)
-	return maxi(int(round(float(resolved_sell_price) * (maxf(price_multiplier, 0.0) / 0.5))), 0)
+	return _apply_price_basis_points(resolved_sell_price, price_basis_points)
 
 
 func get_tags() -> Array[StringName]:
@@ -217,3 +218,9 @@ func _normalize_string_name_list(values: Array) -> Array[StringName]:
 
 func _get_weapon_profile_resource() -> Resource:
 	return weapon_profile
+
+
+func _apply_price_basis_points(price: int, price_basis_points: int) -> int:
+	var normalized_price := maxi(int(price), 0)
+	var normalized_basis_points := maxi(int(price_basis_points), 0)
+	return int((normalized_price * normalized_basis_points + PRICE_BASIS_POINTS_DENOMINATOR / 2) / PRICE_BASIS_POINTS_DENOMINATOR)

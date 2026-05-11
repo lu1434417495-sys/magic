@@ -1,6 +1,8 @@
 class_name PracticeGrowthService
 extends RefCounted
 
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
+
 const TRACK_MEDITATION: StringName = &"meditation"
 const TRACK_CULTIVATION: StringName = &"cultivation"
 const PRACTICE_TRACKS := [TRACK_MEDITATION, TRACK_CULTIVATION]
@@ -60,7 +62,7 @@ func get_active_practice_skill(unit_progress: UnitProgress, track_type: StringNa
 		return &""
 	for skill_key in ProgressionDataUtils.sorted_string_keys(unit_progress.skills):
 		var skill_id := StringName(skill_key)
-		var skill_progress := unit_progress.get_skill_progress(skill_id)
+		var skill_progress: UnitSkillProgress = unit_progress.get_skill_progress(skill_id)
 		if skill_progress == null or not skill_progress.is_learned:
 			continue
 		if get_track_type_for_skill(skill_id) == track_type:
@@ -87,7 +89,7 @@ func calculate_replacement_level(
 ) -> int:
 	var old_tier := get_practice_tier(old_skill_id)
 	var new_tier := get_practice_tier(new_skill_id)
-	var old_skill_progress := unit_progress.get_skill_progress(old_skill_id)
+	var old_skill_progress: UnitSkillProgress = unit_progress.get_skill_progress(old_skill_id)
 	var old_level := 0
 	if old_skill_progress != null:
 		old_level = old_skill_progress.skill_level
@@ -95,7 +97,12 @@ func calculate_replacement_level(
 	if new_skill_def == null:
 		return 0
 	var raw_new_level := old_level + (old_tier - new_tier)
-	return clampi(raw_new_level, 0, new_skill_def.max_level)
+	var max_level := maxi(new_skill_def.max_level, 0) if new_skill_def.max_level >= 0 else 999
+	if new_skill_def.dynamic_max_level_stat_id != &"":
+		var absolute_max := SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_absolute_max_level(new_skill_def, unit_progress)
+		if absolute_max > 0:
+			max_level = mini(max_level, absolute_max)
+	return clampi(raw_new_level, 0, max_level)
 
 
 func apply_replacement(
@@ -112,17 +119,34 @@ func apply_replacement(
 	if old_skill_id == &"":
 		return false
 
-	var predicted_level := calculate_replacement_level(old_skill_id, new_skill_id, unit_progress)
+	var predicted_level: int = calculate_replacement_level(old_skill_id, new_skill_id, unit_progress)
 
+	_clear_replaced_skill_references(unit_progress, old_skill_id)
 	unit_progress.remove_skill_progress(old_skill_id)
 
-	var new_skill_progress := UnitSkillProgress.new()
+	var new_skill_progress: UnitSkillProgress = UnitSkillProgress.new()
 	new_skill_progress.skill_id = new_skill_id
 	new_skill_progress.is_learned = true
 	new_skill_progress.skill_level = predicted_level
 	unit_progress.set_skill_progress(new_skill_progress)
 
 	return true
+
+
+func _clear_replaced_skill_references(unit_progress: UnitProgress, old_skill_id: StringName) -> void:
+	if unit_progress == null or old_skill_id == &"":
+		return
+	if unit_progress.active_level_trigger_core_skill_id == old_skill_id:
+		unit_progress.active_level_trigger_core_skill_id = &""
+	unit_progress.locked_level_trigger_skill_ids.erase(old_skill_id)
+	for profession_key in ProgressionDataUtils.sorted_string_keys(unit_progress.professions):
+		var profession_id := ProgressionDataUtils.to_string_name(profession_key)
+		var profession_progress = unit_progress.get_profession_progress(profession_id)
+		if profession_progress == null:
+			continue
+		if profession_progress.core_skill_ids.has(old_skill_id):
+			profession_progress.remove_core_skill(old_skill_id)
+			unit_progress.set_profession_progress(profession_progress)
 
 
 func get_skill_learned_status(
@@ -150,8 +174,8 @@ func inject_first_unlock_starting_values(
 ) -> void:
 	if member_state == null or member_state.progression == null:
 		return
-	var unit_progress := member_state.progression
-	var base_attrs := unit_progress.unit_base_attributes
+	var unit_progress: UnitProgress = member_state.progression
+	var base_attrs: UnitBaseAttributes = unit_progress.unit_base_attributes
 	if base_attrs == null:
 		return
 
@@ -162,7 +186,7 @@ func inject_first_unlock_starting_values(
 	if skill_def == null:
 		return
 
-	var growth := _calculate_daily_upper_limit_growth(unit_progress, existing_skill_id, track_type)
+	var growth: int = _calculate_daily_upper_limit_growth(unit_progress, existing_skill_id, track_type)
 
 	match track_type:
 		TRACK_MEDITATION:
@@ -179,8 +203,8 @@ func apply_daily_growth_to_member(
 ) -> void:
 	if member_state == null or member_state.progression == null or days_elapsed <= 0:
 		return
-	var unit_progress := member_state.progression
-	var base_attrs := unit_progress.unit_base_attributes
+	var unit_progress: UnitProgress = member_state.progression
+	var base_attrs: UnitBaseAttributes = unit_progress.unit_base_attributes
 	if base_attrs == null:
 		return
 
@@ -188,19 +212,19 @@ func apply_daily_growth_to_member(
 		var skill_id := get_active_practice_skill(unit_progress, track_type)
 		if skill_id == &"":
 			continue
-		var single_day_growth := _calculate_daily_upper_limit_growth(unit_progress, skill_id, track_type)
-		var single_day_recovery := _calculate_daily_recovery(unit_progress, skill_id, track_type)
+		var single_day_growth: int = _calculate_daily_upper_limit_growth(unit_progress, skill_id, track_type)
+		var single_day_recovery: int = _calculate_daily_recovery(unit_progress, skill_id, track_type)
 
 		match track_type:
 			TRACK_MEDITATION:
-				var current_max := base_attrs.get_attribute_value(MP_MAX_ATTR)
+				var current_max: int = base_attrs.get_attribute_value(MP_MAX_ATTR)
 				base_attrs.set_attribute_value(MP_MAX_ATTR, current_max + single_day_growth * days_elapsed)
 				member_state.current_mp = mini(
 					member_state.current_mp + single_day_recovery * days_elapsed,
 					base_attrs.get_attribute_value(MP_MAX_ATTR)
 				)
 			TRACK_CULTIVATION:
-				var current_max := base_attrs.get_attribute_value(AURA_MAX_ATTR)
+				var current_max: int = base_attrs.get_attribute_value(AURA_MAX_ATTR)
 				base_attrs.set_attribute_value(AURA_MAX_ATTR, current_max + single_day_growth * days_elapsed)
 				member_state.current_aura = mini(
 					member_state.current_aura + single_day_recovery * days_elapsed,
@@ -213,16 +237,16 @@ func _calculate_daily_upper_limit_growth(
 	skill_id: StringName,
 	track_type: StringName,
 ) -> int:
-	var skill_progress := unit_progress.get_skill_progress(skill_id)
+	var skill_progress: UnitSkillProgress = unit_progress.get_skill_progress(skill_id)
 	if skill_progress == null:
 		return 0
-	var base_attrs := unit_progress.unit_base_attributes
+	var base_attrs: UnitBaseAttributes = unit_progress.unit_base_attributes
 	if base_attrs == null:
 		return 0
 
-	var skill_level := skill_progress.skill_level
-	var profession_bonus := _get_profession_whitelist_bonus(unit_progress, track_type)
-	var knowledge_bonus := _get_knowledge_whitelist_bonus(unit_progress, track_type)
+	var skill_level: int = skill_progress.skill_level
+	var profession_bonus: int = _get_profession_whitelist_bonus(unit_progress, track_type)
+	var knowledge_bonus: int = _get_knowledge_whitelist_bonus(unit_progress, track_type)
 
 	match track_type:
 		TRACK_MEDITATION:
@@ -242,17 +266,17 @@ func _calculate_daily_recovery(
 	skill_id: StringName,
 	track_type: StringName,
 ) -> int:
-	var skill_progress := unit_progress.get_skill_progress(skill_id)
+	var skill_progress: UnitSkillProgress = unit_progress.get_skill_progress(skill_id)
 	if skill_progress == null:
 		return 0
-	var base_attrs := unit_progress.unit_base_attributes
+	var base_attrs: UnitBaseAttributes = unit_progress.unit_base_attributes
 	if base_attrs == null:
 		return 0
 
-	var skill_level := skill_progress.skill_level
-	var willpower := base_attrs.get_attribute_value(UnitBaseAttributes.WILLPOWER)
-	var profession_bonus := _get_profession_whitelist_bonus(unit_progress, track_type)
-	var knowledge_bonus := _get_knowledge_whitelist_bonus(unit_progress, track_type)
+	var skill_level: int = skill_progress.skill_level
+	var willpower: int = base_attrs.get_attribute_value(UnitBaseAttributes.WILLPOWER)
+	var profession_bonus: int = _get_profession_whitelist_bonus(unit_progress, track_type)
+	var knowledge_bonus: int = _get_knowledge_whitelist_bonus(unit_progress, track_type)
 
 	return maxi(skill_level / 2 + willpower / 5 + profession_bonus / 2 + knowledge_bonus / 2, 1)
 

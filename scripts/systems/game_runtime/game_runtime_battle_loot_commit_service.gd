@@ -3,16 +3,7 @@ extends RefCounted
 
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
-
-const BATTLE_LOOT_DROP_TYPE_ITEM: StringName = &"item"
-const BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
-const BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
-const BATTLE_LOOT_SOURCE_KIND_CALAMITY_CONVERSION: StringName = &"calamity_conversion"
-const BATTLE_LOOT_SOURCE_ID_ORDINARY_BATTLE: StringName = &"ordinary_battle"
-const BATTLE_LOOT_SOURCE_ID_ELITE_BOSS_BATTLE: StringName = &"elite_boss_battle"
-const BATTLE_LOOT_CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
-const ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP := 4
-const CALAMITY_SHARD_CHAPTER_FLAG_PREFIX := "calamity_shard_chapter_slot_"
+const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -99,8 +90,8 @@ func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictio
 		if loot_entry_variant is not Dictionary:
 			continue
 		var loot_entry_data := loot_entry_variant as Dictionary
-		var drop_type := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_type", BATTLE_LOOT_DROP_TYPE_ITEM))
-		if drop_type == BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE:
+		var drop_type := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_type", BattleLootConstants.DROP_TYPE_ITEM))
+		if drop_type == BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE:
 			var instance_commit_result := _commit_equipment_instance_loot_entry(loot_entry_data)
 			if not bool(instance_commit_result.get("ok", false)):
 				_runtime._party_state.warehouse_state = warehouse_state_before
@@ -119,7 +110,7 @@ func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictio
 				if overflow_entry_variant is Dictionary:
 					overflow_entries.append((overflow_entry_variant as Dictionary).duplicate(true))
 			continue
-		if drop_type == BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
+		if drop_type == BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT:
 			var equipment_commit_result := _commit_random_equipment_loot_entry(loot_entry_data)
 			if not bool(equipment_commit_result.get("ok", false)):
 				_runtime._party_state.warehouse_state = warehouse_state_before
@@ -289,7 +280,7 @@ func _commit_equipment_instance_loot_entry(loot_entry_data: Dictionary) -> Dicti
 			"overflow_entries": [],
 		}
 	var equipment_instance_variant: Variant = loot_entry_data.get("equipment_instance")
-	var equipment_instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_transient_loot_dict(equipment_instance_variant)
+	var equipment_instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.from_dict(equipment_instance_variant)
 	if equipment_instance == null:
 		return {
 			"ok": false,
@@ -327,7 +318,7 @@ func _commit_equipment_instance_loot_entry(loot_entry_data: Dictionary) -> Dicti
 			"committed_item_count": 0,
 			"overflow_entries": [],
 		}
-	var add_result: Dictionary = _runtime._party_warehouse_service.add_equipment_instance(equipment_instance, true)
+	var add_result: Dictionary = _runtime._party_warehouse_service.add_equipment_instance(equipment_instance, false)
 	if int(add_result.get("remaining_quantity", 0)) > 0:
 		return {
 			"ok": true,
@@ -388,9 +379,9 @@ func _build_battle_loot_merge_key(loot_entry_data: Dictionary) -> String:
 	var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
 	if item_id == &"":
 		return ""
-	if drop_type == BATTLE_LOOT_DROP_TYPE_ITEM:
+	if drop_type == BattleLootConstants.DROP_TYPE_ITEM:
 		return "%s|%s" % [String(drop_type), String(item_id)]
-	if drop_type == BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT:
+	if drop_type == BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT:
 		return "%s|%s|%d" % [
 			String(drop_type),
 			String(item_id),
@@ -409,14 +400,14 @@ func _is_ordinary_battle_calamity_conversion_entry(loot_entry_data: Dictionary) 
 	var item_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("item_id", ""))
 	var drop_source_kind := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_source_kind", ""))
 	var drop_source_id := ProgressionDataUtils.to_string_name(loot_entry_data.get("drop_source_id", ""))
-	return item_id == BATTLE_LOOT_CALAMITY_SHARD_ITEM_ID \
-		and drop_source_kind == BATTLE_LOOT_SOURCE_KIND_CALAMITY_CONVERSION \
-		and drop_source_id == BATTLE_LOOT_SOURCE_ID_ORDINARY_BATTLE
+	return item_id == BattleLootConstants.ITEM_CALAMITY_SHARD \
+		and drop_source_kind == BattleLootConstants.SOURCE_KIND_CALAMITY_CONVERSION \
+		and drop_source_id == BattleLootConstants.SOURCE_ID_ORDINARY_BATTLE
 
 
 func _get_remaining_regular_battle_calamity_shard_cap() -> int:
 	return maxi(
-		ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP - _get_regular_battle_calamity_shard_count_this_chapter(),
+		BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP - _get_regular_battle_calamity_shard_count_this_chapter(),
 		0
 	)
 
@@ -425,7 +416,7 @@ func _get_regular_battle_calamity_shard_count_this_chapter() -> int:
 	if _runtime._party_state == null:
 		return 0
 	var shard_count := 0
-	for slot_index in range(ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
+	for slot_index in range(BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
 		var flag_id := _build_regular_battle_calamity_shard_flag_id(slot_index)
 		if _runtime._party_state.has_method("get_fate_run_flag") and _runtime._party_state.get_fate_run_flag(flag_id, false):
 			shard_count += 1
@@ -438,7 +429,7 @@ func _mark_regular_battle_calamity_shards_committed(quantity: int) -> void:
 	var remaining_to_mark := mini(quantity, _get_remaining_regular_battle_calamity_shard_cap())
 	if remaining_to_mark <= 0:
 		return
-	for slot_index in range(ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
+	for slot_index in range(BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
 		var flag_id := _build_regular_battle_calamity_shard_flag_id(slot_index)
 		if _runtime._party_state.has_method("get_fate_run_flag") and _runtime._party_state.get_fate_run_flag(flag_id, false):
 			continue
@@ -452,12 +443,12 @@ func _mark_regular_battle_calamity_shards_committed(quantity: int) -> void:
 func _clear_regular_battle_calamity_shard_flags() -> void:
 	if _runtime._party_state == null or not _runtime._party_state.has_method("clear_fate_run_flag"):
 		return
-	for slot_index in range(ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
+	for slot_index in range(BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP):
 		_runtime._party_state.clear_fate_run_flag(_build_regular_battle_calamity_shard_flag_id(slot_index))
 
 
 func _build_regular_battle_calamity_shard_flag_id(slot_index: int) -> StringName:
-	return ProgressionDataUtils.to_string_name("%s%d" % [CALAMITY_SHARD_CHAPTER_FLAG_PREFIX, maxi(slot_index, 0)])
+	return ProgressionDataUtils.to_string_name("%s%d" % [BattleLootConstants.CALAMITY_SHARD_CHAPTER_FLAG_PREFIX, maxi(slot_index, 0)])
 
 
 func _build_battle_resolution_status_message(

@@ -15,6 +15,26 @@ const COMBAT_RESOURCE_HP: StringName = &"hp"
 const COMBAT_RESOURCE_STAMINA: StringName = &"stamina"
 const COMBAT_RESOURCE_MP: StringName = &"mp"
 const COMBAT_RESOURCE_AURA: StringName = &"aura"
+const TO_DICT_FIELDS: Array[String] = [
+	"version",
+	"unit_id",
+	"display_name",
+	"character_level",
+	"unit_base_attributes",
+	"reputation_state",
+	"skills",
+	"professions",
+	"known_knowledge_ids",
+	"active_core_skill_ids",
+	"attribute_growth_progress",
+	"achievement_progress",
+	"pending_profession_choices",
+	"blocked_relearn_skill_ids",
+	"merged_skill_source_map",
+	"unlocked_combat_resource_ids",
+	"active_level_trigger_core_skill_id",
+	"locked_level_trigger_skill_ids",
+]
 const DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS: Array[StringName] = [
 	COMBAT_RESOURCE_HP,
 	COMBAT_RESOURCE_STAMINA,
@@ -265,28 +285,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	for field_name in [
-		"version",
-		"unit_id",
-		"display_name",
-		"character_level",
-		"unit_base_attributes",
-		"reputation_state",
-		"skills",
-		"professions",
-		"known_knowledge_ids",
-		"active_core_skill_ids",
-		"attribute_growth_progress",
-		"achievement_progress",
-		"pending_profession_choices",
-		"blocked_relearn_skill_ids",
-		"merged_skill_source_map",
-		"unlocked_combat_resource_ids",
-		"active_level_trigger_core_skill_id",
-		"locked_level_trigger_skill_ids",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var unit_base_attributes_data: Variant = data.get("unit_base_attributes", null)
 	var reputation_state_data: Variant = data.get("reputation_state", null)
 	var skills_data: Variant = data.get("skills", null)
@@ -450,6 +450,15 @@ static func _parse_required_string_name(value: Variant):
 	if parsed_value == &"":
 		return null
 	return parsed_value
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func _parse_optional_string_name(value: Variant):

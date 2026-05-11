@@ -8,7 +8,11 @@ extends RefCounted
 const SELECTION_KEY_QUALIFIER_SKILL_IDS := "selected_qualifier_skill_ids"
 const SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS := "selected_assigned_core_skill_ids"
 const SELECTION_KEY_HP_ROLL_OVERRIDE := "hp_roll_override"
+const SELECTION_KEY_REQUIRED_TRIGGER_SKILL_ID := "_required_trigger_skill_id"
 const HP_MAX_ATTRIBUTE_ID: StringName = &"hp_max"
+const LOCK_HIT_BONUS_DEFAULT := 1
+const PRACTICE_TRACK_MEDITATION: StringName = &"meditation"
+const PRACTICE_TRACK_CULTIVATION: StringName = &"cultivation"
 const MANUAL_LEARN_BLOCKED_SOURCES := {
 	&"profession": true,
 	&"race": true,
@@ -290,6 +294,9 @@ func promote_profession(profession_id: StringName, selection: Dictionary = {}) -
 		return false
 	if not can_promote_profession(profession_id):
 		return false
+	var trigger_skill_id := _get_ready_active_level_trigger_skill_id()
+	if trigger_skill_id == &"":
+		return false
 
 	var profession_def: ProfessionDef = _get_profession_def(profession_id)
 	if profession_def == null:
@@ -303,8 +310,15 @@ func promote_profession(profession_id: StringName, selection: Dictionary = {}) -
 		_unit_progress.set_profession_progress(profession_progress)
 
 	var target_rank: int = 1 if is_unlock else profession_progress.rank + 1
-	var promotion_selection: Dictionary = _resolve_promotion_selection(profession_id, target_rank, is_unlock, selection)
+	var promotion_selection: Dictionary = _resolve_promotion_selection(
+		profession_id,
+		target_rank,
+		is_unlock,
+		_with_required_trigger_skill(selection, trigger_skill_id)
+	)
 	if promotion_selection.is_empty():
+		return false
+	if not _selection_includes_skill(promotion_selection, trigger_skill_id):
 		return false
 
 	var consumed_skill_ids: Array[StringName] = _get_selection_skill_ids(promotion_selection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS)
@@ -329,6 +343,7 @@ func promote_profession(profession_id: StringName, selection: Dictionary = {}) -
 
 	_apply_profession_hit_point_gain(profession_def, selection)
 	_grant_profession_skills(profession_def, profession_progress, target_rank)
+	_lock_ready_active_level_trigger_skill(trigger_skill_id)
 	_unit_progress.set_profession_progress(profession_progress)
 	refresh_runtime_state()
 	return true
@@ -541,6 +556,18 @@ func _resolve_promotion_selection(
 	var assigned_core_rules: Array[TagRequirement] = _get_tag_rules_for_role(tag_rules, TagRequirement.SELECTION_ROLE_ASSIGNED_CORE)
 	var allow_unassigned: bool = is_unlock
 	var required_skill_ids: Array[StringName] = _get_required_skill_ids_for_target(profession_def, is_unlock)
+	var required_trigger_skill_id := _get_required_trigger_skill_id(selection)
+	var trigger_as_assigned_core := false
+	var trigger_as_qualifier := false
+	if required_trigger_skill_id != &"":
+		if _can_include_skill_in_selection(required_trigger_skill_id, profession_id, assigned_core_rules, allow_unassigned):
+			trigger_as_assigned_core = true
+			if not required_skill_ids.has(required_trigger_skill_id):
+				required_skill_ids.append(required_trigger_skill_id)
+		elif _can_include_skill_in_selection(required_trigger_skill_id, profession_id, qualifier_rules, allow_unassigned):
+			trigger_as_qualifier = true
+		else:
+			return {}
 
 	var has_explicit_assigned_core_selection: bool = selection.has(SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS)
 	var assigned_core_skill_ids: Array[StringName] = []
@@ -576,6 +603,8 @@ func _resolve_promotion_selection(
 	var qualifier_locked_skill_ids: Array[StringName] = []
 	if _assigned_core_must_be_subset_of_qualifiers(profession_def, is_unlock):
 		qualifier_locked_skill_ids = assigned_core_skill_ids.duplicate()
+	if trigger_as_qualifier and not qualifier_locked_skill_ids.has(required_trigger_skill_id):
+		qualifier_locked_skill_ids.append(required_trigger_skill_id)
 
 	if has_explicit_qualifier_selection:
 		if not _validate_explicit_selection(
@@ -913,6 +942,9 @@ func _build_pending_profession_choices() -> Array[PendingProfessionChoice]:
 	var results: Array[PendingProfessionChoice] = []
 	if _unit_progress == null:
 		return results
+	var trigger_skill_id := _get_ready_active_level_trigger_skill_id()
+	if trigger_skill_id == &"":
+		return results
 
 	for profession_id in _get_sorted_profession_ids():
 		if not can_promote_profession(profession_id):
@@ -921,7 +953,7 @@ func _build_pending_profession_choices() -> Array[PendingProfessionChoice]:
 		var profession_progress: Variant = _get_profession_progress(profession_id)
 		var is_unlock: bool = profession_progress == null or profession_progress.rank <= 0
 		var target_rank: int = 1 if is_unlock else profession_progress.rank + 1
-		var choice: PendingProfessionChoice = _build_pending_profession_choice(profession_id, target_rank, is_unlock)
+		var choice: PendingProfessionChoice = _build_pending_profession_choice(profession_id, target_rank, is_unlock, trigger_skill_id)
 		if choice != null:
 			results.append(choice)
 
@@ -931,7 +963,8 @@ func _build_pending_profession_choices() -> Array[PendingProfessionChoice]:
 func _build_pending_profession_choice(
 	profession_id: StringName,
 	target_rank: int,
-	is_unlock: bool
+	is_unlock: bool,
+	trigger_skill_id: StringName = &""
 ) -> PendingProfessionChoice:
 	var profession_def: ProfessionDef = _get_profession_def(profession_id)
 	if profession_def == null:
@@ -952,13 +985,78 @@ func _build_pending_profession_choice(
 		if not choice.assignable_skill_candidate_ids.has(required_skill_id):
 			choice.assignable_skill_candidate_ids.append(required_skill_id)
 
-	var default_selection: Dictionary = _resolve_promotion_selection(profession_id, target_rank, is_unlock, {})
+	var default_selection: Dictionary = _resolve_promotion_selection(
+		profession_id,
+		target_rank,
+		is_unlock,
+		_with_required_trigger_skill({}, trigger_skill_id)
+	)
+	if trigger_skill_id != &"" and default_selection.is_empty():
+		return null
 	if not default_selection.is_empty():
 		choice.trigger_skill_ids = _get_selection_skill_ids(default_selection, "trigger_skill_ids")
 		choice.required_qualifier_count = _get_selection_skill_ids(default_selection, SELECTION_KEY_QUALIFIER_SKILL_IDS).size()
 		choice.required_assigned_core_count = _get_selection_skill_ids(default_selection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS).size()
 
 	return choice
+
+
+func _get_ready_active_level_trigger_skill_id() -> StringName:
+	if _unit_progress == null:
+		return &""
+	var trigger_skill_id := _unit_progress.active_level_trigger_core_skill_id
+	if trigger_skill_id == &"":
+		return &""
+	var skill_progress: Variant = _unit_progress.get_skill_progress(trigger_skill_id)
+	var skill_def := _get_skill_def(trigger_skill_id)
+	if skill_progress == null or skill_def == null:
+		return &""
+	if not bool(skill_progress.is_learned) or not bool(skill_progress.is_core):
+		return &""
+	if bool(skill_progress.is_level_trigger_locked):
+		return &""
+	if _unit_progress.locked_level_trigger_skill_ids.has(trigger_skill_id):
+		return &""
+	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, _unit_progress):
+		return &""
+	return trigger_skill_id
+
+
+func _with_required_trigger_skill(selection: Dictionary, trigger_skill_id: StringName) -> Dictionary:
+	var resolved_selection := selection.duplicate(true) if selection != null else {}
+	if trigger_skill_id != &"":
+		resolved_selection[SELECTION_KEY_REQUIRED_TRIGGER_SKILL_ID] = trigger_skill_id
+	return resolved_selection
+
+
+func _get_required_trigger_skill_id(selection: Dictionary) -> StringName:
+	if selection == null:
+		return &""
+	return ProgressionDataUtils.to_string_name(selection.get(SELECTION_KEY_REQUIRED_TRIGGER_SKILL_ID, ""))
+
+
+func _selection_includes_skill(selection: Dictionary, skill_id: StringName) -> bool:
+	if skill_id == &"":
+		return false
+	return _get_selection_skill_ids(selection, "trigger_skill_ids").has(skill_id) \
+		or _get_selection_skill_ids(selection, SELECTION_KEY_QUALIFIER_SKILL_IDS).has(skill_id) \
+		or _get_selection_skill_ids(selection, SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS).has(skill_id)
+
+
+func _lock_ready_active_level_trigger_skill(skill_id: StringName) -> bool:
+	if _unit_progress == null or skill_id == &"":
+		return false
+	var skill_progress: Variant = _unit_progress.get_skill_progress(skill_id)
+	if skill_progress == null:
+		return false
+	skill_progress.is_level_trigger_active = false
+	skill_progress.is_level_trigger_locked = true
+	skill_progress.bonus_to_hit_from_lock = LOCK_HIT_BONUS_DEFAULT
+	_unit_progress.active_level_trigger_core_skill_id = &""
+	if not _unit_progress.locked_level_trigger_skill_ids.has(skill_id):
+		_unit_progress.locked_level_trigger_skill_ids.append(skill_id)
+	_unit_progress.set_skill_progress(skill_progress)
+	return true
 
 
 func _refresh_cached_pending_profession_choices() -> void:
@@ -1008,6 +1106,10 @@ func _sync_combat_resource_unlocks_from_learned_skills() -> void:
 		if skill_progress == null or not skill_progress.is_learned:
 			continue
 		var skill_def := _get_skill_def(skill_id)
+		if skill_def != null and skill_def.tags.has(PRACTICE_TRACK_MEDITATION):
+			_unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_MP)
+		if skill_def != null and skill_def.tags.has(PRACTICE_TRACK_CULTIVATION):
+			_unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_AURA)
 		_unlock_combat_resources_for_skill(skill_def, maxi(int(skill_progress.skill_level), 1))
 
 

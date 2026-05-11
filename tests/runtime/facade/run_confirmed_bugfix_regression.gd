@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const BATTLE_FATE_ATTACK_RULES_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_attack_rules.gd")
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
@@ -9,7 +11,8 @@ const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/part
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_grid_system.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -118,9 +121,9 @@ func _test_missing_item_def_does_not_trap_equipped_instance() -> void:
 
 func _assert_true(value: bool, message: String) -> void:
 	if not value:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
+		_test.fail("%s expected=%s actual=%s" % [message, str(expected), str(actual)])

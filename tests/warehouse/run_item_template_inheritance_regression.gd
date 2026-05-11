@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
@@ -162,7 +164,8 @@ const BG3_WEAPON_PROFILE_EXPECTATIONS := {
 	&"longbow": {"training_group": &"martial", "range_type": &"ranged", "family": &"bow", "damage_tag": &"physical_pierce", "attack_range": 4, "one_handed_dice": [], "two_handed_dice": [1, 8, 0], "properties": [&"two_handed"]},
 }
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -725,9 +728,9 @@ func _to_string_name_array(values: Variant) -> Array[StringName]:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

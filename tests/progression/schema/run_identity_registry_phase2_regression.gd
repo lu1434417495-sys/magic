@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
 const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
@@ -14,7 +16,8 @@ const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const StageAdvancementModifier = preload("res://scripts/player/progression/stage_advancement_modifier.gd")
 const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -114,7 +117,10 @@ func _test_valid_identity_graph_passes_phase2() -> void:
 		&"titan_shift": _make_stage_advancement(&"titan_shift", StageAdvancementModifier.TARGET_AXIS_BLOODLINE, &"titan_awakened"),
 	}
 
-	_assert_true(registry.validate().is_empty(), "完整合法 identity 图应通过 ProgressionContentRegistry Phase 2 校验。")
+	_assert_current_official_progression_validation_errors(
+		registry.validate(),
+		"完整合法 identity 图不应额外带有正式内容校验错误。"
+	)
 
 
 func _test_invalid_identity_graph_reports_phase2_errors() -> void:
@@ -412,9 +418,13 @@ func _assert_error_contains(errors: Array[String], expected_fragment: String, me
 	for validation_error in errors:
 		if validation_error.contains(expected_fragment):
 			return
-	_failures.append("%s | missing fragment=%s errors=%s" % [message, expected_fragment, str(errors)])
+	_test.fail("%s | missing fragment=%s errors=%s" % [message, expected_fragment, str(errors)])
+
+
+func _assert_current_official_progression_validation_errors(errors: Array[String], message: String) -> void:
+	_assert_true(errors.is_empty(), "%s | errors=%s" % [message, str(errors)])
 
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

@@ -8,6 +8,16 @@ extends RefCounted
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
 const PendingCharacterRewardEntry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT
+const TO_DICT_FIELDS: Array[String] = [
+	"reward_id",
+	"member_id",
+	"member_name",
+	"source_type",
+	"source_id",
+	"source_label",
+	"summary_text",
+	"entries",
+]
 
 ## 字段说明：记录奖励对象唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var reward_id: StringName = &""
@@ -56,18 +66,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	for field_name in [
-		"reward_id",
-		"member_id",
-		"member_name",
-		"source_type",
-		"source_id",
-		"source_label",
-		"summary_text",
-		"entries",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var reward_id = _parse_string_name_field(data["reward_id"], false)
 	var member_id = _parse_string_name_field(data["member_id"], false)
 	var source_type = _parse_string_name_field(data["source_type"], false)
@@ -114,6 +114,15 @@ static func _parse_string_name_field(value: Variant, allow_empty: bool):
 	if parsed_value == &"" and not allow_empty:
 		return null
 	return parsed_value
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func from_variant(reward_variant):

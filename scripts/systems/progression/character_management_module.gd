@@ -17,11 +17,14 @@ const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/pr
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const ATTRIBUTE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/attributes/attribute_source_context.gd")
 const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
+const LEVEL_GROWTH_EVALUATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/level_growth_evaluation_service.gd")
+const PRACTICE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/practice_growth_service.gd")
 const PASSIVE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/progression/passive_source_context.gd")
 const AGE_STAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/progression/age_stage_resolver.gd")
 const BLOODLINE_APPLY_SERVICE_SCRIPT = preload("res://scripts/systems/progression/bloodline_apply_service.gd")
 const ASCENSION_APPLY_SERVICE_SCRIPT = preload("res://scripts/systems/progression/ascension_apply_service.gd")
 const STAGE_ADVANCEMENT_APPLY_SERVICE_SCRIPT = preload("res://scripts/systems/progression/stage_advancement_apply_service.gd")
+const RACIAL_SKILL_GRANT_SERVICE_SCRIPT = preload("res://scripts/systems/progression/racial_skill_grant_service.gd")
 const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
 const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_equipment_service.gd")
@@ -708,22 +711,94 @@ func _weapon_dice_to_dict(dice_resource) -> Dictionary:
 	}
 
 
-func learn_skill(member_id: StringName, skill_id: StringName) -> bool:
-	return _learn_skill_internal(member_id, skill_id)
+func learn_skill(member_id: StringName, skill_id: StringName, options: Dictionary = {}) -> bool:
+	return _learn_skill_internal(member_id, skill_id, null, options)
 
 
 func learn_knowledge(member_id: StringName, knowledge_id: StringName) -> bool:
 	return _learn_knowledge_internal(member_id, knowledge_id)
 
 
-func _learn_skill_internal(member_id: StringName, skill_id: StringName, unlocked_ids = null) -> bool:
+func get_practice_skill_learn_status(member_id: StringName, skill_id: StringName) -> Dictionary:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	if member_state == null or member_state.progression == null:
+		return {"is_practice_skill": false}
+	return _build_practice_growth_service().get_skill_learned_status(skill_id, member_state.progression)
+
+
+func set_active_level_trigger_core_skill(member_id: StringName, skill_id: StringName) -> Dictionary:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	var service = LEVEL_GROWTH_EVALUATION_SERVICE_SCRIPT.new()
+	service.setup(_skill_defs)
+	var result: Dictionary = service.set_active_trigger_core_skill(member_state, skill_id)
+	if bool(result.get("ok", false)) and member_state != null and member_state.progression != null:
+		_build_progression_service(member_state.progression).refresh_runtime_state()
+	return result
+
+
+func clear_active_level_trigger_core_skill(member_id: StringName) -> Dictionary:
+	var member_state: PartyMemberState = get_member_state(member_id)
+	var service = LEVEL_GROWTH_EVALUATION_SERVICE_SCRIPT.new()
+	service.setup(_skill_defs)
+	var result: Dictionary = service.clear_active_trigger_core_skill(member_state)
+	if bool(result.get("ok", false)) and member_state != null and member_state.progression != null:
+		_build_progression_service(member_state.progression).refresh_runtime_state()
+	return result
+
+
+func apply_daily_practice_growth(days_elapsed: int) -> Dictionary:
+	var result := {
+		"applied": false,
+		"days_elapsed": maxi(int(days_elapsed), 0),
+		"changed_member_ids": [],
+	}
+	if _party_state == null or days_elapsed <= 0:
+		return result
+	var practice_service = _build_practice_growth_service()
+	var changed_member_ids: Array[StringName] = []
+	for member_key in ProgressionDataUtils.sorted_string_keys(_party_state.member_states):
+		var member_id := ProgressionDataUtils.to_string_name(member_key)
+		var member_state: PartyMemberState = _party_state.get_member_state(member_id)
+		if member_state == null or member_state.progression == null:
+			continue
+		var before_snapshot := _capture_practice_resource_snapshot(member_state)
+		practice_service.apply_daily_growth_to_member(member_state, days_elapsed)
+		var after_snapshot := _capture_practice_resource_snapshot(member_state)
+		if before_snapshot != after_snapshot:
+			changed_member_ids.append(member_id)
+	result["changed_member_ids"] = ProgressionDataUtils.string_name_array_to_string_array(changed_member_ids)
+	result["applied"] = not changed_member_ids.is_empty()
+	return result
+
+
+func _learn_skill_internal(member_id: StringName, skill_id: StringName, unlocked_ids = null, options: Dictionary = {}) -> bool:
 	var member_state: PartyMemberState = get_member_state(member_id)
 	if member_state == null or member_state.progression == null:
 		return false
 
+	var practice_service = _build_practice_growth_service()
+	var practice_status: Dictionary = practice_service.get_skill_learned_status(skill_id, member_state.progression)
+	if bool(practice_status.get("is_practice_skill", false)):
+		if bool(practice_status.get("needs_replacement", false)):
+			if not bool(options.get("confirm_practice_replacement", false)):
+				return false
+			if not practice_service.apply_replacement(skill_id, member_state.progression):
+				return false
+			var refreshed_service: ProgressionService = _build_progression_service(member_state.progression)
+			refreshed_service.refresh_runtime_state()
+			var replacement_achievement_ids := record_achievement_event(member_id, &"skill_learned", 1, skill_id)
+			if unlocked_ids is Array:
+				_append_unique_string_names(unlocked_ids, replacement_achievement_ids)
+			return true
+
 	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
 	if not progression_service.learn_skill(skill_id):
 		return false
+	if bool(practice_status.get("is_practice_skill", false)):
+		practice_service.inject_first_unlock_starting_values(
+			member_state,
+			ProgressionDataUtils.to_string_name(practice_status.get("track_type", ""))
+		)
 	var achievement_ids := record_achievement_event(member_id, &"skill_learned", 1, skill_id)
 	if unlocked_ids is Array:
 		_append_unique_string_names(unlocked_ids, achievement_ids)
@@ -1088,10 +1163,12 @@ func promote_profession(
 	var before_skill_levels: Dictionary = _capture_skill_levels(member_state.progression)
 	var before_granted_skill_ids: Dictionary = _capture_granted_skill_ids(member_state.progression)
 	var before_profession_ranks: Dictionary = _capture_profession_ranks(member_state.progression)
+	var trigger_skill_id: StringName = member_state.progression.active_level_trigger_core_skill_id
 	delta.character_level_before = int(member_state.progression.character_level)
 
 	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
 	if progression_service.promote_profession(profession_id, selection):
+		_apply_level_trigger_attribute_growth(member_state, trigger_skill_id, delta)
 		_fill_delta_from_progression(
 			delta,
 			member_state.progression,
@@ -1272,148 +1349,23 @@ func _collect_active_stage_advancement_modifiers(member_state: PartyMemberState)
 
 
 func _backfill_racial_granted_skills_for_member(member_state: PartyMemberState) -> bool:
-	if member_state == null or member_state.progression == null:
-		return false
-	var grant_entries := _collect_member_racial_grant_entries(member_state)
-	if grant_entries.is_empty():
-		return false
-	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
-	var changed := false
-	for grant_entry in grant_entries:
-		var grant := grant_entry.get("grant") as RacialGrantedSkill
-		var source_type := ProgressionDataUtils.to_string_name(grant_entry.get("source_type", ""))
-		var source_id := ProgressionDataUtils.to_string_name(grant_entry.get("source_id", ""))
-		if progression_service.grant_racial_skill(grant, source_type, source_id):
-			changed = true
-	return changed
+	return RACIAL_SKILL_GRANT_SERVICE_SCRIPT.backfill_member(
+		member_state,
+		_progression_content_bundle,
+		_skill_defs,
+		_profession_defs,
+		Callable(self, "_build_progression_service")
+	)
 
 
 func _revoke_orphan_racial_skills_for_member(member_state: PartyMemberState) -> bool:
-	if member_state == null or member_state.progression == null:
-		return false
-	var active_grant_lookup := _collect_active_identity_grant_lookup(member_state)
-	var skill_ids_to_remove: Array[StringName] = []
-	for skill_key in ProgressionDataUtils.sorted_string_keys(member_state.progression.skills):
-		var skill_id := StringName(skill_key)
-		var skill_progress: Variant = member_state.progression.get_skill_progress(skill_id)
-		if skill_progress == null:
-			continue
-		var source_type := ProgressionDataUtils.to_string_name(skill_progress.granted_source_type)
-		if not _is_racial_granted_source_type(source_type):
-			continue
-		if skill_progress.profession_granted_by != &"":
-			continue
-		var source_id := ProgressionDataUtils.to_string_name(skill_progress.granted_source_id)
-		if active_grant_lookup.has(_identity_grant_key(source_type, source_id, skill_id)):
-			continue
-		skill_ids_to_remove.append(skill_id)
-	if skill_ids_to_remove.is_empty():
-		return false
-	for skill_id in skill_ids_to_remove:
-		member_state.progression.remove_skill_progress(skill_id)
-	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
-	progression_service.refresh_runtime_state()
-	return true
-
-
-func _collect_active_identity_grant_lookup(member_state: PartyMemberState) -> Dictionary:
-	var lookup: Dictionary = {}
-	for grant_entry in _collect_member_racial_grant_entries(member_state):
-		var grant := grant_entry.get("grant") as RacialGrantedSkill
-		if grant == null:
-			continue
-		var source_type := ProgressionDataUtils.to_string_name(grant_entry.get("source_type", ""))
-		var source_id := ProgressionDataUtils.to_string_name(grant_entry.get("source_id", ""))
-		lookup[_identity_grant_key(source_type, source_id, grant.skill_id)] = true
-	return lookup
-
-
-func _collect_member_racial_grant_entries(member_state: PartyMemberState) -> Array[Dictionary]:
-	var entries: Array[Dictionary] = []
-	if member_state == null:
-		return entries
-	var race_def := _get_content_def("race_defs", "race", member_state.race_id) as RaceDef
-	if race_def != null:
-		_append_racial_grant_entries(
-			entries,
-			race_def.racial_granted_skills,
-			UnitSkillProgress.GRANTED_SOURCE_RACE,
-			member_state.race_id
-		)
-	var subrace_def := _get_content_def("subrace_defs", "subrace", member_state.subrace_id) as SubraceDef
-	if subrace_def != null:
-		_append_racial_grant_entries(
-			entries,
-			subrace_def.racial_granted_skills,
-			UnitSkillProgress.GRANTED_SOURCE_SUBRACE,
-			member_state.subrace_id
-		)
-	if member_state.bloodline_id != &"":
-		var bloodline_def := _get_content_def("bloodline_defs", "bloodline", member_state.bloodline_id) as BloodlineDef
-		if bloodline_def != null:
-			_append_racial_grant_entries(
-				entries,
-				bloodline_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
-				member_state.bloodline_id
-			)
-	if member_state.bloodline_stage_id != &"":
-		var bloodline_stage_def := _get_content_def("bloodline_stage_defs", "bloodline_stage", member_state.bloodline_stage_id) as BloodlineStageDef
-		if bloodline_stage_def != null:
-			_append_racial_grant_entries(
-				entries,
-				bloodline_stage_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
-				member_state.bloodline_stage_id
-			)
-	if member_state.ascension_id != &"":
-		var ascension_def := _get_content_def("ascension_defs", "ascension", member_state.ascension_id) as AscensionDef
-		if ascension_def != null:
-			_append_racial_grant_entries(
-				entries,
-				ascension_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
-				member_state.ascension_id
-			)
-	if member_state.ascension_stage_id != &"":
-		var ascension_stage_def := _get_content_def("ascension_stage_defs", "ascension_stage", member_state.ascension_stage_id) as AscensionStageDef
-		if ascension_stage_def != null:
-			_append_racial_grant_entries(
-				entries,
-				ascension_stage_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
-				member_state.ascension_stage_id
-			)
-	return entries
-
-
-func _append_racial_grant_entries(
-	entries: Array[Dictionary],
-	granted_skills: Array,
-	source_type: StringName,
-	source_id: StringName
-) -> void:
-	if source_id == &"":
-		return
-	for grant in granted_skills:
-		if grant == null:
-			continue
-		entries.append({
-			"grant": grant,
-			"source_type": source_type,
-			"source_id": source_id,
-		})
-
-
-func _identity_grant_key(source_type: StringName, source_id: StringName, skill_id: StringName) -> String:
-	return "%s:%s:%s" % [String(source_type), String(source_id), String(skill_id)]
-
-
-func _is_racial_granted_source_type(source_type: StringName) -> bool:
-	return source_type == UnitSkillProgress.GRANTED_SOURCE_RACE \
-		or source_type == UnitSkillProgress.GRANTED_SOURCE_SUBRACE \
-		or source_type == UnitSkillProgress.GRANTED_SOURCE_ASCENSION \
-		or source_type == UnitSkillProgress.GRANTED_SOURCE_BLOODLINE
+	return RACIAL_SKILL_GRANT_SERVICE_SCRIPT.revoke_orphan_member(
+		member_state,
+		_progression_content_bundle,
+		_skill_defs,
+		_profession_defs,
+		Callable(self, "_build_progression_service")
+	)
 
 
 func _build_progression_service(progression_state) -> ProgressionService:
@@ -1436,6 +1388,73 @@ func _build_progression_service(progression_state) -> ProgressionService:
 		merge_service
 	)
 	return progression_service
+
+
+func _build_practice_growth_service():
+	var service = PRACTICE_GROWTH_SERVICE_SCRIPT.new()
+	service.setup(_skill_defs, _profession_defs)
+	return service
+
+
+func _capture_practice_resource_snapshot(member_state: PartyMemberState) -> Dictionary:
+	var progression: UnitProgress = member_state.progression if member_state != null else null
+	var base_attrs: UnitBaseAttributes = progression.unit_base_attributes if progression != null else null
+	return {
+		"current_mp": int(member_state.current_mp) if member_state != null else 0,
+		"current_aura": int(member_state.current_aura) if member_state != null else 0,
+		"mp_max": int(base_attrs.get_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX)) if base_attrs != null else 0,
+		"aura_max": int(base_attrs.get_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX)) if base_attrs != null else 0,
+	}
+
+
+func _apply_level_trigger_attribute_growth(
+	member_state: PartyMemberState,
+	trigger_skill_id: StringName,
+	delta: CharacterProgressionDelta
+) -> void:
+	if member_state == null or member_state.progression == null or trigger_skill_id == &"":
+		return
+	var skill_def: SkillDef = _skill_defs.get(trigger_skill_id) as SkillDef
+	if skill_def == null or skill_def.attribute_growth_progress.is_empty():
+		return
+	var skill_progress = member_state.progression.get_skill_progress(trigger_skill_id)
+	if skill_progress == null or bool(skill_progress.core_max_growth_claimed):
+		return
+	var attribute_growth_service: AttributeGrowthService = ATTRIBUTE_GROWTH_SERVICE_SCRIPT.new()
+	attribute_growth_service.setup(member_state.progression)
+	var attribute_keys: Array[String] = []
+	for raw_attribute_key in skill_def.attribute_growth_progress.keys():
+		var attribute_id := ProgressionDataUtils.to_string_name(raw_attribute_key)
+		if attribute_id == &"":
+			continue
+		attribute_keys.append(String(attribute_id))
+	attribute_keys.sort()
+	for attribute_key in attribute_keys:
+		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
+		var amount := int(skill_def.attribute_growth_progress.get(attribute_id, skill_def.attribute_growth_progress.get(attribute_key, 0)))
+		if amount <= 0:
+			continue
+		var growth_result: Dictionary = attribute_growth_service.apply_attribute_progress(
+			attribute_id,
+			amount,
+			"%s 锁定成长" % _resolve_skill_label(trigger_skill_id)
+		)
+		if not bool(growth_result.get("applied", false)):
+			continue
+		if delta != null:
+			delta.attribute_changes.append({
+				"attribute_id": attribute_id,
+				"attribute_label": _resolve_attribute_label(attribute_id),
+				"progress_delta": int(growth_result.get("progress_delta", 0)),
+				"progress_before": int(growth_result.get("progress_before", 0)),
+				"progress_after": int(growth_result.get("progress_after", 0)),
+				"delta": int(growth_result.get("attribute_delta", 0)),
+				"attribute_before": int(growth_result.get("attribute_before", 0)),
+				"attribute_after": int(growth_result.get("attribute_after", 0)),
+				"reason_text": String(growth_result.get("reason_text", "")),
+			})
+	skill_progress.core_max_growth_claimed = true
+	member_state.progression.set_skill_progress(skill_progress)
 
 
 func _get_content_def(primary_bucket: String, alias_bucket: String, entry_id: StringName):
@@ -1672,6 +1691,8 @@ func _enqueue_core_max_attribute_growth_reward(
 	if skill_progress == null:
 		return
 	if not skill_progress.is_learned or not skill_progress.is_core:
+		return
+	if bool(skill_progress.is_level_trigger_active) or member_state.progression.active_level_trigger_core_skill_id == skill_id:
 		return
 	if bool(skill_progress.core_max_growth_claimed):
 		return

@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
@@ -73,7 +75,8 @@ const OFFICIAL_ARCHER_RESOURCE_SKILL_IDS: Array[StringName] = [
 	&"archer_killing_field",
 ]
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -82,6 +85,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_seed_skill_resources_scan_and_validate()
+	_test_mage_damage_tags_do_not_use_generic_magic()
 	_test_progression_registry_uses_skill_resources_only()
 	_test_attribute_growth_progress_schema_validation()
 	_test_dynamic_max_level_schema_validation()
@@ -371,6 +375,20 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	_assert_cast_variant_compat_shape(fossil_to_mud, "SkillContentRegistry")
 
 
+func _test_mage_damage_tags_do_not_use_generic_magic() -> void:
+	var registry := SkillContentRegistry.new()
+	var skill_defs := registry.get_skill_defs()
+	for skill_id in _collect_mage_skill_ids(skill_defs):
+		var skill_def := skill_defs.get(skill_id) as SkillDef
+		for effect_def in _collect_skill_effect_defs(skill_def):
+			if effect_def == null or effect_def.effect_type != &"damage":
+				continue
+			_assert_true(
+				effect_def.damage_tag != &"magic",
+				"法师技能 %s 的伤害效果不应使用 generic magic damage_tag。" % String(skill_id)
+			)
+
+
 func _test_dynamic_max_level_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_skill := _make_minimal_schema_skill(&"valid_dynamic_max_level_skill")
@@ -380,6 +398,14 @@ func _test_dynamic_max_level_schema_validation() -> void:
 	var valid_errors: Array[String] = []
 	registry._append_skill_validation_errors(valid_errors, valid_skill.skill_id, valid_skill)
 	_assert_true(valid_errors.is_empty(), "合法动态等级上限配置应通过 SkillContentRegistry 校验。")
+
+	var valid_divisor_skill := _make_minimal_schema_skill(&"valid_dynamic_max_level_divisor_skill")
+	valid_divisor_skill.dynamic_max_level_stat_id = &"profession_rank:mage"
+	valid_divisor_skill.dynamic_max_level_base = 5
+	valid_divisor_skill.dynamic_max_level_per_stat = -2
+	var valid_divisor_errors: Array[String] = []
+	registry._append_skill_validation_errors(valid_divisor_errors, valid_divisor_skill.skill_id, valid_divisor_skill)
+	_assert_true(valid_divisor_errors.is_empty(), "合法动态等级上限整除配置应通过 SkillContentRegistry 校验。")
 
 	var missing_stat_skill := _make_minimal_schema_skill(&"missing_dynamic_max_level_stat_skill")
 	missing_stat_skill.dynamic_max_level_base = 7
@@ -413,8 +439,8 @@ func _test_dynamic_max_level_schema_validation() -> void:
 	var invalid_per_stat_errors: Array[String] = []
 	registry._append_skill_validation_errors(invalid_per_stat_errors, invalid_per_stat_skill.skill_id, invalid_per_stat_skill)
 	_assert_true(
-		_has_error_containing(invalid_per_stat_errors, "dynamic_max_level_per_stat must be >= 1"),
-		"动态上限每点增量必须为正数。"
+		_has_error_containing(invalid_per_stat_errors, "dynamic_max_level_per_stat must not be 0"),
+		"动态上限每点增量不能为 0。"
 	)
 
 
@@ -620,7 +646,7 @@ func _test_requires_weapon_param_schema_validation() -> void:
 	var invalid_trigger_effect := CombatEffectDef.new()
 	invalid_trigger_effect.effect_type = &"status"
 	invalid_trigger_effect.status_id = &"staggered"
-	invalid_trigger_effect.trigger_event = &"ordinary_hit"
+	invalid_trigger_effect.trigger_event = &"nonexistent_trigger"
 	var invalid_trigger_errors: Array[String] = []
 	registry._append_effect_validation_errors(invalid_trigger_errors, &"invalid_trigger_skill", invalid_trigger_effect, "test_effect")
 	_assert_true(
@@ -688,11 +714,13 @@ func _test_damage_resolver_alias_param_schema_validation() -> void:
 	valid_effect.params = {
 		"damage_tag": "fire",
 		"dr_bypass_tag": "armor_pierce",
-		"hp_ratio_threshold": 0.6,
+		"hp_ratio_threshold_percent": 60,
+		"bonus_damage_dice_count": 1,
+		"bonus_damage_dice_sides": 6,
 	}
 	var valid_errors: Array[String] = []
 	registry._append_effect_validation_errors(valid_errors, &"valid_damage_resolver_params_skill", valid_effect, "test_effect")
-	_assert_true(valid_errors.is_empty(), "正式 damage_tag / dr_bypass_tag / hp_ratio_threshold params 应通过 schema。")
+	_assert_true(valid_errors.is_empty(), "正式 damage_tag / dr_bypass_tag / hp_ratio_threshold_percent / bonus_damage_dice params 应通过 schema。")
 
 	var legacy_effect := CombatEffectDef.new()
 	legacy_effect.effect_type = &"damage"
@@ -712,8 +740,31 @@ func _test_damage_resolver_alias_param_schema_validation() -> void:
 		"params.bypass_tag 旧 schema 应被 SkillContentRegistry 静态拒绝。"
 	)
 	_assert_true(
-		_has_error_containing(legacy_errors, "params.low_hp_ratio is unsupported; use hp_ratio_threshold"),
+		_has_error_containing(legacy_errors, "params.low_hp_ratio is unsupported; use hp_ratio_threshold_percent"),
 		"params.low_hp_ratio 旧 schema 应被 SkillContentRegistry 静态拒绝。"
+	)
+
+	var invalid_bonus_effect := CombatEffectDef.new()
+	invalid_bonus_effect.effect_type = &"damage"
+	invalid_bonus_effect.bonus_condition = &"target_low_hp"
+	invalid_bonus_effect.params = {
+		"hp_ratio_threshold_percent": 60.0,
+		"bonus_damage_dice_count": 1.5,
+		"bonus_damage_dice_sides": 0,
+	}
+	var invalid_bonus_errors: Array[String] = []
+	registry._append_effect_validation_errors(invalid_bonus_errors, &"invalid_bonus_damage_dice_skill", invalid_bonus_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(invalid_bonus_errors, "params.hp_ratio_threshold_percent must be an int from 1 to 100"),
+		"hp_ratio_threshold_percent 应要求整数百分比。"
+	)
+	_assert_true(
+		_has_error_containing(invalid_bonus_errors, "params.bonus_damage_dice_count must be a positive int"),
+		"bonus_damage_dice_count 应要求正整数。"
+	)
+	_assert_true(
+		_has_error_containing(invalid_bonus_errors, "params.bonus_damage_dice_sides must be a positive int"),
+		"bonus_damage_dice_sides 应要求正整数。"
 	)
 
 
@@ -827,6 +878,18 @@ func _test_supported_effect_type_schema_validation() -> void:
 	registry._append_effect_validation_errors(height_errors, &"height_skill", height_effect, "test_effect")
 	_assert_true(height_errors.is_empty(), "运行时支持的 height effect_type 应通过 schema。")
 
+	var edge_clear_effect := CombatEffectDef.new()
+	edge_clear_effect.effect_type = &"edge_clear"
+	var edge_clear_errors: Array[String] = []
+	registry._append_effect_validation_errors(edge_clear_errors, &"edge_clear_skill", edge_clear_effect, "test_effect")
+	_assert_true(edge_clear_errors.is_empty(), "运行时支持的 edge_clear effect_type 应通过 schema。")
+
+	var dispel_magic_effect := CombatEffectDef.new()
+	dispel_magic_effect.effect_type = &"dispel_magic"
+	var dispel_magic_errors: Array[String] = []
+	registry._append_effect_validation_errors(dispel_magic_errors, &"dispel_magic_skill", dispel_magic_effect, "test_effect")
+	_assert_true(dispel_magic_errors.is_empty(), "运行时支持的 dispel_magic effect_type 应通过 schema。")
+
 	var invalid_height_effect := CombatEffectDef.new()
 	invalid_height_effect.effect_type = &"height_delta"
 	var invalid_height_errors: Array[String] = []
@@ -902,6 +965,25 @@ func _collect_mage_skill_ids(skill_defs: Dictionary) -> Array[StringName]:
 	return skill_ids
 
 
+func _collect_skill_effect_defs(skill_def: SkillDef) -> Array:
+	var effects: Array = []
+	if skill_def == null or skill_def.combat_profile == null:
+		return effects
+	for effect_def in skill_def.combat_profile.effect_defs:
+		if effect_def != null:
+			effects.append(effect_def)
+	for effect_def in skill_def.combat_profile.passive_effect_defs:
+		if effect_def != null:
+			effects.append(effect_def)
+	for cast_variant in skill_def.combat_profile.cast_variants:
+		if cast_variant == null:
+			continue
+		for effect_def in cast_variant.effect_defs:
+			if effect_def != null:
+				effects.append(effect_def)
+	return effects
+
+
 func _assert_cast_variant_compat_shape(skill_def: SkillDef, source_label: String) -> void:
 	_assert_true(skill_def != null, "%s 应提供 mage_fossil_to_mud。" % source_label)
 	if skill_def == null:
@@ -957,7 +1039,7 @@ func _assert_cast_variant_compat_entry(
 	if skill_def == null or skill_def.combat_profile == null:
 		return
 	if index >= skill_def.combat_profile.cast_variants.size():
-		_failures.append("%s 的 mage_fossil_to_mud 缺少 cast_variant[%d]。" % [source_label, index])
+		_test.fail("%s 的 mage_fossil_to_mud 缺少 cast_variant[%d]。" % [source_label, index])
 		return
 	var cast_variant = skill_def.combat_profile.cast_variants[index]
 	_assert_true(cast_variant != null, "%s 的 mage_fossil_to_mud cast_variant[%d] 不应为空。" % [source_label, index])
@@ -979,9 +1061,9 @@ func _has_error_containing(errors: Array[String], expected_fragment: String) -> 
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

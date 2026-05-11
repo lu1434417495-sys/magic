@@ -4,6 +4,8 @@
 
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
@@ -32,10 +34,12 @@ const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd"
 const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 const WorldMapSystem = preload("res://scripts/systems/game_runtime/world_map_system.gd")
 
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -61,8 +65,10 @@ func _run() -> void:
 	_test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_cap()
 	_test_core_max_skill_queues_attribute_progress_once()
 	_test_core_max_skill_ignores_string_name_attribute_growth_key()
-	_test_non_core_skill_max_level_cap_lifts_when_core()
+	_test_non_core_skill_max_level_cap_lifts_when_locked()
+	_test_profession_promotion_requires_ready_active_level_trigger_and_locks_it()
 	_test_aura_slash_max_level_uses_transformation_count()
+	_test_dynamic_max_level_uses_profession_rank_integer_divisor()
 	_test_attribute_growth_progress_round_trip_persists()
 	_test_unit_progress_from_dict_requires_top_level_schema_fields()
 	_test_unit_progress_from_dict_rejects_attribute_and_reputation_schema_defaults()
@@ -106,9 +112,9 @@ func _test_seed_achievement_registry_validates() -> void:
 	var registry := ProgressionContentRegistry.new()
 	_assert_true(BattleRuntimeModule != null, "BattleRuntimeModule 脚本应能成功编译。")
 	_assert_true(WorldMapSystem != null, "WorldMapSystem 脚本应能成功编译。")
-	_assert_true(
-		registry.validate().is_empty(),
-		"ProgressionContentRegistry 的种子成就定义应通过校验。"
+	_assert_current_official_progression_validation_errors(
+		registry.validate(),
+		"ProgressionContentRegistry 正式内容不应报告校验错误。"
 	)
 	_assert_true(
 		registry.get_achievement_defs().size() >= 8,
@@ -224,8 +230,10 @@ func _test_archer_profession_grant_passive_is_level_zero_and_not_manually_learna
 	progress.display_name = "Grant Hero"
 	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 10)
 	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	var promotion_skill_defs := skill_defs.duplicate()
+	_prepare_ready_active_level_trigger(progress, promotion_skill_defs, &"test_archer_grant_trigger")
 	var service := ProgressionService.new()
-	service.setup(progress, skill_defs, {profession.profession_id: profession})
+	service.setup(progress, promotion_skill_defs, {profession.profession_id: profession})
 	_assert_true(
 		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 4}),
 		"测试职业应能晋升并授予射击专精。"
@@ -615,19 +623,22 @@ func _test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_statu
 		_assert_eq(int(status_entry.params.get("control_save_bonus", -1)), 2, "9 级金刚不坏应记录 2 点控制检定加值。")
 		_assert_true(not bool(status_entry.params.get("forced_move_immune", false)), "非核心 9 级金刚不坏不应免疫强制位移。")
 
-	_assert_true(progression_service.set_skill_core(&"vajra_body", true), "金刚不坏设为核心后应解锁 10 级上限。")
+	_assert_true(progression_service.set_skill_core(&"vajra_body", true), "金刚不坏应能被指定为核心。")
+	skill_progress.is_level_trigger_locked = true
+	member_state.progression.set_skill_progress(skill_progress)
+	progression_service.refresh_runtime_state()
 	_assert_true(
 		progression_service.grant_skill_mastery(&"vajra_body", 3000, &"heavy_hit_taken"),
-		"核心金刚不坏应能继续获得熟练度。"
+		"锁定金刚不坏应能继续获得熟练度。"
 	)
-	_assert_eq(int(skill_progress.skill_level), 10, "核心金刚不坏应能升到 10 级。")
+	_assert_eq(int(skill_progress.skill_level), 10, "锁定金刚不坏应能升到 10 级。")
 	units = factory.build_ally_units(party_state, {})
 	unit_state = (units[0] as BattleUnitState) if not units.is_empty() else null
 	status_entry = unit_state.get_status_effect(&"vajra_body") if unit_state != null else null
 	if status_entry != null:
 		_assert_eq(int(status_entry.params.get("passive_reduction", -1)), 6, "10 级金刚不坏应保持减少 6 点伤害。")
 		_assert_eq(int(status_entry.params.get("control_save_bonus", -1)), 2, "10 级金刚不坏应记录 2 点控制检定加值。")
-		_assert_true(bool(status_entry.params.get("forced_move_immune", false)), "核心 10 级金刚不坏应免疫敌方强制位移。")
+		_assert_true(bool(status_entry.params.get("forced_move_immune", false)), "锁定 10 级金刚不坏应免疫敌方强制位移。")
 
 
 func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() -> void:
@@ -734,8 +745,10 @@ func _test_profession_promotion_persists_hit_die_hp_gain() -> void:
 	progress.display_name = "Hero"
 	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 14)
 	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	var skill_defs := {}
+	_prepare_ready_active_level_trigger(progress, skill_defs, &"test_d10_trigger_1")
 	var service := ProgressionService.new()
-	service.setup(progress, {}, {profession.profession_id: profession})
+	service.setup(progress, skill_defs, {profession.profession_id: profession})
 
 	_assert_true(
 		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 7}),
@@ -746,6 +759,12 @@ func _test_profession_promotion_persists_hit_die_hp_gain() -> void:
 		31,
 		"晋升时应把 d10 roll 7 + CON 调整值 2*2 的生命增量写入持久 hp_max。"
 	)
+	_prepare_ready_active_level_trigger(progress, skill_defs, &"test_d10_trigger_2")
+	var second_trigger_progress = progress.get_skill_progress(&"test_d10_trigger_2")
+	if second_trigger_progress != null:
+		second_trigger_progress.assigned_profession_id = profession.profession_id
+		progress.set_skill_progress(second_trigger_progress)
+	service.setup(progress, skill_defs, {profession.profession_id: profession})
 	_assert_true(
 		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
 		"测试职业应能晋升到 2 级。"
@@ -897,7 +916,7 @@ func _test_core_max_skill_ignores_string_name_attribute_growth_key() -> void:
 	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 0, "旧 StringName key attribute_growth_progress 不应写入敏捷进度。")
 
 
-func _test_non_core_skill_max_level_cap_lifts_when_core() -> void:
+func _test_non_core_skill_max_level_cap_lifts_when_locked() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"hero"
 	var skill_def := SkillDef.new()
@@ -917,7 +936,48 @@ func _test_non_core_skill_max_level_cap_lifts_when_core() -> void:
 
 	_assert_true(service.set_skill_core(skill_def.skill_id, true), "测试技能应能锁定为核心。")
 	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
-	_assert_eq(int(skill_progress.skill_level), 5, "锁定为核心后应允许提升到 max_level 5。")
+	_assert_eq(int(skill_progress.skill_level), 3, "仅指定为核心但未锁定时仍应被 non_core_max_level 限制。")
+
+	skill_progress.is_level_trigger_locked = true
+	progress.set_skill_progress(skill_progress)
+	service.refresh_runtime_state()
+	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
+	_assert_eq(int(skill_progress.skill_level), 5, "升级触发锁定后应允许提升到 max_level 5。")
+
+
+func _test_profession_promotion_requires_ready_active_level_trigger_and_locks_it() -> void:
+	var profession := ProfessionDef.new()
+	profession.profession_id = &"test_triggered_profession"
+	profession.display_name = "Test Triggered Profession"
+	profession.max_rank = 1
+	profession.hit_die_sides = 6
+	profession.is_initial_profession = true
+
+	var progress := UnitProgress.new()
+	progress.unit_id = &"hero"
+	progress.display_name = "Hero"
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	var skill_defs := {}
+	var service := ProgressionService.new()
+	service.setup(progress, skill_defs, {profession.profession_id: profession})
+
+	_assert_true(
+		not service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		"没有手动指定且达到上限的核心技能时，不应允许职业晋升。"
+	)
+
+	var trigger_skill_id := _prepare_ready_active_level_trigger(progress, skill_defs, &"test_level_trigger_ready")
+	service.setup(progress, skill_defs, {profession.profession_id: profession})
+	_assert_true(
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		"手动指定核心技能达到 non_core 上限后应允许职业晋升。"
+	)
+	var trigger_progress = progress.get_skill_progress(trigger_skill_id)
+	_assert_true(trigger_progress != null and trigger_progress.is_level_trigger_locked, "晋升确认后应立即锁定触发技能。")
+	if trigger_progress != null:
+		_assert_true(not trigger_progress.is_level_trigger_active, "锁定后的触发技能不应继续保持 active 状态。")
+		_assert_eq(int(trigger_progress.bonus_to_hit_from_lock), 1, "锁定技能应获得命中 / 检定 / DC 加值。")
+	_assert_eq(progress.active_level_trigger_core_skill_id, &"", "晋升确认后应清空主动触发技能。")
 
 
 func _test_aura_slash_max_level_uses_transformation_count() -> void:
@@ -943,12 +1003,69 @@ func _test_aura_slash_max_level_uses_transformation_count() -> void:
 
 	_assert_true(service.set_skill_core(skill_def.skill_id, true), "斗气斩应能锁定为核心。")
 	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
-	_assert_eq(int(skill_progress.skill_level), 7, "斗气斩核心状态默认最大等级应为 7。")
+	_assert_eq(int(skill_progress.skill_level), 5, "斗气斩仅指定核心但未锁定时仍应停在 non_core 上限。")
+
+	skill_progress.is_level_trigger_locked = true
+	progress.set_skill_progress(skill_progress)
+	service.refresh_runtime_state()
+	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
+	_assert_eq(int(skill_progress.skill_level), 7, "斗气斩锁定后默认最大等级应为 7。")
 
 	progress.unit_base_attributes.set_attribute_value(&"aura_transformation_count", 2)
 	service.refresh_runtime_state()
 	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
 	_assert_eq(int(skill_progress.skill_level), 11, "斗气斩每次斗气质变应将核心最大等级提高 2。")
+
+
+func _test_dynamic_max_level_uses_profession_rank_integer_divisor() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_id = &"mage"
+	var mage_profession := UnitProfessionProgress.new()
+	mage_profession.profession_id = &"mage"
+	progress.set_profession_progress(mage_profession)
+
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"mage_arcane_missile"
+	skill_def.max_level = 5
+	skill_def.non_core_max_level = 3
+	skill_def.dynamic_max_level_stat_id = &"profession_rank:mage"
+	skill_def.dynamic_max_level_base = 5
+	skill_def.dynamic_max_level_per_stat = -2
+
+	mage_profession.rank = 9
+	_assert_eq(
+		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_absolute_max_level(skill_def, progress),
+		5,
+		"法师 rank 9 时奥术飞弹动态上限应为 max(5, floor(9 / 2)) = 5。"
+	)
+
+	mage_profession.rank = 12
+	_assert_eq(
+		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_absolute_max_level(skill_def, progress),
+		6,
+		"法师 rank 12 时奥术飞弹动态上限应为 max(5, floor(12 / 2)) = 6。"
+	)
+
+	mage_profession.rank = 19
+	_assert_eq(
+		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_absolute_max_level(skill_def, progress),
+		9,
+		"法师 rank 19 时奥术飞弹动态上限应为 max(5, floor(19 / 2)) = 9。"
+	)
+
+	var skill_progress := UnitSkillProgress.new()
+	skill_progress.skill_id = skill_def.skill_id
+	_assert_eq(
+		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(skill_def, skill_progress, progress),
+		3,
+		"奥术飞弹未锁定时仍应受 non_core 上限限制。"
+	)
+	skill_progress.is_level_trigger_locked = true
+	_assert_eq(
+		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(skill_def, skill_progress, progress),
+		9,
+		"奥术飞弹锁定后才应使用法师 rank/2 的动态核心上限。"
+	)
 
 
 func _test_attribute_growth_progress_round_trip_persists() -> void:
@@ -1590,6 +1707,8 @@ func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievem
 	var source_aura_progress = progression.get_skill_progress(&"warrior_aura_slash")
 	source_combo_progress.is_core = true
 	source_aura_progress.is_core = true
+	source_combo_progress.is_level_trigger_locked = true
+	source_aura_progress.is_level_trigger_locked = true
 	progression.set_skill_progress(source_combo_progress)
 	progression.set_skill_progress(source_aura_progress)
 	_assert_true(
@@ -2963,6 +3082,46 @@ func _make_reward(
 	return reward
 
 
+func _make_test_level_trigger_skill(
+	skill_id: StringName,
+	max_level: int = 2,
+	non_core_max_level: int = 1
+) -> SkillDef:
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = String(skill_id)
+	skill_def.icon_id = skill_id
+	skill_def.skill_type = &"passive"
+	skill_def.learn_source = &"book"
+	skill_def.max_level = max_level
+	skill_def.non_core_max_level = non_core_max_level
+	var curve := PackedInt32Array()
+	for _i in range(max_level):
+		curve.append(1)
+	skill_def.mastery_curve = curve
+	return skill_def
+
+
+func _prepare_ready_active_level_trigger(
+	progress: UnitProgress,
+	skill_defs: Dictionary,
+	skill_id: StringName,
+	max_level: int = 2,
+	non_core_max_level: int = 1
+) -> StringName:
+	var skill_def := _make_test_level_trigger_skill(skill_id, max_level, non_core_max_level)
+	skill_defs[skill_id] = skill_def
+	var skill_progress := UnitSkillProgress.new()
+	skill_progress.skill_id = skill_id
+	skill_progress.is_learned = true
+	skill_progress.is_core = true
+	skill_progress.skill_level = non_core_max_level
+	skill_progress.is_level_trigger_active = true
+	progress.set_skill_progress(skill_progress)
+	progress.active_level_trigger_core_skill_id = skill_id
+	return skill_id
+
+
 func _make_test_growth_skill(
 	skill_id: StringName,
 	growth_tier: StringName,
@@ -3114,15 +3273,19 @@ func _assert_identity_granted_skill(
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+
+
+func _assert_current_official_progression_validation_errors(errors: Array[String], message: String) -> void:
+	_assert_true(errors.is_empty(), "%s | errors=%s" % [message, str(errors)])
 
 
 func _assert_text_contains(text: String, expected_fragment: String, message: String) -> void:
 	if text.contains(expected_fragment):
 		return
-	_failures.append("%s | missing=%s text=%s" % [message, expected_fragment, text])
+	_test.fail("%s | missing=%s text=%s" % [message, expected_fragment, text])

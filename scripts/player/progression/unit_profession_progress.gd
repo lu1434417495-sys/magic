@@ -6,6 +6,16 @@ class_name UnitProfessionProgress
 extends RefCounted
 
 const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
+const TO_DICT_FIELDS: Array[String] = [
+	"profession_id",
+	"rank",
+	"is_active",
+	"is_hidden",
+	"core_skill_ids",
+	"granted_skill_ids",
+	"promotion_history",
+	"inactive_reason",
+]
 
 ## 字段说明：记录职业唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var profession_id: StringName = &""
@@ -66,18 +76,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	for field_name in [
-		"profession_id",
-		"rank",
-		"is_active",
-		"is_hidden",
-		"core_skill_ids",
-		"granted_skill_ids",
-		"promotion_history",
-		"inactive_reason",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var core_skill_ids_variant: Variant = data["core_skill_ids"]
 	var granted_skill_ids_variant: Variant = data["granted_skill_ids"]
 	var promotion_history_data: Variant = data["promotion_history"]
@@ -123,6 +123,15 @@ static func from_dict(data: Dictionary):
 		progress.promotion_history.append(promotion_record)
 
 	return progress
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func _parse_string_name_field(value: Variant, allow_empty: bool):

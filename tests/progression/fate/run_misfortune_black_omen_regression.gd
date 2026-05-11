@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
 const MisfortuneBlackOmenService = preload("res://scripts/systems/progression/misfortune_black_omen_service.gd")
 const EquipmentRules = preload("res://scripts/player/equipment/equipment_rules.gd")
@@ -10,7 +12,8 @@ const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 
 const HERO_ID: StringName = &"hero"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -65,7 +68,7 @@ func _test_string_key_only_cursed_relic_item_defs_do_not_grant() -> void:
 	var cursed_relic := _build_item_def(
 		&"cursed_black_crown_shard",
 		[&"cursed", &"relic"],
-		[EquipmentRules.ACCESSORY_1]
+		[EquipmentRules.NECKLACE]
 	)
 	var context := _build_context({String(cursed_relic.item_id): cursed_relic})
 	var member_state: PartyMemberState = context.get("member_state") as PartyMemberState
@@ -75,9 +78,9 @@ func _test_string_key_only_cursed_relic_item_defs_do_not_grant() -> void:
 		_assert_true(false, "String-key-only cursed relic hook 前置构建失败。")
 		return
 	member_state.equipment_state.set_equipped_entry(
-		EquipmentRules.ACCESSORY_1,
+		EquipmentRules.NECKLACE,
 		cursed_relic.item_id,
-		[EquipmentRules.ACCESSORY_1],
+		[EquipmentRules.NECKLACE],
 		EquipmentInstanceState.create(cursed_relic.item_id, &"eq_black_omen_string_key_only_relic")
 	)
 
@@ -260,15 +263,15 @@ func _build_context_with_cursed_relic() -> Dictionary:
 	var cursed_relic := _build_item_def(
 		&"cursed_black_crown_shard",
 		[&"cursed", &"relic"],
-		[EquipmentRules.ACCESSORY_1]
+		[EquipmentRules.NECKLACE]
 	)
 	var context := _build_context({cursed_relic.item_id: cursed_relic})
 	var member_state: PartyMemberState = context.get("member_state") as PartyMemberState
 	if member_state != null:
 		member_state.equipment_state.set_equipped_entry(
-			EquipmentRules.ACCESSORY_1,
+			EquipmentRules.NECKLACE,
 			cursed_relic.item_id,
-			[EquipmentRules.ACCESSORY_1],
+			[EquipmentRules.NECKLACE],
 			EquipmentInstanceState.create(cursed_relic.item_id, &"eq_black_omen_cursed_relic")
 		)
 	return context
@@ -331,12 +334,12 @@ func _get_doom_marked_value(manager: CharacterManagementModule) -> int:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _assert_rejected_without_doom_mark(result: Dictionary, manager: CharacterManagementModule, message: String) -> void:

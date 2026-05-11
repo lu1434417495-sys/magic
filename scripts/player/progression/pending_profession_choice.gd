@@ -5,6 +5,16 @@
 class_name PendingProfessionChoice
 extends RefCounted
 
+const TO_DICT_FIELDS: Array[String] = [
+	"trigger_skill_ids",
+	"candidate_profession_ids",
+	"target_rank_map",
+	"qualifier_skill_pool_ids",
+	"assignable_skill_candidate_ids",
+	"required_qualifier_count",
+	"required_assigned_core_count",
+]
+
 ## 字段说明：保存触发技能标识列表，便于批量遍历、交叉查找和界面展示。
 var trigger_skill_ids: Array[StringName] = []
 ## 字段说明：保存候选职业标识列表，便于批量遍历、交叉查找和界面展示。
@@ -38,17 +48,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary) -> PendingProfessionChoice:
-	for field_name in [
-		"trigger_skill_ids",
-		"candidate_profession_ids",
-		"target_rank_map",
-		"qualifier_skill_pool_ids",
-		"assignable_skill_candidate_ids",
-		"required_qualifier_count",
-		"required_assigned_core_count",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var trigger_skill_ids_variant: Variant = data["trigger_skill_ids"]
 	var candidate_profession_ids_variant: Variant = data["candidate_profession_ids"]
 	var target_rank_map_variant: Variant = data["target_rank_map"]
@@ -95,6 +96,15 @@ static func from_dict(data: Dictionary) -> PendingProfessionChoice:
 	choice.required_qualifier_count = int(required_qualifier_count_variant)
 	choice.required_assigned_core_count = int(required_assigned_core_count_variant)
 	return choice
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func _parse_string_name_field(value: Variant):

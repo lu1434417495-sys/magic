@@ -1,13 +1,25 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
+const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
+const PendingProfessionChoice = preload("res://scripts/player/progression/pending_profession_choice.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
+const ProfessionPromotionRecord = preload("res://scripts/player/progression/profession_promotion_record.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
+const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const UnitReputationState = preload("res://scripts/player/progression/unit_reputation_state.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -24,6 +36,7 @@ func _run() -> void:
 	_test_party_state_from_dict_requires_claimable_quests()
 	_test_party_state_from_dict_requires_roster_header_fields()
 	_test_party_state_from_dict_requires_member_schema_fields()
+	_test_runtime_dtos_reject_extra_fields()
 	_test_party_state_from_dict_rejects_bad_quest_state_schema()
 	_test_party_state_from_dict_rejects_bad_completed_quest_ids()
 	_test_party_state_from_dict_rejects_overlapping_quest_buckets()
@@ -562,6 +575,96 @@ func _test_party_state_from_dict_requires_member_schema_fields() -> void:
 	)
 
 
+func _test_runtime_dtos_reject_extra_fields() -> void:
+	var party_payload := _build_minimal_party_state_payload()
+	party_payload["legacy_party_cache"] = true
+	_assert_true(
+		PartyState.from_dict(party_payload) == null,
+		"PartyState 顶层额外字段应直接拒绝。"
+	)
+
+	var member := _build_party_member_state(&"hero", "Hero")
+	var progression_payload: Dictionary = member.progression.to_dict()
+	progression_payload["legacy_progression_cache"] = true
+	_assert_true(
+		UnitProgress.from_dict(progression_payload) == null,
+		"UnitProgress 顶层额外字段应直接拒绝。"
+	)
+
+	var attributes_payload := UnitBaseAttributes.new().to_dict()
+	attributes_payload["legacy_attribute_cache"] = true
+	_assert_true(
+		UnitBaseAttributes.from_dict(attributes_payload) == null,
+		"UnitBaseAttributes 额外字段应直接拒绝。"
+	)
+
+	var reputation_payload := UnitReputationState.new().to_dict()
+	reputation_payload["legacy_reputation_cache"] = true
+	_assert_true(
+		UnitReputationState.from_dict(reputation_payload) == null,
+		"UnitReputationState 额外字段应直接拒绝。"
+	)
+
+	var profession_progress := UnitProfessionProgress.new()
+	profession_progress.profession_id = &"fighter"
+	var profession_payload := profession_progress.to_dict()
+	profession_payload["legacy_profession_cache"] = true
+	_assert_true(
+		UnitProfessionProgress.from_dict(profession_payload) == null,
+		"UnitProfessionProgress 额外字段应直接拒绝。"
+	)
+
+	var achievement_progress := AchievementProgressState.new()
+	achievement_progress.achievement_id = &"schema_probe"
+	var achievement_payload := achievement_progress.to_dict()
+	achievement_payload["legacy_achievement_cache"] = true
+	_assert_true(
+		AchievementProgressState.from_dict(achievement_payload) == null,
+		"AchievementProgressState 额外字段应直接拒绝。"
+	)
+
+	var pending_choice := PendingProfessionChoice.new()
+	var choice_payload := pending_choice.to_dict()
+	choice_payload["legacy_choice_cache"] = true
+	_assert_true(
+		PendingProfessionChoice.from_dict(choice_payload) == null,
+		"PendingProfessionChoice 额外字段应直接拒绝。"
+	)
+
+	var promotion_record := ProfessionPromotionRecord.new()
+	var record_payload := promotion_record.to_dict()
+	record_payload["legacy_promotion_cache"] = true
+	_assert_true(
+		ProfessionPromotionRecord.from_dict(record_payload) == null,
+		"ProfessionPromotionRecord 额外字段应直接拒绝。"
+	)
+
+	var reward_entry := PendingCharacterRewardEntry.new()
+	reward_entry.entry_type = PendingCharacterRewardEntry.SKILL_MASTERY_ENTRY_TYPE
+	reward_entry.target_id = &"schema_probe_skill"
+	reward_entry.amount = 1
+	var reward_entry_payload := reward_entry.to_dict()
+	reward_entry_payload["legacy_reward_entry_cache"] = true
+	_assert_true(
+		PendingCharacterRewardEntry.from_dict(reward_entry_payload) == null,
+		"PendingCharacterRewardEntry 额外字段应直接拒绝。"
+	)
+
+	var reward := PendingCharacterReward.new()
+	reward.reward_id = &"schema_probe_reward"
+	reward.member_id = &"hero"
+	reward.member_name = "Hero"
+	reward.source_type = &"test"
+	reward.source_id = &"schema_probe"
+	reward.entries = [reward_entry]
+	var reward_payload := reward.to_dict()
+	reward_payload["legacy_reward_cache"] = true
+	_assert_true(
+		PendingCharacterReward.from_dict(reward_payload) == null,
+		"PendingCharacterReward 额外字段应直接拒绝。"
+	)
+
+
 func _test_party_state_from_dict_rejects_bad_quest_state_schema() -> void:
 	for field_name in [
 		"quest_id",
@@ -1013,12 +1116,12 @@ func _cleanup_test_session(game_session) -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _extract_first_template_binding(world_data: Dictionary) -> Dictionary:

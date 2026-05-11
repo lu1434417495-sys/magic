@@ -338,7 +338,7 @@ func build_snapshot() -> Dictionary:
 				_game_session.get_generation_config_path() if _game_session != null else "",
 			"world_loaded": has_world_loaded(),
 			"presets": WORLD_PRESET_REGISTRY_SCRIPT.list_presets(),
-			"save_slots": _game_session.list_save_slots() if _game_session != null else [],
+			"save_slots": _game_session.peek_save_slots() if _game_session != null and _game_session.has_method("peek_save_slots") else [],
 		},
 		"validation": _game_session.get_content_validation_snapshot() if _game_session != null else {},
 		"status": {
@@ -404,18 +404,25 @@ func _ensure_game_session() -> void:
 
 func _unload_world_scene() -> void:
 	if not has_world_loaded():
-		if _game_session != null and is_instance_valid(_game_session):
-			_game_session.set_battle_save_lock(false)
+		_abort_headless_battle_save_if_locked()
 		_runtime = null
 		_active_headless_encounter_anchor = null
 		return
 	if _runtime != null:
 		_runtime.dispose()
-	if _game_session != null and is_instance_valid(_game_session):
-		_game_session.set_battle_save_lock(false)
+	_abort_headless_battle_save_if_locked()
 	_runtime = null
 	_active_headless_encounter_anchor = null
 	await settle_frames()
+
+
+func _abort_headless_battle_save_if_locked() -> void:
+	if _game_session == null or not is_instance_valid(_game_session):
+		return
+	var was_battle_locked: bool = _game_session.has_method("is_battle_save_locked") and bool(_game_session.is_battle_save_locked())
+	if was_battle_locked and _game_session.has_method("discard_pending_save"):
+		_game_session.discard_pending_save()
+	_game_session.set_battle_save_lock(false)
 
 
 func _get_scene_tree() -> SceneTree:

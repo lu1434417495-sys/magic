@@ -38,7 +38,6 @@ const TO_DICT_FIELDS: Array[String] = [
 	"core_max_growth_claimed",
 	"is_level_trigger_active",
 	"is_level_trigger_locked",
-	"lock_awaken_tier",
 	"bonus_to_hit_from_lock",
 ]
 
@@ -74,8 +73,6 @@ var core_max_growth_claimed := false
 var is_level_trigger_active := false
 ## 字段说明：标记是否已完成过一次等级触发并进入锁定态。
 var is_level_trigger_locked := false
-## 字段说明：记录已完成几次锁定成长阶段。
-var lock_awaken_tier := 0
 ## 字段说明：锁定后提供的命中修正，默认 +1。
 var bonus_to_hit_from_lock := 1
 
@@ -106,7 +103,6 @@ func to_dict() -> Dictionary:
 		"core_max_growth_claimed": core_max_growth_claimed,
 		"is_level_trigger_active": is_level_trigger_active,
 		"is_level_trigger_locked": is_level_trigger_locked,
-		"lock_awaken_tier": lock_awaken_tier,
 		"bonus_to_hit_from_lock": bonus_to_hit_from_lock,
 	}
 
@@ -123,7 +119,7 @@ static func from_dict(data: Dictionary):
 	for bool_field in ["is_learned", "is_core", "core_max_growth_claimed", "is_level_trigger_active", "is_level_trigger_locked"]:
 		if data[bool_field] is not bool:
 			return null
-	for int_field in ["skill_level", "current_mastery", "total_mastery_earned", "mastery_from_training", "mastery_from_battle", "lock_awaken_tier", "bonus_to_hit_from_lock"]:
+	for int_field in ["skill_level", "current_mastery", "total_mastery_earned", "mastery_from_training", "mastery_from_battle", "bonus_to_hit_from_lock"]:
 		var int_value: Variant = data[int_field]
 		if int_value is not int or int(int_value) < 0:
 			return null
@@ -160,7 +156,6 @@ static func from_dict(data: Dictionary):
 	progress.core_max_growth_claimed = data["core_max_growth_claimed"]
 	progress.is_level_trigger_active = data["is_level_trigger_active"]
 	progress.is_level_trigger_locked = data["is_level_trigger_locked"]
-	progress.lock_awaken_tier = int(data["lock_awaken_tier"])
 	progress.bonus_to_hit_from_lock = int(data["bonus_to_hit_from_lock"])
 	return progress
 

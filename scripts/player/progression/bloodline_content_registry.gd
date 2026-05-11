@@ -27,11 +27,11 @@ func load_from_directory(directory_path: String) -> void:
 
 
 func get_bloodline_defs() -> Dictionary:
-	return _bloodline_defs
+	return _bloodline_defs.duplicate()
 
 
 func get_bloodline_stage_defs() -> Dictionary:
-	return _bloodline_stage_defs
+	return _bloodline_stage_defs.duplicate()
 
 
 func _register_resource(resource_path: String) -> void:

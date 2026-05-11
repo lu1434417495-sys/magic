@@ -27,11 +27,11 @@ func load_from_directory(directory_path: String) -> void:
 
 
 func get_ascension_defs() -> Dictionary:
-	return _ascension_defs
+	return _ascension_defs.duplicate()
 
 
 func get_ascension_stage_defs() -> Dictionary:
-	return _ascension_stage_defs
+	return _ascension_stage_defs.duplicate()
 
 
 func _register_resource(resource_path: String) -> void:

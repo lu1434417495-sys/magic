@@ -6,6 +6,12 @@ class_name AchievementProgressState
 extends RefCounted
 
 const ACHIEVEMENT_PROGRESS_STATE_SCRIPT = preload("res://scripts/player/progression/achievement_progress_state.gd")
+const TO_DICT_FIELDS: Array[String] = [
+	"achievement_id",
+	"current_value",
+	"is_unlocked",
+	"unlocked_at_unix_time",
+]
 
 ## 字段说明：记录成就唯一标识，作为查表、序列化和跨系统引用时使用的主键。
 var achievement_id: StringName = &""
@@ -27,14 +33,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary):
-	for field_name in [
-		"achievement_id",
-		"current_value",
-		"is_unlocked",
-		"unlocked_at_unix_time",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var achievement_id := ProgressionDataUtils.to_string_name(data["achievement_id"])
 	if achievement_id == &"":
 		return null
@@ -56,3 +56,12 @@ static func from_dict(data: Dictionary):
 	state.is_unlocked = bool(is_unlocked_variant)
 	state.unlocked_at_unix_time = int(unlocked_at_variant)
 	return state
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true

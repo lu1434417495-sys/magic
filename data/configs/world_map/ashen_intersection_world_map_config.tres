@@ -354,27 +354,27 @@ slot_tag = "support"
 [sub_resource type="Resource" id="Resource_optional_supply"]
 script = ExtResource("4_weighted")
 facility_id = "exile_bazaar"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_workshop"]
 script = ExtResource("4_weighted")
 facility_id = "ash_forge"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_market"]
 script = ExtResource("4_weighted")
 facility_id = "memory_altar"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_library"]
 script = ExtResource("4_weighted")
 facility_id = "drowned_archive_hall"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_optional_command"]
 script = ExtResource("4_weighted")
 facility_id = "oath_command_post"
-weight = 1.0
+weight = 1
 
 [sub_resource type="Resource" id="Resource_village"]
 script = ExtResource("2_settlement")

@@ -14,13 +14,13 @@ const AGE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ag
 const BLOODLINE_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/bloodline_content_registry.gd")
 const ASCENSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ascension_content_registry.gd")
 const STAGE_ADVANCEMENT_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/stage_advancement_content_registry.gd")
-const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
-const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
-const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
+const ATTRIBUTE_GROWTH_CONTENT_RULES = preload("res://scripts/player/progression/attribute_growth_content_rules.gd")
+const BODY_SIZE_CONTENT_RULES = preload("res://scripts/player/progression/body_size_content_rules.gd")
+const TRAIT_TRIGGER_CONTENT_RULES = preload("res://scripts/player/progression/trait_trigger_content_rules.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
-const BodySizeRules = BODY_SIZE_RULES_SCRIPT
+const BodySizeRules = BODY_SIZE_CONTENT_RULES
 
 const HP_MAX: StringName = &"hp_max"
 const VALID_SKILL_TYPES := {
@@ -53,6 +53,10 @@ const VALID_DAMAGE_TAGS := {
 	&"freeze": true,
 	&"lightning": true,
 	&"negative_energy": true,
+	&"force": true,
+	&"psychic": true,
+	&"radiant": true,
+	&"thunder": true,
 	&"magic": true,
 	&"acid": true,
 	&"poison": true,
@@ -161,81 +165,81 @@ func rebuild() -> void:
 
 
 func get_skill_defs() -> Dictionary:
-	return _skill_defs
+	return _skill_defs.duplicate()
 
 
 func get_profession_defs() -> Dictionary:
-	return _profession_defs
+	return _profession_defs.duplicate()
 
 
 func get_achievement_defs() -> Dictionary:
-	return _achievement_defs
+	return _achievement_defs.duplicate()
 
 
 func get_quest_defs() -> Dictionary:
-	return _quest_defs
+	return _quest_defs.duplicate()
 
 
 func get_race_defs() -> Dictionary:
-	return _race_defs
+	return _race_defs.duplicate()
 
 
 func get_subrace_defs() -> Dictionary:
-	return _subrace_defs
+	return _subrace_defs.duplicate()
 
 
 func get_race_trait_defs() -> Dictionary:
-	return _race_trait_defs
+	return _race_trait_defs.duplicate()
 
 
 func get_age_profile_defs() -> Dictionary:
-	return _age_profile_defs
+	return _age_profile_defs.duplicate()
 
 
 func get_bloodline_defs() -> Dictionary:
-	return _bloodline_defs
+	return _bloodline_defs.duplicate()
 
 
 func get_bloodline_stage_defs() -> Dictionary:
-	return _bloodline_stage_defs
+	return _bloodline_stage_defs.duplicate()
 
 
 func get_ascension_defs() -> Dictionary:
-	return _ascension_defs
+	return _ascension_defs.duplicate()
 
 
 func get_ascension_stage_defs() -> Dictionary:
-	return _ascension_stage_defs
+	return _ascension_stage_defs.duplicate()
 
 
 func get_stage_advancement_defs() -> Dictionary:
-	return _stage_advancement_defs
+	return _stage_advancement_defs.duplicate()
 
 
 func get_bundle() -> Dictionary:
 	return {
-		"skill_defs": _skill_defs,
-		"profession_defs": _profession_defs,
-		"achievement_defs": _achievement_defs,
-		"quest_defs": _quest_defs,
-		"race": _race_defs,
-		"subrace": _subrace_defs,
-		"race_trait": _race_trait_defs,
-		"age_profile": _age_profile_defs,
-		"bloodline": _bloodline_defs,
-		"bloodline_stage": _bloodline_stage_defs,
-		"ascension": _ascension_defs,
-		"ascension_stage": _ascension_stage_defs,
-		"stage_advancement": _stage_advancement_defs,
-		"race_defs": _race_defs,
-		"subrace_defs": _subrace_defs,
-		"race_trait_defs": _race_trait_defs,
-		"age_profile_defs": _age_profile_defs,
-		"bloodline_defs": _bloodline_defs,
-		"bloodline_stage_defs": _bloodline_stage_defs,
-		"ascension_defs": _ascension_defs,
-		"ascension_stage_defs": _ascension_stage_defs,
-		"stage_advancement_defs": _stage_advancement_defs,
+		"skill_defs": _skill_defs.duplicate(),
+		"profession_defs": _profession_defs.duplicate(),
+		"achievement_defs": _achievement_defs.duplicate(),
+		"quest_defs": _quest_defs.duplicate(),
+		"race": _race_defs.duplicate(),
+		"subrace": _subrace_defs.duplicate(),
+		"race_trait": _race_trait_defs.duplicate(),
+		"age_profile": _age_profile_defs.duplicate(),
+		"bloodline": _bloodline_defs.duplicate(),
+		"bloodline_stage": _bloodline_stage_defs.duplicate(),
+		"ascension": _ascension_defs.duplicate(),
+		"ascension_stage": _ascension_stage_defs.duplicate(),
+		"stage_advancement": _stage_advancement_defs.duplicate(),
+		"race_defs": _race_defs.duplicate(),
+		"subrace_defs": _subrace_defs.duplicate(),
+		"race_trait_defs": _race_trait_defs.duplicate(),
+		"age_profile_defs": _age_profile_defs.duplicate(),
+		"bloodline_defs": _bloodline_defs.duplicate(),
+		"bloodline_stage_defs": _bloodline_stage_defs.duplicate(),
+		"ascension_defs": _ascension_defs.duplicate(),
+		"ascension_stage_defs": _ascension_stage_defs.duplicate(),
+		"stage_advancement_defs": _stage_advancement_defs.duplicate(),
 	}
 
 
@@ -823,9 +827,9 @@ func _append_race_trait_phase2_errors(errors: Array[String], trait_id: StringNam
 	if trait_def == null:
 		return
 	var trigger_type := ProgressionDataUtils.to_string_name(trait_def.trigger_type)
-	if trigger_type == &"" or trigger_type == TRAIT_TRIGGER_HOOKS_SCRIPT.TRIGGER_PASSIVE:
+	if trigger_type == &"" or trigger_type == TRAIT_TRIGGER_CONTENT_RULES.TRIGGER_PASSIVE:
 		return
-	if not TRAIT_TRIGGER_HOOKS_SCRIPT.has_dispatch_for_trait_trigger(trait_id, trigger_type):
+	if not TRAIT_TRIGGER_CONTENT_RULES.has_dispatch_for_trait_trigger(trait_id, trigger_type):
 		errors.append(
 			"RaceTrait %s trigger_type %s has no TraitTriggerHooks dispatch." % [
 				String(trait_id),
@@ -1227,13 +1231,13 @@ func _append_invalid_skill_errors(
 				String(skill_def.core_skill_transition_mode),
 			]
 		)
-	if skill_def.max_level <= 0:
+	if skill_def.max_level <= 0 and skill_def.dynamic_max_level_stat_id == &"":
 		errors.append("Skill %s must have max_level >= 1." % String(skill_id))
 	if skill_def.non_core_max_level < 0:
 		errors.append("Skill %s non_core_max_level must be >= 0." % String(skill_id))
-	if skill_def.non_core_max_level > skill_def.max_level:
+	if skill_def.non_core_max_level > skill_def.max_level and skill_def.max_level >= 0 and skill_def.dynamic_max_level_stat_id == &"":
 		errors.append("Skill %s non_core_max_level must be <= max_level." % String(skill_id))
-	if skill_def.mastery_curve.size() != skill_def.max_level:
+	if skill_def.mastery_curve.size() != skill_def.max_level and skill_def.max_level >= 0 and skill_def.dynamic_max_level_stat_id == &"":
 		errors.append("Skill %s mastery_curve size must match max_level." % String(skill_id))
 	_append_dynamic_max_level_errors(errors, skill_id, skill_def)
 	_append_skill_attribute_growth_errors(errors, skill_id, skill_def)
@@ -1265,8 +1269,8 @@ func _append_dynamic_max_level_errors(
 
 	if skill_def.dynamic_max_level_base <= 0:
 		errors.append("Skill %s dynamic_max_level_base must be >= 1." % String(skill_id))
-	if skill_def.dynamic_max_level_per_stat <= 0:
-		errors.append("Skill %s dynamic_max_level_per_stat must be >= 1." % String(skill_id))
+	if skill_def.dynamic_max_level_per_stat == 0:
+		errors.append("Skill %s dynamic_max_level_per_stat must not be 0 when dynamic_max_level_stat_id is set." % String(skill_id))
 
 
 func _append_skill_attribute_growth_errors(
@@ -1276,7 +1280,7 @@ func _append_skill_attribute_growth_errors(
 ) -> void:
 	if skill_def.attribute_growth_progress.is_empty() and skill_def.growth_tier == &"":
 		return
-	if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_growth_tier(skill_def.growth_tier):
+	if not ATTRIBUTE_GROWTH_CONTENT_RULES.is_valid_growth_tier(skill_def.growth_tier):
 		errors.append("Skill %s uses unsupported growth_tier %s." % [String(skill_id), String(skill_def.growth_tier)])
 		return
 
@@ -1284,13 +1288,13 @@ func _append_skill_attribute_growth_errors(
 	for attribute_key in skill_def.attribute_growth_progress.keys():
 		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
 		var amount := int(skill_def.attribute_growth_progress.get(attribute_key, 0))
-		if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_attribute_id(attribute_id):
+		if not ATTRIBUTE_GROWTH_CONTENT_RULES.is_valid_attribute_id(attribute_id):
 			errors.append("Skill %s attribute_growth_progress references invalid attribute %s." % [String(skill_id), String(attribute_id)])
 		if amount <= 0:
 			errors.append("Skill %s attribute_growth_progress for %s must be > 0." % [String(skill_id), String(attribute_id)])
 		progress_total += amount
 
-	var expected_total := ATTRIBUTE_GROWTH_SERVICE_SCRIPT.get_tier_budget(skill_def.growth_tier)
+	var expected_total := ATTRIBUTE_GROWTH_CONTENT_RULES.get_tier_budget(skill_def.growth_tier)
 	if progress_total != expected_total:
 		errors.append(
 			"Skill %s attribute_growth_progress total must equal %d for growth_tier %s." % [

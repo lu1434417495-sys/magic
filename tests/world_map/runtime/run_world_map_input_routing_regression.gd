@@ -1,12 +1,15 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _game_session = null
 
 
@@ -288,7 +291,7 @@ func _await_battle_input_ready(world_map) -> void:
 	var deadline_msec := Time.get_ticks_msec() + 1500
 	while world_map != null and world_map.battle_map_panel != null and world_map.battle_map_panel.is_loading_battle():
 		if Time.get_ticks_msec() >= deadline_msec:
-			_failures.append("等待 battle loading 结束超时，无法验证战斗键位。")
+			_test.fail("等待 battle loading 结束超时，无法验证战斗键位。")
 			return
 		await _wait_seconds(0.05)
 		await process_frame
@@ -300,9 +303,9 @@ func _advance_to_manual_battle_turn(runtime, world_map) -> bool:
 	for _attempt in range(20):
 		if runtime.get_manual_battle_unit() != null:
 			return true
-		var tick_result: Dictionary = runtime.command_battle_tick(1.0)
+		var tick_result: Dictionary = runtime.command_battle_tick(1)
 		if not bool(tick_result.get("ok", false)):
-			_failures.append("推进 battle tick 时失败，无法验证战斗键位。")
+			_test.fail("推进 battle tick 时失败，无法验证战斗键位。")
 			return false
 		if world_map != null:
 			world_map._render_from_runtime(true)
@@ -354,9 +357,9 @@ func _cleanup() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

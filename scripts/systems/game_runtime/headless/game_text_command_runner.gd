@@ -462,8 +462,13 @@ func _execute_warehouse_command(tokens: Array[String]) -> Dictionary:
 				return quantity_result
 			return runtime.command_warehouse_add_item(StringName(tokens[2]), int(quantity_result.get("value", 0)))
 		"use":
-			var member_id := StringName(tokens[3]) if tokens.size() >= 4 else &""
-			return runtime.command_warehouse_use_item(StringName(tokens[2]), member_id)
+			var options := {}
+			if tokens.has("confirm"):
+				options["confirm_practice_replacement"] = true
+			var member_id := &""
+			if tokens.size() >= 4 and tokens[3] != "confirm":
+				member_id = StringName(tokens[3])
+			return runtime.command_warehouse_use_item(StringName(tokens[2]), member_id, options)
 		"capacity":
 			if tokens.size() < 3:
 				return {
@@ -519,12 +524,12 @@ func _execute_battle_command(tokens: Array[String]) -> Dictionary:
 			if tokens.size() < 3:
 				return {
 					"ok": false,
-					"message": "用法: battle tick <seconds>",
+					"message": "用法: battle tick <ticks>",
 				}
-			var seconds_result := _parse_float_argument(tokens[2], "战斗推进秒数")
-			if not bool(seconds_result.get("ok", false)):
-				return seconds_result
-			return runtime.command_battle_tick(float(seconds_result.get("value", 0.0)))
+			var tick_result := _parse_int_argument(tokens[2], "战斗推进 tick")
+			if not bool(tick_result.get("ok", false)):
+				return tick_result
+			return runtime.command_battle_tick(int(tick_result.get("value", 0)))
 		"skill":
 			if tokens.size() < 3:
 				return {

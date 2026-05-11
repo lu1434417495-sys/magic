@@ -12,6 +12,22 @@ const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progressi
 const QUEST_STATE_SCRIPT = preload("res://scripts/player/progression/quest_state.gd")
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 const QuestState = QUEST_STATE_SCRIPT
+const TO_DICT_FIELDS: Array[String] = [
+	"version",
+	"gold",
+	"leader_member_id",
+	"main_character_member_id",
+	"fate_run_flags",
+	"meta_flags",
+	"active_member_ids",
+	"reserve_member_ids",
+	"member_states",
+	"pending_character_rewards",
+	"active_quests",
+	"claimable_quests",
+	"completed_quest_ids",
+	"warehouse_state",
+]
 
 ## 字段说明：记录版本，会参与成长规则判定、序列化和界面展示。
 var version := 3
@@ -390,6 +406,8 @@ func to_dict() -> Dictionary:
 static func from_dict(data: Dictionary):
 	if data.is_empty():
 		return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var version_variant: Variant = data.get("version", null)
 	if version_variant is not int or int(version_variant) != 3:
 		return null
@@ -485,6 +503,9 @@ static func from_dict(data: Dictionary):
 		if party_state.member_states.has(member_state.member_id):
 			return null
 		party_state.member_states[member_state.member_id] = member_state
+
+	if not _has_unique_equipment_instance_ids(party_state):
+		return null
 
 	if party_state.leader_member_id == &"" or not party_state.has_member_state(party_state.leader_member_id):
 		return null
@@ -584,6 +605,15 @@ static func _parse_required_string_name(value: Variant):
 	return parsed_value
 
 
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
+
+
 static func _parse_unique_string_name_array(values: Array):
 	var parsed_values: Array[StringName] = []
 	var seen_values: Dictionary = {}
@@ -612,6 +642,36 @@ static func _parse_boolean_flag_dict(values: Dictionary):
 		seen_flag_ids[flag_id] = true
 		parsed_flags[flag_id] = bool(values[raw_key])
 	return parsed_flags
+
+
+static func _has_unique_equipment_instance_ids(party_state) -> bool:
+	if party_state == null:
+		return false
+	var seen_instance_ids: Dictionary = {}
+	if party_state.warehouse_state != null and party_state.warehouse_state.has_method("get_non_empty_instances"):
+		for instance in party_state.warehouse_state.get_non_empty_instances():
+			if instance == null:
+				continue
+			var instance_id := ProgressionDataUtils.to_string_name(instance.instance_id)
+			if instance_id == &"":
+				continue
+			if seen_instance_ids.has(instance_id):
+				return false
+			seen_instance_ids[instance_id] = true
+	for member_state in party_state.member_states.values():
+		if member_state == null:
+			continue
+		var equipment_state = member_state.equipment_state
+		if equipment_state == null or not equipment_state.has_method("get_entry_slot_ids"):
+			continue
+		for entry_slot_id in equipment_state.get_entry_slot_ids():
+			var instance_id := ProgressionDataUtils.to_string_name(equipment_state.get_equipped_instance_id(entry_slot_id))
+			if instance_id == &"":
+				continue
+			if seen_instance_ids.has(instance_id):
+				return false
+			seen_instance_ids[instance_id] = true
+	return true
 
 
 static func _normalize_fate_run_flags(values: Variant) -> Dictionary:

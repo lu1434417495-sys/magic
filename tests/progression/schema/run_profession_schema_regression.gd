@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
 const ProfessionContentRegistry = preload("res://scripts/player/progression/profession_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
@@ -56,7 +58,8 @@ const SEED_EXPECTATIONS := {
 	},
 }
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -136,7 +139,10 @@ func _test_progression_registry_and_game_session_cache_scanned_professions() -> 
 	var progression_registry := ProgressionContentRegistry.new()
 	var profession_defs := progression_registry.get_profession_defs()
 	_assert_true(profession_defs.has(&"archer"), "ProgressionContentRegistry 应暴露扫描得到的弓箭手职业。")
-	_assert_true(progression_registry.validate().is_empty(), "ProgressionContentRegistry 接入 profession resource 后仍应通过静态校验。")
+	_assert_current_official_progression_validation_errors(
+		progression_registry.validate(),
+		"ProgressionContentRegistry 接入 profession resource 后不应报告正式内容校验错误。"
+	)
 
 	var session := GameSession.new()
 	var session_profession_defs := session.get_profession_defs()
@@ -183,11 +189,15 @@ func _has_error_containing(errors: Array[String], expected_fragment: String) -> 
 	return false
 
 
+func _assert_current_official_progression_validation_errors(errors: Array[String], message: String) -> void:
+	_assert_true(errors.is_empty(), "%s | errors=%s" % [message, str(errors)])
+
+
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

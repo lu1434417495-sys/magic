@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
 const RecipeDef = preload("res://scripts/player/warehouse/recipe_def.gd")
@@ -85,7 +87,8 @@ const FORMAL_FORGE_RECIPE_EXPECTATIONS := {
 	},
 }
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class MockWarehouseService:
@@ -153,9 +156,9 @@ func _test_item_schema_defaults_and_accessors() -> void:
 	item_def.quest_groups = [&"quest_reward", &"weapon_drop"]
 
 	_assert_eq(item_def.get_buy_price(), 150, "显式 buy_price 应优先于 base_price。")
-	_assert_eq(item_def.get_buy_price(0.5), 75, "buy_price 应按商店倍率缩放。")
+	_assert_eq(item_def.get_buy_price(5000), 75, "buy_price 应按商店基点缩放。")
 	_assert_eq(item_def.get_sell_price(), 80, "显式 sell_price 应优先于 base_price。")
-	_assert_eq(item_def.get_sell_price(0.25), 40, "sell_price 应按商店倍率缩放。")
+	_assert_eq(item_def.get_sell_price(5000), 40, "sell_price 应按商店基点缩放。")
 	_assert_eq(item_def.get_tags(), [&"forgeable", &"weapon"], "get_tags() 应返回规范化标签列表。")
 	_assert_eq(item_def.get_crafting_groups(), [&"forge", &"weapon"], "get_crafting_groups() 应返回规范化分组列表。")
 	_assert_eq(item_def.get_quest_groups(), [&"quest_reward", &"weapon_drop"], "get_quest_groups() 应返回规范化任务分组列表。")
@@ -480,9 +483,9 @@ func _shop_rotation_contains_item(
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_grid_system.gd")
 const WORLD_MAP_SPAWN_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_spawn_system.gd")
@@ -18,7 +20,8 @@ const SHARED_CITY_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_wo
 const SHARED_CAPITAL_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_capital_name_pool.tres"
 const SHARED_METROPOLIS_NAME_POOL_PATH := "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -462,9 +465,9 @@ func _cleanup(game_session) -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

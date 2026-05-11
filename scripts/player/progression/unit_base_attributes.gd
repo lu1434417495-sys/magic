@@ -28,6 +28,15 @@ const BASE_ATTRIBUTE_IDS := [
 	INTELLIGENCE,
 	WILLPOWER,
 ]
+const TO_DICT_FIELDS: Array[String] = [
+	"strength",
+	"agility",
+	"constitution",
+	"perception",
+	"intelligence",
+	"willpower",
+	"custom_stats",
+]
 
 ## 字段说明：记录力量，会参与成长规则判定、序列化和界面展示。
 var strength := 0
@@ -124,17 +133,8 @@ func to_dict() -> Dictionary:
 
 
 static func from_dict(data: Dictionary) -> UnitBaseAttributes:
-	for field_name in [
-		"strength",
-		"agility",
-		"constitution",
-		"perception",
-		"intelligence",
-		"willpower",
-		"custom_stats",
-	]:
-		if not data.has(field_name):
-			return null
+	if not _has_exact_fields(data, TO_DICT_FIELDS):
+		return null
 	var custom_stats_variant: Variant = data["custom_stats"]
 	if custom_stats_variant is not Dictionary:
 		return null
@@ -154,6 +154,15 @@ static func from_dict(data: Dictionary) -> UnitBaseAttributes:
 	attributes.willpower = int(data["willpower"])
 	attributes.custom_stats = parsed_custom_stats
 	return attributes
+
+
+static func _has_exact_fields(data: Dictionary, expected_fields: Array[String]) -> bool:
+	if data.size() != expected_fields.size():
+		return false
+	for field_name in expected_fields:
+		if not data.has(field_name):
+			return false
+	return true
 
 
 static func _parse_int_map(values: Dictionary):

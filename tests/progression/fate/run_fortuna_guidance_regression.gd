@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
@@ -15,31 +17,13 @@ const BattleFateEventBus = preload("res://scripts/systems/battle/fate/battle_fat
 const BattleResolutionResult = BATTLE_RESOLUTION_RESULT_SCRIPT
 const BattleState = BATTLE_STATE_SCRIPT
 const BattleUnitState = BATTLE_UNIT_STATE_SCRIPT
+const StubRng = preload("res://tests/shared/stub_rng.gd")
 
 const HERO_ID: StringName = &"hero"
 const FORTUNA_DEITY_ID: StringName = &"fortuna"
 
-var _failures: Array[String] = []
-
-
-class StubRng:
-	extends RefCounted
-
-	var _rolls: Array[int] = []
-	var call_count := 0
-
-
-	func _init(rolls: Array[int] = []) -> void:
-		_rolls = rolls.duplicate()
-
-
-	func randi_range(min_value: int, max_value: int) -> int:
-		if call_count >= _rolls.size():
-			call_count += 1
-			return min_value
-		var roll := clampi(int(_rolls[call_count]), min_value, max_value)
-		call_count += 1
-		return roll
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -334,9 +318,9 @@ func _get_faith_luck_bonus(party_state: PartyState) -> int:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

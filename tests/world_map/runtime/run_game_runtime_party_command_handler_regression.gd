@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GameRuntimePartyCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_party_command_handler.gd")
 const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 class MockPartyCommandHandler:
@@ -495,9 +498,9 @@ func _has_call(calls: Array[Dictionary], method_name: String) -> bool:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s 实际=%s 预期=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s 实际=%s 预期=%s" % [message, str(actual), str(expected)])

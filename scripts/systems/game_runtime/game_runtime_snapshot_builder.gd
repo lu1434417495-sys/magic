@@ -1,7 +1,7 @@
 class_name GameRuntimeSnapshotBuilder
 extends RefCounted
 
-const BATTLE_HUD_ADAPTER_SCRIPT = preload("res://scripts/ui/battle_hud_adapter.gd")
+const BATTLE_HUD_ADAPTER_SCRIPT = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/game_text_snapshot_renderer.gd")
 const QUEST_ENTRY_REQUIRED_FIELDS := [
@@ -271,6 +271,8 @@ func _build_party_member_snapshot(member_id: StringName, roster_role: String) ->
 		"is_leader": party_state != null and party_state.leader_member_id == member_id,
 		"current_hp": int(member_state.current_hp) if member_state != null else 0,
 		"current_mp": int(member_state.current_mp) if member_state != null else 0,
+		"current_aura": int(member_state.current_aura) if member_state != null else 0,
+		"unlocked_combat_resource_ids": _build_member_unlocked_combat_resource_ids(member_state),
 		"learned_skill_ids": _build_member_learned_skill_ids(member_state),
 		"achievement_summary": achievement_summary.duplicate(true) if achievement_summary is Dictionary else {},
 		"attributes": attribute_snapshot.to_dict() if attribute_snapshot is Object and attribute_snapshot.has_method("to_dict") else {},
@@ -291,6 +293,16 @@ func _build_member_learned_skill_ids(member_state) -> Array[String]:
 		learned_skill_ids.append(String(skill_id))
 	learned_skill_ids.sort()
 	return learned_skill_ids
+
+
+func _build_member_unlocked_combat_resource_ids(member_state) -> Array[String]:
+	var resource_ids: Array[String] = []
+	if member_state == null or member_state.progression == null:
+		return resource_ids
+	for resource_id in member_state.progression.unlocked_combat_resource_ids:
+		resource_ids.append(String(resource_id))
+	resource_ids.sort()
+	return resource_ids
 
 
 func _build_settlement_snapshot() -> Dictionary:
@@ -386,7 +398,12 @@ func _build_battle_snapshot() -> Dictionary:
 			battle_runtime.get_calamity_by_member_id()
 		)
 	var adapter = BATTLE_HUD_ADAPTER_SCRIPT.new()
-	var hud_snapshot := adapter.build_snapshot(
+	adapter.set_party_member_state_resolver(Callable(self, "_get_party_member_state_for_snapshot"))
+	adapter.set_content_def_providers(
+		Callable(_runtime, "get_skill_defs") if _runtime.has_method("get_skill_defs") else Callable(),
+		Callable(_runtime, "get_item_defs") if _runtime.has_method("get_item_defs") else Callable()
+	)
+	var hud_snapshot = adapter.build_snapshot(
 		battle_state,
 		_runtime.get_battle_selected_coord(),
 		_runtime.get_selected_battle_skill_id(),
@@ -449,6 +466,15 @@ func _build_battle_snapshot() -> Dictionary:
 		"report_entries": battle_state.report_entries.duplicate(true),
 		"units": units,
 	}
+
+
+func _get_party_member_state_for_snapshot(member_id: StringName):
+	if _runtime == null or member_id == &"":
+		return null
+	var party_state = _runtime.get_party_state() if _runtime.has_method("get_party_state") else null
+	if party_state == null or not (party_state is Object) or not party_state.has_method("get_member_state"):
+		return null
+	return party_state.call("get_member_state", member_id)
 
 
 func _build_reward_snapshot() -> Dictionary:

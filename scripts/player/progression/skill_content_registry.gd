@@ -7,9 +7,10 @@ extends RefCounted
 
 const SKILL_CONFIG_DIRECTORY := "res://data/configs/skills"
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_GROWTH_SERVICE_SCRIPT = preload("res://scripts/systems/progression/attribute_growth_service.gd")
-const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
-const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
+const ATTRIBUTE_GROWTH_CONTENT_RULES = preload("res://scripts/player/progression/attribute_growth_content_rules.gd")
+const BATTLE_SAVE_CONTENT_RULES = preload("res://scripts/player/progression/battle_save_content_rules.gd")
+const BODY_SIZE_CONTENT_RULES = preload("res://scripts/player/progression/body_size_content_rules.gd")
+const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const TU_GRANULARITY := 5
 const VALID_MASTERY_TRIGGER_MODES := [
 	&"skill_damage_dice_max",
@@ -37,12 +38,13 @@ const VALID_BACKLASH_MODES := [
 	&"ground_anchor_drift",
 ]
 const VALID_SAVE_DC_MODES := [
-	BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_STATIC,
-	BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL,
+	BATTLE_SAVE_CONTENT_RULES.SAVE_DC_MODE_STATIC,
+	BATTLE_SAVE_CONTENT_RULES.SAVE_DC_MODE_CASTER_SPELL,
 ]
 const VALID_EFFECT_TRIGGER_EVENTS := [
 	&"",
 	&"critical_hit",
+	&"ordinary_hit",
 	&"secondary_hit",
 ]
 const VALID_TRIGGER_CONDITIONS := [
@@ -51,18 +53,21 @@ const VALID_TRIGGER_CONDITIONS := [
 	&"on_fatal_damage",
 ]
 const VALID_EFFECT_TYPES := [
-	&"break_equipment_on_hit",
 	&"body_size_category_override",
 	&"chain_damage",
 	&"charge",
 	&"cleanse_harmful",
 	&"damage",
+	&"dispel_magic",
+	&"edge_clear",
+	&"equipment_durability_damage",
 	&"erase_status",
 	&"forced_move",
 	&"heal",
 	&"heal_fatal",
 	&"height",
 	&"height_delta",
+	&"layered_barrier",
 	&"on_kill_gain_resources",
 	&"path_step_aoe",
 	&"repeat_attack_until_fail",
@@ -94,7 +99,7 @@ func rebuild() -> void:
 
 
 func get_skill_defs() -> Dictionary:
-	return _skill_defs
+	return _skill_defs.duplicate()
 
 
 func validate() -> Array[String]:
@@ -186,13 +191,13 @@ func _append_skill_validation_errors(
 		errors.append("Skill %s is missing display_name." % String(skill_id))
 	if skill_def.icon_id == &"":
 		errors.append("Skill %s is missing icon_id." % String(skill_id))
-	if skill_def.max_level <= 0:
+	if skill_def.max_level <= 0 and skill_def.dynamic_max_level_stat_id == &"":
 		errors.append("Skill %s must have max_level >= 1." % String(skill_id))
 	if skill_def.non_core_max_level < 0:
 		errors.append("Skill %s non_core_max_level must be >= 0." % String(skill_id))
-	if skill_def.non_core_max_level > skill_def.max_level:
+	if skill_def.non_core_max_level > skill_def.max_level and skill_def.max_level >= 0 and skill_def.dynamic_max_level_stat_id == &"":
 		errors.append("Skill %s non_core_max_level must be <= max_level." % String(skill_id))
-	if skill_def.mastery_curve.size() != skill_def.max_level:
+	if skill_def.mastery_curve.size() != skill_def.max_level and skill_def.max_level >= 0 and skill_def.dynamic_max_level_stat_id == &"":
 		errors.append(
 			"Skill %s mastery_curve size must match max_level." % String(skill_id)
 		)
@@ -225,8 +230,8 @@ func _append_dynamic_max_level_validation_errors(
 
 	if skill_def.dynamic_max_level_base <= 0:
 		errors.append("Skill %s dynamic_max_level_base must be >= 1." % String(skill_id))
-	if skill_def.dynamic_max_level_per_stat <= 0:
-		errors.append("Skill %s dynamic_max_level_per_stat must be >= 1." % String(skill_id))
+	if skill_def.dynamic_max_level_per_stat == 0:
+		errors.append("Skill %s dynamic_max_level_per_stat must not be 0 when dynamic_max_level_stat_id is set." % String(skill_id))
 
 
 func _append_attribute_growth_validation_errors(
@@ -236,7 +241,7 @@ func _append_attribute_growth_validation_errors(
 ) -> void:
 	if skill_def.attribute_growth_progress.is_empty() and skill_def.growth_tier == &"":
 		return
-	if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_growth_tier(skill_def.growth_tier):
+	if not ATTRIBUTE_GROWTH_CONTENT_RULES.is_valid_growth_tier(skill_def.growth_tier):
 		errors.append("Skill %s uses unsupported growth_tier %s." % [String(skill_id), String(skill_def.growth_tier)])
 		return
 
@@ -251,13 +256,13 @@ func _append_attribute_growth_validation_errors(
 			errors.append("Skill %s attribute_growth_progress for %s must be a positive int." % [String(skill_id), String(attribute_id)])
 			continue
 		var amount := int(amount_variant)
-		if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_attribute_id(attribute_id):
+		if not ATTRIBUTE_GROWTH_CONTENT_RULES.is_valid_attribute_id(attribute_id):
 			errors.append("Skill %s attribute_growth_progress references invalid attribute %s." % [String(skill_id), String(attribute_id)])
 		if amount <= 0:
 			errors.append("Skill %s attribute_growth_progress for %s must be a positive int." % [String(skill_id), String(attribute_id)])
 		progress_total += amount
 
-	var expected_total := ATTRIBUTE_GROWTH_SERVICE_SCRIPT.get_tier_budget(skill_def.growth_tier)
+	var expected_total := ATTRIBUTE_GROWTH_CONTENT_RULES.get_tier_budget(skill_def.growth_tier)
 	if progress_total != expected_total:
 		errors.append(
 			"Skill %s attribute_growth_progress total must equal %d for growth_tier %s." % [
@@ -483,7 +488,7 @@ func _append_effect_validation_errors(
 			"damage_dice_bonus": "dice_bonus",
 			"tag": "damage_tag",
 			"bypass_tag": "dr_bypass_tag",
-			"low_hp_ratio": "hp_ratio_threshold",
+			"low_hp_ratio": "hp_ratio_threshold_percent",
 		}
 		for legacy_param in unsupported_param_aliases.keys():
 			if effect_def.params.has(legacy_param):
@@ -515,6 +520,8 @@ func _append_effect_validation_errors(
 		_append_weapon_param_validation_errors(errors, skill_id, effect_def, context_label)
 
 	match effect_def.effect_type:
+		&"damage":
+			_append_damage_effect_validation_errors(errors, skill_id, effect_def, context_label)
 		&"status", &"apply_status":
 			if effect_def.status_id == &"":
 				errors.append(
@@ -596,7 +603,7 @@ func _append_effect_validation_errors(
 						context_label,
 					]
 				)
-			elif not BODY_SIZE_RULES_SCRIPT.is_valid_body_size_category(effect_def.body_size_category):
+			elif not BODY_SIZE_CONTENT_RULES.is_valid_body_size_category(effect_def.body_size_category):
 				errors.append(
 					"Skill %s body_size_category_override effect in %s uses unsupported body_size_category %s." % [
 						String(skill_id),
@@ -653,6 +660,206 @@ func _append_effect_validation_errors(
 				)
 		&"path_step_aoe":
 			_append_path_step_aoe_validation_errors(errors, skill_id, effect_def, context_label)
+		&"equipment_durability_damage":
+			_append_equipment_durability_damage_validation_errors(errors, skill_id, effect_def, context_label)
+
+
+func _append_damage_effect_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	effect_def: CombatEffectDef,
+	context_label: String
+) -> void:
+	if effect_def == null or effect_def.params == null:
+		return
+	if effect_def.params.has("hp_ratio_threshold_percent"):
+		var threshold_value = effect_def.params.get("hp_ratio_threshold_percent")
+		if typeof(threshold_value) != TYPE_INT or int(threshold_value) < 1 or int(threshold_value) > 100:
+			errors.append(
+				"Skill %s damage effect in %s params.hp_ratio_threshold_percent must be an int from 1 to 100." % [
+					String(skill_id),
+					context_label,
+				]
+			)
+	var has_bonus_dice_key := effect_def.params.has("bonus_damage_dice_count") \
+		or effect_def.params.has("bonus_damage_dice_sides") \
+		or effect_def.params.has("bonus_damage_dice_bonus")
+	if not has_bonus_dice_key:
+		return
+	if effect_def.bonus_condition == &"":
+		errors.append(
+			"Skill %s damage effect in %s bonus_damage_dice requires bonus_condition." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	var count_value = effect_def.params.get("bonus_damage_dice_count", 0)
+	var sides_value = effect_def.params.get("bonus_damage_dice_sides", 0)
+	if typeof(count_value) != TYPE_INT or int(count_value) < 1:
+		errors.append(
+			"Skill %s damage effect in %s params.bonus_damage_dice_count must be a positive int." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if typeof(sides_value) != TYPE_INT or int(sides_value) < 1:
+		errors.append(
+			"Skill %s damage effect in %s params.bonus_damage_dice_sides must be a positive int." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if effect_def.params.has("bonus_damage_dice_bonus") and typeof(effect_def.params.get("bonus_damage_dice_bonus")) != TYPE_INT:
+		errors.append(
+			"Skill %s damage effect in %s params.bonus_damage_dice_bonus must be an int." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+
+
+func _append_equipment_durability_damage_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	effect_def: CombatEffectDef,
+	context_label: String
+) -> void:
+	if effect_def == null:
+		return
+	if effect_def.power <= 0:
+		errors.append(
+			"Skill %s equipment_durability_damage effect in %s must have power >= 1." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	var params: Dictionary = effect_def.params if effect_def.params != null else {}
+	var has_dynamic_save := ProgressionDataUtils.to_string_name(effect_def.save_dc_mode) == BATTLE_SAVE_CONTENT_RULES.SAVE_DC_MODE_CASTER_SPELL
+	if int(effect_def.save_dc) <= 0 and not has_dynamic_save:
+		errors.append(
+			"Skill %s equipment_durability_damage effect in %s must configure a save DC." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	var max_damaged_items := int(params.get("max_damaged_items", 1))
+	if max_damaged_items != 1:
+		errors.append(
+			"Skill %s equipment_durability_damage effect in %s currently supports max_damaged_items = 1 only." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if not bool(params.get("require_damage_applied", false)):
+		errors.append(
+			"Skill %s equipment_durability_damage effect in %s must set params.require_damage_applied = true." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	var target_slots: Variant = params.get("target_slots", [])
+	if target_slots is Array and target_slots.is_empty():
+		errors.append(
+			"Skill %s equipment_durability_damage effect in %s params.target_slots must include at least one slot." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	_append_equipment_slot_array_validation_errors(
+		errors,
+		skill_id,
+		context_label,
+		target_slots,
+		"target_slots"
+	)
+	_append_equipment_slot_weight_validation_errors(
+		errors,
+		skill_id,
+		context_label,
+		params.get("slot_weight_map", {}),
+		"slot_weight_map"
+	)
+
+
+func _append_equipment_slot_array_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	context_label: String,
+	value: Variant,
+	param_name: String
+) -> void:
+	if value is not Array:
+		errors.append(
+			"Skill %s equipment_durability_damage effect in %s params.%s must be an Array." % [
+				String(skill_id),
+				context_label,
+				param_name,
+			]
+		)
+		return
+	var seen_slots: Dictionary = {}
+	for raw_slot_id in value:
+		var slot_id := ProgressionDataUtils.to_string_name(raw_slot_id)
+		if not EQUIPMENT_RULES_SCRIPT.is_valid_slot(slot_id):
+			errors.append(
+				"Skill %s equipment_durability_damage effect in %s params.%s uses unsupported slot %s." % [
+					String(skill_id),
+					context_label,
+					param_name,
+					String(slot_id),
+				]
+			)
+			continue
+		if seen_slots.has(slot_id):
+			errors.append(
+				"Skill %s equipment_durability_damage effect in %s params.%s repeats slot %s." % [
+					String(skill_id),
+					context_label,
+					param_name,
+					String(slot_id),
+				]
+			)
+		seen_slots[slot_id] = true
+
+
+func _append_equipment_slot_weight_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	context_label: String,
+	value: Variant,
+	param_name: String
+) -> void:
+	if value is not Dictionary:
+		errors.append(
+			"Skill %s equipment_durability_damage effect in %s params.%s must be a Dictionary." % [
+				String(skill_id),
+				context_label,
+				param_name,
+			]
+		)
+		return
+	var weight_map := value as Dictionary
+	for key in weight_map.keys():
+		var slot_id := ProgressionDataUtils.to_string_name(key)
+		if not EQUIPMENT_RULES_SCRIPT.is_valid_slot(slot_id):
+			errors.append(
+				"Skill %s equipment_durability_damage effect in %s params.%s uses unsupported slot %s." % [
+					String(skill_id),
+					context_label,
+					param_name,
+					String(slot_id),
+				]
+			)
+		var weight: Variant = weight_map.get(key)
+		if weight is not int or int(weight) <= 0:
+			errors.append(
+				"Skill %s equipment_durability_damage effect in %s params.%s.%s must be a positive int." % [
+					String(skill_id),
+					context_label,
+					param_name,
+					String(slot_id),
+				]
+			)
 
 
 func _append_save_validation_errors(
@@ -665,7 +872,7 @@ func _append_save_validation_errors(
 		return
 	var save_dc := int(effect_def.save_dc)
 	var save_dc_mode := ProgressionDataUtils.to_string_name(effect_def.save_dc_mode)
-	var dynamic_save_dc := save_dc_mode == BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
+	var dynamic_save_dc := save_dc_mode == BATTLE_SAVE_CONTENT_RULES.SAVE_DC_MODE_CASTER_SPELL
 	var has_save_dc := save_dc > 0 or dynamic_save_dc
 	var save_ability := ProgressionDataUtils.to_string_name(effect_def.save_ability)
 	var save_dc_source_ability := ProgressionDataUtils.to_string_name(effect_def.save_dc_source_ability)
@@ -684,7 +891,7 @@ func _append_save_validation_errors(
 		errors.append("Skill %s effect %s caster_spell save_dc_mode must leave static save_dc at 0." % [String(skill_id), context_label])
 	if not dynamic_save_dc and save_dc_source_ability != &"":
 		errors.append("Skill %s effect %s save_dc_source_ability requires caster_spell save_dc_mode." % [String(skill_id), context_label])
-	if dynamic_save_dc and not BATTLE_SAVE_RESOLVER_SCRIPT.VALID_SAVE_ABILITIES.has(save_dc_source_ability):
+	if dynamic_save_dc and not BATTLE_SAVE_CONTENT_RULES.VALID_SAVE_ABILITIES.has(save_dc_source_ability):
 		errors.append(
 			"Skill %s effect %s uses unsupported save_dc_source_ability %s." % [
 				String(skill_id),
@@ -702,7 +909,7 @@ func _append_save_validation_errors(
 		if bool(effect_def.save_partial_on_success):
 			errors.append("Skill %s effect %s save_partial_on_success requires save_dc >= 1 or caster_spell save_dc_mode." % [String(skill_id), context_label])
 		return
-	if not BATTLE_SAVE_RESOLVER_SCRIPT.VALID_SAVE_ABILITIES.has(save_ability):
+	if not BATTLE_SAVE_CONTENT_RULES.VALID_SAVE_ABILITIES.has(save_ability):
 		errors.append(
 			"Skill %s effect %s uses unsupported save_ability %s." % [
 				String(skill_id),
@@ -710,7 +917,7 @@ func _append_save_validation_errors(
 				String(save_ability),
 			]
 		)
-	if not BATTLE_SAVE_RESOLVER_SCRIPT.VALID_SAVE_TAGS.has(save_tag):
+	if not BATTLE_SAVE_CONTENT_RULES.VALID_SAVE_TAGS.has(save_tag):
 		errors.append(
 			"Skill %s effect %s uses unsupported save_tag %s." % [
 				String(skill_id),

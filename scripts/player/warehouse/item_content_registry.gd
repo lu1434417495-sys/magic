@@ -38,7 +38,7 @@ func rebuild() -> void:
 
 
 func get_item_defs() -> Dictionary:
-	return _item_defs
+	return _item_defs.duplicate()
 
 
 func validate() -> Array[String]:

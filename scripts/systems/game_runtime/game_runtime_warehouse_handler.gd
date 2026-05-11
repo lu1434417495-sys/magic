@@ -70,7 +70,7 @@ func command_discard_all(item_id: StringName, instance_id: StringName = &"") -> 
 	return _command_ok()
 
 
-func command_use_item(item_id: StringName, member_id: StringName = &"") -> Dictionary:
+func command_use_item(item_id: StringName, member_id: StringName = &"", options: Dictionary = {}) -> Dictionary:
 	if not _has_runtime():
 		return _runtime_unavailable_error()
 	if _get_active_modal_id() != "warehouse":
@@ -78,7 +78,7 @@ func command_use_item(item_id: StringName, member_id: StringName = &"") -> Dicti
 	var resolved_member_id := _resolve_warehouse_target_member_id(member_id)
 	if resolved_member_id == &"":
 		return _command_error("当前没有可使用技能书的目标角色。")
-	var use_result := on_party_warehouse_use_requested(item_id, resolved_member_id)
+	var use_result := on_party_warehouse_use_requested(item_id, resolved_member_id, options)
 	if not bool(use_result.get("success", false)):
 		return _command_error(String(use_result.get("message", "当前无法使用该物品。")))
 	return _command_ok()
@@ -186,7 +186,7 @@ func on_party_warehouse_discard_all_requested(item_id: StringName, instance_id: 
 	return {"success": true, "message": _get_status_text()}
 
 
-func on_party_warehouse_use_requested(item_id: StringName, member_id: StringName) -> Dictionary:
+func on_party_warehouse_use_requested(item_id: StringName, member_id: StringName, options: Dictionary = {}) -> Dictionary:
 	if not _has_runtime():
 		return {
 			"success": false,
@@ -226,7 +226,7 @@ func on_party_warehouse_use_requested(item_id: StringName, member_id: StringName
 		_update_status(String(unavailable_result.get("message", "")))
 		return unavailable_result
 
-	var use_result: Dictionary = party_item_use_service.use_item(item_id, resolved_member_id)
+	var use_result: Dictionary = party_item_use_service.use_item(item_id, resolved_member_id, options)
 	if not bool(use_result.get("success", false)):
 		var failure_message := _build_warehouse_use_failure_message(use_result)
 		use_result["message"] = failure_message
@@ -333,6 +333,18 @@ func _build_warehouse_use_failure_message(use_result: Dictionary) -> String:
 			return "%s 对应的技能定义缺失，当前无法使用。" % item_name
 		&"learn_failed":
 			return "%s 当前无法让 %s 学会，可能已学会或未满足前置条件。" % [item_name, member_name]
+		&"practice_replacement_confirmation_required":
+			var preview: Dictionary = use_result.get("practice_replacement_preview", {})
+			var old_skill_id := ProgressionDataUtils.to_string_name(preview.get("existing_skill_id", ""))
+			var new_skill_id := ProgressionDataUtils.to_string_name(use_result.get("skill_id", ""))
+			if new_skill_id != &"":
+				return "%s 会替换 %s 当前的同系练功技能 %s，新技能预计为 %d 级；确认后才会消耗技能书。" % [
+					item_name,
+					member_name,
+					_get_skill_display_name(old_skill_id),
+					int(preview.get("predicted_level", 0)),
+				]
+			return "%s 需要确认练功技能替换后才能使用。" % item_name
 		&"consume_failed":
 			return "%s 已触发学习，但库存扣减失败。" % item_name
 		&"service_unavailable":

@@ -124,27 +124,25 @@ func get_battle_terrain_counts() -> Dictionary:
 	return counts
 
 
-func command_battle_tick(total_seconds: float, step_seconds: float = 1.0 / 60.0) -> Dictionary:
+func command_battle_tick(tick_count: int) -> Dictionary:
 	if not _is_battle_ready():
 		return _runtime_unavailable_error()
 	if not _is_battle_active():
 		return _command_error("当前没有进行中的战斗。")
-	if total_seconds <= 0.0:
-		return _command_error("推进时间必须大于 0。")
+	if tick_count <= 0:
+		return _command_error("推进 tick 必须大于 0。")
 	var battle_runtime = _get_battle_runtime()
 	if battle_runtime == null:
 		return _runtime_unavailable_error()
-	var remaining_seconds := total_seconds
-	var delta_seconds := maxf(step_seconds, 1.0 / 60.0)
-	while remaining_seconds > 0.0 and _is_battle_active():
+	for _tick_index in range(maxi(int(tick_count), 0)):
+		if not _is_battle_active():
+			break
 		var runtime_state = get_runtime_battle_state()
 		if runtime_state != null and String(runtime_state.modal_state) != "":
 			break
-		var step := minf(remaining_seconds, delta_seconds)
-		var batch = battle_runtime.advance(step)
+		var batch = battle_runtime.advance(1)
 		if _batch_has_updates(batch):
 			apply_battle_batch(batch)
-		remaining_seconds -= step
 	return _command_ok()
 
 
@@ -236,8 +234,10 @@ func command_battle_wait_or_resolve() -> Dictionary:
 	var block_reason := _get_battle_interaction_block_reason()
 	if not block_reason.is_empty():
 		return _command_error(block_reason)
-	resolve_active_battle()
-	return _command_ok()
+	var resolve_result := resolve_active_battle()
+	if not bool(resolve_result.get("ok", false)):
+		return _command_error(String(resolve_result.get("message", "战斗结算失败。")))
+	return resolve_result
 
 
 func command_battle_inspect(coord: Vector2i) -> Dictionary:
@@ -315,29 +315,41 @@ func start_battle(encounter_anchor) -> void:
 		return
 
 
-func resolve_active_battle() -> void:
+func resolve_active_battle() -> Dictionary:
 	if not _is_battle_ready() or not _is_battle_active():
-		return
+		return _command_error("当前没有进行中的战斗。")
 
 	if not is_battle_finished():
 		var wait_command = build_wait_command()
 		if wait_command == null:
 			_update_status("当前尚未到可操作单位或战斗结果未结算。")
-			return
+			return _command_error("当前尚未到可操作单位或战斗结果未结算。")
 		issue_battle_command(wait_command)
-		return
+		return _command_ok()
 
 	var battle_runtime = _get_battle_runtime()
 	if battle_runtime == null:
-		return
-	var battle_resolution_result = _consume_battle_resolution_result(battle_runtime)
+		return _runtime_unavailable_error()
+	var battle_resolution_result = _get_battle_resolution_result(battle_runtime)
 	if battle_resolution_result == null:
 		_update_status("战斗已结束，但缺少正式结算结果。")
-		return
-	_runtime.finalize_battle_resolution(battle_resolution_result)
+		return _command_error("战斗已结束，但缺少正式结算结果。")
+	var finalized := bool(_runtime.finalize_battle_resolution(battle_resolution_result))
+	if not finalized:
+		return _command_error("战斗结算失败，已保留当前战斗状态以便重试。")
+	_consume_battle_resolution_result(battle_runtime)
+	return _command_ok()
+
+
+func _get_battle_resolution_result(battle_runtime):
+	if battle_runtime == null or not battle_runtime.has_method("get_battle_resolution_result"):
+		return null
+	return battle_runtime.get_battle_resolution_result()
 
 
 func _consume_battle_resolution_result(battle_runtime):
+	if battle_runtime == null or not battle_runtime.has_method("consume_battle_resolution_result"):
+		return null
 	return battle_runtime.consume_battle_resolution_result()
 
 

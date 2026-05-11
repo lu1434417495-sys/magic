@@ -21,11 +21,14 @@ const SKILL_BOOK_ITEM_FACTORY_SCRIPT = preload("res://scripts/player/warehouse/s
 const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/enemy_content_registry.gd")
 const PROGRESSION_SERIALIZATION_SCRIPT = preload("res://scripts/systems/persistence/progression_serialization.gd")
 const SAVE_SERIALIZER_SCRIPT = preload("res://scripts/systems/persistence/save_serializer.gd")
+const FILE_IO_COORDINATOR_SCRIPT = preload("res://scripts/systems/persistence/file_io_coordinator.gd")
 const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/persistence/game_log_service.gd")
 const WORLD_PRESET_REGISTRY_SCRIPT = preload("res://scripts/utils/world_preset_registry.gd")
 const WORLD_MAP_CONTENT_VALIDATOR_SCRIPT = preload("res://scripts/utils/world_map_content_validator.gd")
 const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/character_creation_service.gd")
 const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/progression_service.gd")
+const RACIAL_SKILL_GRANT_SERVICE_SCRIPT = preload("res://scripts/systems/progression/racial_skill_grant_service.gd")
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
@@ -54,6 +57,12 @@ const RANDOM_START_SKILL_KEYWORDS_ADVANCED := ["高阶", "招牌", "大型召唤
 const RANDOM_START_SKILL_KEYWORDS_INTERMEDIATE := ["中段", "中后期"]
 const RANDOM_START_SKILL_KEYWORDS_BASIC := ["基础", "低耗", "起手", "最小保障"]
 const WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY := "next_equipment_instance_serial"
+const SAVE_DIRTY_SCOPE_WORLD_DATA: StringName = &"world_data"
+const SAVE_DIRTY_SCOPE_PLAYER_COORD: StringName = &"player_coord"
+const SAVE_DIRTY_SCOPE_PLAYER_FACTION_ID: StringName = &"player_faction_id"
+const SAVE_DIRTY_SCOPE_PARTY_STATE: StringName = &"party_state"
+const SAVE_DIRTY_SCOPE_POST_DECODE_REPAIR: StringName = &"post_decode_repair"
+const SAVE_DIRTY_SCOPE_BATTLE_LOCKED_SAVE: StringName = &"battle_locked_save"
 const STARTING_MELEE_WEAPON_ITEM_ID: StringName = &"steel_longsword"
 const STARTING_ARCHER_WEAPON_ITEM_ID: StringName = &"ash_shortbow"
 const STARTING_CROSSBOW_WEAPON_ITEM_ID: StringName = &"militia_light_crossbow"
@@ -84,6 +93,14 @@ var _has_active_world := false
 var _battle_save_lock_enabled := false
 ## 字段说明：用于标记战斗存档是否已经发生变更，决定后续是否需要重新保存、重建或刷新。
 var _battle_save_dirty := false
+## 字段说明：记录运行时状态已有未提交变更，由统一 commit_runtime_state() 负责落盘。
+var _runtime_save_dirty := false
+## 字段说明：记录未提交变更覆盖的状态域，便于调试、UI 状态和失败后重试。
+var _runtime_save_dirty_scopes: Array[StringName] = []
+## 字段说明：记录最近一次统一保存失败的错误码；OK 表示当前没有保存错误待处理。
+var _last_save_error := OK
+## 字段说明：记录最近一次统一保存失败的原因标签，方便运行时日志和测试定位。
+var _last_save_error_reason: StringName = &""
 ## 字段说明：标记解码后是否有 runtime 修正需要写回当前存档。
 var _post_decode_save_pending := false
 ## 字段说明：记录解码后写回原因，便于调试追踪。
@@ -148,6 +165,9 @@ func _init() -> void:
 
 
 func ensure_world_ready(generation_config_path: String) -> int:
+	var content_validation_error := _require_content_validation_for_runtime(&"ensure_world_ready")
+	if content_validation_error != OK:
+		return content_validation_error
 	if _has_active_world and _generation_config_path == generation_config_path:
 		return OK
 
@@ -168,7 +188,10 @@ func create_new_save(
 	preset_name: String = "",
 	character_creation_payload: Dictionary = {}
 ) -> int:
-	_reset_runtime_state()
+	var content_validation_error := _require_content_validation_for_runtime(&"create_new_save")
+	if content_validation_error != OK:
+		return content_validation_error
+	var previous_runtime_state := _capture_runtime_state()
 	if generation_config_path.is_empty():
 		_push_session_error(
 			"session.save.create.invalid_generation_config",
@@ -182,6 +205,7 @@ func create_new_save(
 
 	var prepare_error := _prepare_new_world(generation_config_path, generation_config)
 	if prepare_error != OK:
+		_restore_runtime_state(previous_runtime_state)
 		return prepare_error
 
 	_apply_character_creation_payload_to_main_character(character_creation_payload)
@@ -190,7 +214,7 @@ func create_new_save(
 	var save_id := _generate_unique_save_id(timestamp)
 	if save_id.is_empty():
 		_push_session_error("session.save.create.allocate_id_failed", "GameSession failed to allocate a unique save id.")
-		_reset_runtime_state()
+		_restore_runtime_state(previous_runtime_state)
 		return ERR_CANT_CREATE
 
 	_active_save_id = save_id
@@ -215,6 +239,8 @@ func create_new_save(
 			"preset_id": String(preset_id),
 			"preset_name": preset_name,
 		})
+	else:
+		_restore_runtime_state(previous_runtime_state)
 	return persist_error
 
 
@@ -222,9 +248,16 @@ func list_save_slots() -> Array[Dictionary]:
 	return _load_save_index_entries()
 
 
+func peek_save_slots() -> Array[Dictionary]:
+	return _peek_save_index_entries_read_only()
+
+
 func load_save(save_id: String) -> int:
-	if save_id.is_empty():
+	if not _save_serializer.is_valid_save_id_token(save_id):
 		return ERR_INVALID_PARAMETER
+	var content_validation_error := _require_content_validation_for_runtime(&"load_save")
+	if content_validation_error != OK:
+		return content_validation_error
 
 	var save_meta := _get_save_meta_by_id(save_id)
 	if save_meta.is_empty():
@@ -268,16 +301,14 @@ func load_save(save_id: String) -> int:
 	var previous_runtime_state := _capture_runtime_state()
 	var load_error := _load_current_payload(payload, generation_config_path, generation_config, save_meta)
 	if load_error == OK:
-		var post_decode_save_error := _flush_post_decode_save()
-		if post_decode_save_error != OK:
-			_restore_runtime_state(previous_runtime_state)
-			return post_decode_save_error
 		_rotate_log_session()
 		_log_session_info("session.save.load.ok", "已加载存档。", {
 			"save_id": save_id,
 			"save_path": save_path,
 			"generation_config_path": generation_config_path,
 		})
+	else:
+		_restore_runtime_state(previous_runtime_state)
 	return load_error
 
 
@@ -326,6 +357,10 @@ func refresh_content_validation_snapshot() -> Dictionary:
 	return get_content_validation_snapshot()
 
 
+func is_content_validation_ok() -> bool:
+	return bool(_content_validation_snapshot.get("ok", false))
+
+
 func log_event(level: String, domain: String, event_id: String, message: String, context: Dictionary = {}) -> Dictionary:
 	return _log_service.append_entry(level, domain, event_id, message, context) if _log_service != null else {}
 
@@ -354,6 +389,7 @@ func allocate_equipment_instance_id() -> StringName:
 		serial += 1
 		_world_data[WORLD_EQUIPMENT_INSTANCE_SERIAL_KEY] = serial
 		if not used_ids.has(String(candidate)):
+			_mark_runtime_state_dirty(SAVE_DIRTY_SCOPE_WORLD_DATA)
 			return candidate
 	return &""
 
@@ -363,7 +399,8 @@ func set_world_data(world_data: Dictionary) -> int:
 	if normalized_world_data.is_empty():
 		return ERR_INVALID_DATA
 	_world_data = normalized_world_data
-	return save_game_state()
+	_mark_runtime_state_dirty(SAVE_DIRTY_SCOPE_WORLD_DATA)
+	return OK
 
 
 func get_player_coord() -> Vector2i:
@@ -372,7 +409,8 @@ func get_player_coord() -> Vector2i:
 
 func set_player_coord(coord: Vector2i) -> int:
 	_player_coord = coord
-	return save_game_state()
+	_mark_runtime_state_dirty(SAVE_DIRTY_SCOPE_PLAYER_COORD)
+	return OK
 
 
 func get_player_faction_id() -> String:
@@ -381,7 +419,8 @@ func get_player_faction_id() -> String:
 
 func set_player_faction_id(faction_id: String) -> int:
 	_player_faction_id = faction_id
-	return save_game_state()
+	_mark_runtime_state_dirty(SAVE_DIRTY_SCOPE_PLAYER_FACTION_ID)
+	return OK
 
 
 func get_party_state():
@@ -390,7 +429,8 @@ func get_party_state():
 
 func set_party_state(party_state) -> int:
 	_party_state = _normalize_party_state(party_state)
-	return save_game_state()
+	_mark_runtime_state_dirty(SAVE_DIRTY_SCOPE_PARTY_STATE)
+	return OK
 
 
 func set_battle_save_lock(enabled: bool) -> void:
@@ -402,15 +442,57 @@ func is_battle_save_locked() -> bool:
 
 
 func has_pending_save() -> bool:
-	return _battle_save_dirty
+	return _runtime_save_dirty or _battle_save_dirty or _post_decode_save_pending
 
 
 func discard_pending_save() -> void:
 	_battle_save_dirty = false
+	_runtime_save_dirty = false
+	_runtime_save_dirty_scopes.clear()
+	_post_decode_save_pending = false
+	_post_decode_save_reasons.clear()
+
+
+func get_save_status() -> Dictionary:
+	return {
+		"has_pending_save": has_pending_save(),
+		"dirty_scopes": _runtime_save_dirty_scopes.duplicate(),
+		"battle_save_locked": _battle_save_lock_enabled,
+		"last_error": _last_save_error,
+		"last_error_reason": _last_save_error_reason,
+		"post_decode_save_pending": _post_decode_save_pending,
+		"post_decode_save_reasons": _post_decode_save_reasons.duplicate(),
+	}
+
+
+func _mark_runtime_state_dirty(scope: StringName) -> void:
+	_runtime_save_dirty = true
+	if scope == &"" or _runtime_save_dirty_scopes.has(scope):
+		return
+	_runtime_save_dirty_scopes.append(scope)
+
+
+func _clear_runtime_save_dirty() -> void:
+	_battle_save_dirty = false
+	_runtime_save_dirty = false
+	_runtime_save_dirty_scopes.clear()
+	_post_decode_save_pending = false
+	_post_decode_save_reasons.clear()
+
+
+func _record_save_error(error_code: int, reason: StringName) -> void:
+	_last_save_error = error_code
+	_last_save_error_reason = reason
+
+
+func _clear_last_save_error() -> void:
+	_last_save_error = OK
+	_last_save_error_reason = &""
 
 
 func queue_post_decode_save(reason: StringName) -> void:
 	_post_decode_save_pending = true
+	_mark_runtime_state_dirty(SAVE_DIRTY_SCOPE_POST_DECODE_REPAIR)
 	if reason == &"" or _post_decode_save_reasons.has(reason):
 		return
 	_post_decode_save_reasons.append(reason)
@@ -466,43 +548,74 @@ func get_progression_content_registry():
 func get_progression_content_bundle() -> Dictionary:
 	if _progression_content_registry == null:
 		return {}
-	return _progression_content_registry.get_bundle()
+	return _duplicate_content_bundle(_progression_content_registry.get_bundle())
 
 
 func get_skill_defs() -> Dictionary:
-	return _skill_defs
+	return _skill_defs.duplicate()
 
 
 func get_profession_defs() -> Dictionary:
-	return _profession_defs
+	return _profession_defs.duplicate()
 
 
 func get_achievement_defs() -> Dictionary:
-	return _achievement_defs
+	return _achievement_defs.duplicate()
 
 
 func get_quest_defs() -> Dictionary:
-	return _quest_defs
+	return _quest_defs.duplicate()
 
 
 func get_item_defs() -> Dictionary:
-	return _item_defs
+	return _item_defs.duplicate()
 
 
 func get_recipe_defs() -> Dictionary:
-	return _recipe_defs
+	return _recipe_defs.duplicate()
 
 
 func get_enemy_templates() -> Dictionary:
-	return _enemy_templates
+	return _enemy_templates.duplicate()
 
 
 func get_enemy_ai_brains() -> Dictionary:
-	return _enemy_ai_brains
+	return _enemy_ai_brains.duplicate()
 
 
 func get_wild_encounter_rosters() -> Dictionary:
-	return _wild_encounter_rosters
+	return _wild_encounter_rosters.duplicate()
+
+
+func install_test_content_def(domain_id: StringName, content_key: Variant, content_def: Variant) -> int:
+	if content_def == null:
+		return ERR_INVALID_PARAMETER
+	if content_key is not String and content_key is not StringName:
+		return ERR_INVALID_PARAMETER
+	if String(content_key).is_empty():
+		return ERR_INVALID_PARAMETER
+	match domain_id:
+		&"skill":
+			_skill_defs[content_key] = content_def
+		&"profession":
+			_profession_defs[content_key] = content_def
+		&"achievement":
+			_achievement_defs[content_key] = content_def
+		&"quest":
+			_quest_defs[content_key] = content_def
+		&"item":
+			_item_defs[content_key] = content_def
+		&"recipe":
+			_recipe_defs[content_key] = content_def
+		&"enemy_template":
+			_enemy_templates[content_key] = content_def
+		&"enemy_ai_brain":
+			_enemy_ai_brains[content_key] = content_def
+		&"wild_encounter_roster":
+			_wild_encounter_rosters[content_key] = content_def
+		_:
+			return ERR_INVALID_PARAMETER
+	return OK
 
 
 func save_world_state() -> int:
@@ -514,20 +627,39 @@ func save_game_state() -> int:
 		return ERR_UNCONFIGURED
 	if _battle_save_lock_enabled:
 		_battle_save_dirty = true
+		_mark_runtime_state_dirty(SAVE_DIRTY_SCOPE_BATTLE_LOCKED_SAVE)
 		return OK
 
-	return _persist_game_state()
+	return commit_runtime_state(&"save_game_state")
+
+
+func commit_runtime_state(reason: StringName = &"runtime") -> int:
+	if not _has_active_world:
+		return ERR_UNCONFIGURED
+	if _battle_save_lock_enabled:
+		_record_save_error(ERR_BUSY, reason)
+		return ERR_BUSY
+
+	var persist_error := _persist_game_state()
+	if persist_error != OK:
+		_record_save_error(persist_error, reason)
+		return persist_error
+
+	_clear_runtime_save_dirty()
+	_clear_last_save_error()
+	return OK
 
 
 func flush_game_state() -> int:
 	if not _has_active_world:
 		return ERR_UNCONFIGURED
 	if _battle_save_lock_enabled:
+		_record_save_error(ERR_BUSY, &"flush_game_state")
 		return ERR_BUSY
-	if not _battle_save_dirty:
+	if not has_pending_save():
 		return OK
 
-	return _persist_game_state()
+	return commit_runtime_state(&"flush_game_state")
 
 
 func clear_persisted_world() -> int:
@@ -552,6 +684,19 @@ func reset_runtime_cache() -> void:
 func unload_active_world() -> void:
 	if not _has_active_world:
 		return
+	if has_pending_save():
+		if _battle_save_lock_enabled:
+			_record_save_error(ERR_BUSY, &"unload_active_world")
+			_push_session_error("session.runtime.unload.save_locked", "GameSession cannot unload active world while battle save lock is enabled.")
+			return
+		var unload_save_error := commit_runtime_state(&"unload_active_world")
+		if unload_save_error != OK:
+			_push_session_error(
+				"session.runtime.unload.commit_failed",
+				"GameSession failed to commit pending save before unloading active world.",
+				{"error": unload_save_error}
+			)
+			return
 	var unloaded_save_id := _active_save_id
 	_reset_runtime_state()
 	_rotate_log_session()
@@ -564,11 +709,19 @@ func _try_load_game_state(generation_config_path: String) -> bool:
 	if generation_config_path.is_empty():
 		return false
 
-	var save_meta := _find_most_recent_save_by_config(generation_config_path)
-	if save_meta.is_empty():
-		return false
-
-	return load_save(String(save_meta.get("save_id", ""))) == OK
+	var attempted_candidate := false
+	for save_meta in _load_save_index_entries():
+		if String(save_meta.get("generation_config_path", "")) != generation_config_path:
+			continue
+		attempted_candidate = true
+		var candidate_save_id := String(save_meta.get("save_id", ""))
+		if load_save(candidate_save_id) == OK:
+			return true
+		_log_session_info("session.save.autoload.skip_bad_candidate", "自动载入跳过坏存档 %s。" % candidate_save_id, {
+			"save_id": candidate_save_id,
+			"generation_config_path": generation_config_path,
+		})
+	return false if attempted_candidate else false
 
 
 func _prepare_new_world(generation_config_path: String, generation_config: WorldMapGenerationConfig) -> int:
@@ -591,7 +744,8 @@ func _prepare_new_world(generation_config_path: String, generation_config: World
 	_backfill_racial_granted_skills(_party_state)
 	_has_active_world = true
 	_battle_save_lock_enabled = false
-	_battle_save_dirty = false
+	_clear_runtime_save_dirty()
+	_clear_last_save_error()
 	return OK
 
 
@@ -666,12 +820,7 @@ func _load_current_payload(
 func _flush_post_decode_save() -> int:
 	if not _post_decode_save_pending:
 		return OK
-	var save_error := _persist_game_state()
-	if save_error != OK:
-		return save_error
-	_post_decode_save_pending = false
-	_post_decode_save_reasons.clear()
-	return OK
+	return commit_runtime_state(&"post_decode_repair")
 
 
 func _refresh_party_body_sizes_from_identity(party_state) -> bool:
@@ -684,174 +833,21 @@ func _refresh_party_body_sizes_from_identity(party_state) -> bool:
 
 
 func _backfill_racial_granted_skills(party_state) -> bool:
-	if party_state == null:
-		return false
-
-	var changed := false
-	for member_state in party_state.member_states.values():
-		if member_state == null or member_state.progression == null:
-			continue
-		var grant_entries := _collect_member_racial_grant_entries(member_state)
-		if grant_entries.is_empty():
-			continue
-		var progression_service = PROGRESSION_SERVICE_SCRIPT.new()
-		progression_service.setup(member_state.progression, _skill_defs, _profession_defs)
-		for grant_entry in grant_entries:
-			var grant := grant_entry.get("grant") as RacialGrantedSkill
-			var source_type := ProgressionDataUtils.to_string_name(grant_entry.get("source_type", ""))
-			var source_id := ProgressionDataUtils.to_string_name(grant_entry.get("source_id", ""))
-			if progression_service.grant_racial_skill(grant, source_type, source_id):
-				changed = true
-	return changed
+	return RACIAL_SKILL_GRANT_SERVICE_SCRIPT.backfill_party(
+		party_state,
+		get_progression_content_bundle(),
+		_skill_defs,
+		_profession_defs
+	)
 
 
 func _revoke_orphan_racial_skills(party_state) -> bool:
-	if party_state == null:
-		return false
-
-	var changed := false
-	for member_state in party_state.member_states.values():
-		if member_state == null or member_state.progression == null:
-			continue
-		var active_grant_lookup := _collect_active_identity_grant_lookup(member_state)
-		var skill_ids_to_remove: Array[StringName] = []
-		for skill_key in ProgressionDataUtils.sorted_string_keys(member_state.progression.skills):
-			var skill_id := StringName(skill_key)
-			var skill_progress: Variant = member_state.progression.get_skill_progress(skill_id)
-			if skill_progress == null:
-				continue
-			var source_type := ProgressionDataUtils.to_string_name(skill_progress.granted_source_type)
-			if not _is_racial_granted_source_type(source_type):
-				continue
-			var source_id := ProgressionDataUtils.to_string_name(skill_progress.granted_source_id)
-			if active_grant_lookup.has(_identity_grant_key(source_type, source_id, skill_id)):
-				continue
-			if skill_progress.profession_granted_by != &"":
-				continue
-			skill_ids_to_remove.append(skill_id)
-
-		if skill_ids_to_remove.is_empty():
-			continue
-		for skill_id in skill_ids_to_remove:
-			member_state.progression.remove_skill_progress(skill_id)
-		_refresh_progression_runtime_state(member_state.progression)
-		changed = true
-	return changed
-
-
-func _collect_member_racial_grant_entries(member_state) -> Array[Dictionary]:
-	var entries: Array[Dictionary] = []
-	if member_state == null or _progression_content_registry == null:
-		return entries
-
-	var race_defs := _progression_content_registry.get_race_defs()
-	var race_def := race_defs.get(member_state.race_id) as RaceDef
-	if race_def != null:
-		_append_racial_grant_entries(
-			entries,
-			race_def.racial_granted_skills,
-			UnitSkillProgress.GRANTED_SOURCE_RACE,
-			member_state.race_id
-		)
-
-	var subrace_defs := _progression_content_registry.get_subrace_defs()
-	var subrace_def := subrace_defs.get(member_state.subrace_id) as SubraceDef
-	if subrace_def != null:
-		_append_racial_grant_entries(
-			entries,
-			subrace_def.racial_granted_skills,
-			UnitSkillProgress.GRANTED_SOURCE_SUBRACE,
-			member_state.subrace_id
-		)
-
-	if member_state.bloodline_id != &"":
-		var bloodline_defs := _progression_content_registry.get_bloodline_defs()
-		var bloodline_def := bloodline_defs.get(member_state.bloodline_id) as BloodlineDef
-		if bloodline_def != null:
-			_append_racial_grant_entries(
-				entries,
-				bloodline_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
-				member_state.bloodline_id
-			)
-	if member_state.bloodline_stage_id != &"":
-		var bloodline_stage_defs := _progression_content_registry.get_bloodline_stage_defs()
-		var bloodline_stage_def := bloodline_stage_defs.get(member_state.bloodline_stage_id) as BloodlineStageDef
-		if bloodline_stage_def != null:
-			_append_racial_grant_entries(
-				entries,
-				bloodline_stage_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
-				member_state.bloodline_stage_id
-			)
-
-	if member_state.ascension_id != &"":
-		var ascension_defs := _progression_content_registry.get_ascension_defs()
-		var ascension_def := ascension_defs.get(member_state.ascension_id) as AscensionDef
-		if ascension_def != null:
-			_append_racial_grant_entries(
-				entries,
-				ascension_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
-				member_state.ascension_id
-			)
-	if member_state.ascension_stage_id != &"":
-		var ascension_stage_defs := _progression_content_registry.get_ascension_stage_defs()
-		var ascension_stage_def := ascension_stage_defs.get(member_state.ascension_stage_id) as AscensionStageDef
-		if ascension_stage_def != null:
-			_append_racial_grant_entries(
-				entries,
-				ascension_stage_def.racial_granted_skills,
-				UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
-				member_state.ascension_stage_id
-			)
-
-	return entries
-
-
-func _append_racial_grant_entries(
-	entries: Array[Dictionary],
-	granted_skills: Array,
-	source_type: StringName,
-	source_id: StringName
-) -> void:
-	if source_id == &"":
-		return
-	for grant in granted_skills:
-		if grant == null:
-			continue
-		entries.append({
-			"grant": grant,
-			"source_type": source_type,
-			"source_id": source_id,
-		})
-
-
-func _collect_active_identity_grant_lookup(member_state) -> Dictionary:
-	var lookup: Dictionary = {}
-	if member_state == null:
-		return lookup
-	for grant_entry in _collect_member_racial_grant_entries(member_state):
-		var grant := grant_entry.get("grant") as RacialGrantedSkill
-		if grant == null or grant.skill_id == &"":
-			continue
-		var source_type := ProgressionDataUtils.to_string_name(grant_entry.get("source_type", ""))
-		var source_id := ProgressionDataUtils.to_string_name(grant_entry.get("source_id", ""))
-		if source_type == &"" or source_id == &"":
-			continue
-		lookup[_identity_grant_key(source_type, source_id, grant.skill_id)] = true
-	return lookup
-
-
-func _identity_grant_key(source_type: StringName, source_id: StringName, skill_id: StringName) -> String:
-	return "%s:%s:%s" % [String(source_type), String(source_id), String(skill_id)]
-
-
-func _is_racial_granted_source_type(source_type: StringName) -> bool:
-	return source_type == UnitSkillProgress.GRANTED_SOURCE_RACE \
-		or source_type == UnitSkillProgress.GRANTED_SOURCE_SUBRACE \
-		or source_type == UnitSkillProgress.GRANTED_SOURCE_ASCENSION \
-		or source_type == UnitSkillProgress.GRANTED_SOURCE_BLOODLINE
+	return RACIAL_SKILL_GRANT_SERVICE_SCRIPT.revoke_orphan_party(
+		party_state,
+		get_progression_content_bundle(),
+		_skill_defs,
+		_profession_defs
+	)
 
 
 func _build_save_payload(saved_at_unix_time: int) -> Dictionary:
@@ -941,6 +937,15 @@ func _load_generation_config(generation_config_path: String) -> WorldMapGenerati
 
 
 func _read_save_payload(save_path: String, emit_errors: bool = true) -> Dictionary:
+	var recovery_error := FILE_IO_COORDINATOR_SCRIPT.recover_replace_target(
+		save_path,
+		SAVE_FILE_COMPRESSION_MODE,
+		"session.save.read",
+		"save",
+		Callable(self, "_push_session_error")
+	)
+	if recovery_error != OK and recovery_error != ERR_DOES_NOT_EXIST:
+		return {"error": recovery_error}
 	if not FileAccess.file_exists(save_path):
 		if emit_errors:
 			_push_session_error("session.save.read.missing_file", "GameSession could not find persisted save %s." % save_path, {
@@ -981,36 +986,20 @@ func _ensure_save_directory() -> int:
 
 
 func _build_save_file_path(save_id: String) -> String:
+	if not _save_serializer.is_valid_save_id_token(save_id):
+		return ""
 	return "%s/%s.dat" % [SAVE_DIRECTORY, save_id]
 
 
 func _write_compressed_variant_atomically(virtual_path: String, payload: Variant, error_event_prefix: String, label: String) -> int:
-	var temp_path := "%s.tmp" % virtual_path
-	var cleanup_temp_error := _remove_file_if_exists(temp_path)
-	if cleanup_temp_error != OK:
-		return cleanup_temp_error
-
-	var file := FileAccess.open_compressed(temp_path, FileAccess.WRITE, SAVE_FILE_COMPRESSION_MODE)
-	if file == null:
-		var open_error := FileAccess.get_open_error()
-		_push_session_error("%s.open_failed" % error_event_prefix, "Failed to open %s file %s. Error: %s" % [label, temp_path, open_error], {
-			"path": temp_path,
-			"open_error": open_error,
-		})
-		return open_error
-
-	file.store_var(payload, false)
-	var write_error := file.get_error()
-	file.close()
-	if write_error != OK:
-		_remove_file_if_exists(temp_path)
-		_push_session_error("%s.write_failed" % error_event_prefix, "Failed to write %s file %s. Error: %s" % [label, temp_path, write_error], {
-			"path": temp_path,
-			"write_error": write_error,
-		})
-		return write_error
-
-	return _replace_file_atomically(temp_path, virtual_path, error_event_prefix, label)
+	return FILE_IO_COORDINATOR_SCRIPT.write_compressed_variant_atomically(
+		virtual_path,
+		payload,
+		SAVE_FILE_COMPRESSION_MODE,
+		error_event_prefix,
+		label,
+		Callable(self, "_push_session_error")
+	)
 
 
 func _write_save_payload_atomically(save_path: String, payload: Dictionary) -> int:
@@ -1018,54 +1007,21 @@ func _write_save_payload_atomically(save_path: String, payload: Dictionary) -> i
 
 
 func _replace_file_atomically(source_path: String, target_path: String, error_event_prefix: String, label: String) -> int:
-	var backup_path := "%s.bak" % target_path
-	var cleanup_backup_error := _remove_file_if_exists(backup_path)
-	if cleanup_backup_error != OK:
-		_remove_file_if_exists(source_path)
-		return cleanup_backup_error
-
-	var had_existing_target := FileAccess.file_exists(target_path)
-	if had_existing_target:
-		var backup_error := _rename_file(target_path, backup_path)
-		if backup_error != OK:
-			_remove_file_if_exists(source_path)
-			_push_session_error("%s.backup_failed" % error_event_prefix, "Failed to prepare existing %s file %s for replacement. Error: %s" % [label, target_path, backup_error], {
-				"target_path": target_path,
-				"backup_path": backup_path,
-				"backup_error": backup_error,
-			})
-			return backup_error
-
-	var replace_error := _rename_file(source_path, target_path)
-	if replace_error != OK:
-		_remove_file_if_exists(source_path)
-		if had_existing_target:
-			_rename_file(backup_path, target_path)
-		_push_session_error("%s.replace_failed" % error_event_prefix, "Failed to replace %s file %s. Error: %s" % [label, target_path, replace_error], {
-			"source_path": source_path,
-			"target_path": target_path,
-			"replace_error": replace_error,
-		})
-		return replace_error
-
-	if had_existing_target:
-		var remove_backup_error := _remove_file_if_exists(backup_path)
-		if remove_backup_error != OK:
-			push_warning("GameSession: replaced %s file but failed to remove backup %s. Error: %s" % [label, backup_path, remove_backup_error])
-	return OK
-
-
-func _rename_file(from_virtual_path: String, to_virtual_path: String) -> int:
-	return DirAccess.rename_absolute(
-		ProjectSettings.globalize_path(from_virtual_path),
-		ProjectSettings.globalize_path(to_virtual_path)
+	return FILE_IO_COORDINATOR_SCRIPT.replace_file_atomically(
+		source_path,
+		target_path,
+		error_event_prefix,
+		label,
+		Callable(self, "_push_session_error")
 	)
 
 
+func _rename_file(from_virtual_path: String, to_virtual_path: String) -> int:
+	return FILE_IO_COORDINATOR_SCRIPT.rename_file(from_virtual_path, to_virtual_path)
+
+
 func _remove_file_if_exists(virtual_path: String) -> int:
-	if not FileAccess.file_exists(virtual_path):
-		return OK
-	return DirAccess.remove_absolute(ProjectSettings.globalize_path(virtual_path))
+	return FILE_IO_COORDINATOR_SCRIPT.remove_file_if_exists(virtual_path)
 
 
 func _load_save_index_entries() -> Array[Dictionary]:
@@ -1074,6 +1030,15 @@ func _load_save_index_entries() -> Array[Dictionary]:
 
 	var should_rewrite_index := false
 	var raw_entries: Array = []
+	var index_recovery_error := FILE_IO_COORDINATOR_SCRIPT.recover_replace_target(
+		SAVE_INDEX_PATH,
+		SAVE_FILE_COMPRESSION_MODE,
+		"session.save.index",
+		"save index",
+		Callable(self, "_push_session_error")
+	)
+	if index_recovery_error != OK and index_recovery_error != ERR_DOES_NOT_EXIST:
+		should_rewrite_index = true
 	if not FileAccess.file_exists(SAVE_INDEX_PATH):
 		should_rewrite_index = true
 	else:
@@ -1103,6 +1068,32 @@ func _load_save_index_entries() -> Array[Dictionary]:
 	else:
 		_set_save_index_cache(merged_entries)
 	return _duplicate_save_index_entries(merged_entries)
+
+
+func _peek_save_index_entries_read_only() -> Array[Dictionary]:
+	if _is_save_index_cache_current():
+		return _duplicate_save_index_entries(_save_index_entries_cache)
+	if not FileAccess.file_exists(SAVE_INDEX_PATH):
+		return []
+
+	var index_file := FileAccess.open_compressed(SAVE_INDEX_PATH, FileAccess.READ, SAVE_FILE_COMPRESSION_MODE)
+	if index_file == null:
+		return []
+	var raw_payload = _read_save_index_payload(index_file)
+	index_file.close()
+	if typeof(raw_payload) != TYPE_DICTIONARY:
+		return []
+
+	var raw_payload_dict: Dictionary = raw_payload
+	var index_version_variant: Variant = raw_payload_dict.get("version", null)
+	if not _is_save_index_integer_value(index_version_variant) \
+		or int(index_version_variant) != SAVE_INDEX_VERSION \
+		or typeof(raw_payload_dict.get("saves", null)) != TYPE_ARRAY:
+		return []
+
+	var entries := _normalize_save_index_entries(raw_payload_dict.get("saves", []))
+	_set_save_index_cache(entries)
+	return _duplicate_save_index_entries(entries)
 
 
 func _write_save_index(entries: Array[Dictionary]) -> int:
@@ -1174,6 +1165,19 @@ func _duplicate_save_index_entries(entries: Array[Dictionary]) -> Array[Dictiona
 	for entry in entries:
 		duplicated_entries.append(entry.duplicate(true))
 	return duplicated_entries
+
+
+func _duplicate_content_bundle(bundle: Dictionary) -> Dictionary:
+	var duplicated_bundle: Dictionary = {}
+	for key in bundle.keys():
+		var value: Variant = bundle.get(key)
+		if value is Dictionary:
+			duplicated_bundle[key] = (value as Dictionary).duplicate()
+		elif value is Array:
+			duplicated_bundle[key] = (value as Array).duplicate()
+		else:
+			duplicated_bundle[key] = value
+	return duplicated_bundle
 
 
 func _save_index_entries_match(left_entries: Array[Dictionary], right_entries: Array[Dictionary]) -> bool:
@@ -1256,6 +1260,9 @@ func _rebuild_save_index_entries_from_save_files() -> Array[Dictionary]:
 			continue
 		if not file_name.ends_with(".dat") or file_name == "index.dat":
 			continue
+		var candidate_save_id := file_name.get_basename()
+		if not _save_serializer.is_valid_save_id_token(candidate_save_id):
+			continue
 		var save_path := "%s/%s" % [SAVE_DIRECTORY, file_name]
 		var read_result := _read_save_payload(save_path, false)
 		if int(read_result.get("error", ERR_INVALID_DATA)) != OK:
@@ -1266,6 +1273,13 @@ func _rebuild_save_index_entries_from_save_files() -> Array[Dictionary]:
 		var payload: Dictionary = payload_variant
 		var save_meta := _extract_save_meta_from_payload(payload)
 		if save_meta.is_empty():
+			continue
+		var generation_config_path := String(save_meta.get("generation_config_path", ""))
+		var generation_config = _load_generation_config(generation_config_path)
+		if generation_config == null:
+			continue
+		var decode_result := _save_serializer.decode_payload(payload, generation_config_path, generation_config, save_meta)
+		if int(decode_result.get("error", ERR_INVALID_DATA)) != OK:
 			continue
 		rebuilt_by_id[String(save_meta.get("save_id", ""))] = save_meta
 	save_dir.list_dir_end()
@@ -1316,48 +1330,10 @@ func _sort_save_meta_newest_first(a: Dictionary, b: Dictionary) -> bool:
 
 
 func _remove_directory_recursive(virtual_path: String) -> int:
-	var absolute_path := ProjectSettings.globalize_path(virtual_path)
-	if not DirAccess.dir_exists_absolute(absolute_path):
-		return OK
-
-	var dir := DirAccess.open(virtual_path)
-	if dir == null:
-		var open_error := DirAccess.get_open_error()
-		_push_session_error("session.cleanup.open_directory_failed", "Failed to open directory %s for cleanup. Error: %s" % [virtual_path, open_error], {
-			"virtual_path": virtual_path,
-			"open_error": open_error,
-		})
-		return open_error
-
-	var list_error := dir.list_dir_begin()
-	if list_error != OK:
-		_push_session_error("session.cleanup.list_directory_failed", "Failed to list directory %s for cleanup. Error: %s" % [virtual_path, list_error], {
-			"virtual_path": virtual_path,
-			"list_error": list_error,
-		})
-		return list_error
-	while true:
-		var name := dir.get_next()
-		if name.is_empty():
-			break
-		if name == "." or name == "..":
-			continue
-
-		var child_virtual_path := "%s/%s" % [virtual_path, name]
-		if dir.current_is_dir():
-			var nested_error := _remove_directory_recursive(child_virtual_path)
-			if nested_error != OK:
-				dir.list_dir_end()
-				return nested_error
-			continue
-
-		var remove_file_error := DirAccess.remove_absolute(ProjectSettings.globalize_path(child_virtual_path))
-		if remove_file_error != OK:
-			dir.list_dir_end()
-			return remove_file_error
-
-	dir.list_dir_end()
-	return DirAccess.remove_absolute(absolute_path)
+	return FILE_IO_COORDINATOR_SCRIPT.remove_directory_recursive(
+		virtual_path,
+		Callable(self, "_push_session_error")
+	)
 
 
 func _apply_character_creation_payload_to_main_character(payload: Dictionary) -> void:
@@ -1718,11 +1694,15 @@ func _is_random_start_book_skill_candidate(skill_def: SkillDef, progression) -> 
 	return learned_progress == null or not learned_progress.is_learned
 
 
-func _resolve_random_start_skill_initial_level(skill_def: SkillDef) -> int:
+func _resolve_random_start_skill_initial_level(skill_def: SkillDef, progression: UnitProgress = null) -> int:
 	if skill_def == null:
 		return 0
 	var mapped_level := int(RANDOM_START_SKILL_LEVEL_BY_TIER.get(_resolve_random_start_skill_tier(skill_def), 0))
-	var max_initial_level := maxi(skill_def.max_level, 0)
+	var max_initial_level := maxi(skill_def.max_level, 0) if skill_def.max_level >= 0 else 999
+	if progression != null and skill_def.dynamic_max_level_stat_id != &"":
+		var effective_max := SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(skill_def, null, progression)
+		if effective_max > 0:
+			max_initial_level = mini(max_initial_level, effective_max)
 	if skill_def.non_core_max_level > 0:
 		max_initial_level = mini(max_initial_level, int(skill_def.non_core_max_level))
 	return clampi(mapped_level, 0, max_initial_level)
@@ -1814,6 +1794,10 @@ func _capture_runtime_state() -> Dictionary:
 		"has_active_world": _has_active_world,
 		"battle_save_lock_enabled": _battle_save_lock_enabled,
 		"battle_save_dirty": _battle_save_dirty,
+		"runtime_save_dirty": _runtime_save_dirty,
+		"runtime_save_dirty_scopes": _runtime_save_dirty_scopes.duplicate(),
+		"last_save_error": _last_save_error,
+		"last_save_error_reason": _last_save_error_reason,
 		"post_decode_save_pending": _post_decode_save_pending,
 		"post_decode_save_reasons": _post_decode_save_reasons.duplicate(),
 	}
@@ -1832,6 +1816,10 @@ func _restore_runtime_state(state: Dictionary) -> void:
 	_has_active_world = bool(state.get("has_active_world", false))
 	_battle_save_lock_enabled = bool(state.get("battle_save_lock_enabled", false))
 	_battle_save_dirty = bool(state.get("battle_save_dirty", false))
+	_runtime_save_dirty = bool(state.get("runtime_save_dirty", false))
+	_runtime_save_dirty_scopes = ProgressionDataUtils.to_string_name_array(state.get("runtime_save_dirty_scopes", []))
+	_last_save_error = int(state.get("last_save_error", OK))
+	_last_save_error_reason = StringName(String(state.get("last_save_error_reason", &"")))
 	_post_decode_save_pending = bool(state.get("post_decode_save_pending", false))
 	_post_decode_save_reasons = ProgressionDataUtils.to_string_name_array(state.get("post_decode_save_reasons", []))
 
@@ -1849,6 +1837,10 @@ func _reset_runtime_state() -> void:
 	_has_active_world = false
 	_battle_save_lock_enabled = false
 	_battle_save_dirty = false
+	_runtime_save_dirty = false
+	_runtime_save_dirty_scopes.clear()
+	_last_save_error = OK
+	_last_save_error_reason = &""
 	_post_decode_save_pending = false
 	_post_decode_save_reasons.clear()
 
@@ -1932,6 +1924,22 @@ func _build_world_content_validation_domain_snapshot() -> Dictionary:
 		"error_count": errors.size(),
 		"errors": errors,
 	}
+
+
+func _require_content_validation_for_runtime(operation_id: StringName) -> int:
+	_refresh_content_validation_snapshot()
+	if is_content_validation_ok():
+		return OK
+	var error_count := int(_content_validation_snapshot.get("error_count", 0))
+	_push_session_error(
+		"session.content.validation_blocked",
+		"GameSession blocked formal runtime entry because content validation failed.",
+		{
+			"operation_id": String(operation_id),
+			"error_count": error_count,
+		}
+	)
+	return ERR_INVALID_DATA
 
 
 func _report_content_validation_errors() -> void:

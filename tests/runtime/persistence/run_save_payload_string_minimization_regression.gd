@@ -1,12 +1,15 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SAVE_DIRECTORY := "user://saves"
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -141,7 +144,7 @@ func _test_save_payload_minimizes_identity_strings() -> void:
 
 func _assert_type(value: Variant, expected_type: int, message: String) -> void:
 	if typeof(value) != expected_type:
-		_failures.append("%s | actual_type=%s expected_type=%s value=%s" % [
+		_test.fail("%s | actual_type=%s expected_type=%s value=%s" % [
 			message,
 			type_string(typeof(value)),
 			type_string(expected_type),
@@ -151,21 +154,21 @@ func _assert_type(value: Variant, expected_type: int, message: String) -> void:
 
 func _assert_array_item_type(values: Variant, expected_type: int, message: String) -> void:
 	if values is not Array:
-		_failures.append("%s | actual container type=%s" % [message, type_string(typeof(values))])
+		_test.fail("%s | actual container type=%s" % [message, type_string(typeof(values))])
 		return
 	for item in values:
 		if typeof(item) != expected_type:
-			_failures.append("%s | bad item type=%s value=%s" % [message, type_string(typeof(item)), var_to_str(item)])
+			_test.fail("%s | bad item type=%s value=%s" % [message, type_string(typeof(item)), var_to_str(item)])
 			return
 
 
 func _assert_dictionary_keys_type(values: Variant, expected_type: int, message: String) -> void:
 	if values is not Dictionary:
-		_failures.append("%s | actual container type=%s" % [message, type_string(typeof(values))])
+		_test.fail("%s | actual container type=%s" % [message, type_string(typeof(values))])
 		return
 	for key in (values as Dictionary).keys():
 		if typeof(key) != expected_type:
-			_failures.append("%s | bad key type=%s key=%s" % [message, type_string(typeof(key)), var_to_str(key)])
+			_test.fail("%s | bad key type=%s key=%s" % [message, type_string(typeof(key)), var_to_str(key)])
 			return
 
 
@@ -177,7 +180,7 @@ func _assert_no_string_variants(value: Variant, root_path: String, message: Stri
 	var preview := PackedStringArray()
 	for index in range(mini(string_paths.size(), 8)):
 		preview.append(string_paths[index])
-	_failures.append("%s | count=%d examples=%s" % [
+	_test.fail("%s | count=%d examples=%s" % [
 		message,
 		string_paths.size(),
 		", ".join(preview),
@@ -239,9 +242,9 @@ func _cleanup_test_session(game_session) -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, var_to_str(actual), var_to_str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, var_to_str(actual), var_to_str(expected)])

@@ -25,7 +25,7 @@ func load_from_directory(directory_path: String) -> void:
 
 
 func get_age_profile_defs() -> Dictionary:
-	return _age_profile_defs
+	return _age_profile_defs.duplicate()
 
 
 func _register_resource(resource_path: String) -> void:

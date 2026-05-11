@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const AgeContentRegistry = preload("res://scripts/player/progression/age_content_registry.gd")
 const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
 const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
@@ -21,7 +23,8 @@ const SubraceContentRegistry = preload("res://scripts/player/progression/subrace
 
 const TEMP_ROOT := "user://identity_registry_phase1"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -82,7 +85,10 @@ func _test_official_identity_directories_scan_without_errors() -> void:
 func _test_progression_registry_exposes_identity_bundle() -> void:
 	var registry := ProgressionContentRegistry.new()
 	var bundle := registry.get_bundle()
-	_assert_true(registry.validate().is_empty(), "ProgressionContentRegistry 接入身份子 registry 后仍应通过正式内容校验。")
+	_assert_current_official_progression_validation_errors(
+		registry.validate(),
+		"ProgressionContentRegistry 接入身份子 registry 后不应报告正式内容校验错误。"
+	)
 	for key in [
 		"race_defs",
 		"subrace_defs",
@@ -270,7 +276,7 @@ func _save_resource(resource: Resource, directory_path: String, file_stem: Strin
 func _cleanup_temp_root() -> void:
 	var cleanup_error := _remove_path_recursive(TEMP_ROOT)
 	if cleanup_error != OK:
-		_failures.append("测试临时目录应能清理：%s error=%s" % [TEMP_ROOT, cleanup_error])
+		_test.fail("测试临时目录应能清理：%s error=%s" % [TEMP_ROOT, cleanup_error])
 
 
 func _remove_path_recursive(virtual_path: String) -> int:
@@ -310,11 +316,15 @@ func _has_error_containing(errors: Array[String], expected_fragment: String) -> 
 	return false
 
 
+func _assert_current_official_progression_validation_errors(errors: Array[String], message: String) -> void:
+	_assert_true(errors.is_empty(), "%s | errors=%s" % [message, str(errors)])
+
+
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

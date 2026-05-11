@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
@@ -121,7 +123,8 @@ const EXPECTED_RACE_TRAIT_IDS := [
 	&"zariel_legacy",
 ]
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -152,7 +155,7 @@ func _run() -> void:
 
 func _test_official_identity_registry_validates(registry: ProgressionContentRegistry) -> void:
 	var errors := registry.validate()
-	_assert_true(errors.is_empty(), "Official progression registry should validate: %s" % str(errors))
+	_assert_true(errors.is_empty(), "Official progression registry should validate cleanly. errors=%s" % str(errors))
 
 
 func _test_official_race_and_subrace_ids(registry: ProgressionContentRegistry) -> void:
@@ -371,7 +374,7 @@ func _assert_granted_skill(
 		_assert_eq(grant.charge_kind, expected_charge_kind, "%s %s grant should use expected charge kind." % [owner_label, String(expected_skill_id)])
 		_assert_eq(grant.charges, expected_charges, "%s %s grant should have expected charges." % [owner_label, String(expected_skill_id)])
 		return
-	_failures.append("%s should grant %s." % [owner_label, String(expected_skill_id)])
+	_test.fail("%s should grant %s." % [owner_label, String(expected_skill_id)])
 
 
 func _assert_titan_stomp_skill(skill_defs: Dictionary) -> void:
@@ -472,7 +475,7 @@ func _assert_modifier(
 			_assert_eq(modifier.value, expected_value, "Titan modifier %s should have expected value." % String(attribute_id))
 			_assert_eq(modifier.source_type, expected_source_type, "Titan modifier %s should use expected source type." % String(attribute_id))
 			return
-	_failures.append("Titan modifiers should include %s=%d from %s." % [String(attribute_id), expected_value, String(expected_source_id)])
+	_test.fail("Titan modifiers should include %s=%d from %s." % [String(attribute_id), expected_value, String(expected_source_id)])
 
 
 func _array_contains_text(values: Array, fragment: String) -> bool:
@@ -482,11 +485,18 @@ func _array_contains_text(values: Array, fragment: String) -> bool:
 	return false
 
 
+func _assert_error_contains(errors: Array[String], expected_fragment: String, message: String) -> void:
+	for validation_error in errors:
+		if validation_error.contains(expected_fragment):
+			return
+	_test.fail("%s | missing fragment=%s errors=%s" % [message, expected_fragment, str(errors)])
+
+
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual: Variant, expected: Variant, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s expected=%s actual=%s" % [message, str(expected), str(actual)])
+		_test.fail("%s expected=%s actual=%s" % [message, str(expected), str(actual)])

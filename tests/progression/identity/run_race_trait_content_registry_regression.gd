@@ -1,10 +1,13 @@
 extends SceneTree
 
-const ContentValidationRunner = preload("res://tests/runtime/content_validation_runner.gd")
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
+const CONTENT_VALIDATION_RUNNER_SCRIPT = preload("res://tests/runtime/validation/content_validation_runner.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const RaceTraitContentRegistry = preload("res://scripts/player/progression/race_trait_content_registry.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -36,7 +39,7 @@ func _test_official_race_trait_registry_validate_without_errors() -> void:
 
 func _test_official_identity_content_domain_validate_without_errors() -> void:
 	var progression_registry := ProgressionContentRegistry.new()
-	var validation_runner := ContentValidationRunner.new()
+	var validation_runner := CONTENT_VALIDATION_RUNNER_SCRIPT.new()
 	var identity_result := validation_runner.validate_identity_content(
 		"official_identity",
 		progression_registry.get_skill_defs()
@@ -56,4 +59,4 @@ func _get_errors(domain_result: Dictionary) -> Array[String]:
 
 func _assert_empty(errors: Array[String], message: String) -> void:
 	if not errors.is_empty():
-		_failures.append("%s errors=%s" % [message, str(errors)])
+		_test.fail("%s errors=%s" % [message, str(errors)])

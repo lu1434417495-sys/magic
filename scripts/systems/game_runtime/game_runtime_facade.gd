@@ -28,9 +28,6 @@ const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/world
 const BATTLE_SESSION_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/battle_session_facade.gd")
 const GAME_RUNTIME_BATTLE_SELECTION_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_battle_selection.gd")
 const GAME_RUNTIME_BATTLE_SELECTION_STATE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_battle_selection_state.gd")
-const FORTUNA_GUIDANCE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/fortuna_guidance_service.gd")
-const MISFORTUNE_GUIDANCE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/misfortune_guidance_service.gd")
-const LOW_LUCK_EVENT_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/low_luck_event_service.gd")
 const GAME_RUNTIME_SETTLEMENT_COMMAND_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_settlement_command_handler.gd")
 const GAME_RUNTIME_WAREHOUSE_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_warehouse_handler.gd")
 const GAME_RUNTIME_PARTY_COMMAND_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_party_command_handler.gd")
@@ -48,17 +45,9 @@ const FORTUNE_MARKED_STAT_ID: StringName = &"fortune_marked"
 const DOOM_MARKED_STAT_ID: StringName = &"doom_marked"
 const DOOM_AUTHORITY_STAT_ID: StringName = &"doom_authority"
 const WORLD_MOVE_REPEAT_INTERVAL := 0.5
+const BATTLE_AUTO_ADVANCE_TICK_MSEC := 1000
 const MAX_COMMAND_WORLD_MOVE_COUNT := 256
 const PARTY_WAREHOUSE_INTERACTION_ID := "party_warehouse"
-const BATTLE_LOOT_DROP_TYPE_ITEM: StringName = &"item"
-const BATTLE_LOOT_DROP_TYPE_RANDOM_EQUIPMENT: StringName = &"random_equipment"
-const BATTLE_LOOT_DROP_TYPE_EQUIPMENT_INSTANCE: StringName = &"equipment_instance"
-const BATTLE_LOOT_SOURCE_KIND_CALAMITY_CONVERSION: StringName = &"calamity_conversion"
-const BATTLE_LOOT_SOURCE_ID_ORDINARY_BATTLE: StringName = &"ordinary_battle"
-const BATTLE_LOOT_SOURCE_ID_ELITE_BOSS_BATTLE: StringName = &"elite_boss_battle"
-const BATTLE_LOOT_CALAMITY_SHARD_ITEM_ID: StringName = &"calamity_shard"
-const ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP := 4
-const CALAMITY_SHARD_CHAPTER_FLAG_PREFIX := "calamity_shard_chapter_slot_"
 const BATTLE_LOADING_MODAL_ID := "battle_loading"
 const PendingCharacterReward = PENDING_CHARACTER_REWARD_SCRIPT
 
@@ -114,6 +103,7 @@ var _pending_battle_generation_request: Dictionary = {}
 var _party_state = null
 ## 字段说明：缓存战斗状态实例，会参与运行时状态流转、系统协作和存档恢复。
 var _battle_state: BattleState = null
+var _battle_auto_tick_remainder_msec := 0
 var _snapshot_builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
 var _command_logger = GAME_RUNTIME_COMMAND_LOGGER_SCRIPT.new()
 var _battle_writeback_service = GAME_RUNTIME_BATTLE_WRITEBACK_SERVICE_SCRIPT.new()
@@ -122,9 +112,6 @@ var _character_info_builder = GAME_RUNTIME_CHARACTER_INFO_BUILDER_SCRIPT.new()
 var _battle_session_facade = BATTLE_SESSION_FACADE_SCRIPT.new()
 var _battle_selection = GAME_RUNTIME_BATTLE_SELECTION_SCRIPT.new()
 var _battle_selection_state = GAME_RUNTIME_BATTLE_SELECTION_STATE_SCRIPT.new()
-var _fortuna_guidance_service = FORTUNA_GUIDANCE_SERVICE_SCRIPT.new()
-var _misfortune_guidance_service = MISFORTUNE_GUIDANCE_SERVICE_SCRIPT.new()
-var _low_luck_event_service = LOW_LUCK_EVENT_SERVICE_SCRIPT.new()
 var _settlement_command_handler = GAME_RUNTIME_SETTLEMENT_COMMAND_HANDLER_SCRIPT.new()
 var _warehouse_handler = GAME_RUNTIME_WAREHOUSE_HANDLER_SCRIPT.new()
 var _party_command_handler = GAME_RUNTIME_PARTY_COMMAND_HANDLER_SCRIPT.new()
@@ -250,8 +237,6 @@ func setup(game_session) -> void:
 		_character_management
 	)
 	_party_equipment_service.setup(_party_state, _game_session.get_item_defs(), _party_warehouse_service, _get_equipment_instance_id_allocator())
-	# Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
-	_fortuna_guidance_service.setup(_character_management, _battle_runtime.get_fate_event_bus())
 	_battle_runtime.setup(
 		_character_management,
 		_game_session.get_skill_defs(),
@@ -259,10 +244,10 @@ func setup(game_session) -> void:
 		_game_session.get_enemy_ai_brains(),
 		_encounter_roster_builder,
 		_equipment_drop_service,
-		_game_session.get_item_defs()
+		_game_session.get_item_defs(),
+		null,
+		_get_equipment_instance_id_allocator()
 	)
-	_misfortune_guidance_service.setup(_character_management, _battle_runtime)
-	_low_luck_event_service.setup(_character_management, _battle_runtime.get_fate_event_bus())
 	_snapshot_builder.setup(self)
 	_command_logger.setup(self)
 	_battle_writeback_service.setup(self)
@@ -311,12 +296,7 @@ func setup(game_session) -> void:
 
 
 func dispose() -> void:
-	if _fortuna_guidance_service != null:
-		_fortuna_guidance_service.dispose()
-	if _misfortune_guidance_service != null:
-		_misfortune_guidance_service.dispose()
-	if _low_luck_event_service != null:
-		_low_luck_event_service.dispose()
+	_commit_pending_runtime_state_on_dispose()
 	if _battle_runtime != null:
 		_battle_runtime.dispose()
 	if _snapshot_builder != null:
@@ -894,6 +874,10 @@ func get_skill_defs() -> Dictionary:
 	return _game_session.get_skill_defs() if _game_session != null else {}
 
 
+func get_item_defs() -> Dictionary:
+	return _game_session.get_item_defs() if _game_session != null else {}
+
+
 func get_selected_battle_skill_name() -> String:
 	return _battle_session_facade.get_selected_battle_skill_name()
 
@@ -978,6 +962,7 @@ func is_modal_window_open() -> bool:
 
 func set_runtime_battle_state(state: BattleState) -> void:
 	_battle_state = state
+	_battle_auto_tick_remainder_msec = 0
 
 
 func set_runtime_battle_selected_coord(coord: Vector2i) -> void:
@@ -1045,6 +1030,26 @@ func apply_battle_batch(batch) -> void:
 
 func promote_profession(member_id: StringName, profession_id: StringName, selection: Dictionary):
 	return _character_management.promote_profession(member_id, profession_id, selection) if _character_management != null else null
+
+
+func set_active_level_trigger_core_skill(member_id: StringName, skill_id: StringName) -> Dictionary:
+	if _character_management == null:
+		return {"ok": false, "error": "character_management_unavailable"}
+	var result: Dictionary = _character_management.set_active_level_trigger_core_skill(member_id, skill_id)
+	if bool(result.get("ok", false)):
+		_party_state = _character_management.get_party_state()
+		_persist_party_state()
+	return result
+
+
+func clear_active_level_trigger_core_skill(member_id: StringName) -> Dictionary:
+	if _character_management == null:
+		return {"ok": false, "error": "character_management_unavailable"}
+	var result: Dictionary = _character_management.clear_active_level_trigger_core_skill(member_id)
+	if bool(result.get("ok", false)):
+		_party_state = _character_management.get_party_state()
+		_persist_party_state()
+	return result
 
 
 func apply_pending_character_reward_to_party(reward):
@@ -1123,8 +1128,9 @@ func record_member_achievement_event(
 func prepare_battle_start(encounter_anchor: ENCOUNTER_ANCHOR_DATA_SCRIPT) -> void:
 	if encounter_anchor == null:
 		return
-	if _misfortune_guidance_service != null:
-		_misfortune_guidance_service.clear_exalted_ready_flags()
+	var fate_runtime = _battle_runtime.get_fate_runtime() if _battle_runtime != null and _battle_runtime.has_method("get_fate_runtime") else null
+	if fate_runtime != null and fate_runtime.has_method("clear_misfortune_exalted_ready_flags"):
+		fate_runtime.clear_misfortune_exalted_ready_flags()
 	_active_battle_encounter_id = encounter_anchor.entity_id
 	_active_battle_encounter_name = encounter_anchor.display_name
 	_last_battle_loot_snapshot.clear()
@@ -1170,6 +1176,7 @@ func handle_battle_start_failure() -> void:
 	_pending_battle_generation_request.clear()
 	_active_modal_id = ""
 	_battle_state = null
+	_battle_auto_tick_remainder_msec = 0
 	_battle_selected_coord = Vector2i(-1, -1)
 	_update_status("遭遇战生成失败。")
 	_log_runtime_event("error", "battle", "battle.start_failed", "遭遇战生成失败。", {
@@ -1184,7 +1191,7 @@ func present_battle_start_confirmation() -> void:
 		return
 	_pending_battle_start_prompt = {
 		"title": "开始战斗",
-		"description": "是否开始战斗？确认后 TU 将按每秒 5 点推进。",
+		"description": "是否开始战斗？确认后 TU 将按整数 tick 推进。",
 		"confirm_text": "开始战斗",
 		"cancel_visible": false,
 		"dismiss_on_shade": false,
@@ -1193,9 +1200,8 @@ func present_battle_start_confirmation() -> void:
 	_battle_state.modal_state = &"start_confirm"
 	if _battle_state.timeline != null:
 		_battle_state.timeline.frozen = true
-		_battle_state.timeline.tick_interval_seconds = 1.0
 		_battle_state.timeline.tu_per_tick = 5
-		_battle_state.timeline.delta_remainder = 0.0
+	_battle_auto_tick_remainder_msec = 0
 	_update_status("战斗地图已载入，请确认开始战斗。")
 	_log_runtime_event("info", "battle", "battle.start_prepared", "战斗地图已载入，请确认开始战斗。", {
 		"runtime": _build_runtime_log_state(),
@@ -1230,9 +1236,10 @@ func _resolve_battle_encounter_display_name(encounter_anchor: ENCOUNTER_ANCHOR_D
 	return encounter_name if not encounter_name.is_empty() else "遭遇"
 
 
-func finalize_battle_resolution(battle_resolution_result) -> void:
+func finalize_battle_resolution(battle_resolution_result) -> bool:
 	if battle_resolution_result == null or _game_session == null or _character_management == null or _battle_runtime == null:
-		return
+		_update_status("战斗结算失败：运行时状态不完整，已保留战斗上下文。")
+		return false
 	var battle_name: String = _active_battle_encounter_name if not _active_battle_encounter_name.is_empty() else "遭遇"
 	var winner_faction_id := String(battle_resolution_result.winner_faction_id)
 	var battle_summary := _build_battle_log_state()
@@ -1242,19 +1249,18 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 	var battle_local_writeback_result := _commit_battle_local_views_to_party_state(_battle_state, _party_state)
 	if not bool(battle_local_writeback_result.get("ok", false)):
 		_report_battle_local_writeback_invariant_failure(battle_local_writeback_result, battle_summary, winner_faction_id)
-		return
-	if _low_luck_event_service != null:
-		low_luck_event_result = _low_luck_event_service.handle_battle_resolution(_battle_state, battle_resolution_result)
-		_merge_low_luck_battle_result_into_resolution(battle_resolution_result, low_luck_event_result)
+		_update_status("战斗结算失败：战斗内队伍状态回写失败，已保留战斗上下文。")
+		return false
+	var fate_resolution := _battle_runtime.handle_fate_battle_resolution(_battle_state, battle_resolution_result)
+	if fate_resolution is Dictionary:
+		guidance_unlocks = ProgressionDataUtils.to_string_name_array(fate_resolution.get("fortuna_guidance_unlocks", []))
+		misfortune_guidance_unlocks = ProgressionDataUtils.to_string_name_array(fate_resolution.get("misfortune_guidance_unlocks", []))
+		var low_luck_event_variant: Variant = fate_resolution.get("low_luck_event_result", {})
+		if low_luck_event_variant is Dictionary:
+			low_luck_event_result = low_luck_event_variant as Dictionary
 	var resolved_pending_rewards: Array = battle_resolution_result.get_pending_character_rewards_copy()
 	var resolved_quest_progress_events: Array = battle_resolution_result.quest_progress_events.duplicate(true)
-	if _fortuna_guidance_service != null:
-		guidance_unlocks = _fortuna_guidance_service.handle_battle_resolution(_battle_state, battle_resolution_result)
-	if _misfortune_guidance_service != null:
-		misfortune_guidance_unlocks = _misfortune_guidance_service.handle_battle_resolution(_battle_state, battle_resolution_result)
-	_battle_runtime.end_battle({"commit_progression": true})
-	_party_state = _character_management.get_party_state()
-	var main_character_dead := _is_main_character_dead()
+	var main_character_dead := _is_main_character_dead() or _is_main_character_dead_in_battle_state()
 	var quest_summary: Dictionary = {}
 	var loot_commit_result: Dictionary = {}
 	var party_persist_error: int = OK
@@ -1262,22 +1268,106 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 	var flush_error: int = OK
 	var save_skipped := false
 	if not main_character_dead:
+		loot_commit_result = _commit_battle_loot_to_shared_warehouse(battle_resolution_result)
+		if not bool(loot_commit_result.get("ok", false)):
+			_update_status(_build_battle_resolution_status_message(
+				battle_name,
+				winner_faction_id,
+				loot_commit_result,
+				false
+			))
+			_log_runtime_event(
+				"warn",
+				"battle",
+				"battle.resolve_failed.loot_commit",
+				_current_status_message,
+				{
+					"battle": battle_summary,
+					"winner_faction_id": winner_faction_id,
+					"loot_commit_error_code": String(loot_commit_result.get("error_code", "")),
+					"loot_commit_blocked_item_id": String(loot_commit_result.get("blocked_item_id", "")),
+				}
+			)
+			return false
+	_battle_runtime.end_battle({"commit_progression": true})
+	_party_state = _character_management.get_party_state()
+	if not main_character_dead:
 		_character_management.enqueue_pending_character_rewards(resolved_pending_rewards)
 		var merged_quest_progress_events: Array = resolved_quest_progress_events
 		merged_quest_progress_events.append_array(_build_default_battle_quest_progress_events(winner_faction_id))
 		quest_summary = _character_management.apply_quest_progress_events(merged_quest_progress_events, get_world_step())
 		_party_state = _character_management.get_party_state()
-		loot_commit_result = _commit_battle_loot_to_shared_warehouse(battle_resolution_result)
 		party_persist_error = int(_game_session.set_party_state(_party_state))
+		if party_persist_error != OK:
+			_update_status(_build_battle_resolution_status_message(
+				battle_name,
+				winner_faction_id,
+				loot_commit_result,
+				false
+			))
+			_log_runtime_event(
+				"warn",
+				"battle",
+				"battle.resolve_failed.party_persist",
+				_current_status_message,
+				{
+					"battle": battle_summary,
+					"winner_faction_id": winner_faction_id,
+					"party_persist_error": party_persist_error,
+				}
+			)
+			return false
+		var world_data_before: Dictionary = _world_map_data_context.root_world_data.duplicate(true)
 		_resolve_world_encounter_after_battle(winner_faction_id)
 		world_persist_error = int(_game_session.set_world_data(_world_map_data_context.root_world_data))
+		if world_persist_error != OK:
+			_world_map_data_context.bind_root_world_data(world_data_before)
+			_update_status(_build_battle_resolution_status_message(
+				battle_name,
+				winner_faction_id,
+				loot_commit_result,
+				false
+			))
+			_log_runtime_event(
+				"warn",
+				"battle",
+				"battle.resolve_failed.world_persist",
+				_current_status_message,
+				{
+					"battle": battle_summary,
+					"winner_faction_id": winner_faction_id,
+					"world_persist_error": world_persist_error,
+				}
+			)
+			return false
 	else:
 		save_skipped = true
-	_game_session.set_battle_save_lock(false)
 	if save_skipped:
 		_game_session.discard_pending_save()
+		_game_session.set_battle_save_lock(false)
 	else:
+		_game_session.set_battle_save_lock(false)
 		flush_error = int(_game_session.flush_game_state())
+		if flush_error != OK:
+			_game_session.set_battle_save_lock(true)
+			_update_status(_build_battle_resolution_status_message(
+				battle_name,
+				winner_faction_id,
+				loot_commit_result,
+				false
+			))
+			_log_runtime_event(
+				"warn",
+				"battle",
+				"battle.resolve_failed.flush",
+				_current_status_message,
+				{
+					"battle": battle_summary,
+					"winner_faction_id": winner_faction_id,
+					"flush_error": flush_error,
+				}
+			)
+			return false
 
 	_clear_resolved_battle_runtime_context()
 	if main_character_dead:
@@ -1316,7 +1406,7 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 				"flush_error": flush_error,
 			}
 		)
-		return
+		return true
 
 	if party_persist_error == OK and world_persist_error == OK and flush_error == OK:
 		_update_status(_build_battle_resolution_status_message(
@@ -1360,12 +1450,21 @@ func finalize_battle_resolution(battle_resolution_result) -> void:
 		}
 	)
 	_present_pending_reward_if_ready()
+	return true
+
+
+func _release_battle_save_lock() -> void:
+	if _game_session != null:
+		_game_session.set_battle_save_lock(false)
 
 
 func handle_fortuna_chapter_completed(payload: Dictionary) -> Array[StringName]:
-	if _fortuna_guidance_service == null:
+	var fate_runtime = _battle_runtime.get_fate_runtime() if _battle_runtime != null and _battle_runtime.has_method("get_fate_runtime") else null
+	if fate_runtime == null or not fate_runtime.has_method("handle_fortuna_chapter_completed"):
 		return []
-	var unlocked_ids := _fortuna_guidance_service.handle_chapter_completed(payload)
+	var unlocked_ids: Array[StringName] = ProgressionDataUtils.to_string_name_array(
+		fate_runtime.handle_fortuna_chapter_completed(payload)
+	)
 	if _character_management != null:
 		_party_state = _character_management.get_party_state()
 	if _party_state != null:
@@ -1377,19 +1476,26 @@ func handle_fortuna_chapter_completed(payload: Dictionary) -> Array[StringName]:
 
 
 func handle_misfortune_forge_result(member_id: StringName, result: Dictionary) -> Array[StringName]:
-	if _misfortune_guidance_service == null or member_id == &"" or result.is_empty():
+	var fate_runtime = _battle_runtime.get_fate_runtime() if _battle_runtime != null and _battle_runtime.has_method("get_fate_runtime") else null
+	if fate_runtime == null or not fate_runtime.has_method("handle_misfortune_forge_result") or member_id == &"" or result.is_empty():
 		return []
 	var item_defs: Dictionary = _game_session.get_item_defs() if _game_session != null else {}
-	var unlocked_ids := _misfortune_guidance_service.handle_forge_result(member_id, result, item_defs)
+	var unlocked_ids: Array[StringName] = ProgressionDataUtils.to_string_name_array(
+		fate_runtime.handle_misfortune_forge_result(member_id, result, item_defs)
+	)
 	if _character_management != null:
 		_party_state = _character_management.get_party_state()
 	return unlocked_ids
 
 
 func resolve_low_luck_settlement_event_rewards(context: Dictionary) -> Dictionary:
-	if _low_luck_event_service == null:
+	var fate_runtime = _battle_runtime.get_fate_runtime() if _battle_runtime != null and _battle_runtime.has_method("get_fate_runtime") else null
+	if fate_runtime == null or not fate_runtime.has_method("resolve_low_luck_settlement_event_rewards"):
 		return {}
-	var event_result := _low_luck_event_service.handle_settlement_action(context)
+	var event_result: Dictionary = {}
+	var event_result_variant = fate_runtime.resolve_low_luck_settlement_event_rewards(context)
+	if event_result_variant is Dictionary:
+		event_result = event_result_variant as Dictionary
 	if _character_management != null:
 		_party_state = _character_management.get_party_state()
 	return event_result
@@ -1411,21 +1517,6 @@ func _report_battle_local_writeback_invariant_failure(
 func _commit_battle_loot_to_shared_warehouse(battle_resolution_result) -> Dictionary:
 	_bind_runtime_sidecar_owners()
 	return _battle_loot_commit_service.commit_battle_loot_to_shared_warehouse(battle_resolution_result)
-
-func _merge_low_luck_battle_result_into_resolution(battle_resolution_result, low_luck_event_result: Dictionary) -> void:
-	if battle_resolution_result == null or low_luck_event_result.is_empty():
-		return
-	var extra_loot_variant: Variant = low_luck_event_result.get("loot_entries", [])
-	if extra_loot_variant is Array and not (extra_loot_variant as Array).is_empty():
-		var merged_loot_entries: Array = battle_resolution_result.loot_entries.duplicate(true)
-		merged_loot_entries.append_array((extra_loot_variant as Array).duplicate(true))
-		battle_resolution_result.set_loot_entries(merged_loot_entries)
-	var extra_reward_variant: Variant = low_luck_event_result.get("pending_character_rewards", [])
-	if extra_reward_variant is Array and not (extra_reward_variant as Array).is_empty():
-		var merged_rewards: Array = battle_resolution_result.get_pending_character_rewards_copy()
-		merged_rewards.append_array((extra_reward_variant as Array).duplicate(true))
-		battle_resolution_result.set_pending_character_rewards(merged_rewards)
-
 
 func _commit_fixed_item_loot_entry(loot_entry_data: Dictionary) -> Dictionary:
 	_bind_runtime_sidecar_owners()
@@ -1471,7 +1562,8 @@ func advance(delta: float) -> bool:
 		if _is_battle_finished() or _is_battle_timeline_modal_active():
 			return false
 		var previous_tu := int(_battle_state.timeline.current_tu) if _battle_state != null and _battle_state.timeline != null else -1
-		var batch = _battle_runtime.advance(delta)
+		var tick_count := _resolve_battle_auto_tick_count(delta)
+		var batch = _battle_runtime.advance(tick_count)
 		if _batch_has_updates(batch):
 			_apply_battle_batch(batch)
 			_last_advance_battle_refresh_mode = "full" if _batch_requires_full_battle_refresh(batch) else "overlay"
@@ -1484,6 +1576,16 @@ func advance(delta: float) -> bool:
 	if _is_modal_window_open():
 		return false
 	return _present_pending_reward_if_ready()
+
+
+func _resolve_battle_auto_tick_count(delta: float) -> int:
+	if delta <= 0.0:
+		return 0
+	_battle_auto_tick_remainder_msec += maxi(int(round(delta * 1000.0)), 0)
+	var tick_count := int(_battle_auto_tick_remainder_msec / BATTLE_AUTO_ADVANCE_TICK_MSEC)
+	if tick_count > 0:
+		_battle_auto_tick_remainder_msec -= tick_count * BATTLE_AUTO_ADVANCE_TICK_MSEC
+	return tick_count
 
 
 func build_headless_snapshot() -> Dictionary:
@@ -1517,7 +1619,12 @@ func persist_world_data() -> int:
 
 
 func persist_player_coord() -> int:
-	return int(_game_session.set_player_coord(_player_coord)) if _game_session != null else ERR_UNAVAILABLE
+	if _game_session == null:
+		return ERR_UNAVAILABLE
+	var stage_error := int(_game_session.set_player_coord(_player_coord))
+	if stage_error != OK:
+		return stage_error
+	return _commit_runtime_state(&"player_coord")
 
 
 func set_player_coord(coord: Vector2i) -> void:
@@ -1749,12 +1856,12 @@ func command_warehouse_discard_all(item_id: StringName, instance_id: StringName 
 	)
 
 
-func command_warehouse_use_item(item_id: StringName, member_id: StringName = &"") -> Dictionary:
+func command_warehouse_use_item(item_id: StringName, member_id: StringName = &"", options: Dictionary = {}) -> Dictionary:
 	return _execute_logged_command("warehouse.use_item", "warehouse", {
 		"item_id": item_id,
 		"member_id": member_id,
 	}, func() -> Dictionary:
-		return _warehouse_handler.command_use_item(item_id, member_id)
+		return _warehouse_handler.command_use_item(item_id, member_id, options)
 	)
 
 
@@ -1803,12 +1910,11 @@ func command_stagecoach_travel(settlement_id: String) -> Dictionary:
 	)
 
 
-func command_battle_tick(total_seconds: float, step_seconds: float = 1.0 / 60.0) -> Dictionary:
+func command_battle_tick(tick_count: int) -> Dictionary:
 	return _execute_logged_command("battle.tick", "battle", {
-		"total_seconds": total_seconds,
-		"step_seconds": step_seconds,
+		"tick_count": tick_count,
 	}, func() -> Dictionary:
-		return _battle_session_facade.command_battle_tick(total_seconds, step_seconds)
+		return _battle_session_facade.command_battle_tick(tick_count)
 	)
 
 
@@ -2152,6 +2258,12 @@ func _advance_world_time_by_steps(delta_steps: int) -> void:
 		int(advance_result.get("new_step", 0)),
 		_wild_encounter_rosters
 	)
+	var days_elapsed := int(advance_result.get("days_elapsed", 0))
+	if days_elapsed > 0 and _character_management != null:
+		var practice_growth_result: Dictionary = _character_management.apply_daily_practice_growth(days_elapsed)
+		if bool(practice_growth_result.get("applied", false)):
+			_party_state = _character_management.get_party_state()
+			_persist_party_state()
 
 
 func _resolve_world_encounter_after_battle(winner_faction_id: String) -> void:
@@ -2752,6 +2864,8 @@ func _persist_party_state() -> int:
 	if _game_session == null:
 		return ERR_UNAVAILABLE
 	var persist_error: int = int(_game_session.set_party_state(_party_state))
+	if persist_error == OK:
+		persist_error = _commit_runtime_state(&"party_state")
 	_party_state = _game_session.get_party_state()
 	_sync_party_state_services()
 	_refresh_fog()
@@ -2762,7 +2876,35 @@ func _persist_world_data() -> int:
 	if _game_session == null:
 		return ERR_UNAVAILABLE
 	_save_active_fog_state_to_world_data()
-	return int(_game_session.set_world_data(_world_map_data_context.root_world_data))
+	var stage_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
+	if stage_error != OK:
+		return stage_error
+	return _commit_runtime_state(&"world_data")
+
+
+func _commit_runtime_state(reason: StringName) -> int:
+	if _game_session == null:
+		return ERR_UNAVAILABLE
+	return int(_game_session.commit_runtime_state(reason))
+
+
+func _commit_pending_runtime_state_on_dispose() -> void:
+	if _game_session == null:
+		return
+	if not _game_session.has_method("has_pending_save") or not bool(_game_session.has_pending_save()):
+		return
+	if _game_session.has_method("is_battle_save_locked") and bool(_game_session.is_battle_save_locked()):
+		return
+	var commit_error := _commit_runtime_state(&"runtime.dispose")
+	if commit_error == OK:
+		return
+	_log_runtime_event(
+		"warn",
+		"save",
+		"runtime.dispose.commit_failed",
+		"运行时释放前保存 pending 状态失败。",
+		{"commit_error": commit_error}
+	)
 
 
 func _clear_resolved_battle_runtime_context() -> void:
@@ -2772,6 +2914,7 @@ func _clear_resolved_battle_runtime_context() -> void:
 	_pending_promotion_prompt.clear()
 	_battle_selection.clear_battle_skill_selection()
 	_battle_state = null
+	_battle_auto_tick_remainder_msec = 0
 	_battle_selected_coord = Vector2i(-1, -1)
 	_active_battle_encounter_id = &""
 	_active_battle_encounter_name = ""
@@ -2790,6 +2933,20 @@ func _is_main_character_dead() -> bool:
 	if member_id == &"" or not _party_state.has_method("is_member_dead"):
 		return false
 	return bool(_party_state.is_member_dead(member_id))
+
+
+func _is_main_character_dead_in_battle_state() -> bool:
+	if _battle_state == null or _party_state == null or not _party_state.has_method("get_resolved_main_character_member_id"):
+		return false
+	var member_id: StringName = _party_state.get_resolved_main_character_member_id()
+	if member_id == &"":
+		return false
+	for ally_unit_id in _battle_state.ally_unit_ids:
+		var unit_state = _battle_state.units.get(ally_unit_id)
+		if unit_state == null or ProgressionDataUtils.to_string_name(unit_state.source_member_id) != member_id:
+			continue
+		return not bool(unit_state.is_alive) or int(unit_state.current_hp) <= 0
+	return false
 
 
 func _build_main_character_game_over_context() -> Dictionary:
@@ -2953,6 +3110,7 @@ func _sync_active_world_context() -> void:
 			_world_map_data_context.active_generation_config.get_world_size_cells(),
 			_get_active_world_fog_state()
 		)
+		_world_map_data_context.validate_world_system_size_consistency(_grid_system, _fog_system)
 
 
 func _get_active_world_fog_state() -> Dictionary:
@@ -3065,8 +3223,11 @@ func _enter_submap(submap_id: String, source_map_id: String, source_coord: Vecto
 	_refresh_fog()
 	var player_persist_error := int(_game_session.set_player_coord(_player_coord))
 	var world_persist_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
+	var commit_error := OK
+	if player_persist_error == OK and world_persist_error == OK:
+		commit_error = _commit_runtime_state(&"submap_entry")
 	var target_name := String(submap_entry.get("display_name", submap_id))
-	if player_persist_error != OK or world_persist_error != OK:
+	if player_persist_error != OK or world_persist_error != OK or commit_error != OK:
 		_update_status("已进入 %s，但世界状态持久化失败。" % target_name)
 		return _command_error(_current_status_message)
 	_update_status("已进入 %s。%s" % [target_name, get_submap_return_hint_text()])
@@ -3100,7 +3261,10 @@ func _return_from_active_submap() -> Dictionary:
 	_refresh_fog()
 	var player_persist_error := int(_game_session.set_player_coord(_player_coord))
 	var world_persist_error := int(_game_session.set_world_data(_world_map_data_context.root_world_data))
-	if player_persist_error != OK or world_persist_error != OK:
+	var commit_error := OK
+	if player_persist_error == OK and world_persist_error == OK:
+		commit_error = _commit_runtime_state(&"submap_return")
+	if player_persist_error != OK or world_persist_error != OK or commit_error != OK:
 		_update_status("已返回原位置，但世界状态持久化失败。")
 		return _command_error(_current_status_message)
 	_update_status("已返回原位置 %s。" % _format_coord(_player_coord))

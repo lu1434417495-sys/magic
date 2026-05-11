@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
 const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
@@ -12,7 +14,8 @@ const ProgressionDataUtils = preload("res://scripts/player/progression/progressi
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -208,10 +211,10 @@ func _build_party_member(member_id: StringName, display_name: String) -> PartyMe
 func _assert_true(condition: bool, message: String) -> void:
 	if condition:
 		return
-	_failures.append(message)
+	_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual == expected:
 		return
-	_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+	_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

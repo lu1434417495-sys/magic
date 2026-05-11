@@ -24,7 +24,7 @@ func load_from_directory(directory_path: String) -> void:
 
 
 func get_race_defs() -> Dictionary:
-	return _race_defs
+	return _race_defs.duplicate()
 
 
 func _register_resource(resource_path: String) -> void:

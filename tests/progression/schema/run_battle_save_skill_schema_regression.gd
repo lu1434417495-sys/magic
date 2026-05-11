@@ -1,11 +1,14 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 
 
 func _initialize() -> void:
@@ -65,6 +68,18 @@ func _test_skill_schema_accepts_dynamic_caster_spell_save_dc() -> void:
 	registry._append_effect_validation_errors(errors, &"valid_dynamic_spell_save_damage", damage_effect, "test_effect")
 	_assert_true(errors.is_empty(), "caster_spell save_dc_mode should allow save fields without static save_dc.")
 
+	var generic_magic_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	generic_magic_effect.effect_type = &"damage"
+	generic_magic_effect.power = 8
+	generic_magic_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
+	generic_magic_effect.save_dc_source_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE
+	generic_magic_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
+	generic_magic_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_MAGIC
+	generic_magic_effect.save_partial_on_success = true
+	var generic_errors: Array[String] = []
+	registry._append_effect_validation_errors(generic_errors, &"valid_dynamic_generic_magic_save_damage", generic_magic_effect, "test_effect")
+	_assert_true(generic_errors.is_empty(), "caster_spell save_dc_mode should accept generic magic save tags.")
+
 
 func _test_skill_schema_rejects_invalid_save_fields() -> void:
 	var registry = SKILL_CONTENT_REGISTRY_SCRIPT.new()
@@ -112,4 +127,4 @@ func _has_error_containing(errors: Array[String], needle: String) -> bool:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)

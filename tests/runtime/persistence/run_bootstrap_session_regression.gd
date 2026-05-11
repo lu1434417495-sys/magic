@@ -1,5 +1,7 @@
 extends SceneTree
 
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const LOGIN_SCREEN_SCENE = preload("res://scenes/main/login_screen.tscn")
 const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_settings_service.gd")
@@ -9,7 +11,15 @@ const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.t
 const TEST_PRESET_ID := &"test"
 const TEMP_SETTINGS_PATH := "user://bootstrap_display_settings_test.cfg"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
+
+
+class InvalidWorldContentValidator:
+	extends RefCounted
+
+	func validate_world_presets(_enemy_templates: Dictionary = {}, _wild_encounter_rosters: Dictionary = {}) -> Array[String]:
+		return ["World content hard gate fixture error."]
 
 
 func _initialize() -> void:
@@ -23,6 +33,8 @@ func _run() -> void:
 	_test_character_creation_applies_identity_granted_skills()
 	_test_starting_equipment_matches_random_skill()
 	_test_game_session_rotates_log_boundary_on_create_load_unload()
+	_test_game_session_content_getters_are_read_only_copies()
+	_test_content_validation_failure_blocks_formal_runtime_entries()
 	await _test_login_screen_test_entry_creates_generated_world()
 
 	if _failures.is_empty():
@@ -277,6 +289,77 @@ func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 	game_session.free()
 
 
+func _test_game_session_content_getters_are_read_only_copies() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+
+	var skill_defs := game_session.get_skill_defs()
+	skill_defs[&"_test_mutated_skill"] = Resource.new()
+	_assert_true(
+		not game_session.get_skill_defs().has(&"_test_mutated_skill"),
+		"GameSession.get_skill_defs() 应返回只读副本，外部写入不应污染 registry。"
+	)
+
+	var item_defs := game_session.get_item_defs()
+	item_defs[&"_test_mutated_item"] = Resource.new()
+	_assert_true(
+		not game_session.get_item_defs().has(&"_test_mutated_item"),
+		"GameSession.get_item_defs() 应返回只读副本，外部写入不应污染 registry。"
+	)
+
+	var bundle := game_session.get_progression_content_bundle()
+	var bundled_skills: Dictionary = bundle.get("skill_defs", {}) if bundle.get("skill_defs", {}) is Dictionary else {}
+	bundled_skills[&"_test_mutated_bundle_skill"] = Resource.new()
+	var fresh_bundle := game_session.get_progression_content_bundle()
+	var fresh_bundled_skills: Dictionary = fresh_bundle.get("skill_defs", {}) if fresh_bundle.get("skill_defs", {}) is Dictionary else {}
+	_assert_true(
+		not fresh_bundled_skills.has(&"_test_mutated_bundle_skill"),
+		"Progression content bundle 应返回只读副本，外部写入不应污染 registry。"
+	)
+
+	var fixture_skill := Resource.new()
+	var fixture_error := int(game_session.install_test_content_def(&"skill", &"_fixture_skill", fixture_skill))
+	_assert_eq(fixture_error, OK, "测试应通过显式 fixture API 注入临时内容，而不是改 getter 返回值。")
+	_assert_true(
+		game_session.get_skill_defs().get(&"_fixture_skill") == fixture_skill,
+		"显式 fixture API 应能把临时技能内容注入 GameSession 测试上下文。"
+	)
+
+	game_session.free()
+
+
+func _test_content_validation_failure_blocks_formal_runtime_entries() -> void:
+	var source_session = GAME_SESSION_SCRIPT.new()
+	var clear_error := int(source_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "内容硬门禁回归前置：应能清理旧存档目录。")
+	var create_error := int(source_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "内容硬门禁回归前置：正式内容应能创建测试存档。")
+	var save_id := String(source_session.get_active_save_id())
+	source_session.free()
+	if create_error != OK or save_id.is_empty():
+		return
+
+	var blocked_session = GAME_SESSION_SCRIPT.new()
+	blocked_session._world_content_validator = InvalidWorldContentValidator.new()
+	var validation_snapshot: Dictionary = blocked_session.refresh_content_validation_snapshot()
+	_assert_true(not bool(validation_snapshot.get("ok", true)), "坏内容夹具应让 GameSession validation snapshot 失败。")
+
+	var blocked_create_error := int(blocked_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(blocked_create_error, ERR_INVALID_DATA, "内容校验失败时 create_new_save() 应硬阻断正式运行链。")
+	_assert_true(not blocked_session.has_active_world(), "内容校验失败阻断新建后不应激活世界。")
+
+	var blocked_load_error := int(blocked_session.load_save(save_id))
+	_assert_eq(blocked_load_error, ERR_INVALID_DATA, "内容校验失败时 load_save() 应硬阻断正式运行链。")
+	_assert_true(not blocked_session.has_active_world(), "内容校验失败阻断读档后不应激活世界。")
+
+	var blocked_ensure_error := int(blocked_session.ensure_world_ready(TEST_WORLD_CONFIG))
+	_assert_eq(blocked_ensure_error, ERR_INVALID_DATA, "内容校验失败时 ensure_world_ready() 应硬阻断正式运行链。")
+	_assert_true(not blocked_session.has_active_world(), "内容校验失败阻断自动准备世界后不应激活世界。")
+
+	var cleanup_error := int(blocked_session.clear_persisted_game())
+	_assert_eq(cleanup_error, OK, "内容硬门禁回归结束后应能清理 save 目录。")
+	blocked_session.free()
+
+
 func _test_login_screen_test_entry_creates_generated_world() -> void:
 	var shared_game_session = _get_shared_game_session()
 	_assert_true(shared_game_session != null, "登录壳测试入口回归前置：SceneTree 应提供共享 GameSession。")
@@ -403,9 +486,9 @@ func _get_shared_game_session():
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, var_to_str(actual), var_to_str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, var_to_str(actual), var_to_str(expected)])
