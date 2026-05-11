@@ -8,6 +8,7 @@ const SHOP_STOCK_ENTRY_KEYS := {
 	"unit_price": true,
 	"sold_out": true,
 }
+const PRICE_BASIS_POINTS_DEFAULT := 10000
 
 const SHOP_DEFS := {
 	"service_basic_supply": {
@@ -15,14 +16,14 @@ const SHOP_DEFS := {
 		"title": "临时补给",
 		"refresh_interval_steps": 12,
 		"guaranteed_items": [
-			{"item_id": &"healing_herb", "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
-			{"item_id": &"travel_ration", "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
+			{"item_id": &"healing_herb", "min_qty": 2, "max_qty": 4},
+			{"item_id": &"travel_ration", "min_qty": 2, "max_qty": 4},
 		],
 		"random_pool": [
-			{"item_id": &"bandage_roll", "weight": 6, "min_qty": 1, "max_qty": 3, "price_multiplier": 1.0},
-			{"item_id": &"torch_bundle", "weight": 5, "min_qty": 1, "max_qty": 3, "price_multiplier": 1.0},
-			{"item_id": &"antidote_herb", "weight": 4, "min_qty": 1, "max_qty": 2, "price_multiplier": 1.1},
-			{"item_id": &"iron_ore", "weight": 2, "min_qty": 1, "max_qty": 2, "price_multiplier": 1.0},
+			{"item_id": &"bandage_roll", "weight": 6, "min_qty": 1, "max_qty": 3},
+			{"item_id": &"torch_bundle", "weight": 5, "min_qty": 1, "max_qty": 3},
+			{"item_id": &"antidote_herb", "weight": 4, "min_qty": 1, "max_qty": 2, "price_basis_points": 11000},
+			{"item_id": &"iron_ore", "weight": 2, "min_qty": 1, "max_qty": 2},
 		],
 		"max_random_items": 2,
 	},
@@ -31,21 +32,21 @@ const SHOP_DEFS := {
 		"title": "镇集交易",
 		"refresh_interval_steps": 10,
 		"guaranteed_items": [
-			{"item_id": &"healing_herb", "min_qty": 3, "max_qty": 6, "price_multiplier": 0.95},
-			{"item_id": &"bandage_roll", "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
-			{"item_id": &"travel_ration", "min_qty": 2, "max_qty": 5, "price_multiplier": 0.95},
-			{"item_id": &"beast_hide", "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
-			{"item_id": &"bronze_sword", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"militia_axe", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"leather_cap", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"leather_jerkin", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
+			{"item_id": &"healing_herb", "min_qty": 3, "max_qty": 6, "price_basis_points": 9500},
+			{"item_id": &"bandage_roll", "min_qty": 2, "max_qty": 4},
+			{"item_id": &"travel_ration", "min_qty": 2, "max_qty": 5, "price_basis_points": 9500},
+			{"item_id": &"beast_hide", "min_qty": 2, "max_qty": 4},
+			{"item_id": &"bronze_sword", "min_qty": 1, "max_qty": 1},
+			{"item_id": &"militia_axe", "min_qty": 1, "max_qty": 1},
+			{"item_id": &"leather_cap", "min_qty": 1, "max_qty": 1},
+			{"item_id": &"leather_jerkin", "min_qty": 1, "max_qty": 1},
 		],
 		"random_pool": [
-			{"item_id": &"torch_bundle", "weight": 4, "min_qty": 1, "max_qty": 3, "price_multiplier": 1.0},
-			{"item_id": &"antidote_herb", "weight": 4, "min_qty": 1, "max_qty": 3, "price_multiplier": 1.0},
-			{"item_id": &"iron_ore", "weight": 3, "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
-			{"item_id": &"scout_charm", "weight": 2, "min_qty": 1, "max_qty": 1, "price_multiplier": 1.1},
-			{"item_id": &"iron_greatsword", "weight": 1, "min_qty": 1, "max_qty": 1, "price_multiplier": 1.15},
+			{"item_id": &"torch_bundle", "weight": 4, "min_qty": 1, "max_qty": 3},
+			{"item_id": &"antidote_herb", "weight": 4, "min_qty": 1, "max_qty": 3},
+			{"item_id": &"iron_ore", "weight": 3, "min_qty": 2, "max_qty": 4},
+			{"item_id": &"scout_charm", "weight": 2, "min_qty": 1, "max_qty": 1, "price_basis_points": 11000},
+			{"item_id": &"iron_greatsword", "weight": 1, "min_qty": 1, "max_qty": 1, "price_basis_points": 11500},
 		],
 		"max_random_items": 4,
 	},
@@ -54,22 +55,22 @@ const SHOP_DEFS := {
 		"title": "城市市场",
 		"refresh_interval_steps": 8,
 		"guaranteed_items": [
-			{"item_id": &"bronze_sword", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
-			{"item_id": &"militia_axe", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"watchman_mace", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"leather_cap", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
-			{"item_id": &"leather_jerkin", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
-			{"item_id": &"scout_charm", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"iron_greatsword", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"antidote_herb", "min_qty": 2, "max_qty": 4, "price_multiplier": 0.95},
-			{"item_id": &"hardwood_lumber", "min_qty": 3, "max_qty": 6, "price_multiplier": 0.95},
-			{"item_id": &"linen_cloth", "min_qty": 3, "max_qty": 6, "price_multiplier": 0.95},
+			{"item_id": &"bronze_sword", "min_qty": 1, "max_qty": 1, "price_basis_points": 9500},
+			{"item_id": &"militia_axe", "min_qty": 1, "max_qty": 1},
+			{"item_id": &"watchman_mace", "min_qty": 1, "max_qty": 1},
+			{"item_id": &"leather_cap", "min_qty": 1, "max_qty": 1, "price_basis_points": 9500},
+			{"item_id": &"leather_jerkin", "min_qty": 1, "max_qty": 1, "price_basis_points": 9500},
+			{"item_id": &"scout_charm", "min_qty": 1, "max_qty": 1},
+			{"item_id": &"iron_greatsword", "min_qty": 1, "max_qty": 1},
+			{"item_id": &"antidote_herb", "min_qty": 2, "max_qty": 4, "price_basis_points": 9500},
+			{"item_id": &"hardwood_lumber", "min_qty": 3, "max_qty": 6, "price_basis_points": 9500},
+			{"item_id": &"linen_cloth", "min_qty": 3, "max_qty": 6, "price_basis_points": 9500},
 		],
 		"random_pool": [
-			{"item_id": &"bandage_roll", "weight": 5, "min_qty": 2, "max_qty": 4, "price_multiplier": 0.95},
-			{"item_id": &"travel_ration", "weight": 4, "min_qty": 2, "max_qty": 5, "price_multiplier": 0.9},
-			{"item_id": &"torch_bundle", "weight": 3, "min_qty": 1, "max_qty": 3, "price_multiplier": 0.95},
-			{"item_id": &"iron_ore", "weight": 2, "min_qty": 3, "max_qty": 6, "price_multiplier": 0.95},
+			{"item_id": &"bandage_roll", "weight": 5, "min_qty": 2, "max_qty": 4, "price_basis_points": 9500},
+			{"item_id": &"travel_ration", "weight": 4, "min_qty": 2, "max_qty": 5, "price_basis_points": 9000},
+			{"item_id": &"torch_bundle", "weight": 3, "min_qty": 1, "max_qty": 3, "price_basis_points": 9500},
+			{"item_id": &"iron_ore", "weight": 2, "min_qty": 3, "max_qty": 6, "price_basis_points": 9500},
 		],
 		"max_random_items": 4,
 	},
@@ -78,14 +79,14 @@ const SHOP_DEFS := {
 		"title": "军需总署",
 		"refresh_interval_steps": 6,
 		"guaranteed_items": [
-			{"item_id": &"iron_greatsword", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
-			{"item_id": &"leather_jerkin", "min_qty": 1, "max_qty": 1, "price_multiplier": 0.9},
-			{"item_id": &"bandage_roll", "min_qty": 3, "max_qty": 5, "price_multiplier": 0.9},
+			{"item_id": &"iron_greatsword", "min_qty": 1, "max_qty": 1, "price_basis_points": 9500},
+			{"item_id": &"leather_jerkin", "min_qty": 1, "max_qty": 1, "price_basis_points": 9000},
+			{"item_id": &"bandage_roll", "min_qty": 3, "max_qty": 5, "price_basis_points": 9000},
 		],
 		"random_pool": [
-			{"item_id": &"bronze_sword", "weight": 2, "min_qty": 1, "max_qty": 1, "price_multiplier": 0.9},
-			{"item_id": &"scout_charm", "weight": 3, "min_qty": 1, "max_qty": 1, "price_multiplier": 0.95},
-			{"item_id": &"antidote_herb", "weight": 5, "min_qty": 2, "max_qty": 4, "price_multiplier": 0.9},
+			{"item_id": &"bronze_sword", "weight": 2, "min_qty": 1, "max_qty": 1, "price_basis_points": 9000},
+			{"item_id": &"scout_charm", "weight": 3, "min_qty": 1, "max_qty": 1, "price_basis_points": 9500},
+			{"item_id": &"antidote_herb", "weight": 5, "min_qty": 2, "max_qty": 4, "price_basis_points": 9000},
 		],
 		"max_random_items": 3,
 	},
@@ -94,14 +95,14 @@ const SHOP_DEFS := {
 		"title": "大拍卖行",
 		"refresh_interval_steps": 5,
 		"guaranteed_items": [
-			{"item_id": &"iron_greatsword", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.1},
-			{"item_id": &"scout_charm", "min_qty": 1, "max_qty": 1, "price_multiplier": 1.05},
+			{"item_id": &"iron_greatsword", "min_qty": 1, "max_qty": 1, "price_basis_points": 11000},
+			{"item_id": &"scout_charm", "min_qty": 1, "max_qty": 1, "price_basis_points": 10500},
 		],
 		"random_pool": [
-			{"item_id": &"bronze_sword", "weight": 1, "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"leather_jerkin", "weight": 1, "min_qty": 1, "max_qty": 1, "price_multiplier": 1.0},
-			{"item_id": &"antidote_herb", "weight": 3, "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
-			{"item_id": &"torch_bundle", "weight": 2, "min_qty": 2, "max_qty": 4, "price_multiplier": 1.0},
+			{"item_id": &"bronze_sword", "weight": 1, "min_qty": 1, "max_qty": 1},
+			{"item_id": &"leather_jerkin", "weight": 1, "min_qty": 1, "max_qty": 1},
+			{"item_id": &"antidote_herb", "weight": 3, "min_qty": 2, "max_qty": 4},
+			{"item_id": &"torch_bundle", "weight": 2, "min_qty": 2, "max_qty": 4},
 		],
 		"max_random_items": 4,
 	},
@@ -460,7 +461,7 @@ func _build_shop_entry(entry_variant: Variant, item_defs: Dictionary) -> Diction
 	var min_qty := maxi(int(source.get("min_qty", 1)), 1)
 	var max_qty := maxi(int(source.get("max_qty", min_qty)), min_qty)
 	var quantity := _rng.randi_range(min_qty, max_qty)
-	var unit_price := _resolve_buy_price(item_def, float(source.get("price_multiplier", 1.0)))
+	var unit_price := _resolve_buy_price(item_def, int(source.get("price_basis_points", PRICE_BASIS_POINTS_DEFAULT)))
 	if unit_price <= 0:
 		return {}
 	return {
@@ -484,28 +485,28 @@ func _merge_shop_entry(inventory: Array[Dictionary], built_entry: Dictionary) ->
 
 
 func _pick_weighted_random_entry(pool: Array) -> Dictionary:
-	var total_weight := 0.0
+	var total_weight := 0
 	for entry_variant in pool:
 		if entry_variant is not Dictionary:
 			continue
-		total_weight += maxf(float((entry_variant as Dictionary).get("weight", 0.0)), 0.0)
-	if total_weight <= 0.0:
+		total_weight += maxi(int((entry_variant as Dictionary).get("weight", 0)), 0)
+	if total_weight <= 0:
 		return {}
-	var roll := _rng.randf_range(0.0, total_weight)
-	var cursor := 0.0
+	var roll := _rng.randi_range(1, total_weight)
+	var cursor := 0
 	for entry_variant in pool:
 		if entry_variant is not Dictionary:
 			continue
 		var entry: Dictionary = entry_variant
-		cursor += maxf(float(entry.get("weight", 0.0)), 0.0)
+		cursor += maxi(int(entry.get("weight", 0)), 0)
 		if roll <= cursor:
 			return entry
 	return {}
 
 
-func _resolve_buy_price(item_def, price_multiplier: float) -> int:
+func _resolve_buy_price(item_def, price_basis_points: int) -> int:
 	if item_def != null and item_def.has_method("get_buy_price"):
-		var buy_price := int(item_def.get_buy_price(price_multiplier))
+		var buy_price := int(item_def.get_buy_price(price_basis_points))
 		if buy_price > 0:
 			return buy_price
 	return 0

@@ -233,7 +233,10 @@ func _validate_optional_facility_pool(
 			errors.append("World settlement %s in %s has optional facility missing facility_id." % [settlement_id, label])
 		elif not facility_ids.has(facility_id):
 			errors.append("World settlement %s in %s references missing optional facility %s." % [settlement_id, label, facility_id])
-		if float(entry_variant.get("weight")) <= 0.0:
+		var weight_variant: Variant = entry_variant.get("weight")
+		if weight_variant is not int:
+			errors.append("World settlement %s in %s has optional facility %s with non-integer weight." % [settlement_id, label, facility_id])
+		elif int(weight_variant) <= 0:
 			errors.append("World settlement %s in %s has optional facility %s with non-positive weight." % [settlement_id, label, facility_id])
 
 
