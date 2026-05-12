@@ -1,0 +1,185 @@
+{
+	"generated_at_unix": 1778600409,
+	"git_commit": "a003167",
+	"godot_version": "4.6.2-stable (official)",
+	"scenarios": {
+		"large_6v40": {
+			"ai_turns_per_run": [
+				78,
+				78
+			],
+			"ai_turns_total": 156,
+			"layers": {
+				"build_action_score_input": {
+					"avg_usec": 74,
+					"call_count": 3172,
+					"max_usec": 338,
+					"p50_usec": 74,
+					"p95_usec": 106,
+					"total_usec": 234781
+				},
+				"build_skill_score_input": {
+					"avg_usec": 62,
+					"call_count": 4798,
+					"max_usec": 316,
+					"p50_usec": 55,
+					"p95_usec": 109,
+					"total_usec": 300070
+				},
+				"build_unit_action_plan": {
+					"avg_usec": 135,
+					"call_count": 80,
+					"max_usec": 519,
+					"p50_usec": 109,
+					"p95_usec": 239,
+					"total_usec": 10814
+				},
+				"choose_command": {
+					"avg_usec": 353461,
+					"call_count": 156,
+					"max_usec": 1848008,
+					"p50_usec": 106712,
+					"p95_usec": 1573021,
+					"total_inclusive_usec": 55139953,
+					"total_self_usec": 54605102,
+					"total_usec": 55139953
+				}
+			},
+			"repeat_measured": 2,
+			"runs_meta": [
+				{
+					"ai_turns": 78,
+					"battle_ended": false,
+					"final_tu": 200,
+					"winner": ""
+				},
+				{
+					"ai_turns": 78,
+					"battle_ended": false,
+					"final_tu": 200,
+					"winner": ""
+				}
+			],
+			"target_tu": 200
+		},
+		"medium_6v20": {
+			"ai_turns_per_run": [
+				40,
+				40
+			],
+			"ai_turns_total": 80,
+			"layers": {
+				"build_action_score_input": {
+					"avg_usec": 78,
+					"call_count": 1816,
+					"max_usec": 291,
+					"p50_usec": 79,
+					"p95_usec": 109,
+					"total_usec": 143076
+				},
+				"build_skill_score_input": {
+					"avg_usec": 63,
+					"call_count": 2496,
+					"max_usec": 308,
+					"p50_usec": 54,
+					"p95_usec": 122,
+					"total_usec": 158643
+				},
+				"build_unit_action_plan": {
+					"avg_usec": 107,
+					"call_count": 40,
+					"max_usec": 251,
+					"p50_usec": 107,
+					"p95_usec": 239,
+					"total_usec": 4299
+				},
+				"choose_command": {
+					"avg_usec": 451957,
+					"call_count": 80,
+					"max_usec": 1789132,
+					"p50_usec": 171847,
+					"p95_usec": 1721204,
+					"total_inclusive_usec": 36156572,
+					"total_self_usec": 35854853,
+					"total_usec": 36156572
+				}
+			},
+			"repeat_measured": 2,
+			"runs_meta": [
+				{
+					"ai_turns": 40,
+					"battle_ended": false,
+					"final_tu": 200,
+					"winner": ""
+				},
+				{
+					"ai_turns": 40,
+					"battle_ended": false,
+					"final_tu": 200,
+					"winner": ""
+				}
+			],
+			"target_tu": 200
+		},
+		"small_4v8": {
+			"ai_turns_per_run": [
+				16,
+				16
+			],
+			"ai_turns_total": 32,
+			"layers": {
+				"build_action_score_input": {
+					"avg_usec": 81,
+					"call_count": 720,
+					"max_usec": 226,
+					"p50_usec": 81,
+					"p95_usec": 108,
+					"total_usec": 58394
+				},
+				"build_skill_score_input": {
+					"avg_usec": 62,
+					"call_count": 960,
+					"max_usec": 260,
+					"p50_usec": 54,
+					"p95_usec": 115,
+					"total_usec": 59633
+				},
+				"build_unit_action_plan": {
+					"avg_usec": 124,
+					"call_count": 16,
+					"max_usec": 249,
+					"p50_usec": 114,
+					"p95_usec": 249,
+					"total_usec": 1994
+				},
+				"choose_command": {
+					"avg_usec": 476315,
+					"call_count": 32,
+					"max_usec": 1619465,
+					"p50_usec": 191577,
+					"p95_usec": 1616585,
+					"total_inclusive_usec": 15242106,
+					"total_self_usec": 15124079,
+					"total_usec": 15242106
+				}
+			},
+			"repeat_measured": 2,
+			"runs_meta": [
+				{
+					"ai_turns": 16,
+					"battle_ended": false,
+					"final_tu": 200,
+					"winner": ""
+				},
+				{
+					"ai_turns": 16,
+					"battle_ended": false,
+					"final_tu": 200,
+					"winner": ""
+				}
+			],
+			"target_tu": 200
+		}
+	},
+	"schema_version": 1
+}
