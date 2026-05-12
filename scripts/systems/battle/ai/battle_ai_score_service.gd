@@ -135,6 +135,12 @@ func _copy_target_coords(preview) -> Array[Vector2i]:
 
 
 func _populate_hit_metrics(score_input: BattleAiScoreInput, context, effect_defs: Array) -> void:
+	AiTraceRecorder.enter(&"_populate_hit_metrics")
+	_populate_hit_metrics_impl(score_input, context, effect_defs)
+	AiTraceRecorder.exit(&"_populate_hit_metrics")
+
+
+func _populate_hit_metrics_impl(score_input: BattleAiScoreInput, context, effect_defs: Array) -> void:
 	if score_input == null:
 		return
 	score_input.estimated_hit_rate_percent = _resolve_estimated_hit_rate_percent(score_input.preview)
@@ -155,6 +161,12 @@ func _populate_hit_metrics(score_input: BattleAiScoreInput, context, effect_defs
 
 
 func _populate_special_profile_metrics(score_input: BattleAiScoreInput, context) -> void:
+	AiTraceRecorder.enter(&"_populate_special_profile_metrics")
+	_populate_special_profile_metrics_impl(score_input, context)
+	AiTraceRecorder.exit(&"_populate_special_profile_metrics")
+
+
+func _populate_special_profile_metrics_impl(score_input: BattleAiScoreInput, context) -> void:
 	if score_input == null or score_input.preview == null or score_input.preview.special_profile_preview_facts == null:
 		return
 	var facts = score_input.preview.special_profile_preview_facts
@@ -540,6 +552,19 @@ func _populate_target_effect_metrics(
 	hit_count: int = 1,
 	is_chain_target: bool = false
 ) -> void:
+	AiTraceRecorder.enter(&"_populate_target_effect_metrics")
+	_populate_target_effect_metrics_impl(score_input, context, target_unit, effect_defs, hit_count, is_chain_target)
+	AiTraceRecorder.exit(&"_populate_target_effect_metrics")
+
+
+func _populate_target_effect_metrics_impl(
+	score_input: BattleAiScoreInput,
+	context,
+	target_unit: BattleUnitState,
+	effect_defs: Array,
+	hit_count: int = 1,
+	is_chain_target: bool = false
+) -> void:
 	if score_input == null or context == null or context.unit_state == null or target_unit == null or hit_count <= 0:
 		return
 	var target_metrics := _build_target_effect_metrics(score_input.skill_def, context.unit_state, target_unit, effect_defs, hit_count)
@@ -674,6 +699,19 @@ func _populate_ally_target_payoff(
 
 
 func _build_target_effect_metrics(
+	skill_def: SkillDef,
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	effect_defs: Array,
+	hit_count: int = 1
+) -> Dictionary:
+	AiTraceRecorder.enter(&"_build_target_effect_metrics")
+	var result := _build_target_effect_metrics_impl(skill_def, source_unit, target_unit, effect_defs, hit_count)
+	AiTraceRecorder.exit(&"_build_target_effect_metrics")
+	return result
+
+
+func _build_target_effect_metrics_impl(
 	skill_def: SkillDef,
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
