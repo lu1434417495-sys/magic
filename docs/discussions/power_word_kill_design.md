@@ -1,278 +1,145 @@
-# 律令死亡（Power Word, Kill）v3.4 共识实现草案
+# 律令死亡（Power Word, Kill）代码级实现方案 v4.1
 
-> **文档性质**：经子代理攻击性审查后的实现共识。本文已经收束到可编码契约；实现前仍需按文件清单重新读对应源码，落地后以 headless 回归为准。
-> **当前版本**：v3.4
-> **最后更新**：2026-05-12
-> **取代范围**：全文取代 v2.0、v3.0、v3.1、v3.2、v3.3 及中间审查草案。
+> 文档性质：三子代理架构对抗讨论后的共识实现任务包。
+> 最后更新：2026-05-12
+> 取代范围：全文取代 v2.x、v3.x、v4.0 及“v3.5 代码落地”段落中的不一致结论。
+> 硬约束：不做兼容处理、不加旧字段别名、不保留错误中间实现、不把特殊逻辑塞进 UI / `GameRuntimeFacade` / `WorldMapSystem`。
 
----
+## 1. 共识结论
 
-## 一、共识结论
+`mage_power_word_kill` 使用一个受限的 `effect_type = &"execute"`，但本文不把它定义成完全通用处决系统。首版口径是：
 
-| 项 | 结论 | 落地要求 |
-|----|------|----------|
-| effect type | 正式新增 `&"execute"` | 通用效果类型，不做 `skill_id == mage_power_word_kill` 特判 |
-| save tag | 正式新增 `&"execute"` | `BattleSaveContentRules` 与 `BattleSaveResolver` 都要有常量；不复用 `&"magic"` |
-| damage tag | 首版 execute 固定 `&"negative_energy"` | 拒绝 `&"magic"`、`&"true"`、`&"execute"` 及其他 damage tag |
-| Boss / Elite 身份 | 正式升级 `EnemyTemplateDef.target_rank` | 资源必填 `normal / elite / boss`，由 `EncounterRosterBuilder` 投影运行时属性 |
-| Boss 规则 | Boss 不天然免疫致死阶段 | 低血 Boss 可以被 PWK 处决；只有显式 `execute_immunity` / 即死免疫特性才阻止 Stage 2 |
-| death protection | 默认不绕过 | Stage 2 走标准 fatal trait / `death_ward` / `last_stand`；只有 `death_protection_policy = "bypass"` 才能绕过 |
-| 非致命伤害 | 普通高血目标 `threshold * 30%`；Boss `max_hp * 30%` | 后期敌人和 Boss 都不使用 50% 压制 |
-| 护盾 | execute 无视护盾 | 只加 `bypass_shield`，不做护盾效率百分比 |
-| 抗性/减伤 | execute 不走通用 damage mitigation | 不实现通用 `bypass_mitigation` 字段；execute 构造的 `resolved_damage` 已是最终数值 |
-| `soul_fracture` | 有害、可驱散、刷新时长 | 120 TU，治疗获取和护盾获取各降至 75% |
-| 预览 | 首版不显示目标相关数值预览 | 不把 target-dependent execute 塞进 `BattleDamagePreviewRangeService`；只保证 UI/执行不崩 |
+> `execute v1 / PWK 执行协议`
 
----
+未来如果要让其他技能复用不同属性、不同伤害类型、不同附加状态或不同死亡保护策略，必须重新扩展 schema，不允许靠参数别名、旧字段或宽松 fallback 混进去。
 
-## 二、技能概述
+三代理共识：
 
-| 参数 | 值 |
-|------|-----|
-| 技能 ID | `&"mage_power_word_kill"` |
-| 显示名称 | 律令死亡 |
-| 环位 | 9 环 |
-| 射程 | 12 格 |
-| 目标 | 单个敌方可见单位 |
-| AP / MP | 1 AP / 80 MP |
-| 冷却 | 120 TU |
-| effect type | `&"execute"` |
-| 豁免 | 意志豁免，对抗施法者法术 DC |
-| save tag | `&"execute"` |
-| damage tag | `&"negative_energy"` |
+| 议题 | 结论 |
+|---|---|
+| special profile | 不使用 Meteor Swarm special profile；PWK 是单体 unit effect。 |
+| `execute` 口径 | v1 是 PWK 执行协议，不宣称通用即死系统。 |
+| 常量归属 | 新增纯 content rules 文件集中保存 execute 常量，schema / rules / AI / runtime 共用。 |
+| 资源参数 | 正式 `.tres` 不暴露 `burst_damage`、`finisher_damage`、`apply_status_id`、`death_protection_policy`。 |
+| Stage 1 | 直接计算“压到 1 HP”的实际伤害，不使用 9999 魔法数字。 |
+| Stage 2 | 固定走标准 fatal trait / `death_ward` / `last_stand` 链；正式资源不能绕过。 |
+| Boss 判定 | PWK 只读 `boss_target`，不从 `fortune_mark_target` 推断 Boss。 |
+| AI / runtime | 共用纯 execute plan；runtime 负责 mutation，AI 负责概率估值。 |
+| `soul_fracture` | 状态倍率读取不放在 `BattleExecutionRules`，改由状态 modifier helper 负责。 |
+| `target_rank` | 先作为 `EnemyTemplateDef` 必填字段；未来同模板多 rank 时升级 roster schema。 |
 
-一句话机制：对低血目标先压到 1 HP，再按意志豁免或显式即死免疫决定是否进入标准致死链；对高血目标造成非致命负能量压制，并施加可驱散的灵魂裂痕。Boss 身份只改变高血非致命伤害公式，不自带即死免疫。
+## 2. 玩家语义
 
----
+`mage_power_word_kill`：
 
-## 三、execute 运行时契约
+- 单体敌方法术，射程 12。
+- 消耗 1 AP / 80 MP，冷却 120 TU。
+- 对低血目标先压到 1 HP。
+- 低血目标随后进行 `execute` 意志豁免；失败则进入标准致死链。
+- 对高血普通目标造成 `threshold * 30%` 的非致命负能量压制。
+- 对高血 Boss 造成 `max_hp * 30%` 的非致命负能量压制。
+- 目标结算后仍有 `current_hp > 0` 时施加 `soul_fracture`。
 
-### 3.1 阈值
+非目标：
 
-首版 `mage_power_word_kill` 是 `max_level = 1`，不放等级加成，也不放会被 cap 吞掉的 ability bonus。阈值只由目标最大生命比例决定。
+- 不实现通用即死系统、Saving Throw 大改、暴击倍率重构或 target-aware UI 数值预览。
+- 不新增 `special_resolution_profile_id`。
+- 不复用 `save_tag = &"magic"`。
+- 不新增 `damage_tag = &"true"` 或 `&"execute"`。
+- 不保留 `shield_absorption_percent`、`bypass_mitigation`、`true_damage`。
+- 不让正式内容配置绕过 `death_ward` / `last_stand`。
 
-```gdscript
-static func resolve_threshold(target_unit: BattleUnitState, params: Dictionary) -> int:
-	var target_max_hp := _get_target_max_hp(target_unit)
-	var ratio := clampi(int(params.get("threshold_max_hp_ratio_percent", 50)), 0, 100)
-	return maxi(target_max_hp * ratio / 100, 0)
-```
+## 3. 当前偏差必须替换
 
-默认验算：
+当前仓库已有一组未收束的 `execute` 痕迹。实现时按下表替换，不能作为兼容路径保留。
 
-| 目标 | hp_max | threshold | 满血是否处决 |
-|------|--------|-----------|--------------|
-| wolf_shaman | 22 | 11 | 否 |
-| wolf_raider | 26 | 13 | 否 |
-| wolf_vanguard | 42 | 21 | 否 |
+| 当前偏差 | 共识处理 |
+|---|---|
+| `EnemyTemplateDef.target_rank` 默认 `&"normal"` | 改为默认 `&""`，正式资源必须显式填写。 |
+| 只有 `wolf_alpha.tres` 显式写 rank，其余 normal 靠默认 | 所有正式 enemy template 都显式写 `target_rank`。 |
+| `execute` 使用 `save_tag = &"magic"` | 新增并使用 `SAVE_TAG_EXECUTE = &"execute"`。 |
+| `execute` 使用 `shield_absorption_percent` | 删除该语义；PWK 使用 `bypass_shield = true`，完全不改护盾状态。 |
+| `_coerce_damage_outcome()` 补 `bypass_mitigation / true_damage / shield_absorption_percent` | 移除这些字段。 |
+| `BattleExecutionRules.resolve_threshold()` 读取等级、属性、floor/cap | 改为只读目标最大生命和比例。 |
+| Boss 非致命默认 `12% + floor 25` | 改为 `max_hp * 30%`，不设 floor。 |
+| AI 用 `burst_damage = 9999` 估值 | 改为读取共享 execute plan 和 save probability。 |
+| 测试使用 `save_dc_mode = &"fixed"` | 改为现有合法值 `&"static"` 或 `&"caster_spell"`；正式 PWK 用 `&"caster_spell"`。 |
 
-### 3.2 save 语义
+## 4. 文件级方案
 
-execute effect 如果配置了 save，就在每次结算时解析一次 save，并把结果放进 `save_results`。save 只控制低血目标的 Stage 2，不影响 Stage 1、普通高血非致命伤害或高血 Boss 非致命伤害。
+### 4.1 Execute Content Rules
 
-| 分支 | 是否解析 save | save 成功/免疫影响 | damage_event |
-|------|---------------|--------------------|--------------|
-| `current_hp <= threshold` | 是 | 阻止 Stage 2；Stage 1 仍发生 | Stage 1 总是生成；Stage 2 仅 save 失败生成 |
-| 非 Boss，`current_hp > threshold` | 是 | 不改变非致命伤害 | 生成 1 个非致命事件 |
-| Boss，`current_hp > threshold` | 是 | 不改变 Boss 非致命伤害 | 生成 1 个非致命事件 |
-
-原因：save 结果要进入战报、AI 估值和 immunity 测试，但不能让高血目标通过豁免绕过 `soul_fracture` 与非致命压制。Boss 若低血，同样进入 Stage 1 / Stage 2；Boss 是否免疫即死只看显式 `execute_immunity` 或等价即死免疫特性。
-
-### 3.3 低血目标双段结算
-
-| 阶段 | 条件 | outcome | 死亡保护 |
-|------|------|---------|----------|
-| Stage 1 Fracture Burst | `current_hp <= threshold` | `burst_damage = 9999`，`min_hp_after_damage = 1`，`bypass_shield = true` | 不进入 fatal chain，不消耗 `death_ward` |
-| Stage 2 Execution Finisher | Stage 1 后 `current_hp <= 1` 且 save 失败 | `finisher_damage = 1`，`min_hp_after_damage = 0`，`bypass_shield = true` | 默认走标准 fatal chain |
-
-关键点：
-
-- Stage 1 的聚合伤害是实际 HP 损失，不是 9999。
-- Stage 1 必须在进入 fatal trait / `death_ward` / `last_stand` 前夹血到 `min_hp_after_damage`。
-- Stage 2 只有 `min_hp_after_damage = 0`，因此才允许进入当前标准死亡保护链。
-- Boss 身份不跳过本分支；低血 Boss 可以被 Stage 2 杀死，除非它有显式即死免疫。
-- 若目标原本已经是 1 HP，Stage 1 的 `hp_damage` 可以是 0，但仍记录一次 execute damage event，便于战报解释“律令压制未再造成生命损失”。
-
-### 3.4 普通高血非致命分支
+新增 `scripts/player/progression/battle_execute_content_rules.gd`：
 
 ```gdscript
-static func resolve_non_boss_non_lethal_damage(target_unit: BattleUnitState, params: Dictionary) -> int:
-	var threshold := resolve_threshold(target_unit, params)
-	var ratio := clampi(int(params.get("non_lethal_damage_ratio_percent", 30)), 0, 100)
-	return maxi(threshold * ratio / 100, 1)
-```
+class_name BattleExecuteContentRules
+extends RefCounted
 
-该分支使用：
-
-- `min_hp_after_damage = 1`
-- `bypass_shield = true`
-- 不触发 Stage 2
-- 不消耗 `death_ward` / `last_stand`
-
-### 3.5 高血 Boss 非致命分支
-
-```gdscript
-static func resolve_boss_non_lethal_damage(target_unit: BattleUnitState, params: Dictionary) -> int:
-	var target_max_hp := _get_target_max_hp(target_unit)
-	var ratio := clampi(int(params.get("boss_non_lethal_damage_ratio_percent", 30)), 0, 100)
-	return maxi(target_max_hp * ratio / 100, 1)
-```
-
-Boss 只有在 `current_hp > threshold` 时进入本非致命分支：
-
-- Boss rank 不提供即死免疫。
-- 低血 Boss 走 3.3 双段结算。
-- 不消耗 `death_ward` / `last_stand`。
-- 无视护盾。
-- 伤害夹到至少 1 HP。
-- 若存活，施加 `soul_fracture`。
-
-### 3.6 `_apply_execute_effect()` 返回契约
-
-`BattleDamageResolver.resolve_effects()` 不应把 execute 拆成外层特殊聚合。新增内部 helper：
-
-```gdscript
-func _apply_execute_effect(source_unit, target_unit, effect_def, context: Dictionary) -> Dictionary:
-	return {
-		"applied": false,
-		"damage": 0,
-		"shield_absorbed": 0,
-		"shield_broken": false,
-		"damage_events": [],
-		"save_results": [],
-		"status_effect_ids": [],
-	}
-```
-
-要求：
-
-- `damage` 是实际 HP 损失合计。
-- `shield_absorbed` 对 PWK 恒为 0。
-- `damage_events` 包含每个执行阶段的 `_apply_damage_to_target()` 结果。
-- `save_results` 只追加一次 save 解析结果。
-- `status_effect_ids` 只追加干净 `soul_fracture` 状态的应用结果。
-- `applied` 只要有伤害事件、状态成功应用或有效 save 结果即可为 true。
-
----
-
-## 四、伤害 outcome 与护盾
-
-execute 不调用 `_resolve_damage_outcome()`，因此不会进入通用抗性、减伤和固定减伤计算。`damage_tag = &"negative_energy"` 只作为内容语义、战报和后续状态交互标签，不参与 mitigation lookup。
-
-execute 构造的伤害 outcome：
-
-```gdscript
-{
-	"resolved_damage": damage,
-	"damage_tag": &"negative_energy",
-	"bypass_shield": true,
-	"min_hp_after_damage": min_hp,
-	"death_protection_policy": "standard",
-}
-```
-
-`_coerce_damage_outcome()` 只补安全默认值：
-
-```gdscript
-if not outcome.has("bypass_shield"):
-	outcome["bypass_shield"] = false
-if not outcome.has("min_hp_after_damage"):
-	outcome["min_hp_after_damage"] = 0
-if not outcome.has("death_protection_policy"):
-	outcome["death_protection_policy"] = "standard"
-```
-
-`_apply_damage_to_target()` 的新增顺序必须是：
-
-1. 归一化 `resolved_damage`。
-2. 若 `bypass_shield == false`，按旧逻辑吸收护盾；否则 `shield_absorbed = 0` 且不扣护盾。
-3. 计算 `hp_damage`。
-4. 若 `min_hp_after_damage > 0`，先把 `hp_damage` 夹到不会低于该 HP 的数值。
-5. 只有 `min_hp_after_damage <= 0` 且 projected HP 小于等于 0 时，才进入 fatal trait / `death_ward` / `last_stand`。
-6. 若 `death_protection_policy == "bypass"`，只有 Stage 2 可跳过标准死亡保护链；`mage_power_word_kill.tres` 首版必须写 `"standard"`。
-
-伪代码：
-
-```gdscript
-var min_hp_after_damage := maxi(int(damage_outcome.get("min_hp_after_damage", 0)), 0)
-var bypass_shield := bool(damage_outcome.get("bypass_shield", false))
-
-if not bypass_shield and target_unit.has_shield():
-	shield_absorbed = mini(normalized_damage, target_unit.current_shield_hp)
-	# existing shield drain / break logic
-
-var hp_damage := maxi(normalized_damage - shield_absorbed, 0)
-if min_hp_after_damage > 0:
-	hp_damage = mini(hp_damage, maxi(target_unit.current_hp - min_hp_after_damage, 0))
-
-var projected_hp := target_unit.current_hp - hp_damage
-if projected_hp <= 0 and min_hp_after_damage <= 0:
-	# existing fatal chain, unless explicit death_protection_policy == "bypass"
-```
-
----
-
-## 五、`soul_fracture` 状态
-
-新增状态 ID：
-
-```gdscript
+const EFFECT_TYPE_EXECUTE: StringName = &"execute"
+const SAVE_TAG_EXECUTE: StringName = &"execute"
+const DAMAGE_TAG_NEGATIVE_ENERGY: StringName = &"negative_energy"
 const STATUS_SOUL_FRACTURE: StringName = &"soul_fracture"
-```
 
-语义：
+const PARAM_THRESHOLD_MAX_HP_RATIO_PERCENT := "threshold_max_hp_ratio_percent"
+const PARAM_NON_LETHAL_DAMAGE_RATIO_PERCENT := "non_lethal_damage_ratio_percent"
+const PARAM_BOSS_NON_LETHAL_DAMAGE_RATIO_PERCENT := "boss_non_lethal_damage_ratio_percent"
+const PARAM_SOUL_FRACTURE_DURATION_TU := "soul_fracture_duration_tu"
+const PARAM_HEAL_MULTIPLIER_PERCENT := "heal_multiplier_percent"
+const PARAM_SHIELD_GAIN_MULTIPLIER_PERCENT := "shield_gain_multiplier_percent"
 
-| 项 | 值 |
-|----|----|
-| harmful | 是 |
-| dispellable harmful | 是 |
-| cleansable harmful | 默认随 harmful 可 cleanse |
-| stack mode | refresh |
-| max stacks | 1 |
-| duration | 120 TU |
-| heal multiplier | 75% |
-| shield gain multiplier | 75% |
-| tick | 无 |
-
-实现要求：
-
-- `BattleStatusSemanticTable.is_harmful_status()` 包含 `STATUS_SOUL_FRACTURE`。
-- `BattleStatusSemanticTable.is_dispellable_harmful_status()` 包含 `STATUS_SOUL_FRACTURE`。
-- `BattleStatusSemanticTable.get_semantic()` 返回 refresh timeline 语义。
-- execute 分支不要把原始 execute `effect_def.params` 直接交给 `_apply_status_effect()`。
-- 应构造干净的运行时 `CombatEffectDef`：`effect_type=&"status"`、`status_id=&"soul_fracture"`、`duration_tu=120`，`params` 只保留倍率和来源元数据。
-
-干净状态 params：
-
-```gdscript
-{
-	"heal_multiplier_percent": 75,
-	"shield_gain_multiplier_percent": 75,
-	"source_skill_id": "mage_power_word_kill",
+const REQUIRED_PARAM_TYPES := {
+	PARAM_THRESHOLD_MAX_HP_RATIO_PERCENT: TYPE_INT,
+	PARAM_NON_LETHAL_DAMAGE_RATIO_PERCENT: TYPE_INT,
+	PARAM_BOSS_NON_LETHAL_DAMAGE_RATIO_PERCENT: TYPE_INT,
+	PARAM_SOUL_FRACTURE_DURATION_TU: TYPE_INT,
+	PARAM_HEAL_MULTIPLIER_PERCENT: TYPE_INT,
+	PARAM_SHIELD_GAIN_MULTIPLIER_PERCENT: TYPE_INT,
 }
 ```
 
-治疗倍率：
+Rules:
 
-- `BattleDamageResolver` 的 `&"heal"` 分支读取目标有害状态中的 `heal_multiplier_percent`，多个状态取最小值。
-- 对最终治疗量乘百分比后向下取整。
-- 原治疗量大于 0 且倍率大于 0 时，结果至少为 1。
-- 不影响 `heal_fatal`，除非未来显式新增配置和测试。
+- `SkillContentRegistry`、`BattleExecutionRules`、`BattleDamageResolver`、`BattleAiScoreService` 都引用这里的常量。
+- `BattleSaveContentRules.SAVE_TAG_EXECUTE` 直接引用或镜像 `BattleExecuteContentRules.SAVE_TAG_EXECUTE`，并加入 `VALID_SAVE_TAGS`。
+- `BattleSaveResolver` 同步 mirror 常量。
+- 不把 execute 常量散落在多个文件里硬编码。
 
-护盾获取倍率：
+### 4.2 Save Tag
 
-- `BattleShieldService` 在 `_resolve_shield_hp()` 后、替换/叠加比较前应用 `shield_gain_multiplier_percent`。
-- 多个状态取最小值。
-- 同样向下取整，正数倍率下至少保留 1 点。
-- 不回溯减少目标已有护盾。
+修改 `scripts/player/progression/battle_save_content_rules.gd`：
 
----
+```gdscript
+const BATTLE_EXECUTE_CONTENT_RULES = preload("res://scripts/player/progression/battle_execute_content_rules.gd")
 
-## 六、Boss / Elite 身份升级
+const SAVE_TAG_EXECUTE: StringName = BATTLE_EXECUTE_CONTENT_RULES.SAVE_TAG_EXECUTE
 
-### 6.1 内容真相源
+const VALID_SAVE_TAGS := {
+	# existing tags...
+	SAVE_TAG_EXECUTE: true,
+}
+```
 
-在 `scripts/enemies/enemy_template_def.gd` 正式新增必填字段：
+修改 `scripts/systems/battle/rules/battle_save_resolver.gd`：
+
+```gdscript
+const SAVE_TAG_EXECUTE: StringName = BATTLE_SAVE_CONTENT_RULES.SAVE_TAG_EXECUTE
+```
+
+现有 `_collect_save_tag_state()` 已能识别：
+
+- `&"execute"`
+- `&"execute_advantage"`
+- `&"execute_disadvantage"`
+- `&"execute_immunity"`
+
+回归必须证明：
+
+- `magic_advantage` 不影响 `execute`。
+- `execute_immunity` 只阻止 Stage 2，不阻止 Stage 1、非致命伤害或 `soul_fracture`。
+
+### 4.3 Enemy Target Rank
+
+修改 `scripts/enemies/enemy_template_def.gd`：
 
 ```gdscript
 const TARGET_RANK_NORMAL: StringName = &"normal"
@@ -287,20 +154,16 @@ const VALID_TARGET_RANKS := {
 @export var target_rank: StringName = &""
 ```
 
-`target_rank` 默认空值，资源必须显式填写。这样新旧资源漏填会被 schema 抓住，不会静默当作 `normal`。
+`validate_schema()` 必须硬校验：
 
-`EnemyTemplateDef.validate_schema()` 必须校验：
+- `target_rank` 非空。
+- `target_rank` 只能是 `normal / elite / boss`。
+- `attribute_overrides` 不允许出现 `boss_target` 或 `fortune_mark_target`，无论 key 是 `String` 还是 `StringName`。
 
-- `target_rank` 非空，且只能是 `normal / elite / boss`。
-- `attribute_overrides` 不允许声明 `boss_target` 或 `fortune_mark_target`。
-- `base_attribute_overrides` 仍只表达六维基础属性，不承载目标阶级。
-
-### 6.2 首批正式模板标注
-
-当前正式模板需要随实现一次性补齐：
+正式模板一次性补齐：
 
 | 模板 | target_rank |
-|------|-------------|
+|---|---|
 | `mist_beast.tres` | `normal` |
 | `mist_harrier.tres` | `normal` |
 | `mist_weaver.tres` | `normal` |
@@ -310,157 +173,397 @@ const VALID_TARGET_RANKS := {
 | `wolf_shaman.tres` | `normal` |
 | `wolf_vanguard.tres` | `normal` |
 
-当前正式资源没有 Boss 模板，不为测试伪造正式 Boss。Boss 行为用测试夹具覆盖；未来新增 Boss 模板必须显式写 `target_rank = &"boss"`。
-
-### 6.3 运行时投影
-
-投影归 `scripts/systems/world/encounter_roster_builder.gd`，因为正式敌人从模板进入 `BattleUnitState.attribute_snapshot` 的桥在这里。不要把正式 Boss rank 注入放进 `BattleUnitFactory` fallback。
+修改 `scripts/systems/world/encounter_roster_builder.gd`：
 
 ```gdscript
 func _apply_enemy_target_rank(snapshot, target_rank: StringName) -> void:
+	if snapshot == null:
+		return
 	match ProgressionDataUtils.to_string_name(target_rank):
-		&"boss":
-			snapshot.set_value(&"fortune_mark_target", 2)
+		EnemyTemplateDef.TARGET_RANK_BOSS:
 			snapshot.set_value(&"boss_target", 1)
-		&"elite":
+			snapshot.set_value(&"fortune_mark_target", 2)
+		EnemyTemplateDef.TARGET_RANK_ELITE:
+			snapshot.set_value(&"boss_target", 0)
 			snapshot.set_value(&"fortune_mark_target", 1)
+		EnemyTemplateDef.TARGET_RANK_NORMAL:
 			snapshot.set_value(&"boss_target", 0)
-		&"normal":
 			snapshot.set_value(&"fortune_mark_target", 0)
-			snapshot.set_value(&"boss_target", 0)
 		_:
-			snapshot.set_value(&"fortune_mark_target", 0)
-			snapshot.set_value(&"boss_target", 0)
+			push_error("Invalid enemy target_rank reached runtime: %s" % String(target_rank))
 ```
 
-调用顺序：先 `_apply_enemy_attribute_overrides(snapshot, template.attribute_overrides)`，再 `_apply_enemy_target_rank(snapshot, template.target_rank)`。这样 `target_rank` 是最终真相源。
+Important boundary:
 
-### 6.4 规则读取
+- `fortune_mark_target` 仍可供 Fate / Fortuna 系统使用。
+- PWK Boss 判断只读 `boss_target`。
+- 未来如果同一个模板需要在不同 roster 中有不同 rank，必须升级 roster schema 增加 rank override；不要复制隐藏字段，不要靠 `attribute_overrides` 覆盖。
 
-`BattleExecutionRules.is_boss_target(unit)` 不读取模板，只读取运行时快照，保持与特殊技能、loot、mastery 等目标阶级消费者一致：
+### 4.4 Execute Schema
+
+修改 `scripts/player/progression/skill_content_registry.gd`：
+
+- `VALID_EFFECT_TYPES` 加入 `BattleExecuteContentRules.EFFECT_TYPE_EXECUTE`。
+- `_append_effect_validation_errors()` 中为 execute 调用 `_append_execute_effect_validation_errors()`。
+- `_append_combat_profile_validation_errors()` 增加 profile 级门禁：只要 profile 或任一 cast variant 包含 execute，该技能必须满足单体协议。
+- `special_resolution_profile_id != &""` 的技能不得携带 executable execute effect。
+
+Execute 单体协议：
+
+| 字段 | 必须值 |
+|---|---|
+| `combat_profile.target_mode` | `&"unit"` |
+| `combat_profile.target_team_filter` | `&"enemy"` 或 `&"hostile"` |
+| `combat_profile.target_selection_mode` | `&"single_unit"` |
+| `combat_profile.min_target_count` | `1` |
+| `combat_profile.max_target_count` | `1` |
+| `combat_profile.allow_repeat_target` | `false` |
+| `combat_profile.area_pattern` | `&"single"` |
+| `combat_profile.area_value` | `0` |
+
+Cast variant 中出现 execute 时：
+
+- `BattleSkillResolutionRules.get_cast_variant_target_mode(skill_def, cast_variant) == &"unit"`。
+- `CombatCastVariantDef.required_coord_count` 不参与 execute 目标数量判定。
+- 不检查 cast variant 上不存在的 `target_team_filter / target_selection_mode / min_target_count / max_target_count` 字段。
+- 不允许 ground variant 或 multi-unit owning profile 携带 execute。
+
+Execute effect 校验：
+
+- `effect_def.effect_target_team_filter` 只能是空、`&"enemy"` 或 `&"hostile"`。
+- `effect_def.save_dc_mode == BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL`。
+- `effect_def.save_dc == 0`。
+- `effect_def.save_dc_source_ability == UnitBaseAttributes.INTELLIGENCE`。
+- `effect_def.save_ability == UnitBaseAttributes.WILLPOWER`。
+- `effect_def.save_tag == BattleExecuteContentRules.SAVE_TAG_EXECUTE`。
+- `effect_def.damage_tag == BattleExecuteContentRules.DAMAGE_TAG_NEGATIVE_ENERGY`。
+- `effect_def.save_partial_on_success == false`。
+- `trigger_event == &""`，`trigger_condition == &""`。
+- `passive_effect_defs` 不允许出现 execute。
+
+Params exact set:
 
 ```gdscript
+{
+	"threshold_max_hp_ratio_percent": int,
+	"non_lethal_damage_ratio_percent": int,
+	"boss_non_lethal_damage_ratio_percent": int,
+	"soul_fracture_duration_tu": int,
+	"heal_multiplier_percent": int,
+	"shield_gain_multiplier_percent": int,
+}
+```
+
+Strict validation:
+
+- 必须逐项检查 `typeof(value) == TYPE_INT`；不接受字符串、浮点、布尔转换。
+- 不允许缺字段。
+- 不允许额外字段。
+- 所有 ratio / multiplier 必须在 `0..100`。
+- `soul_fracture_duration_tu` 必须 `> 0` 且能被 5 整除。
+
+Explicitly rejected params:
+
+- `burst_damage`
+- `finisher_damage`
+- `death_protection_policy`
+- `apply_status_id`
+- `damage_tag`
+- `shield_absorption_percent`
+- `boss_non_lethal_damage_max_hp_ratio_percent`
+
+Runtime safety gate:
+
+- `BattleSkillResolutionRules.is_unit_effect()` 可以把 execute 视为 unit effect。
+- `BattleSkillResolutionRules.collect_ground_unit_effect_defs()` 不应静默执行 execute。
+- `BattleSkillExecutionOrchestrator._handle_ground_skill_command()` 必须在 cost 消耗前检查 ground effect defs；若发现 execute，记录错误日志并返回 `false`。
+- 不允许用“跳过 execute effect”当兼容处理；非法资源应被 schema 拒绝，非法运行时构造应明确失败。
+
+### 4.5 Execute Plan
+
+新增共享纯计算 plan。可以先放在 `BattleExecutionRules`，后续若出现第二个 staged lethal effect 再拆独立 resolver。
+
+`BattleExecutionRules` 边界：
+
+- 只放无副作用公式和 execute plan 构建。
+- 无 RNG。
+- 不改 unit。
+- 不读 UI/runtime facade。
+- 不读取或修改 status collection。
+
+最终 API：
+
+```gdscript
+class_name BattleExecutionRules
+extends RefCounted
+
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BATTLE_EXECUTE_CONTENT_RULES = preload("res://scripts/player/progression/battle_execute_content_rules.gd")
+
+const BRANCH_LOW_HP: StringName = &"low_hp"
+const BRANCH_HIGH_HP_NORMAL: StringName = &"high_hp_normal"
+const BRANCH_HIGH_HP_BOSS: StringName = &"high_hp_boss"
+
+static func get_max_hp(unit: BattleUnitState) -> int:
+	if unit == null or unit.attribute_snapshot == null:
+		return 0
+	return maxi(int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 0)
+
 static func is_boss_target(unit_state: BattleUnitState) -> bool:
 	return unit_state != null \
 		and unit_state.attribute_snapshot != null \
-		and (
-			int(unit_state.attribute_snapshot.get_value(&"boss_target")) > 0
-			or int(unit_state.attribute_snapshot.get_value(&"fortune_mark_target")) > 1
-		)
+		and int(unit_state.attribute_snapshot.get_value(&"boss_target")) > 0
+
+static func resolve_threshold(target_unit: BattleUnitState, params: Dictionary) -> int:
+	var target_max_hp := get_max_hp(target_unit)
+	var ratio := clampi(int(params[BATTLE_EXECUTE_CONTENT_RULES.PARAM_THRESHOLD_MAX_HP_RATIO_PERCENT]), 0, 100)
+	return maxi(target_max_hp * ratio / 100, 0)
+
+static func build_execute_plan(target_unit: BattleUnitState, params: Dictionary) -> Dictionary:
+	var current_hp := maxi(int(target_unit.current_hp) if target_unit != null else 0, 0)
+	var max_hp := get_max_hp(target_unit)
+	var threshold := resolve_threshold(target_unit, params)
+	var is_boss := is_boss_target(target_unit)
+	var branch := BRANCH_LOW_HP
+	var stage1_damage := 0
+	var non_lethal_damage := 0
+	if current_hp <= threshold:
+		stage1_damage = maxi(current_hp - 1, 0)
+	elif is_boss:
+		branch = BRANCH_HIGH_HP_BOSS
+		non_lethal_damage = maxi(max_hp * int(params[BATTLE_EXECUTE_CONTENT_RULES.PARAM_BOSS_NON_LETHAL_DAMAGE_RATIO_PERCENT]) / 100, 1)
+	else:
+		branch = BRANCH_HIGH_HP_NORMAL
+		non_lethal_damage = maxi(threshold * int(params[BATTLE_EXECUTE_CONTENT_RULES.PARAM_NON_LETHAL_DAMAGE_RATIO_PERCENT]) / 100, 1)
+	return {
+		"branch": branch,
+		"current_hp": current_hp,
+		"max_hp": max_hp,
+		"threshold": threshold,
+		"is_boss": is_boss,
+		"stage1_damage": stage1_damage,
+		"stage2_damage": 1,
+		"non_lethal_damage": mini(non_lethal_damage, maxi(current_hp - 1, 0)),
+		"min_hp_after_stage1": 1,
+		"min_hp_after_non_lethal": 1,
+		"bypass_shield": true,
+		"soul_fracture_params": {
+			"heal_multiplier_percent": int(params[BATTLE_EXECUTE_CONTENT_RULES.PARAM_HEAL_MULTIPLIER_PERCENT]),
+			"shield_gain_multiplier_percent": int(params[BATTLE_EXECUTE_CONTENT_RULES.PARAM_SHIELD_GAIN_MULTIPLIER_PERCENT]),
+			"duration_tu": int(params[BATTLE_EXECUTE_CONTENT_RULES.PARAM_SOUL_FRACTURE_DURATION_TU]),
+		},
+	}
 ```
 
-重要边界：`is_boss_target()` 只用于高血 Boss 的非致命伤害公式和目标阶级语义，不允许作为 execute 即死免疫判断。即死免疫必须来自 `BattleSaveResolver` 能识别的显式 execute immunity。
+AI 和 runtime 都必须消费 `build_execute_plan()`，不能各自重写 low HP / Boss / non-lethal 分支。
 
----
+### 4.6 BattleDamageResolver
 
-## 七、save tag 与 schema
+修改 `scripts/systems/battle/rules/battle_damage_resolver.gd`：
 
-### 7.1 新增 execute save tag
+- `resolve_effects()` 中只保留一行分发：`&"execute": result = _apply_execute_effect(...)`。
+- `_apply_execute_effect()` 负责读取 save、execute plan，并调用现有 `_apply_damage_to_target()`。
+- 删除当前旧分支里的 `shield_absorption_percent`、`params.damage_tag`、`soul_fracture_status` 嵌套参数读取。
+- execute 不调用 `_resolve_damage_outcome()`，不进入通用 mitigation。
 
-在 `scripts/player/progression/battle_save_content_rules.gd` 新增：
+Helper 返回契约：
 
 ```gdscript
-const SAVE_TAG_EXECUTE: StringName = &"execute"
+{
+	"applied": bool,
+	"damage": int,
+	"shield_absorbed": 0,
+	"shield_broken": false,
+	"damage_events": Array[Dictionary],
+	"save_results": Array[Dictionary],
+	"status_effect_ids": Array[StringName],
+	"execute_plan": Dictionary,
+}
 ```
 
-并加入 `VALID_SAVE_TAGS`，不要加入 `CONTROL_SAVE_TAGS`。
+Runtime branch:
 
-在 `scripts/systems/battle/rules/battle_save_resolver.gd` 同步 mirror 常量：
+1. Resolve save once through `BattleSaveResolver.resolve_save()`.
+2. Build plan through `BattleExecutionRules.build_execute_plan(target_unit, effect_def.params)`.
+3. If `plan.branch == &"low_hp"`:
+   - Stage 1 applies `plan.stage1_damage`, `min_hp_after_damage = 1`, `bypass_shield = true`.
+   - Stage 2 only if save did not succeed, save is not immune, and `target_unit.current_hp <= 1`.
+   - Stage 2 applies fixed `plan.stage2_damage = 1`, `min_hp_after_damage = 0`, `bypass_shield = true`.
+   - Stage 2 always uses standard fatal trait / `death_ward` / `last_stand`; no bypass policy.
+4. If high HP normal or high HP Boss:
+   - Apply `plan.non_lethal_damage`, `min_hp_after_damage = 1`, `bypass_shield = true`.
+5. If `target_unit.current_hp > 0`, apply clean `soul_fracture` status.
+
+Damage outcome shape:
 
 ```gdscript
-const SAVE_TAG_EXECUTE: StringName = BattleSaveContentRules.SAVE_TAG_EXECUTE
+{
+	"resolved_damage": damage,
+	"damage_tag": effect_def.damage_tag,
+	"bypass_shield": true,
+	"min_hp_after_damage": min_hp,
+	"execute_stage": stage_id,
+}
 ```
 
-原因：
-
-- `&"magic"` 是来源/法术泛标签，已有种族和状态可能给它优势。
-- `&"execute"` 是死亡律令独立防护轴，应允许 `execute_advantage`、`execute_disadvantage`、`execute_immunity` 独立配置。
-- `gnome` 的 `magic` 优势不应自动影响 PWK。
-- Boss 如果需要免疫 PWK 即死，应通过模板、特性、状态或装备投影出 `save_immunity_tags` 包含 `&"execute"`，而不是依赖 `target_rank = &"boss"`。
-
-### 7.2 execute effect schema
-
-`SkillContentRegistry` 需要：
-
-- 把 `&"execute"` 加入 `VALID_EFFECT_TYPES`。
-- 对 active `effect_defs`、cast variant `effect_defs`、`passive_effect_defs` 都跑 effect type 校验。
-- 被动或触发式 execute 一律拒绝。
-
-execute effect 的校验：
-
-| 字段 | 规则 |
-|------|------|
-| `save_dc_mode` | 必须能产生 save DC，首版资源用 `&"caster_spell"` |
-| `save_dc_source_ability` | 首版资源用 `&"intelligence"` |
-| `save_ability` | 必须合法，首版资源用 `&"willpower"` |
-| `save_tag` | 必须是 `&"execute"` |
-| `damage_tag` | 必须是 `&"negative_energy"` |
-| `save_partial_on_success` | 拒绝 |
-| `trigger_event` / `trigger_condition` | 拒绝 |
-| `passive_effect_defs` | 不允许出现 execute |
-
-明确拒绝：
-
-- `save_tag = &"magic"`
-- `damage_tag = &"magic"`
-- `damage_tag = &"true"`
-- `damage_tag = &"execute"`
-- `damage_tag = &"fire"` 等其他已存在但非首版语义的标签
-
----
-
-## 八、AI 与预览
-
-### 8.1 AI 接入点
-
-需要改：
-
-- `scripts/systems/battle/ai/battle_ai_score_service.gd`
-- `scripts/systems/battle/ai/battle_ai_action_assembler.gd`
-
-`BattleAiScoreService` 不新增一套旁路伪代码，直接在 `_build_target_effect_metrics()` / `_estimate_damage_for_target_result()` 接入 `effect_type == &"execute"`，并沿用现有返回结构里的 `damage` 与 `save_estimates`。
-
-低血目标估值：
+`_coerce_damage_outcome()` only adds:
 
 ```gdscript
-var stage1_damage := maxi(target_unit.current_hp - 1, 0)
-var save_estimate := BattleSaveResolver.estimate_save_success_probability(...)
-var failed_save_bps := int(save_estimate.get("failure_probability_basis_points", 10000))
-if bool(save_estimate.get("immune", false)):
-	failed_save_bps = 0
-var stage2_expected := int(round(float(finisher_damage) * float(failed_save_bps) / 10000.0))
-var expected_damage := stage1_damage + stage2_expected
+if not outcome.has("bypass_shield"):
+	outcome["bypass_shield"] = false
+if not outcome.has("min_hp_after_damage"):
+	outcome["min_hp_after_damage"] = 0
 ```
 
-要求：
+Do not add `shield_absorption_percent`, `true_damage`, `bypass_mitigation`, or `death_protection_policy`.
 
-- save immune 或高成功率必须降低 Stage 2 价值，不能无条件按 `current_hp` 当作必杀。
-- `magic_advantage` 不影响 execute save probability。
-- 低血 Boss 与低血普通目标共用 Stage 1 / Stage 2 概率估值；显式 execute immunity 会把 Stage 2 期望降为 0。
-- 高血普通目标和高血 Boss 用各自非致命分支估值，并夹到最多 `current_hp - 1`。
-- `_is_damage_skill()` 把 `&"execute"` 视为 damage skill，用于威胁范围和目标价值。
-- `BattleAiActionAssembler._is_offensive_effect()` 把 `&"execute"` 视为 offensive effect。
+`_apply_damage_to_target()` must return actual HP loss:
 
-### 8.2 数值预览
+- `damage` / `hp_damage` must be actual HP lost after non-lethal clamp.
+- Stage 1 must not report 9999 or any theoretical overkill value.
+- last stand mastery and fatal hooks must not trigger from Stage 1 non-lethal clamp.
+- `bypass_shield = true` must leave `current_shield_hp`, `shield_max_hp`, `shield_duration`, and `shield_family` unchanged.
 
-`BattleDamagePreviewRangeService` 当前没有目标参数。execute 的数值依赖目标当前 HP、max HP、Boss rank、execute immunity 和 shield bypass；把它伪装成 target-independent damage preview 会误导 UI。
+Clean status builder:
 
-首版结论：
+```gdscript
+func _build_soul_fracture_effect(plan: Dictionary) -> CombatEffectDef:
+	var status_params: Dictionary = plan.get("soul_fracture_params", {})
+	var status_effect := CombatEffectDef.new()
+	status_effect.effect_type = &"status"
+	status_effect.status_id = BattleExecuteContentRules.STATUS_SOUL_FRACTURE
+	status_effect.duration_tu = int(status_params["duration_tu"])
+	status_effect.params = {
+		"heal_multiplier_percent": int(status_params["heal_multiplier_percent"]),
+		"shield_gain_multiplier_percent": int(status_params["shield_gain_multiplier_percent"]),
+		"source_effect_type": "execute",
+	}
+	return status_effect
+```
 
-- 不改 `BattleDamagePreviewRangeService`。
-- execute 技能可以不显示数值 damage preview。
-- 只要求技能选择、目标悬停和施放执行不崩。
-- 后续若要最佳 UI，再单独做 target-aware preview service。
+Do not pass raw execute params into `_apply_status_effect()`.
 
----
+### 4.7 Soul Fracture And Status Modifiers
 
-## 九、资源草案
+修改 `scripts/systems/battle/rules/battle_status_semantic_table.gd`：
 
-核心 execute effect：
+```gdscript
+const STATUS_SOUL_FRACTURE: StringName = &"soul_fracture"
+```
+
+Rules:
+
+- harmful: true
+- cleansable harmful: true through harmful default
+- dispellable harmful: true
+- stack mode: refresh
+- max stacks: 1
+- tick: none
+
+新增 `scripts/systems/battle/rules/battle_status_modifier_rules.gd`：
+
+```gdscript
+class_name BattleStatusModifierRules
+extends RefCounted
+
+static func resolve_min_percent_param(
+	target_unit: BattleUnitState,
+	param_name: String,
+	base_percent: int = 100
+) -> int:
+	var result := base_percent
+	if target_unit == null:
+		return result
+	for status_key in target_unit.status_effects.keys():
+		var entry = target_unit.get_status_effect(ProgressionDataUtils.to_string_name(status_key))
+		if entry == null or entry.params == null:
+			continue
+		if not entry.params.has(param_name):
+			continue
+		var raw_value = entry.params[param_name]
+		if typeof(raw_value) != TYPE_INT:
+			continue
+		result = mini(result, clampi(int(raw_value), 0, 100))
+	return result
+```
+
+Use sites:
+
+- `BattleDamageResolver` heal branch applies `heal_multiplier_percent`.
+- `BattleShieldService._apply_shield_effect_to_target()` applies `shield_gain_multiplier_percent`.
+
+Rules:
+
+- Apply after dice/static amount is resolved.
+- Apply before HP cap or shield replace/merge comparison.
+- If original amount is `> 0` and multiplier is `> 0`, final amount is at least 1.
+- Do not affect `heal_fatal` in this slice.
+- Do not retroactively reduce existing shields.
+
+Tests must update `tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.gd` or equivalent schema runner so `heal_multiplier_percent` and `shield_gain_multiplier_percent` have strict int/range coverage.
+
+### 4.8 Dispatch
+
+Modify:
+
+- `scripts/systems/battle/rules/battle_skill_resolution_rules.gd`
+- `scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd`
+
+Rules:
+
+- Add execute wherever single-target unit effects are accepted.
+- Do not add `skill_id == &"mage_power_word_kill"` branches.
+- Ground path must reject execute before cost is consumed.
+- `special_resolution_profile_id != &""` skills cannot carry execute effects.
+
+### 4.9 AI
+
+Modify `scripts/systems/battle/ai/battle_ai_score_service.gd`:
+
+- `_is_damage_skill()` treats execute as damage.
+- `_build_target_effect_metrics()` calls `_estimate_execute_for_target_result()`.
+- `_estimate_execute_for_target_result()` consumes `BattleExecutionRules.build_execute_plan()`.
+- Do not recompute threshold/Boss/non-lethal branches outside the plan.
+
+AI result contract:
+
+```gdscript
+{
+	"damage": expected_damage,
+	"kill_probability_basis_points": kill_bps,
+	"expected_remaining_hp": expected_remaining_hp,
+	"save_estimates": [save_estimate],
+}
+```
+
+AI semantics:
+
+- Low HP Stage 1 expected damage is `max(current_hp - 1, 0)`.
+- Stage 2 value is probability-based.
+- `execute_immunity` makes Stage 2 kill probability `0`, but Stage 1 and `soul_fracture` remain valid.
+- High HP branches return non-lethal expected damage clamped to at most `current_hp - 1`.
+
+Save estimate helper may reuse existing `_build_damage_save_estimate(..., 0, skill_id)` for probability fields, but must not introduce a second save probability formula.
+
+Modify `scripts/systems/battle/ai/battle_ai_action_assembler.gd`:
+
+- `_is_offensive_effect()` treats execute like damage for enemy skills.
+
+### 4.10 Resource
+
+Add `data/configs/skills/mage_power_word_kill.tres`.
+
+Resource skeleton:
 
 ```ini
-[sub_resource type="Resource" id="Resource_pwk_execute"]
-script = ExtResource("3_effect")
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="3_skill"]
+
+[sub_resource type="Resource" id="execute"]
+script = ExtResource("1_effect")
 effect_type = &"execute"
 effect_target_team_filter = &"enemy"
 damage_tag = &"negative_energy"
@@ -469,27 +572,20 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"willpower"
 save_tag = &"execute"
 params = {
-"burst_damage": 9999,
-"finisher_damage": 1,
-"death_protection_policy": "standard",
 "threshold_max_hp_ratio_percent": 50,
 "non_lethal_damage_ratio_percent": 30,
 "boss_non_lethal_damage_ratio_percent": 30,
-"apply_status_id": "soul_fracture",
 "soul_fracture_duration_tu": 120,
 "heal_multiplier_percent": 75,
 "shield_gain_multiplier_percent": 75
 }
-```
 
-Combat profile：
-
-```ini
-[sub_resource type="Resource" id="Resource_pwk_combat"]
-script = ExtResource("4_combat")
+[sub_resource type="Resource" id="combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_power_word_kill"
 target_mode = &"unit"
 target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
 range_pattern = &"single"
 range_value = 12
 area_pattern = &"single"
@@ -498,130 +594,102 @@ requires_los = true
 ap_cost = 1
 mp_cost = 80
 cooldown_tu = 120
-target_selection_mode = &"single_unit"
 min_target_count = 1
 max_target_count = 1
 selection_order_mode = &"stable"
-effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_pwk_execute")])
 ai_tags = Array[StringName]([&"execute", &"single_target", &"finisher"])
 delivery_categories = Array[StringName]([&"spell", &"necromancy"])
-```
+effect_defs = Array[ExtResource("1_effect")]([SubResource("execute")])
 
-SkillDef 关键字段：
-
-```ini
 [resource]
-script = ExtResource("5_skill")
+script = ExtResource("3_skill")
 skill_id = &"mage_power_word_kill"
 display_name = "律令死亡"
 icon_id = &"mage_power_word_kill"
-description = "以死亡律令撕裂单个敌人的生命。低血量目标被压到濒死并进行意志豁免；失败后进入标准死亡保护链。高血量目标承受非致命负能量压制，Boss 仅在高血时使用专属非致命公式。"
+description = "以死亡律令撕裂单个敌人的生命。低血目标被压到濒死并进行意志豁免；失败后进入标准死亡保护链。高血目标承受非致命负能量压制。"
+skill_type = &"active"
 max_level = 1
 non_core_max_level = 1
-mastery_curve = PackedInt32Array(1)
-tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"execution", &"single_target", &"output"])
-growth_tier = &"legendary"
-combat_profile = SubResource("Resource_pwk_combat")
+mastery_curve = PackedInt32Array(2400)
+tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"execute", &"single_target", &"output"])
+learn_source = &"book"
+growth_tier = &"ultimate"
+attribute_growth_progress = {
+"intelligence": 160,
+"willpower": 80
+}
+combat_profile = SubResource("combat")
 ```
 
----
+## 5. Test Matrix
 
-## 十、文件清单
+Minimum regressions:
 
-### 10.1 新建文件
+| Runner | Required assertions |
+|---|---|
+| `tests/battle_runtime/runtime/run_battle_execute_effect_regression.gd` | Replace old assertions. Remove `save_dc_mode=&"fixed"`, `save_tag=&"magic"`, `shield_absorption_percent`, `boss_non_lethal_damage_max_hp_ratio_percent`, “Boss never lethal”. Cover low HP save success clamps to 1, low HP save fail kills through Stage 2, high HP normal non-lethal, high HP Boss non-lethal, low HP Boss can die without execute immunity, execute immunity blocks only Stage 2, shield bypass leaves shield unchanged, `damage_events` reports actual HP loss. |
+| `tests/battle_runtime/runtime/run_battle_save_resolver_regression.gd` | `execute_advantage`, `execute_disadvantage`, `execute_immunity`; `magic_advantage` does not affect execute. |
+| `tests/battle_runtime/rules/run_status_effect_semantics_regression.gd` | `soul_fracture` harmful, cleansable, dispellable harmful, refresh, reduces normal heal and shield gain, does not affect `heal_fatal`. |
+| `tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.gd` | `heal_multiplier_percent` and `shield_gain_multiplier_percent` strict int/range validation. |
+| `tests/battle_runtime/ai/run_battle_ai_score_save_probability_regression.gd` | Stage 2 value changes with save probability; execute immunity makes Stage 2 kill probability 0 but does not remove Stage 1 / non-lethal value. |
+| `tests/battle_runtime/ai/run_battle_ai_action_assembler_regression.gd` | New runner. execute is offensive and can generate enemy-target actions. |
+| `tests/battle_runtime/runtime/run_wild_encounter_regression.gd` | target rank projects normal/elite/boss into `boss_target`; `fortune_mark_target` may also be projected but PWK tests must assert Boss reads `boss_target`. |
+| `tests/progression/schema/run_skill_schema_regression.gd` | execute schema accepts PWK resource and rejects magic save tag, wrong damage tag, passive execute, triggered execute, special-profile execute, ground/multi execute, missing/extra execute params, non-int params. |
+| `tests/runtime/validation/run_resource_validation_regression.gd` | every formal enemy template has explicit valid `target_rank`; `boss_target`/`fortune_mark_target` in `attribute_overrides` is rejected. |
 
-| 文件 | 职责 |
-|------|------|
-| `scripts/systems/battle/rules/battle_execution_rules.gd` | execute 阈值、Boss 判定、非致命伤害计算、death policy 解析 |
-| `data/configs/skills/mage_power_word_kill.tres` | 正式技能资源 |
-| `tests/battle_runtime/rules/run_battle_execute_effect_regression.gd` | execute 核心结算回归 |
+Focused command set:
 
-### 10.2 修改文件
+```bash
+godot --headless --script tests/progression/schema/run_skill_schema_regression.gd
+godot --headless --script tests/runtime/validation/run_resource_validation_regression.gd
+godot --headless --script tests/battle_runtime/runtime/run_battle_execute_effect_regression.gd
+godot --headless --script tests/battle_runtime/runtime/run_battle_save_resolver_regression.gd
+godot --headless --script tests/battle_runtime/rules/run_status_effect_semantics_regression.gd
+godot --headless --script tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.gd
+godot --headless --script tests/battle_runtime/ai/run_battle_ai_score_save_probability_regression.gd
+godot --headless --script tests/battle_runtime/ai/run_battle_ai_action_assembler_regression.gd
+godot --headless --script tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd
+godot --headless --script tests/battle_runtime/runtime/run_wild_encounter_regression.gd
+```
 
-| # | 文件 | 改动 |
-|---|------|------|
-| 1 | `scripts/enemies/enemy_template_def.gd` | 新增必填 `target_rank`、schema 校验、拒绝 rank 属性写入 `attribute_overrides` |
-| 2 | `data/configs/enemies/templates/*.tres` | 全部显式补 `target_rank` |
-| 3 | `scripts/systems/world/encounter_roster_builder.gd` | 投影 `target_rank -> fortune_mark_target / boss_target` |
-| 4 | `scripts/player/progression/battle_save_content_rules.gd` | 新增 `SAVE_TAG_EXECUTE` 并加入 `VALID_SAVE_TAGS` |
-| 5 | `scripts/systems/battle/rules/battle_save_resolver.gd` | 新增 mirror 常量，确保 probability estimator 识别 execute tag |
-| 6 | `scripts/player/progression/skill_content_registry.gd` | 注册 `&"execute"`，校验 active/cast/passive effect defs |
-| 7 | `scripts/systems/battle/rules/battle_skill_resolution_rules.gd` | `is_unit_effect()` 接受 execute |
-| 8 | `scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd` | `_is_unit_effect()` 接受 execute |
-| 9 | `scripts/systems/battle/rules/battle_damage_resolver.gd` | execute 分支、damage outcome clamp、shield bypass、heal multiplier |
-| 10 | `scripts/systems/battle/runtime/battle_shield_service.gd` | shield gain multiplier |
-| 11 | `scripts/systems/battle/rules/battle_status_semantic_table.gd` | 注册 `soul_fracture` harmful/dispellable/refresh 语义 |
-| 12 | `scripts/systems/battle/ai/battle_ai_score_service.gd` | execute 估值、save probability、damage skill 识别 |
-| 13 | `scripts/systems/battle/ai/battle_ai_action_assembler.gd` | execute 视为 offensive effect |
+Do not include battle simulation or balance runners unless explicitly requested.
 
-不做：
+## 6. Implementation Order
 
-- 不复用 `save_tag = &"magic"`。
-- 不新增 `damage_tag = &"true"` 或 `&"execute"`。
-- 不实现通用 `bypass_mitigation` 字段。
-- 不做 `shield_absorption_percent`。
-- 不让 `BattleUnitFactory` 成为正式 Boss rank 注入路径。
-- 不做旧资源兼容别名或 fallback migration。
+1. Remove conflicting partial execute implementation and old test expectations.
+2. Add `BattleExecuteContentRules`.
+3. Add `SAVE_TAG_EXECUTE` to save content/resolver.
+4. Make `EnemyTemplateDef.target_rank` required and update all formal enemy templates.
+5. Project target rank in `EncounterRosterBuilder`; PWK Boss logic reads only `boss_target`.
+6. Add strict execute schema validation and single-target/special-profile gates.
+7. Finalize `BattleExecutionRules` as pure execute formula + plan builder.
+8. Refactor `BattleDamageResolver` execute branch into `_apply_execute_effect()`.
+9. Fix `_apply_damage_to_target()` so reported damage is actual HP loss after clamp.
+10. Add `BattleStatusModifierRules` and wire heal/shield multipliers.
+11. Register `soul_fracture` status semantics.
+12. Add dispatch support and ground-path pre-cost rejection.
+13. Add AI execute estimation using shared plan.
+14. Add `mage_power_word_kill.tres`.
+15. Add/update regressions and run focused command set.
 
----
+## 7. Architecture Boundaries
 
-## 十一、测试矩阵
+Keep ownership narrow:
 
-### 11.1 必补/必改 runner
+- Content constants live in `BattleExecuteContentRules`.
+- Enemy rank truth lives in `EnemyTemplateDef.target_rank`.
+- Enemy rank projection lives in `EncounterRosterBuilder`.
+- Execute formula and plan live in `BattleExecutionRules`.
+- Effect mutation lives in `BattleDamageResolver`.
+- Status multiplier reading lives in `BattleStatusModifierRules`.
+- Shield amount modification lives in `BattleShieldService`.
+- AI estimation lives in `BattleAiScoreService`.
 
-| Runner | 覆盖 |
-|--------|------|
-| `tests/battle_runtime/rules/run_battle_execute_effect_regression.gd` | 阈值、skill level 1 仍结算 execute、低血 save success/fail、death_ward 默认不绕过、显式 bypass fixture、高血 Boss 30%、低血 Boss 可被处决、Boss 显式 execute immunity 阻止 Stage 2、无视护盾、damage_events/save_results |
-| `tests/progression/schema/run_battle_save_skill_schema_regression.gd` | `save_tag=execute` 通过；`save_tag=magic` 被拒绝；`damage_tag=true/execute/magic/fire` 被拒绝 |
-| `tests/progression/schema/run_skill_schema_regression.gd` | `effect_type=execute` 注册；被动/触发式 execute 被拒绝 |
-| `tests/battle_runtime/runtime/run_battle_save_resolver_regression.gd` | `execute_advantage/disadvantage/immunity` 生效；`magic_advantage` 不影响 execute |
-| `tests/battle_runtime/rules/run_status_effect_semantics_regression.gd` | `soul_fracture` harmful、dispellable、refresh、治疗/护盾倍率 |
-| `tests/battle_runtime/ai/run_battle_ai_score_save_probability_regression.gd` | AI 按 execute save probability 调整 Stage 2 估值 |
-| `tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd` | execute 进入伤害技能/威胁范围识别 |
-| `tests/battle_runtime/ai/run_battle_ai_action_assembler_regression.gd` | execute effect 被 action assembler 视为 offensive |
-| `tests/battle_runtime/runtime/run_wild_encounter_regression.gd` | `target_rank` normal/elite/boss 投影 |
-| `tests/runtime/validation/run_resource_validation_regression.gd` | 正式 enemy templates 必填合法 `target_rank` |
+Do not modify:
 
-### 11.2 关键断言
+- `GameRuntimeFacade`, `WorldMapRuntimeProxy`, or `WorldMapSystem`.
+- Save payload versioning or `SaveSerializer`.
+- UI scene structure.
+- Meteor Swarm special profile registry.
 
-| 场景 | 断言 |
-|------|------|
-| 低血 + save success | Stage 1 压到 1 HP，shield 不变，`death_ward` 不消耗 |
-| 低血 + execute immunity | `save_results` 显示 immune/success，Stage 2 不触发 |
-| 低血 + save fail + 无 death protection | Stage 2 致死 |
-| 低血 + save fail + `death_ward` | 默认进入标准死亡保护链，不绕过 |
-| 低血 + save fail + 显式 bypass fixture | 跳过 `death_ward`，并有专门断言说明这是显式配置 |
-| 低血 Boss + 无 execute immunity + save fail | Stage 2 进入标准死亡保护链，可以死亡 |
-| 低血 Boss + execute immunity | `save_results` 显示 immune/success，Stage 2 不触发 |
-| 目标只有 magic advantage | PWK 不获得 advantage |
-| 高血普通目标 | 造成 `threshold * 30%`，夹到至少 1 HP |
-| 高血 Boss | 造成 `max_hp * 30%`，夹到至少 1 HP |
-| 目标有护盾 | `shield_absorbed = 0`，护盾值不变，HP 直接变化 |
-| `soul_fracture` 被 dispel | 状态移除后治疗/护盾倍率恢复 |
-
----
-
-## 十二、实现顺序
-
-1. 升级 `EnemyTemplateDef.target_rank` 与所有正式 enemy templates。
-2. 在 `EncounterRosterBuilder` 投影 target rank，并补 normal/elite/boss 测试。
-3. 增加 `SAVE_TAG_EXECUTE` 和 `BattleSaveResolver` mirror。
-4. 注册 `effect_type = &"execute"` 与 schema 校验，覆盖 passive/cast variants。
-5. 新建 `BattleExecutionRules`。
-6. 扩展 `BattleDamageResolver`：execute 分支、`min_hp_after_damage`、`bypass_shield`、death policy、heal multiplier。
-7. 扩展 `BattleShieldService` shield gain multiplier。
-8. 注册 `soul_fracture` 状态语义。
-9. 扩展 skill resolution/orchestrator dispatch。
-10. 扩展 AI 估值和 action assembler。
-11. 新增 `mage_power_word_kill.tres`。
-12. 新建/扩展回归 runner 并跑窄测试。
-
-步骤 12 通过前，不应合并到主线。
-
----
-
-## 十三、Project Context Units 影响
-
-本次只更新设计讨论文档，尚未改 runtime 代码，`docs/design/project_context_units.md` 暂不需要更新。
-
-实现本设计时会改变 CU-16（战斗规则层）、CU-20（敌方模板与 roster bridge）、CU-19（测试入口）和 CU-15（战斗 runtime dispatch）的推荐读集；代码落地同一任务中需要同步更新 `docs/design/project_context_units.md`。
+`docs/design/project_context_units.md` does not need to change for this document-only edit. When code is implemented, update CU-15, CU-16, CU-19 and CU-20 notes if runtime relationships or recommended read sets change.
