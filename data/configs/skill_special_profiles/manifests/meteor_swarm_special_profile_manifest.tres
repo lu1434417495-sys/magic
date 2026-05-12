@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BattleSpecialProfileManifest" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/core/special_profiles/battle_special_profile_manifest.gd" id="1_manifest"]
+[ext_resource type="Resource" path="res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres" id="2_profile"]
+
+[resource]
+script = ExtResource("1_manifest")
+profile_id = &"meteor_swarm"
+schema_version = 1
+owning_skill_ids = Array[StringName]([&"mage_meteor_swarm"])
+runtime_resolver_id = &"meteor_swarm"
+profile_resource = ExtResource("2_profile")
+runtime_read_policy = &"forbidden"
+presentation_metadata = {
+"display_name": "陨星雨",
+"coverage_shape_id": &"square_7x7",
+"radius": 3
+}
+required_regression_tests = Array[String](["tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.gd", "tests/runtime/validation/run_resource_validation_regression.gd", "tests/progression/schema/run_skill_schema_regression.gd", "tests/battle_runtime/skills/run_mage_skill_alignment_regression.gd", "tests/battle_runtime/state_schema/run_battle_terrain_effect_state_schema_regression.gd", "tests/battle_runtime/terrain/run_meteor_swarm_terrain_modifier_regression.gd", "tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.gd", "tests/battle_runtime/ai/run_meteor_swarm_ai_regression.gd", "tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.gd", "tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.gd", "tests/battle_runtime/rules/run_attack_policy_parity_regression.gd", "tests/battle_runtime/rules/run_attack_policy_callsite_audit.gd", "tests/battle_runtime/rendering/run_battle_board_regression.gd"])

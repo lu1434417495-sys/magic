@@ -102,7 +102,10 @@ class FixedSecondarySaveRollDamageResolver extends BattleDamageResolver:
 class FakeRepeatAttackHitResolver:
 	extends RefCounted
 
-	func build_fate_aware_repeat_attack_stage_hit_check(_battle_state, _active_unit, _target_unit, _skill_def, _repeat_attack_effect, _stage_index: int) -> Dictionary:
+	func build_repeat_attack_stage_context(_battle_state, _active_unit, _target_unit, _skill_def, _stage_spec = null, _check_route: StringName = &"", _trace_source: StringName = &""):
+		return null
+
+	func build_fate_aware_repeat_attack_stage_hit_check(_context) -> Dictionary:
 		return {
 			"hit_rate_percent": 100,
 			"success_rate_percent": 100,
@@ -157,6 +160,9 @@ class FakeRepeatAttackRuntime:
 	func get_hit_resolver():
 		return hit_resolver
 
+	func get_attack_check_policy_service():
+		return hit_resolver
+
 	func get_state():
 		return null
 
@@ -175,6 +181,7 @@ func _run() -> void:
 	_test_whirlwind_slash_path_aoe_can_repeat_hits_across_steps()
 	_test_whirlwind_slash_runtime_repeats_hits_across_steps()
 	_test_hundred_shadow_random_chain_is_unit_target_contract()
+	_test_random_chain_without_legal_target_does_not_spend_costs()
 	_test_random_chain_reselects_from_living_pool_and_pays_ap_once()
 	_test_random_chain_stops_immediately_on_miss_and_respects_target_cap()
 	_test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_settlement()
@@ -503,6 +510,33 @@ func _test_hundred_shadow_random_chain_is_unit_target_contract() -> void:
 	_assert_eq(skill_def.combat_profile.target_team_filter, &"enemy", "百影终舞随机链目标池应只包含敌方单位。")
 	_assert_eq(skill_def.combat_profile.max_hits_per_target, 2, "百影终舞仍应保留每目标最多 2 次命中的上限。")
 	_assert_eq(skill_def.combat_profile.ap_cost, 1, "百影终舞整条连击链只应按一次技能 AP 成本结算。")
+
+
+func _test_random_chain_without_legal_target_does_not_spend_costs() -> void:
+	var skill_def := _build_random_chain_test_skill(&"random_chain_empty_pool_contract", 2)
+	var runtime := _build_runtime()
+	runtime._skill_defs[skill_def.skill_id] = skill_def
+	var state := _build_state(Vector2i(4, 3))
+	state.timeline = BattleTimelineState.new()
+	var warrior := _build_unit(&"chain_no_target_user", Vector2i(1, 1), 2)
+	warrior.known_active_skill_ids = [skill_def.skill_id]
+	warrior.known_skill_level_map = {skill_def.skill_id: 1}
+	var ally := _build_unit(&"chain_no_target_ally", Vector2i(2, 1), 2)
+	_add_unit(runtime, state, warrior)
+	_add_unit(runtime, state, ally)
+	state.ally_unit_ids = [warrior.unit_id, ally.unit_id]
+	state.enemy_unit_ids = []
+	state.active_unit_id = warrior.unit_id
+	runtime._state = state
+
+	var command := _build_skill_command_without_target(warrior.unit_id, skill_def.skill_id)
+	var preview := runtime.preview_command(command)
+	_assert_true(preview != null and not preview.allowed, "random_chain 没有合法敌方目标时不应允许预览。")
+	var batch := runtime.issue_command(command)
+
+	_assert_true(batch != null, "random_chain 无合法目标执行仍应返回事件批次。")
+	_assert_eq(warrior.current_ap, 2, "random_chain 无合法目标失败必须发生在成本扣除前。")
+	_assert_true(not warrior.cooldowns.has(skill_def.skill_id), "random_chain 无合法目标不应进入冷却。")
 
 
 func _test_random_chain_reselects_from_living_pool_and_pays_ap_once() -> void:

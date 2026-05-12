@@ -11,6 +11,7 @@ const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_s
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 
 const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
+const BATTLE_EXECUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_execution_rules.gd")
 
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 
@@ -257,6 +258,10 @@ func _swap_unit_positions(
 	var second_previous_coords = second_unit.occupied_coords.duplicate()
 	var first_coord = first_unit.coord
 	var second_coord = second_unit.coord
+	if not _resolve_swap_barrier_passage(first_unit, first_coord, second_coord, batch):
+		return false
+	if not _resolve_swap_barrier_passage(second_unit, second_coord, first_coord, batch):
+		return false
 	_runtime._grid_service.clear_unit_occupancy(_runtime._state, first_unit)
 	_runtime._grid_service.clear_unit_occupancy(_runtime._state, second_unit)
 	var can_swap = _runtime._grid_service.can_place_unit(_runtime._state, first_unit, second_coord, true) \
@@ -274,6 +279,27 @@ func _swap_unit_positions(
 	_append_changed_unit_id(batch, first_unit.unit_id)
 	_append_changed_unit_id(batch, second_unit.unit_id)
 	return true
+
+
+func _resolve_swap_barrier_passage(
+	unit_state: BattleUnitState,
+	from_coord: Vector2i,
+	to_coord: Vector2i,
+	batch: BattleEventBatch
+) -> bool:
+	if unit_state == null:
+		return false
+	if _runtime._layered_barrier_service == null:
+		return true
+	var barrier_result: Dictionary = _runtime._layered_barrier_service.resolve_unit_boundary_crossing(
+		unit_state,
+		from_coord,
+		to_coord,
+		batch
+	)
+	return not bool(barrier_result.get("blocked", false)) \
+		and unit_state.is_alive \
+		and unit_state.coord == from_coord
 
 func _apply_black_star_brand_effect(
 	active_unit: BattleUnitState,
@@ -340,17 +366,10 @@ func _is_black_star_brand_elite_target(unit_state: BattleUnitState) -> bool:
 	return _is_elite_or_boss_target(unit_state)
 
 func _is_elite_or_boss_target(unit_state: BattleUnitState) -> bool:
-	return unit_state != null \
-		and unit_state.attribute_snapshot != null \
-		and int(unit_state.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 0
+	return BATTLE_EXECUTION_RULES_SCRIPT.is_elite_or_boss_target(unit_state)
 
 func _is_boss_target(unit_state: BattleUnitState) -> bool:
-	return unit_state != null \
-		and unit_state.attribute_snapshot != null \
-		and (
-			int(unit_state.attribute_snapshot.get_value(BOSS_TARGET_STAT_ID)) > 0
-			or int(unit_state.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 1
-		)
+	return BATTLE_EXECUTION_RULES_SCRIPT.is_boss_target(unit_state)
 
 func _is_black_star_brand_skill(skill_id: StringName) -> bool:
 	return ProgressionDataUtils.to_string_name(skill_id) == BLACK_STAR_BRAND_SKILL_ID

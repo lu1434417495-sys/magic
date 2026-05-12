@@ -3,11 +3,14 @@ extends RefCounted
 
 const REPEAT_ATTACK_EFFECT_TYPE: StringName = &"repeat_attack_until_fail"
 const REPEAT_ATTACK_STAGE_GUARD := 32
-const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
+const DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT := 3
+const STATUS_CROWN_BREAK_BROKEN_HAND: StringName = &"crown_break_broken_hand"
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
+const BattleAttackCheckPolicyContext = preload("res://scripts/systems/battle/core/battle_attack_check_policy_context.gd")
+const BattleRepeatAttackStageSpec = preload("res://scripts/systems/battle/core/battle_repeat_attack_stage_spec.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const BattleSkillMasteryService = preload("res://scripts/systems/battle/runtime/battle_skill_mastery_service.gd")
 
@@ -134,9 +137,13 @@ func apply_repeat_attack_skill_result(
 
 		if not target_unit.is_alive:
 			total_kill_count += 1
-			_runtime.clear_defeated_unit(target_unit, batch)
-			batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-			_runtime.get_battle_rating_system().record_enemy_defeated_achievement(active_unit, target_unit)
+			_runtime.handle_unit_defeated_by_runtime_effect(
+				target_unit,
+				active_unit,
+				batch,
+				"%s 被击倒。" % target_unit.display_name,
+				{"record_enemy_defeated_achievement": true}
+			)
 			if _should_stop_repeat_attack_on_target_down(repeat_attack_effect):
 				break
 
@@ -168,6 +175,113 @@ func collect_repeat_attack_base_effects(effect_defs: Array[CombatEffectDef]) -> 
 	return staged_effects
 
 
+static func build_stage_spec_from_repeat_attack_effect(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	repeat_attack_effect: CombatEffectDef,
+	stage_index: int,
+	stage_count: int = 0,
+	fate_aware: bool = false
+) -> BattleRepeatAttackStageSpec:
+	var skill_level := _resolve_static_skill_level(active_unit, skill_def)
+	return BattleRepeatAttackStageSpec.from_repeat_attack_effect(
+		repeat_attack_effect,
+		stage_index,
+		stage_count,
+		skill_level,
+		fate_aware
+	) as BattleRepeatAttackStageSpec
+
+
+static func build_stage_specs_from_repeat_attack_effect(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	repeat_attack_effect: CombatEffectDef,
+	preview_stage_count: int = -1,
+	fate_aware: bool = false
+) -> Array[BattleRepeatAttackStageSpec]:
+	var specs: Array[BattleRepeatAttackStageSpec] = []
+	if active_unit == null or skill_def == null or repeat_attack_effect == null:
+		return specs
+	var resolved_stage_count := preview_stage_count
+	if resolved_stage_count <= 0:
+		resolved_stage_count = resolve_repeat_attack_preview_stage_count(active_unit, skill_def, repeat_attack_effect)
+	var normalized_stage_count := mini(maxi(resolved_stage_count, 1), REPEAT_ATTACK_STAGE_GUARD)
+	for stage_index in range(normalized_stage_count):
+		specs.append(build_stage_spec_from_repeat_attack_effect(
+			active_unit,
+			skill_def,
+			repeat_attack_effect,
+			stage_index,
+			normalized_stage_count,
+			fate_aware
+		))
+	return specs
+
+
+static func resolve_repeat_attack_preview_stage_count(
+	active_unit: BattleUnitState,
+	skill_def: SkillDef,
+	repeat_attack_effect: CombatEffectDef
+) -> int:
+	if active_unit == null or skill_def == null or skill_def.combat_profile == null or repeat_attack_effect == null:
+		return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT
+	if active_unit.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND):
+		return 1
+	var params: Dictionary = repeat_attack_effect.params if repeat_attack_effect.params is Dictionary else {}
+	var cost_resource := ProgressionDataUtils.to_string_name(params.get("cost_resource", "aura"))
+	var base_cost := _get_repeat_attack_preview_base_cost(skill_def, cost_resource)
+	if base_cost <= 0:
+		return REPEAT_ATTACK_STAGE_GUARD
+	var follow_up_cost_multiplier := maxf(float(params.get("follow_up_cost_multiplier", 1.0)), 1.0)
+	var remaining_resource := _get_unit_resource_value(active_unit, cost_resource)
+	if remaining_resource < base_cost:
+		return 1
+	remaining_resource -= base_cost
+	var stages := 1
+	while stages < REPEAT_ATTACK_STAGE_GUARD:
+		var next_stage_cost := maxi(int(round(float(base_cost) * pow(follow_up_cost_multiplier, stages))), 0)
+		if next_stage_cost > 0 and remaining_resource < next_stage_cost:
+			break
+		remaining_resource -= next_stage_cost
+		stages += 1
+	return stages
+
+
+static func _resolve_static_skill_level(active_unit: BattleUnitState, skill_def: SkillDef) -> int:
+	if active_unit == null or skill_def == null:
+		return 0
+	return int(active_unit.known_skill_level_map.get(skill_def.skill_id, 0))
+
+
+static func _get_repeat_attack_preview_base_cost(skill_def: SkillDef, cost_resource: StringName) -> int:
+	if skill_def == null or skill_def.combat_profile == null:
+		return 0
+	match cost_resource:
+		&"mp":
+			return int(skill_def.combat_profile.mp_cost)
+		&"stamina":
+			return int(skill_def.combat_profile.stamina_cost)
+		&"ap":
+			return int(skill_def.combat_profile.ap_cost)
+		_:
+			return int(skill_def.combat_profile.aura_cost)
+
+
+static func _get_unit_resource_value(active_unit: BattleUnitState, cost_resource: StringName) -> int:
+	if active_unit == null:
+		return 0
+	match cost_resource:
+		&"mp":
+			return int(active_unit.current_mp)
+		&"stamina":
+			return int(active_unit.current_stamina)
+		&"ap":
+			return int(active_unit.current_ap)
+		_:
+			return int(active_unit.current_aura)
+
+
 func _resolve_repeat_attack_stage_result(
 	active_unit: BattleUnitState,
 	target_unit: BattleUnitState,
@@ -176,15 +290,29 @@ func _resolve_repeat_attack_stage_result(
 	stage_index: int,
 	stage_effects: Array[CombatEffectDef]
 ) -> Dictionary:
-	var hit_resolver = _runtime.get_hit_resolver() if _has_runtime() and _runtime.get_hit_resolver() != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
 	var battle_state = _runtime.get_state() if _has_runtime() else null
-	var attack_check: Dictionary = hit_resolver.build_fate_aware_repeat_attack_stage_hit_check(
+	var attack_policy = _runtime.get_attack_check_policy_service() if _has_runtime() and _runtime.has_method("get_attack_check_policy_service") else null
+	if attack_policy == null:
+		return {"applied": false, "blocked_reason": "attack_policy_unavailable"}
+	var stage_spec := build_stage_spec_from_repeat_attack_effect(
+		active_unit,
+		skill_def,
+		repeat_attack_effect,
+		stage_index,
+		0,
+		true
+	)
+	var attack_context: BattleAttackCheckPolicyContext = attack_policy.build_repeat_attack_stage_context(
 		battle_state,
 		active_unit,
 		target_unit,
 		skill_def,
-		repeat_attack_effect,
-		stage_index
+		stage_spec,
+		&"repeat_attack_stage_check",
+		&"execute"
+	)
+	var attack_check: Dictionary = attack_policy.build_fate_aware_repeat_attack_stage_hit_check(
+		attack_context
 	)
 	var damage_resolver = _runtime.get_damage_resolver() if _has_runtime() else null
 	var attack_success_rate_percent := int(attack_check.get("success_rate_percent", 0))

@@ -19,7 +19,10 @@ class FakeHitResolver:
 	func _init(input_attack_check: Dictionary) -> void:
 		attack_check = input_attack_check
 
-	func build_fate_aware_repeat_attack_stage_hit_check(_battle_state, _active_unit, _target_unit, _skill_def, _repeat_attack_effect, _stage_index: int) -> Dictionary:
+	func build_repeat_attack_stage_context(_battle_state, _active_unit, _target_unit, _skill_def, _stage_spec = null, _check_route: StringName = &"", _trace_source: StringName = &""):
+		return null
+
+	func build_fate_aware_repeat_attack_stage_hit_check(_context) -> Dictionary:
 		return attack_check.duplicate(true)
 
 
@@ -45,6 +48,9 @@ class FakeRuntime:
 		hit_resolver = FakeHitResolver.new(input_attack_check)
 
 	func get_hit_resolver():
+		return hit_resolver
+
+	func get_attack_check_policy_service():
 		return hit_resolver
 
 	func get_damage_resolver():

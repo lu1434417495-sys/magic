@@ -30,6 +30,14 @@ const THREAT_MULTIPLIER_BASIS_POINTS_DENOMINATOR := 10000
 @export var threat_ranged_bias_basis_points := 800
 @export var threat_range_step_bias_basis_points := 200
 @export var threat_multiplier_cap_basis_points := 15000
+@export var meteor_high_priority_threat_multiplier_bp := 11000
+@export var meteor_high_priority_damage_hp_percent := 35
+@export var meteor_high_priority_target_priority_score := 250
+@export var meteor_top_threat_rank := 1
+@export var meteor_friendly_fire_profile: StringName = &"default"
+@export var meteor_friendly_fire_soft_expected_hp_percent := 10
+@export var meteor_friendly_fire_hard_expected_hp_percent := 25
+@export var meteor_friendly_fire_hard_worst_case_hp_percent := 50
 @export var action_base_scores: Dictionary = {
 	"skill": 0,
 	"move": 20,
@@ -93,6 +101,14 @@ func to_dict() -> Dictionary:
 		"threat_ranged_bias_basis_points": threat_ranged_bias_basis_points,
 		"threat_range_step_bias_basis_points": threat_range_step_bias_basis_points,
 		"threat_multiplier_cap_basis_points": threat_multiplier_cap_basis_points,
+		"meteor_high_priority_threat_multiplier_bp": meteor_high_priority_threat_multiplier_bp,
+		"meteor_high_priority_damage_hp_percent": meteor_high_priority_damage_hp_percent,
+		"meteor_high_priority_target_priority_score": meteor_high_priority_target_priority_score,
+		"meteor_top_threat_rank": meteor_top_threat_rank,
+		"meteor_friendly_fire_profile": String(meteor_friendly_fire_profile),
+		"meteor_friendly_fire_soft_expected_hp_percent": meteor_friendly_fire_soft_expected_hp_percent,
+		"meteor_friendly_fire_hard_expected_hp_percent": meteor_friendly_fire_hard_expected_hp_percent,
+		"meteor_friendly_fire_hard_worst_case_hp_percent": meteor_friendly_fire_hard_worst_case_hp_percent,
 		"action_base_scores": action_base_scores.duplicate(true),
 		"default_bucket_priority": default_bucket_priority,
 		"bucket_priorities": bucket_priorities.duplicate(true),

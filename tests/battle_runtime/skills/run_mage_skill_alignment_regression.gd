@@ -12,6 +12,7 @@ const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
+const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 
 const FIREBALL_ALIGNMENT_EXCEPTIONS: Array[StringName] = [
 	&"mage_arcane_missile",
@@ -140,6 +141,7 @@ func _test_chain_lightning_bounces_to_nearby_enemy() -> void:
 	var registry := PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
 	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(10))
 	var state = _build_state(Vector2i(6, 3))
 	var caster = _build_unit(&"chain_caster", &"player", Vector2i(0, 1), 3)
 	caster.current_mp = 200
@@ -511,6 +513,8 @@ func _has_level_description_config(skill_def, level: int) -> bool:
 func _has_usable_effect_surface(skill_def) -> bool:
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
+	if skill_def.combat_profile.special_resolution_profile_id != &"":
+		return true
 	if not skill_def.combat_profile.effect_defs.is_empty():
 		return true
 	for cast_variant in skill_def.combat_profile.cast_variants:
@@ -538,6 +542,8 @@ func _collect_effect_defs(skill_def) -> Array:
 func _has_effect_available_at_level(skill_def, skill_level: int) -> bool:
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
+	if skill_def.combat_profile.special_resolution_profile_id != &"":
+		return true
 	for effect_def in skill_def.combat_profile.effect_defs:
 		if effect_def != null and _effect_unlocked_at_level(effect_def, skill_level):
 			return true

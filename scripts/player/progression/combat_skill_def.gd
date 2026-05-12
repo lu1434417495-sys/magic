@@ -68,6 +68,8 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 @export var ai_tags: Array[StringName] = []
 ## 字段说明：正式投射 / 施放类别；屏障、反制和类似规则只读取此字段，不从技能 ID 或标签猜测。
 @export var delivery_categories: Array[StringName] = []
+## 字段说明：特殊技能结算 profile；非空时战斗运行时必须通过 profile manifest 的受控 resolver 结算，不读取 executable effect_defs。
+@export var special_resolution_profile_id: StringName = &""
 ## 字段说明：在编辑器中暴露目标选择模式配置，便于表达单体、多单位或其他特殊选目标协议。
 @export var target_selection_mode: StringName = &"single_unit"
 ## 字段说明：在编辑器中暴露最小目标数量配置，便于表达多目标技能的下限要求。

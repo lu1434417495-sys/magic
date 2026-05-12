@@ -8,9 +8,11 @@ extends RefCounted
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BATTLE_EXECUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_execution_rules.gd")
 
 const ENTRY_TYPE_FATE_ATTACK: StringName = &"fate_attack_resolution"
 const ENTRY_TYPE_SKILL_EVENT: StringName = &"battle_skill_event"
+const ENTRY_TYPE_METEOR_SWARM_IMPACT: StringName = &"meteor_swarm_impact_summary"
 
 const REASON_CRITICAL_SUCCESS_GATE_DIE: StringName = &"critical_success_gate_die"
 const REASON_CRITICAL_SUCCESS_HIGH_THREAT: StringName = &"critical_success_high_threat"
@@ -21,9 +23,6 @@ const REASON_ORDINARY_MISS_FUMBLE_DOWNGRADED: StringName = &"ordinary_miss_fumbl
 const REASON_DOOM_SENTENCE_APPLIED: StringName = &"doom_sentence_applied"
 
 const TAG_DOOM_SENTENCE: StringName = &"doom_sentence"
-const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
-
-
 func build_attack_report_entry(attacker, defender, attack_result: Dictionary) -> Dictionary:
 	if attack_result.is_empty():
 		return {}
@@ -85,6 +84,23 @@ func build_skill_event_entry(attacker, defender, skill_id: StringName, reason_id
 	}
 	entry["text"] = _build_skill_event_text(entry)
 	return entry
+
+
+func format_meteor_swarm_summary(entry: Dictionary) -> Array[String]:
+	var lines: Array[String] = []
+	if ProgressionDataUtils.to_string_name(entry.get("entry_type", "")) != ENTRY_TYPE_METEOR_SWARM_IMPACT:
+		return lines
+	var terrain_summary = entry.get("terrain_summary", {})
+	var terrain_payload: Dictionary = terrain_summary if terrain_summary is Dictionary else {}
+	lines.append("陨星雨覆盖 %d 格，波及 %d 个单位，造成 %d 点总伤害；留下陨坑 %d 格、碎石 %d 格、尘土 %d 格。" % [
+		int(terrain_payload.get("affected_coord_count", 0)),
+		int(entry.get("target_count", 0)),
+		int(entry.get("total_damage", 0)),
+		int(terrain_payload.get("crater_count", 0)),
+		int(terrain_payload.get("rubble_count", 0)),
+		int(terrain_payload.get("dust_count", 0)),
+	])
+	return lines
 
 
 func summarize_damage_result(result: Dictionary) -> Dictionary:
@@ -406,6 +422,4 @@ func _normalize_string_name_array(values: Variant) -> Array[StringName]:
 
 
 func _is_elite_or_boss(unit_state) -> bool:
-	if unit_state == null or unit_state.attribute_snapshot == null:
-		return false
-	return int(unit_state.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 0
+	return BATTLE_EXECUTION_RULES_SCRIPT.is_elite_or_boss_target(unit_state)

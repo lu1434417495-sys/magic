@@ -17,6 +17,8 @@ const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.
 
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 
+const BattleRepeatAttackStageSpec = preload("res://scripts/systems/battle/core/battle_repeat_attack_stage_spec.gd")
+
 const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
@@ -378,6 +380,17 @@ func _handle_skill_command(active_unit: BattleUnitState, command: BattleCommand,
 	if not block_reason.is_empty():
 		batch.log_lines.append(block_reason)
 		return
+	if _runtime._has_special_profile(skill_def, &"meteor_swarm"):
+		var gate_result = _runtime._special_profile_gate.can_execute_skill(skill_def, command, active_unit, _runtime._state) if _runtime._special_profile_gate != null else null
+		if gate_result == null or not bool(gate_result.allowed):
+			_runtime._append_special_profile_gate_block(batch, gate_result)
+			return
+		_runtime._skill_mastery_service.clear()
+		var meteor_applied := _handle_meteor_swarm_skill_command(active_unit, command, skill_def, ground_cast_variant, batch)
+		if meteor_applied:
+			_grant_skill_mastery_if_needed(active_unit, skill_def, batch)
+		_runtime._skill_mastery_service.clear()
+		return
 
 	_record_skill_attempt(active_unit, command.skill_id)
 	_runtime._skill_mastery_service.clear()
@@ -398,6 +411,25 @@ func _preview_skill_command(active_unit: BattleUnitState, command: BattleCommand
 	if skill_def == null or skill_def.combat_profile == null:
 		preview.log_lines.append("技能或目标无效。")
 		return
+	if _runtime._has_special_profile(skill_def, &"meteor_swarm"):
+		var gate_result = _runtime._special_profile_gate.preview_skill(skill_def, command, active_unit, _runtime._state) if _runtime._special_profile_gate != null else null
+		preview.special_profile_gate_result = gate_result
+		if gate_result == null or not bool(gate_result.allowed):
+			if gate_result != null and not String(gate_result.player_message).is_empty():
+				preview.log_lines.append(String(gate_result.player_message))
+			else:
+				preview.log_lines.append("该禁咒配置未通过校验，暂时无法施放。")
+			return
+		var block_reason = _get_skill_command_block_reason(active_unit, skill_def, null)
+		if not block_reason.is_empty():
+			preview.log_lines.append(block_reason)
+			return
+		if _runtime._meteor_swarm_resolver != null:
+			_runtime._meteor_swarm_resolver.populate_preview(active_unit, command, skill_def, preview)
+			return
+		preview.allowed = false
+		preview.log_lines.append("该禁咒结算尚未接入。")
+		return
 	var unit_cast_variant = _resolve_unit_cast_variant(skill_def, active_unit, command)
 	var ground_cast_variant = _resolve_ground_cast_variant(skill_def, active_unit, command)
 	var unit_execution_cast_variant = unit_cast_variant if unit_cast_variant != null else ground_cast_variant
@@ -411,6 +443,76 @@ func _preview_skill_command(active_unit: BattleUnitState, command: BattleCommand
 		return
 
 	_preview_unit_skill_command(active_unit, command, skill_def, null, preview)
+
+
+func _handle_meteor_swarm_skill_command(
+	active_unit: BattleUnitState,
+	command: BattleCommand,
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	batch: BattleEventBatch
+) -> bool:
+	if _runtime == null or _runtime._meteor_swarm_resolver == null or _runtime._special_profile_commit_adapter == null:
+		batch.log_lines.append("该禁咒结算尚未接入。")
+		return false
+	var validation: Dictionary = _validate_ground_skill_command(active_unit, skill_def, cast_variant, command)
+	if not bool(validation.get("allowed", false)):
+		batch.log_lines.append(String(validation.get("message", "技能或目标无效。")))
+		return false
+	var target_coords := _extract_validated_target_coords(validation)
+	if target_coords.is_empty():
+		batch.log_lines.append("技能或目标无效。")
+		return false
+
+	var mp_before_cost := int(active_unit.current_mp)
+	if not _consume_skill_costs(active_unit, skill_def, cast_variant, batch):
+		return false
+	_record_skill_attempt(active_unit, command.skill_id)
+	var spent_mp := maxi(mp_before_cost - int(active_unit.current_mp), 0)
+	var costs := _get_effective_skill_costs(active_unit, skill_def)
+	_record_action_issued(active_unit, BattleCommand.TYPE_SKILL, int(costs.get("ap_cost", skill_def.combat_profile.ap_cost)))
+	_append_changed_unit_id(batch, active_unit.unit_id)
+
+	var spell_control_context := _resolve_ground_spell_control_after_cost(active_unit, skill_def, spent_mp, batch)
+	if bool(spell_control_context.get("skip_effects", false)):
+		return false
+
+	var drift_context: Dictionary = _runtime._magic_backlash_resolver.build_ground_backlash_target_coords(
+		skill_def,
+		target_coords,
+		_runtime._state,
+		_runtime._grid_service,
+		spell_control_context
+	)
+	var final_target_coords := _extract_validated_target_coords({
+		"target_coords": drift_context.get("target_coords", target_coords),
+	})
+	if final_target_coords.is_empty():
+		final_target_coords = target_coords.duplicate()
+	if bool(drift_context.get("backlash_triggered", false)):
+		_runtime._magic_backlash_resolver.append_ground_backlash_log(active_unit, skill_def, drift_context, batch)
+
+	var context = _runtime._meteor_swarm_resolver.build_cast_context(
+		active_unit,
+		command,
+		skill_def,
+		cast_variant,
+		target_coords[0],
+		final_target_coords[0],
+		spell_control_context,
+		drift_context
+	)
+	var plan = _runtime._meteor_swarm_resolver.build_target_plan(context)
+	var result = _runtime._meteor_swarm_resolver.resolve(plan)
+	return _runtime._special_profile_commit_adapter.commit_meteor_swarm_result(result, batch)
+
+
+func _extract_validated_target_coords(validation: Dictionary) -> Array[Vector2i]:
+	var target_coords: Array[Vector2i] = []
+	for coord_variant in validation.get("target_coords", []):
+		if coord_variant is Vector2i:
+			target_coords.append(coord_variant)
+	return target_coords
 
 func _preview_unit_skill_command(
 	active_unit: BattleUnitState,
@@ -536,14 +638,35 @@ func _build_unit_skill_hit_preview(
 			effect_defs
 		):
 			return {}
-		return _runtime._hit_resolver.build_skill_attack_preview(
+		var attack_policy = _runtime.get_attack_check_policy_service()
+		var attack_context = attack_policy.build_attack_context(
 			_runtime._state,
 			active_unit,
 			target_unit,
 			skill_def,
+			&"skill_attack_preview",
+			&"hud_preview",
 			_runtime._skill_resolution_rules.is_force_hit_no_crit_skill(skill_def)
 		)
-	return _runtime._hit_resolver.build_repeat_attack_preview(_runtime._state, active_unit, target_unit, skill_def, repeat_attack_effect)
+		return attack_policy.build_attack_preview(attack_context)
+	var attack_policy = _runtime.get_attack_check_policy_service()
+	var stage_specs: Array[BattleRepeatAttackStageSpec] = _runtime._repeat_attack_resolver.build_stage_specs_from_repeat_attack_effect(
+		active_unit,
+		skill_def,
+		repeat_attack_effect,
+		-1,
+		true
+	)
+	var attack_context = attack_policy.build_repeat_attack_stage_context(
+		_runtime._state,
+		active_unit,
+		target_unit,
+		skill_def,
+		null,
+		&"repeat_attack_preview",
+		&"hud_preview"
+	)
+	return attack_policy.build_repeat_attack_preview(attack_context, stage_specs)
 
 func _build_unit_skill_damage_preview(
 	active_unit: BattleUnitState,
@@ -672,6 +795,7 @@ func _handle_random_chain_unit_skill_command(
 	var applied := false
 	var attempt_count := 0
 	var max_attempts := maxi(_runtime._state.units.size() * max_hits_per_target, 1)
+	var skill_label := _format_skill_variant_label(skill_def, cast_variant)
 	while attempt_count < max_attempts:
 		var chain_pool := _build_random_chain_target_pool(active_unit, skill_def, chain_hit_counts, max_hits_per_target)
 		if chain_pool.is_empty():
@@ -680,6 +804,11 @@ func _handle_random_chain_unit_skill_command(
 		var target_unit := chain_pool[0] as BattleUnitState
 		if target_unit == null:
 			break
+		batch.log_lines.append("%s 的%s锁定了 %s。" % [
+			active_unit.display_name,
+			skill_label,
+			target_unit.display_name,
+		])
 		chain_hit_counts[target_unit.unit_id] = int(chain_hit_counts.get(target_unit.unit_id, 0)) + 1
 		attempt_count += 1
 		var stage_applied := false
@@ -707,7 +836,6 @@ func _handle_random_chain_unit_skill_command(
 		else:
 			break
 	if attempt_count > 0:
-		var skill_label := _format_skill_variant_label(skill_def, cast_variant)
 		batch.log_lines.append("%s 的%s执行了 %d 次攻击链判定。" % [active_unit.display_name, skill_label, attempt_count])
 	return applied
 
@@ -867,6 +995,10 @@ func _validate_unit_skill_targets(
 	if target_unit_ids.is_empty() and not is_random_chain:
 		return result
 	if is_random_chain:
+		var max_hits_per_target := maxi(int(skill_def.combat_profile.max_hits_per_target), 1)
+		if _build_random_chain_target_pool(active_unit, skill_def, {}, max_hits_per_target).is_empty():
+			result.message = "没有可用的随机连击目标。"
+			return result
 		result.allowed = true
 		result.message = ""
 		result.target_unit_ids = []
@@ -972,7 +1104,16 @@ func _resolve_unit_skill_effect_result(
 	effect_defs: Array[CombatEffectDef]
 ) -> Dictionary:
 	if _should_resolve_unit_skill_as_fate_attack(active_unit, target_unit, skill_def, effect_defs):
-		var attack_check = _runtime._hit_resolver.build_skill_attack_check(active_unit, target_unit, skill_def)
+		var attack_policy = _runtime.get_attack_check_policy_service()
+		var policy_context = attack_policy.build_attack_context(
+			_runtime._state,
+			active_unit,
+			target_unit,
+			skill_def,
+			&"skill_attack_check",
+			&"execute"
+		)
+		var attack_check = attack_policy.build_attack_check(policy_context)
 		var attack_context = {
 			"battle_state": _runtime._state,
 			"skill_id": skill_def.skill_id,
@@ -1153,11 +1294,13 @@ func _apply_unit_skill_result(
 		])
 	if not target_unit.is_alive:
 		_apply_on_kill_gain_resources_effects(active_unit, target_unit, skill_def, effect_defs, batch)
-		_collect_defeated_unit_loot(target_unit, active_unit)
-		_clear_defeated_unit(target_unit, batch)
-		batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-		_runtime._battle_rating_system.record_enemy_defeated_achievement(active_unit, target_unit)
-		_record_unit_defeated(target_unit)
+		_runtime.handle_unit_defeated_by_runtime_effect(
+			target_unit,
+			active_unit,
+			batch,
+			"%s 被击倒。" % target_unit.display_name,
+			{"record_enemy_defeated_achievement": true}
+		)
 	if active_unit != null and target_unit != null:
 		_record_effect_metrics(active_unit, target_unit, damage, healing, 1 if not target_unit.is_alive else 0)
 	_runtime._battle_rating_system.record_skill_effect_result(active_unit, damage, healing, 1 if not target_unit.is_alive else 0)
@@ -1324,11 +1467,13 @@ func _apply_chain_damage_effects(
 			if not chain_target.is_alive:
 				total_kill_count += 1
 				_apply_on_kill_gain_resources_effects(source_unit, chain_target, skill_def, chain_target_effects, batch)
-				_collect_defeated_unit_loot(chain_target, source_unit)
-				_clear_defeated_unit(chain_target, batch)
-				batch.log_lines.append("%s 被击倒。" % chain_target.display_name)
-				_runtime._battle_rating_system.record_enemy_defeated_achievement(source_unit, chain_target)
-				_record_unit_defeated(chain_target)
+				_runtime.handle_unit_defeated_by_runtime_effect(
+					chain_target,
+					source_unit,
+					batch,
+					"%s 被击倒。" % chain_target.display_name,
+					{"record_enemy_defeated_achievement": true}
+				)
 			_record_effect_metrics(source_unit, chain_target, chain_damage, chain_healing, 1 if not chain_target.is_alive else 0)
 
 		if total_damage > 0 or total_healing > 0 or total_kill_count > 0:
@@ -1628,7 +1773,8 @@ func _is_unit_effect(effect_def: CombatEffectDef) -> bool:
 		or effect_def.effect_type == &"layered_barrier" \
 		or effect_def.effect_type == &"status" \
 		or effect_def.effect_type == &"apply_status" \
-		or effect_def.effect_type == &"forced_move"
+		or effect_def.effect_type == &"forced_move" \
+		or effect_def.effect_type == &"execute"
 
 func _is_terrain_effect(effect_def: CombatEffectDef) -> bool:
 	if effect_def == null:

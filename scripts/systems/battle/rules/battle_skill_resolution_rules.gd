@@ -263,7 +263,8 @@ func is_unit_effect(effect_def: CombatEffectDef) -> bool:
 		or effect_def.effect_type == &"status" \
 		or effect_def.effect_type == &"apply_status" \
 		or effect_def.effect_type == &"body_size_category_override" \
-		or effect_def.effect_type == &"forced_move"
+		or effect_def.effect_type == &"forced_move" \
+		or effect_def.effect_type == &"execute"
 
 
 func is_terrain_effect(effect_def: CombatEffectDef) -> bool:

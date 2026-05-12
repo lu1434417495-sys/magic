@@ -9,14 +9,18 @@ const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_s
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
 const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
+const BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_attack_check_policy_service.gd")
 const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_skill_resolution_rules.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_change_equipment_resolver.gd")
+const BATTLE_REPEAT_ATTACK_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd")
 const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattlePreview = preload("res://scripts/systems/battle/core/battle_preview.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleRepeatAttackStageSpec = preload("res://scripts/systems/battle/core/battle_repeat_attack_stage_spec.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 
@@ -32,6 +36,7 @@ var _equipment_preview_cache_signature := ""
 var _equipment_preview_cache: Dictionary = {}
 var _grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
 var _hit_resolver = BATTLE_HIT_RESOLVER_SCRIPT.new()
+var _attack_check_policy_service = BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT.new()
 var _skill_resolution_rules = BATTLE_SKILL_RESOLUTION_RULES_SCRIPT.new()
 var _party_member_state_resolver: Callable = Callable()
 var _skill_defs_provider: Callable = Callable()
@@ -76,7 +81,8 @@ func build_snapshot(
 	selected_skill_target_unit_ids: Array = [],
 	selected_skill_variant_id: StringName = &"",
 	change_equipment_preview_callback: Callable = Callable(),
-	encounter_display_name: String = ""
+	encounter_display_name: String = "",
+	selected_skill_runtime_preview: BattlePreview = null
 ) -> Dictionary:
 	if battle_state == null:
 		return {}
@@ -88,6 +94,18 @@ func build_snapshot(
 	var selected_unit := _get_unit_at_coord(battle_state, selected_coord)
 	var focus_unit := selected_unit if selected_unit != null else active_unit
 	var selected_target_count := target_coords.size()
+	var runtime_preview := selected_skill_runtime_preview
+	if runtime_preview == null:
+		runtime_preview = _build_selected_skill_runtime_preview(
+			battle_state,
+			active_unit,
+			selected_coord,
+			selected_skill_id,
+			target_coords,
+			target_unit_ids,
+			selected_skill_variant_id,
+			change_equipment_preview_callback
+		)
 	var selection_info := _build_skill_target_selection_info(
 		battle_state,
 		active_unit,
@@ -101,7 +119,8 @@ func build_snapshot(
 		selected_skill_id,
 		target_coords,
 		target_unit_ids,
-		selected_skill_variant_id
+		selected_skill_variant_id,
+		runtime_preview
 	)
 	var damage_preview := _build_selected_skill_damage_preview(
 		battle_state,
@@ -145,6 +164,7 @@ func build_snapshot(
 		"skill_slots": _build_skill_slots(active_unit, selected_skill_id),
 		"tile_text": _build_tile_text(selected_coord, selected_cell, selected_unit),
 		"selected_skill_hit_preview_text": String(hit_preview.get("summary_text", "")),
+		"selected_skill_hit_preview_payload": hit_preview.duplicate(true),
 		"selected_skill_hit_badge_text": _build_selected_skill_hit_badge_text(hit_preview),
 		"selected_skill_hit_stage_rates": (hit_preview.get("stage_success_rates", []) as Array).duplicate(true),
 		"selected_skill_damage_preview_text": String(damage_preview.get("summary_text", "")),
@@ -1106,6 +1126,34 @@ func _get_skill_defs() -> Dictionary:
 	return skill_defs_variant if skill_defs_variant is Dictionary else {}
 
 
+func _build_selected_skill_runtime_preview(
+	battle_state: BattleState,
+	active_unit: BattleUnitState,
+	selected_coord: Vector2i,
+	selected_skill_id: StringName,
+	selected_skill_target_coords: Array[Vector2i],
+	selected_skill_target_unit_ids: Array[StringName],
+	selected_skill_variant_id: StringName,
+	preview_callback: Callable
+) -> BattlePreview:
+	if battle_state == null or active_unit == null or selected_skill_id == &"":
+		return null
+	if not preview_callback.is_valid():
+		return null
+	var command := BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL
+	command.unit_id = active_unit.unit_id
+	command.skill_id = selected_skill_id
+	command.skill_variant_id = selected_skill_variant_id
+	command.target_coord = selected_coord
+	command.target_coords = selected_skill_target_coords.duplicate()
+	command.target_unit_ids = selected_skill_target_unit_ids.duplicate()
+	if command.target_unit_ids.size() == 1:
+		command.target_unit_id = command.target_unit_ids[0]
+	var preview = preview_callback.call(command)
+	return preview as BattlePreview
+
+
 func _build_selected_skill_hit_preview(
 	battle_state: BattleState,
 	active_unit: BattleUnitState,
@@ -1113,10 +1161,35 @@ func _build_selected_skill_hit_preview(
 	selected_skill_id: StringName,
 	selected_skill_target_coords: Array[Vector2i],
 	selected_skill_target_unit_ids: Array[StringName],
-	selected_skill_variant_id: StringName
+	selected_skill_variant_id: StringName,
+	selected_skill_preview: BattlePreview = null
 ) -> Dictionary:
 	if battle_state == null or active_unit == null or selected_skill_id == &"":
 		return {}
+	_attack_check_policy_service.setup(null, _hit_resolver, null)
+	if selected_skill_preview != null and selected_skill_preview.special_profile_preview_facts != null:
+		var facts = selected_skill_preview.special_profile_preview_facts
+		var facts_payload: Dictionary = facts.to_dict() if facts.has_method("to_dict") else {}
+		var summary_text := String(selected_skill_preview.hit_preview.get("summary_text", ""))
+		if summary_text.is_empty():
+			summary_text = "陨星雨影响 %d 格、预计波及 %d 个单位。" % [
+				int(facts_payload.get("impact_count", selected_skill_preview.target_coords.size())),
+				int(facts_payload.get("expected_target_count", selected_skill_preview.target_unit_ids.size())),
+			]
+		return {
+			"summary_text": summary_text,
+			"modifier_breakdown": facts.attack_roll_modifier_breakdown.duplicate(true),
+			"source": "special_profile_preview_facts",
+			"special_profile_preview_facts": facts_payload.duplicate(true),
+			"impact_count": int(facts_payload.get("impact_count", selected_skill_preview.target_coords.size())),
+			"target_count": int(facts_payload.get("expected_target_count", selected_skill_preview.target_unit_ids.size())),
+			"terrain_summary": facts.terrain_summary.duplicate(true),
+			"friendly_fire_numeric_summary": facts.get_friendly_fire_numeric_summary(),
+			"target_numeric_summary": (facts_payload.get("target_numeric_summary", []) as Array).duplicate(true) if facts_payload.get("target_numeric_summary", []) is Array else [],
+			"friendly_fire_risk_percent": int(facts_payload.get("friendly_fire_risk_percent", 0)),
+		}
+	if selected_skill_preview != null and not selected_skill_preview.hit_preview.is_empty():
+		return selected_skill_preview.hit_preview.duplicate(true)
 	var skill_def = _get_skill_defs().get(selected_skill_id)
 	if skill_def == null or skill_def.combat_profile == null:
 		return {}
@@ -1155,20 +1228,33 @@ func _build_selected_skill_hit_preview(
 	if repeat_attack_effect == null:
 		if not bool(resolution_policy.get("uses_fate_attack", false)):
 			return {}
-		return _hit_resolver.build_skill_attack_preview(
+		var attack_context = _attack_check_policy_service.build_attack_context(
 			battle_state,
 			active_unit,
 			target_unit,
 			skill_def,
+			&"skill_attack_preview",
+			&"hud_preview",
 			bool(resolution_policy.get("force_hit_no_crit", false))
 		)
-	return _hit_resolver.build_repeat_attack_preview(
+		return _attack_check_policy_service.build_attack_preview(attack_context)
+	var stage_specs: Array[BattleRepeatAttackStageSpec] = BATTLE_REPEAT_ATTACK_RESOLVER_SCRIPT.build_stage_specs_from_repeat_attack_effect(
+		active_unit,
+		skill_def,
+		repeat_attack_effect,
+		-1,
+		true
+	)
+	var attack_context = _attack_check_policy_service.build_repeat_attack_stage_context(
 		battle_state,
 		active_unit,
 		target_unit,
 		skill_def,
-		repeat_attack_effect
+		null,
+		&"repeat_attack_preview",
+		&"hud_preview"
 	)
+	return _attack_check_policy_service.build_repeat_attack_preview(attack_context, stage_specs)
 
 
 func _build_selected_skill_damage_preview(

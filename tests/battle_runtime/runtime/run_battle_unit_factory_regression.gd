@@ -435,7 +435,7 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_eq(unit.current_mp, 5, "刷新桥接应按属性快照上限回写 mp。")
 	_assert_eq(unit.current_stamina, 7, "刷新桥接应按属性快照上限回写 stamina。")
 	_assert_eq(unit.current_aura, 6, "刷新桥接应按属性快照上限回写 aura。")
-	_assert_eq(unit.current_ap, 9, "刷新桥接应按属性快照回写 action points。")
+	_assert_eq(unit.current_ap, 1, "刷新桥接应保留已消耗 AP，仅按新 action points 上限裁剪。")
 	_assert_eq(unit.action_threshold, 30, "刷新桥接应按属性快照回写 action_threshold。")
 	_assert_eq(String(unit.weapon_profile_kind), "equipped", "刷新桥接应从角色网关回写武器投影 kind。")
 	_assert_eq(String(unit.weapon_profile_type_id), "shortsword", "刷新桥接应从角色网关回写 weapon profile type id。")

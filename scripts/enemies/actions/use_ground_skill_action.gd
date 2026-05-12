@@ -127,11 +127,25 @@ func decide(context):
 func _passes_friendly_fire_limits(score_input) -> bool:
 	if score_input == null:
 		return false
+	if score_input.get("friendly_fire_reject_reason") != null \
+			and not String(score_input.get("friendly_fire_reject_reason")).is_empty():
+		return false
+	if _is_meteor_special_score_input(score_input):
+		return true
 	if int(score_input.estimated_friendly_fire_target_count) > maximum_friendly_fire_target_count:
 		return false
 	if not allow_friendly_lethal and int(score_input.estimated_friendly_lethal_target_count) > 0:
 		return false
 	return true
+
+
+func _is_meteor_special_score_input(score_input) -> bool:
+	if score_input == null:
+		return false
+	var facts = score_input.get("special_profile_preview_facts")
+	if facts is not Dictionary:
+		return false
+	return String((facts as Dictionary).get("profile_id", "")) == "meteor_swarm"
 
 
 func _build_position_metadata(context, command, skill_def: SkillDef) -> Dictionary:

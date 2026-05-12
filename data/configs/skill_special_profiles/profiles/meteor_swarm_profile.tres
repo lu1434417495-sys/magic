@@ -1,0 +1,174 @@
+[gd_resource type="Resource" script_class="MeteorSwarmProfile" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_impact_component.gd" id="2_component"]
+
+[sub_resource type="Resource" id="MeteorComponent_area_fire"]
+script = ExtResource("2_component")
+component_id = &"area_blast_fire"
+role_label = &"blast_fire"
+damage_tag = &"fire"
+base_power = 0
+dice_count = 8
+dice_sides = 6
+ring_weight = 1.0
+save_profile_id = &"meteor_dex_half"
+can_crit = false
+mastery_weight = 1.0
+ring_min = 0
+ring_max = 3
+ring_damage_scale_bp = {
+0: 10000,
+1: 8500,
+2: 6500,
+3: 4500
+}
+
+[sub_resource type="Resource" id="MeteorComponent_area_physical"]
+script = ExtResource("2_component")
+component_id = &"area_blast_physical"
+role_label = &"blast_physical"
+damage_tag = &"physical_blunt"
+base_power = 0
+dice_count = 8
+dice_sides = 6
+ring_weight = 1.0
+save_profile_id = &"meteor_dex_half"
+can_crit = false
+mastery_weight = 1.0
+ring_min = 0
+ring_max = 3
+ring_damage_scale_bp = {
+0: 10000,
+1: 8500,
+2: 6500,
+3: 4500
+}
+
+[sub_resource type="Resource" id="MeteorComponent_secondary"]
+script = ExtResource("2_component")
+component_id = &"secondary_impact"
+role_label = &"secondary"
+damage_tag = &"physical_blunt"
+base_power = 0
+dice_count = 4
+dice_sides = 6
+ring_weight = 1.0
+save_profile_id = &"meteor_dex_half"
+can_crit = false
+mastery_weight = 0.5
+ring_min = 0
+ring_max = 3
+ring_damage_scale_bp = {
+0: 8000,
+1: 9000,
+2: 10000,
+3: 7500
+}
+
+[sub_resource type="Resource" id="MeteorComponent_center_direct"]
+script = ExtResource("2_component")
+component_id = &"center_direct"
+role_label = &"direct"
+damage_tag = &"physical_blunt"
+base_power = 0
+dice_count = 10
+dice_sides = 6
+ring_weight = 1.0
+save_profile_id = &""
+can_crit = false
+mastery_weight = 1.25
+ring_min = 0
+ring_max = 0
+ring_damage_scale_bp = {
+0: 10000
+}
+
+[resource]
+script = ExtResource("1_profile")
+coverage_shape_id = &"square_7x7"
+radius = 3
+profile_version = 1
+impact_components = Array[Resource]([SubResource("MeteorComponent_area_fire"), SubResource("MeteorComponent_area_physical"), SubResource("MeteorComponent_secondary"), SubResource("MeteorComponent_center_direct")])
+concussed_status_id = &"meteor_concussed"
+terrain_profiles = [{
+"terrain_profile_id": &"meteor_swarm_crater_core",
+"ring_min": 0,
+"ring_max": 0,
+"move_cost_delta": 3,
+"move_cost_stack_key": &"meteor_impact_move_cost",
+"move_cost_stack_mode": &"max",
+"lifetime_policy": &"battle",
+"duration_tu": 0,
+"tick_interval_tu": 0,
+"tick_effect_type": &"none",
+"render_overlay_id": "meteor_crater_core",
+"overlay_priority": 90
+}, {
+"terrain_profile_id": &"meteor_swarm_crater_rim",
+"ring_min": 1,
+"ring_max": 1,
+"move_cost_delta": 1,
+"move_cost_stack_key": &"meteor_impact_move_cost",
+"move_cost_stack_mode": &"max",
+"lifetime_policy": &"battle",
+"duration_tu": 0,
+"tick_interval_tu": 0,
+"tick_effect_type": &"none",
+"render_overlay_id": "meteor_crater_core",
+"overlay_priority": 80
+}, {
+"terrain_profile_id": &"meteor_swarm_rubble",
+"ring_min": 0,
+"ring_max": 2,
+"move_cost_delta": 2,
+"move_cost_stack_key": &"meteor_impact_move_cost",
+"move_cost_stack_mode": &"max",
+"lifetime_policy": &"battle",
+"duration_tu": 0,
+"tick_interval_tu": 0,
+"tick_effect_type": &"none",
+"render_overlay_id": "meteor_rubble",
+"overlay_priority": 70
+}, {
+"terrain_profile_id": &"meteor_swarm_rubble",
+"ring_min": 3,
+"ring_max": 3,
+"move_cost_delta": 1,
+"move_cost_stack_key": &"meteor_impact_move_cost",
+"move_cost_stack_mode": &"max",
+"lifetime_policy": &"battle",
+"duration_tu": 0,
+"tick_interval_tu": 0,
+"tick_effect_type": &"none",
+"render_overlay_id": "meteor_rubble",
+"overlay_priority": 60
+}, {
+"terrain_profile_id": &"meteor_swarm_dust",
+"ring_min": 0,
+"ring_max": 2,
+"move_cost_delta": 0,
+"lifetime_policy": &"timed",
+"duration_tu": 50,
+"tick_interval_tu": 5,
+"tick_effect_type": &"none",
+"accuracy_modifier_spec": {
+"source_domain": &"terrain",
+"label": "尘土",
+"modifier_delta": -2,
+"stack_key": &"dust_attack_roll_penalty",
+"stack_mode": &"max",
+"roll_kind_filter": &"spell_attack",
+"endpoint_mode": &"either",
+"distance_min_exclusive": 1,
+"distance_max_inclusive": -1,
+"target_team_filter": &"any",
+"footprint_mode": &"any_cell",
+"applies_to": &"attack_roll"
+},
+"render_overlay_id": "meteor_dust_cloud",
+"overlay_priority": 50
+}]
+friendly_fire_soft_expected_hp_percent = 10
+friendly_fire_hard_expected_hp_percent = 25
+friendly_fire_hard_worst_case_hp_percent = 50

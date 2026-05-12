@@ -39,6 +39,7 @@ const NATURAL_WEAPON_DEFAULT_ATTACK_RANGE := 1
 @export var skill_ids: Array[StringName] = []
 @export var skill_level_map: Dictionary = {}
 @export var attribute_overrides: Dictionary = {}
+@export var target_rank: StringName = &"normal"
 @export var drop_entries: Array[Dictionary] = []
 
 
@@ -171,6 +172,22 @@ func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}, 
 		errors.append("Enemy template %s action_threshold must be > 0." % String(template_id))
 	elif action_threshold % 5 != 0:
 		errors.append("Enemy template %s action_threshold must be a multiple of 5 TU." % String(template_id))
+	var normalized_target_rank := ProgressionDataUtils.to_string_name(target_rank)
+	if normalized_target_rank != &"normal" and normalized_target_rank != &"elite" and normalized_target_rank != &"boss":
+		errors.append(
+			"Enemy template %s target_rank must be normal, elite, or boss; got %s." % [
+				String(template_id),
+				String(target_rank),
+			]
+		)
+	for forbidden_key in [&"boss_target", &"fortune_mark_target"]:
+		if _dictionary_has_unsupported_key(attribute_overrides, forbidden_key):
+			errors.append(
+				"Enemy template %s attribute_overrides must not declare %s; use target_rank instead." % [
+					String(template_id),
+					String(forbidden_key),
+				]
+			)
 	errors.append_array(_validate_template_skill_ids(skill_defs))
 	for unsupported_key in UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS:
 		if _dictionary_has_unsupported_key(attribute_overrides, unsupported_key):

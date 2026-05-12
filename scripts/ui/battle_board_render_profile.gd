@@ -20,6 +20,9 @@ const SOURCE_WALL_EAST := &"wall_east"
 const SOURCE_WALL_SOUTH := &"wall_south"
 const SOURCE_SCRUB := &"scrub"
 const SOURCE_RUBBLE := &"rubble"
+const SOURCE_METEOR_CRATER := &"meteor_crater_core"
+const SOURCE_METEOR_RUBBLE := &"meteor_rubble"
+const SOURCE_METEOR_DUST := &"meteor_dust_cloud"
 const SOURCE_SELECTED := &"selected"
 const SOURCE_ACTIVE_SELECTED := &"active_selected"
 const SOURCE_MOVE_REACHABLE := &"move_reachable"
@@ -58,6 +61,9 @@ const DEFAULT_SOURCE_SPECS := [
 	{"key": SOURCE_WALL_SOUTH, "files": ["wall_south_01.png", "wall_south_02.png", "wall_south_03.png"], "layer_role": LAYER_ROLE_EDGE_SOUTH, "atlas_region_size": DEFAULT_FACE_REGION_SIZE},
 	{"key": SOURCE_SCRUB, "files": ["overlay_scrub_01.png", "overlay_scrub_02.png", "overlay_scrub_03.png"], "layer_role": LAYER_ROLE_OVERLAY},
 	{"key": SOURCE_RUBBLE, "files": ["overlay_rubble_01.png", "overlay_rubble_02.png", "overlay_rubble_03.png"], "layer_role": LAYER_ROLE_OVERLAY},
+	{"key": SOURCE_METEOR_CRATER, "files": ["overlay_rubble_03.png"], "layer_role": LAYER_ROLE_OVERLAY},
+	{"key": SOURCE_METEOR_RUBBLE, "files": ["overlay_rubble_02.png"], "layer_role": LAYER_ROLE_OVERLAY},
+	{"key": SOURCE_METEOR_DUST, "files": ["overlay_scrub_03.png"], "layer_role": LAYER_ROLE_OVERLAY},
 	{"key": SOURCE_SELECTED, "files": ["marker_selected.png"], "layer_role": LAYER_ROLE_MARKER},
 	{"key": SOURCE_PREVIEW, "files": ["marker_preview.png"], "layer_role": LAYER_ROLE_MARKER},
 ]

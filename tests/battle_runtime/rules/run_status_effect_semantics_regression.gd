@@ -5,6 +5,7 @@ const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
 
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
+const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
@@ -23,6 +24,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_staggered_refreshes_without_stacking_and_expires_on_tu_progress()
+	_test_meteor_concussed_shares_staggered_ap_penalty_group()
+	_test_meteor_concussed_consumes_without_zero_ap_log()
 	_test_burning_stacks_and_ticks_on_timeline_interval()
 	_test_short_burning_can_expire_before_first_tick()
 	_test_slow_increases_move_cost_and_expires_on_tu_progress()
@@ -81,6 +84,46 @@ func _test_staggered_refreshes_without_stacking_and_expires_on_tu_progress() -> 
 	_assert_true(target.has_status_effect(&"staggered"), "staggered 不应在目标回合结束后被立即移除。")
 	_advance_timeline_tu(runtime, state, 15)
 	_assert_true(not target.has_status_effect(&"staggered"), "staggered 应在 TU 走完后移除。")
+
+
+func _test_meteor_concussed_shares_staggered_ap_penalty_group() -> void:
+	var runtime := _build_runtime()
+	var target := _build_unit(&"meteor_concussed_group_target", Vector2i(1, 1), 3)
+	_set_status_params(target, &"staggered", {})
+	_set_status_params(target, &"meteor_concussed", {})
+	var meteor_entry := target.get_status_effect(&"meteor_concussed") as BattleStatusEffectState
+	if meteor_entry != null:
+		meteor_entry.power = 2
+		target.set_status_effect(meteor_entry)
+
+	var batch := BattleEventBatch.new()
+	var result: Dictionary = runtime._apply_turn_start_statuses(target, batch)
+	_assert_true(bool(result.get("changed", false)), "meteor_concussed 参与回合开始结算后应报告 changed。")
+	_assert_eq(target.current_ap, 1, "meteor_concussed 与 staggered 同组时应只扣最高 AP 惩罚，而不是叠加扣 3。")
+	_assert_true(not target.has_status_effect(&"meteor_concussed"), "meteor_concussed 应在参与回合开始 AP 惩罚后消耗。")
+	_assert_true(target.has_status_effect(&"staggered"), "同组结算不应顺带消耗普通 staggered。")
+	_assert_eq(batch.log_lines.size(), 1, "同组 AP 惩罚应只产生一条日志。")
+	_assert_true(batch.log_lines.size() > 0 and String(batch.log_lines[0]).contains("少 2 点 AP"), "同组 AP 惩罚日志应记录实际扣除值。")
+	_assert_eq(BattleStatusSemanticTable.get_attack_roll_penalty(meteor_entry), 2, "meteor_concussed 应提供 -2 攻击检定语义。")
+	_assert_true(BattleStatusSemanticTable.is_harmful_status(&"meteor_concussed"), "meteor_concussed 应计为有害状态。")
+	_assert_true(BattleStatusSemanticTable.is_dispellable_harmful_status(&"meteor_concussed"), "meteor_concussed 应允许按有害魔法驱散。")
+
+
+func _test_meteor_concussed_consumes_without_zero_ap_log() -> void:
+	var runtime := _build_runtime()
+	var target := _build_unit(&"meteor_concussed_zero_ap_target", Vector2i(1, 1), 0)
+	_set_status_params(target, &"meteor_concussed", {})
+	var meteor_entry := target.get_status_effect(&"meteor_concussed") as BattleStatusEffectState
+	if meteor_entry != null:
+		meteor_entry.power = 2
+		target.set_status_effect(meteor_entry)
+
+	var batch := BattleEventBatch.new()
+	var result: Dictionary = runtime._apply_turn_start_statuses(target, batch)
+	_assert_true(bool(result.get("changed", false)), "meteor_concussed 即使目标 AP 为 0，也应因状态消耗报告 changed。")
+	_assert_eq(target.current_ap, 0, "AP 为 0 时 meteor_concussed 不应产生负 AP。")
+	_assert_true(not target.has_status_effect(&"meteor_concussed"), "AP 为 0 时 meteor_concussed 仍应完成一次性消耗。")
+	_assert_eq(batch.log_lines.size(), 0, "AP 为 0 时不应记录“少 AP”的误导日志。")
 
 
 func _test_burning_stacks_and_ticks_on_timeline_interval() -> void:

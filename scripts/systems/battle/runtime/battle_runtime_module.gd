@@ -16,6 +16,7 @@ const BATTLE_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battle/te
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
 const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
 const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
+const BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_attack_check_policy_service.gd")
 const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
 const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_service.gd")
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
@@ -45,6 +46,10 @@ const BATTLE_MOVEMENT_SERVICE_SCRIPT = preload("res://scripts/systems/battle/run
 const BATTLE_LAYERED_BARRIER_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_layered_barrier_service.gd")
 const BATTLE_TIMELINE_DRIVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_timeline_driver.gd")
 const BATTLE_SKILL_EXECUTION_ORCHESTRATOR_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd")
+const BATTLE_SPECIAL_PROFILE_GATE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_special_profile_gate.gd")
+const BATTLE_METEOR_SWARM_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_meteor_swarm_resolver.gd")
+const BATTLE_SKILL_OUTCOME_COMMITTER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_skill_outcome_committer.gd")
+const BATTLE_SPECIAL_PROFILE_COMMIT_ADAPTER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_special_profile_commit_adapter.gd")
 const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
 const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/world/encounter_roster_builder.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
@@ -208,6 +213,13 @@ var _layered_barrier_service = BATTLE_LAYERED_BARRIER_SERVICE_SCRIPT.new()
 var _timeline_driver = BATTLE_TIMELINE_DRIVER_SCRIPT.new()
 var _skill_orchestrator = BATTLE_SKILL_EXECUTION_ORCHESTRATOR_SCRIPT.new()
 var _trait_trigger_hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
+var _special_profile_registry_snapshot: Dictionary = {}
+var _special_profile_gate = null
+var _meteor_swarm_resolver = null
+var _attack_check_policy_service = BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT.new()
+var _skill_preview_service = null
+var _skill_outcome_committer = BATTLE_SKILL_OUTCOME_COMMITTER_SCRIPT.new()
+var _special_profile_commit_adapter = BATTLE_SPECIAL_PROFILE_COMMIT_ADAPTER_SCRIPT.new()
 ## 字段说明：缓存战斗评分统计字典，集中保存可按键查询的运行时数据。
 var _battle_rating_stats: Dictionary = {}
 ## 字段说明：保存待处理后置战斗角色奖励列表，便于顺序遍历、批量展示、批量运算和整体重建。
@@ -242,10 +254,12 @@ func setup(
 	equipment_drop_service: Variant = null,
 	item_defs: Dictionary = {},
 	terrain_generator: Object = null,
-	equipment_instance_id_allocator: Callable = Callable()
+	equipment_instance_id_allocator: Callable = Callable(),
+	battle_special_profile_registry_snapshot: Dictionary = {}
 ) -> void:
 	_character_gateway = character_gateway
 	_skill_defs = skill_defs if skill_defs != null else {}
+	_special_profile_registry_snapshot = battle_special_profile_registry_snapshot.duplicate(true) if battle_special_profile_registry_snapshot != null else {}
 	if _damage_resolver != null and _damage_resolver.has_method("set_skill_defs"):
 		_damage_resolver.set_skill_defs(_skill_defs)
 	if _damage_resolver != null and _damage_resolver.has_method("set_hit_resolver"):
@@ -265,6 +279,15 @@ func setup(
 	_ai_action_plans_by_unit_id.clear()
 	_ai_service.setup(_enemy_ai_brains, _damage_resolver)
 	_terrain_effect_system.setup(self)
+	if _attack_check_policy_service == null:
+		_attack_check_policy_service = BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT.new()
+	_attack_check_policy_service.setup(self, _hit_resolver, _terrain_effect_system)
+	if _skill_outcome_committer == null:
+		_skill_outcome_committer = BATTLE_SKILL_OUTCOME_COMMITTER_SCRIPT.new()
+	_skill_outcome_committer.setup(self)
+	if _special_profile_commit_adapter == null:
+		_special_profile_commit_adapter = BATTLE_SPECIAL_PROFILE_COMMIT_ADAPTER_SCRIPT.new()
+	_special_profile_commit_adapter.setup(self, _skill_outcome_committer)
 	_battle_rating_system.setup(self, _skill_mastery_service)
 	_unit_factory.setup(self)
 	_charge_resolver.setup(self, _skill_mastery_service)
@@ -282,6 +305,31 @@ func setup(
 	_layered_barrier_service.setup(self)
 	_timeline_driver.setup(self)
 	_skill_orchestrator.setup(self)
+	_setup_special_profile_runtime()
+
+
+func _setup_special_profile_runtime() -> void:
+	if _special_profile_gate == null:
+		_special_profile_gate = BATTLE_SPECIAL_PROFILE_GATE_SCRIPT.new()
+	_special_profile_gate.setup(_special_profile_registry_snapshot)
+	if _skill_outcome_committer == null:
+		_skill_outcome_committer = BATTLE_SKILL_OUTCOME_COMMITTER_SCRIPT.new()
+	_skill_outcome_committer.setup(self)
+	if _special_profile_commit_adapter == null:
+		_special_profile_commit_adapter = BATTLE_SPECIAL_PROFILE_COMMIT_ADAPTER_SCRIPT.new()
+	_special_profile_commit_adapter.setup(self, _skill_outcome_committer)
+
+	_meteor_swarm_resolver = null
+	var profiles: Variant = _special_profile_registry_snapshot.get("profiles", {})
+	if profiles is not Dictionary:
+		return
+	var meteor_profile_snapshot: Variant = (profiles as Dictionary).get("meteor_swarm", {})
+	if meteor_profile_snapshot is not Dictionary:
+		return
+	if String((meteor_profile_snapshot as Dictionary).get("runtime_resolver_id", "")) != "meteor_swarm":
+		return
+	_meteor_swarm_resolver = BATTLE_METEOR_SWARM_RESOLVER_SCRIPT.new()
+	_meteor_swarm_resolver.setup(self, _attack_check_policy_service)
 
 
 func start_battle(
@@ -794,6 +842,15 @@ func notify_member_boss_phase_changed(member_id: StringName, phase_id: StringNam
 
 func _ensure_sidecars_ready() -> void:
 	_terrain_effect_system.setup(self)
+	if _attack_check_policy_service == null:
+		_attack_check_policy_service = BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT.new()
+	_attack_check_policy_service.setup(self, _hit_resolver, _terrain_effect_system)
+	if _skill_outcome_committer == null:
+		_skill_outcome_committer = BATTLE_SKILL_OUTCOME_COMMITTER_SCRIPT.new()
+	_skill_outcome_committer.setup(self)
+	if _special_profile_commit_adapter == null:
+		_special_profile_commit_adapter = BATTLE_SPECIAL_PROFILE_COMMIT_ADAPTER_SCRIPT.new()
+	_special_profile_commit_adapter.setup(self, _skill_outcome_committer)
 	_battle_rating_system.setup(self, _skill_mastery_service)
 	_unit_factory.setup(self)
 	_charge_resolver.setup(self, _skill_mastery_service)
@@ -923,10 +980,25 @@ func get_hit_resolver():
 	return _hit_resolver
 
 
+func get_attack_check_policy_service():
+	if _attack_check_policy_service == null:
+		_attack_check_policy_service = BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT.new()
+	_attack_check_policy_service.setup(self, _hit_resolver, _terrain_effect_system)
+	return _attack_check_policy_service
+
+
 func configure_hit_resolver_for_tests(hit_resolver: BattleHitResolver) -> void:
 	_hit_resolver = hit_resolver if hit_resolver != null else BATTLE_HIT_RESOLVER_SCRIPT.new()
 	if _damage_resolver != null and _damage_resolver.has_method("set_hit_resolver"):
 		_damage_resolver.set_hit_resolver(_hit_resolver)
+	if _attack_check_policy_service != null and _attack_check_policy_service.has_method("setup"):
+		_attack_check_policy_service.setup(self, _hit_resolver, _terrain_effect_system)
+	if _meteor_swarm_resolver != null and _meteor_swarm_resolver.has_method("setup"):
+		_meteor_swarm_resolver.setup(self, _attack_check_policy_service)
+	if _skill_outcome_committer != null and _skill_outcome_committer.has_method("setup"):
+		_skill_outcome_committer.setup(self)
+	if _special_profile_commit_adapter != null and _special_profile_commit_adapter.has_method("setup"):
+		_special_profile_commit_adapter.setup(self, _skill_outcome_committer)
 
 
 func get_terrain_generator():
@@ -935,6 +1007,27 @@ func get_terrain_generator():
 
 func get_skill_defs() -> Dictionary:
 	return _skill_defs
+
+
+func get_special_profile_registry_snapshot() -> Dictionary:
+	return _special_profile_registry_snapshot.duplicate(true)
+
+
+func _has_special_profile(skill_def: SkillDef, profile_id: StringName) -> bool:
+	if skill_def == null or skill_def.combat_profile == null:
+		return false
+	return skill_def.combat_profile.special_resolution_profile_id == profile_id
+
+
+func _append_special_profile_gate_block(batch: BattleEventBatch, gate_result) -> void:
+	if batch == null:
+		return
+	var message := "该禁咒配置未通过校验，暂时无法施放。"
+	if gate_result != null and gate_result.get("player_message") != null:
+		message = String(gate_result.player_message)
+	if message.is_empty():
+		message = "该禁咒配置未通过校验，暂时无法施放。"
+	batch.log_lines.append(message)
 
 
 func get_item_defs() -> Dictionary:
@@ -1371,6 +1464,20 @@ func dispose() -> void:
 		_timeline_driver.dispose()
 	if _skill_orchestrator != null:
 		_skill_orchestrator.dispose()
+	if _meteor_swarm_resolver != null and _meteor_swarm_resolver.has_method("dispose"):
+		_meteor_swarm_resolver.dispose()
+	if _attack_check_policy_service != null and _attack_check_policy_service.has_method("dispose"):
+		_attack_check_policy_service.dispose()
+	if _skill_outcome_committer != null and _skill_outcome_committer.has_method("dispose"):
+		_skill_outcome_committer.dispose()
+	if _special_profile_commit_adapter != null and _special_profile_commit_adapter.has_method("dispose"):
+		_special_profile_commit_adapter.dispose()
+	_meteor_swarm_resolver = null
+	_special_profile_gate = null
+	_attack_check_policy_service = null
+	_skill_preview_service = null
+	_skill_outcome_committer = null
+	_special_profile_commit_adapter = null
 	if _skill_mastery_service != null:
 		_skill_mastery_service.clear()
 	if _fate_runtime != null:
@@ -1389,6 +1496,7 @@ func dispose() -> void:
 	_ai_trace_enabled = false
 	_character_gateway = null
 	_skill_defs = {}
+	_special_profile_registry_snapshot = {}
 	_item_defs = {}
 	_enemy_templates = {}
 	_enemy_ai_brains = {}
@@ -2668,16 +2776,21 @@ func handle_unit_defeated_by_runtime_effect(
 	unit_state: BattleUnitState,
 	source_unit: BattleUnitState,
 	batch: BattleEventBatch,
-	log_line: String = ""
+	log_line: String = "",
+	options: Dictionary = {}
 ) -> void:
 	if unit_state == null:
 		return
-	_collect_defeated_unit_loot(unit_state, source_unit)
+	if bool(options.get("collect_loot", true)):
+		_collect_defeated_unit_loot(unit_state, source_unit)
 	_clear_defeated_unit(unit_state, batch)
 	_record_unit_defeated(unit_state)
+	if bool(options.get("record_enemy_defeated_achievement", false)):
+		_battle_rating_system.record_enemy_defeated_achievement(source_unit, unit_state)
 	if not log_line.is_empty() and batch != null:
 		batch.log_lines.append(log_line)
-	_check_battle_end(batch)
+	if bool(options.get("check_battle_end", true)):
+		_check_battle_end(batch)
 
 
 func remove_summoned_unit_from_battle(unit_state: BattleUnitState, batch: BattleEventBatch, log_line: String = "") -> void:

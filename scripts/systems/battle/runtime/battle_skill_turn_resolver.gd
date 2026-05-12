@@ -19,6 +19,7 @@ const STATUS_PINNED: StringName = &"pinned"
 const STATUS_ROOTED: StringName = &"rooted"
 const STATUS_TENDON_CUT: StringName = &"tendon_cut"
 const STATUS_STAGGERED: StringName = &"staggered"
+const STATUS_METEOR_CONCUSSED: StringName = &"meteor_concussed"
 const STATUS_PETRIFIED: StringName = &"petrified"
 const STATUS_MADNESS: StringName = &"madness"
 const STATUS_GUARDING: StringName = &"guarding"
@@ -47,6 +48,7 @@ const DEBUFF_STATUS_IDS := {
 	&"frozen": true,
 	&"hex_of_frailty": true,
 	&"marked": true,
+	&"meteor_concussed": true,
 	&"pinned": true,
 	&"petrified": true,
 	&"rooted": true,
@@ -314,10 +316,8 @@ func consume_racial_skill_charge(
 	var charge_key := get_racial_skill_charge_key(skill_def.skill_id)
 	if active_unit.per_battle_charges.has(charge_key):
 		active_unit.per_battle_charges[charge_key] = maxi(int(active_unit.per_battle_charges.get(charge_key, 0)) - 1, 0)
-		return true
 	if active_unit.per_turn_charges.has(charge_key):
 		active_unit.per_turn_charges[charge_key] = maxi(int(active_unit.per_turn_charges.get(charge_key, 0)) - 1, 0)
-		return true
 	return true
 
 
@@ -464,17 +464,40 @@ func apply_turn_start_statuses(unit_state: BattleUnitState, batch: BattleEventBa
 	if unit_state == null:
 		return {"changed": false, "defeat_source_unit_id": ""}
 	var changed := false
+	var penalty_by_group: Dictionary = {}
+	var label_by_group: Dictionary = {}
+	var consume_status_ids: Array[StringName] = []
 	for status_id_str in ProgressionDataUtils.sorted_string_keys(unit_state.status_effects):
-		var status_entry = unit_state.get_status_effect(StringName(status_id_str))
+		var status_entry = unit_state.get_status_effect(StringName(status_id_str)) as BattleStatusEffectState
 		if status_entry == null:
 			continue
 		var ap_penalty := BattleStatusSemanticTable.get_turn_start_ap_penalty(status_entry)
-		if ap_penalty > 0:
-			var previous_ap: int = unit_state.current_ap
-			unit_state.current_ap = maxi(unit_state.current_ap - ap_penalty, 0)
-			if unit_state.current_ap != previous_ap:
-				changed = true
-				batch.log_lines.append("%s 受到踉跄影响，本回合少 %d 点 AP。" % [unit_state.display_name, previous_ap - unit_state.current_ap])
+		if ap_penalty <= 0:
+			continue
+		var penalty_group := BattleStatusSemanticTable.get_turn_start_ap_penalty_group(status_entry)
+		if penalty_group == &"":
+			penalty_group = status_entry.status_id
+		if ap_penalty > int(penalty_by_group.get(penalty_group, 0)):
+			penalty_by_group[penalty_group] = ap_penalty
+			label_by_group[penalty_group] = BattleStatusSemanticTable.get_turn_start_ap_penalty_display_label(status_entry)
+		if BattleStatusSemanticTable.should_consume_after_turn_start_ap_penalty(status_entry):
+			consume_status_ids.append(status_entry.status_id)
+	for group_id_str in ProgressionDataUtils.sorted_string_keys(penalty_by_group):
+		var group_id := StringName(group_id_str)
+		var group_penalty := int(penalty_by_group.get(group_id, 0))
+		if group_penalty <= 0:
+			continue
+		var previous_ap: int = unit_state.current_ap
+		unit_state.current_ap = maxi(unit_state.current_ap - group_penalty, 0)
+		var consumed_ap := previous_ap - unit_state.current_ap
+		if consumed_ap > 0:
+			changed = true
+			var label := String(label_by_group.get(group_id, "状态"))
+			batch.log_lines.append("%s 受到%s影响，本回合少 %d 点 AP。" % [unit_state.display_name, label, consumed_ap])
+	for status_id in consume_status_ids:
+		if unit_state.has_status_effect(status_id):
+			unit_state.erase_status_effect(status_id)
+			changed = true
 	if changed:
 		_runtime._append_changed_unit_id(batch, unit_state.unit_id)
 	return {
@@ -555,10 +578,21 @@ func advance_unit_status_durations(unit_state: BattleUnitState, elapsed_tu: int,
 			changed = true
 	for expired_status_id in expired_status_ids:
 		var expired_status_entry := expired_status_entries.get(expired_status_id) as BattleStatusEffectState
-		if _restore_body_size_category_override_if_needed(unit_state, expired_status_entry, batch):
-			changed = true
-		unit_state.erase_status_effect(expired_status_id)
+		var should_erase_status := true
+		if _is_body_size_category_override_status(expired_status_entry):
+			should_erase_status = false
+			if _restore_body_size_category_override_if_needed(unit_state, expired_status_entry, batch):
+				changed = true
+				should_erase_status = true
+		if should_erase_status:
+			unit_state.erase_status_effect(expired_status_id)
 	return changed
+
+
+func _is_body_size_category_override_status(status_entry: BattleStatusEffectState) -> bool:
+	return status_entry != null \
+		and status_entry.params != null \
+		and status_entry.params.has(STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE)
 
 
 func _restore_body_size_category_override_if_needed(
@@ -578,6 +612,7 @@ func _restore_body_size_category_override_if_needed(
 		return false
 
 	var previous_coords := unit_state.occupied_coords.duplicate()
+	var current_category := unit_state.body_size_category
 	var runtime = _runtime
 	var grid_service = runtime.get_grid_service() if runtime != null and runtime.has_method("get_grid_service") else null
 	var state = runtime.get_state() if runtime != null and runtime.has_method("get_state") else null
@@ -585,6 +620,10 @@ func _restore_body_size_category_override_if_needed(
 		grid_service.clear_unit_occupancy(state, unit_state)
 	unit_state.set_body_size_category(previous_category)
 	if grid_service != null and state != null:
+		if not grid_service.can_place_unit(state, unit_state, unit_state.coord, true):
+			unit_state.set_body_size_category(current_category)
+			grid_service.set_occupants(state, previous_coords, unit_state.unit_id)
+			return false
 		grid_service.set_occupants(state, unit_state.occupied_coords, unit_state.unit_id)
 	if runtime != null and batch != null:
 		runtime._append_changed_coords(batch, previous_coords)

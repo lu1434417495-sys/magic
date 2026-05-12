@@ -1149,6 +1149,8 @@ func _test_charge_preview_allows_impassable_first_step_and_resolves_as_stop() ->
 		Vector2i.ZERO,
 		"首步被地形阻挡时，charge preview 应暴露原地停下的 resolved_anchor_coord。"
 	)
+	_assert_eq(charger.coord, Vector2i.ZERO, "charge preview 不应移动真实冲锋单位。")
+	_assert_eq(charger.current_ap, 1, "charge preview 不应消耗真实冲锋单位 AP。")
 
 	var batch := runtime.issue_command(command)
 	_assert_eq(charger.coord, Vector2i.ZERO, "首步被地形阻挡时，冲锋应原地停下。")
@@ -1196,6 +1198,8 @@ func _test_charge_preview_allows_larger_first_step_blocker_and_resolves_as_stop(
 		Vector2i.ZERO,
 		"首步被更大体型单位阻挡时，charge preview 应暴露原地停下的 resolved_anchor_coord。"
 	)
+	_assert_eq(charger.coord, Vector2i.ZERO, "charge preview 遇到阻挡单位时不应移动真实冲锋单位。")
+	_assert_eq(charger.current_ap, 1, "charge preview 遇到阻挡单位时不应消耗真实冲锋单位 AP。")
 
 	var batch := runtime.issue_command(command)
 	_assert_eq(charger.coord, Vector2i.ZERO, "首步被更大体型单位阻挡时，冲锋应原地停下。")
@@ -1243,6 +1247,8 @@ func _test_charge_stops_at_larger_midpath_blocker_without_rollback() -> void:
 		Vector2i(1, 0),
 		"中途受阻时，charge preview 应暴露已完成位移后的 resolved_anchor_coord。"
 	)
+	_assert_eq(charger.coord, Vector2i.ZERO, "charge preview 计算中途落点时不应移动真实冲锋单位。")
+	_assert_eq(charger.current_ap, 1, "charge preview 计算中途落点时不应消耗真实冲锋单位 AP。")
 
 	var batch := runtime.issue_command(command)
 	_assert_eq(charger.coord, Vector2i(1, 0), "中途被更大体型单位拦住时，应保留已完成的前进一步而不是回退。")

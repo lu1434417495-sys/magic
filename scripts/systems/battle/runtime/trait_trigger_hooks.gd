@@ -20,19 +20,6 @@ const TRAIT_RELENTLESS_ENDURANCE: StringName = TRAIT_TRIGGER_CONTENT_RULES.TRAIT
 
 const VALID_TRIGGER_TYPES := TRAIT_TRIGGER_CONTENT_RULES.VALID_TRIGGER_TYPES
 
-const _DISPATCH := {
-	TRAIT_HALFLING_LUCK: {
-		TRIGGER_ON_NATURAL_ONE: "_handle_halfling_luck",
-	},
-	TRAIT_SAVAGE_ATTACKS: {
-		TRIGGER_ON_CRIT: "_handle_savage_attacks",
-	},
-	TRAIT_RELENTLESS_ENDURANCE: {
-		TRIGGER_ON_FATAL_DAMAGE: "_handle_relentless_endurance",
-	},
-}
-
-
 static func has_dispatch_for_trait_trigger(trait_id: StringName, trigger_type: StringName) -> bool:
 	return TRAIT_TRIGGER_CONTENT_RULES.has_dispatch_for_trait_trigger(
 		ProgressionDataUtils.to_string_name(trait_id),
@@ -93,10 +80,7 @@ func on_turn_start(unit_state: BattleUnitState, context: Dictionary = {}) -> Dic
 
 func _dispatch_first(unit_state: BattleUnitState, trigger_type: StringName, context: Dictionary) -> Dictionary:
 	for trait_id in _get_unit_trait_ids(unit_state):
-		var dispatch_entry: Dictionary = _DISPATCH.get(trait_id, {})
-		if not dispatch_entry.has(trigger_type):
-			continue
-		var method_name := String(dispatch_entry.get(trigger_type, ""))
+		var method_name := TRAIT_TRIGGER_CONTENT_RULES.get_dispatch_method_name(trait_id, trigger_type)
 		if method_name.is_empty() or not has_method(method_name):
 			continue
 		var result: Dictionary = call(method_name, unit_state, context)
@@ -111,10 +95,7 @@ func _dispatch_first(unit_state: BattleUnitState, trigger_type: StringName, cont
 func _dispatch_all(unit_state: BattleUnitState, trigger_type: StringName, context: Dictionary) -> Dictionary:
 	var results: Array[Dictionary] = []
 	for trait_id in _get_unit_trait_ids(unit_state):
-		var dispatch_entry: Dictionary = _DISPATCH.get(trait_id, {})
-		if not dispatch_entry.has(trigger_type):
-			continue
-		var method_name := String(dispatch_entry.get(trigger_type, ""))
+		var method_name := TRAIT_TRIGGER_CONTENT_RULES.get_dispatch_method_name(trait_id, trigger_type)
 		if method_name.is_empty() or not has_method(method_name):
 			continue
 		var result: Dictionary = call(method_name, unit_state, context)

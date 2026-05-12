@@ -7,6 +7,7 @@ const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
+const TRAIT_TRIGGER_CONTENT_RULES_SCRIPT = preload("res://scripts/player/progression/trait_trigger_content_rules.gd")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -21,6 +22,7 @@ func _run() -> void:
 	_test_savage_attacks_adds_one_weapon_die_on_melee_crit()
 	_test_relentless_endurance_precedes_death_ward()
 	_test_turn_start_refreshes_halfling_luck()
+	_test_trait_dispatch_content_rules_match_runtime_methods()
 
 	if _failures.is_empty():
 		print("Trait trigger regression: PASS")
@@ -100,6 +102,20 @@ func _test_turn_start_refreshes_halfling_luck() -> void:
 	unit.reset_per_turn_charges()
 	hooks.on_turn_start(unit)
 	_assert_eq(int(unit.per_turn_charges.get(&"trait_halfling_luck", -1)), 1, "turn start should refresh halfling_luck.")
+
+
+func _test_trait_dispatch_content_rules_match_runtime_methods() -> void:
+	var hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
+	for trait_id in TRAIT_TRIGGER_CONTENT_RULES_SCRIPT.get_dispatch_trait_ids():
+		var trigger_map: Dictionary = TRAIT_TRIGGER_CONTENT_RULES_SCRIPT.DISPATCH_TRIGGER_TYPES.get(trait_id, {})
+		for trigger_type in trigger_map.keys():
+			var method_name := TRAIT_TRIGGER_CONTENT_RULES_SCRIPT.get_dispatch_method_name(trait_id, StringName(trigger_type))
+			_assert_true(not method_name.is_empty(), "content dispatch should expose a method for %s/%s." % [String(trait_id), String(trigger_type)])
+			_assert_true(hooks.has_method(method_name), "runtime hooks should implement content dispatch method %s." % method_name)
+			_assert_true(
+				TRAIT_TRIGGER_HOOKS_SCRIPT.has_dispatch_for_trait_trigger(trait_id, StringName(trigger_type)),
+				"runtime static dispatch query should agree with content dispatch table."
+			)
 
 
 func _build_unit(unit_id: StringName, faction_id: StringName, hp: int) -> BATTLE_UNIT_STATE_SCRIPT:

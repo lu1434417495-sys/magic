@@ -494,7 +494,24 @@ func _build_enemy_snapshot_from_template(
 	var snapshot = attribute_service.get_snapshot()
 	var stats: Dictionary = template.attribute_overrides if template != null else {}
 	_apply_enemy_attribute_overrides(snapshot, stats)
+	if template != null:
+		_apply_enemy_target_rank(snapshot, template.target_rank)
 	return snapshot
+
+
+func _apply_enemy_target_rank(snapshot, target_rank: StringName) -> void:
+	if snapshot == null:
+		return
+	match ProgressionDataUtils.to_string_name(target_rank):
+		&"boss":
+			snapshot.set_value(&"fortune_mark_target", 2)
+			snapshot.set_value(&"boss_target", 1)
+		&"elite":
+			snapshot.set_value(&"fortune_mark_target", 1)
+			snapshot.set_value(&"boss_target", 0)
+		_:
+			snapshot.set_value(&"fortune_mark_target", 0)
+			snapshot.set_value(&"boss_target", 0)
 
 
 func _apply_enemy_weapon_projection(unit_state: BattleUnitState, template) -> void:

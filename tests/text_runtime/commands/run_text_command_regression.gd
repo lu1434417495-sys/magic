@@ -820,7 +820,9 @@ func _inject_extended_test_settlement_services(runner) -> void:
 		if available_services_variant is Array:
 			available_services = (available_services_variant as Array).duplicate(true)
 		for extra_service in extra_services:
-			_upsert_test_settlement_service(available_services, extra_service)
+			var scoped_service := extra_service.duplicate(true)
+			scoped_service["settlement_id"] = settlement_id
+			_upsert_test_settlement_service(available_services, scoped_service)
 		settlement_data["available_services"] = available_services
 		settlement_variants[index] = settlement_data
 		break

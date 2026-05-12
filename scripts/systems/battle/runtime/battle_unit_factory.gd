@@ -12,6 +12,7 @@ const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_s
 const PASSIVE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/progression/passive_source_context.gd")
 const PASSIVE_STATUS_ORCHESTRATOR_SCRIPT = preload("res://scripts/systems/battle/runtime/passive_status_orchestrator.gd")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
 const EquipmentRules = preload("res://scripts/player/equipment/equipment_rules.gd")
 const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
@@ -90,7 +91,11 @@ func refresh_battle_unit(unit_state: BattleUnitState) -> void:
 		0,
 		maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
 	)
-	unit_state.current_ap = maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
+	unit_state.current_ap = clampi(
+		unit_state.current_ap,
+		0,
+		maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS), 1)
+	)
 	unit_state.action_threshold = _resolve_action_threshold_from_snapshot(snapshot)
 	unit_state.current_move_points = clampi(
 		unit_state.current_move_points,
@@ -143,9 +148,42 @@ func refresh_equipment_projection(unit_state: BattleUnitState) -> void:
 	var snapshot = _build_member_attribute_snapshot(member_state, {}, unit_state.get_equipment_view())
 	if snapshot == null:
 		snapshot = ATTRIBUTE_SNAPSHOT_SCRIPT.new()
+	var previous_snapshot = unit_state.attribute_snapshot
+	var previous_hp_max := int(previous_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)) if previous_snapshot != null else maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1)
+	var previous_mp_max := int(previous_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX)) if previous_snapshot != null else maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0)
+	var previous_stamina_max := int(previous_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)) if previous_snapshot != null else maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
+	var previous_aura_max := int(previous_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX)) if previous_snapshot != null else maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
 	unit_state.attribute_snapshot = snapshot
 	refresh_weapon_projection(unit_state)
+	var hp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX), 1)
+	var mp_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX), 0)
+	var stamina_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX), 0)
+	var aura_max := maxi(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX), 0)
+	if hp_max < previous_hp_max:
+		unit_state.current_hp = clampi(unit_state.current_hp, 0, hp_max)
+	else:
+		unit_state.current_hp = maxi(unit_state.current_hp, 0)
+	if mp_max < previous_mp_max:
+		unit_state.current_mp = clampi(unit_state.current_mp, 0, mp_max)
+	else:
+		unit_state.current_mp = maxi(unit_state.current_mp, 0)
+	if stamina_max < previous_stamina_max:
+		unit_state.current_stamina = clampi(unit_state.current_stamina, 0, stamina_max)
+	else:
+		unit_state.current_stamina = maxi(unit_state.current_stamina, 0)
+	if aura_max < previous_aura_max:
+		unit_state.current_aura = clampi(unit_state.current_aura, 0, aura_max)
+	else:
+		unit_state.current_aura = maxi(unit_state.current_aura, 0)
+	unit_state.action_threshold = _resolve_action_threshold_from_snapshot(snapshot)
+	unit_state.known_active_skill_ids = _collect_known_active_skill_ids(member_state.progression)
+	unit_state.known_skill_level_map = _collect_known_skill_level_map(member_state.progression)
+	unit_state.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(member_state.progression)
+	_sync_unlocked_resources_from_progression(unit_state, member_state.progression)
+	_filter_skills_by_equipment_requirements(unit_state)
 	_ensure_basic_attack_skill(unit_state)
+	_sync_passive_battle_statuses(unit_state, member_state.progression, member_state)
+	unit_state.refresh_footprint()
 
 
 func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
@@ -365,6 +403,11 @@ func _filter_skills_by_equipment_requirements(unit_state: BattleUnitState) -> vo
 		if bool(skill_def.combat_profile.requires_equipped_shield):
 			if not _unit_has_equipped_shield(unit_state):
 				continue
+		if not BATTLE_RANGE_SERVICE_SCRIPT.unit_matches_required_weapon_families(unit_state, skill_def.combat_profile.required_weapon_families):
+			continue
+		if BATTLE_RANGE_SERVICE_SCRIPT.requires_current_melee_weapon(skill_def) \
+				and not BATTLE_RANGE_SERVICE_SCRIPT.unit_has_melee_weapon(unit_state):
+			continue
 		filtered.append(skill_id)
 	unit_state.known_active_skill_ids = filtered
 

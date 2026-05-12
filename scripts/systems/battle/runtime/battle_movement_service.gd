@@ -232,24 +232,33 @@ func _handle_move_command(active_unit: BattleUnitState, command: BattleCommand, 
 
 	var previous_anchor = active_unit.coord
 	var previous_coords = active_unit.occupied_coords.duplicate()
-	if _move_unit_along_validated_path(active_unit, anchor_path, target_coord, batch):
+	var execution_result := _move_unit_along_validated_path_result(active_unit, anchor_path, target_coord, batch)
+	if bool(execution_result.get("executed", false)):
+		var executed_path: Array[Vector2i] = []
+		for executed_coord_variant in execution_result.get("executed_path", []):
+			if executed_coord_variant is Vector2i:
+				executed_path.append(executed_coord_variant)
+		move_cost = _get_move_path_cost(active_unit, executed_path)
 		active_unit.current_move_points = maxi(active_unit.current_move_points - move_cost, 0)
 		_consume_status_if_present(active_unit, STATUS_ARCHER_QUICKSTEP, batch)
 		_record_action_issued(active_unit, BattleCommand.TYPE_MOVE)
 		batch.changed_unit_ids.append(active_unit.unit_id)
 		_append_changed_coords(batch, previous_coords)
 		_append_changed_unit_coords(batch, active_unit)
+		target_cell = _runtime._grid_service.get_cell(_runtime._state, active_unit.coord)
 		var terrain_name = _runtime._grid_service.get_terrain_display_name(String(target_cell.base_terrain)) if target_cell != null else "地格"
 		batch.log_lines.append("%s 从 (%d, %d) 移动到 (%d, %d)，移动距离消耗 %d 点，剩余移动力 %d 点并锁定。%s。" % [
 			active_unit.display_name,
 			previous_anchor.x,
 			previous_anchor.y,
-			target_coord.x,
-			target_coord.y,
+			active_unit.coord.x,
+			active_unit.coord.y,
 			move_cost,
 			active_unit.current_move_points,
 			terrain_name,
 		])
+		if bool(execution_result.get("stopped_by_barrier", false)):
+			batch.log_lines.append("%s 的移动被屏障拦下，停在当前可达位置。" % active_unit.display_name)
 	else:
 		batch.log_lines.append("%s 的移动落点已失效，无法执行。" % active_unit.display_name)
 
@@ -259,28 +268,50 @@ func _move_unit_along_validated_path(
 	target_coord: Vector2i,
 	batch: BattleEventBatch
 ) -> bool:
+	return bool(_move_unit_along_validated_path_result(active_unit, anchor_path, target_coord, batch).get("reached_target", false))
+
+func _move_unit_along_validated_path_result(
+	active_unit: BattleUnitState,
+	anchor_path: Array[Vector2i],
+	target_coord: Vector2i,
+	batch: BattleEventBatch
+) -> Dictionary:
+	var result := {
+		"executed": false,
+		"reached_target": false,
+		"stopped_by_barrier": false,
+		"executed_path": [],
+	}
 	if active_unit == null:
-		return false
+		return result
 	if anchor_path.is_empty():
-		return false
+		return result
 	if anchor_path[0] != active_unit.coord or anchor_path[anchor_path.size() - 1] != target_coord:
-		return false
+		return result
+	result["executed_path"] = [active_unit.coord]
 	if anchor_path.size() == 1:
-		return active_unit.coord == target_coord
+		result["executed"] = active_unit.coord == target_coord
+		result["reached_target"] = active_unit.coord == target_coord
+		return result
 	for path_index in range(1, anchor_path.size()):
 		var next_coord = anchor_path[path_index]
 		if not _runtime._grid_service.can_unit_step_between_anchors(_runtime._state, active_unit, active_unit.coord, next_coord):
 			if batch != null:
 				batch.log_lines.append("%s 的移动路径第 %d 步已不可通行。" % [active_unit.display_name, path_index])
-			return false
+			return result
 		var barrier_result: Dictionary = _runtime._layered_barrier_service.resolve_unit_boundary_crossing(active_unit, active_unit.coord, next_coord, batch) if _runtime._layered_barrier_service != null else {}
 		if bool(barrier_result.get("blocked", false)) or not active_unit.is_alive or active_unit.coord != anchor_path[path_index - 1]:
-			return false
+			result["executed"] = bool(result["executed"]) or bool(barrier_result.get("applied", false)) or (result["executed_path"] as Array).size() > 1
+			result["stopped_by_barrier"] = bool(barrier_result.get("blocked", false))
+			return result
 		if not _runtime._grid_service.move_unit(_runtime._state, active_unit, next_coord):
 			if batch != null:
 				batch.log_lines.append("%s 的移动路径第 %d 步执行失败。" % [active_unit.display_name, path_index])
-			return false
-	return active_unit.coord == target_coord
+			return result
+		result["executed"] = true
+		(result["executed_path"] as Array).append(active_unit.coord)
+	result["reached_target"] = active_unit.coord == target_coord
+	return result
 
 func _collect_dict_vector2i_keys(values: Dictionary) -> Array[Vector2i]:
 	var coords: Array[Vector2i] = []

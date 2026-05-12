@@ -100,7 +100,7 @@ func _refresh_change_equipment_projection(active_unit: BattleUnitState, result: 
 		_runtime._unit_factory.refresh_equipment_projection(active_unit)
 	var hp_max_after := _get_unit_hp_max(active_unit)
 	var hp_clamped := false
-	if hp_max_after > 0 and hp_max_after < hp_max_before and active_unit.current_hp > hp_max_after:
+	if hp_max_after > 0 and hp_max_after < hp_max_before and hp_before > hp_max_after:
 		active_unit.current_hp = hp_max_after
 		hp_clamped = true
 	if active_unit.current_hp < 0:

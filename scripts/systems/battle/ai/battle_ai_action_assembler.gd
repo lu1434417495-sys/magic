@@ -251,6 +251,8 @@ func _build_action_id(state_id: StringName, skill_id: StringName, suffix: String
 func _is_offensive_or_enemy_skill(skill_def: SkillDef) -> bool:
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
+	if ProgressionDataUtils.to_string_name(skill_def.combat_profile.special_resolution_profile_id) == &"meteor_swarm":
+		return true
 	var target_filter := ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_team_filter)
 	if target_filter == &"enemy" or target_filter == &"hostile":
 		return true

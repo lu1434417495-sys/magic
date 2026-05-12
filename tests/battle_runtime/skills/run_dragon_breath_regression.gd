@@ -32,6 +32,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_official_dragon_breath_skill_resources_are_schema_stable()
 	_test_racial_skill_per_battle_charge_blocks_and_consumes()
+	_test_racial_skill_consumes_per_battle_and_per_turn_charges_together()
 	_test_racial_skill_per_turn_charge_refreshes_from_identity_projection()
 	if _failures.is_empty():
 		print("Dragon breath regression: PASS")
@@ -118,6 +119,28 @@ func _test_racial_skill_per_battle_charge_blocks_and_consumes() -> void:
 	var second_preview = runtime.preview_command(command)
 	_assert_true(second_preview != null and not second_preview.allowed, "spent dragon breath should block the second cast.")
 	_assert_log_contains(second_preview.log_lines, "次数已用尽", "second preview should keep the charge block reason.")
+
+
+func _test_racial_skill_consumes_per_battle_and_per_turn_charges_together() -> void:
+	var skill_def := _build_dragon_breath_skill(&"dragon_breath_dual_charge_contract", &"fire", &"cone")
+	var runtime := _build_runtime({skill_def.skill_id: skill_def})
+	var state := _build_state(Vector2i(5, 3))
+	runtime._state = state
+	var caster := _build_unit(&"dragon_breath_dual_user", &"player", Vector2i(1, 1), [skill_def.skill_id], 2)
+	var target := _build_unit(&"dragon_breath_dual_target", &"enemy", Vector2i(2, 1), [], 0)
+	_add_unit(runtime, state, caster)
+	_add_unit(runtime, state, target)
+	state.active_unit_id = caster.unit_id
+	var charge_key := _racial_skill_charge_key(skill_def.skill_id)
+	caster.per_battle_charges[charge_key] = 1
+	caster.per_turn_charges[charge_key] = 1
+
+	var command := _build_ground_skill_command(caster.unit_id, skill_def.skill_id, Vector2i(2, 1))
+	var batch = runtime.issue_command(command)
+
+	_assert_true(batch != null, "dual charge dragon breath should execute.")
+	_assert_eq(int(caster.per_battle_charges.get(charge_key, -1)), 0, "identity skill should consume per-battle charge when present.")
+	_assert_eq(int(caster.per_turn_charges.get(charge_key, -1)), 0, "identity skill should also consume per-turn charge when present.")
 
 
 func _test_racial_skill_per_turn_charge_refreshes_from_identity_projection() -> void:

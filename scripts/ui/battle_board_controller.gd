@@ -14,6 +14,8 @@ const BattleEdgeService = preload("res://scripts/systems/battle/terrain/battle_e
 const BattleBoardProp = preload("res://scripts/ui/battle_board_prop.gd")
 const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
 const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
+const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
+const BattleTerrainEffectSystem = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_system.gd")
 const BATTLE_BOARD_PROP_SCENE = preload("res://scenes/common/battle_board_prop.tscn")
 
 const MAX_HEIGHT_LAYERS := 9
@@ -80,6 +82,8 @@ const SOURCE_SELECTED := &"selected"
 const SOURCE_ACTIVE_SELECTED := &"active_selected"
 const SOURCE_MOVE_REACHABLE := &"move_reachable"
 const SOURCE_PREVIEW := &"preview"
+const PARAM_RENDER_OVERLAY_ID := "render_overlay_id"
+const PARAM_OVERLAY_PRIORITY := "overlay_priority"
 const INVALID_VARIANT_COORD := Vector2i(-999999, -999999)
 
 ## 字段说明：缓存输入层节点，避免运行时重复查找场景树，并作为当前脚本直接读写的节点入口。
@@ -1407,6 +1411,9 @@ func _get_top_source_id(terrain: String, coord: Vector2i) -> int:
 
 
 func _get_overlay_source_id(terrain: String, coord: Vector2i) -> int:
+	var timed_overlay_source_id := _get_timed_terrain_overlay_source_id(coord)
+	if timed_overlay_source_id >= 0:
+		return timed_overlay_source_id
 	match StringName(terrain):
 		TERRAIN_FOREST:
 			return _get_source_id(SOURCE_SCRUB, coord)
@@ -1414,6 +1421,45 @@ func _get_overlay_source_id(terrain: String, coord: Vector2i) -> int:
 			return _get_source_id(SOURCE_RUBBLE, coord)
 		_:
 			return -1
+
+
+func _get_timed_terrain_overlay_source_id(coord: Vector2i) -> int:
+	if _battle_state == null:
+		return -1
+	var cell := _battle_state.cells.get(coord) as BattleCellState
+	if cell == null or cell.timed_terrain_effects.is_empty():
+		return -1
+	var best_source_id := -1
+	var best_priority := -2147483648
+	var best_source_key := ""
+	for effect_variant in cell.timed_terrain_effects:
+		var effect_state := effect_variant as BattleTerrainEffectState
+		if effect_state == null or not BattleTerrainEffectSystem.is_terrain_effect_active(effect_state):
+			continue
+		var overlay_id := ProgressionDataUtils.to_string_name(_get_effect_param(effect_state, PARAM_RENDER_OVERLAY_ID, &""))
+		if overlay_id == &"":
+			continue
+		var source_id := _get_source_id(overlay_id, coord)
+		if source_id < 0:
+			continue
+		var priority := int(_get_effect_param(effect_state, PARAM_OVERLAY_PRIORITY, 0))
+		var source_key := String(overlay_id)
+		if priority > best_priority or (priority == best_priority and source_key < best_source_key):
+			best_priority = priority
+			best_source_key = source_key
+			best_source_id = source_id
+	return best_source_id
+
+
+func _get_effect_param(effect_state: BattleTerrainEffectState, param_key: String, fallback: Variant) -> Variant:
+	if effect_state == null or effect_state.params == null:
+		return fallback
+	if effect_state.params.has(param_key):
+		return effect_state.params[param_key]
+	var string_name_key := StringName(param_key)
+	if effect_state.params.has(string_name_key):
+		return effect_state.params[string_name_key]
+	return fallback
 
 
 func _get_variant_index(coord: Vector2i, variant_count: int, salt: int = 0) -> int:

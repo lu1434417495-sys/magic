@@ -30,8 +30,8 @@ func _run() -> void:
 	var runner = GAME_TEXT_COMMAND_RUNNER_SCRIPT.new()
 	await runner.initialize()
 
-	await _run_command(runner, "game new test")
 	_install_battle_equipment_test_items(runner)
+	await _run_command(runner, "game new test")
 	await _run_command(runner, "warehouse capacity 10")
 	await _run_command(runner, "warehouse add bronze_sword 1")
 	await _run_command(runner, "warehouse add leather_cap 1")
@@ -185,12 +185,31 @@ func _install_battle_equipment_test_items(runner) -> void:
 	_assert_true(game_session != null, "战斗换装回归前置：应存在 GameSession。")
 	if game_session == null:
 		return
-	var item_defs: Dictionary = game_session.get_item_defs()
-	item_defs[VERSATILE_TEST_WEAPON_ID] = _build_versatile_test_weapon_def()
-	item_defs[OFFHAND_TEST_ITEM_ID] = _build_offhand_test_item_def()
-	item_defs[RESTRICTED_TEST_HELM_ID] = _build_restricted_test_helm_def()
-	item_defs[String(STRING_KEY_ONLY_TEST_HELM_ID)] = _build_string_key_only_test_helm_def()
-	item_defs[DUPLICATE_TEST_CHARM_ID] = _build_duplicate_test_charm_def()
+	_assert_eq(
+		game_session.install_test_content_def(&"item", VERSATILE_TEST_WEAPON_ID, _build_versatile_test_weapon_def()),
+		OK,
+		"应能注册战斗换装测试用 versatile 武器。"
+	)
+	_assert_eq(
+		game_session.install_test_content_def(&"item", OFFHAND_TEST_ITEM_ID, _build_offhand_test_item_def()),
+		OK,
+		"应能注册战斗换装测试用副手物品。"
+	)
+	_assert_eq(
+		game_session.install_test_content_def(&"item", RESTRICTED_TEST_HELM_ID, _build_restricted_test_helm_def()),
+		OK,
+		"应能注册战斗换装测试用受限头盔。"
+	)
+	_assert_eq(
+		game_session.install_test_content_def(&"item", String(STRING_KEY_ONLY_TEST_HELM_ID), _build_string_key_only_test_helm_def()),
+		OK,
+		"应能以 String key 注册战斗换装测试用头盔。"
+	)
+	_assert_eq(
+		game_session.install_test_content_def(&"item", DUPLICATE_TEST_CHARM_ID, _build_duplicate_test_charm_def()),
+		OK,
+		"应能注册战斗换装测试用重复饰品。"
+	)
 
 
 func _install_string_key_only_battle_item_instance(runner) -> void:

@@ -9,6 +9,9 @@ const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/batt
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
 
 const SPAWN_REACHABILITY_SERVICE_PATH := "res://scripts/systems/battle/runtime/battle_spawn_reachability_service.gd"
 
@@ -31,6 +34,7 @@ func _run() -> void:
 		_test_bidirectional_deep_water_split_marks_player_spawn_invalid(service_script)
 		_test_flat_field_marks_enemy_spawn_valid(service_script)
 		_test_bidirectional_flat_field_marks_both_sides_valid(service_script)
+		_test_weapon_required_skill_without_weapon_is_not_reachable(service_script)
 
 	if _failures.is_empty():
 		print("Battle spawn reachability regression: PASS")
@@ -168,6 +172,30 @@ func _test_bidirectional_flat_field_marks_both_sides_valid(service_script) -> vo
 	)
 
 
+func _test_weapon_required_skill_without_weapon_is_not_reachable(service_script) -> void:
+	var service = service_script.new()
+	var grid_service = BATTLE_GRID_SERVICE_SCRIPT.new()
+	var skill_id := &"spawn_reachability_requires_sword"
+	var skill_def = _build_weapon_required_skill(skill_id)
+	var state = _build_flat_state(Vector2i(5, 3))
+	var enemy = _build_unit(&"weaponless_enemy", &"enemy", Vector2i(1, 1), skill_id)
+	var player = _build_unit(&"weaponless_player", &"player", Vector2i(3, 1), &"")
+	_add_unit_to_state(grid_service, state, enemy, true)
+	_add_unit_to_state(grid_service, state, player, false)
+
+	var result: Dictionary = service.validate_state(
+		state,
+		grid_service,
+		{skill_id: skill_def},
+		{}
+	)
+	_assert_true(not bool(result.get("valid", true)), "缺少需求武器时，出生可达性不应把武器技能当作可攻击方案。")
+	_assert_true(
+		_string_name_array_has(result.get("invalid_enemy_unit_ids", []), enemy.unit_id),
+		"缺少需求武器时，应标记对应敌方出生单位 invalid。"
+	)
+
+
 func _build_service_fixture() -> Dictionary:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var skill_defs: Dictionary = game_session.get_skill_defs()
@@ -188,6 +216,21 @@ func _build_service_fixture() -> Dictionary:
 	}
 
 
+func _build_weapon_required_skill(skill_id: StringName):
+	var skill_def = SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = skill_id
+	skill_def.skill_type = &"active"
+	var combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
+	combat_profile.skill_id = skill_id
+	combat_profile.target_mode = &"unit"
+	combat_profile.target_team_filter = &"enemy"
+	combat_profile.range_value = 3
+	var required_weapon_families: Array[StringName] = [&"sword"]
+	combat_profile.required_weapon_families = required_weapon_families
+	skill_def.combat_profile = combat_profile
+	return skill_def
+
+
 func _find_enemy_unit_attack_skill(skill_defs: Dictionary) -> Dictionary:
 	var best_skill_id: StringName = &""
 	var best_skill_def = null
@@ -200,6 +243,8 @@ func _find_enemy_unit_attack_skill(skill_defs: Dictionary) -> Dictionary:
 		if combat_profile.target_mode != &"unit":
 			continue
 		if not _target_filter_can_attack_player(combat_profile.target_team_filter):
+			continue
+		if BATTLE_RANGE_SERVICE_SCRIPT.requires_current_melee_weapon(skill_def):
 			continue
 		var skill_range := int(combat_profile.range_value)
 		if skill_range < 1:

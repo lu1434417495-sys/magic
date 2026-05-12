@@ -44,6 +44,7 @@ func _run() -> void:
 	_test_ordinary_battle_calamity_conversion_respects_chapter_cap()
 	_test_elite_boss_loot_paths_bypass_ordinary_chapter_cap()
 	_test_branded_elite_grants_fixed_calamity_shard()
+	_test_boss_target_without_fortune_mark_counts_as_elite_or_boss()
 	_test_doom_sentence_boss_defeat_returns_calamity_and_core()
 	if _failures.is_empty():
 		print("Fate calamity drop regression: PASS")
@@ -145,6 +146,25 @@ func _test_branded_elite_grants_fixed_calamity_shard() -> void:
 		_count_matching_loot_quantity(result.loot_entries, BattleLootConstants.ITEM_CALAMITY_SHARD, BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP, &"brand_elite_target"),
 		1,
 		"被黑星烙印终结的 elite 应固定掉落 1 个 calamity_shard。"
+	)
+
+
+func _test_boss_target_without_fortune_mark_counts_as_elite_or_boss() -> void:
+	var runtime = _build_runtime()
+	var state = _build_finished_battle_state(&"boss_target_only_resolution")
+	var boss = _build_enemy_unit(&"boss_target_only", "Boss 标记目标", false, true)
+	_set_status(boss, STATUS_BLACK_STAR_BRAND_ELITE, &"hero")
+	boss.is_alive = false
+	boss.current_hp = 0
+	state.units[boss.unit_id] = boss
+	state.enemy_unit_ids.append(boss.unit_id)
+	runtime._state = state
+
+	var result = runtime._build_battle_resolution_result()
+	_assert_eq(
+		_count_matching_loot_quantity(result.loot_entries, BattleLootConstants.ITEM_CALAMITY_SHARD, BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP, &"boss_target_only"),
+		1,
+		"只有 boss_target 标记、没有 fortune_mark_target 的目标也应走 elite/boss 固定掉落判定。"
 	)
 
 

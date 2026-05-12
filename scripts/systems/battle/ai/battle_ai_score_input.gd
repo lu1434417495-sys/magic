@@ -44,6 +44,15 @@ var estimated_chain_enemy_target_count := 0
 var estimated_chain_ally_target_count := 0
 var estimated_hit_rate_percent := 100
 var save_estimates_by_target_id: Dictionary = {}
+var special_profile_preview_facts: Dictionary = {}
+var target_numeric_summary: Array[Dictionary] = []
+var friendly_fire_numeric_summary: Array[Dictionary] = []
+var friendly_fire_reject_reason: String = ""
+var meteor_use_case: StringName = &""
+var high_priority_target_ids: Array[StringName] = []
+var high_priority_reasons: Dictionary = {}
+var low_value_penalty_reason: String = ""
+var attack_roll_modifier_breakdown: Array[Dictionary] = []
 var hit_payoff_score := 0
 var target_priority_score := 0
 var friendly_fire_penalty_score := 0
@@ -121,6 +130,15 @@ func to_dict() -> Dictionary:
 		"estimated_chain_ally_target_count": estimated_chain_ally_target_count,
 		"estimated_hit_rate_percent": estimated_hit_rate_percent,
 		"save_estimates_by_target_id": save_estimates_by_target_id.duplicate(true),
+		"special_profile_preview_facts": special_profile_preview_facts.duplicate(true),
+		"target_numeric_summary": target_numeric_summary.duplicate(true),
+		"friendly_fire_numeric_summary": friendly_fire_numeric_summary.duplicate(true),
+		"friendly_fire_reject_reason": friendly_fire_reject_reason,
+		"meteor_use_case": String(meteor_use_case),
+		"high_priority_target_ids": high_priority_target_ids.duplicate(),
+		"high_priority_reasons": high_priority_reasons.duplicate(true),
+		"low_value_penalty_reason": low_value_penalty_reason,
+		"attack_roll_modifier_breakdown": attack_roll_modifier_breakdown.duplicate(true),
 		"hit_payoff_score": hit_payoff_score,
 		"target_priority_score": target_priority_score,
 		"friendly_fire_penalty_score": friendly_fire_penalty_score,

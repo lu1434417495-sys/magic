@@ -5,6 +5,7 @@ const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BATTLE_EXECUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_execution_rules.gd")
 const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
 const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
 
@@ -49,9 +50,7 @@ func build_battle_resolution_result():
 
 
 func _is_elite_or_boss_target(unit_state: BattleUnitState) -> bool:
-	return unit_state != null \
-		and unit_state.attribute_snapshot != null \
-		and int(unit_state.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 0
+	return BATTLE_EXECUTION_RULES_SCRIPT.is_elite_or_boss_target(unit_state)
 
 func _collect_defeated_unit_loot(unit_state: BattleUnitState, killer_unit: BattleUnitState = null) -> void:
 	if unit_state == null or unit_state.is_alive or unit_state.faction_id == &"player":
@@ -190,6 +189,11 @@ func _build_equipment_instance_loot_entry(
 	var item_id := ProgressionDataUtils.to_string_name(equipment_instance_data.get("item_id", ""))
 	if equipment_instance_data.is_empty() or item_id == &"":
 		return {}
+	if ProgressionDataUtils.to_string_name(equipment_instance_data.get("instance_id", "")) == &"":
+		var allocated_instance_id := _allocate_equipment_instance_id()
+		if allocated_instance_id == &"":
+			return {}
+		equipment_instance_data["instance_id"] = String(allocated_instance_id)
 	var source_label := drop_source_label.strip_edges()
 	if source_label.is_empty():
 		source_label = String(drop_source_id)
@@ -404,12 +408,7 @@ func _has_crown_break_seal(unit_state: BattleUnitState) -> bool:
 
 
 func _is_boss_target(unit_state: BattleUnitState) -> bool:
-	return unit_state != null \
-		and unit_state.attribute_snapshot != null \
-		and (
-			int(unit_state.attribute_snapshot.get_value(BOSS_TARGET_STAT_ID)) > 0
-			or int(unit_state.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 1
-		)
+	return BATTLE_EXECUTION_RULES_SCRIPT.is_boss_target(unit_state)
 
 
 func _battle_has_elite_or_boss_enemy() -> bool:

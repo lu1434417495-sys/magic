@@ -13,9 +13,13 @@ const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/batt
 
 const TERRAIN_EFFECT_DAMAGE: StringName = &"damage"
 const TERRAIN_EFFECT_MOVEMENT_COST: StringName = &"movement_cost"
+const TERRAIN_EFFECT_NONE: StringName = &"none"
+const LIFETIME_POLICY_TIMED: StringName = &"timed"
+const LIFETIME_POLICY_BATTLE: StringName = &"battle"
 const STACK_BEHAVIOR_REFRESH: StringName = &"refresh"
 const STACK_BEHAVIOR_STACK: StringName = &"stack"
 const STACK_BEHAVIOR_IGNORE_EXISTING: StringName = &"ignore_existing"
+const PARAM_LIFETIME_POLICY := "lifetime_policy"
 const PARAM_MOVE_COST_DELTA := "move_cost_delta"
 const PARAM_DOES_NOT_STACK_WITH_STATUS_ID := "does_not_stack_with_status_id"
 const PARAM_DOES_NOT_STACK_WITH_STATUS_IDS := "does_not_stack_with_status_ids"
@@ -137,6 +141,9 @@ func process_timed_terrain_effects(batch: BattleEventBatch) -> void:
 			if effect_state == null:
 				cell_changed = true
 				continue
+			if _is_battle_lifetime_effect(effect_state):
+				retained_effects.append(effect_state)
+				continue
 
 			while effect_state.remaining_tu > 0 and effect_state.tick_interval_tu > 0 and state.timeline.current_tu >= effect_state.next_tick_at_tu:
 				apply_timed_terrain_effect_tick(coord, effect_state, processed_tick_keys, batch)
@@ -162,7 +169,7 @@ func apply_timed_terrain_effect_tick(
 ) -> void:
 	if not _has_runtime():
 		return
-	if effect_state != null and (effect_state.effect_type == TERRAIN_EFFECT_MOVEMENT_COST or effect_state.effect_type == &"none"):
+	if effect_state != null and (effect_state.effect_type == TERRAIN_EFFECT_MOVEMENT_COST or effect_state.effect_type == TERRAIN_EFFECT_NONE):
 		return
 
 	var state = _runtime.get_state()
@@ -264,7 +271,9 @@ func apply_timed_terrain_effect_tick(
 
 
 func _get_timed_terrain_move_cost_delta(effect_state) -> int:
-	if effect_state == null or effect_state.remaining_tu <= 0:
+	if effect_state == null:
+		return 0
+	if effect_state.remaining_tu <= 0 and not _is_battle_lifetime_effect(effect_state):
 		return 0
 	return maxi(int(effect_state.params.get(PARAM_MOVE_COST_DELTA, 0)), 0)
 
@@ -297,28 +306,70 @@ func _build_timed_terrain_effect(
 	effect_def,
 	field_instance_id: StringName
 ) -> BattleTerrainEffectState:
-	var tick_interval_tu := _normalize_positive_tu_value(int(effect_def.tick_interval_tu), "terrain effect tick_interval_tu")
-	var duration_tu := _normalize_positive_tu_value(int(effect_def.duration_tu), "terrain effect duration_tu")
-	if tick_interval_tu <= 0 or duration_tu <= 0:
-		return null
+	var lifetime_policy := _resolve_lifetime_policy(effect_def)
+	var tick_interval_tu := 0
+	var duration_tu := 0
+	if lifetime_policy == LIFETIME_POLICY_BATTLE:
+		tick_interval_tu = 0
+		duration_tu = 0
+	else:
+		tick_interval_tu = _normalize_positive_tu_value(int(effect_def.tick_interval_tu), "terrain effect tick_interval_tu")
+		duration_tu = _normalize_positive_tu_value(int(effect_def.duration_tu), "terrain effect duration_tu")
+		if tick_interval_tu <= 0 or duration_tu <= 0:
+			return null
 
 	var effect_state := BATTLE_TERRAIN_EFFECT_STATE_SCRIPT.new()
 	effect_state.field_instance_id = field_instance_id
 	effect_state.effect_id = effect_def.terrain_effect_id
-	effect_state.effect_type = effect_def.tick_effect_type if effect_def.tick_effect_type != &"" else TERRAIN_EFFECT_DAMAGE
+	effect_state.effect_type = effect_def.tick_effect_type if effect_def.tick_effect_type != &"" else (TERRAIN_EFFECT_NONE if lifetime_policy == LIFETIME_POLICY_BATTLE else TERRAIN_EFFECT_DAMAGE)
 	effect_state.source_unit_id = source_unit.unit_id if source_unit != null else &""
 	effect_state.source_skill_id = skill_def.skill_id if skill_def != null else &""
 	effect_state.target_team_filter = _resolve_effect_target_filter(skill_def, effect_def)
 	effect_state.power = int(effect_def.power)
 	effect_state.damage_tag = effect_def.damage_tag
 	effect_state.tick_interval_tu = tick_interval_tu
-	effect_state.remaining_tu = maxi(duration_tu, tick_interval_tu)
-	effect_state.next_tick_at_tu = _runtime.get_state().timeline.current_tu + tick_interval_tu if _runtime != null and _runtime.get_state() != null and _runtime.get_state().timeline != null else tick_interval_tu
+	effect_state.remaining_tu = 0 if lifetime_policy == LIFETIME_POLICY_BATTLE else maxi(duration_tu, tick_interval_tu)
+	effect_state.next_tick_at_tu = 0 if lifetime_policy == LIFETIME_POLICY_BATTLE else (_runtime.get_state().timeline.current_tu + tick_interval_tu if _runtime != null and _runtime.get_state() != null and _runtime.get_state().timeline != null else tick_interval_tu)
 	effect_state.stack_behavior = _normalize_stack_behavior(effect_def.stack_behavior)
 	effect_state.params = effect_def.params.duplicate(true)
+	effect_state.params[PARAM_LIFETIME_POLICY] = String(lifetime_policy)
 	if effect_def.status_id != &"":
 		effect_state.params["status_id"] = String(effect_def.status_id)
 	return effect_state
+
+
+static func is_terrain_effect_active(effect_state) -> bool:
+	if effect_state == null:
+		return false
+	if _is_battle_lifetime_effect_static(effect_state):
+		return true
+	return int(effect_state.remaining_tu) > 0
+
+
+static func _is_battle_lifetime_effect_static(effect_state) -> bool:
+	if effect_state == null or effect_state.params == null:
+		return false
+	var policy_value = effect_state.params.get(PARAM_LIFETIME_POLICY, effect_state.params.get(StringName(PARAM_LIFETIME_POLICY), ""))
+	if policy_value is StringName:
+		return policy_value == LIFETIME_POLICY_BATTLE
+	if policy_value is String:
+		return StringName(policy_value) == LIFETIME_POLICY_BATTLE
+	return false
+
+
+func _is_battle_lifetime_effect(effect_state) -> bool:
+	return _is_battle_lifetime_effect_static(effect_state)
+
+
+func _resolve_lifetime_policy(effect_def) -> StringName:
+	if effect_def == null or effect_def.params == null:
+		return LIFETIME_POLICY_TIMED
+	var value = effect_def.params.get(PARAM_LIFETIME_POLICY, effect_def.params.get(StringName(PARAM_LIFETIME_POLICY), LIFETIME_POLICY_TIMED))
+	if value is StringName:
+		return value if value == LIFETIME_POLICY_BATTLE else LIFETIME_POLICY_TIMED
+	if value is String:
+		return LIFETIME_POLICY_BATTLE if StringName(value) == LIFETIME_POLICY_BATTLE else LIFETIME_POLICY_TIMED
+	return LIFETIME_POLICY_TIMED
 
 
 func _resolve_effect_target_filter(skill_def, effect_def) -> StringName:

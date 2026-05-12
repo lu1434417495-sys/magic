@@ -317,25 +317,70 @@ func _resolve_preview_charge_anchor(
 ) -> Vector2i:
 	if not _has_runtime() or _runtime.get_state() == null or active_unit == null or skill_def == null or cast_variant == null:
 		return active_unit.coord if active_unit != null else Vector2i(-1, -1)
-	var preview_state = _duplicate_state_for_preview(_runtime.get_state())
-	var preview_unit = preview_state.units.get(active_unit.unit_id) as BattleUnitState if preview_state != null else null
-	if preview_state == null or preview_unit == null:
+	var direction: Vector2i = validation_data.get("direction", Vector2i.ZERO)
+	var requested_distance := maxi(int(validation_data.get("distance", 0)), 0)
+	if direction == Vector2i.ZERO or requested_distance <= 0:
 		return active_unit.coord
-	var original_state = _runtime._state
-	var original_character_gateway = _runtime._character_gateway
-	var original_battle_rating_stats: Dictionary = _runtime._battle_rating_stats.duplicate(true)
-	_runtime._state = preview_state
-	_runtime._character_gateway = null
-	_runtime._battle_rating_stats = original_battle_rating_stats.duplicate(true)
-	var preview_batch = BattleEventBatch.new()
-	var resolved_anchor = preview_unit.coord
-	var handled = handle_charge_skill_command(preview_unit, skill_def, cast_variant, validation_data, preview_batch)
-	if handled:
-		resolved_anchor = preview_unit.coord
-	_runtime._battle_rating_stats = original_battle_rating_stats
-	_runtime._character_gateway = original_character_gateway
-	_runtime._state = original_state
+	var original_anchor := active_unit.coord
+	var resolved_anchor := original_anchor
+	for _step_index in range(requested_distance):
+		var next_anchor := resolved_anchor + direction
+		if not _can_preview_charge_enter_anchor_from(active_unit, resolved_anchor, next_anchor):
+			break
+		active_unit.set_anchor_coord(resolved_anchor)
+		if _would_preview_charge_stop_on_blocker(active_unit, next_anchor, direction):
+			break
+		resolved_anchor = next_anchor
+	active_unit.set_anchor_coord(original_anchor)
 	return resolved_anchor
+
+
+func _can_preview_charge_enter_anchor_from(
+	active_unit: BattleUnitState,
+	current_anchor: Vector2i,
+	target_anchor: Vector2i
+) -> bool:
+	if active_unit == null:
+		return false
+	var original_anchor := active_unit.coord
+	active_unit.set_anchor_coord(current_anchor)
+	var allowed := _can_charge_enter_anchor(active_unit, target_anchor)
+	active_unit.set_anchor_coord(original_anchor)
+	return allowed
+
+
+func _would_preview_charge_stop_on_blocker(
+	active_unit: BattleUnitState,
+	next_anchor: Vector2i,
+	direction: Vector2i
+) -> bool:
+	if active_unit == null or direction == Vector2i.ZERO:
+		return true
+	var reserved_coords: Array = _runtime.get_grid_service().get_unit_target_coords(active_unit, next_anchor)
+	var reserved_coord_set: Dictionary = {}
+	for reserved_coord in reserved_coords:
+		reserved_coord_set[reserved_coord] = true
+	var seen_blockers: Dictionary = {}
+	for frontier_coord in _get_charge_frontier_coords(active_unit, next_anchor):
+		var blocker: BattleUnitState = _runtime.get_grid_service().get_unit_at_coord(_runtime.get_state(), frontier_coord) as BattleUnitState
+		if blocker == null or blocker.unit_id == active_unit.unit_id or not blocker.is_alive:
+			continue
+		if seen_blockers.has(blocker.unit_id):
+			continue
+		seen_blockers[blocker.unit_id] = true
+		if active_unit.body_size < blocker.body_size:
+			return true
+		if blocker.footprint_size != Vector2i.ONE:
+			return true
+		if bool(_pick_charge_side_push(blocker, direction, reserved_coord_set).get("available", false)):
+			continue
+		var forward_coord := blocker.coord + direction
+		if reserved_coord_set.has(forward_coord):
+			return true
+		var blocking_ids: Array[StringName] = _runtime.get_grid_service().collect_blocking_unit_ids(_runtime.get_state(), blocker, forward_coord)
+		if not blocking_ids.is_empty():
+			return true
+	return false
 
 
 func _duplicate_state_for_preview(state: BattleState) -> BattleState:
@@ -440,7 +485,16 @@ func _apply_charge_path_step_aoe_effects(
 		var resolve_as_weapon_attack := bool(stage_effect.params.get("resolve_as_weapon_attack", false))
 		var result: Dictionary
 		if resolve_as_weapon_attack:
-			var attack_check: Dictionary = _runtime.get_hit_resolver().build_skill_attack_check(active_unit, target_unit, skill_def)
+			var attack_policy = _runtime.get_attack_check_policy_service()
+			var attack_context = attack_policy.build_attack_context(
+				_runtime.get_state(),
+				active_unit,
+				target_unit,
+				skill_def,
+				&"skill_attack_check",
+				&"execute"
+			)
+			var attack_check: Dictionary = attack_policy.build_attack_check(attack_context)
 			result = _runtime.get_damage_resolver().resolve_attack_effects(
 				active_unit,
 				target_unit,
@@ -490,9 +544,13 @@ func _apply_charge_path_step_aoe_effects(
 			])
 		if not target_unit.is_alive:
 			total_kill_count += 1
-			_runtime.clear_defeated_unit(target_unit, batch)
-			batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-			_runtime.get_battle_rating_system().record_enemy_defeated_achievement(active_unit, target_unit)
+			_runtime.handle_unit_defeated_by_runtime_effect(
+				target_unit,
+				active_unit,
+				batch,
+				"%s 被击倒。" % target_unit.display_name,
+				{"record_enemy_defeated_achievement": true}
+			)
 
 	if total_damage > 0 or total_healing > 0 or total_kill_count > 0:
 		_runtime.record_skill_effect_result(active_unit, total_damage, total_healing, total_kill_count)
@@ -727,8 +785,13 @@ func _resolve_charge_blocker(
 						batch.log_lines.append("%s 的护盾被击碎。" % blocker.display_name)
 					_runtime.append_changed_unit_id(batch, blocker.unit_id)
 					if not blocker.is_alive:
-						_runtime.clear_defeated_unit(blocker, batch)
-						batch.log_lines.append("%s 被击倒。" % blocker.display_name)
+						_runtime.handle_unit_defeated_by_runtime_effect(
+							blocker,
+							active_unit,
+							batch,
+							"%s 被击倒。" % blocker.display_name,
+							{"record_enemy_defeated_achievement": true}
+						)
 			return "continue"
 
 	var forward_coord = blocker.coord + direction
@@ -768,8 +831,13 @@ func _resolve_charge_blocker(
 						batch.log_lines.append("%s 的护盾被击碎。" % blocker.display_name)
 					_runtime.append_changed_unit_id(batch, blocker.unit_id)
 					if not blocker.is_alive:
-						_runtime.clear_defeated_unit(blocker, batch)
-						batch.log_lines.append("%s 被击倒。" % blocker.display_name)
+						_runtime.handle_unit_defeated_by_runtime_effect(
+							blocker,
+							active_unit,
+							batch,
+							"%s 被击倒。" % blocker.display_name,
+							{"record_enemy_defeated_achievement": true}
+						)
 			return "continue"
 
 		# move_unit 失败，不再尝试 move_unit_force
@@ -817,8 +885,13 @@ func _resolve_charge_blocker(
 				batch.log_lines.append("%s 的护盾被击碎。" % blocker.display_name)
 			_runtime.append_changed_unit_id(batch, blocker.unit_id)
 			if not blocker.is_alive:
-				_runtime.clear_defeated_unit(blocker, batch)
-				batch.log_lines.append("%s 被击倒。" % blocker.display_name)
+				_runtime.handle_unit_defeated_by_runtime_effect(
+					blocker,
+					active_unit,
+					batch,
+					"%s 被击倒。" % blocker.display_name,
+					{"record_enemy_defeated_achievement": true}
+				)
 		return "stop"
 
 	return "stop"

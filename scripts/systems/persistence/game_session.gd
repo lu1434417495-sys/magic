@@ -25,6 +25,7 @@ const FILE_IO_COORDINATOR_SCRIPT = preload("res://scripts/systems/persistence/fi
 const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/persistence/game_log_service.gd")
 const WORLD_PRESET_REGISTRY_SCRIPT = preload("res://scripts/utils/world_preset_registry.gd")
 const WORLD_MAP_CONTENT_VALIDATOR_SCRIPT = preload("res://scripts/utils/world_map_content_validator.gd")
+const BATTLE_SPECIAL_PROFILE_REGISTRY_SCRIPT = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd")
 const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/character_creation_service.gd")
 const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/progression_service.gd")
 const RACIAL_SKILL_GRANT_SERVICE_SCRIPT = preload("res://scripts/systems/progression/racial_skill_grant_service.gd")
@@ -41,7 +42,7 @@ const SAVE_VERSION := 7
 const SAVE_INDEX_VERSION := 3
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 const MAX_ACTIVE_MEMBER_COUNT := 4
-const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "item", "recipe", "enemy", "world"]
+const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "battle_special_profile", "item", "recipe", "enemy", "world"]
 const RANDOM_START_SKILL_TIER_BASIC: StringName = &"basic"
 const RANDOM_START_SKILL_TIER_INTERMEDIATE: StringName = &"intermediate"
 const RANDOM_START_SKILL_TIER_ADVANCED: StringName = &"advanced"
@@ -114,6 +115,8 @@ var _item_content_registry = ITEM_CONTENT_REGISTRY_SCRIPT.new()
 var _recipe_content_registry = RECIPE_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：记录敌方内容注册表，会参与运行时状态流转、系统协作和存档恢复。
 var _enemy_content_registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
+## 字段说明：记录特殊战斗技能 profile 注册表，只负责 manifest/profile 静态校验与 runtime snapshot 投影。
+var _battle_special_profile_registry = BATTLE_SPECIAL_PROFILE_REGISTRY_SCRIPT.new()
 ## 字段说明：记录技能书物品工厂，会参与运行时状态流转、系统协作和存档恢复。
 var _skill_book_item_factory = SKILL_BOOK_ITEM_FACTORY_SCRIPT.new()
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -157,6 +160,7 @@ func _init() -> void:
 	# Refresh order is intentional: items can be generated from skills, recipes read items,
 	# and world validation reads enemy rosters after enemy content is cached.
 	_refresh_progression_content()
+	_refresh_battle_special_profiles()
 	_refresh_item_content()
 	_refresh_recipe_content()
 	_refresh_enemy_content()
@@ -555,6 +559,10 @@ func get_skill_defs() -> Dictionary:
 	return _skill_defs.duplicate()
 
 
+func get_battle_special_profile_registry_snapshot() -> Dictionary:
+	return _battle_special_profile_registry.get_snapshot() if _battle_special_profile_registry != null else {}
+
+
 func get_profession_defs() -> Dictionary:
 	return _profession_defs.duplicate()
 
@@ -597,6 +605,7 @@ func install_test_content_def(domain_id: StringName, content_key: Variant, conte
 	match domain_id:
 		&"skill":
 			_skill_defs[content_key] = content_def
+			_refresh_battle_special_profiles()
 		&"profession":
 			_profession_defs[content_key] = content_def
 		&"achievement":
@@ -1855,6 +1864,12 @@ func _refresh_progression_content() -> void:
 	_quest_defs = _progression_content_registry.get_quest_defs()
 
 
+func _refresh_battle_special_profiles() -> void:
+	if _battle_special_profile_registry == null:
+		return
+	_battle_special_profile_registry.rebuild(_skill_defs)
+
+
 func _refresh_item_content() -> void:
 	if _item_content_registry == null:
 		return
@@ -1884,8 +1899,10 @@ func _refresh_enemy_content() -> void:
 
 
 func _refresh_content_validation_snapshot() -> void:
+	_refresh_battle_special_profiles()
 	var domain_snapshots := {
 		"progression": _build_content_validation_domain_snapshot(_progression_content_registry),
+		"battle_special_profile": _build_content_validation_domain_snapshot(_battle_special_profile_registry),
 		"item": _build_content_validation_domain_snapshot(_item_content_registry),
 		"recipe": _build_content_validation_domain_snapshot(_recipe_content_registry),
 		"enemy": _build_content_validation_domain_snapshot(_enemy_content_registry),
@@ -1960,6 +1977,8 @@ func _report_content_validation_error(domain_id: String, validation_error: Strin
 	match domain_id:
 		"progression":
 			_push_session_error("session.content.progression_validation_failed", "Progression content error: %s" % validation_error)
+		"battle_special_profile":
+			_push_session_error("session.content.battle_special_profile_validation_failed", "Battle special profile content error: %s" % validation_error)
 		"item":
 			_push_session_error("session.content.item_validation_failed", "Item content error: %s" % validation_error)
 		"recipe":

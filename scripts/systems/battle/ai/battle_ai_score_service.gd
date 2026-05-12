@@ -18,6 +18,9 @@ const PATH_STEP_AOE_EFFECT_TYPE: StringName = &"path_step_aoe"
 const CHAIN_DAMAGE_EFFECT_TYPE: StringName = &"chain_damage"
 const THREAT_MULTIPLIER_BASIS_POINTS_DENOMINATOR := 10000
 const MIN_RANGED_THREAT_RANGE := 3
+const METEOR_SWARM_PROFILE_ID: StringName = &"meteor_swarm"
+const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
+const BOSS_TARGET_STAT_ID: StringName = &"boss_target"
 
 var _score_profile: BattleAiScoreProfile = BATTLE_AI_SCORE_PROFILE_SCRIPT.new()
 
@@ -60,6 +63,7 @@ func build_skill_score_input(
 	score_input.target_count = score_input.target_unit_ids.size()
 	var effective_effect_defs := _filter_effect_defs_for_context(effect_defs, context, skill_def)
 	_populate_hit_metrics(score_input, context, effective_effect_defs)
+	_populate_special_profile_metrics(score_input, context)
 	_populate_path_step_aoe_metrics(score_input, context, effective_effect_defs, metadata)
 	_populate_resource_cost_metrics(score_input, skill_def, context)
 	_populate_position_metrics(score_input, context, metadata)
@@ -148,6 +152,384 @@ func _populate_hit_metrics(score_input: BattleAiScoreInput, context, effect_defs
 	score_input.target_priority_score = int(round(
 		float(score_input.target_priority_score) * float(score_input.estimated_hit_rate_percent) / 100.0
 	))
+
+
+func _populate_special_profile_metrics(score_input: BattleAiScoreInput, context) -> void:
+	if score_input == null or score_input.preview == null or score_input.preview.special_profile_preview_facts == null:
+		return
+	var facts = score_input.preview.special_profile_preview_facts
+	var facts_payload: Dictionary = facts.to_dict() if facts.has_method("to_dict") else {}
+	score_input.special_profile_preview_facts = facts_payload.duplicate(true)
+	score_input.friendly_fire_numeric_summary = facts.get_friendly_fire_numeric_summary()
+	score_input.attack_roll_modifier_breakdown = facts.attack_roll_modifier_breakdown.duplicate(true)
+	var target_summaries_value = facts_payload.get("target_numeric_summary", [])
+	if target_summaries_value is Array:
+		for summary_variant in target_summaries_value:
+			if summary_variant is Dictionary:
+				score_input.target_numeric_summary.append((summary_variant as Dictionary).duplicate(true))
+	score_input.estimated_terrain_effect_count += maxi(int(facts_payload.get("expected_terrain_effect_count", 0)), 0)
+	if score_input.estimated_terrain_effect_count > 0:
+		score_input.hit_payoff_score += score_input.estimated_terrain_effect_count * _score_profile.terrain_weight
+	if context == null or context.state == null or context.unit_state == null:
+		score_input.meteor_use_case = _resolve_meteor_use_case(score_input)
+		return
+	if score_input.target_numeric_summary.is_empty():
+		_populate_special_profile_target_counts_without_numeric_summary(score_input, context)
+	else:
+		for summary in score_input.target_numeric_summary:
+			_populate_special_profile_target_summary(score_input, context, summary)
+	score_input.meteor_use_case = _resolve_meteor_use_case(score_input)
+
+
+func _populate_special_profile_target_summary(score_input: BattleAiScoreInput, context, summary: Dictionary) -> void:
+	var target_unit_id := ProgressionDataUtils.to_string_name(summary.get("target_unit_id", summary.get("ally_unit_id", "")))
+	if target_unit_id == &"":
+		return
+	var target_unit := context.state.units.get(target_unit_id) as BattleUnitState
+	if target_unit == null:
+		return
+	var estimated_damage := maxi(int(summary.get("component_expected_damage", 0)), 0)
+	var worst_case_damage := maxi(int(summary.get("component_worst_case_damage", 0)), estimated_damage)
+	var status_ids_value = summary.get("status_effect_ids", [])
+	var status_count: int = status_ids_value.size() if status_ids_value is Array else 0
+	var is_ally: bool = target_unit.faction_id == context.unit_state.faction_id
+	score_input.estimated_damage += estimated_damage
+	score_input.estimated_status_count += status_count
+	score_input.estimated_control_count += status_count
+	if is_ally:
+		score_input.ally_target_count += 1
+		score_input.estimated_ally_damage += estimated_damage
+		_populate_special_profile_ally_risk(score_input, target_unit, summary, estimated_damage, worst_case_damage, status_count)
+		return
+	score_input.enemy_target_count += 1
+	score_input.estimated_enemy_damage += estimated_damage
+	if estimated_damage > 0 or status_count > 0 or score_input.estimated_terrain_effect_count > 0:
+		score_input.effective_target_count += 1
+	score_input.hit_payoff_score += estimated_damage * _score_profile.damage_weight
+	score_input.hit_payoff_score += status_count * _score_profile.status_weight
+	var target_priority_bonus := _resolve_target_role_threat_bonus(
+		context,
+		target_unit,
+		estimated_damage,
+		status_count,
+		score_input.estimated_terrain_effect_count,
+		0
+	)
+	score_input.target_priority_score += target_priority_bonus
+	score_input.hit_payoff_score += target_priority_bonus
+	var lethal_basis := maxi(estimated_damage, worst_case_damage if int(summary.get("lethal_probability_percent", 0)) > 0 else estimated_damage)
+	var lethal_bonus := _resolve_lethal_target_bonus(score_input, context, target_unit, lethal_basis)
+	score_input.target_priority_score += lethal_bonus
+	score_input.hit_payoff_score += lethal_bonus
+	_record_meteor_high_priority_target(
+		score_input,
+		context,
+		target_unit,
+		summary,
+		target_priority_bonus + lethal_bonus
+	)
+	if status_count > 0:
+		_append_unique_string_name(score_input.estimated_control_target_ids, target_unit.unit_id)
+		if _is_priority_threat_target(context, target_unit):
+			_append_unique_string_name(score_input.estimated_control_threat_target_ids, target_unit.unit_id)
+
+
+func _populate_special_profile_ally_risk(
+	score_input: BattleAiScoreInput,
+	target_unit: BattleUnitState,
+	summary: Dictionary,
+	estimated_damage: int,
+	worst_case_damage: int,
+	status_count: int
+) -> void:
+	if estimated_damage <= 0 and worst_case_damage <= 0 and status_count <= 0:
+		return
+	score_input.estimated_friendly_fire_target_count += 1
+	score_input.estimated_friendly_fire_damage += estimated_damage
+	if status_count > 0:
+		score_input.estimated_friendly_control_target_count += 1
+	var is_lethal := worst_case_damage >= maxi(int(target_unit.current_hp), 1) \
+		or int(summary.get("lethal_probability_percent", 0)) > 0
+	var penalty := estimated_damage * _score_profile.friendly_fire_damage_weight \
+		+ _score_profile.friendly_fire_target_weight \
+		+ status_count * _score_profile.friendly_control_target_weight
+	if is_lethal:
+		score_input.estimated_friendly_lethal_target_count += 1
+		penalty += _score_profile.friendly_lethal_target_weight
+	var reject_reason := _resolve_meteor_friendly_fire_reject_reason(
+		target_unit,
+		summary,
+		estimated_damage,
+		worst_case_damage,
+		status_count
+	)
+	if not reject_reason.is_empty() and score_input.friendly_fire_reject_reason.is_empty():
+		score_input.friendly_fire_reject_reason = reject_reason
+	score_input.friendly_fire_penalty_score += penalty
+	score_input.hit_payoff_score -= penalty
+
+
+func _populate_special_profile_target_counts_without_numeric_summary(score_input: BattleAiScoreInput, context) -> void:
+	for target_unit_id in score_input.target_unit_ids:
+		var target_unit := context.state.units.get(target_unit_id) as BattleUnitState
+		if target_unit == null:
+			continue
+		if target_unit.faction_id == context.unit_state.faction_id:
+			score_input.ally_target_count += 1
+		else:
+			score_input.enemy_target_count += 1
+			score_input.effective_target_count += 1
+
+
+func _resolve_meteor_use_case(score_input: BattleAiScoreInput) -> StringName:
+	if score_input == null:
+		return &""
+	score_input.low_value_penalty_reason = ""
+	if not score_input.friendly_fire_reject_reason.is_empty():
+		return &"unsafe_friendly_fire"
+	if _has_meteor_decapitation_target(score_input):
+		return &"decapitation"
+	if int(score_input.enemy_target_count) >= 3:
+		return &"cluster"
+	if _has_meteor_zone_denial(score_input):
+		return &"zone_denial"
+	score_input.low_value_penalty_reason = "no_cluster_decapitation_or_zone_denial"
+	score_input.hit_payoff_score -= maxi(int(_score_profile.target_count_weight), 0)
+	return &"impact"
+
+
+func _record_meteor_high_priority_target(
+	score_input: BattleAiScoreInput,
+	context,
+	target_unit: BattleUnitState,
+	summary: Dictionary,
+	target_priority_score: int
+) -> void:
+	if score_input == null or target_unit == null:
+		return
+	if not _is_meteor_score_input(score_input):
+		return
+	var reasons := _resolve_meteor_high_priority_reasons(context, target_unit, summary, target_priority_score)
+	if reasons.is_empty():
+		return
+	_append_unique_string_name(score_input.high_priority_target_ids, target_unit.unit_id)
+	score_input.high_priority_reasons[String(target_unit.unit_id)] = reasons
+
+
+func _resolve_meteor_high_priority_reasons(
+	context,
+	target_unit: BattleUnitState,
+	summary: Dictionary,
+	target_priority_score: int
+) -> Array[String]:
+	var reasons: Array[String] = []
+	if target_unit == null:
+		return reasons
+	if _is_meteor_elite_or_boss_target(target_unit):
+		reasons.append("elite_or_boss")
+	var role_summary := _resolve_target_role_summary(context, target_unit)
+	var threat_multiplier := int(role_summary.get("threat_multiplier_bp", THREAT_MULTIPLIER_BASIS_POINTS_DENOMINATOR))
+	if _target_has_high_threat_role(role_summary) \
+			and threat_multiplier >= int(_score_profile.meteor_high_priority_threat_multiplier_bp):
+		reasons.append("role_threat_multiplier")
+	var center_direct_expected := _resolve_component_expected_damage(summary, &"center_direct")
+	var max_hp := _get_unit_max_hp(target_unit)
+	var center_direct_hp_percent := int(round(float(center_direct_expected) * 100.0 / float(maxi(max_hp, 1))))
+	if center_direct_hp_percent >= int(_score_profile.meteor_high_priority_damage_hp_percent) \
+			and _target_has_high_threat_role(role_summary):
+		reasons.append("center_direct_high_role_damage")
+	if target_priority_score >= int(_score_profile.meteor_high_priority_target_priority_score):
+		reasons.append("target_priority_score")
+	var threat_rank := _resolve_meteor_threat_rank(context, target_unit)
+	if threat_rank > 0 and threat_rank <= maxi(int(_score_profile.meteor_top_threat_rank), 0):
+		reasons.append("top_threat_rank")
+	return reasons
+
+
+func _resolve_component_expected_damage(summary: Dictionary, component_id: StringName) -> int:
+	var component_breakdown_value = summary.get("component_breakdown", [])
+	if component_breakdown_value is not Array:
+		return 0
+	for component_variant in component_breakdown_value:
+		if component_variant is not Dictionary:
+			continue
+		var component := component_variant as Dictionary
+		if ProgressionDataUtils.to_string_name(component.get("component_id", "")) == component_id:
+			return maxi(int(component.get("expected_damage", 0)), 0)
+	return 0
+
+
+func _resolve_target_role_summary(context, target_unit: BattleUnitState) -> Dictionary:
+	var summary := {
+		"heal_skill_count": 0,
+		"control_skill_count": 0,
+		"best_ranged_attack_range": 0,
+		"threat_multiplier_bp": _resolve_target_role_threat_multiplier_basis_points(context, target_unit),
+	}
+	if context == null or target_unit == null:
+		return summary
+	for skill_id in target_unit.known_active_skill_ids:
+		var normalized_skill_id := ProgressionDataUtils.to_string_name(skill_id)
+		if normalized_skill_id == &"":
+			continue
+		var skill_def = context.skill_defs.get(normalized_skill_id) as SkillDef
+		if skill_def == null or skill_def.combat_profile == null:
+			continue
+		var role_effect_defs := _collect_role_threat_effect_defs(target_unit, skill_def)
+		if _is_heal_or_support_skill(skill_def, role_effect_defs):
+			summary["heal_skill_count"] = int(summary.get("heal_skill_count", 0)) + 1
+		if _is_control_skill(role_effect_defs):
+			summary["control_skill_count"] = int(summary.get("control_skill_count", 0)) + 1
+		if _is_damage_skill(role_effect_defs):
+			var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(target_unit, skill_def)
+			if effective_range >= MIN_RANGED_THREAT_RANGE:
+				summary["best_ranged_attack_range"] = maxi(int(summary.get("best_ranged_attack_range", 0)), effective_range)
+	return summary
+
+
+func _target_has_high_threat_role(role_summary: Dictionary) -> bool:
+	if role_summary == null:
+		return false
+	return int(role_summary.get("heal_skill_count", 0)) > 0 \
+		or int(role_summary.get("control_skill_count", 0)) > 0 \
+		or int(role_summary.get("best_ranged_attack_range", 0)) >= MIN_RANGED_THREAT_RANGE
+
+
+func _is_meteor_elite_or_boss_target(target_unit: BattleUnitState) -> bool:
+	if target_unit == null or target_unit.attribute_snapshot == null:
+		return false
+	return int(target_unit.attribute_snapshot.get_value(BOSS_TARGET_STAT_ID)) > 0 \
+		or int(target_unit.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID)) > 0
+
+
+func _resolve_meteor_threat_rank(context, target_unit: BattleUnitState) -> int:
+	if context == null or context.state == null or context.unit_state == null or target_unit == null:
+		return 0
+	var enemies: Array[BattleUnitState] = []
+	for unit_variant in context.state.units.values():
+		var unit_state := unit_variant as BattleUnitState
+		if unit_state == null or not unit_state.is_alive:
+			continue
+		if unit_state.faction_id == context.unit_state.faction_id:
+			continue
+		enemies.append(unit_state)
+	enemies.sort_custom(func(left: BattleUnitState, right: BattleUnitState) -> bool:
+		var left_multiplier := _resolve_target_role_threat_multiplier_basis_points(context, left)
+		var right_multiplier := _resolve_target_role_threat_multiplier_basis_points(context, right)
+		if left_multiplier != right_multiplier:
+			return left_multiplier > right_multiplier
+		var left_boss := 1 if _is_meteor_elite_or_boss_target(left) else 0
+		var right_boss := 1 if _is_meteor_elite_or_boss_target(right) else 0
+		if left_boss != right_boss:
+			return left_boss > right_boss
+		return String(left.unit_id) < String(right.unit_id)
+	)
+	for index in range(enemies.size()):
+		if enemies[index] != null and enemies[index].unit_id == target_unit.unit_id:
+			return index + 1
+	return 0
+
+
+func _has_meteor_decapitation_target(score_input: BattleAiScoreInput) -> bool:
+	if score_input == null:
+		return false
+	for summary in score_input.target_numeric_summary:
+		if summary == null or not _meteor_summary_has_center_direct(summary):
+			continue
+		var target_id := ProgressionDataUtils.to_string_name(summary.get("target_unit_id", ""))
+		if score_input.high_priority_target_ids.has(target_id):
+			return true
+	return false
+
+
+func _meteor_summary_has_center_direct(summary: Dictionary) -> bool:
+	var component_breakdown_value = summary.get("component_breakdown", [])
+	if component_breakdown_value is not Array:
+		return false
+	for component_variant in component_breakdown_value:
+		if component_variant is Dictionary \
+				and ProgressionDataUtils.to_string_name((component_variant as Dictionary).get("component_id", "")) == &"center_direct":
+			return true
+	return false
+
+
+func _has_meteor_zone_denial(score_input: BattleAiScoreInput) -> bool:
+	if score_input == null:
+		return false
+	if int(score_input.estimated_terrain_effect_count) <= 0:
+		return false
+	return int(score_input.enemy_target_count) > 0 or score_input.target_numeric_summary.is_empty()
+
+
+func _resolve_meteor_friendly_fire_reject_reason(
+	target_unit: BattleUnitState,
+	summary: Dictionary,
+	estimated_damage: int,
+	worst_case_damage: int,
+	status_count: int
+) -> String:
+	if target_unit == null:
+		return ""
+	var target_label := String(target_unit.unit_id)
+	if _is_meteor_protected_ally(target_unit) and _meteor_summary_has_any_protected_ally_consequence(summary, estimated_damage, worst_case_damage, status_count):
+		return "meteor_swarm_protected_ally:%s" % target_label
+	var lethal_probability := int(summary.get("lethal_probability_percent", 0))
+	if lethal_probability > 0 or worst_case_damage >= maxi(int(target_unit.current_hp), 1):
+		return "meteor_swarm_friendly_fire_lethal:%s" % target_label
+	if _score_profile != null and _score_profile.meteor_friendly_fire_profile != &"reckless":
+		if int(summary.get("expected_damage_hp_percent", 0)) >= int(_score_profile.meteor_friendly_fire_hard_expected_hp_percent):
+			return "meteor_swarm_friendly_fire_expected_threshold:%s" % target_label
+		if int(summary.get("worst_case_damage_hp_percent", 0)) >= int(_score_profile.meteor_friendly_fire_hard_worst_case_hp_percent):
+			return "meteor_swarm_friendly_fire_worst_threshold:%s" % target_label
+	if bool(summary.get("hard_reject", false)):
+		return "meteor_swarm_friendly_fire_hard_reject:%s" % target_label
+	return ""
+
+
+func _is_meteor_protected_ally(target_unit: BattleUnitState) -> bool:
+	if target_unit == null:
+		return false
+	if bool(target_unit.ai_blackboard.get("meteor_protected_ally", false)) \
+			or bool(target_unit.ai_blackboard.get("protected_ally", false)):
+		return true
+	return target_unit.attribute_snapshot != null \
+		and int(target_unit.attribute_snapshot.get_value(&"protected_ally")) > 0
+
+
+func _meteor_summary_has_any_protected_ally_consequence(
+	summary: Dictionary,
+	estimated_damage: int,
+	worst_case_damage: int,
+	status_count: int
+) -> bool:
+	if estimated_damage > 0 or worst_case_damage > 0 or status_count > 0:
+		return true
+	if int(summary.get("ap_penalty", 0)) > 0:
+		return true
+	var terrain_consequence = summary.get("hostile_terrain_consequence", {})
+	if terrain_consequence is not Dictionary:
+		return false
+	var consequence := terrain_consequence as Dictionary
+	return int(consequence.get("move_cost_delta", 0)) > 0 \
+		or bool(consequence.get("creates_dust", false)) \
+		or bool(consequence.get("creates_crater", false)) \
+		or bool(consequence.get("creates_rubble", false))
+
+
+func _is_meteor_score_input(score_input: BattleAiScoreInput) -> bool:
+	if score_input == null:
+		return false
+	return ProgressionDataUtils.to_string_name(score_input.special_profile_preview_facts.get("profile_id", "")) == METEOR_SWARM_PROFILE_ID
+
+
+func _get_unit_max_hp(unit_state: BattleUnitState) -> int:
+	if unit_state == null:
+		return 1
+	if unit_state.attribute_snapshot != null:
+		var max_hp := int(unit_state.attribute_snapshot.get_value(&"hp_max"))
+		if max_hp > 0:
+			return max_hp
+	return maxi(int(unit_state.current_hp), 1)
 
 
 func _populate_target_effect_metrics(
@@ -328,6 +710,9 @@ func _build_target_effect_metrics(
 				metrics["damage"] = int(metrics.get("damage", 0)) \
 					+ int(estimate_result.get("damage", 0)) * hit_count
 				_append_scaled_save_estimates(metrics, estimate_result.get("save_estimates", []), hit_count)
+			&"execute":
+				var burst_damage := maxi(int(effect_def.params.get("burst_damage", 9999)), 0)
+				metrics["damage"] = int(metrics.get("damage", 0)) + burst_damage * hit_count
 			&"heal":
 				metrics["healing"] = int(metrics.get("healing", 0)) + maxi(int(effect_def.power), 1) * hit_count
 			&"status", &"apply_status", &"forced_move":
@@ -1036,7 +1421,7 @@ func _is_control_skill(effect_defs: Array) -> bool:
 func _is_damage_skill(effect_defs: Array) -> bool:
 	for effect_def_variant in effect_defs:
 		var effect_def := effect_def_variant as CombatEffectDef
-		if effect_def != null and effect_def.effect_type == &"damage":
+		if effect_def != null and (effect_def.effect_type == &"damage" or effect_def.effect_type == &"execute"):
 			return true
 	return false
 

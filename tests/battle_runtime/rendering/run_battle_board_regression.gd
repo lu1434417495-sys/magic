@@ -15,6 +15,7 @@ const BattleEdgeService = preload("res://scripts/systems/battle/terrain/battle_e
 const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
 const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
+const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
 const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/battle_terrain_generator.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
@@ -89,6 +90,7 @@ func _run() -> void:
 	await _test_flat_plateau_renders_east_boundary_outside_land_cells()
 	await _test_flat_plateau_renders_south_boundary_outside_land_cells()
 	await _test_board_layer_draw_order_is_explicit()
+	await _test_meteor_timed_terrain_overlays_render_from_params()
 	await _test_active_unit_marker_uses_opaque_land_cover_blue()
 	await _test_skill_valid_target_highlight_renders_above_units()
 	await _test_unit_tokens_render_hp_bars_with_numeric_labels()
@@ -1026,6 +1028,49 @@ func _test_skill_valid_target_highlight_renders_above_units() -> void:
 	await process_frame
 
 
+func _test_meteor_timed_terrain_overlays_render_from_params() -> void:
+	var state := BattleState.new()
+	state.battle_id = &"meteor_overlay_contract"
+	state.seed = TEST_SEED
+	state.map_size = Vector2i(4, 1)
+	state.world_coord = TEST_WORLD_COORD
+	state.terrain_profile_id = &"default"
+	for x in range(4):
+		state.cells[Vector2i(x, 0)] = _build_cell(Vector2i(x, 0), 4)
+	(state.cells[Vector2i(0, 0)] as BattleCellState).timed_terrain_effects = [
+		_build_timed_terrain_overlay(&"meteor_swarm_dust", &"meteor_dust_cloud", 10, 50, 5, &"timed"),
+		_build_timed_terrain_overlay(&"meteor_swarm_rubble", &"meteor_rubble", 20, 0, 0, &"battle"),
+		_build_timed_terrain_overlay(&"meteor_swarm_crater_core", &"meteor_crater_core", 30, 0, 0, &"battle"),
+	]
+	(state.cells[Vector2i(1, 0)] as BattleCellState).timed_terrain_effects = [
+		_build_timed_terrain_overlay(&"meteor_swarm_dust", &"meteor_dust_cloud", 10, 50, 5, &"timed"),
+	]
+	(state.cells[Vector2i(2, 0)] as BattleCellState).timed_terrain_effects = [
+		_build_timed_terrain_overlay(&"meteor_swarm_rubble", &"meteor_rubble", 20, 0, 0, &"battle"),
+	]
+	(state.cells[Vector2i(3, 0)] as BattleCellState).timed_terrain_effects = [
+		_build_timed_terrain_overlay(&"meteor_swarm_dust", &"meteor_dust_cloud", 10, 0, 5, &"timed"),
+	]
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+	var board := await _instantiate_board(state)
+	var profile := board.get("_render_profile") as BattleBoardRenderProfile
+	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_CRATER).is_empty(), "render profile 应注册 crater overlay source。")
+	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_RUBBLE).is_empty(), "render profile 应注册 rubble overlay source。")
+	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_DUST).is_empty(), "render profile 应注册 dust overlay source。")
+
+	var controller = board.get("_controller")
+	var overlay_h4 := board.get_node("OverlayH4") as TileMapLayer
+	var crater_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_CRATER, Vector2i(0, 0))) if controller != null else -99
+	var dust_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_DUST, Vector2i(1, 0))) if controller != null else -99
+	var rubble_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_RUBBLE, Vector2i(2, 0))) if controller != null else -99
+	_assert_eq(overlay_h4.get_cell_source_id(Vector2i(0, 0)) if overlay_h4 != null else -1, crater_source_id, "同格 crater/rubble/dust 应按 overlay_priority 选择 crater。")
+	_assert_eq(overlay_h4.get_cell_source_id(Vector2i(1, 0)) if overlay_h4 != null else -1, dust_source_id, "active timed dust 应绘制 dust overlay。")
+	_assert_eq(overlay_h4.get_cell_source_id(Vector2i(2, 0)) if overlay_h4 != null else -1, rubble_source_id, "battle lifetime rubble 应绘制 rubble overlay。")
+	_assert_eq(overlay_h4.get_cell_source_id(Vector2i(3, 0)) if overlay_h4 != null else -2, -1, "expired timed dust 不应绘制 overlay。")
+	board.queue_free()
+	await process_frame
+
+
 func _test_active_unit_marker_uses_opaque_land_cover_blue() -> void:
 	var layout := _build_canyon_layout(TEST_SEED)
 	var state := _build_state(layout)
@@ -1436,6 +1481,33 @@ func _build_cell(coord: Vector2i, height: int, terrain: StringName = BattleCellS
 	cell.base_terrain = terrain
 	cell.recalculate_runtime_values()
 	return cell
+
+
+func _build_timed_terrain_overlay(
+	effect_id: StringName,
+	render_overlay_id: StringName,
+	overlay_priority: int,
+	remaining_tu: int,
+	tick_interval_tu: int,
+	lifetime_policy: StringName
+) -> BattleTerrainEffectState:
+	var effect := BattleTerrainEffectState.new()
+	effect.field_instance_id = StringName("%s_%d" % [String(effect_id), overlay_priority])
+	effect.effect_id = effect_id
+	effect.effect_type = &"none"
+	effect.source_unit_id = &"caster"
+	effect.source_skill_id = &"mage_meteor_swarm"
+	effect.target_team_filter = &"any"
+	effect.remaining_tu = remaining_tu
+	effect.tick_interval_tu = tick_interval_tu
+	effect.next_tick_at_tu = tick_interval_tu
+	effect.stack_behavior = &"refresh"
+	effect.params = {
+		"lifetime_policy": String(lifetime_policy),
+		"render_overlay_id": String(render_overlay_id),
+		"overlay_priority": overlay_priority,
+	}
+	return effect
 
 
 func _build_large_unit_direction_state(map_size: Vector2i) -> BattleState:

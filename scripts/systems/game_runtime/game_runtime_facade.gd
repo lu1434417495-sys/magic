@@ -246,7 +246,8 @@ func setup(game_session) -> void:
 		_equipment_drop_service,
 		_game_session.get_item_defs(),
 		null,
-		_get_equipment_instance_id_allocator()
+		_get_equipment_instance_id_allocator(),
+		_game_session.get_battle_special_profile_registry_snapshot()
 	)
 	_snapshot_builder.setup(self)
 	_command_logger.setup(self)

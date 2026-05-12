@@ -7,7 +7,11 @@ const ProgressionContentRegistry = preload("res://scripts/player/progression/pro
 const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
+const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const CONTENT_VALIDATION_RUNNER_SCRIPT = preload("res://tests/runtime/validation/content_validation_runner.gd")
+const BattleSpecialProfileManifest = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_manifest.gd")
+const MeteorSwarmProfile = preload("res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_profile.gd")
 const WorldMapGenerationConfig = preload("res://scripts/utils/world_map_generation_config.gd")
 const SettlementConfig = preload("res://scripts/utils/settlement_config.gd")
 const FacilityConfig = preload("res://scripts/utils/facility_config.gd")
@@ -32,6 +36,7 @@ const IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY := "res://tests/progression/f
 const ENEMY_MISSING_ID_SEED_PATH := "res://tests/fixtures/enemy_content/missing_template_id/enemy_content_seed.tres"
 const ENEMY_DUPLICATE_ID_SEED_PATH := "res://tests/fixtures/enemy_content/duplicate_template_id/enemy_content_seed.tres"
 const ENEMY_INVALID_REFERENCE_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres"
+const BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT := "user://resource_validation/battle_special_profiles"
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -56,6 +61,7 @@ func _run() -> void:
 		validation_runner.validate_skill_directory(OFFICIAL_SKILL_DIRECTORY),
 		validation_runner.validate_profession_directory(OFFICIAL_PROFESSION_DIRECTORY, skill_defs),
 		validation_runner.validate_identity_content("official_identity", skill_defs),
+		validation_runner.validate_battle_special_profile_registry("official_battle_special_profiles", skill_defs),
 		validation_runner.validate_item_directory(OFFICIAL_ITEM_DIRECTORY),
 		validation_runner.validate_recipe_directory(OFFICIAL_RECIPE_DIRECTORY, item_defs),
 		validation_runner.validate_enemy_seed(OFFICIAL_ENEMY_SEED_PATH),
@@ -90,6 +96,66 @@ func _run() -> void:
 	var enemy_missing_result := validation_runner.validate_enemy_seed(ENEMY_MISSING_ID_SEED_PATH)
 	var enemy_duplicate_result := validation_runner.validate_enemy_seed(ENEMY_DUPLICATE_ID_SEED_PATH)
 	var enemy_invalid_reference_result := validation_runner.validate_enemy_seed(ENEMY_INVALID_REFERENCE_SEED_PATH)
+	var battle_special_missing_manifest_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_missing_manifest",
+		skill_defs,
+		_prepare_empty_battle_special_profile_manifest_dir("missing_manifest")
+	)
+	var battle_special_unknown_profile_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_unknown_profile_missing_manifest",
+		_build_single_special_profile_skill_defs(&"phantom_special_skill", &"phantom_profile"),
+		_prepare_empty_battle_special_profile_manifest_dir("unknown_profile_missing_manifest")
+	)
+	var battle_special_duplicate_profile_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_duplicate_profile",
+		skill_defs,
+		_prepare_battle_special_profile_manifest_dir("duplicate_profile", [
+			{"file_name": "a", "profile_id": &"meteor_swarm", "owning_skill_ids": [&"mage_meteor_swarm"], "profile_resource": _build_valid_meteor_swarm_profile()},
+			{"file_name": "b", "profile_id": &"meteor_swarm", "owning_skill_ids": [&"mage_meteor_swarm"], "profile_resource": _build_valid_meteor_swarm_profile()},
+		])
+	)
+	var battle_special_duplicate_owner_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_duplicate_owner",
+		skill_defs,
+		_prepare_battle_special_profile_manifest_dir("duplicate_owner", [
+			{"file_name": "a", "profile_id": &"meteor_swarm", "owning_skill_ids": [&"mage_meteor_swarm"], "profile_resource": _build_valid_meteor_swarm_profile()},
+			{"file_name": "b", "profile_id": &"other_profile", "runtime_resolver_id": &"other_profile", "owning_skill_ids": [&"mage_meteor_swarm"], "profile_resource": Resource.new()},
+		])
+	)
+	var battle_special_wrong_resource_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_wrong_resource_type",
+		skill_defs,
+		_prepare_battle_special_profile_manifest_dir("wrong_resource_type", [
+			{"file_name": "wrong_resource", "profile_id": &"meteor_swarm", "owning_skill_ids": [&"mage_meteor_swarm"], "profile_resource": Resource.new()},
+		])
+	)
+	var battle_special_missing_owner_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_missing_owner",
+		skill_defs,
+		_prepare_battle_special_profile_manifest_dir("missing_owner", [
+			{"file_name": "missing_owner", "profile_id": &"meteor_swarm", "owning_skill_ids": [&"missing_skill"], "profile_resource": _build_valid_meteor_swarm_profile()},
+		])
+	)
+	var battle_special_missing_required_test_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_missing_required_test",
+		skill_defs,
+		_prepare_battle_special_profile_manifest_dir("missing_required_test", [
+			{
+				"file_name": "missing_required_test",
+				"profile_id": &"meteor_swarm",
+				"owning_skill_ids": [&"mage_meteor_swarm"],
+				"profile_resource": _build_valid_meteor_swarm_profile(),
+				"required_regression_tests": ["tests/missing/missing_profile_regression.gd"],
+			},
+		])
+	)
+	var battle_special_bad_schema_result := validation_runner.validate_battle_special_profile_registry(
+		"battle_special_profile_bad_schema",
+		skill_defs,
+		_prepare_battle_special_profile_manifest_dir("bad_schema", [
+			{"file_name": "bad_schema", "profile_id": &"meteor_swarm", "owning_skill_ids": [&"mage_meteor_swarm"], "profile_resource": _build_bad_schema_meteor_swarm_profile()},
+		])
+	)
 	var world_result := validation_runner.validate_world_generation_config(
 		"invalid_world_generation_config",
 		_build_invalid_world_generation_config(),
@@ -112,6 +178,14 @@ func _run() -> void:
 		enemy_missing_result,
 		enemy_duplicate_result,
 		enemy_invalid_reference_result,
+		battle_special_missing_manifest_result,
+		battle_special_unknown_profile_result,
+		battle_special_duplicate_profile_result,
+		battle_special_duplicate_owner_result,
+		battle_special_wrong_resource_result,
+		battle_special_missing_owner_result,
+		battle_special_missing_required_test_result,
+		battle_special_bad_schema_result,
 		world_result,
 		quest_result,
 	])
@@ -154,6 +228,25 @@ func _run() -> void:
 	_assert_messages_have_fragment(enemy_errors, "references missing template missing_template", "敌方 validation runner 应覆盖非法 template 引用。")
 	_assert_messages_have_fragment(enemy_errors, "must declare attack_equipment_item_id", "敌方 validation runner 应覆盖非 beast 模板缺失真实攻击装备。")
 
+	var battle_special_errors := _combine_domain_errors([
+		battle_special_missing_manifest_result,
+		battle_special_unknown_profile_result,
+		battle_special_duplicate_profile_result,
+		battle_special_duplicate_owner_result,
+		battle_special_wrong_resource_result,
+		battle_special_missing_owner_result,
+		battle_special_missing_required_test_result,
+		battle_special_bad_schema_result,
+	])
+	_assert_messages_have_fragment(battle_special_errors, "is missing manifest for skill mage_meteor_swarm", "特殊技能 profile validation runner 应覆盖缺失 manifest。")
+	_assert_messages_have_fragment(battle_special_errors, "Battle special profile phantom_profile is missing manifest for skill phantom_special_skill", "特殊技能 profile 合法性应由 battle manifest registry 判断，而不是 SkillContentRegistry 白名单。")
+	_assert_messages_have_fragment(battle_special_errors, "Duplicate battle special profile_id registered: meteor_swarm", "特殊技能 profile validation runner 应覆盖重复 profile_id。")
+	_assert_messages_have_fragment(battle_special_errors, "Duplicate battle special profile owning_skill_id registered: mage_meteor_swarm", "特殊技能 profile validation runner 应覆盖重复 owning_skill_ids。")
+	_assert_messages_have_fragment(battle_special_errors, "profile_resource must be MeteorSwarmProfile", "特殊技能 profile validation runner 应覆盖错误 profile_resource 类型。")
+	_assert_messages_have_fragment(battle_special_errors, "references missing owning skill missing_skill", "特殊技能 profile validation runner 应覆盖缺失 owning skill。")
+	_assert_messages_have_fragment(battle_special_errors, "required regression test path does not exist", "特殊技能 profile validation runner 应覆盖缺失 required regression test。")
+	_assert_messages_have_fragment(battle_special_errors, "accuracy_modifer_spec", "特殊技能 profile validation runner 应覆盖 Meteor exact schema 拼写错误。")
+
 	_assert_domain_has_fragment(world_result, "facility missing facility_id", "世界 validation runner 应覆盖缺失 facility_id。")
 	_assert_domain_has_fragment(world_result, "duplicate facility_id known_facility", "世界 validation runner 应覆盖重复 facility_id。")
 	_assert_domain_has_fragment(world_result, "settlement missing settlement_id", "世界 validation runner 应覆盖缺失 settlement_id。")
@@ -191,6 +284,142 @@ func _build_quest_entries_from_dict(quest_defs: Dictionary, source_prefix: Strin
 			"quest_def": quest_defs.get(quest_id) as QuestDef,
 		})
 	return entries
+
+
+func _build_single_special_profile_skill_defs(skill_id: StringName, profile_id: StringName) -> Dictionary:
+	var combat_profile := CombatSkillDef.new()
+	combat_profile.skill_id = skill_id
+	combat_profile.special_resolution_profile_id = profile_id
+
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = "Special Profile Fixture"
+	skill_def.icon_id = skill_id
+	skill_def.mastery_curve = PackedInt32Array([100])
+	skill_def.combat_profile = combat_profile
+	return {skill_id: skill_def}
+
+
+func _prepare_empty_battle_special_profile_manifest_dir(fixture_id: String) -> String:
+	return _prepare_battle_special_profile_manifest_dir(fixture_id, [])
+
+
+func _prepare_battle_special_profile_manifest_dir(fixture_id: String, manifest_specs: Array[Dictionary]) -> String:
+	var fixture_root := "%s/%s" % [BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT, fixture_id]
+	_remove_dir_recursive(fixture_root)
+	var manifest_dir := "%s/manifests" % fixture_root
+	var profile_dir := "%s/profiles" % fixture_root
+	var manifest_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(manifest_dir))
+	var profile_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(profile_dir))
+	_assert_true(manifest_error == OK, "应能创建 battle special profile manifest fixture 目录。")
+	_assert_true(profile_error == OK, "应能创建 battle special profile profile fixture 目录。")
+
+	for spec_index in range(manifest_specs.size()):
+		var spec := manifest_specs[spec_index]
+		var file_name := String(spec.get("file_name", "manifest_%d" % spec_index))
+		var profile_resource := spec.get("profile_resource", null) as Resource
+		var saved_profile: Resource = null
+		if profile_resource != null:
+			var profile_path := "%s/%s_profile.tres" % [profile_dir, file_name]
+			var profile_save_error := ResourceSaver.save(profile_resource, profile_path)
+			_assert_true(profile_save_error == OK, "应能保存 battle special profile fixture profile。")
+			saved_profile = load(profile_path)
+
+		var manifest := BattleSpecialProfileManifest.new()
+		manifest.profile_id = _to_string_name(spec.get("profile_id", &"meteor_swarm"))
+		manifest.schema_version = int(spec.get("schema_version", 1))
+		manifest.owning_skill_ids = _to_string_name_array(spec.get("owning_skill_ids", [&"mage_meteor_swarm"]))
+		manifest.runtime_resolver_id = _to_string_name(spec.get("runtime_resolver_id", manifest.profile_id))
+		manifest.profile_resource = saved_profile
+		manifest.runtime_read_policy = _to_string_name(spec.get("runtime_read_policy", &"forbidden"))
+		manifest.required_regression_tests = _to_string_array(spec.get("required_regression_tests", []))
+		var manifest_path := "%s/%s.tres" % [manifest_dir, file_name]
+		var manifest_save_error := ResourceSaver.save(manifest, manifest_path)
+		_assert_true(manifest_save_error == OK, "应能保存 battle special profile fixture manifest。")
+	return manifest_dir
+
+
+func _build_valid_meteor_swarm_profile() -> MeteorSwarmProfile:
+	var profile := MeteorSwarmProfile.new()
+	profile.coverage_shape_id = &"square_7x7"
+	profile.radius = 3
+	profile.friendly_fire_soft_expected_hp_percent = 10
+	profile.friendly_fire_hard_expected_hp_percent = 25
+	profile.friendly_fire_hard_worst_case_hp_percent = 50
+	return profile
+
+
+func _build_bad_schema_meteor_swarm_profile() -> MeteorSwarmProfile:
+	var profile := _build_valid_meteor_swarm_profile()
+	profile.terrain_profiles = [
+		{
+			"terrain_profile_id": &"meteor_swarm_dust",
+			"ring_min": 0,
+			"ring_max": 2,
+			"move_cost_delta": 0,
+			"lifetime_policy": &"timed",
+			"duration_tu": 50,
+			"tick_interval_tu": 5,
+			"tick_effect_type": &"none",
+			"accuracy_modifer_spec": {
+				"modifier_delta": -2,
+			},
+			"render_overlay_id": "meteor_dust_cloud",
+		},
+	]
+	return profile
+
+
+func _to_string_name_array(values_variant) -> Array[StringName]:
+	var result: Array[StringName] = []
+	if values_variant is not Array:
+		return result
+	for value in values_variant:
+		if value is StringName:
+			result.append(value)
+		elif value is String:
+			result.append(StringName(value))
+	return result
+
+
+func _to_string_array(values_variant) -> Array[String]:
+	var result: Array[String] = []
+	if values_variant is not Array:
+		return result
+	for value in values_variant:
+		result.append(String(value))
+	return result
+
+
+func _to_string_name(value: Variant) -> StringName:
+	if value is StringName:
+		return value
+	if value is String:
+		return StringName(value)
+	return &""
+
+
+func _remove_dir_recursive(directory_path: String) -> void:
+	var absolute_path := ProjectSettings.globalize_path(directory_path)
+	if not DirAccess.dir_exists_absolute(absolute_path):
+		return
+	var directory := DirAccess.open(directory_path)
+	if directory == null:
+		return
+	directory.list_dir_begin()
+	while true:
+		var entry_name := directory.get_next()
+		if entry_name.is_empty():
+			break
+		if entry_name == "." or entry_name == "..":
+			continue
+		var entry_path := "%s/%s" % [directory_path, entry_name]
+		if directory.current_is_dir():
+			_remove_dir_recursive(entry_path)
+		else:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(entry_path))
+	directory.list_dir_end()
+	DirAccess.remove_absolute(absolute_path)
 
 
 func _build_invalid_quest_entries() -> Array[Dictionary]:

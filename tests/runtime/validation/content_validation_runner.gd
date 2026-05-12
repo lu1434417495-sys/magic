@@ -16,6 +16,7 @@ const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content
 const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const WorldMapContentValidator = preload("res://scripts/utils/world_map_content_validator.gd")
+const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd")
 
 const SUPPORTED_QUEST_PROVIDER_IDS := {
 	&"service_contract_board": true,
@@ -194,6 +195,18 @@ func validate_enemy_seed(seed_resource_path: String) -> Dictionary:
 	var registry := EnemyContentRegistry.new()
 	registry.configure_seed_resource(seed_resource_path)
 	return _build_domain_result("enemy", seed_resource_path, registry.validate())
+
+
+func validate_battle_special_profile_registry(
+	label: String,
+	skill_defs: Dictionary,
+	manifest_directory: String = ""
+) -> Dictionary:
+	var registry := BattleSpecialProfileRegistry.new()
+	if not manifest_directory.is_empty():
+		registry.set_manifest_directory(manifest_directory)
+	registry.rebuild(skill_defs)
+	return _build_domain_result("battle_special_profile", label, registry.validate())
 
 
 func validate_world_presets(enemy_templates: Dictionary = {}, wild_encounter_rosters: Dictionary = {}) -> Dictionary:

@@ -19,6 +19,7 @@ base_attribute_overrides = {
 "willpower": 5,
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_guard_break"])
+target_rank = &"elite"
 attribute_overrides = {
 "hp_max": 34,
 "mp_max": 0,

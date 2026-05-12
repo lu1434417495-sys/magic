@@ -179,6 +179,8 @@ func _collect_attack_skill_ids(
 		var skill_def = skill_defs.get(skill_id)
 		if skill_def == null or skill_def.combat_profile == null:
 			continue
+		if not _attacker_can_use_skill(enemy_unit, skill_def):
+			continue
 		if not _skill_has_attackable_target(enemy_unit, skill_def, player_targets):
 			continue
 		skill_ids.append(skill_id)
@@ -191,6 +193,8 @@ func _skill_has_attackable_target(
 	player_targets: Array[BattleUnitState]
 ) -> bool:
 	if enemy_unit == null or skill_def == null or skill_def.combat_profile == null:
+		return false
+	if not _attacker_can_use_skill(enemy_unit, skill_def):
 		return false
 	var target_mode := StringName(skill_def.combat_profile.target_mode)
 	if target_mode != &"unit" and target_mode != &"ground":
@@ -309,6 +313,8 @@ func _can_skill_hit_target_from_anchor(
 ) -> bool:
 	if skill_def == null or skill_def.combat_profile == null:
 		return false
+	if not _attacker_can_use_skill(enemy_unit, skill_def):
+		return false
 	match StringName(skill_def.combat_profile.target_mode):
 		&"unit":
 			return _distance_from_anchor_to_unit(grid_service, enemy_unit, anchor_coord, target_unit) <= _get_effective_skill_range(enemy_unit, skill_def)
@@ -405,6 +411,17 @@ func _target_filter_allows(source_unit: BattleUnitState, target_unit: BattleUnit
 
 func _get_effective_skill_range(unit_state: BattleUnitState, skill_def) -> int:
 	return BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(unit_state, skill_def)
+
+
+func _attacker_can_use_skill(unit_state: BattleUnitState, skill_def) -> bool:
+	if unit_state == null or skill_def == null or skill_def.combat_profile == null:
+		return false
+	if not BATTLE_RANGE_SERVICE_SCRIPT.unit_matches_required_weapon_families(unit_state, skill_def.combat_profile.required_weapon_families):
+		return false
+	if BATTLE_RANGE_SERVICE_SCRIPT.requires_current_melee_weapon(skill_def) \
+			and not BATTLE_RANGE_SERVICE_SCRIPT.unit_has_melee_weapon(unit_state):
+		return false
+	return true
 
 
 func _is_weapon_range_skill(skill_def) -> bool:

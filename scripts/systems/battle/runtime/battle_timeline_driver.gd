@@ -143,9 +143,13 @@ func _resolve_timeline_status_phase(batch: BattleEventBatch, tu_delta: int) -> v
 		if not unit_state.is_alive:
 			var defeat_source_unit_id = ProgressionDataUtils.to_string_name(status_tick_result.get("defeat_source_unit_id", ""))
 			var defeat_source_unit = _runtime._state.units.get(defeat_source_unit_id) as BattleUnitState if defeat_source_unit_id != &"" else null
-			_collect_defeated_unit_loot(unit_state, defeat_source_unit)
-			_clear_defeated_unit(unit_state, batch)
-			batch.log_lines.append("%s 因持续效果倒下。" % unit_state.display_name)
+			_runtime.handle_unit_defeated_by_runtime_effect(
+				unit_state,
+				defeat_source_unit,
+				batch,
+				"%s 因持续效果倒下。" % unit_state.display_name,
+				{"record_enemy_defeated_achievement": defeat_source_unit != null}
+			)
 			continue
 		if _advance_unit_status_durations(unit_state, tu_delta, batch):
 			_append_changed_unit_id(batch, unit_state.unit_id)
@@ -353,13 +357,17 @@ func _activate_next_ready_unit(batch: BattleEventBatch) -> void:
 		if not unit_state.is_alive:
 			var defeat_source_unit_id = ProgressionDataUtils.to_string_name(turn_start_result.get("defeat_source_unit_id", ""))
 			var defeat_source_unit = _runtime._state.units.get(defeat_source_unit_id) as BattleUnitState if defeat_source_unit_id != &"" else null
-			_collect_defeated_unit_loot(unit_state, defeat_source_unit)
-			_clear_defeated_unit(unit_state, batch)
+			_runtime.handle_unit_defeated_by_runtime_effect(
+				unit_state,
+				defeat_source_unit,
+				batch,
+				"%s 因持续效果倒下。" % unit_state.display_name,
+				{"record_enemy_defeated_achievement": defeat_source_unit != null, "check_battle_end": false}
+			)
 			_runtime._state.phase = &"timeline_running"
 			_runtime._state.active_unit_id = &""
 			batch.phase_changed = true
 			batch.changed_unit_ids.append(next_unit_id)
-			batch.log_lines.append("%s 因持续效果倒下。" % unit_state.display_name)
 			_runtime._state.append_log_entry(String(batch.log_lines[-1]))
 			if _check_battle_end(batch):
 				return

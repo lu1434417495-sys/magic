@@ -91,6 +91,7 @@ func _run() -> void:
 	_test_dynamic_max_level_schema_validation()
 	_test_level_override_key_schema_validation()
 	_test_required_weapon_family_schema_validation()
+	_test_special_resolution_profile_id_is_manifest_owned()
 	_test_requires_weapon_param_schema_validation()
 	_test_duration_param_schema_validation()
 	_test_damage_dice_alias_param_schema_validation()
@@ -578,6 +579,20 @@ func _test_required_weapon_family_schema_validation() -> void:
 	_assert_true(
 		_has_error_containing(empty_family_errors, "combat_profile.required_weapon_families[0] must be non-empty"),
 		"required_weapon_families 应拒绝空武器家族。"
+	)
+
+
+func _test_special_resolution_profile_id_is_manifest_owned() -> void:
+	var registry := SkillContentRegistry.new()
+	var profile := CombatSkillDef.new()
+	profile.skill_id = &"opaque_special_profile_skill"
+	profile.special_resolution_profile_id = &"future_special_profile"
+
+	var errors: Array[String] = []
+	registry._append_combat_profile_validation_errors(errors, profile.skill_id, profile)
+	_assert_true(
+		errors.is_empty(),
+		"SkillContentRegistry 不应硬编码 special_resolution_profile_id 白名单；manifest registry 才负责 profile 是否存在。"
 	)
 
 

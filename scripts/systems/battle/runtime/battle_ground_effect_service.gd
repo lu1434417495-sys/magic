@@ -311,6 +311,15 @@ func _apply_ground_relocation_with_mode(
 
 	var previous_anchor = active_unit.coord
 	var previous_coords = active_unit.occupied_coords.duplicate()
+	if _runtime._layered_barrier_service != null:
+		var barrier_result: Dictionary = _runtime._layered_barrier_service.resolve_unit_boundary_crossing(
+			active_unit,
+			previous_anchor,
+			landing_coord,
+			batch
+		)
+		if bool(barrier_result.get("blocked", false)) or not active_unit.is_alive or active_unit.coord != previous_anchor:
+			return false
 	if not _runtime._grid_service.move_unit_force(_runtime._state, active_unit, landing_coord):
 		return false
 
@@ -799,11 +808,13 @@ func _apply_ground_unit_effects(
 		if not target_unit.is_alive:
 			total_kill_count += 1
 			_apply_on_kill_gain_resources_effects(source_unit, target_unit, skill_def, effect_defs, batch)
-			_collect_defeated_unit_loot(target_unit, source_unit)
-			_clear_defeated_unit(target_unit, batch)
-			batch.log_lines.append("%s 被击倒。" % target_unit.display_name)
-			_runtime._battle_rating_system.record_enemy_defeated_achievement(source_unit, target_unit)
-			_record_unit_defeated(target_unit)
+			_runtime.handle_unit_defeated_by_runtime_effect(
+				target_unit,
+				source_unit,
+				batch,
+				"%s 被击倒。" % target_unit.display_name,
+				{"record_enemy_defeated_achievement": true}
+			)
 		if source_unit != null and target_unit != null:
 			_record_effect_metrics(source_unit, target_unit, damage, healing, 1 if not target_unit.is_alive else 0)
 
@@ -833,7 +844,16 @@ func _resolve_ground_unit_effect_result(
 ) -> Dictionary:
 	if _should_resolve_ground_effects_as_attack(effect_defs):
 		var attack_effect_defs = _dedupe_effect_defs_by_instance(effect_defs)
-		var attack_check = _runtime._hit_resolver.build_skill_attack_check(source_unit, target_unit, skill_def)
+		var attack_policy = _runtime.get_attack_check_policy_service()
+		var attack_context = attack_policy.build_attack_context(
+			_runtime._state,
+			source_unit,
+			target_unit,
+			skill_def,
+			&"skill_attack_check",
+			&"execute"
+		)
+		var attack_check = attack_policy.build_attack_check(attack_context)
 		return _runtime._damage_resolver.resolve_attack_effects(
 			source_unit,
 			target_unit,
@@ -1120,9 +1140,13 @@ func _apply_ground_cell_effect(
 			if bool(fall_result.get("shield_broken", false)):
 				batch.log_lines.append("%s 的护盾被击碎。" % occupant_unit.display_name)
 			if not occupant_unit.is_alive:
-				_collect_defeated_unit_loot(occupant_unit, source_unit)
-				_clear_defeated_unit(occupant_unit, batch)
-				batch.log_lines.append("%s 被击倒。" % occupant_unit.display_name)
+				_runtime.handle_unit_defeated_by_runtime_effect(
+					occupant_unit,
+					source_unit,
+					batch,
+					"%s 被击倒。" % occupant_unit.display_name,
+					{"record_enemy_defeated_achievement": true}
+				)
 
 	_flush_last_stand_mastery_records(batch)
 	return cell_applied

@@ -30,6 +30,22 @@ static func _clear_identity_projection(unit_state: BattleUnitState) -> void:
 	unit_state.subrace_trait_ids = []
 	unit_state.ascension_trait_ids = []
 	unit_state.bloodline_trait_ids = []
+	_clear_identity_skill_charges(unit_state)
+
+
+static func _clear_identity_skill_charges(unit_state: BattleUnitState) -> void:
+	if unit_state == null:
+		return
+	_clear_charge_keys_with_prefix(unit_state.per_battle_charges, "racial_skill_")
+	_clear_charge_keys_with_prefix(unit_state.per_turn_charges, "racial_skill_")
+	_clear_charge_keys_with_prefix(unit_state.per_turn_charge_limits, "racial_skill_")
+
+
+static func _clear_charge_keys_with_prefix(charges: Dictionary, prefix: String) -> void:
+	for charge_key_variant in charges.keys():
+		var charge_key := String(charge_key_variant)
+		if charge_key.begins_with(prefix):
+			charges.erase(charge_key_variant)
 
 
 static func _suppresses_original_race_traits(context: PassiveSourceContext) -> bool:

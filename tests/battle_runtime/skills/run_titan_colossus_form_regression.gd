@@ -8,6 +8,7 @@ const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const BodySizeRules = preload("res://scripts/systems/progression/body_size_rules.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 
@@ -25,6 +26,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_titan_colossus_form_changes_and_restores_body_size()
+	_test_body_size_restore_waits_when_previous_footprint_is_blocked()
 
 	if _failures.is_empty():
 		print("Titan colossus form regression: PASS")
@@ -76,6 +78,33 @@ func _test_titan_colossus_form_changes_and_restores_body_size() -> void:
 	_assert_true(not titan.has_status_effect(TITAN_GIANT_FORM_STATUS), "巨神化过期后 status 应移除。")
 	_assert_eq(titan.body_size_category, BodySizeRules.BODY_SIZE_CATEGORY_LARGE, "巨神化过期后应恢复 large category。")
 	_assert_eq(titan.body_size, BodySizeRules.BODY_SIZE_LARGE, "巨神化过期后应恢复 large int body_size。")
+
+
+func _test_body_size_restore_waits_when_previous_footprint_is_blocked() -> void:
+	var runtime := _build_runtime()
+	var state := _build_state(Vector2i(5, 5))
+	var shrunken := _build_unit(&"blocked_restore_user", Vector2i(1, 1))
+	_assert_true(shrunken.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM), "测试前置：单位当前为 medium。")
+	var blocker := _build_unit(&"blocked_restore_occupant", Vector2i(2, 1))
+	_add_unit(runtime, state, shrunken)
+	_add_unit(runtime, state, blocker)
+	state.ally_unit_ids = [shrunken.unit_id, blocker.unit_id]
+	runtime._state = state
+	var status := BattleStatusEffectState.new()
+	status.status_id = &"blocked_body_restore"
+	status.duration = 1
+	status.params = {
+		"body_size_category_override": String(BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM),
+		"previous_body_size_category": String(BodySizeRules.BODY_SIZE_CATEGORY_LARGE),
+	}
+	shrunken.set_status_effect(status)
+
+	runtime._advance_unit_status_durations(shrunken, 5)
+
+	_assert_true(shrunken.has_status_effect(&"blocked_body_restore"), "恢复 footprint 被占用时，体型覆盖 status 应保留以便后续重试。")
+	_assert_eq(shrunken.body_size_category, BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM, "恢复失败时不应切换到会覆盖占位者的 large category。")
+	var occupant = runtime._grid_service.get_unit_at_coord(state, blocker.coord)
+	_assert_true(occupant == blocker, "恢复失败时不应覆盖目标 footprint 上的其他单位。")
 
 
 func _build_runtime() -> BattleRuntimeModule:

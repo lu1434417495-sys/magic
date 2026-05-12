@@ -29,6 +29,7 @@ const STATUS_GUARDING: StringName = &"guarding"
 const STATUS_HEX_OF_FRAILTY: StringName = &"hex_of_frailty"
 const STATUS_MAGIC_SHIELD: StringName = &"magic_shield"
 const STATUS_MARKED: StringName = &"marked"
+const STATUS_METEOR_CONCUSSED: StringName = &"meteor_concussed"
 const STATUS_PINNED: StringName = &"pinned"
 const STATUS_PRISMATIC_BARRIER: StringName = &"prismatic_barrier"
 const STATUS_PETRIFIED: StringName = &"petrified"
@@ -54,7 +55,7 @@ static func has_semantic(status_id: StringName) -> bool:
 
 static func is_harmful_status(status_id: StringName) -> bool:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_ARMOR_BREAK, STATUS_BLIND, STATUS_FROZEN, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_BURNING, STATUS_SLOW, STATUS_STAGGERED, STATUS_HEX_OF_FRAILTY, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT, STATUS_PETRIFIED, STATUS_MADNESS, &"black_star_brand_normal", &"black_star_brand_elite":
+		STATUS_ARMOR_BREAK, STATUS_BLIND, STATUS_FROZEN, STATUS_MARKED, STATUS_METEOR_CONCUSSED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_TAUNTED, STATUS_TENDON_CUT, STATUS_BURNING, STATUS_SLOW, STATUS_STAGGERED, STATUS_HEX_OF_FRAILTY, STATUS_CROWN_BREAK_BROKEN_FANG, STATUS_CROWN_BREAK_BROKEN_HAND, STATUS_CROWN_BREAK_BLINDED_EYE, STATUS_DOOM_SENTENCE_VERDICT, STATUS_PETRIFIED, STATUS_MADNESS, &"black_star_brand_normal", &"black_star_brand_elite":
 			return true
 		_:
 			return false
@@ -70,7 +71,7 @@ static func is_cleansable_harmful_status(status_id: StringName) -> bool:
 
 static func is_dispellable_harmful_status(status_id: StringName) -> bool:
 	match ProgressionDataUtils.to_string_name(status_id):
-		STATUS_BLIND, STATUS_BURNING, STATUS_DOOM_SENTENCE_VERDICT, STATUS_FROZEN, STATUS_HEX_OF_FRAILTY, STATUS_MADNESS, STATUS_MARKED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_SLOW, STATUS_STAGGERED, STATUS_TAUNTED:
+		STATUS_BLIND, STATUS_BURNING, STATUS_DOOM_SENTENCE_VERDICT, STATUS_FROZEN, STATUS_HEX_OF_FRAILTY, STATUS_MADNESS, STATUS_MARKED, STATUS_METEOR_CONCUSSED, STATUS_PINNED, STATUS_ROOTED, STATUS_SHOCKED, STATUS_SLOW, STATUS_STAGGERED, STATUS_TAUNTED:
 			return true
 		_:
 			return false
@@ -116,7 +117,7 @@ static func get_dispel_priority(status_id: StringName) -> int:
 			return 90
 		STATUS_ATTACK_UP, STATUS_ATTACK_ROLL_BONUS_UP, STATUS_DAMAGE_REDUCTION_UP, STATUS_DODGE_BONUS_UP, STATUS_WILLPOWER_SAVE_BONUS_UP:
 			return 80
-		STATUS_BURNING, STATUS_HEX_OF_FRAILTY, STATUS_PINNED, STATUS_SHOCKED, STATUS_SLOW, STATUS_STAGGERED, STATUS_TAUNTED:
+		STATUS_BURNING, STATUS_HEX_OF_FRAILTY, STATUS_METEOR_CONCUSSED, STATUS_PINNED, STATUS_SHOCKED, STATUS_SLOW, STATUS_STAGGERED, STATUS_TAUNTED:
 			return 70
 		_:
 			return 50
@@ -145,8 +146,22 @@ static func get_semantic(status_id: StringName) -> Dictionary:
 				"tick_mode": TICK_NONE,
 				"move_cost_delta": 1,
 			}
+		STATUS_METEOR_CONCUSSED:
+			return {
+				"stack_mode": STACK_REFRESH,
+				"max_stacks": 1,
+				"tick_mode": TICK_TURN_START_AP_PENALTY,
+				"attack_roll_penalty": 2,
+				"ap_penalty_group": STATUS_STAGGERED,
+				"consume_after_ap_penalty": true,
+				"display_label": "震眩",
+				"turn_start_log_reason_id": &"meteor_concussed_ap_consumed",
+			}
 		STATUS_STAGGERED:
-			return _build_refresh_timeline_semantic(TICK_TURN_START_AP_PENALTY)
+			var staggered_semantic := _build_refresh_timeline_semantic(TICK_TURN_START_AP_PENALTY)
+			staggered_semantic["ap_penalty_group"] = STATUS_STAGGERED
+			staggered_semantic["display_label"] = "踉跄"
+			return staggered_semantic
 		_:
 			return {}
 
@@ -201,6 +216,36 @@ static func get_turn_start_ap_penalty(status_entry: BattleStatusEffectState) -> 
 	if ProgressionDataUtils.to_string_name(semantic.get("tick_mode", TICK_NONE)) != TICK_TURN_START_AP_PENALTY:
 		return 0
 	return _get_effect_intensity(status_entry)
+
+
+static func get_turn_start_ap_penalty_group(status_entry: BattleStatusEffectState) -> StringName:
+	if status_entry == null:
+		return &""
+	var semantic := get_semantic(status_entry.status_id)
+	if ProgressionDataUtils.to_string_name(semantic.get("tick_mode", TICK_NONE)) != TICK_TURN_START_AP_PENALTY:
+		return &""
+	return ProgressionDataUtils.to_string_name(semantic.get("ap_penalty_group", status_entry.status_id))
+
+
+static func should_consume_after_turn_start_ap_penalty(status_entry: BattleStatusEffectState) -> bool:
+	if status_entry == null:
+		return false
+	var semantic := get_semantic(status_entry.status_id)
+	if ProgressionDataUtils.to_string_name(semantic.get("tick_mode", TICK_NONE)) != TICK_TURN_START_AP_PENALTY:
+		return false
+	return bool(semantic.get("consume_after_ap_penalty", false))
+
+
+static func get_turn_start_ap_penalty_display_label(status_entry: BattleStatusEffectState) -> String:
+	if status_entry == null:
+		return ""
+	var semantic := get_semantic(status_entry.status_id)
+	if ProgressionDataUtils.to_string_name(semantic.get("tick_mode", TICK_NONE)) != TICK_TURN_START_AP_PENALTY:
+		return ""
+	var label := String(semantic.get("display_label", ""))
+	if not label.strip_edges().is_empty():
+		return label
+	return String(status_entry.status_id)
 
 
 static func get_turn_start_damage(status_entry: BattleStatusEffectState) -> int:

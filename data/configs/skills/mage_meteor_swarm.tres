@@ -1,262 +1,149 @@
-[gd_resource type="Resource" script_class="SkillDef" format=3]
+[gd_resource type="Resource" script_class="SkillDef" load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_wqm3p"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_nmesq"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_1sd03"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_yu873"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_3cig6"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="2_skill"]
 
-[sub_resource type="Resource" id="Resource_wqm3p"]
-script = ExtResource("3_1sd03")
-effect_type = &"damage"
-max_skill_level = 0
-damage_tag = &"fire"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"agility"
-save_partial_on_success = true
-save_tag = &"magic"
-params = {
-"dice_count": 6,
-"dice_sides": 6
-}
-
-[sub_resource type="Resource" id="Resource_nmesq"]
-script = ExtResource("3_1sd03")
-effect_type = &"damage"
-min_skill_level = 1
-max_skill_level = 2
-damage_tag = &"fire"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"agility"
-save_partial_on_success = true
-save_tag = &"magic"
-params = {
-"dice_count": 7,
-"dice_sides": 6
-}
-
-[sub_resource type="Resource" id="Resource_1sd03"]
-script = ExtResource("3_1sd03")
-effect_type = &"damage"
-min_skill_level = 3
-max_skill_level = 4
-damage_tag = &"fire"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"agility"
-save_partial_on_success = true
-save_tag = &"magic"
-params = {
-"dice_count": 8,
-"dice_sides": 6
-}
-
-[sub_resource type="Resource" id="Resource_yu873"]
-script = ExtResource("3_1sd03")
-effect_type = &"damage"
-min_skill_level = 5
-max_skill_level = 6
-damage_tag = &"fire"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"agility"
-save_partial_on_success = true
-save_tag = &"magic"
-params = {
-"dice_count": 9,
-"dice_sides": 6
-}
-
-[sub_resource type="Resource" id="Resource_3cig6"]
-script = ExtResource("3_1sd03")
-effect_type = &"damage"
-min_skill_level = 7
-damage_tag = &"fire"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"agility"
-save_partial_on_success = true
-save_tag = &"magic"
-params = {
-"dice_count": 10,
-"dice_sides": 6
-}
-
-[sub_resource type="Resource" id="Resource_vsdvm"]
-script = ExtResource("3_1sd03")
-effect_type = &"status"
-power = 2
-min_skill_level = 3
-max_skill_level = 4
-effect_target_team_filter = &"enemy"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"willpower"
-save_tag = &"magic"
-status_id = &"marked"
-duration_tu = 80
-
-[sub_resource type="Resource" id="Resource_8p2d5"]
-script = ExtResource("3_1sd03")
-effect_type = &"status"
-power = 2
-min_skill_level = 5
-max_skill_level = 6
-effect_target_team_filter = &"enemy"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"willpower"
-save_tag = &"magic"
-status_id = &"marked"
-duration_tu = 100
-
-[sub_resource type="Resource" id="Resource_f0g5b"]
-script = ExtResource("3_1sd03")
-effect_type = &"status"
-power = 3
-min_skill_level = 7
-effect_target_team_filter = &"enemy"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"willpower"
-save_tag = &"magic"
-status_id = &"marked"
-duration_tu = 120
-
-[sub_resource type="Resource" id="Resource_4gqym"]
-script = ExtResource("4_yu873")
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("1_combat")
 skill_id = &"mage_meteor_swarm"
 target_mode = &"ground"
-range_value = 6
+target_team_filter = &"any"
+range_value = 7
 area_pattern = &"radius"
-area_value = 2
+area_value = 3
+requires_los = false
 ap_cost = 3
 mp_cost = 120
+stamina_cost = 0
 cooldown_tu = 20
 attack_roll_bonus = -2
 aura_cost = 2
 level_overrides = {
-3: {
-"range_value": 7
-},
 5: {
-"cooldown_tu": 15,
-"range_value": 7
-},
-7: {
-"area_value": 3,
-"attack_roll_bonus": -1
+"cooldown_tu": 15
 }
 }
-effect_defs = Array[ExtResource("3_1sd03")]([SubResource("Resource_wqm3p"), SubResource("Resource_nmesq"), SubResource("Resource_1sd03"), SubResource("Resource_yu873"), SubResource("Resource_3cig6"), SubResource("Resource_vsdvm"), SubResource("Resource_8p2d5"), SubResource("Resource_f0g5b")])
+spell_fate_mode = &"control_roll"
+spell_critical_mode = &"mp_refund"
+spell_critical_mp_refund_percent = 50
+fumble_protection_curve = PackedInt32Array(0, 0, 1, 1, 1, 2, 2, 3)
+fumble_protection_extra_mp_percent = 100
+backlash_mode = &"ground_anchor_drift"
+backlash_target_filter = &"any"
+backlash_offset_radius = 2
+ai_tags = Array[StringName]([&"large_aoe", &"ultimate", &"zone_denial", &"friendly_fire_risk"])
+delivery_categories = Array[StringName]([&"spell", &"meteor", &"disaster"])
+special_resolution_profile_id = &"meteor_swarm"
+target_selection_mode = &"single_coord"
+min_target_count = 1
+max_target_count = 1
+selection_order_mode = &"stable"
 
 [resource]
-script = ExtResource("5_3cig6")
+script = ExtResource("2_skill")
 skill_id = &"mage_meteor_swarm"
 display_name = "陨星雨"
 icon_id = &"mage_meteor_swarm"
-description = "火土复合型禁咒，落点中心额外降低地形高度或生成燃烧残坑。"
+description = "禁咒级灾害法术，在 7x7 区域降下一轮陨星雨；中心区域最惨，外围也被冲击、碎石和尘土波及。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
-tags = Array[StringName]([&"mage", &"magic", &"earth", &"output", &"control"])
+tags = Array[StringName]([&"mage", &"magic", &"earth", &"fire", &"output", &"control", &"ultimate"])
 growth_tier = &"advanced"
 attribute_growth_progress = {
 "intelligence": 110,
 "perception": 20,
 "willpower": 50
 }
-level_description_template = "攻击检定{hit}，造成{dmg}伤害，范围{area}。消耗{ap}AP/{mp}法力{{?aura}}/{aura}斗气{{/aura}}，冷却{cooldown}TU"
+level_description_template = "攻击检定{hit}，7x7 灾害范围，中心直击、外围冲击并留下碎石/尘土/陨坑。消耗{ap}AP/{mp}法力/{aura}斗气，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "20",
-"dmg": "6D6",
-"duration": "60",
-"hit": "+-2",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
-"range": "6"
+"range": "7"
 },
 "1": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "20",
-"dmg": "7D6",
-"duration": "60",
-"hit": "+-2",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
-"range": "6"
+"range": "7"
 },
 "2": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "20",
-"dmg": "7D6",
-"duration": "60",
-"hit": "+-2",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
-"range": "6"
+"range": "7"
 },
 "3": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "20",
-"dmg": "8D6",
-"duration": "80",
-"hit": "+-2",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
 "range": "7"
 },
 "4": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "20",
-"dmg": "8D6",
-"duration": "80",
-"hit": "+-2",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
 "range": "7"
 },
 "5": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "15",
-"dmg": "9D6",
-"duration": "100",
-"hit": "+-2",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
 "range": "7"
 },
 "6": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "15",
-"dmg": "9D6",
-"duration": "100",
-"hit": "+-2",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
 "range": "7"
 },
 "7": {
 "ap": "3",
-"area": "半径2格",
+"area": "7x7",
 "aura": "2",
 "cooldown": "15",
-"dmg": "10D6",
-"duration": "120",
-"hit": "+-1",
+"dmg": "禁咒灾害",
+"duration": "永久地形/50TU尘土",
+"hit": "-2",
 "mp": "120",
 "range": "7"
 }
 }
-combat_profile = SubResource("Resource_4gqym")
+combat_profile = SubResource("Resource_combat")

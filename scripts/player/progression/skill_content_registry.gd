@@ -79,6 +79,7 @@ const VALID_EFFECT_TYPES := [
 	&"terrain_effect",
 	&"terrain_replace",
 	&"terrain_replace_to",
+	&"execute",
 ]
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
@@ -342,6 +343,24 @@ func _append_combat_profile_validation_errors(
 			combat_profile.effect_defs[effect_index] as CombatEffectDef,
 			"combat_profile.effect_defs[%d]" % effect_index
 		)
+
+	if combat_profile.passive_effect_defs != null and combat_profile.passive_effect_defs.size() > 0:
+		for passive_index in range(combat_profile.passive_effect_defs.size()):
+			var passive_effect := combat_profile.passive_effect_defs[passive_index] as CombatEffectDef
+			if passive_effect != null and passive_effect.effect_type == &"execute":
+				errors.append(
+					"Skill %s passive_effect_defs[%d] uses effect_type 'execute', which is not allowed in passive effects." % [
+						String(skill_id),
+						passive_index,
+					]
+				)
+				continue
+			_append_effect_validation_errors(
+				errors,
+				skill_id,
+				passive_effect,
+				"combat_profile.passive_effect_defs[%d]" % passive_index
+			)
 
 	var seen_variant_ids: Dictionary = {}
 	for variant_index in range(combat_profile.cast_variants.size()):
