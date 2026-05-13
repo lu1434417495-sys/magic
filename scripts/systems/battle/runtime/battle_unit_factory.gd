@@ -572,8 +572,7 @@ func _ensure_basic_attack_skill(unit_state: BattleUnitState) -> void:
 		return
 	if not unit_state.known_active_skill_ids.has(BASIC_ATTACK_SKILL_ID):
 		unit_state.known_active_skill_ids.append(BASIC_ATTACK_SKILL_ID)
-	if not unit_state.known_skill_level_map.has(BASIC_ATTACK_SKILL_ID):
-		unit_state.known_skill_level_map[BASIC_ATTACK_SKILL_ID] = 1
+	unit_state.known_skill_level_map[BASIC_ATTACK_SKILL_ID] = 0
 
 
 func _ensure_enemy_basic_attack_affordability(unit_state: BattleUnitState) -> void:
@@ -582,7 +581,7 @@ func _ensure_enemy_basic_attack_affordability(unit_state: BattleUnitState) -> vo
 	var basic_attack := _skill_def_from_runtime(BASIC_ATTACK_SKILL_ID)
 	if basic_attack == null or basic_attack.combat_profile == null:
 		return
-	var skill_level := maxi(int(unit_state.known_skill_level_map.get(BASIC_ATTACK_SKILL_ID, 1)), 1)
+	var skill_level := maxi(int(unit_state.known_skill_level_map.get(BASIC_ATTACK_SKILL_ID, 0)), 0)
 	var costs: Dictionary = basic_attack.combat_profile.get_effective_resource_costs(skill_level)
 	var stamina_cost := maxi(int(costs.get("stamina_cost", basic_attack.combat_profile.stamina_cost)), 0)
 	if stamina_cost <= 0:

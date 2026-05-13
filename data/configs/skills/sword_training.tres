@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"sword_training"
+display_name = "剑术训练"
+icon_id = &"sword_training"
+description = "通过剑类武器的高质量攻击积累熟练度。"
+skill_type = &"passive"
+max_level = 5
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+mastery_sources = Array[StringName]([&"battle"])
+tags = Array[StringName]([&"weapon_training", &"sword", &"passive"])
+learn_source = &"innate"

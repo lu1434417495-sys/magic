@@ -367,17 +367,21 @@ func _assert_battle_equip_self_only_failure(snapshot: Dictionary, text_snapshot:
 func _assert_battle_equip_requirement_failure(snapshot: Dictionary, text_snapshot: String) -> void:
 	var report := _find_latest_change_equipment_report(snapshot)
 	_assert_true(not bool(report.get("ok", true)), "装备需求失败时 change_equipment report 应标记失败。")
-	_assert_eq(String(report.get("error_code", "")), "body_size_too_small", "装备需求失败应暴露稳定错误码。")
+	_assert_eq(String(report.get("error_code", "")), "item_not_equippable", "装备需求失败应只暴露泛化错误码。")
+	_assert_true(not report.has("blockers"), "装备需求失败不应在 report 中暴露隐藏 blocker。")
 	_assert_eq(int(report.get("ap_after", -1)), 2, "装备需求失败时不应扣 AP。")
 	_assert_eq(_count_battle_backpack_item(snapshot, String(RESTRICTED_TEST_HELM_ID)), 1, "装备需求失败时实例应留在 battle-local 背包。")
 	var hud_entry := _find_battle_hud_backpack_entry(snapshot, String(RESTRICTED_TEST_HELM_ID))
 	_assert_true(not hud_entry.is_empty(), "HUD 快照应包含需求受限装备。")
 	_assert_true(not bool(hud_entry.get("can_equip", true)), "HUD 应把需求不满足的装备标记为不可装备。")
 	_assert_true(
-		String(hud_entry.get("disabled_reason", "")).contains("体型过小"),
-		"HUD 禁用原因应来自 runtime preview。 entry=%s" % [str(hud_entry)]
+		String(hud_entry.get("disabled_reason", "")).contains("当前无法装备"),
+		"HUD 禁用原因应来自 runtime preview 的泛化文案。 entry=%s" % [str(hud_entry)]
 	)
-	_assert_true(text_snapshot.contains("error=body_size_too_small"), "文本快照应渲染装备需求失败原因。")
+	_assert_true(text_snapshot.contains("error=item_not_equippable"), "文本快照应渲染泛化装备失败原因。")
+	_assert_true(not text_snapshot.contains("body_size_too_small"), "文本快照不应泄露体型 blocker。")
+	_assert_true(not text_snapshot.contains("missing_profession"), "文本快照不应泄露职业 blocker。")
+	_assert_true(not text_snapshot.contains("体型过小"), "文本快照不应泄露体型要求。")
 
 
 func _assert_battle_equip_string_key_only_item_not_found(snapshot: Dictionary, text_snapshot: String) -> void:

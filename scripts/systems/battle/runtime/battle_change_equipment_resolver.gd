@@ -184,7 +184,10 @@ func _validate_change_equipment_command(active_unit: BattleUnitState, command: B
 			return _with_change_equipment_error(
 				result,
 				String(item_rule.get("error_code", "item_not_equipment")),
-				String(item_rule.get("message", "装备实例不能放入该槽位。"))
+				String(item_rule.get("message", "装备实例不能放入该槽位。")),
+				{
+					"occupied_slot_ids": item_rule.get("occupied_slot_ids", []),
+				}
 			)
 		result["occupied_slot_ids"] = item_rule.get("occupied_slot_ids", [])
 	else:
@@ -301,12 +304,25 @@ func _build_change_equipment_result(
 	}
 
 
-func _with_change_equipment_error(result: Dictionary, error_code: String, message: String) -> Dictionary:
+func _with_change_equipment_error(
+	result: Dictionary,
+	error_code: String,
+	message: String,
+	extra_fields: Dictionary = {}
+) -> Dictionary:
 	var output := result.duplicate(true)
+	for key in extra_fields.keys():
+		output[key] = _normalize_change_equipment_error_field(key, extra_fields.get(key))
 	output["allowed"] = false
 	output["error_code"] = error_code
 	output["message"] = message
 	return output
+
+
+func _normalize_change_equipment_error_field(key: Variant, value: Variant) -> Variant:
+	if String(key) == "occupied_slot_ids":
+		return _stringify_variant_array(value)
+	return value
 
 
 func _append_change_equipment_report(
@@ -467,7 +483,6 @@ func _resolve_change_equipment_requirement_rule(active_unit: BattleUnitState, it
 		"error_code": "",
 		"message": "",
 		"occupied_slot_ids": [],
-		"blockers": [],
 	}
 	if item_def == null or not (item_def is Object):
 		return result
@@ -477,51 +492,31 @@ func _resolve_change_equipment_requirement_rule(active_unit: BattleUnitState, it
 	var item_label := _get_change_equipment_item_display_name(item_def, item_id)
 	if active_unit == null or active_unit.source_member_id == &"":
 		result["allowed"] = false
-		result["error_code"] = "member_not_found"
-		result["message"] = "%s 有装备需求，但当前单位没有队伍成员来源。" % item_label
+		result["error_code"] = "item_not_equippable"
+		result["message"] = _build_change_equipment_requirement_failure_message(item_label)
 		return result
 	if _runtime._character_gateway == null or not _runtime._character_gateway.has_method("get_member_state"):
 		result["allowed"] = false
-		result["error_code"] = "member_not_found"
-		result["message"] = "%s 有装备需求，但当前无法读取队伍成员状态。" % item_label
+		result["error_code"] = "item_not_equippable"
+		result["message"] = _build_change_equipment_requirement_failure_message(item_label)
 		return result
 	var member_state = _runtime._character_gateway.call("get_member_state", active_unit.source_member_id)
 	if member_state == null:
 		result["allowed"] = false
-		result["error_code"] = "member_not_found"
-		result["message"] = "%s 有装备需求，但找不到成员 %s。" % [item_label, String(active_unit.source_member_id)]
+		result["error_code"] = "item_not_equippable"
+		result["message"] = _build_change_equipment_requirement_failure_message(item_label)
 		return result
 	var req_result: Dictionary = equip_req.check(member_state)
 	if bool(req_result.get("allowed", true)):
 		return result
-	var blockers: Array = req_result.get("blockers", [])
-	var first_code := String(blockers[0]) if not blockers.is_empty() else "requirement_failed"
-	var blocker_strings: Array[String] = []
-	for blocker in blockers:
-		blocker_strings.append(String(blocker))
 	result["allowed"] = false
-	result["error_code"] = first_code
-	result["blockers"] = blocker_strings
-	result["message"] = _build_change_equipment_requirement_failure_message(item_label, blocker_strings)
+	result["error_code"] = "item_not_equippable"
+	result["message"] = _build_change_equipment_requirement_failure_message(item_label)
 	return result
 
 
-func _build_change_equipment_requirement_failure_message(item_label: String, blockers: Array[String]) -> String:
-	var reason_labels: Array[String] = []
-	for blocker in blockers:
-		match blocker:
-			"missing_profession":
-				reason_labels.append("缺少所需职业")
-			"body_size_too_small":
-				reason_labels.append("体型过小")
-			"body_size_too_large":
-				reason_labels.append("体型过大")
-			_:
-				reason_labels.append(blocker)
-	var reason_text := "需求未满足"
-	if not reason_labels.is_empty():
-		reason_text = "、".join(PackedStringArray(reason_labels))
-	return "%s 装备需求未满足：%s。" % [item_label, reason_text]
+func _build_change_equipment_requirement_failure_message(item_label: String) -> String:
+	return "当前无法装备 %s。" % item_label
 
 
 func _get_change_equipment_item_display_name(item_def, item_id: StringName) -> String:
@@ -669,6 +664,15 @@ func _backpack_has_equipment_instance(backpack_view, instance_id: StringName) ->
 
 func _stringify_string_name_array(values: Array[StringName]) -> Array[String]:
 	var result: Array[String] = []
+	for value in values:
+		result.append(String(value))
+	return result
+
+
+func _stringify_variant_array(values: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if values is not Array:
+		return result
 	for value in values:
 		result.append(String(value))
 	return result

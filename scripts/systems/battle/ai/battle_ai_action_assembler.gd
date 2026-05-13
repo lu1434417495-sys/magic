@@ -2,10 +2,12 @@ class_name BattleAiActionAssembler
 extends RefCounted
 
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_range_action.gd")
 const USE_CHARGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_charge_action.gd")
 const USE_CHARGE_PATH_AOE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_charge_path_aoe_action.gd")
 const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
 const USE_MULTI_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_multi_unit_skill_action.gd")
+const USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_random_chain_skill_action.gd")
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 const MOVE_TO_MULTI_UNIT_SKILL_POSITION_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_multi_unit_skill_position_action.gd")
 const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
@@ -76,6 +78,10 @@ func _build_skill_actions(
 	var charge_variant = _find_charge_variant(skill_def, skill_level)
 	if charge_variant != null:
 		actions.append(_build_charge_action(unit_state, state_def, state_actions, skill_def))
+		return actions
+	if _is_random_chain_skill(skill_def):
+		actions.append(_build_random_chain_action(unit_state, state_def, state_actions, skill_def))
+		actions.append(_build_move_to_range_action(unit_state, state_def, state_actions, skill_def))
 		return actions
 	if _is_multi_unit_skill(skill_def):
 		actions.append(_build_multi_unit_action(unit_state, state_def, state_actions, skill_def))
@@ -170,6 +176,40 @@ func _build_multi_unit_action(
 	return action
 
 
+func _build_random_chain_action(
+	unit_state: BattleUnitState,
+	state_def,
+	state_actions: Array,
+	skill_def: SkillDef
+):
+	var action = USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT.new()
+	action.action_id = _build_action_id(state_def.state_id, skill_def.skill_id, &"random_chain")
+	action.score_bucket_id = _resolve_generated_score_bucket_id(state_actions, USE_UNIT_SKILL_ACTION_SCRIPT)
+	var skill_ids: Array[StringName] = [skill_def.skill_id]
+	action.skill_ids = skill_ids
+	action.target_selector = _resolve_target_selector(state_actions, &"nearest_enemy")
+	_apply_random_chain_distance_style(action, unit_state, state_actions, skill_def)
+	return action
+
+
+func _build_move_to_range_action(
+	unit_state: BattleUnitState,
+	state_def,
+	state_actions: Array,
+	skill_def: SkillDef
+):
+	var action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
+	action.action_id = _build_action_id(state_def.state_id, skill_def.skill_id, &"range_move")
+	action.score_bucket_id = _resolve_generated_score_bucket_id(state_actions, MOVE_TO_RANGE_ACTION_SCRIPT)
+	action.target_selector = _resolve_target_selector(state_actions, &"nearest_enemy")
+	var range_skill_ids: Array[StringName] = [skill_def.skill_id]
+	action.range_skill_ids = range_skill_ids
+	var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(unit_state, skill_def)
+	action.desired_min_distance = mini(1, effective_range) if effective_range > 0 else 0
+	action.desired_max_distance = maxi(effective_range, action.desired_min_distance)
+	return action
+
+
 func _build_move_to_multi_unit_action(
 	unit_state: BattleUnitState,
 	state_def,
@@ -199,6 +239,26 @@ func _apply_unit_distance_style(action, unit_state: BattleUnitState, state_actio
 	action.desired_min_distance = mini(1, effective_range) if effective_range > 0 else 0
 	action.desired_max_distance = maxi(effective_range, action.desired_min_distance)
 	action.distance_reference = USE_UNIT_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_UNIT
+
+
+func _apply_random_chain_distance_style(action, unit_state: BattleUnitState, state_actions: Array, skill_def: SkillDef) -> void:
+	var template_action = _find_action_by_script(state_actions, USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT)
+	if template_action == null:
+		template_action = _find_action_by_script(state_actions, USE_UNIT_SKILL_ACTION_SCRIPT)
+	if template_action == null:
+		template_action = _find_action_by_script(state_actions, USE_MULTI_UNIT_SKILL_ACTION_SCRIPT)
+	if template_action != null:
+		action.desired_min_distance = int(template_action.get("desired_min_distance"))
+		action.desired_max_distance = int(template_action.get("desired_max_distance"))
+		var resolved_distance_reference := ProgressionDataUtils.to_string_name(template_action.get("distance_reference"))
+		action.distance_reference = resolved_distance_reference \
+			if resolved_distance_reference in [USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT.DISTANCE_REF_CANDIDATE_POOL, USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT.DISTANCE_REF_ENEMY_FRONTLINE] \
+			else USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT.DISTANCE_REF_CANDIDATE_POOL
+		return
+	var effective_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_threat_range(unit_state, skill_def)
+	action.desired_min_distance = mini(1, effective_range) if effective_range > 0 else 0
+	action.desired_max_distance = maxi(effective_range, action.desired_min_distance)
+	action.distance_reference = USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT.DISTANCE_REF_CANDIDATE_POOL
 
 
 func _apply_ground_distance_style(action, unit_state: BattleUnitState, state_actions: Array, skill_def: SkillDef) -> void:
@@ -291,7 +351,13 @@ func _is_offensive_effect(skill_def: SkillDef, effect_def: CombatEffectDef) -> b
 func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 	return skill_def != null \
 		and skill_def.combat_profile != null \
-		and ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_selection_mode) in [&"multi_unit", &"random_chain"]
+		and ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_selection_mode) == &"multi_unit"
+
+
+func _is_random_chain_skill(skill_def: SkillDef) -> bool:
+	return skill_def != null \
+		and skill_def.combat_profile != null \
+		and ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_selection_mode) == &"random_chain"
 
 
 func _find_charge_path_step_aoe_variant(skill_def: SkillDef, skill_level: int):

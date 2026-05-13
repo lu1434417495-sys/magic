@@ -16,6 +16,7 @@ const PartyMemberState = preload("res://scripts/player/progression/party_member_
 const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
 const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
 
 const RESTRICTED_HELM_ID: StringName = &"requirement_test_restricted_helm"
@@ -83,19 +84,31 @@ func _test_battle_change_equipment_enforces_item_requirement() -> void:
 	var preview := runtime.preview_command(command)
 	_assert_true(preview != null and not preview.allowed, "需求不满足时战斗换装 preview 应失败。")
 	_assert_true(
-		preview != null and preview.log_lines.any(func(line): return String(line).contains("体型过小")),
-		"需求不满足时 preview 应暴露需求失败原因。 log=%s" % [str(preview.log_lines if preview != null else [])]
+		preview != null and preview.log_lines.any(func(line): return String(line).contains("当前无法装备")),
+		"需求不满足时 preview 应显示泛化失败原因。 log=%s" % [str(preview.log_lines if preview != null else [])]
+	)
+	_assert_true(
+		preview != null
+			and not str(preview.log_lines).contains("missing_profession")
+			and not str(preview.log_lines).contains("body_size_too_small")
+			and not str(preview.log_lines).contains("缺少所需职业")
+			and not str(preview.log_lines).contains("体型过小"),
+		"需求不满足时 preview 不应泄露隐藏需求。 log=%s" % [str(preview.log_lines if preview != null else [])]
 	)
 
 	var backpack_before := _backpack_instance_id_signature(state.get_party_backpack_view())
 	var blocked_batch := runtime.issue_command(command)
 	var blocked_report := _find_change_equipment_report(blocked_batch.report_entries)
-	_assert_eq(String(blocked_report.get("error_code", "")), "body_size_too_small", "需求失败应暴露稳定错误码。")
+	_assert_eq(String(blocked_report.get("error_code", "")), "item_not_equippable", "需求失败应只暴露泛化错误码。")
+	_assert_true(not blocked_report.has("blockers"), "需求失败 report 不应透出隐藏 blocker 列表。")
 	_assert_eq(unit.current_ap, 2, "需求失败不应扣 AP。")
 	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"head")), "", "需求失败不应写入 battle-local 装备 view。")
 	_assert_eq(_backpack_instance_id_signature(state.get_party_backpack_view()), backpack_before, "需求失败不应移动背包实例。")
 
 	member.body_size = 3
+	var profession_progress := UnitProfessionProgress.new()
+	profession_progress.profession_id = &"helmet_training"
+	member.progression.set_profession_progress(profession_progress)
 	var allowed_preview := runtime.preview_command(command)
 	_assert_true(
 		allowed_preview != null and allowed_preview.allowed,
@@ -192,6 +205,7 @@ func _build_restricted_helm_item(item_id: StringName) -> ItemDef:
 	item_def.is_stackable = false
 	item_def.max_stack = 1
 	var requirement := EquipmentRequirement.new()
+	requirement.required_profession_ids = ["helmet_training"]
 	requirement.min_body_size = 3
 	item_def.equip_requirement = requirement
 	return item_def

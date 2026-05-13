@@ -203,6 +203,14 @@ func grant_skill_mastery(skill_id: StringName, amount: int, source_type: StringN
 	if not skill_def.mastery_sources.is_empty() and not skill_def.mastery_sources.has(source_type):
 		return false
 
+	var effective_max_level := _get_effective_skill_max_level(skill_def, skill_progress)
+	if effective_max_level <= 0:
+		skill_progress.skill_level = 0
+		skill_progress.current_mastery = 0
+		_unit_progress.set_skill_progress(skill_progress)
+		refresh_runtime_state()
+		return false
+
 	skill_progress.total_mastery_earned += amount
 	match source_type:
 		&"training":
@@ -212,7 +220,6 @@ func grant_skill_mastery(skill_id: StringName, amount: int, source_type: StringN
 		_:
 			pass
 
-	var effective_max_level := _get_effective_skill_max_level(skill_def, skill_progress)
 	if skill_progress.skill_level >= effective_max_level:
 		skill_progress.skill_level = effective_max_level
 		skill_progress.current_mastery = 0

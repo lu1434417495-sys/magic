@@ -7,9 +7,13 @@ const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
 const BATTLE_RATING_SOURCE_TYPE: StringName = &"battle_rating"
+const BASIC_ATTACK_SKILL_ID: StringName = &"basic_attack"
+const BOW_TRAINING_SKILL_ID: StringName = &"bow_training"
 const FORTUNE_MARK_TARGET_STAT_ID: StringName = &"fortune_mark_target"
 const BOSS_TARGET_STAT_ID: StringName = &"boss_target"
 const STATUS_VAJRA_BODY: StringName = &"vajra_body"
+const SWORD_TRAINING_SKILL_ID: StringName = &"sword_training"
+const UNARMED_TRAINING_SKILL_ID: StringName = &"unarmed_training"
 const VAJRA_BODY_SKILL_ID: StringName = &"vajra_body"
 const WARRIOR_GUARD_SKILL_ID: StringName = &"warrior_guard"
 const MASTERY_SOURCE_HEAVY_HIT_TAKEN: StringName = &"heavy_hit_taken"
@@ -81,6 +85,29 @@ func resolve_active_skill_mastery_amount() -> int:
 			continue
 		total += maxi(int((event_variant as Dictionary).get("amount", 0)), 0)
 	return total
+
+
+func resolve_mastery_reward_skill_id(source_unit: BattleUnitState, skill_id: StringName) -> StringName:
+	var normalized_skill_id := ProgressionDataUtils.to_string_name(skill_id)
+	if normalized_skill_id != BASIC_ATTACK_SKILL_ID:
+		return normalized_skill_id
+	if source_unit == null:
+		return normalized_skill_id
+	var weapon_family := ProgressionDataUtils.to_string_name(source_unit.weapon_family)
+	match weapon_family:
+		&"sword":
+			return SWORD_TRAINING_SKILL_ID
+		&"bow":
+			return BOW_TRAINING_SKILL_ID
+		&"unarmed":
+			return UNARMED_TRAINING_SKILL_ID
+		_:
+			pass
+	var weapon_kind := ProgressionDataUtils.to_string_name(source_unit.weapon_profile_kind)
+	if weapon_kind == BattleUnitState.WEAPON_PROFILE_KIND_UNARMED \
+		or weapon_kind == BattleUnitState.WEAPON_PROFILE_KIND_NATURAL:
+		return UNARMED_TRAINING_SKILL_ID
+	return normalized_skill_id
 
 
 func build_vajra_body_mastery_grant(

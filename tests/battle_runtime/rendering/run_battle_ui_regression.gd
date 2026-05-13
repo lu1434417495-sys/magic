@@ -504,6 +504,7 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 		4
 	)
 	attacker.current_aura = 6
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 90)
 	var defender := _build_repeat_attack_unit(
 		&"saint_blade_ui_target",
@@ -671,6 +672,7 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 		4
 	)
 	attacker.current_aura = 6
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	var defender := _build_repeat_attack_unit(
 		&"hover_preview_target",
@@ -750,12 +752,17 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	var skill_def := _get_skill_def(&"archer_long_draw")
 	_assert_true(skill_def != null and skill_def.combat_profile != null, "UI blocker 回归前置：archer_long_draw 定义应存在。")
+	var aura_skill_def := _get_skill_def(&"warrior_aura_slash")
+	_assert_true(aura_skill_def != null and aura_skill_def.combat_profile != null, "UI blocker 回归前置：warrior_aura_slash 定义应存在。")
 	if skill_def == null or skill_def.combat_profile == null:
+		return
+	if aura_skill_def == null or aura_skill_def.combat_profile == null:
 		return
 
 	var game_session := await _install_mock_game_session()
 	game_session.skill_defs = {
 		skill_def.skill_id: skill_def,
+		aura_skill_def.skill_id: aura_skill_def,
 	}
 	var adapter = _build_hud_adapter()
 	var state := _build_state()
@@ -787,6 +794,20 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	_assert_true(bool(cooldown_slot.get("is_disabled", false)), "冷却未结束时 HUD skill slot 应保持禁用。")
 	_assert_eq(String(cooldown_slot.get("footer_text", "")), "CD 10", "冷却未结束时 HUD skill slot footer 应显示剩余 CD。")
 	_assert_true(String(cooldown_slot.get("disabled_reason", "")).contains("冷却"), "冷却未结束时 HUD skill slot 应暴露冷却禁用原因。")
+
+	active_unit.cooldowns.clear()
+	active_unit.known_active_skill_ids = [aura_skill_def.skill_id]
+	active_unit.known_skill_level_map = {aura_skill_def.skill_id: 1}
+	active_unit.current_ap = 2
+	active_unit.current_aura = 2
+	active_unit.attribute_snapshot.set_value(&"aura_max", 2)
+	active_unit.set_unlocked_combat_resource_ids(BattleUnitState.DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS)
+	var locked_aura_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
+	var locked_aura_slots: Array = locked_aura_snapshot.get("skill_slots", [])
+	var locked_aura_slot: Dictionary = locked_aura_slots[0] if not locked_aura_slots.is_empty() and locked_aura_slots[0] is Dictionary else {}
+	_assert_true(bool(locked_aura_slot.get("is_disabled", false)), "斗气未解锁时 HUD skill slot 应保持禁用。")
+	_assert_eq(String(locked_aura_slot.get("footer_text", "")), "AU未解锁", "斗气未解锁时 HUD skill slot footer 应显示 AU未解锁。")
+	_assert_true(String(locked_aura_slot.get("disabled_reason", "")).contains("斗气尚未解锁"), "斗气未解锁时 HUD skill slot 应暴露明确的禁用原因。")
 
 	game_session.queue_free()
 	await process_frame
@@ -1011,6 +1032,7 @@ func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
 		4
 	)
 	attacker.current_aura = 1
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	attacker.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
 	var defender := _build_repeat_attack_unit(
@@ -1620,6 +1642,8 @@ func _build_repeat_attack_unit(
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
+	if current_mp > 0:
+		unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
 	return unit
 
 

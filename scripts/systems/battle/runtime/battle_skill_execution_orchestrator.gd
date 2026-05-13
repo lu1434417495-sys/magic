@@ -531,6 +531,9 @@ func _preview_unit_skill_command(
 	preview.target_unit_ids.clear()
 	for target_unit_id_variant in validation.get("target_unit_ids", []):
 		preview.target_unit_ids.append(ProgressionDataUtils.to_string_name(target_unit_id_variant))
+	preview.random_chain_candidate_unit_ids.clear()
+	for candidate_unit_id_variant in validation.get("random_chain_candidate_unit_ids", []):
+		preview.random_chain_candidate_unit_ids.append(ProgressionDataUtils.to_string_name(candidate_unit_id_variant))
 	preview.target_coords.clear()
 	for preview_coord_variant in validation.get("preview_coords", []):
 		if preview_coord_variant is Vector2i:
@@ -548,6 +551,14 @@ func _preview_unit_skill_command(
 					preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
 				_append_damage_preview_line(preview)
 				return
+		if StringName(skill_def.combat_profile.target_selection_mode) == &"random_chain":
+			preview.log_lines.append("%s 可用 %s 从 %d 个候选单位中随机连击。" % [
+				active_unit.display_name,
+				skill_label,
+				preview.random_chain_candidate_unit_ids.size(),
+			])
+			_append_damage_preview_line(preview)
+			return
 		preview.log_lines.append("%s 可对 %d 个单位使用 %s。" % [
 			active_unit.display_name,
 			preview.target_unit_ids.size(),
@@ -996,13 +1007,20 @@ func _validate_unit_skill_targets(
 		return result
 	if is_random_chain:
 		var max_hits_per_target := maxi(int(skill_def.combat_profile.max_hits_per_target), 1)
-		if _build_random_chain_target_pool(active_unit, skill_def, {}, max_hits_per_target).is_empty():
+		var random_chain_pool := _build_random_chain_target_pool(active_unit, skill_def, {}, max_hits_per_target)
+		if random_chain_pool.is_empty():
 			result.message = "没有可用的随机连击目标。"
 			return result
 		result.allowed = true
 		result.message = ""
 		result.target_unit_ids = []
 		result.target_units = []
+		var candidate_unit_ids: Array[StringName] = []
+		for candidate_variant in random_chain_pool:
+			var candidate := candidate_variant as BattleUnitState
+			if candidate != null:
+				candidate_unit_ids.append(candidate.unit_id)
+		result.random_chain_candidate_unit_ids = candidate_unit_ids
 		return result
 	if target_unit_ids.size() < min_target_count:
 		result.message = "至少需要选择 %d 个单位目标。" % min_target_count
@@ -1081,7 +1099,7 @@ func _sort_target_unit_ids_for_execution(target_unit_ids: Array[StringName]) -> 
 func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 	return skill_def != null \
 		and skill_def.combat_profile != null \
-		and StringName(skill_def.combat_profile.target_selection_mode) in [&"multi_unit", &"random_chain"]
+		and StringName(skill_def.combat_profile.target_selection_mode) == &"multi_unit"
 
 func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def: SkillDef, require_ap: bool = true) -> bool:
 	if active_unit == null or target_unit == null or skill_def == null or skill_def.combat_profile == null:
@@ -1859,6 +1877,10 @@ func _get_unit_skill_level(unit_state: BattleUnitState, skill_id: StringName) ->
 		return 0
 	if unit_state.known_skill_level_map.has(skill_id):
 		return int(unit_state.known_skill_level_map.get(skill_id, 0))
+	if _runtime != null:
+		var skill_def := _runtime._skill_defs.get(skill_id) as SkillDef
+		if skill_def != null and int(skill_def.max_level) == 0 and skill_def.dynamic_max_level_stat_id == &"":
+			return 0
 	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
 
 func _format_skill_variant_label(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> String:

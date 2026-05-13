@@ -171,10 +171,13 @@ func get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def: SkillD
 	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return "技能或目标无效。"
 	var combat_profile = skill_def.combat_profile
-	var costs := get_effective_skill_costs(active_unit, skill_def)
+	var costs: Dictionary = get_effective_skill_costs(active_unit, skill_def)
 	var cooldown := int(active_unit.cooldowns.get(skill_def.skill_id, 0))
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
+	var locked_resource_block_reason := get_locked_combat_resource_block_reason(active_unit, costs)
+	if not locked_resource_block_reason.is_empty():
+		return locked_resource_block_reason
 	if active_unit.current_ap < int(costs.get("ap_cost", combat_profile.ap_cost)):
 		return "AP不足，无法施放该技能。"
 	if active_unit.current_mp < int(costs.get("mp_cost", combat_profile.mp_cost)):
@@ -252,6 +255,13 @@ func consume_skill_costs(
 ) -> bool:
 	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return false
+	var combat_profile = skill_def.combat_profile
+	var costs: Dictionary = get_effective_skill_costs(active_unit, skill_def)
+	var locked_resource_block_reason := get_locked_combat_resource_block_reason(active_unit, costs)
+	if not locked_resource_block_reason.is_empty():
+		if batch != null:
+			batch.log_lines.append(locked_resource_block_reason)
+		return false
 	if _is_black_contract_push_skill(skill_def.skill_id):
 		if not consume_black_contract_push_cast(active_unit, cast_variant, batch):
 			return false
@@ -259,8 +269,6 @@ func consume_skill_costs(
 		return false
 	if not consume_racial_skill_charge(active_unit, skill_def, batch):
 		return false
-	var combat_profile = skill_def.combat_profile
-	var costs := get_effective_skill_costs(active_unit, skill_def)
 	active_unit.current_ap = maxi(active_unit.current_ap - int(costs.get("ap_cost", combat_profile.ap_cost)), 0)
 	active_unit.current_mp = maxi(active_unit.current_mp - int(costs.get("mp_cost", combat_profile.mp_cost)), 0)
 	active_unit.current_stamina = maxi(active_unit.current_stamina - int(costs.get("stamina_cost", combat_profile.stamina_cost)), 0)
@@ -332,6 +340,18 @@ func get_effective_skill_costs(active_unit: BattleUnitState, skill_def: SkillDef
 		return {}
 	var skill_level: int = _runtime._get_unit_skill_level(active_unit, skill_def.skill_id)
 	return skill_def.combat_profile.get_effective_resource_costs(skill_level)
+
+
+func get_locked_combat_resource_block_reason(active_unit: BattleUnitState, costs: Dictionary) -> String:
+	if active_unit == null:
+		return "技能施放者无效。"
+	if int(costs.get("mp_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP):
+		return "法力尚未解锁，无法施放该技能。"
+	if int(costs.get("stamina_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA):
+		return "体力尚未解锁，无法施放该技能。"
+	if int(costs.get("aura_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA):
+		return "斗气尚未解锁，无法施放该技能。"
+	return ""
 
 
 func _is_identity_granted_skill(skill_def: SkillDef) -> bool:

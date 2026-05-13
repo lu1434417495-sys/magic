@@ -445,7 +445,7 @@ func _test_battle_unit_factory_refreshes_from_character_gateway_snapshot() -> vo
 	_assert_true(unit.known_active_skill_ids.has(&"warrior_heavy_strike"), "刷新桥接应从成长进度重建可用主动技能。")
 	_assert_true(unit.known_active_skill_ids.has(&"basic_attack"), "刷新桥接应补入内建基础攻击。")
 	_assert_eq(int(unit.known_skill_level_map.get(&"warrior_heavy_strike", 0)), 2, "刷新桥接应从成长进度重建技能等级。")
-	_assert_eq(int(unit.known_skill_level_map.get(&"basic_attack", 0)), 1, "内建基础攻击应按 1 级进入战斗单位。")
+	_assert_eq(int(unit.known_skill_level_map.get(&"basic_attack", -1)), 0, "内建基础攻击应按无等级动作进入战斗单位。")
 
 	unit.current_hp = 3
 	unit.known_active_skill_ids = []

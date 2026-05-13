@@ -468,6 +468,8 @@ func _get_unlocked_cast_variants(active_unit, skill_def) -> Array:
 		return []
 	var skill_level_map: Dictionary = active_unit.known_skill_level_map
 	var default_skill_level := 1 if active_unit.known_active_skill_ids.has(skill_def.skill_id) else 0
+	if _is_level_less_skill(skill_def):
+		default_skill_level = 0
 	var skill_level := int(skill_level_map.get(skill_def.skill_id, default_skill_level))
 	return skill_def.combat_profile.get_unlocked_cast_variants(skill_level)
 
@@ -901,17 +903,33 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> St
 	if active_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return "技能或目标无效。"
 	var combat_profile = skill_def.combat_profile
+	var costs: Dictionary = combat_profile.get_effective_resource_costs(_get_unit_skill_level(active_unit, skill_def.skill_id))
 	var cooldown := int(active_unit.cooldowns.get(skill_def.skill_id, 0))
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
-	if active_unit.current_ap < int(combat_profile.ap_cost):
+	var locked_resource_block_reason := _get_locked_combat_resource_block_reason(active_unit, costs)
+	if not locked_resource_block_reason.is_empty():
+		return locked_resource_block_reason
+	if active_unit.current_ap < int(costs.get("ap_cost", combat_profile.ap_cost)):
 		return "AP不足，无法施放该技能。"
-	if active_unit.current_mp < int(combat_profile.mp_cost):
+	if active_unit.current_mp < int(costs.get("mp_cost", combat_profile.mp_cost)):
 		return "法力不足，无法施放该技能。"
-	if active_unit.current_stamina < int(combat_profile.stamina_cost):
+	if active_unit.current_stamina < int(costs.get("stamina_cost", combat_profile.stamina_cost)):
 		return "体力不足，无法施放该技能。"
-	if active_unit.current_aura < int(combat_profile.aura_cost):
+	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
+	return ""
+
+
+func _get_locked_combat_resource_block_reason(active_unit: BattleUnitState, costs: Dictionary) -> String:
+	if active_unit == null:
+		return "技能施放者无效。"
+	if int(costs.get("mp_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP):
+		return "法力尚未解锁，无法施放该技能。"
+	if int(costs.get("stamina_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA):
+		return "体力尚未解锁，无法施放该技能。"
+	if int(costs.get("aura_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA):
+		return "斗气尚未解锁，无法施放该技能。"
 	return ""
 
 
@@ -920,7 +938,16 @@ func _get_unit_skill_level(unit_state: BattleUnitState, skill_id: StringName) ->
 		return 0
 	if unit_state.known_skill_level_map.has(skill_id):
 		return int(unit_state.known_skill_level_map.get(skill_id, 0))
+	var skill_def = _get_skill_def(skill_id)
+	if _is_level_less_skill(skill_def):
+		return 0
 	return 1 if unit_state.known_active_skill_ids.has(skill_id) else 0
+
+
+func _is_level_less_skill(skill_def) -> bool:
+	return skill_def != null \
+		and int(skill_def.max_level) == 0 \
+		and skill_def.dynamic_max_level_stat_id == &""
 
 
 func _build_battle_skill_selection_status(skill_def, active_unit) -> String:

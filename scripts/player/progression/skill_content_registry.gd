@@ -192,8 +192,8 @@ func _append_skill_validation_errors(
 		errors.append("Skill %s is missing display_name." % String(skill_id))
 	if skill_def.icon_id == &"":
 		errors.append("Skill %s is missing icon_id." % String(skill_id))
-	if skill_def.max_level <= 0 and skill_def.dynamic_max_level_stat_id == &"":
-		errors.append("Skill %s must have max_level >= 1." % String(skill_id))
+	if skill_def.max_level < 0 and skill_def.dynamic_max_level_stat_id == &"":
+		errors.append("Skill %s must have max_level >= 0." % String(skill_id))
 	if skill_def.non_core_max_level < 0:
 		errors.append("Skill %s non_core_max_level must be >= 0." % String(skill_id))
 	if skill_def.non_core_max_level > skill_def.max_level and skill_def.max_level >= 0 and skill_def.dynamic_max_level_stat_id == &"":

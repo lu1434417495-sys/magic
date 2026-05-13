@@ -53,6 +53,7 @@ func _run() -> void:
 	_test_archer_profession_grant_passive_is_level_zero_and_not_manually_learnable()
 	_test_warrior_toughness_grant_scales_character_hp_only()
 	_test_manual_skill_learning_rejects_grant_only_sources()
+	_test_weapon_training_skills_are_not_auto_learned()
 	_test_racial_skill_grant_writes_level_and_source()
 	_test_game_session_backfills_and_revokes_identity_granted_skills()
 	_test_new_game_random_skill_tier_mapping_uses_representative_defs()
@@ -69,6 +70,7 @@ func _run() -> void:
 	_test_profession_promotion_requires_ready_active_level_trigger_and_locks_it()
 	_test_aura_slash_max_level_uses_transformation_count()
 	_test_dynamic_max_level_uses_profession_rank_integer_divisor()
+	_test_level_less_skill_rejects_mastery_gain()
 	_test_attribute_growth_progress_round_trip_persists()
 	_test_unit_progress_from_dict_requires_top_level_schema_fields()
 	_test_unit_progress_from_dict_rejects_attribute_and_reputation_schema_defaults()
@@ -353,6 +355,33 @@ func _test_manual_skill_learning_rejects_grant_only_sources() -> void:
 			progress.get_skill_progress(blocked_skill_id) == null,
 			"%s 被手动学习拒绝后不应创建技能进度。" % String(blocked_skill_id)
 		)
+
+
+func _test_weapon_training_skills_are_not_auto_learned() -> void:
+	var sword_training := _make_test_weapon_training_skill(&"sword_training", &"sword")
+	var bow_training := _make_test_weapon_training_skill(&"bow_training", &"bow")
+	var regular_innate := _make_test_learn_source_skill(&"regular_innate", &"innate")
+	var skill_defs: Dictionary = {
+		sword_training.skill_id: sword_training,
+		bow_training.skill_id: bow_training,
+		regular_innate.skill_id: regular_innate,
+	}
+	var progress := UnitProgress.new()
+	var service := ProgressionService.new()
+	service.setup(progress, skill_defs, {})
+
+	_assert_true(progress.get_skill_progress(&"sword_training") == null, "weapon_training 技能不应在刷新时自动写入 learned。")
+	_assert_true(progress.get_skill_progress(&"bow_training") == null, "多个 weapon_training 技能都不应自动同步。")
+	_assert_true(progress.get_skill_progress(&"regular_innate") == null, "普通 innate 技能仍不应被 weapon_training 同步规则自动学习。")
+	_assert_true(
+		not service.grant_skill_mastery(&"sword_training", 100, &"battle"),
+		"未学会 weapon_training 时不应接收战斗熟练度。"
+	)
+
+	_assert_true(service.learn_skill(&"sword_training"), "weapon_training 仍可通过显式学习写入 learned。")
+	var sword_progress: UnitSkillProgress = progress.get_skill_progress(&"sword_training")
+	_assert_true(sword_progress != null and sword_progress.is_learned, "显式学习后 weapon_training 应为 learned。")
+	_assert_true(service.grant_skill_mastery(&"sword_training", 100, &"battle"), "显式学会 weapon_training 后才应接收战斗熟练度。")
 
 
 func _test_racial_skill_grant_writes_level_and_source() -> void:
@@ -1066,6 +1095,34 @@ func _test_dynamic_max_level_uses_profession_rank_integer_divisor() -> void:
 		9,
 		"奥术飞弹锁定后才应使用法师 rank/2 的动态核心上限。"
 	)
+
+
+func _test_level_less_skill_rejects_mastery_gain() -> void:
+	var progress := UnitProgress.new()
+	progress.unit_id = &"level_less_unit"
+	var skill_def := SkillDef.new()
+	skill_def.skill_id = &"level_less_action"
+	skill_def.display_name = "Level Less Action"
+	skill_def.icon_id = &"level_less_action"
+	skill_def.max_level = 0
+	skill_def.non_core_max_level = 0
+	skill_def.mastery_curve = PackedInt32Array()
+
+	var skill_progress := UnitSkillProgress.new()
+	skill_progress.skill_id = skill_def.skill_id
+	skill_progress.is_learned = true
+	progress.set_skill_progress(skill_progress)
+
+	var service := ProgressionService.new()
+	service.setup(progress, {skill_def.skill_id: skill_def}, {})
+	_assert_true(
+		not service.grant_skill_mastery(skill_def.skill_id, 999, &"battle"),
+		"无等级技能不应接收熟练度入账。"
+	)
+	var updated_progress = progress.get_skill_progress(skill_def.skill_id)
+	_assert_eq(int(updated_progress.skill_level), 0, "无等级技能等级应保持 0。")
+	_assert_eq(int(updated_progress.current_mastery), 0, "无等级技能当前熟练度应保持 0。")
+	_assert_eq(int(updated_progress.total_mastery_earned), 0, "无等级技能总熟练度不应累计。")
 
 
 func _test_attribute_growth_progress_round_trip_persists() -> void:
@@ -3149,6 +3206,16 @@ func _make_test_learn_source_skill(skill_id: StringName, learn_source: StringNam
 	skill_def.learn_source = learn_source
 	skill_def.max_level = 1
 	skill_def.mastery_curve = PackedInt32Array([10])
+	return skill_def
+
+
+func _make_test_weapon_training_skill(skill_id: StringName, weapon_family: StringName) -> SkillDef:
+	var skill_def := _make_test_learn_source_skill(skill_id, &"innate")
+	skill_def.max_level = 5
+	skill_def.non_core_max_level = 5
+	skill_def.mastery_curve = PackedInt32Array([100, 250, 550, 1000, 1600])
+	skill_def.mastery_sources = [&"battle"]
+	skill_def.tags = [&"weapon_training", weapon_family, &"passive"]
 	return skill_def
 
 

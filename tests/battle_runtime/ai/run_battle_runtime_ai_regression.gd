@@ -34,6 +34,7 @@ const USE_CHARGE_PATH_AOE_ACTION_SCRIPT = preload("res://scripts/enemies/actions
 const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
 const MOVE_TO_MULTI_UNIT_SKILL_POSITION_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_multi_unit_skill_position_action.gd")
 const USE_MULTI_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_multi_unit_skill_action.gd")
+const USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_random_chain_skill_action.gd")
 const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
 const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
@@ -85,10 +86,18 @@ func _run() -> void:
 	_test_nearest_role_threat_enemy_selector_prefers_frontline_over_far_ranged()
 	_test_ai_multi_unit_skill_generates_target_unit_ids()
 	_test_ai_multi_unit_skill_scores_role_threat_target_groups()
+	_test_ai_assembler_routes_random_chain_to_random_chain_action()
+	_test_ai_random_chain_action_uses_candidate_pool_not_target_ids()
 	_test_ai_ground_skill_scores_role_threat_area_targets()
 	_test_ai_skill_score_prioritizes_lethal_threat_targets()
 	_test_ai_score_comparison_promotes_lethal_kill_across_buckets()
 	_test_ai_ground_skill_minimum_hit_count_uses_effective_enemies()
+	_test_ai_ground_control_score_input_keeps_empty_cells_separate_from_effective_targets()
+	_test_ai_ground_control_requires_explicit_empty_control_opt_in()
+	_test_ai_ground_control_opt_in_allows_empty_control_candidate()
+	_test_ai_ground_control_opt_in_does_not_allow_empty_damage_only_skill()
+	_test_ai_ground_control_opt_in_does_not_bypass_partial_hit_minimum()
+	_test_ai_ground_control_supplement_can_allow_partial_hit_minimum_when_enabled()
 	_test_ai_chain_skill_scores_friendly_bounce_risk()
 	_test_ai_multi_unit_skill_prefers_max_targets_under_candidate_limit()
 	_test_ai_multi_unit_positioning_moves_toward_max_targets()
@@ -1468,6 +1477,119 @@ func _test_ai_multi_unit_skill_scores_role_threat_target_groups() -> void:
 	)
 
 
+func _test_ai_assembler_routes_random_chain_to_random_chain_action() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var random_chain_skill = _build_test_random_chain_skill(&"ai_random_chain_route_test")
+	runtime._skill_defs[random_chain_skill.skill_id] = random_chain_skill
+	var brain = runtime._enemy_ai_brains.get(&"melee_aggressor")
+	var chain_user = _build_ai_unit(
+		&"random_chain_assembler_user",
+		"随机链装配者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"melee_aggressor",
+		&"engage",
+		[random_chain_skill.skill_id],
+		30,
+		2
+	)
+	var plan: Dictionary = runtime._ai_action_assembler.build_unit_action_plan(chain_user, brain, runtime._skill_defs)
+	var engage_actions: Array = plan.get(&"engage", [])
+	var found_random_chain_action := false
+	var found_multi_unit_action := false
+	var found_multi_unit_move_action := false
+	var found_move_to_range_action := false
+	for action in engage_actions:
+		if action == null:
+			continue
+		if action.get_script() == USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT:
+			found_random_chain_action = action.get_declared_skill_ids().has(random_chain_skill.skill_id)
+		if action.get_script() == USE_MULTI_UNIT_SKILL_ACTION_SCRIPT:
+			found_multi_unit_action = found_multi_unit_action or action.get_declared_skill_ids().has(random_chain_skill.skill_id)
+		if action.get_script() == MOVE_TO_MULTI_UNIT_SKILL_POSITION_ACTION_SCRIPT:
+			found_multi_unit_move_action = found_multi_unit_move_action or action.get_declared_skill_ids().has(random_chain_skill.skill_id)
+		if action.get_script() == MOVE_TO_RANGE_ACTION_SCRIPT:
+			var range_skill_ids = action.get("range_skill_ids")
+			found_move_to_range_action = found_move_to_range_action \
+				or (range_skill_ids is Array and (range_skill_ids as Array).has(random_chain_skill.skill_id))
+	_assert_true(found_random_chain_action, "AI 自动装配器应为 random_chain 技能生成专用 UseRandomChainSkillAction。")
+	_assert_true(not found_multi_unit_action, "random_chain 技能不应再生成 UseMultiUnitSkillAction。")
+	_assert_true(not found_multi_unit_move_action, "random_chain 技能不应再生成 MoveToMultiUnitSkillPositionAction。")
+	_assert_true(found_move_to_range_action, "random_chain 技能应使用 MoveToRangeAction 靠近可施放距离。")
+
+
+func _test_ai_random_chain_action_uses_candidate_pool_not_target_ids() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var random_chain_skill = _build_test_random_chain_skill(&"ai_random_chain_score_test")
+	runtime._skill_defs[random_chain_skill.skill_id] = random_chain_skill
+	var state = _build_flat_state(Vector2i(6, 3))
+	runtime._state = state
+	var chain_user = _build_ai_unit(
+		&"random_chain_action_user",
+		"随机链行动者",
+		&"hostile",
+		Vector2i(1, 1),
+		&"melee_aggressor",
+		&"engage",
+		[random_chain_skill.skill_id],
+		30,
+		2
+	)
+	var target_a = _build_manual_unit(&"random_chain_candidate_a", "随机候选A", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
+	var target_b = _build_manual_unit(&"random_chain_candidate_b", "随机候选B", &"player", Vector2i(3, 1), [&"warrior_heavy_strike"])
+	_add_unit_to_state(runtime, state, chain_user, true)
+	_add_unit_to_state(runtime, state, target_a, false)
+	_add_unit_to_state(runtime, state, target_b, false)
+	var ai_context = _build_ai_context(runtime, chain_user)
+	ai_context.trace_enabled = true
+	var action = USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"random_chain_probe"
+	var action_skill_ids: Array[StringName] = [random_chain_skill.skill_id]
+	action.skill_ids = action_skill_ids
+	action.target_selector = &"nearest_enemy"
+	action.desired_min_distance = 1
+	action.desired_max_distance = 3
+	action.distance_reference = USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT.DISTANCE_REF_CANDIDATE_POOL
+	var decision = action.decide(ai_context)
+	_assert_true(decision != null and decision.command != null, "random_chain action 应能产出合法候选指令。")
+	if decision == null or decision.command == null:
+		return
+	_assert_eq(decision.command.target_unit_ids, [], "random_chain AI command 不应携带确定 target_unit_ids。")
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "random_chain AI command 应通过 preview。")
+	_assert_eq(preview.target_unit_ids, [], "random_chain preview 不应伪造确定目标。")
+	_assert_true(
+		preview.random_chain_candidate_unit_ids.has(target_a.unit_id) and preview.random_chain_candidate_unit_ids.has(target_b.unit_id),
+		"random_chain preview 应暴露候选池而不是写入 target_unit_ids。"
+	)
+	var score_input = decision.score_input
+	_assert_true(score_input != null, "random_chain action 应携带专用评分输入。")
+	if score_input == null:
+		return
+	_assert_eq(score_input.action_kind, &"random_chain_skill", "random_chain 评分应使用专用 action_kind。")
+	_assert_eq(score_input.target_unit_ids, [], "random_chain 评分不应把候选池伪装成确定目标。")
+	_assert_eq(score_input.target_count, 0, "random_chain 评分 target_count 应保持确定目标数量为 0。")
+	_assert_eq(score_input.random_chain_candidate_pool_count, 2, "random_chain 评分应记录候选池大小。")
+	_assert_true(
+		score_input.random_chain_candidate_unit_ids.has(target_a.unit_id) and score_input.random_chain_candidate_unit_ids.has(target_b.unit_id),
+		"random_chain 评分应记录候选池单位。"
+	)
+	_assert_true(score_input.effective_target_count > 0, "random_chain 评分应基于候选池产出正向期望收益。")
+	_assert_true(score_input.total_score > 0, "random_chain 评分应产生正向总分。")
+	_assert_eq(score_input.random_chain_selection_policy, &"random_from_living_pool", "random_chain 评分应说明执行期随机池策略。")
+	_assert_eq(score_input.random_chain_score_estimate_policy, &"expected_value", "random_chain 评分应说明使用期望值估算。")
+	_assert_true(not ai_context.action_traces.is_empty(), "random_chain action 应写入 AI trace。")
+	if ai_context.action_traces.is_empty():
+		return
+	var trace = ai_context.action_traces[0]
+	_assert_eq(String(trace.get("metadata", {}).get("action_kind", "")), "random_chain_skill", "random_chain trace 应标记专用 action kind。")
+	_assert_true(
+		(trace.get("metadata", {}).get("candidate_pool_unit_ids", []) as Array).has(String(target_a.unit_id)) \
+			and (trace.get("metadata", {}).get("candidate_pool_unit_ids", []) as Array).has(String(target_b.unit_id)),
+		"random_chain trace metadata 应记录候选池，而不是确定目标。"
+	)
+
+
 func _test_ai_ground_skill_scores_role_threat_area_targets() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(7, 7))
@@ -1777,6 +1899,181 @@ func _test_ai_ground_skill_minimum_hit_count_uses_effective_enemies() -> void:
 	action.distance_reference = &"target_coord"
 	var decision = action.decide(ai_context)
 	_assert_true(decision == null, "只有 1 个有效敌人加 1 个友军时，minimum_hit_count=2 的火球候选应被过滤。")
+
+
+func _test_ai_ground_control_score_input_keeps_empty_cells_separate_from_effective_targets() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var ground_control_skill = _build_test_ground_control_skill(&"ai_empty_ground_control_score_test")
+	runtime._skill_defs[ground_control_skill.skill_id] = ground_control_skill
+	var state = _build_flat_state(Vector2i(6, 5))
+	runtime._state = state
+	var caster = _build_ai_unit(
+		&"empty_ground_control_scorer",
+		"空地控场评分者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[ground_control_skill.skill_id],
+		28,
+		1
+	)
+	_add_unit_to_state(runtime, state, caster, true)
+	var ai_context = _build_ai_context(runtime, caster)
+	var command = _build_test_ground_skill_command(caster, ground_control_skill.skill_id, Vector2i(3, 2))
+	var preview = runtime.preview_command(command)
+	_assert_true(preview != null and preview.allowed, "空地控场命令必须通过 preview。")
+	_assert_true(preview != null and preview.target_unit_ids.is_empty(), "空地控场 preview 不应伪造目标单位。")
+	var score = ai_context.build_skill_score_input(
+		ground_control_skill,
+		command,
+		preview,
+		ground_control_skill.combat_profile.effect_defs,
+		{"desired_min_distance": 0, "desired_max_distance": 5}
+	)
+	_assert_true(score != null, "空地控场评分应可生成。")
+	if score == null:
+		return
+	_assert_eq(score.target_count, 0, "空地控场不应把地格计入 target_count。")
+	_assert_eq(score.enemy_target_count, 0, "空地控场不应伪造敌方目标。")
+	_assert_eq(score.effective_target_count, 0, "空地控场不应伪造有效命中数。")
+	_assert_eq(score.estimated_ground_control_cell_count, 1, "空地控场应按 preview target_coords 暴露受控地格数。")
+	_assert_true(score.ground_control_score > 0, "空地控场应产生独立地格控制评分。")
+
+
+func _test_ai_ground_control_requires_explicit_empty_control_opt_in() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var ground_control_skill = _build_test_ground_control_skill(&"ai_empty_ground_control_default_reject_test")
+	runtime._skill_defs[ground_control_skill.skill_id] = ground_control_skill
+	var state = _build_flat_state(Vector2i(6, 5))
+	runtime._state = state
+	var caster = _build_ai_unit(
+		&"empty_ground_control_default_caster",
+		"默认拒绝控场者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[ground_control_skill.skill_id],
+		28,
+		1
+	)
+	_add_unit_to_state(runtime, state, caster, true)
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"empty_ground_control_default_probe"
+	var skill_ids: Array[StringName] = [ground_control_skill.skill_id]
+	action.skill_ids = skill_ids
+	action.minimum_hit_count = 1
+	action.desired_min_distance = 0
+	action.desired_max_distance = 5
+	action.distance_reference = USE_GROUND_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_COORD
+	var decision = action.decide(_build_ai_context(runtime, caster))
+	_assert_true(decision == null, "默认不开启 allow_empty_ground_control 时，0 有效目标的地格控场应被拒绝。")
+
+
+func _test_ai_ground_control_opt_in_allows_empty_control_candidate() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var ground_control_skill = _build_test_ground_control_skill(&"ai_empty_ground_control_accept_test")
+	runtime._skill_defs[ground_control_skill.skill_id] = ground_control_skill
+	var state = _build_flat_state(Vector2i(6, 5))
+	runtime._state = state
+	var caster = _build_ai_unit(
+		&"empty_ground_control_accept_caster",
+		"空地控场者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[ground_control_skill.skill_id],
+		28,
+		1
+	)
+	_add_unit_to_state(runtime, state, caster, true)
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"empty_ground_control_accept_probe"
+	var skill_ids: Array[StringName] = [ground_control_skill.skill_id]
+	action.skill_ids = skill_ids
+	action.minimum_hit_count = 1
+	action.allow_empty_ground_control = true
+	action.minimum_ground_control_score = 1
+	action.desired_min_distance = 0
+	action.desired_max_distance = 5
+	action.distance_reference = USE_GROUND_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_COORD
+	var decision = action.decide(_build_ai_context(runtime, caster))
+	_assert_true(decision != null and decision.command != null, "显式开启空地控场后，0 有效目标的地格控制候选应可被选择。")
+	if decision == null or decision.command == null:
+		return
+	var preview = runtime.preview_command(decision.command)
+	_assert_true(preview != null and preview.allowed, "空地控场决策命令必须通过 runtime preview。")
+	_assert_true(preview != null and preview.target_unit_ids.is_empty(), "空地控场决策不应依赖目标单位。")
+	_assert_eq(decision.score_input.effective_target_count, 0, "空地控场决策不应伪造有效命中数。")
+	_assert_true(decision.score_input.estimated_ground_control_cell_count > 0, "空地控场决策应暴露受控地格数。")
+	_assert_true(decision.score_input.ground_control_score >= action.minimum_ground_control_score, "空地控场决策应满足地格控制评分门槛。")
+
+
+func _test_ai_ground_control_opt_in_does_not_allow_empty_damage_only_skill() -> void:
+	var runtime = _build_runtime_with_enemy_content()
+	var damage_skill = _build_test_ground_damage_skill(&"ai_empty_ground_damage_reject_test")
+	runtime._skill_defs[damage_skill.skill_id] = damage_skill
+	var state = _build_flat_state(Vector2i(6, 5))
+	runtime._state = state
+	var caster = _build_ai_unit(
+		&"empty_ground_damage_caster",
+		"空地伤害者",
+		&"hostile",
+		Vector2i(1, 2),
+		&"mage_controller",
+		&"pressure",
+		[damage_skill.skill_id],
+		28,
+		1
+	)
+	_add_unit_to_state(runtime, state, caster, true)
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"empty_ground_damage_probe"
+	var skill_ids: Array[StringName] = [damage_skill.skill_id]
+	action.skill_ids = skill_ids
+	action.minimum_hit_count = 1
+	action.allow_empty_ground_control = true
+	action.minimum_ground_control_score = 1
+	action.desired_min_distance = 0
+	action.desired_max_distance = 5
+	action.distance_reference = USE_GROUND_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_COORD
+	var decision = action.decide(_build_ai_context(runtime, caster))
+	_assert_true(decision == null, "即使开启 allow_empty_ground_control，纯伤害地面技能也不能空放。")
+
+
+func _test_ai_ground_control_opt_in_does_not_bypass_partial_hit_minimum() -> void:
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"partial_hit_ground_control_probe"
+	action.minimum_hit_count = 2
+	action.allow_empty_ground_control = true
+	action.minimum_ground_control_score = 1
+	var score_input = BATTLE_AI_SCORE_INPUT_SCRIPT.new()
+	score_input.effective_target_count = 1
+	score_input.estimated_ground_control_cell_count = 3
+	score_input.ground_control_score = 999
+	_assert_true(
+		not action._passes_minimum_effective_target_or_ground_control(score_input),
+		"已有有效命中但未达到 minimum_hit_count 时，空地控场豁免不能绕过命中门槛。"
+	)
+
+
+func _test_ai_ground_control_supplement_can_allow_partial_hit_minimum_when_enabled() -> void:
+	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
+	action.action_id = &"partial_hit_ground_control_supplement_probe"
+	action.minimum_hit_count = 2
+	action.allow_empty_ground_control = true
+	action.allow_ground_control_supplement_partial_hits = true
+	action.minimum_ground_control_score = 1
+	var score_input = BATTLE_AI_SCORE_INPUT_SCRIPT.new()
+	score_input.effective_target_count = 1
+	score_input.estimated_ground_control_cell_count = 3
+	score_input.ground_control_score = 999
+	_assert_true(
+		action._passes_minimum_effective_target_or_ground_control(score_input),
+		"显式开启地格控制补足时，部分命中且地格控制分达标的候选应能通过。"
+	)
 
 
 func _test_ai_chain_skill_scores_friendly_bounce_risk() -> void:
@@ -2610,6 +2907,7 @@ func _test_ai_skill_score_input_uses_fate_aware_repeat_attack_success_rate() -> 
 	runtime._state = state
 	var scorer = _build_manual_unit(&"fate_score_user", "评分高运者", &"hostile", Vector2i(1, 1), [skill_def.skill_id])
 	scorer.current_aura = 1
+	scorer.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
 	scorer.attribute_snapshot.set_value(&"aura_max", 1)
 	scorer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
 	scorer.attribute_snapshot.set_value(&"hidden_luck_at_birth", 2)
@@ -3629,6 +3927,7 @@ func _build_ai_unit(
 	unit.ai_state_id = state_id
 	unit.current_hp = current_hp
 	unit.current_mp = 120
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
 	unit.current_stamina = 8
 	unit.current_ap = current_ap
 	unit.is_alive = true
@@ -3671,6 +3970,71 @@ func _build_manual_unit(
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 3 if String(skill_id).begins_with("mage_") else 1
 	return unit
+
+
+func _build_test_random_chain_skill(skill_id: StringName):
+	var skill_def := SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = "测试随机连击"
+	skill_def.skill_type = &"active"
+	skill_def.combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
+	skill_def.combat_profile.skill_id = skill_id
+	skill_def.combat_profile.target_mode = &"unit"
+	skill_def.combat_profile.target_team_filter = &"enemy"
+	skill_def.combat_profile.target_selection_mode = &"random_chain"
+	skill_def.combat_profile.range_pattern = &"single"
+	skill_def.combat_profile.range_value = 3
+	skill_def.combat_profile.ap_cost = 1
+	skill_def.combat_profile.max_hits_per_target = 1
+	var damage_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = 12
+	damage_effect.damage_tag = &"physical_slash"
+	skill_def.combat_profile.effect_defs = [damage_effect]
+	return skill_def
+
+
+func _build_test_ground_control_skill(skill_id: StringName):
+	var skill_def := SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = "测试地格控制"
+	skill_def.skill_type = &"active"
+	skill_def.combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
+	skill_def.combat_profile.skill_id = skill_id
+	skill_def.combat_profile.target_mode = &"ground"
+	skill_def.combat_profile.target_team_filter = &"enemy"
+	skill_def.combat_profile.range_pattern = &"single"
+	skill_def.combat_profile.range_value = 5
+	skill_def.combat_profile.area_pattern = &"single"
+	skill_def.combat_profile.area_value = 0
+	skill_def.combat_profile.ap_cost = 1
+	var terrain_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
+	terrain_effect.effect_type = &"terrain_effect"
+	terrain_effect.terrain_effect_id = &"ai_test_snare_zone"
+	skill_def.combat_profile.effect_defs = [terrain_effect]
+	return skill_def
+
+
+func _build_test_ground_damage_skill(skill_id: StringName):
+	var skill_def := SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = skill_id
+	skill_def.display_name = "测试空地伤害"
+	skill_def.skill_type = &"active"
+	skill_def.combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
+	skill_def.combat_profile.skill_id = skill_id
+	skill_def.combat_profile.target_mode = &"ground"
+	skill_def.combat_profile.target_team_filter = &"enemy"
+	skill_def.combat_profile.range_pattern = &"single"
+	skill_def.combat_profile.range_value = 5
+	skill_def.combat_profile.area_pattern = &"single"
+	skill_def.combat_profile.area_value = 0
+	skill_def.combat_profile.ap_cost = 1
+	var damage_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.power = 12
+	damage_effect.damage_tag = &"arcane_force"
+	skill_def.combat_profile.effect_defs = [damage_effect]
+	return skill_def
 
 
 func _build_test_multi_unit_skill_command(source_unit, skill_id: StringName, skill_variant_id: StringName, target_units: Array):
@@ -3747,6 +4111,7 @@ func _prepare_test_whirlwind_user(unit) -> void:
 		return
 	unit.current_stamina = 120
 	unit.current_aura = 140
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
 	unit.attribute_snapshot.set_value(&"stamina_max", 120)
 	unit.attribute_snapshot.set_value(&"aura_max", 140)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 30)

@@ -36,14 +36,16 @@ class RecordingCharacterGateway:
 
 	var achievement_event_count := 0
 	var battle_mastery_count := 0
+	var battle_mastery_skill_ids: Array[StringName] = []
 	var source_mastery_count := 0
 
 	func record_achievement_event(_member_id: StringName, _event_type: StringName, _value: int = 1, _detail_id: StringName = &""):
 		achievement_event_count += 1
 		return null
 
-	func grant_battle_mastery(_member_id: StringName, _skill_id: StringName, _amount: int):
+	func grant_battle_mastery(_member_id: StringName, skill_id: StringName, _amount: int):
 		battle_mastery_count += 1
+		battle_mastery_skill_ids.append(skill_id)
 		return null
 
 	func grant_skill_mastery_from_source(
@@ -101,6 +103,7 @@ func _run() -> void:
 	_test_guard_incoming_physical_hit_mastery_writes_batch_after_damage_resolution()
 	_test_guard_mastery_requires_physical_hp_damage()
 	_test_ground_weapon_attack_all_miss_is_not_cast_success()
+	_test_basic_attack_routes_mastery_to_weapon_training()
 	_test_random_chain_skill_executes_without_explicit_targets()
 	_test_runtime_preview_and_logs_include_mitigation_sources()
 	_test_facade_clicking_active_unit_casts_self_skill()
@@ -108,6 +111,7 @@ func _run() -> void:
 	_test_facade_ground_aoe_selection_highlight_preview_and_execution_share_range()
 	_test_facade_stamina_skill_updates_battle_state_snapshot_and_logs()
 	_test_facade_aura_skill_updates_battle_state_snapshot_and_logs()
+	_test_locked_combat_resource_blocks_skill_cast_and_costs()
 	_test_facade_selected_aura_skill_returns_formal_error_after_aura_drops()
 	_test_facade_direct_skill_issue_keeps_queued_targets_after_runtime_rejection()
 	_test_facade_cooldown_skill_reduces_after_battle_tick()
@@ -1590,6 +1594,59 @@ func _test_ground_weapon_attack_all_miss_is_not_cast_success() -> void:
 	_assert_eq(gateway.battle_mastery_count, 0, "全 miss 地面武器攻击不应授予主动技能熟练度。")
 
 
+func _test_basic_attack_routes_mastery_to_weapon_training() -> void:
+	var skill_def := _build_test_basic_attack_skill()
+	var gateway := RecordingCharacterGateway.new()
+	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
+	runtime.setup(gateway, {skill_def.skill_id: skill_def}, {}, {})
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitMaxDamageResolver.new())
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	state.phase = &"unit_acting"
+	var caster := _build_manual_unit(
+		&"basic_training_user",
+		"剑术练习者",
+		&"player",
+		Vector2i(0, 0),
+		[skill_def.skill_id],
+		2,
+		0
+	)
+	caster.source_member_id = &"hero"
+	caster.apply_weapon_projection({
+		"weapon_profile_kind": "equipped",
+		"weapon_item_id": "training_sword",
+		"weapon_profile_type_id": "shortsword",
+		"weapon_family": "sword",
+		"weapon_current_grip": "one_handed",
+		"weapon_attack_range": 1,
+		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
+		"weapon_uses_two_hands": false,
+		"weapon_physical_damage_tag": "physical_slash",
+	})
+	var enemy := _build_manual_unit(&"basic_training_enemy", "训练目标", &"enemy", Vector2i(1, 0), [], 2, 0)
+	_add_unit_to_runtime_state(runtime, state, caster, false)
+	_add_unit_to_runtime_state(runtime, state, enemy, true)
+	state.active_unit_id = caster.unit_id
+	runtime._state = state
+	runtime._battle_rating_system.initialize_battle_rating_stats()
+
+	var command = BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	command.unit_id = caster.unit_id
+	command.skill_id = skill_def.skill_id
+	command.target_unit_id = enemy.unit_id
+	command.target_coord = enemy.coord
+	var batch = runtime.issue_command(command)
+	var stats: Dictionary = runtime.get_battle_rating_stats().get(&"hero", {})
+	var cast_counts: Dictionary = stats.get("cast_counts", {})
+
+	_assert_true(batch != null, "基础攻击训练路由回归前置：issue_command 应返回 batch。")
+	_assert_eq(gateway.battle_mastery_skill_ids, [&"sword_training"], "剑类基础攻击的战斗熟练度应写入 sword_training。")
+	_assert_eq(int(cast_counts.get(&"sword_training", 0)), 1, "战斗评分 cast_counts 应把基础攻击计入 sword_training。")
+	_assert_eq(int(cast_counts.get(&"basic_attack", 0)), 0, "战斗评分不应继续把基础攻击奖励目标记为 basic_attack。")
+
+
 func _test_random_chain_skill_executes_without_explicit_targets() -> void:
 	var skill_def := _build_test_damage_skill(
 		&"test_random_chain",
@@ -1857,6 +1914,7 @@ func _test_facade_aura_skill_updates_battle_state_snapshot_and_logs() -> void:
 	)
 	caster.current_aura = 2
 	caster.attribute_snapshot.set_value(&"aura_max", 2)
+	caster.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"aura_cost_enemy",
 		"敌人",
@@ -1898,6 +1956,65 @@ func _test_facade_aura_skill_updates_battle_state_snapshot_and_logs() -> void:
 	_cleanup_test_session(game_session)
 
 
+func _test_locked_combat_resource_blocks_skill_cast_and_costs() -> void:
+	var game_session = _create_test_session()
+	if game_session == null:
+		return
+
+	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
+	facade.setup(game_session)
+
+	var state: BattleState = _build_flat_state(Vector2i(3, 1))
+	var caster: BattleUnitState = _build_manual_unit(
+		&"locked_aura_user",
+		"未解锁斗气施法者",
+		&"player",
+		Vector2i(0, 0),
+		[&"warrior_aura_slash"],
+		2,
+		0
+	)
+	caster.current_aura = 1
+	caster.attribute_snapshot.set_value(&"aura_max", 1)
+	caster.set_unlocked_combat_resource_ids(BATTLE_UNIT_STATE_SCRIPT.DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS)
+	var enemy: BattleUnitState = _build_manual_unit(
+		&"locked_aura_enemy",
+		"敌人",
+		&"enemy",
+		Vector2i(1, 0),
+		[],
+		2,
+		0
+	)
+	_add_unit_to_state(facade, state, caster, false)
+	_add_unit_to_state(facade, state, enemy, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = caster.unit_id
+	_apply_battle_state(facade, state)
+
+	var select_result: Dictionary = facade.command_battle_select_skill(0)
+	_assert_true(not bool(select_result.get("ok", true)), "斗气未解锁时不应允许选中消耗斗气的技能。")
+	_assert_true(String(select_result.get("message", "")).contains("斗气尚未解锁"), "斗气未解锁时选择结果应暴露明确阻断原因。")
+
+	var enemy_hp_before := enemy.current_hp
+	var aura_before := caster.current_aura
+	var ap_before := caster.current_ap
+	var command := BATTLE_COMMAND_SCRIPT.new()
+	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	command.unit_id = caster.unit_id
+	command.skill_id = &"warrior_aura_slash"
+	command.target_unit_id = enemy.unit_id
+	command.target_coord = enemy.coord
+	facade.issue_battle_command(command)
+
+	_assert_eq(enemy.current_hp, enemy_hp_before, "斗气未解锁时直发技能命令不应继续结算伤害。")
+	_assert_eq(caster.current_aura, aura_before, "斗气未解锁时直发技能命令不应扣除异常残留的斗气值。")
+	_assert_eq(caster.current_ap, ap_before, "斗气未解锁时直发技能命令不应扣除 AP。")
+	_assert_true(String(facade.get_status_text()).contains("斗气尚未解锁"), "斗气未解锁时正式命令状态应回写阻断原因。")
+
+	_cleanup_test_session(game_session)
+
+
 func _test_facade_selected_aura_skill_returns_formal_error_after_aura_drops() -> void:
 	var game_session = _create_test_session()
 	if game_session == null:
@@ -1918,6 +2035,7 @@ func _test_facade_selected_aura_skill_returns_formal_error_after_aura_drops() ->
 	)
 	caster.current_aura = 1
 	caster.attribute_snapshot.set_value(&"aura_max", 1)
+	caster.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"aura_runtime_block_enemy",
 		"敌人",
@@ -1969,6 +2087,7 @@ func _test_facade_direct_skill_issue_keeps_queued_targets_after_runtime_rejectio
 	)
 	caster.current_aura = 1
 	caster.attribute_snapshot.set_value(&"aura_max", 1)
+	caster.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
 	var enemy: BattleUnitState = _build_manual_unit(
 		&"queued_skill_enemy",
 		"敌人",
@@ -2314,6 +2433,8 @@ func _build_manual_unit(
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
+	if current_mp > 0:
+		unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
 	return unit
 
 
@@ -2448,16 +2569,7 @@ func _build_test_damage_skill(
 
 
 func _build_test_ground_weapon_attack_skill(skill_id: StringName, display_name: String) -> SkillDef:
-	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
-	effect_def.effect_type = &"damage"
-	effect_def.power = 0
-	effect_def.damage_tag = &"physical_slash"
-	effect_def.effect_target_team_filter = &"enemy"
-	effect_def.params = {
-		"resolve_as_weapon_attack": true,
-		"add_weapon_dice": true,
-		"use_weapon_physical_damage_tag": true,
-	}
+	var effect_def := _build_test_ground_weapon_attack_effect()
 
 	var combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
 	combat_profile.skill_id = skill_id
@@ -2480,6 +2592,56 @@ func _build_test_ground_weapon_attack_skill(skill_id: StringName, display_name: 
 	var skill_def = SKILL_DEF_SCRIPT.new()
 	skill_def.skill_id = skill_id
 	skill_def.display_name = display_name
+	skill_def.skill_type = &"active"
+	skill_def.combat_profile = combat_profile
+	return skill_def
+
+
+func _build_test_ground_weapon_attack_effect() -> CombatEffectDef:
+	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
+	effect_def.effect_type = &"damage"
+	effect_def.power = 0
+	effect_def.damage_tag = &"physical_slash"
+	effect_def.effect_target_team_filter = &"enemy"
+	effect_def.params = {
+		"resolve_as_weapon_attack": true,
+		"add_weapon_dice": true,
+		"use_weapon_physical_damage_tag": true,
+	}
+	return effect_def
+
+
+func _build_test_basic_attack_skill() -> SkillDef:
+	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
+	effect_def.effect_type = &"damage"
+	effect_def.power = 0
+	effect_def.damage_tag = &"physical_slash"
+	effect_def.params = {
+		"add_weapon_dice": true,
+		"use_weapon_physical_damage_tag": true,
+	}
+
+	var combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
+	combat_profile.skill_id = &"basic_attack"
+	combat_profile.target_mode = &"unit"
+	combat_profile.target_team_filter = &"enemy"
+	combat_profile.range_pattern = &"weapon"
+	combat_profile.range_value = 1
+	combat_profile.area_pattern = &"single"
+	combat_profile.target_selection_mode = &"single_unit"
+	combat_profile.min_target_count = 1
+	combat_profile.max_target_count = 1
+	combat_profile.ap_cost = 1
+	combat_profile.stamina_cost = 1
+	var effect_defs: Array[CombatEffectDef] = []
+	effect_defs.append(effect_def)
+	combat_profile.effect_defs = effect_defs
+	combat_profile.mastery_trigger_mode = &"weapon_attack_quality"
+	combat_profile.mastery_amount_mode = &"per_target_rank"
+
+	var skill_def = SKILL_DEF_SCRIPT.new()
+	skill_def.skill_id = &"basic_attack"
+	skill_def.display_name = "攻击"
 	skill_def.skill_type = &"active"
 	skill_def.combat_profile = combat_profile
 	return skill_def

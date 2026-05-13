@@ -206,7 +206,7 @@ func _build_mixed_2s1a_roster() -> void:
 		{"skill_id": &"warrior_heavy_strike", "level": 1, "is_core": false},
 	]
 	var archer_skills: Array = [
-		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
+		{"skill_id": &"basic_attack", "level": 0, "is_core": false},
 		{"skill_id": &"archer_aimed_shot", "level": 1, "is_core": false},
 		{"skill_id": &"archer_multishot", "level": 1, "is_core": false},
 	]
@@ -220,17 +220,17 @@ func _build_mixed_2s1a_roster() -> void:
 
 func _build_mixed_6v12_roster() -> void:
 	var elite_sword_skills: Array = [
-		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
+		{"skill_id": &"basic_attack", "level": 0, "is_core": false},
 		{"skill_id": &"charge", "level": 7, "is_core": true},
 		{"skill_id": &"warrior_heavy_strike", "level": 5, "is_core": true},
 	]
 	var elite_archer_skills: Array = [
-		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
+		{"skill_id": &"basic_attack", "level": 0, "is_core": false},
 		{"skill_id": &"archer_aimed_shot", "level": 3, "is_core": true},
 		{"skill_id": &"archer_multishot", "level": 7, "is_core": true},
 	]
 	var elite_mage_skills: Array = [
-		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
+		{"skill_id": &"basic_attack", "level": 0, "is_core": false},
 		{"skill_id": &"mage_fireball", "level": 7, "is_core": true},
 		{"skill_id": &"mage_cone_of_cold", "level": 7, "is_core": true},
 		{"skill_id": &"mage_blink", "level": 7, "is_core": true},
@@ -238,12 +238,12 @@ func _build_mixed_6v12_roster() -> void:
 		{"skill_id": &"mage_chain_lightning", "level": 7, "is_core": true},
 	]
 	var hostile_sword_skills: Array = [
-		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
+		{"skill_id": &"basic_attack", "level": 0, "is_core": false},
 		{"skill_id": &"charge", "level": 1, "is_core": false},
 		{"skill_id": &"warrior_heavy_strike", "level": 1, "is_core": false},
 	]
 	var hostile_archer_skills: Array = [
-		{"skill_id": &"basic_attack", "level": 1, "is_core": false},
+		{"skill_id": &"basic_attack", "level": 0, "is_core": false},
 		{"skill_id": &"archer_aimed_shot", "level": 1, "is_core": false},
 		{"skill_id": &"archer_multishot", "level": 1, "is_core": false},
 	]
@@ -396,7 +396,7 @@ func _apply_skills(member_state, skill_configs: Array) -> void:
 		if skill_config is not Dictionary:
 			continue
 		var skill_id = ProgressionDataUtils.to_string_name(skill_config.get("skill_id", ""))
-		var target_level = maxi(int(skill_config.get("level", 1)), 1)
+		var target_level = maxi(int(skill_config.get("level", 1)), 0)
 		var is_core = bool(skill_config.get("is_core", false))
 		if skill_id == &"":
 			continue

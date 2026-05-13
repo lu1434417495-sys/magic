@@ -2610,7 +2610,8 @@ func _grant_skill_mastery_if_needed(active_unit: BattleUnitState, skill_def: Ski
 	var mastery_amount := _skill_mastery_service.resolve_active_skill_mastery_amount()
 	if mastery_amount <= 0:
 		return
-	var delta = _character_gateway.grant_battle_mastery(active_unit.source_member_id, skill_id, mastery_amount)
+	var mastery_skill_id := _skill_mastery_service.resolve_mastery_reward_skill_id(active_unit, skill_id)
+	var delta = _character_gateway.grant_battle_mastery(active_unit.source_member_id, mastery_skill_id, mastery_amount)
 	_append_progression_delta_to_batch(active_unit, delta, batch)
 
 

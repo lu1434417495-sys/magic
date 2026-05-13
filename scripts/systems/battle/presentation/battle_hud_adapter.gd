@@ -948,7 +948,7 @@ func _stringify_string_name_array(values: Array[StringName]) -> Array[String]:
 
 func _build_skill_slot_state(active_unit: BattleUnitState, skill_def, skill_id: StringName) -> Dictionary:
 	var combat_profile = skill_def.combat_profile if skill_def != null else null
-	var costs := _get_effective_skill_costs(active_unit, skill_def)
+	var costs: Dictionary = _get_effective_skill_costs(active_unit, skill_def)
 	var ap_cost := int(costs.get("ap_cost", combat_profile.ap_cost if combat_profile != null else 0))
 	var mp_cost := int(costs.get("mp_cost", combat_profile.mp_cost if combat_profile != null else 0))
 	var stamina_cost := int(costs.get("stamina_cost", combat_profile.stamina_cost if combat_profile != null else 0))
@@ -962,6 +962,14 @@ func _build_skill_slot_state(active_unit: BattleUnitState, skill_def, skill_id: 
 			"disabled_reason": "冷却中（%d）" % cooldown,
 		}
 	if active_unit != null:
+		var locked_resource_block_reason := _get_locked_combat_resource_block_reason(active_unit, costs)
+		if not locked_resource_block_reason.is_empty():
+			return {
+				"footer_text": _get_locked_combat_resource_footer_text(active_unit, costs),
+				"is_disabled": true,
+				"cooldown": cooldown,
+				"disabled_reason": locked_resource_block_reason,
+			}
 		if active_unit.current_ap < ap_cost:
 			return {
 				"footer_text": "AP不足",
@@ -1595,6 +1603,9 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> St
 	var cooldown := int(active_unit.cooldowns.get(skill_def.skill_id, 0))
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
+	var locked_resource_block_reason := _get_locked_combat_resource_block_reason(active_unit, costs)
+	if not locked_resource_block_reason.is_empty():
+		return locked_resource_block_reason
 	if active_unit.current_ap < int(costs.get("ap_cost", combat_profile.ap_cost)):
 		return "AP不足，无法施放该技能。"
 	if active_unit.current_mp < int(costs.get("mp_cost", combat_profile.mp_cost)):
@@ -1604,6 +1615,30 @@ func _get_skill_cast_block_reason(active_unit: BattleUnitState, skill_def) -> St
 	if active_unit.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
 	return ""
+
+
+func _get_locked_combat_resource_block_reason(active_unit: BattleUnitState, costs: Dictionary) -> String:
+	if active_unit == null:
+		return "技能施放者无效。"
+	if int(costs.get("mp_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP):
+		return "法力尚未解锁，无法施放该技能。"
+	if int(costs.get("stamina_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA):
+		return "体力尚未解锁，无法施放该技能。"
+	if int(costs.get("aura_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA):
+		return "斗气尚未解锁，无法施放该技能。"
+	return ""
+
+
+func _get_locked_combat_resource_footer_text(active_unit: BattleUnitState, costs: Dictionary) -> String:
+	if active_unit == null:
+		return "资源未解锁"
+	if int(costs.get("mp_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP):
+		return "MP未解锁"
+	if int(costs.get("stamina_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA):
+		return "ST未解锁"
+	if int(costs.get("aura_cost", 0)) > 0 and not active_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA):
+		return "AU未解锁"
+	return "资源未解锁"
 
 
 func _get_effective_skill_costs(active_unit: BattleUnitState, skill_def) -> Dictionary:

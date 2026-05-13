@@ -87,6 +87,7 @@ func _run() -> void:
 	_test_seed_skill_resources_scan_and_validate()
 	_test_mage_damage_tags_do_not_use_generic_magic()
 	_test_progression_registry_uses_skill_resources_only()
+	_test_level_less_skill_schema_validation()
 	_test_attribute_growth_progress_schema_validation()
 	_test_dynamic_max_level_schema_validation()
 	_test_level_override_key_schema_validation()
@@ -126,6 +127,9 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	var archer_arrow_rain := skill_defs.get(&"archer_arrow_rain") as SkillDef
 	var archer_shooting_specialization := skill_defs.get(&"archer_shooting_specialization") as SkillDef
 	var fossil_to_mud := skill_defs.get(&"mage_fossil_to_mud") as SkillDef
+	var sword_training := skill_defs.get(&"sword_training") as SkillDef
+	var bow_training := skill_defs.get(&"bow_training") as SkillDef
+	var unarmed_training := skill_defs.get(&"unarmed_training") as SkillDef
 
 	_assert_true(registry.validate().is_empty(), "SkillContentRegistry 的正式技能资源当前不应报告校验错误。")
 	_assert_true(basic_attack != null, "SkillContentRegistry 应扫描到内建基础攻击资源。")
@@ -134,6 +138,9 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_true(basic_attack.tags.has(&"basic"), "基础攻击应带 basic 标签。")
 		_assert_true(basic_attack.can_use_in_combat(), "基础攻击应可在战斗中使用。")
 		_assert_true(basic_attack.combat_profile != null, "基础攻击应保留 combat_profile。")
+		_assert_eq(int(basic_attack.max_level), 0, "基础攻击应是无等级技能。")
+		_assert_eq(int(basic_attack.non_core_max_level), 0, "基础攻击无等级时非核心上限应为 0。")
+		_assert_true(basic_attack.mastery_curve.is_empty(), "基础攻击无等级时不应配置熟练度曲线。")
 		if basic_attack.combat_profile != null:
 			_assert_eq(int(basic_attack.combat_profile.stamina_cost), 8, "基础攻击体力消耗应为 8。")
 		if basic_attack.combat_profile != null and not basic_attack.combat_profile.effect_defs.is_empty():
@@ -141,6 +148,10 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 			_assert_true(bool(basic_damage.params.get("add_weapon_dice", false)), "基础攻击应使用当前武器/空手/天生武器骰。")
 			_assert_true(bool(basic_damage.params.get("use_weapon_physical_damage_tag", false)), "基础攻击应使用当前武器/空手/天生武器伤害类型。")
 			_assert_true(not bool(basic_damage.params.get("requires_weapon", false)), "基础攻击不应要求装备武器。")
+		_assert_true(basic_attack.attribute_growth_progress.is_empty(), "基础攻击不应直接承接属性成长。")
+	_assert_weapon_training_skill(sword_training, &"sword_training", &"sword", "剑术训练")
+	_assert_weapon_training_skill(bow_training, &"bow_training", &"bow", "弓术训练")
+	_assert_weapon_training_skill(unarmed_training, &"unarmed_training", &"unarmed", "徒手训练")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_COMMON_MELEE_RESOURCE_SKILL_IDS, &"melee", "通用近战")
 	_assert_true(charge != null, "SkillContentRegistry 应扫描到正式冲锋资源。")
 	if charge != null:
@@ -388,6 +399,33 @@ func _test_mage_damage_tags_do_not_use_generic_magic() -> void:
 				effect_def.damage_tag != &"magic",
 				"法师技能 %s 的伤害效果不应使用 generic magic damage_tag。" % String(skill_id)
 			)
+
+
+func _test_level_less_skill_schema_validation() -> void:
+	var skill_registry := SkillContentRegistry.new()
+	var progression_registry := ProgressionContentRegistry.new()
+	var level_less_skill := _make_minimal_schema_skill(&"valid_level_less_skill")
+	level_less_skill.max_level = 0
+	level_less_skill.non_core_max_level = 0
+	level_less_skill.mastery_curve = PackedInt32Array()
+
+	var skill_errors: Array[String] = []
+	skill_registry._append_skill_validation_errors(skill_errors, level_less_skill.skill_id, level_less_skill)
+	_assert_true(skill_errors.is_empty(), "max_level 为 0 且 mastery_curve 为空的无等级技能应通过 SkillContentRegistry 校验。")
+
+	var progression_errors: Array[String] = []
+	progression_registry._append_invalid_skill_errors(progression_errors, level_less_skill.skill_id, level_less_skill)
+	_assert_true(progression_errors.is_empty(), "max_level 为 0 且 mastery_curve 为空的无等级技能应通过 ProgressionContentRegistry 校验。")
+
+	var negative_level_skill := _make_minimal_schema_skill(&"invalid_negative_level_skill")
+	negative_level_skill.max_level = -1
+	negative_level_skill.mastery_curve = PackedInt32Array()
+	var negative_level_errors: Array[String] = []
+	skill_registry._append_skill_validation_errors(negative_level_errors, negative_level_skill.skill_id, negative_level_skill)
+	_assert_true(
+		_has_error_containing(negative_level_errors, "max_level >= 0"),
+		"静态无动态上限技能仍应拒绝负数 max_level。"
+	)
 
 
 func _test_dynamic_max_level_schema_validation() -> void:
@@ -966,6 +1004,20 @@ func _assert_resource_backed_skill_ids(
 			skill_def.tags.has(expected_tag),
 			"%s技能 %s 应保留 %s 标签。" % [label, String(skill_id), String(expected_tag)]
 		)
+
+
+func _assert_weapon_training_skill(skill_def: SkillDef, skill_id: StringName, family_tag: StringName, display_name: String) -> void:
+	_assert_true(skill_def != null, "武器训练技能 %s 应存在。" % String(skill_id))
+	if skill_def == null:
+		return
+	_assert_eq(skill_def.display_name, display_name, "武器训练技能展示名应稳定。")
+	_assert_eq(skill_def.skill_id, skill_id, "武器训练技能 id 应稳定。")
+	_assert_eq(skill_def.skill_type, &"passive", "武器训练技能应是被动技能。")
+	_assert_eq(skill_def.learn_source, &"innate", "武器训练技能应保留先天训练轨道来源。")
+	_assert_true(skill_def.tags.has(&"weapon_training"), "武器训练技能应带 weapon_training 标签。")
+	_assert_true(skill_def.tags.has(family_tag), "武器训练技能应带武器族标签 %s。" % String(family_tag))
+	_assert_eq(Array(skill_def.mastery_sources), [&"battle"], "武器训练技能应只接收战斗熟练度。")
+	_assert_true(skill_def.combat_profile == null, "武器训练技能不应直接成为战斗动作。")
 
 
 func _collect_mage_skill_ids(skill_defs: Dictionary) -> Array[StringName]:

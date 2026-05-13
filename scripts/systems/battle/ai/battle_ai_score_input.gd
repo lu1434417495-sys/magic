@@ -16,6 +16,13 @@ var primary_coord: Vector2i = Vector2i(-1, -1)
 var target_unit_ids: Array[StringName] = []
 var target_coords: Array[Vector2i] = []
 var target_count := 0
+var random_chain_candidate_unit_ids: Array[StringName] = []
+var random_chain_candidate_pool_count := 0
+var random_chain_max_hits_per_target := 0
+var random_chain_max_attempt_count := 0
+var random_chain_selection_policy: StringName = &""
+var random_chain_pool_refresh_policy: StringName = &""
+var random_chain_score_estimate_policy: StringName = &""
 var effective_target_count := 0
 var enemy_target_count := 0
 var ally_target_count := 0
@@ -29,6 +36,8 @@ var estimated_status_count := 0
 var estimated_control_count := 0
 var estimated_terrain_effect_count := 0
 var estimated_height_delta := 0
+var estimated_ground_control_cell_count := 0
+var ground_control_score := 0
 var estimated_lethal_target_count := 0
 var estimated_lethal_threat_target_count := 0
 var estimated_lethal_target_ids: Array[StringName] = []
@@ -102,6 +111,13 @@ func to_dict() -> Dictionary:
 		"target_unit_ids": target_unit_ids.duplicate(),
 		"target_coords": target_coords.duplicate(),
 		"target_count": target_count,
+		"random_chain_candidate_unit_ids": random_chain_candidate_unit_ids.duplicate(),
+		"random_chain_candidate_pool_count": random_chain_candidate_pool_count,
+		"random_chain_max_hits_per_target": random_chain_max_hits_per_target,
+		"random_chain_max_attempt_count": random_chain_max_attempt_count,
+		"random_chain_selection_policy": String(random_chain_selection_policy),
+		"random_chain_pool_refresh_policy": String(random_chain_pool_refresh_policy),
+		"random_chain_score_estimate_policy": String(random_chain_score_estimate_policy),
 		"effective_target_count": effective_target_count,
 		"enemy_target_count": enemy_target_count,
 		"ally_target_count": ally_target_count,
@@ -115,6 +131,8 @@ func to_dict() -> Dictionary:
 		"estimated_control_count": estimated_control_count,
 		"estimated_terrain_effect_count": estimated_terrain_effect_count,
 		"estimated_height_delta": estimated_height_delta,
+		"estimated_ground_control_cell_count": estimated_ground_control_cell_count,
+		"ground_control_score": ground_control_score,
 		"estimated_lethal_target_count": estimated_lethal_target_count,
 		"estimated_lethal_threat_target_count": estimated_lethal_threat_target_count,
 		"estimated_lethal_target_ids": estimated_lethal_target_ids.duplicate(),

@@ -58,7 +58,8 @@ func record_skill_success(active_unit: BattleUnitState, skill_id: StringName) ->
 		return
 
 	var cast_counts: Dictionary = stats.get("cast_counts", {})
-	cast_counts[skill_id] = int(cast_counts.get(skill_id, 0)) + 1
+	var mastery_skill_id := _mastery_service.resolve_mastery_reward_skill_id(active_unit, skill_id) if _mastery_service != null else skill_id
+	cast_counts[mastery_skill_id] = int(cast_counts.get(mastery_skill_id, 0)) + 1
 	stats["cast_counts"] = cast_counts
 	stats["successful_skill_count"] = int(stats.get("successful_skill_count", 0)) + 1
 	_runtime.get_battle_rating_stats()[active_unit.source_member_id] = stats

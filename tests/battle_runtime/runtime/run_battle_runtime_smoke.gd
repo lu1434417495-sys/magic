@@ -505,6 +505,7 @@ func _test_on_kill_move_points_gain_unlocks_post_action_movement() -> void:
 	var state := _build_skill_test_state(Vector2i(4, 2))
 	var unit := _build_unit(&"death_reap_move_user", Vector2i(0, 0), 2)
 	unit.current_mp = 120
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 20)
 	unit.known_active_skill_ids = [skill.skill_id]
 	unit.known_skill_level_map = {skill.skill_id: 0}
@@ -1583,6 +1584,7 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	var line_state := _build_skill_test_state(Vector2i(5, 5))
 	var line_user := _build_unit(&"line_skill_user", Vector2i(2, 2), 3)
 	line_user.current_mp = 120
+	line_user.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
 	line_user.known_active_skill_ids = [&"mage_flame_spear"]
 	line_user.known_skill_level_map = {&"mage_flame_spear": 1}
 	var line_enemy_front := _build_enemy_unit(&"line_enemy_front", Vector2i(2, 0))
@@ -1841,6 +1843,7 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 	var state := _build_skill_test_state(Vector2i(4, 2))
 	var mage := _build_unit(&"mage_arcane_missile_user", Vector2i(0, 1), 3)
 	mage.current_mp = 120
+	mage.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
 	mage.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
 	mage.known_active_skill_ids = [&"mage_arcane_missile"]
 	mage.known_skill_level_map = {&"mage_arcane_missile": 3}
@@ -2622,6 +2625,8 @@ func _test_status_duration_serialization_preserves_tu_window() -> void:
 	archer.current_mp = 6
 	archer.current_stamina = 6
 	archer.current_aura = 6
+	archer.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+	archer.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	archer.known_active_skill_ids = [&"archer_skirmish_step"]
 	archer.known_skill_level_map = {&"archer_skirmish_step": 1}
 	var enemy := _build_enemy_unit(&"status_skip_enemy", Vector2i(5, 1))

@@ -439,15 +439,15 @@ func _test_selection_sidecar_hides_targets_for_aura_blocked_skill() -> void:
 	_apply_battle_state(facade, state)
 
 	selection.select_battle_skill_slot(0)
-	_assert_eq(String(facade.get_selected_battle_skill_id()), "", "Aura 不足时不应把技能写入选中状态。")
+	_assert_eq(String(facade.get_selected_battle_skill_id()), "", "Aura 未解锁时不应把技能写入选中状态。")
 	_assert_eq(
 		_extract_coord_pairs(selection.get_selected_battle_skill_valid_target_coords()),
 		[],
-		"Aura 不足时，不应继续高亮任何合法目标。"
+		"Aura 未解锁时，不应继续高亮任何合法目标。"
 	)
 	_assert_true(
-		String(facade.get_status_text()).contains("斗气不足"),
-		"Aura 不足时，状态文案应直接说明阻断原因。"
+		String(facade.get_status_text()).contains("斗气尚未解锁"),
+		"Aura 未解锁时，状态文案应直接说明阻断原因。"
 	)
 
 	_cleanup_test_session(game_session)
@@ -834,6 +834,8 @@ func _build_manual_unit(
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
+	if current_mp > 0:
+		unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
 	return unit
 
 
