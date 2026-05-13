@@ -670,56 +670,64 @@ func resolve_unit_move_path(
 
 	var sanitized_max_move_points := maxi(max_move_points, 0)
 	var has_initial_discount := first_step_cost_discount > 0
-	var start_state_key := _build_move_path_state_key(from_coord, has_initial_discount)
-	var best_state_costs := {
-		start_state_key: 0,
-	}
-	var previous_state_keys: Dictionary = {}
-	var state_key_to_coord := {
-		start_state_key: from_coord,
-	}
-	var frontier: Array = [{
-		"coord": from_coord,
-		"cost": 0,
-		"has_discount": has_initial_discount,
-	}]
-	var final_state_key := ""
 
-	while not frontier.is_empty():
-		var frontier_entry := _pop_lowest_cost_move_frontier_entry(frontier)
-		var current_coord: Vector2i = frontier_entry.get("coord", from_coord)
-		var current_cost := int(frontier_entry.get("cost", 0))
-		var has_discount := bool(frontier_entry.get("has_discount", false))
-		var current_state_key := _build_move_path_state_key(current_coord, has_discount)
-		if current_cost != int(best_state_costs.get(current_state_key, 2147483647)):
+	# A* with Manhattan heuristic (admissible on a 4-connected grid where step_cost >= 1).
+	# State is the cell coord. `has_discount` only matters for the start cell — after leaving
+	# the start, the per-call first-step discount is exhausted, so subsequent states do not
+	# need to be keyed on it.
+	# best_costs[Vector2i] = best known g-cost from start to that cell.
+	# previous[Vector2i]   = predecessor cell on the best known path.
+	# visited[Vector2i]    = true once popped at its best cost (locked).
+	# Heap entries: [f_score, g_cost, coord, has_discount].
+	var best_costs: Dictionary = {from_coord: 0}
+	var previous: Dictionary = {}
+	var visited: Dictionary = {}
+	var heap: Array = []
+	var initial_pending_discount := first_step_cost_discount if has_initial_discount else 0
+	_move_heap_push(heap, [
+		_move_path_heuristic(from_coord, to_coord, initial_pending_discount),
+		0,
+		from_coord,
+		has_initial_discount,
+	])
+
+	var found_target := false
+
+	while not heap.is_empty():
+		var entry: Array = _move_heap_pop(heap)
+		var current_cost: int = int(entry[1])
+		var current_coord: Vector2i = entry[2]
+		var current_has_discount: bool = bool(entry[3])
+
+		# Stale entry — a better g-cost finalized this coord earlier.
+		if visited.has(current_coord):
 			continue
+		visited[current_coord] = true
+
 		if current_coord == to_coord:
-			final_state_key = current_state_key
+			found_target = true
 			break
 
 		for neighbor_coord in get_neighbors_4(state, current_coord):
+			if visited.has(neighbor_coord):
+				continue
 			if not can_unit_step_between_anchors(state, unit_state, current_coord, neighbor_coord):
 				continue
 			var step_cost := get_unit_move_cost(state, unit_state, neighbor_coord)
 			if move_cost_provider.is_valid():
 				step_cost = int(move_cost_provider.call(unit_state, neighbor_coord))
-			if has_discount and first_step_cost_discount > 0:
+			if current_has_discount and first_step_cost_discount > 0:
 				step_cost = maxi(step_cost - first_step_cost_discount, 0)
 			var next_cost := current_cost + step_cost
-			var next_has_discount := false
-			var next_state_key := _build_move_path_state_key(neighbor_coord, next_has_discount)
-			if next_cost >= int(best_state_costs.get(next_state_key, 2147483647)):
+			if next_cost >= int(best_costs.get(neighbor_coord, 2147483647)):
 				continue
-			best_state_costs[next_state_key] = next_cost
-			previous_state_keys[next_state_key] = current_state_key
-			state_key_to_coord[next_state_key] = neighbor_coord
-			frontier.append({
-				"coord": neighbor_coord,
-				"cost": next_cost,
-				"has_discount": next_has_discount,
-			})
+			best_costs[neighbor_coord] = next_cost
+			previous[neighbor_coord] = current_coord
+			# Discount is consumed after leaving the start cell; no pending discount downstream.
+			var h := _move_path_heuristic(neighbor_coord, to_coord, 0)
+			_move_heap_push(heap, [next_cost + h, next_cost, neighbor_coord, false])
 
-	if final_state_key.is_empty():
+	if not found_target:
 		if not can_place_footprint(state, to_coord, unit_state.footprint_size, unit_state.unit_id, unit_state):
 			return {
 				"allowed": false,
@@ -742,8 +750,8 @@ func resolve_unit_move_path(
 			"message": "目标地格当前不可到达。",
 		}
 
-	var final_cost := int(best_state_costs.get(final_state_key, 2147483647))
-	var anchor_path := _build_move_anchor_path(previous_state_keys, state_key_to_coord, final_state_key)
+	var final_cost := int(best_costs.get(to_coord, 2147483647))
+	var anchor_path := _reconstruct_move_path(previous, from_coord, to_coord)
 	if final_cost > sanitized_max_move_points:
 		return {
 			"allowed": false,
@@ -986,35 +994,66 @@ func _get_unit_movement_tags(unit_state: BattleUnitState) -> Array[StringName]:
 	return unit_state.movement_tags if unit_state != null else []
 
 
-func _build_move_path_state_key(coord: Vector2i, has_discount: bool) -> String:
-	return "%d,%d:%d" % [coord.x, coord.y, 1 if has_discount else 0]
+func _move_path_heuristic(from_coord: Vector2i, to_coord: Vector2i, pending_discount: int) -> int:
+	# Manhattan distance: admissible on a 4-connected grid because every step adds at least 1
+	# to the true cost. When a first-step discount is still pending, subtract it (clamped at 0)
+	# so the heuristic remains admissible even if the next step's cost could be reduced to 0.
+	var raw := absi(to_coord.x - from_coord.x) + absi(to_coord.y - from_coord.y)
+	return maxi(0, raw - pending_discount)
 
 
-func _pop_lowest_cost_move_frontier_entry(frontier: Array) -> Dictionary:
-	var best_index := 0
-	var best_cost := int(frontier[0].get("cost", 2147483647))
-	for index in range(1, frontier.size()):
-		var candidate_cost := int(frontier[index].get("cost", 2147483647))
-		if candidate_cost < best_cost:
-			best_index = index
-			best_cost = candidate_cost
-	var best_entry: Dictionary = frontier[best_index]
-	frontier.remove_at(best_index)
-	return best_entry
+func _move_heap_push(heap: Array, entry: Array) -> void:
+	# Binary min-heap push, ordered by entry[0] (f_score). entry layout:
+	# [f_score, g_cost, coord, has_discount].
+	heap.append(entry)
+	var index := heap.size() - 1
+	while index > 0:
+		var parent_index := (index - 1) >> 1
+		if int(heap[parent_index][0]) <= int(heap[index][0]):
+			break
+		var tmp = heap[parent_index]
+		heap[parent_index] = heap[index]
+		heap[index] = tmp
+		index = parent_index
 
 
-func _build_move_anchor_path(
-	previous_state_keys: Dictionary,
-	state_key_to_coord: Dictionary,
-	final_state_key: String
-) -> Array[Vector2i]:
+func _move_heap_pop(heap: Array) -> Array:
+	# Binary min-heap pop. Returns the root and reheapifies in place.
+	var top: Array = heap[0]
+	var last: Array = heap.pop_back()
+	if heap.is_empty():
+		return top
+	heap[0] = last
+	var index := 0
+	var size := heap.size()
+	while true:
+		var left := (index << 1) + 1
+		var right := left + 1
+		var smallest := index
+		if left < size and int(heap[left][0]) < int(heap[smallest][0]):
+			smallest = left
+		if right < size and int(heap[right][0]) < int(heap[smallest][0]):
+			smallest = right
+		if smallest == index:
+			break
+		var tmp = heap[index]
+		heap[index] = heap[smallest]
+		heap[smallest] = tmp
+		index = smallest
+	return top
+
+
+func _reconstruct_move_path(previous: Dictionary, start: Vector2i, end: Vector2i) -> Array[Vector2i]:
+	# Walk predecessor chain back from `end` to `start`; return start→end order.
 	var reversed_path: Array[Vector2i] = []
-	var current_state_key := final_state_key
-	while not current_state_key.is_empty():
-		var coord_variant = state_key_to_coord.get(current_state_key, Vector2i(-1, -1))
-		if coord_variant is Vector2i:
-			reversed_path.append(coord_variant)
-		current_state_key = String(previous_state_keys.get(current_state_key, ""))
+	var current: Vector2i = end
+	while current != start:
+		reversed_path.append(current)
+		var prev_variant = previous.get(current, null)
+		if not (prev_variant is Vector2i):
+			return []
+		current = prev_variant
+	reversed_path.append(start)
 	reversed_path.reverse()
 	return reversed_path
 
