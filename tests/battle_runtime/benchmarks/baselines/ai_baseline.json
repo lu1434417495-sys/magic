@@ -1,6 +1,6 @@
 {
-	"generated_at_unix": 1778600409,
-	"git_commit": "a003167",
+	"generated_at_unix": 1778680285,
+	"git_commit": "762191f",
 	"godot_version": "4.6.2-stable (official)",
 	"scenarios": {
 		"large_6v40": {
@@ -11,38 +11,38 @@
 			"ai_turns_total": 156,
 			"layers": {
 				"build_action_score_input": {
-					"avg_usec": 74,
+					"avg_usec": 45,
 					"call_count": 3172,
-					"max_usec": 338,
-					"p50_usec": 74,
-					"p95_usec": 106,
-					"total_usec": 234781
+					"max_usec": 231,
+					"p50_usec": 41,
+					"p95_usec": 74,
+					"total_usec": 145446
 				},
 				"build_skill_score_input": {
-					"avg_usec": 62,
+					"avg_usec": 64,
 					"call_count": 4798,
-					"max_usec": 316,
-					"p50_usec": 55,
-					"p95_usec": 109,
-					"total_usec": 300070
+					"max_usec": 231,
+					"p50_usec": 59,
+					"p95_usec": 92,
+					"total_usec": 307114
 				},
 				"build_unit_action_plan": {
-					"avg_usec": 135,
+					"avg_usec": 131,
 					"call_count": 80,
-					"max_usec": 519,
-					"p50_usec": 109,
-					"p95_usec": 239,
-					"total_usec": 10814
+					"max_usec": 364,
+					"p50_usec": 115,
+					"p95_usec": 193,
+					"total_usec": 10484
 				},
 				"choose_command": {
-					"avg_usec": 353461,
+					"avg_usec": 139163,
 					"call_count": 156,
-					"max_usec": 1848008,
-					"p50_usec": 106712,
-					"p95_usec": 1573021,
-					"total_inclusive_usec": 55139953,
-					"total_self_usec": 54605102,
-					"total_usec": 55139953
+					"max_usec": 535682,
+					"p50_usec": 102117,
+					"p95_usec": 447175,
+					"total_inclusive_usec": 21709494,
+					"total_self_usec": 21256934,
+					"total_usec": 21709494
 				}
 			},
 			"repeat_measured": 2,
@@ -70,38 +70,38 @@
 			"ai_turns_total": 80,
 			"layers": {
 				"build_action_score_input": {
-					"avg_usec": 78,
+					"avg_usec": 41,
 					"call_count": 1816,
-					"max_usec": 291,
-					"p50_usec": 79,
-					"p95_usec": 109,
-					"total_usec": 143076
+					"max_usec": 155,
+					"p50_usec": 39,
+					"p95_usec": 56,
+					"total_usec": 74751
 				},
 				"build_skill_score_input": {
-					"avg_usec": 63,
-					"call_count": 2496,
-					"max_usec": 308,
-					"p50_usec": 54,
-					"p95_usec": 122,
-					"total_usec": 158643
+					"avg_usec": 59,
+					"call_count": 2498,
+					"max_usec": 237,
+					"p50_usec": 57,
+					"p95_usec": 80,
+					"total_usec": 149682
 				},
 				"build_unit_action_plan": {
-					"avg_usec": 107,
+					"avg_usec": 105,
 					"call_count": 40,
-					"max_usec": 251,
+					"max_usec": 211,
 					"p50_usec": 107,
-					"p95_usec": 239,
-					"total_usec": 4299
+					"p95_usec": 205,
+					"total_usec": 4225
 				},
 				"choose_command": {
-					"avg_usec": 451957,
+					"avg_usec": 153378,
 					"call_count": 80,
-					"max_usec": 1789132,
-					"p50_usec": 171847,
-					"p95_usec": 1721204,
-					"total_inclusive_usec": 36156572,
-					"total_self_usec": 35854853,
-					"total_usec": 36156572
+					"max_usec": 443606,
+					"p50_usec": 99271,
+					"p95_usec": 426705,
+					"total_inclusive_usec": 12270297,
+					"total_self_usec": 12045864,
+					"total_usec": 12270297
 				}
 			},
 			"repeat_measured": 2,
@@ -129,38 +129,38 @@
 			"ai_turns_total": 32,
 			"layers": {
 				"build_action_score_input": {
-					"avg_usec": 81,
+					"avg_usec": 39,
 					"call_count": 720,
-					"max_usec": 226,
-					"p50_usec": 81,
-					"p95_usec": 108,
-					"total_usec": 58394
+					"max_usec": 82,
+					"p50_usec": 39,
+					"p95_usec": 48,
+					"total_usec": 28578
 				},
 				"build_skill_score_input": {
-					"avg_usec": 62,
+					"avg_usec": 58,
 					"call_count": 960,
-					"max_usec": 260,
-					"p50_usec": 54,
-					"p95_usec": 115,
-					"total_usec": 59633
+					"max_usec": 163,
+					"p50_usec": 57,
+					"p95_usec": 69,
+					"total_usec": 56607
 				},
 				"build_unit_action_plan": {
-					"avg_usec": 124,
+					"avg_usec": 113,
 					"call_count": 16,
-					"max_usec": 249,
-					"p50_usec": 114,
-					"p95_usec": 249,
-					"total_usec": 1994
+					"max_usec": 211,
+					"p50_usec": 108,
+					"p95_usec": 211,
+					"total_usec": 1822
 				},
 				"choose_command": {
-					"avg_usec": 476315,
+					"avg_usec": 138923,
 					"call_count": 32,
-					"max_usec": 1619465,
-					"p50_usec": 191577,
-					"p95_usec": 1616585,
-					"total_inclusive_usec": 15242106,
-					"total_self_usec": 15124079,
-					"total_usec": 15242106
+					"max_usec": 368228,
+					"p50_usec": 92451,
+					"p95_usec": 362127,
+					"total_inclusive_usec": 4445554,
+					"total_self_usec": 4360369,
+					"total_usec": 4445554
 				}
 			},
 			"repeat_measured": 2,
