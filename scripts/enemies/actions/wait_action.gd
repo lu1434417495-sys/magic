@@ -15,6 +15,13 @@ const STAMINA_RESTING_RECOVERY_MULTIPLIER := 2
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:wait")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:wait")
+	return result
+
+
+func _decide_impl(context):
 	var active_rest_profile := _build_active_rest_profile(context)
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "wait",
@@ -147,7 +154,9 @@ func _has_legal_unit_skill_target(context, skill_def: SkillDef) -> bool:
 func _can_pay_skill_cost(unit_state: BattleUnitState, skill_def: SkillDef) -> bool:
 	if unit_state == null or skill_def == null or skill_def.combat_profile == null:
 		return false
-	var costs := skill_def.combat_profile.get_effective_resource_costs(_get_skill_level(unit_state, skill_def.skill_id))
+	var costs: Dictionary = skill_def.combat_profile.get_effective_resource_costs(_get_skill_level(unit_state, skill_def.skill_id))
+	if not _get_locked_combat_resource_block_reason(unit_state, costs).is_empty():
+		return false
 	return int(unit_state.current_ap) >= int(costs.get("ap_cost", skill_def.combat_profile.ap_cost)) \
 		and int(unit_state.current_mp) >= int(costs.get("mp_cost", skill_def.combat_profile.mp_cost)) \
 		and int(unit_state.current_stamina) >= int(costs.get("stamina_cost", skill_def.combat_profile.stamina_cost)) \

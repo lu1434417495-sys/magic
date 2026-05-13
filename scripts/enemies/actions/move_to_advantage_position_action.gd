@@ -19,6 +19,13 @@ const MODE_HIGH_GROUND: StringName = &"high_ground"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:move_to_advantage_position")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:move_to_advantage_position")
+	return result
+
+
+func _decide_impl(context):
 	var distance_contract := _resolve_desired_distance_contract(context, null, range_skill_ids)
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "move_to_advantage_position",

@@ -1,6 +1,7 @@
 class_name BattleAiContext
 extends RefCounted
 
+const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
 const BATTLE_PREVIEW_SCRIPT = preload("res://scripts/systems/battle/core/battle_preview.gd")
 const BATTLE_AI_SCORE_INPUT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_input.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
@@ -26,6 +27,13 @@ var _action_trace_nonce := 0
 
 
 func preview_command(command) -> BattlePreview:
+	AI_TRACE_RECORDER.enter(&"preview_command")
+	var result := _preview_command_impl(command)
+	AI_TRACE_RECORDER.exit(&"preview_command")
+	return result
+
+
+func _preview_command_impl(command) -> BattlePreview:
 	if not preview_callback.is_valid():
 		return BATTLE_PREVIEW_SCRIPT.new()
 	var preview = preview_callback.call(command)

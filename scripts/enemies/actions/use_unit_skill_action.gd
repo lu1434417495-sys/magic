@@ -15,6 +15,13 @@ const DISTANCE_REF_ENEMY_FRONTLINE: StringName = &"enemy_frontline"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:unit_skill")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:unit_skill")
+	return result
+
+
+func _decide_impl(context):
 	if not _has_explicit_distance_contract():
 		return null
 	var action_trace := _begin_action_trace(context, {

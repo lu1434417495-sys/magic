@@ -8,6 +8,13 @@ extends "res://scripts/enemies/enemy_ai_action.gd"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:retreat")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:retreat")
+	return result
+
+
+func _decide_impl(context):
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "retreat",
 		"target_selector": String(target_selector),

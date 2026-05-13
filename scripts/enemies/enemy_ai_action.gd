@@ -1,6 +1,7 @@
 class_name EnemyAiAction
 extends Resource
 
+const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
@@ -109,10 +110,13 @@ func _get_skill_cast_block_reason(context, skill_def: SkillDef) -> String:
 		return "技能或目标无效。"
 	var unit_state: BattleUnitState = context.unit_state
 	var combat_profile = skill_def.combat_profile
-	var costs := combat_profile.get_effective_resource_costs(_get_skill_level(unit_state, skill_def.skill_id))
+	var costs: Dictionary = combat_profile.get_effective_resource_costs(_get_skill_level(unit_state, skill_def.skill_id))
 	var cooldown := int(unit_state.cooldowns.get(skill_def.skill_id, 0))
 	if cooldown > 0:
 		return "%s 仍在冷却中（%d）。" % [skill_def.display_name, cooldown]
+	var locked_resource_block_reason := _get_locked_combat_resource_block_reason(unit_state, costs)
+	if not locked_resource_block_reason.is_empty():
+		return locked_resource_block_reason
 	if unit_state.current_ap < int(costs.get("ap_cost", combat_profile.ap_cost)):
 		return "AP不足，无法施放该技能。"
 	if unit_state.current_mp < int(costs.get("mp_cost", combat_profile.mp_cost)):
@@ -121,6 +125,18 @@ func _get_skill_cast_block_reason(context, skill_def: SkillDef) -> String:
 		return "体力不足，无法施放该技能。"
 	if unit_state.current_aura < int(costs.get("aura_cost", combat_profile.aura_cost)):
 		return "斗气不足，无法施放该技能。"
+	return ""
+
+
+func _get_locked_combat_resource_block_reason(unit_state: BattleUnitState, costs: Dictionary) -> String:
+	if unit_state == null:
+		return "技能施放者无效。"
+	if int(costs.get("mp_cost", 0)) > 0 and not unit_state.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP):
+		return "法力尚未解锁，无法施放该技能。"
+	if int(costs.get("stamina_cost", 0)) > 0 and not unit_state.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA):
+		return "体力尚未解锁，无法施放该技能。"
+	if int(costs.get("aura_cost", 0)) > 0 and not unit_state.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA):
+		return "斗气尚未解锁，无法施放该技能。"
 	return ""
 
 

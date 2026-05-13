@@ -18,6 +18,13 @@ const SCREENING_PATH_UNREACHABLE_COST := 2147483647
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:move_to_range")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:move_to_range")
+	return result
+
+
+func _decide_impl(context):
 	var distance_contract := _resolve_desired_distance_contract(context, null, range_skill_ids)
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "move_to_range",
@@ -125,6 +132,13 @@ func decide(context):
 
 
 func _collect_reachable_move_candidates(context) -> Array[Vector2i]:
+	AI_TRACE_RECORDER.enter(&"_collect_reachable_move_candidates")
+	var result := _collect_reachable_move_candidates_impl(context)
+	AI_TRACE_RECORDER.exit(&"_collect_reachable_move_candidates")
+	return result
+
+
+func _collect_reachable_move_candidates_impl(context) -> Array[Vector2i]:
 	var candidates: Array[Vector2i] = []
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null:
 		return candidates
@@ -171,6 +185,13 @@ func _collect_reachable_move_candidates(context) -> Array[Vector2i]:
 
 
 func _build_screening_context(context) -> Dictionary:
+	AI_TRACE_RECORDER.enter(&"_build_screening_context")
+	var result := _build_screening_context_impl(context)
+	AI_TRACE_RECORDER.exit(&"_build_screening_context")
+	return result
+
+
+func _build_screening_context_impl(context) -> Dictionary:
 	if screening_mode != SCREENING_RANGED_ALLY:
 		return {"enabled": false}
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null:
@@ -279,6 +300,13 @@ func _resolve_unit_contact_threat_range(context, threat_unit: BattleUnitState) -
 
 
 func _apply_screening_score(context, score_input, anchor_coord: Vector2i, screening_context: Dictionary) -> Dictionary:
+	AI_TRACE_RECORDER.enter(&"_apply_screening_score")
+	var result := _apply_screening_score_impl(context, score_input, anchor_coord, screening_context)
+	AI_TRACE_RECORDER.exit(&"_apply_screening_score")
+	return result
+
+
+func _apply_screening_score_impl(context, score_input, anchor_coord: Vector2i, screening_context: Dictionary) -> Dictionary:
 	var metrics := _build_screening_metrics(context, anchor_coord, screening_context, score_input)
 	if score_input != null:
 		var bonus := int(metrics.get("bonus", 0))
@@ -539,6 +567,18 @@ func _build_path_progress_decision(
 	action_trace: Dictionary,
 	distance_contract: Dictionary
 ):
+	AI_TRACE_RECORDER.enter(&"_build_path_progress_decision")
+	var result = _build_path_progress_decision_impl(context, focus_target, action_trace, distance_contract)
+	AI_TRACE_RECORDER.exit(&"_build_path_progress_decision")
+	return result
+
+
+func _build_path_progress_decision_impl(
+	context,
+	focus_target: BattleUnitState,
+	action_trace: Dictionary,
+	distance_contract: Dictionary
+):
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null:
 		return null
 	if focus_target == null or int(context.unit_state.current_move_points) <= 0:
@@ -553,6 +593,7 @@ func _build_path_progress_decision(
 	var best_path_cost := 2147483647
 	var best_path_length := 2147483647
 	for destination in _collect_distance_band_destinations(context, focus_target, distance_contract):
+		AI_TRACE_RECORDER.enter(&"grid_service.resolve_unit_move_path")
 		var path_result: Dictionary = context.grid_service.resolve_unit_move_path(
 			context.state,
 			context.unit_state,
@@ -560,6 +601,7 @@ func _build_path_progress_decision(
 			destination,
 			_build_path_search_budget(context)
 		)
+		AI_TRACE_RECORDER.exit(&"grid_service.resolve_unit_move_path")
 		if not bool(path_result.get("allowed", false)):
 			continue
 		var path: Array[Vector2i] = _extract_vector2i_path(path_result.get("path", []))
@@ -624,6 +666,17 @@ func _collect_distance_band_destinations(
 	focus_target: BattleUnitState,
 	distance_contract: Dictionary
 ) -> Array[Vector2i]:
+	AI_TRACE_RECORDER.enter(&"_collect_distance_band_destinations")
+	var result := _collect_distance_band_destinations_impl(context, focus_target, distance_contract)
+	AI_TRACE_RECORDER.exit(&"_collect_distance_band_destinations")
+	return result
+
+
+func _collect_distance_band_destinations_impl(
+	context,
+	focus_target: BattleUnitState,
+	distance_contract: Dictionary
+) -> Array[Vector2i]:
 	var destinations: Array[Vector2i] = []
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null or focus_target == null:
 		return destinations
@@ -656,6 +709,13 @@ func _collect_distance_band_destinations(
 
 
 func _resolve_current_turn_path_target(context, path: Array[Vector2i]) -> Vector2i:
+	AI_TRACE_RECORDER.enter(&"_resolve_current_turn_path_target")
+	var result := _resolve_current_turn_path_target_impl(context, path)
+	AI_TRACE_RECORDER.exit(&"_resolve_current_turn_path_target")
+	return result
+
+
+func _resolve_current_turn_path_target_impl(context, path: Array[Vector2i]) -> Vector2i:
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null:
 		return Vector2i(-1, -1)
 	if path.size() <= 1:
@@ -674,6 +734,13 @@ func _resolve_current_turn_path_target(context, path: Array[Vector2i]) -> Vector
 
 
 func _extract_vector2i_path(path_variant: Variant) -> Array[Vector2i]:
+	AI_TRACE_RECORDER.enter(&"_extract_vector2i_path")
+	var result := _extract_vector2i_path_impl(path_variant)
+	AI_TRACE_RECORDER.exit(&"_extract_vector2i_path")
+	return result
+
+
+func _extract_vector2i_path_impl(path_variant: Variant) -> Array[Vector2i]:
 	var path: Array[Vector2i] = []
 	if path_variant is not Array:
 		return path
@@ -684,6 +751,13 @@ func _extract_vector2i_path(path_variant: Variant) -> Array[Vector2i]:
 
 
 func _build_path_search_budget(context) -> int:
+	AI_TRACE_RECORDER.enter(&"_build_path_search_budget")
+	var result := _build_path_search_budget_impl(context)
+	AI_TRACE_RECORDER.exit(&"_build_path_search_budget")
+	return result
+
+
+func _build_path_search_budget_impl(context) -> int:
 	if context == null or context.state == null:
 		return 32
 	var map_size: Vector2i = context.state.map_size

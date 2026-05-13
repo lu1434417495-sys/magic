@@ -5,6 +5,13 @@ extends "res://scripts/enemies/actions/use_multi_unit_skill_action.gd"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:move_to_multi_unit_skill_position")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:move_to_multi_unit_skill_position")
+	return result
+
+
+func _decide_impl(context):
 	if not _has_explicit_distance_contract():
 		return null
 	var action_trace := _begin_action_trace(context, {

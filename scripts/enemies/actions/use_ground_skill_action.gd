@@ -6,6 +6,9 @@ const DISTANCE_REF_ENEMY_FRONTLINE: StringName = &"enemy_frontline"
 
 @export var skill_ids: Array[StringName] = []
 @export var minimum_hit_count := 1
+@export var allow_empty_ground_control := false
+@export var allow_ground_control_supplement_partial_hits := false
+@export var minimum_ground_control_score := 1
 @export var minimum_ally_threat_hit_count := 0
 @export var maximum_friendly_fire_target_count := 0
 @export var allow_friendly_lethal := false
@@ -17,11 +20,21 @@ const DISTANCE_REF_ENEMY_FRONTLINE: StringName = &"enemy_frontline"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:ground_skill")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:ground_skill")
+	return result
+
+
+func _decide_impl(context):
 	if not _has_explicit_distance_contract():
 		return null
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "ground_skill",
 		"minimum_hit_count": minimum_hit_count,
+		"allow_empty_ground_control": allow_empty_ground_control,
+		"allow_ground_control_supplement_partial_hits": allow_ground_control_supplement_partial_hits,
+		"minimum_ground_control_score": minimum_ground_control_score,
 		"minimum_ally_threat_hit_count": minimum_ally_threat_hit_count,
 		"maximum_friendly_fire_target_count": maximum_friendly_fire_target_count,
 		"allow_friendly_lethal": allow_friendly_lethal,
@@ -73,7 +86,7 @@ func decide(context):
 					position_metadata
 				)
 				if score_input == null:
-					if fallback_decision == null:
+					if fallback_decision == null and raw_hit_count > 0:
 						fallback_decision = _create_decision(
 							command,
 							"%s 准备用 %s 覆盖 %d 个单位。" % [context.unit_state.display_name, skill_def.display_name, raw_hit_count]
@@ -89,8 +102,8 @@ func decide(context):
 						}
 					))
 					continue
-				if int(score_input.effective_target_count) < minimum_hit_count:
-					_trace_add_block_reason(action_trace, "minimum_effective_hit_count")
+				if not _passes_minimum_effective_target_or_ground_control(score_input):
+					_trace_add_block_reason(action_trace, _resolve_minimum_hit_block_reason(score_input))
 					continue
 				if not _passes_friendly_fire_limits(score_input):
 					_trace_add_block_reason(action_trace, "friendly_fire_limit")
@@ -103,6 +116,11 @@ func decide(context):
 						"raw_hit_count": raw_hit_count,
 						"effective_hit_count": int(score_input.effective_target_count),
 						"ally_threat_hit_count": ally_threat_hit_count,
+						"allow_empty_ground_control": allow_empty_ground_control,
+						"allow_ground_control_supplement_partial_hits": allow_ground_control_supplement_partial_hits,
+						"estimated_ground_control_cell_count": int(score_input.estimated_ground_control_cell_count),
+						"ground_control_score": int(score_input.ground_control_score),
+						"acceptance_reason": _resolve_candidate_acceptance_reason(score_input),
 						"skill_id": String(skill_id),
 					}
 				))
@@ -112,16 +130,97 @@ func decide(context):
 				best_decision = _create_scored_decision(
 					command,
 					score_input,
-					"%s 准备用 %s 覆盖 %d 个有效目标（评分 %d）。" % [
-						context.unit_state.display_name,
-						skill_def.display_name,
-						int(score_input.effective_target_count),
-						int(score_input.total_score),
-					]
+					_build_decision_reason(context, skill_def, score_input)
 				)
 	var resolved_decision: BattleAiDecision = best_decision if best_decision != null else fallback_decision
 	_finalize_action_trace(context, action_trace, resolved_decision)
 	return resolved_decision
+
+
+func _passes_minimum_effective_target_or_ground_control(score_input) -> bool:
+	if score_input == null:
+		return false
+	if int(score_input.effective_target_count) >= minimum_hit_count:
+		return true
+	if _is_empty_ground_control_candidate(score_input):
+		return true
+	return _is_ground_control_supplement_candidate(score_input)
+
+
+func _is_empty_ground_control_candidate(score_input) -> bool:
+	if score_input == null:
+		return false
+	if not allow_empty_ground_control:
+		return false
+	if int(score_input.effective_target_count) != 0:
+		return false
+	if int(score_input.estimated_ground_control_cell_count) <= 0:
+		return false
+	return int(score_input.ground_control_score) >= minimum_ground_control_score
+
+
+func _is_ground_control_supplement_candidate(score_input) -> bool:
+	if score_input == null:
+		return false
+	if not allow_ground_control_supplement_partial_hits:
+		return false
+	var effective_target_count := int(score_input.effective_target_count)
+	if effective_target_count <= 0 or effective_target_count >= minimum_hit_count:
+		return false
+	if int(score_input.estimated_ground_control_cell_count) <= 0:
+		return false
+	return int(score_input.ground_control_score) >= minimum_ground_control_score
+
+
+func _resolve_minimum_hit_block_reason(score_input) -> String:
+	if score_input != null:
+		var effective_target_count := int(score_input.effective_target_count)
+		if effective_target_count == 0 and int(score_input.estimated_ground_control_cell_count) > 0:
+			if not allow_empty_ground_control:
+				return "empty_ground_control_not_allowed"
+			if int(score_input.ground_control_score) < minimum_ground_control_score:
+				return "minimum_ground_control_score"
+		elif effective_target_count == 0 and allow_empty_ground_control:
+			return "no_ground_control_score"
+		elif effective_target_count > 0 and effective_target_count < minimum_hit_count \
+				and int(score_input.estimated_ground_control_cell_count) > 0:
+			if not allow_ground_control_supplement_partial_hits:
+				return "ground_control_supplement_not_allowed"
+			if int(score_input.ground_control_score) < minimum_ground_control_score:
+				return "minimum_ground_control_score"
+	return "minimum_effective_hit_count"
+
+
+func _resolve_candidate_acceptance_reason(score_input) -> String:
+	if _is_empty_ground_control_candidate(score_input):
+		return "ground_control"
+	if _is_ground_control_supplement_candidate(score_input):
+		return "ground_control_supplement"
+	return "effective_targets"
+
+
+func _build_decision_reason(context, skill_def: SkillDef, score_input) -> String:
+	if _is_empty_ground_control_candidate(score_input):
+		return "%s 准备用 %s 控制 %d 个地格（评分 %d）。" % [
+			context.unit_state.display_name,
+			skill_def.display_name,
+			int(score_input.estimated_ground_control_cell_count),
+			int(score_input.total_score),
+		]
+	if _is_ground_control_supplement_candidate(score_input):
+		return "%s 准备用 %s 覆盖 %d 个有效目标并控制 %d 个地格（评分 %d）。" % [
+			context.unit_state.display_name,
+			skill_def.display_name,
+			int(score_input.effective_target_count),
+			int(score_input.estimated_ground_control_cell_count),
+			int(score_input.total_score),
+		]
+	return "%s 准备用 %s 覆盖 %d 个有效目标（评分 %d）。" % [
+		context.unit_state.display_name,
+		skill_def.display_name,
+		int(score_input.effective_target_count),
+		int(score_input.total_score),
+	]
 
 
 func _passes_friendly_fire_limits(score_input) -> bool:
@@ -242,6 +341,8 @@ func validate_schema() -> Array[String]:
 		errors.append("UseGroundSkillAction %s must declare at least one skill_id." % String(action_id))
 	if minimum_hit_count <= 0:
 		errors.append("UseGroundSkillAction %s minimum_hit_count must be >= 1." % String(action_id))
+	if minimum_ground_control_score <= 0:
+		errors.append("UseGroundSkillAction %s minimum_ground_control_score must be >= 1." % String(action_id))
 	if minimum_ally_threat_hit_count < 0:
 		errors.append("UseGroundSkillAction %s minimum_ally_threat_hit_count must be >= 0." % String(action_id))
 	if maximum_friendly_fire_target_count < 0:

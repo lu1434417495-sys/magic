@@ -1,6 +1,7 @@
 class_name BattleAiScoreService
 extends RefCounted
 
+const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
 const BATTLE_AI_SCORE_INPUT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_input.gd")
 const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
 const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
@@ -63,6 +64,8 @@ func build_skill_score_input(
 	score_input.target_count = score_input.target_unit_ids.size()
 	var effective_effect_defs := _filter_effect_defs_for_context(effect_defs, context, skill_def)
 	_populate_hit_metrics(score_input, context, effective_effect_defs)
+	_populate_ground_control_metrics(score_input, effective_effect_defs)
+	_populate_random_chain_metrics(score_input, context, effective_effect_defs, metadata)
 	_populate_special_profile_metrics(score_input, context)
 	_populate_path_step_aoe_metrics(score_input, context, effective_effect_defs, metadata)
 	_populate_resource_cost_metrics(score_input, skill_def, context)
@@ -134,10 +137,81 @@ func _copy_target_coords(preview) -> Array[Vector2i]:
 	return target_coords
 
 
+func _populate_ground_control_metrics(score_input: BattleAiScoreInput, effect_defs: Array) -> void:
+	if score_input == null or score_input.target_coords.is_empty():
+		return
+	var per_cell_score := _estimate_ground_control_score_per_cell(effect_defs)
+	if per_cell_score <= 0:
+		return
+	var cell_count := _count_unique_target_coords(score_input.target_coords)
+	if cell_count <= 0:
+		return
+	score_input.estimated_ground_control_cell_count = cell_count
+	score_input.ground_control_score = cell_count * per_cell_score
+	score_input.hit_payoff_score += score_input.ground_control_score
+
+
+func _count_unique_target_coords(target_coords: Array[Vector2i]) -> int:
+	var seen: Dictionary = {}
+	for target_coord in target_coords:
+		seen[target_coord] = true
+	return seen.size()
+
+
+func _populate_random_chain_metrics(
+	score_input: BattleAiScoreInput,
+	context,
+	effect_defs: Array,
+	metadata: Dictionary
+) -> void:
+	if score_input == null or score_input.skill_def == null or score_input.skill_def.combat_profile == null:
+		return
+	if ProgressionDataUtils.to_string_name(score_input.skill_def.combat_profile.target_selection_mode) != &"random_chain":
+		return
+	var candidate_unit_ids := _copy_string_name_array(metadata.get("candidate_pool_unit_ids", []))
+	if candidate_unit_ids.is_empty() and score_input.preview != null:
+		candidate_unit_ids = score_input.preview.random_chain_candidate_unit_ids.duplicate()
+	score_input.random_chain_candidate_unit_ids = candidate_unit_ids
+	score_input.random_chain_candidate_pool_count = candidate_unit_ids.size()
+	score_input.random_chain_max_hits_per_target = maxi(int(metadata.get(
+		"random_chain_max_hits_per_target",
+		score_input.skill_def.combat_profile.max_hits_per_target
+	)), 1)
+	score_input.random_chain_max_attempt_count = maxi(int(metadata.get(
+		"random_chain_max_attempt_count",
+		candidate_unit_ids.size() * score_input.random_chain_max_hits_per_target
+	)), 1)
+	score_input.random_chain_selection_policy = ProgressionDataUtils.to_string_name(metadata.get(
+		"random_chain_selection_policy",
+		&"random_from_living_pool"
+	))
+	score_input.random_chain_pool_refresh_policy = ProgressionDataUtils.to_string_name(metadata.get(
+		"random_chain_pool_refresh_policy",
+		&"before_each_attempt"
+	))
+	score_input.random_chain_score_estimate_policy = ProgressionDataUtils.to_string_name(metadata.get(
+		"random_chain_score_estimate_policy",
+		&"expected_value"
+	))
+	if context == null or context.state == null:
+		return
+	for candidate_unit_id in candidate_unit_ids:
+		var candidate_unit := context.state.units.get(candidate_unit_id) as BattleUnitState
+		if candidate_unit == null:
+			continue
+		_populate_target_effect_metrics(
+			score_input,
+			context,
+			candidate_unit,
+			effect_defs,
+			score_input.random_chain_max_hits_per_target
+		)
+
+
 func _populate_hit_metrics(score_input: BattleAiScoreInput, context, effect_defs: Array) -> void:
-	AiTraceRecorder.enter(&"_populate_hit_metrics")
+	AI_TRACE_RECORDER.enter(&"_populate_hit_metrics")
 	_populate_hit_metrics_impl(score_input, context, effect_defs)
-	AiTraceRecorder.exit(&"_populate_hit_metrics")
+	AI_TRACE_RECORDER.exit(&"_populate_hit_metrics")
 
 
 func _populate_hit_metrics_impl(score_input: BattleAiScoreInput, context, effect_defs: Array) -> void:
@@ -161,9 +235,9 @@ func _populate_hit_metrics_impl(score_input: BattleAiScoreInput, context, effect
 
 
 func _populate_special_profile_metrics(score_input: BattleAiScoreInput, context) -> void:
-	AiTraceRecorder.enter(&"_populate_special_profile_metrics")
+	AI_TRACE_RECORDER.enter(&"_populate_special_profile_metrics")
 	_populate_special_profile_metrics_impl(score_input, context)
-	AiTraceRecorder.exit(&"_populate_special_profile_metrics")
+	AI_TRACE_RECORDER.exit(&"_populate_special_profile_metrics")
 
 
 func _populate_special_profile_metrics_impl(score_input: BattleAiScoreInput, context) -> void:
@@ -415,6 +489,13 @@ func _is_meteor_elite_or_boss_target(target_unit: BattleUnitState) -> bool:
 
 
 func _resolve_meteor_threat_rank(context, target_unit: BattleUnitState) -> int:
+	AI_TRACE_RECORDER.enter(&"_resolve_meteor_threat_rank")
+	var result := _resolve_meteor_threat_rank_impl(context, target_unit)
+	AI_TRACE_RECORDER.exit(&"_resolve_meteor_threat_rank")
+	return result
+
+
+func _resolve_meteor_threat_rank_impl(context, target_unit: BattleUnitState) -> int:
 	if context == null or context.state == null or context.unit_state == null or target_unit == null:
 		return 0
 	var enemies: Array[BattleUnitState] = []
@@ -552,9 +633,9 @@ func _populate_target_effect_metrics(
 	hit_count: int = 1,
 	is_chain_target: bool = false
 ) -> void:
-	AiTraceRecorder.enter(&"_populate_target_effect_metrics")
+	AI_TRACE_RECORDER.enter(&"_populate_target_effect_metrics")
 	_populate_target_effect_metrics_impl(score_input, context, target_unit, effect_defs, hit_count, is_chain_target)
-	AiTraceRecorder.exit(&"_populate_target_effect_metrics")
+	AI_TRACE_RECORDER.exit(&"_populate_target_effect_metrics")
 
 
 func _populate_target_effect_metrics_impl(
@@ -705,9 +786,9 @@ func _build_target_effect_metrics(
 	effect_defs: Array,
 	hit_count: int = 1
 ) -> Dictionary:
-	AiTraceRecorder.enter(&"_build_target_effect_metrics")
+	AI_TRACE_RECORDER.enter(&"_build_target_effect_metrics")
 	var result := _build_target_effect_metrics_impl(skill_def, source_unit, target_unit, effect_defs, hit_count)
-	AiTraceRecorder.exit(&"_build_target_effect_metrics")
+	AI_TRACE_RECORDER.exit(&"_build_target_effect_metrics")
 	return result
 
 
@@ -1376,6 +1457,13 @@ func _distance_between_units(context, first_unit: BattleUnitState, second_unit: 
 
 
 func _resolve_target_role_threat_multiplier_basis_points(context, target_unit: BattleUnitState) -> int:
+	AI_TRACE_RECORDER.enter(&"_resolve_target_role_threat_multiplier_basis_points")
+	var result := _resolve_target_role_threat_multiplier_basis_points_impl(context, target_unit)
+	AI_TRACE_RECORDER.exit(&"_resolve_target_role_threat_multiplier_basis_points")
+	return result
+
+
+func _resolve_target_role_threat_multiplier_basis_points_impl(context, target_unit: BattleUnitState) -> int:
 	if context == null or target_unit == null or _score_profile == null:
 		return THREAT_MULTIPLIER_BASIS_POINTS_DENOMINATOR
 	var heal_skill_count := 0
@@ -1559,6 +1647,37 @@ func _estimate_terrain_effect_count(effect_defs: Array) -> int:
 			continue
 		terrain_effect_ids[effect_def.terrain_effect_id] = true
 	return terrain_effect_ids.size()
+
+
+func _estimate_ground_control_score_per_cell(effect_defs: Array) -> int:
+	var terrain_weight := int(_score_profile.terrain_weight) if _score_profile != null else 0
+	var height_weight := int(_score_profile.height_weight) if _score_profile != null else 0
+	var score := 0
+	var seen_terrain_controls: Dictionary = {}
+	for effect_def_variant in effect_defs:
+		var effect_def := effect_def_variant as CombatEffectDef
+		if effect_def == null:
+			continue
+		match effect_def.effect_type:
+			&"terrain_effect":
+				if effect_def.terrain_effect_id == &"":
+					continue
+				var effect_key := "terrain_effect:%s" % String(effect_def.terrain_effect_id)
+				if seen_terrain_controls.has(effect_key):
+					continue
+				seen_terrain_controls[effect_key] = true
+				score += terrain_weight
+			&"terrain", &"terrain_replace", &"terrain_replace_to":
+				if effect_def.terrain_replace_to == &"":
+					continue
+				var terrain_key := "terrain_replace:%s" % String(effect_def.terrain_replace_to)
+				if seen_terrain_controls.has(terrain_key):
+					continue
+				seen_terrain_controls[terrain_key] = true
+				score += terrain_weight
+			&"height", &"height_delta":
+				score += absi(int(effect_def.height_delta)) * height_weight
+	return score
 
 
 func _estimate_height_delta(effect_defs: Array) -> int:

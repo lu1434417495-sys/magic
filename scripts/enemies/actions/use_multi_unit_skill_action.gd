@@ -14,6 +14,13 @@ const DISTANCE_REF_ENEMY_FRONTLINE: StringName = &"enemy_frontline"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:multi_unit_skill")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:multi_unit_skill")
+	return result
+
+
+func _decide_impl(context):
 	if not _has_explicit_distance_contract():
 		return null
 	var action_trace := _begin_action_trace(context, {
@@ -120,7 +127,7 @@ func decide(context):
 func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 	return skill_def != null \
 		and skill_def.combat_profile != null \
-		and StringName(skill_def.combat_profile.target_selection_mode) in [&"multi_unit", &"random_chain"]
+		and StringName(skill_def.combat_profile.target_selection_mode) == &"multi_unit"
 
 
 func _get_multi_unit_cast_variants(context, skill_def: SkillDef) -> Array:

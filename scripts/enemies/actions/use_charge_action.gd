@@ -7,6 +7,13 @@ extends "res://scripts/enemies/enemy_ai_action.gd"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:charge")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:charge")
+	return result
+
+
+func _decide_impl(context):
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "charge",
 		"target_selector": String(target_selector),

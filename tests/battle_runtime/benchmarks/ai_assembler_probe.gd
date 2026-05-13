@@ -1,5 +1,7 @@
 extends "res://scripts/systems/battle/ai/battle_ai_action_assembler.gd"
 
+const AiTraceRecorderScript = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
+
 var stats_assemble: Dictionary = _new_stats()
 
 
@@ -13,9 +15,11 @@ static func _new_stats() -> Dictionary:
 
 
 func build_unit_action_plan(unit_state, brain, skill_defs: Dictionary) -> Dictionary:
+	AiTraceRecorderScript.enter(&"build_unit_action_plan")
 	var t := Time.get_ticks_usec()
 	var result = super.build_unit_action_plan(unit_state, brain, skill_defs)
 	_record(stats_assemble, Time.get_ticks_usec() - t)
+	AiTraceRecorderScript.exit(&"build_unit_action_plan")
 	return result
 
 

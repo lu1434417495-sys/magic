@@ -11,6 +11,13 @@ const PATH_STEP_AOE_EFFECT_TYPE: StringName = &"path_step_aoe"
 
 
 func decide(context):
+	AI_TRACE_RECORDER.enter(&"decide:charge_path_aoe")
+	var result = _decide_impl(context)
+	AI_TRACE_RECORDER.exit(&"decide:charge_path_aoe")
+	return result
+
+
+func _decide_impl(context):
 	var action_trace := _begin_action_trace(context, {
 		"action_kind": "charge_path_aoe",
 		"target_selector": String(target_selector),
