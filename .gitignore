@@ -36,6 +36,7 @@ tmp/
 tmp_*.json
 tmp_*_llm_packet/
 tests/battle_runtime/reports/
+tests/battle_runtime/benchmarks/profiles/
 .vscode/
 .claude/settings.local.json
 .claude/*.lock
