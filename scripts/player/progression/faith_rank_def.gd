@@ -5,6 +5,8 @@
 class_name FaithRankDef
 extends Resource
 
+const PENDING_CHARACTER_REWARD_CONTENT_RULES = preload("res://scripts/player/progression/pending_character_reward_content_rules.gd")
+
 
 @export var rank_index := 1
 @export var rank_name: String = ""
@@ -50,4 +52,11 @@ func validate() -> Array[String]:
 		var amount := int(reward_data.get("amount", 0))
 		if entry_type == &"" or target_id == &"" or amount == 0:
 			errors.append("Faith rank %d contains an invalid reward entry." % rank_index)
+			continue
+		if not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(entry_type):
+			errors.append("Faith rank %d contains unsupported reward entry_type %s." % [rank_index, String(entry_type)])
+			continue
+		if PENDING_CHARACTER_REWARD_CONTENT_RULES.is_attribute_progress_entry(entry_type) \
+			and not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_valid_attribute_progress_target(target_id):
+			errors.append("Faith rank %d attribute_progress reward references unsupported attribute %s." % [rank_index, String(target_id)])
 	return errors

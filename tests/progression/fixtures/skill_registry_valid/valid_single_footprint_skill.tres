@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="3_variant"]
+
+[sub_resource type="Resource" id="Variant_single"]
+script = ExtResource("3_variant")
+variant_id = &"single_ground"
+target_mode = &"ground"
+footprint_pattern = &"single"
+min_skill_level = 1
+
+[sub_resource type="Resource" id="Combat_single"]
+script = ExtResource("2_combat")
+skill_id = &"valid_single_footprint_skill"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_coord"
+selection_order_mode = &"stable"
+cast_variants = Array[ExtResource("3_variant")]([SubResource("Variant_single")])
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"valid_single_footprint_skill"
+display_name = "合法单格形态"
+icon_id = &"valid_single_footprint_skill"
+description = "用于验证 single footprint 是正式合法形态。"
+skill_type = &"active"
+max_level = 1
+mastery_curve = PackedInt32Array(10)
+learn_source = &"book"
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Combat_single")

@@ -7,6 +7,7 @@ const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle/ai/
 const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
 const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const BATTLE_TARGET_TEAM_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BattleAiScoreInput = preload("res://scripts/systems/battle/ai/battle_ai_score_input.gd")
 const BattleAiScoreProfile = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
@@ -58,6 +59,7 @@ func build_skill_score_input(
 	score_input.action_label = String(metadata.get("action_label", skill_def.display_name if skill_def != null else ""))
 	score_input.score_bucket_id = ProgressionDataUtils.to_string_name(metadata.get("score_bucket_id", ""))
 	score_input.score_bucket_priority = get_bucket_priority(score_input.score_bucket_id)
+	score_input.runtime_action_metadata = _copy_runtime_action_metadata(metadata)
 	score_input.primary_coord = _resolve_primary_coord(command, preview)
 	score_input.target_unit_ids = _copy_target_unit_ids(preview)
 	score_input.target_coords = _copy_target_coords(preview)
@@ -95,6 +97,7 @@ func build_action_score_input(
 	score_input.action_label = action_label
 	score_input.score_bucket_id = score_bucket_id
 	score_input.score_bucket_priority = get_bucket_priority(score_bucket_id)
+	score_input.runtime_action_metadata = _copy_runtime_action_metadata(metadata)
 	score_input.primary_coord = _resolve_primary_coord(command, preview)
 	score_input.target_unit_ids = _copy_target_unit_ids(preview)
 	score_input.target_coords = _copy_target_coords(preview)
@@ -116,6 +119,13 @@ func _resolve_primary_coord(command, preview) -> Vector2i:
 	if preview != null and not preview.target_coords.is_empty():
 		return preview.target_coords[0]
 	return Vector2i(-1, -1)
+
+
+func _copy_runtime_action_metadata(metadata: Dictionary) -> Dictionary:
+	var runtime_metadata = metadata.get("runtime_action_metadata", {})
+	if runtime_metadata is Dictionary:
+		return (runtime_metadata as Dictionary).duplicate(true)
+	return {}
 
 
 func _copy_target_unit_ids(preview) -> Array[StringName]:
@@ -847,31 +857,15 @@ func _build_target_effect_metrics_impl(
 
 
 func _resolve_effect_target_filter(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:
-	if effect_def != null and effect_def.effect_target_team_filter != &"":
-		return effect_def.effect_target_team_filter
-	if skill_def != null and skill_def.combat_profile != null:
-		return skill_def.combat_profile.target_team_filter
-	return &"any"
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.resolve_effect_target_filter(skill_def, effect_def)
 
 
 func _is_unit_valid_for_effect(source_unit: BattleUnitState, target_unit: BattleUnitState, target_filter: StringName) -> bool:
-	if target_unit == null or not target_unit.is_alive:
-		return false
-	match target_filter:
-		&"", &"any":
-			return true
-		&"self":
-			return source_unit != null and target_unit.unit_id == source_unit.unit_id
-		&"ally", &"friendly":
-			return source_unit != null and target_unit.faction_id == source_unit.faction_id
-		&"enemy", &"hostile":
-			return source_unit != null and target_unit.faction_id != source_unit.faction_id
-		_:
-			return true
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_unit_valid_for_filter(source_unit, target_unit, target_filter)
 
 
 func _is_beneficial_effect_filter(target_filter: StringName) -> bool:
-	return target_filter == &"ally" or target_filter == &"friendly" or target_filter == &"self"
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_beneficial_filter(target_filter)
 
 
 func _populate_chain_damage_metrics(score_input: BattleAiScoreInput, context, effect_defs: Array) -> void:

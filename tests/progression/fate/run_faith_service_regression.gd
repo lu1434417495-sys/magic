@@ -32,6 +32,7 @@ func _run() -> void:
 	_test_fortuna_rank_up_applies_faith_luck_bonus_until_cap()
 	_test_misfortune_config_matches_story_acceptance()
 	_test_misfortune_rank_up_applies_doom_authority_until_cap()
+	_test_faith_rank_validation_rejects_unsupported_reward_entries()
 
 	if _failures.is_empty():
 		print("FaithService regression: PASS")
@@ -264,6 +265,35 @@ func _test_misfortune_rank_up_applies_doom_authority_until_cap() -> void:
 	_assert_true(party_state.get_next_pending_character_reward() == null, "Misfortune 达到上限后不应新增 pending reward。")
 
 
+func _test_faith_rank_validation_rejects_unsupported_reward_entries() -> void:
+	var valid_rank := FaithRankDef.new()
+	valid_rank.rank_index = 1
+	valid_rank.rank_name = "合法阶位"
+	valid_rank.reward_entries = [
+		{
+			"entry_type": "attribute_delta",
+			"target_id": "faith_luck_bonus",
+			"amount": 1,
+		},
+	]
+	_assert_true(valid_rank.validate().is_empty(), "faith custom stat 的 attribute_delta 奖励应保持合法。")
+
+	var invalid_rank := FaithRankDef.new()
+	invalid_rank.rank_index = 1
+	invalid_rank.rank_name = "非法阶位"
+	invalid_rank.reward_entries = [
+		{
+			"entry_type": "skill_level",
+			"target_id": "charge",
+			"amount": 1,
+		},
+	]
+	_assert_true(
+		_has_error_containing(invalid_rank.validate(), "unsupported reward entry_type skill_level"),
+		"FaithRankDef.validate 应拒绝 unsupported reward entry_type。"
+	)
+
+
 func _build_party_state() -> PartyState:
 	var party_state := PartyState.new()
 	party_state.leader_member_id = &"hero"
@@ -332,6 +362,13 @@ func _get_custom_stat(party_state: PartyState, stat_id: StringName) -> int:
 	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 		return 0
 	return member_state.progression.unit_base_attributes.get_attribute_value(stat_id)
+
+
+func _has_error_containing(errors: Array[String], expected_fragment: String) -> bool:
+	for error in errors:
+		if error.contains(expected_fragment):
+			return true
+	return false
 
 
 func _assert_true(condition: bool, message: String) -> void:

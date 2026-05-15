@@ -10,7 +10,6 @@
 script = ExtResource("3_k6vtb")
 effect_type = &"damage"
 power = 0
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "resolve_as_weapon_attack": true,

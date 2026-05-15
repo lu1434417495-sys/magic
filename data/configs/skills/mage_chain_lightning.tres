@@ -143,7 +143,7 @@ attribute_growth_progress = {
 "perception": 20,
 "willpower": 50
 }
-level_description_template = "射程5，造成{dmg}雷电伤害（敏捷豁免减半）并附加shocked（60TU，强度1），向范围内全部目标弹射全额伤害，不分敌我。湿地扩大弹射范围。消耗1AP/120法力，冷却60TU"
+level_description_template = "射程{range_value}，造成{dmg}雷电伤害（{damage_save_text}），并使目标进行{shocked_save_ability_label}豁免；失败则附加{shocked_display_name}（{shocked_duration_tu}TU，强度{shocked_power}）。向范围内全部目标弹射全额伤害，不分敌我。湿地扩大弹射范围。消耗{ap_cost}AP/{mp_cost}法力，冷却{cooldown_tu}TU"
 level_description_configs = {
 "0": {
 "dmg": "4D6"

@@ -45,6 +45,7 @@ const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
 const EQUIPMENT_DURABILITY_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_durability_rules.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const DAMAGE_TAG_CONTENT_RULES_SCRIPT = preload("res://scripts/player/progression/damage_tag_content_rules.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
@@ -206,6 +207,25 @@ func preview_damage_effect(
 	var preview_context := damage_context.duplicate(true)
 	preview_context["damage_roll_mode"] = roll_mode
 	var damage_outcome := _resolve_damage_outcome(source_preview, target_preview, effect_def, preview_context)
+	if bool(damage_outcome.get("invalid_damage_tag", false)):
+		return {
+			"roll_mode": String(roll_mode),
+			"save_mode": String(save_mode),
+			"pre_save_damage": 0,
+			"post_save_damage": 0,
+			"hp_damage": 0,
+			"damage": 0,
+			"shield_absorbed": 0,
+			"shield_hp_before": int(target_unit.current_shield_hp),
+			"shield_hp_after": int(target_preview.current_shield_hp),
+			"damage_outcome": damage_outcome.duplicate(true),
+			"damage_result": {},
+			"save_estimate": {},
+			"error_code": String(damage_outcome.get("error_code", "")),
+			"diagnostics": [_build_invalid_damage_tag_diagnostic(source_unit, target_unit, effect_def, damage_outcome)],
+			"source_preview_after": source_preview,
+			"target_preview_after": target_preview,
+		}
 	var pre_save_damage := int(damage_outcome.get("resolved_damage", 0))
 	var save_estimate := _build_damage_preview_save_estimate(
 		source_preview,
@@ -260,6 +280,7 @@ func resolve_effects(
 	var shield_broken := false
 	var applied := false
 	var black_star_wedge_triggered := false
+	var diagnostics: Array[Dictionary] = []
 
 	for effect_def in resolved_effect_defs:
 		if effect_def == null:
@@ -268,10 +289,13 @@ func resolve_effects(
 			continue
 		match effect_def.effect_type:
 			&"damage":
+				var damage_outcome := _resolve_damage_outcome(source_unit, target_unit, effect_def, damage_context)
+				if bool(damage_outcome.get("invalid_damage_tag", false)):
+					diagnostics.append(_build_invalid_damage_tag_diagnostic(source_unit, target_unit, effect_def, damage_outcome))
+					continue
 				var damage_save_result := BATTLE_SAVE_RESOLVER_SCRIPT.resolve_save(source_unit, target_unit, effect_def, damage_context)
 				if bool(damage_save_result.get("has_save", false)):
 					save_results.append(damage_save_result.duplicate(true))
-				var damage_outcome := _resolve_damage_outcome(source_unit, target_unit, effect_def, damage_context)
 				_apply_save_result_to_damage_outcome(damage_outcome, damage_save_result, effect_def)
 				var damage_result := _apply_damage_to_target(target_unit, damage_outcome, source_unit)
 				var hp_damage := int(damage_result.get("damage", 0))
@@ -511,7 +535,10 @@ func resolve_effects(
 		"terrain_effect_ids": terrain_effect_ids,
 		"save_results": save_results,
 		"height_delta": total_height_delta,
+		"diagnostics": diagnostics,
 	}
+	if not diagnostics.is_empty():
+		result["error_code"] = String(diagnostics[0].get("error_code", ""))
 	_attach_damage_event_aggregates(result)
 	return result
 
@@ -1025,6 +1052,9 @@ func _resolve_damage_outcome(
 	effect_def,
 	damage_context: Dictionary = {}
 ) -> Dictionary:
+	var damage_tag := _resolve_damage_tag(source_unit, effect_def)
+	if damage_tag == &"":
+		return _build_invalid_damage_tag_outcome(source_unit, effect_def)
 	var roll_mode := ProgressionDataUtils.to_string_name(damage_context.get("damage_roll_mode", DAMAGE_PREVIEW_ROLL_MODE_RANDOM))
 	var damage_roll := _roll_damage_dice(effect_def, true, "damage_dice", roll_mode)
 	var weapon_roll := _roll_weapon_dice(source_unit, effect_def, true, "weapon_damage_dice", roll_mode)
@@ -1062,7 +1092,6 @@ func _resolve_damage_outcome(
 	base_damage += _get_roll_total(consumed_stack_roll, "consumed_stack_damage_dice")
 	var offense_multiplier := _build_offense_multiplier(source_unit, target_unit, effect_def)
 	var rolled_damage := maxi(int(round(float(base_damage) * offense_multiplier)), 0)
-	var damage_tag := _resolve_damage_tag(source_unit, effect_def)
 	var mitigation_tier_result := _resolve_mitigation_tier_result(target_unit, damage_tag)
 	var mitigation_tier := ProgressionDataUtils.to_string_name(mitigation_tier_result.get("tier", MITIGATION_TIER_NORMAL))
 	var tier_adjusted_damage := rolled_damage
@@ -1158,6 +1187,50 @@ func _resolve_damage_outcome(
 	_append_trait_trigger_result(result, trait_crit_result)
 	_apply_damage_dice_event_flags(result, damage_dice_event_flags)
 	return result
+
+
+func _build_invalid_damage_tag_outcome(source_unit: BattleUnitState, effect_def) -> Dictionary:
+	var source_label := &"effect.damage_tag"
+	var configured_tag := &""
+	if _should_use_weapon_physical_damage_tag(effect_def):
+		source_label = &"weapon_physical_damage_tag"
+		configured_tag = ProgressionDataUtils.to_string_name(source_unit.weapon_physical_damage_tag if source_unit != null else &"")
+	else:
+		configured_tag = ProgressionDataUtils.to_string_name(effect_def.damage_tag if effect_def != null else &"")
+	var reason := &"missing_damage_tag" if configured_tag == &"" else &"unsupported_damage_tag"
+	return {
+		"invalid_damage_tag": true,
+		"error_code": &"invalid_damage_tag",
+		"reason": reason,
+		"damage_tag_source": source_label,
+		"damage_tag": configured_tag,
+		"mitigation_tier": MITIGATION_TIER_NORMAL,
+		"mitigation_sources": [],
+		"base_damage": 0,
+		"rolled_damage": 0,
+		"tier_adjusted_damage": 0,
+		"resolved_damage": 0,
+		"fixed_mitigation_sources": [],
+		"fixed_mitigation_total": 0,
+		"fully_absorbed_by_mitigation": false,
+	}
+
+
+func _build_invalid_damage_tag_diagnostic(
+	source_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	effect_def,
+	damage_outcome: Dictionary
+) -> Dictionary:
+	return {
+		"error_code": "invalid_damage_tag",
+		"reason": String(damage_outcome.get("reason", "")),
+		"damage_tag_source": String(damage_outcome.get("damage_tag_source", "")),
+		"damage_tag": String(damage_outcome.get("damage_tag", "")),
+		"effect_type": String(ProgressionDataUtils.to_string_name(effect_def.effect_type if effect_def != null else &"")),
+		"source_unit_id": String(source_unit.unit_id if source_unit != null else &""),
+		"target_unit_id": String(target_unit.unit_id if target_unit != null else &""),
+	}
 
 
 func _resolve_crit_trait_result(
@@ -1556,17 +1629,11 @@ func _build_offense_multiplier(source_unit: BattleUnitState, target_unit: Battle
 
 func _resolve_damage_tag(source_unit: BattleUnitState, effect_def) -> StringName:
 	if _should_use_weapon_physical_damage_tag(effect_def):
-		var weapon_damage_tag := _get_unit_weapon_physical_damage_tag(source_unit)
-		if weapon_damage_tag != &"":
-			return weapon_damage_tag
-	var explicit_effect_tag := ProgressionDataUtils.to_string_name(effect_def.damage_tag if effect_def != null else &"")
-	if explicit_effect_tag != &"":
+		return _get_unit_weapon_physical_damage_tag(source_unit)
+	var explicit_effect_tag := DAMAGE_TAG_CONTENT_RULES_SCRIPT.normalize_string_name(effect_def.damage_tag if effect_def != null else &"")
+	if DAMAGE_TAG_CONTENT_RULES_SCRIPT.is_valid_damage_tag(explicit_effect_tag):
 		return explicit_effect_tag
-	if effect_def != null and effect_def.params != null:
-		var explicit_damage_tag := ProgressionDataUtils.to_string_name(effect_def.params.get("damage_tag", ""))
-		if explicit_damage_tag != &"":
-			return explicit_damage_tag
-	return DAMAGE_TAG_PHYSICAL_SLASH
+	return &""
 
 
 func _should_use_weapon_physical_damage_tag(effect_def) -> bool:
@@ -1578,8 +1645,8 @@ func _should_use_weapon_physical_damage_tag(effect_def) -> bool:
 func _get_unit_weapon_physical_damage_tag(unit_state: BattleUnitState) -> StringName:
 	if unit_state == null:
 		return &""
-	var damage_tag := ProgressionDataUtils.to_string_name(unit_state.weapon_physical_damage_tag)
-	if _is_physical_damage_tag(damage_tag):
+	var damage_tag := DAMAGE_TAG_CONTENT_RULES_SCRIPT.normalize_string_name(unit_state.weapon_physical_damage_tag)
+	if DAMAGE_TAG_CONTENT_RULES_SCRIPT.is_valid_physical_damage_tag(damage_tag):
 		return damage_tag
 	return &""
 
@@ -1696,9 +1763,7 @@ func _status_params_apply_to_damage_tag(params: Dictionary, damage_tag: StringNa
 
 
 func _is_physical_damage_tag(damage_tag: StringName) -> bool:
-	return damage_tag == DAMAGE_TAG_PHYSICAL_SLASH \
-		or damage_tag == DAMAGE_TAG_PHYSICAL_PIERCE \
-		or damage_tag == DAMAGE_TAG_PHYSICAL_BLUNT
+	return DAMAGE_TAG_CONTENT_RULES_SCRIPT.is_valid_physical_damage_tag(damage_tag)
 
 
 func _build_fixed_mitigation(target_unit: BattleUnitState, effect_def, damage_tag: StringName) -> Dictionary:
@@ -2030,6 +2095,7 @@ func _build_empty_result() -> Dictionary:
 		"source_status_effect_ids": [],
 		"terrain_effect_ids": [],
 		"height_delta": 0,
+		"diagnostics": [],
 	}
 
 

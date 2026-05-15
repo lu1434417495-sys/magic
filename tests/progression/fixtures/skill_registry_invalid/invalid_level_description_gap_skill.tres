@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"invalid_level_description_gap_skill"
+display_name = "等级描述断档"
+icon_id = &"invalid_level_description_gap_skill"
+description = "用于验证等级描述配置必须从 0 连续覆盖。"
+skill_type = &"passive"
+max_level = 2
+mastery_curve = PackedInt32Array(10, 20)
+level_description_template = "等级描述"
+level_description_configs = {
+"0": {},
+"2": {}
+}
+learn_source = &"book"
+tags = Array[StringName]([&"test"])

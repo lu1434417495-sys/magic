@@ -45,13 +45,14 @@ static func build_move_command(context, target_coord: Vector2i):
 	return command
 
 
-static func build_unit_skill_command(context, skill_id: StringName, target_unit):
+static func build_unit_skill_command(context, skill_id: StringName, target_unit, skill_variant_id: StringName = &""):
 	if context == null or context.unit_state == null or target_unit == null:
 		return null
 	var command = BATTLE_COMMAND_SCRIPT.new()
 	command.command_type = BattleCommand.TYPE_SKILL
 	command.unit_id = context.unit_state.unit_id
 	command.skill_id = skill_id
+	command.skill_variant_id = skill_variant_id
 	command.target_unit_id = target_unit.unit_id
 	command.target_coord = target_unit.coord
 	return command

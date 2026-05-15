@@ -1,6 +1,7 @@
 class_name UseChargePathAoeAction
 extends "res://scripts/enemies/enemy_ai_action.gd"
 
+const BATTLE_TARGET_TEAM_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 const PATH_STEP_AOE_EFFECT_TYPE: StringName = &"path_step_aoe"
 
 @export var skill_ids: Array[StringName] = []
@@ -277,27 +278,11 @@ func _unit_intersects_coords(unit_state: BattleUnitState, coords: Array[Vector2i
 
 
 func _resolve_path_step_target_filter(skill_def: SkillDef, path_step_effect) -> StringName:
-	if path_step_effect != null and path_step_effect.effect_target_team_filter != &"":
-		return path_step_effect.effect_target_team_filter
-	if skill_def != null and skill_def.combat_profile != null:
-		return skill_def.combat_profile.target_team_filter
-	return &"any"
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.resolve_effect_target_filter(skill_def, path_step_effect)
 
 
 func _matches_path_step_target_filter(source_unit: BattleUnitState, target_unit: BattleUnitState, target_filter: StringName) -> bool:
-	if target_unit == null or not target_unit.is_alive:
-		return false
-	match target_filter:
-		&"", &"any":
-			return true
-		&"self":
-			return source_unit != null and target_unit.unit_id == source_unit.unit_id
-		&"ally", &"friendly":
-			return source_unit != null and target_unit.faction_id == source_unit.faction_id
-		&"enemy", &"hostile":
-			return source_unit != null and target_unit.faction_id != source_unit.faction_id
-		_:
-			return true
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_unit_valid_for_filter(source_unit, target_unit, target_filter)
 
 
 func validate_schema() -> Array[String]:

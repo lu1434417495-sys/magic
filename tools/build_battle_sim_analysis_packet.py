@@ -95,6 +95,54 @@ def normalize_profile_id(profile_entry: dict[str, Any]) -> str:
 	return str(profile.get("profile_id", ""))
 
 
+def as_int(value: Any, default: int = 0) -> int:
+	try:
+		return int(value)
+	except (TypeError, ValueError):
+		return default
+
+
+def as_float(value: Any, default: float = 0.0) -> float:
+	try:
+		return float(value)
+	except (TypeError, ValueError):
+		return default
+
+
+def infer_report_shape(report: dict[str, Any]) -> str:
+	profile_entries = report.get("profile_entries", [])
+	if isinstance(profile_entries, list) and profile_entries:
+		return "profile_entries"
+	if isinstance(report.get("runs", []), list):
+		return "standalone_runs"
+	return "unknown"
+
+
+def build_effective_scenario(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
+	raw_scenario = report.get("scenario", {})
+	if isinstance(raw_scenario, dict) and raw_scenario:
+		scenario = dict(raw_scenario)
+	else:
+		scenario_id = str(report.get("scenario_id", "") or report.get("benchmark_id", "") or report_path.stem)
+		scenario = {
+			"scenario_id": scenario_id,
+			"display_name": str(report.get("display_name", "")),
+			"manual_policy": str(report.get("manual_policy", "")),
+		}
+	scenario["report_shape"] = infer_report_shape(report)
+	if "requested_run_count" in report:
+		scenario["requested_run_count"] = as_int(report.get("requested_run_count", 0))
+	if "start_seed" in report:
+		scenario["start_seed"] = report.get("start_seed")
+	if "start_seed_source" in report:
+		scenario["start_seed_source"] = report.get("start_seed_source")
+	if "timeout_seconds" in report:
+		scenario["timeout_seconds"] = as_int(report.get("timeout_seconds", 0))
+	if "timed_out" in report:
+		scenario["timed_out"] = bool(report.get("timed_out", False))
+	return scenario
+
+
 def count_total_runs(profile_entries: list[dict[str, Any]]) -> int:
 	return sum(len(entry.get("runs", [])) for entry in profile_entries)
 
@@ -105,6 +153,291 @@ def count_total_traces(profile_entries: list[dict[str, Any]]) -> int:
 		for entry in profile_entries
 		for run in entry.get("runs", [])
 	)
+
+
+def infer_alive_count(metrics: dict[str, Any], faction_id: str) -> int:
+	units = metrics.get("units", {})
+	factions = metrics.get("factions", {})
+	if not isinstance(units, dict) or not isinstance(factions, dict):
+		return 0
+	unit_count = 0
+	for unit_entry in units.values():
+		if isinstance(unit_entry, dict) and str(unit_entry.get("faction_id", "")) == faction_id:
+			unit_count += 1
+	faction_metrics = factions.get(faction_id, {})
+	death_count = as_int(faction_metrics.get("death_count", 0)) if isinstance(faction_metrics, dict) else 0
+	return max(unit_count - death_count, 0)
+
+
+def normalize_run_for_packet(run: dict[str, Any], report: dict[str, Any], run_index: int) -> dict[str, Any]:
+	normalized = dict(run)
+	metrics = normalized.get("metrics", {})
+	if not isinstance(metrics, dict):
+		metrics = {}
+	if ("units" not in metrics or not isinstance(metrics.get("units"), dict)) and isinstance(normalized.get("units", {}), dict):
+		metrics["units"] = normalized.get("units", {})
+	if ("factions" not in metrics or not isinstance(metrics.get("factions"), dict)) and isinstance(normalized.get("factions", {}), dict):
+		metrics["factions"] = normalized.get("factions", {})
+	normalized["metrics"] = metrics
+	if "battle_ended" not in normalized:
+		runs = report.get("runs", [])
+		all_runs_completed = (
+			isinstance(runs, list)
+			and len(runs) > 0
+			and as_int(report.get("ended_count", -1), -1) == len(runs)
+		)
+		normalized["battle_ended"] = bool(str(normalized.get("winner_faction_id", ""))) or all_runs_completed
+	if "ally_alive" not in normalized:
+		normalized["ally_alive"] = infer_alive_count(metrics, "player")
+	if "enemy_alive" not in normalized:
+		normalized["enemy_alive"] = infer_alive_count(metrics, "hostile")
+	if "run_index" not in normalized:
+		normalized["run_index"] = run_index
+	return normalized
+
+
+def update_counter_from_skill_report(
+	counter: Counter[str],
+	skill_report: dict[str, Any],
+	value_key: str,
+) -> None:
+	for skill_id, entry in skill_report.items():
+		if not isinstance(entry, dict):
+			continue
+		value = as_int(entry.get(value_key, 0))
+		if value:
+			counter[str(skill_id)] += value
+
+
+def build_trace_action_counts_by_faction(runs: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+	counts: dict[str, Counter[str]] = defaultdict(Counter)
+	for run in runs:
+		for trace in run.get("ai_turn_traces", []):
+			if not isinstance(trace, dict):
+				continue
+			faction_id = str(trace.get("faction_id", ""))
+			action_id = str(trace.get("action_id", ""))
+			if faction_id and action_id:
+				counts[faction_id][action_id] += 1
+	return {faction_id: dict(sorted(counter.items())) for faction_id, counter in sorted(counts.items())}
+
+
+def build_trace_command_counts_by_faction(runs: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+	counts: dict[str, Counter[str]] = defaultdict(Counter)
+	for run in runs:
+		for trace in run.get("ai_turn_traces", []):
+			if not isinstance(trace, dict):
+				continue
+			faction_id = str(trace.get("faction_id", ""))
+			command_type = ""
+			command = trace.get("command", {})
+			if isinstance(command, dict):
+				command_type = str(command.get("command_type", "") or command.get("type", ""))
+			score_input = trace.get("score_input", {})
+			if not command_type and isinstance(score_input, dict):
+				command_type = str(score_input.get("command_type", ""))
+			if faction_id and command_type:
+				counts[faction_id][command_type] += 1
+	return {faction_id: dict(sorted(counter.items())) for faction_id, counter in sorted(counts.items())}
+
+
+def merge_faction_metric_totals(runs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+	totals: dict[str, dict[str, Any]] = defaultdict(lambda: defaultdict(float))
+	for run in runs:
+		metrics = run.get("metrics", {})
+		factions = metrics.get("factions", {}) if isinstance(metrics, dict) else {}
+		if not isinstance(factions, dict):
+			continue
+		for faction_id, faction_entry in factions.items():
+			if not isinstance(faction_entry, dict):
+				continue
+			for key, value in faction_entry.items():
+				if isinstance(value, bool):
+					continue
+				if isinstance(value, (int, float)):
+					totals[str(faction_id)][str(key)] += value
+	result: dict[str, dict[str, Any]] = {}
+	for faction_id, faction_totals in sorted(totals.items()):
+		result[faction_id] = {
+			key: int(value) if float(value).is_integer() else value
+			for key, value in sorted(faction_totals.items())
+		}
+	return result
+
+
+def infer_unit_role(unit_id: str, display_name: str) -> str:
+	label = f"{unit_id} {display_name}".lower()
+	for role in ["mage", "archer", "sword", "wolf", "harrier", "beast", "warrior"]:
+		if role in label:
+			return role
+	return "other"
+
+
+def collect_unit_totals(report: dict[str, Any], runs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+	per_unit_summary = report.get("per_unit_summary", {})
+	if isinstance(per_unit_summary, dict) and per_unit_summary:
+		return {
+			str(unit_id): dict(unit_entry)
+			for unit_id, unit_entry in per_unit_summary.items()
+			if isinstance(unit_entry, dict)
+		}
+	unit_totals: dict[str, dict[str, Any]] = {}
+	for run in runs:
+		metrics = run.get("metrics", {})
+		units = metrics.get("units", {}) if isinstance(metrics, dict) else {}
+		if not isinstance(units, dict):
+			continue
+		for unit_id, unit_entry in units.items():
+			if not isinstance(unit_entry, dict):
+				continue
+			unit_id_text = str(unit_id)
+			total = unit_totals.setdefault(
+				unit_id_text,
+				{
+					"display_name": str(unit_entry.get("display_name", "")),
+					"faction_id": str(unit_entry.get("faction_id", "")),
+					"runs": 0,
+					"turn_count": 0,
+					"total_damage_done": 0,
+					"total_damage_taken": 0,
+					"kill_count": 0,
+					"death_count": 0,
+				},
+			)
+			total["runs"] += 1
+			for key in ["turn_count", "total_damage_done", "total_damage_taken", "kill_count", "death_count"]:
+				total[key] += as_int(unit_entry.get(key, 0))
+	return unit_totals
+
+
+def build_unit_contribution_summary(
+	report: dict[str, Any],
+	runs: list[dict[str, Any]],
+	faction_metric_totals: dict[str, dict[str, Any]],
+	limit: int = 10,
+) -> dict[str, Any]:
+	unit_totals = collect_unit_totals(report, runs)
+	role_totals: dict[tuple[str, str], dict[str, Any]] = {}
+	unit_rows: list[dict[str, Any]] = []
+	for unit_id, unit_entry in unit_totals.items():
+		faction_id = str(unit_entry.get("faction_id", ""))
+		display_name = str(unit_entry.get("display_name", ""))
+		role = infer_unit_role(unit_id, display_name)
+		row = {
+			"unit_id": unit_id,
+			"display_name": display_name,
+			"faction_id": faction_id,
+			"role": role,
+			"damage_done": as_int(unit_entry.get("total_damage_done", 0)),
+			"damage_taken": as_int(unit_entry.get("total_damage_taken", 0)),
+			"kills": as_int(unit_entry.get("kill_count", 0)),
+			"deaths": as_int(unit_entry.get("death_count", 0)),
+			"turns": as_int(unit_entry.get("turn_count", 0)),
+		}
+		unit_rows.append(row)
+		role_key = (faction_id, role)
+		role_total = role_totals.setdefault(
+			role_key,
+			{
+				"faction_id": faction_id,
+				"role": role,
+				"unit_count": 0,
+				"damage_done": 0,
+				"damage_taken": 0,
+				"kills": 0,
+				"deaths": 0,
+				"turns": 0,
+			},
+		)
+		role_total["unit_count"] += 1
+		for key in ["damage_done", "damage_taken", "kills", "deaths", "turns"]:
+			role_total[key] += row[key]
+	role_rows = []
+	for role_total in role_totals.values():
+		faction_id = str(role_total.get("faction_id", ""))
+		faction_damage = as_float(faction_metric_totals.get(faction_id, {}).get("total_damage_done", 0))
+		damage_share = float(role_total.get("damage_done", 0)) / faction_damage if faction_damage > 0 else 0.0
+		role_row = dict(role_total)
+		role_row["damage_share"] = round(damage_share, 4)
+		role_rows.append(role_row)
+	return {
+		"role_totals": sorted(role_rows, key=lambda row: (str(row.get("faction_id", "")), -as_int(row.get("damage_done", 0)), str(row.get("role", "")))),
+		"top_damage_units": sorted(unit_rows, key=lambda row: (-as_int(row.get("damage_done", 0)), str(row.get("unit_id", ""))))[:limit],
+		"top_damage_taken_units": sorted(unit_rows, key=lambda row: (-as_int(row.get("damage_taken", 0)), str(row.get("unit_id", ""))))[:limit],
+	}
+
+
+def build_standalone_summary(report: dict[str, Any], runs: list[dict[str, Any]]) -> dict[str, Any]:
+	success_counter: Counter[str] = Counter()
+	attempt_counter: Counter[str] = Counter()
+	for run in runs:
+		metrics = run.get("metrics", {})
+		if not isinstance(metrics, dict):
+			continue
+		success_counter.update(build_run_skill_counts(metrics))
+		attempt_counter.update(build_run_skill_attempt_counts(metrics))
+	global_skill_report = report.get("global", {})
+	if isinstance(global_skill_report, dict) and not success_counter:
+		update_counter_from_skill_report(success_counter, global_skill_report, "successes")
+	if isinstance(global_skill_report, dict) and not attempt_counter:
+		update_counter_from_skill_report(attempt_counter, global_skill_report, "attempts")
+	completed_runs = [run for run in runs if bool(run.get("battle_ended", False))]
+	wins_by_faction: dict[str, int] = {}
+	for run in completed_runs:
+		winner_faction_id = str(run.get("winner_faction_id", ""))
+		if winner_faction_id:
+			wins_by_faction[winner_faction_id] = wins_by_faction.get(winner_faction_id, 0) + 1
+	top_level_wins = report.get("win_rate", {})
+	if isinstance(top_level_wins, dict) and top_level_wins:
+		wins_by_faction = {str(key): as_int(value) for key, value in top_level_wins.items()}
+	faction_metric_totals = merge_faction_metric_totals(runs)
+	return {
+		"profile_id": "standalone",
+		"display_name": "Standalone report",
+		"run_count": len(runs),
+		"requested_run_count": as_int(report.get("requested_run_count", len(runs)), len(runs)),
+		"completed_run_count": len(completed_runs),
+		"ended_count": as_int(report.get("ended_count", len(completed_runs)), len(completed_runs)),
+		"timed_out": bool(report.get("timed_out", False)),
+		"elapsed_seconds": as_float(report.get("elapsed_seconds", 0.0)),
+		"wins_by_faction": wins_by_faction,
+		"win_rate_by_faction": build_rate_dict(wins_by_faction, max(len(completed_runs), 1)),
+		"average_iterations": as_float(report.get("avg_iterations", 0.0)),
+		"average_timeline_steps": as_float(report.get("avg_timeline_steps", 0.0)),
+		"skill_usage_totals": dict(sorted(success_counter.items())),
+		"skill_attempt_totals": dict(sorted(attempt_counter.items())),
+		"action_choice_counts": build_trace_action_counts_by_faction(runs),
+		"command_counts_by_faction": build_trace_command_counts_by_faction(runs),
+		"faction_metric_totals": faction_metric_totals,
+		"unit_contribution_summary": build_unit_contribution_summary(report, runs, faction_metric_totals),
+	}
+
+
+def build_effective_profile_entries(report: dict[str, Any]) -> list[dict[str, Any]]:
+	raw_profile_entries = report.get("profile_entries", [])
+	if isinstance(raw_profile_entries, list) and raw_profile_entries:
+		return [entry for entry in raw_profile_entries if isinstance(entry, dict)]
+	raw_runs = report.get("runs", [])
+	if not isinstance(raw_runs, list) or not raw_runs:
+		return []
+	runs = [
+		normalize_run_for_packet(run, report, index)
+		for index, run in enumerate(raw_runs)
+		if isinstance(run, dict)
+	]
+	if not runs:
+		return []
+	return [
+		{
+			"profile": {
+				"profile_id": "standalone",
+				"display_name": "Standalone report",
+				"description": "Synthetic profile entry derived from a top-level runs report.",
+			},
+			"summary": build_standalone_summary(report, runs),
+			"runs": runs,
+		}
+	]
 
 
 def sorted_counter_items(counter: Counter[str], limit: int | None = None) -> list[dict[str, Any]]:
@@ -141,6 +474,8 @@ def build_run_skill_counts(metrics: dict[str, Any]) -> Counter[str]:
 		if not isinstance(unit_entry, dict):
 			continue
 		skill_counts = unit_entry.get("skill_success_counts", {})
+		if "skill_success_counts" not in unit_entry or not isinstance(skill_counts, dict):
+			skill_counts = unit_entry.get("skill_successes", {})
 		if not isinstance(skill_counts, dict):
 			continue
 		for skill_id, count in skill_counts.items():
@@ -154,6 +489,8 @@ def build_run_skill_attempt_counts(metrics: dict[str, Any]) -> Counter[str]:
 		if not isinstance(unit_entry, dict):
 			continue
 		skill_counts = unit_entry.get("skill_attempt_counts", {})
+		if "skill_attempt_counts" not in unit_entry or not isinstance(skill_counts, dict):
+			skill_counts = unit_entry.get("skill_attempts", {})
 		if not isinstance(skill_counts, dict):
 			continue
 		for skill_id, count in skill_counts.items():
@@ -337,10 +674,10 @@ def build_summary_packet(
 	report_path: Path,
 	trace_path: Path | None,
 	report: dict[str, Any],
+	scenario: dict[str, Any],
 	profile_entries: list[dict[str, Any]],
 	focus_hints: list[dict[str, Any]],
 ) -> dict[str, Any]:
-	scenario = report.get("scenario", {})
 	profile_summaries = build_profile_summaries(profile_entries, scenario)
 	return {
 		"source_files": {
@@ -361,6 +698,7 @@ def build_summary_packet(
 			"Do not feed the original report.json and turn_traces.jsonl together unless full-fidelity review is required, because the report already contains embedded ai_turn_traces.",
 		],
 		"scenario": scenario,
+		"report_shape": str(scenario.get("report_shape", infer_report_shape(report))),
 		"generated_at_unix": int(report.get("generated_at_unix", 0)),
 		"profile_count": len(profile_entries),
 		"run_count": count_total_runs(profile_entries),
@@ -373,9 +711,10 @@ def build_summary_packet(
 
 def build_trace_records(
 	report: dict[str, Any],
+	scenario: dict[str, Any],
 	profile_entries: list[dict[str, Any]],
 ) -> dict[str, list[dict[str, Any]]]:
-	scenario_id = str(report.get("scenario", {}).get("scenario_id", ""))
+	scenario_id = str(scenario.get("scenario_id", ""))
 	traces_by_profile: dict[str, list[dict[str, Any]]] = defaultdict(list)
 	for entry in profile_entries:
 		profile_id = normalize_profile_id(entry)
@@ -443,6 +782,23 @@ def trace_sort_key(trace: dict[str, Any]) -> tuple[int, int, str, str]:
 	)
 
 
+def interleave_traces_by_seed(traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
+	buckets: dict[int, list[dict[str, Any]]] = defaultdict(list)
+	for trace in sorted(traces, key=trace_sort_key):
+		buckets[int(trace.get("seed", 0))].append(trace)
+	ordered: list[dict[str, Any]] = []
+	seed_values = sorted(buckets.keys())
+	while True:
+		added = False
+		for seed in seed_values:
+			if buckets[seed]:
+				ordered.append(buckets[seed].pop(0))
+				added = True
+		if not added:
+			break
+	return ordered
+
+
 def trace_identity(trace: dict[str, Any]) -> tuple[str, int, str, int, str]:
 	return (
 		str(trace.get("profile_id", "")),
@@ -492,7 +848,8 @@ def select_focus_traces(
 			else:
 				fallback.append(copy_trace_with_reason(trace, ["profile_fill"]))
 		profile_selected: list[dict[str, Any]] = []
-		for trace in matching + fallback:
+		ordered_fallback = interleave_traces_by_seed(fallback) if not matching else fallback
+		for trace in matching + ordered_fallback:
 			identity = trace_identity(trace)
 			if identity in seen:
 				continue
@@ -539,12 +896,53 @@ def format_delta_entries(entries: list[dict[str, Any]], value_key: str) -> list[
 	return lines
 
 
+def format_role_entries(entries: list[dict[str, Any]]) -> list[str]:
+	if not entries:
+		return ["none"]
+	lines: list[str] = []
+	for entry in entries[:8]:
+		damage_share = float(entry.get("damage_share", 0.0)) * 100.0
+		lines.append(
+			"- %s/%s: damage=%s share=%.1f%% kills=%s deaths=%s taken=%s"
+			% (
+				entry.get("faction_id", ""),
+				entry.get("role", ""),
+				entry.get("damage_done", 0),
+				damage_share,
+				entry.get("kills", 0),
+				entry.get("deaths", 0),
+				entry.get("damage_taken", 0),
+			)
+		)
+	return lines
+
+
+def format_unit_entries(entries: list[dict[str, Any]]) -> list[str]:
+	if not entries:
+		return ["none"]
+	lines: list[str] = []
+	for entry in entries[:8]:
+		lines.append(
+			"- %s/%s: damage=%s kills=%s deaths=%s taken=%s"
+			% (
+				entry.get("faction_id", ""),
+				entry.get("unit_id", ""),
+				entry.get("damage_done", 0),
+				entry.get("kills", 0),
+				entry.get("deaths", 0),
+				entry.get("damage_taken", 0),
+			)
+		)
+	return lines
+
+
 def build_analysis_brief(
 	report_path: Path,
 	trace_path: Path | None,
 	summary_path: Path,
 	focus_traces_path: Path,
 	report: dict[str, Any],
+	scenario: dict[str, Any],
 	profile_entries: list[dict[str, Any]],
 	focus_hints: list[dict[str, Any]],
 	selected_traces: list[dict[str, Any]],
@@ -553,7 +951,6 @@ def build_analysis_brief(
 	run_count = count_total_runs(profile_entries)
 	trace_count = count_total_traces(profile_entries)
 	focus_trace_stats = build_focus_trace_stats(selected_traces)
-	scenario = report.get("scenario", {})
 	profile_summaries = build_profile_summaries(profile_entries, scenario)
 	lines: list[str] = [
 		"# Battle Sim Analysis Packet",
@@ -565,8 +962,9 @@ def build_analysis_brief(
 		f"- focus_traces_jsonl: `{focus_traces_path}`",
 		"",
 		"## Scenario",
-		f"- scenario_id: `{report.get('scenario', {}).get('scenario_id', '')}`",
+		f"- scenario_id: `{scenario.get('scenario_id', '')}`",
 		f"- manual_policy: `{scenario.get('manual_policy', '')}`",
+		f"- report_shape: `{scenario.get('report_shape', infer_report_shape(report))}`",
 		f"- profile_count: `{profile_count}`",
 		f"- run_count: `{run_count}`",
 		f"- embedded_trace_count: `{trace_count}`",
@@ -617,8 +1015,10 @@ def build_analysis_brief(
 	lines.append("## Profile Diagnostics")
 	for summary_entry in profile_summaries:
 		profile = summary_entry.get("profile", {})
+		summary_data = summary_entry.get("summary", {})
 		guardrails = summary_entry.get("guardrails", {})
 		skill_counters = summary_entry.get("skill_counters", {})
+		unit_contribution = summary_data.get("unit_contribution_summary", {}) if isinstance(summary_data, dict) else {}
 		lines.extend(
 			[
 				f"### `{profile.get('profile_id', '')}`",
@@ -626,6 +1026,11 @@ def build_analysis_brief(
 				f"- completed_run_count: `{guardrails.get('completed_run_count', 0)}`",
 				f"- unfinished_run_count: `{guardrails.get('unfinished_run_count', 0)}`",
 				f"- completed_only_win_rate_by_faction: `{guardrails.get('completed_only_win_rate_by_faction', {})}`",
+				f"- faction_metric_totals: `{summary_data.get('faction_metric_totals', {}) if isinstance(summary_data, dict) else {}}`",
+				"- role_damage_share:",
+				*format_role_entries(unit_contribution.get("role_totals", []) if isinstance(unit_contribution, dict) else []),
+				"- top_damage_units:",
+				*format_unit_entries(unit_contribution.get("top_damage_units", []) if isinstance(unit_contribution, dict) else []),
 				"- top_skill_successes:",
 				*format_delta_entries(skill_counters.get("top_skill_successes", []), "count"),
 				"- top_skill_attempts:",
@@ -682,7 +1087,8 @@ def main() -> int:
 	args = parse_args()
 	report_path = Path(args.report).expanduser().resolve()
 	report = load_json(report_path)
-	profile_entries = list(report.get("profile_entries", []))
+	scenario = build_effective_scenario(report, report_path)
+	profile_entries = build_effective_profile_entries(report)
 	trace_path = resolve_user_path(str(report.get("output_files", {}).get("turn_trace_jsonl", "")), report_path)
 	output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else default_output_dir(report_path)
 	output_dir.mkdir(parents=True, exist_ok=True)
@@ -692,10 +1098,10 @@ def main() -> int:
 		top_skills=max(args.top_skills, 0),
 		top_actions=max(args.top_actions, 0),
 	)
-	summary_packet = build_summary_packet(report_path, trace_path, report, profile_entries, focus_hints)
+	summary_packet = build_summary_packet(report_path, trace_path, report, scenario, profile_entries, focus_hints)
 	selected_traces = select_focus_traces(
 		profile_entries,
-		build_trace_records(report, profile_entries),
+		build_trace_records(report, scenario, profile_entries),
 		focus_hints,
 		max_focus_traces=max(args.max_focus_traces, 1),
 		max_traces_per_profile=max(args.max_traces_per_profile, 1),
@@ -718,6 +1124,7 @@ def main() -> int:
 			summary_path,
 			focus_traces_path,
 			report,
+			scenario,
 			profile_entries,
 			focus_hints,
 			selected_traces,

@@ -39,6 +39,7 @@ const HUMAN_VERSATILITY_TRAIT_ID: StringName = &"human_versatility"
 
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
 const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
+const CHARACTER_CREATION_IDENTITY_OPTION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/character_creation_identity_option_service.gd")
 const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 const LABEL_REFRESH_INTERVAL_MS := 60
@@ -773,7 +774,7 @@ func _rebuild_creation_identity_options() -> void:
 		_refresh_identity_option_controls()
 		return
 
-	_race_ids = _sorted_string_name_keys(_progression_content_registry.get_race_defs())
+	_race_ids = CHARACTER_CREATION_IDENTITY_OPTION_SERVICE_SCRIPT.collect_creation_race_ids(_progression_content_registry)
 	_selected_race_id = _choose_race_id(_selected_race_id)
 	_selected_subrace_id = _choose_subrace_id(_selected_subrace_id)
 	_refresh_age_stage_selection()
@@ -790,60 +791,28 @@ func _refresh_identity_option_controls() -> void:
 	_update_button_states()
 
 
-func _sorted_string_name_keys(registry: Dictionary) -> Array[StringName]:
-	var ids: Array[StringName] = []
-	for key in registry.keys():
-		var id := StringName(String(key))
-		if id != &"":
-			ids.append(id)
-	ids.sort_custom(func(a: StringName, b: StringName) -> bool:
-		return String(a) < String(b)
-	)
-	return ids
-
-
 func _choose_race_id(current_id: StringName) -> StringName:
-	var race_defs: Dictionary = _progression_content_registry.get_race_defs()
-	if current_id != &"" and race_defs.has(current_id):
-		return current_id
-	if race_defs.has(DEFAULT_CREATION_RACE_ID):
-		return DEFAULT_CREATION_RACE_ID
-	if not _race_ids.is_empty():
-		return _race_ids[0]
-	return &""
+	return CHARACTER_CREATION_IDENTITY_OPTION_SERVICE_SCRIPT.choose_race_id(
+		_progression_content_registry,
+		current_id,
+		DEFAULT_CREATION_RACE_ID
+	)
 
 
 func _choose_subrace_id(current_id: StringName) -> StringName:
-	var candidates := _collect_subrace_ids_for_race(_selected_race_id)
-	_subrace_ids = candidates
-	if current_id != &"" and candidates.has(current_id):
-		return current_id
-	var race_def := _get_race_def(_selected_race_id)
-	if race_def != null and candidates.has(race_def.default_subrace_id):
-		return race_def.default_subrace_id
-	if not candidates.is_empty():
-		return candidates[0]
-	return &""
+	_subrace_ids = _collect_subrace_ids_for_race(_selected_race_id)
+	return CHARACTER_CREATION_IDENTITY_OPTION_SERVICE_SCRIPT.choose_subrace_id(
+		_progression_content_registry,
+		_selected_race_id,
+		current_id
+	)
 
 
 func _collect_subrace_ids_for_race(race_id: StringName) -> Array[StringName]:
-	var ids: Array[StringName] = []
-	var race_def := _get_race_def(race_id)
-	var subrace_defs: Dictionary = _progression_content_registry.get_subrace_defs()
-	if race_def != null:
-		for subrace_id in race_def.subrace_ids:
-			if subrace_defs.has(subrace_id) and not ids.has(subrace_id):
-				ids.append(subrace_id)
-	if ids.is_empty():
-		for key in subrace_defs.keys():
-			var subrace_id := StringName(String(key))
-			var subrace_def := subrace_defs.get(subrace_id) as SubraceDef
-			if subrace_def != null and subrace_def.parent_race_id == race_id:
-				ids.append(subrace_id)
-	ids.sort_custom(func(a: StringName, b: StringName) -> bool:
-		return String(a) < String(b)
+	return CHARACTER_CREATION_IDENTITY_OPTION_SERVICE_SCRIPT.collect_subrace_ids_for_race(
+		_progression_content_registry,
+		race_id
 	)
-	return ids
 
 
 func _refresh_age_stage_selection() -> void:
@@ -1058,6 +1027,13 @@ func _refresh_identity_previews() -> void:
 
 
 func _build_selected_identity_payload() -> Dictionary:
+	if not CHARACTER_CREATION_IDENTITY_OPTION_SERVICE_SCRIPT.is_valid_creation_race_subrace_pair(
+		_progression_content_registry,
+		_selected_race_id,
+		_selected_subrace_id
+	):
+		return {}
+
 	var race_def := _get_selected_race_def()
 	var subrace_def := _get_selected_subrace_def()
 	var age_profile := _get_selected_age_profile()
@@ -1258,7 +1234,7 @@ func _selected_identity_has_human_versatility() -> bool:
 	for trait_id in trait_ids:
 		if trait_id == HUMAN_VERSATILITY_TRAIT_ID:
 			return true
-		var trait_def := trait_defs.get(trait_id) as RaceTraitDef
+		var trait_def := _lookup_registry_entry(trait_defs, trait_id) as RaceTraitDef
 		if trait_def != null and trait_def.effect_type == HUMAN_VERSATILITY_TRAIT_ID:
 			return true
 	return false
@@ -1286,19 +1262,28 @@ func _get_selected_age_profile() -> AgeProfileDef:
 	var race_def := _get_selected_race_def()
 	if race_def == null or _progression_content_registry == null:
 		return null
-	return _progression_content_registry.get_age_profile_defs().get(race_def.age_profile_id) as AgeProfileDef
+	return _lookup_registry_entry(_progression_content_registry.get_age_profile_defs(), race_def.age_profile_id) as AgeProfileDef
 
 
 func _get_race_def(race_id: StringName) -> RaceDef:
 	if race_id == &"" or _progression_content_registry == null:
 		return null
-	return _progression_content_registry.get_race_defs().get(race_id) as RaceDef
+	return _lookup_registry_entry(_progression_content_registry.get_race_defs(), race_id) as RaceDef
 
 
 func _get_subrace_def(subrace_id: StringName) -> SubraceDef:
 	if subrace_id == &"" or _progression_content_registry == null:
 		return null
-	return _progression_content_registry.get_subrace_defs().get(subrace_id) as SubraceDef
+	return _lookup_registry_entry(_progression_content_registry.get_subrace_defs(), subrace_id) as SubraceDef
+
+
+func _lookup_registry_entry(registry: Dictionary, id: StringName):
+	if registry.has(id):
+		return registry.get(id)
+	var text_id := String(id)
+	if registry.has(text_id):
+		return registry.get(text_id)
+	return null
 
 
 func _get_age_stage_rule(age_profile: AgeProfileDef, stage_id: StringName) -> AgeStageRule:

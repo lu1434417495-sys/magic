@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="3_variant"]
+
+[sub_resource type="Resource" id="Variant_level_less_overlevel"]
+script = ExtResource("3_variant")
+variant_id = &"locked_variant"
+target_mode = &"ground"
+footprint_pattern = &"single"
+min_skill_level = 1
+
+[sub_resource type="Resource" id="Combat_level_less_overlevel"]
+script = ExtResource("2_combat")
+skill_id = &"invalid_level_less_variant_skill"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_coord"
+selection_order_mode = &"stable"
+cast_variants = Array[ExtResource("3_variant")]([SubResource("Variant_level_less_overlevel")])
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"invalid_level_less_variant_skill"
+display_name = "无等级越级形态"
+icon_id = &"invalid_level_less_variant_skill"
+description = "用于验证 max_level 为 0 的技能不允许正数 min_skill_level。"
+skill_type = &"active"
+max_level = 0
+mastery_curve = PackedInt32Array()
+learn_source = &"book"
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Combat_level_less_overlevel")

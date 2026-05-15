@@ -8,7 +8,6 @@
 script = ExtResource("3_effect")
 effect_type = &"damage"
 power = 0
-damage_tag = &"physical_slash"
 params = { "add_weapon_dice": true, "requires_weapon": true, "use_weapon_physical_damage_tag": true }
 
 [sub_resource type="Resource" id="Resource_push"]

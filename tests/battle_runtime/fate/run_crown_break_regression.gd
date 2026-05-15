@@ -458,6 +458,10 @@ func _build_unit(
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 6)
+	# Fixture 既然把 mp_max / aura_max 设非 0，就视作两条资源都已解锁；
+	# 否则技能 preview/execute 阶段 get_locked_combat_resource_block_reason 会因为 has_combat_resource_unlocked=false 直接拒绝施法。
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>A2 战斗指令区重建详细计划</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 920px; margin: 32px auto; padding: 0 24px; line-height: 1.65; color: #222; }
+  h1 { border-bottom: 2px solid #333; padding-bottom: 8px; }
+  h2 { margin-top: 32px; border-left: 4px solid #555; padding-left: 10px; }
+  h3 { margin-top: 22px; color: #444; }
+  code, pre { font-family: "JetBrains Mono", Consolas, monospace; }
+  code { background: #f3f3f3; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  pre { background: #f7f7f7; border: 1px solid #e1e1e1; border-radius: 4px; padding: 12px 16px; overflow-x: auto; font-size: 0.9em; line-height: 1.5; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #d0d0d0; padding: 6px 10px; text-align: left; vertical-align: top; font-size: 0.95em; }
+  th { background: #efefef; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .meta { color: #666; font-size: 0.9em; margin-bottom: 16px; }
+  .callout { background: #fff8e1; border-left: 4px solid #f0ad4e; padding: 8px 14px; margin: 12px 0; }
+  .risk { background: #fdecea; border-left: 4px solid #d9534f; padding: 8px 14px; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>A2 战斗指令区重建详细计划</h1>
+
+<p class="meta">
+  日期：<code>2026-05-16</code><br>
+  来源：<code>docs/discussions/battle_map_ui_shortcomings.md</code> 中 A2 条目。<br>
+  状态：实现前的拆解，不包含代码修改。
+</p>
+
+<h2>1. 目标与范围</h2>
+
+<p>恢复 <code>BottomPanel</code> / <code>TopBar</code> 上<strong>被删但未重建</strong>的 UI 入口，把已经存在的命令通道暴露给玩家。<strong>不</strong>新增命令；这是纯渲染层补齐。</p>
+
+<div class="callout">
+  <strong>设计前提</strong>：战斗是策略游戏，节奏故意拉慢——每次选技能都是一次审慎决策，不追求"手不离键盘"的速度感。基于此前提：
+  <ul>
+    <li>技能槽<strong>取消</strong> 1-9 键盘绑定，仅支持鼠标点击。槽数可无限扩展，不再受键位上限约束。</li>
+    <li>指令按钮（结算 / 重置移动 / 切变体 / 取消）保留鼠标为主、键盘为辅的双通道——这些是高频战术节奏控制，键盘加速合理。</li>
+    <li>视口平移（WASD）保留键盘——属于摄像机操作，与策略决策无关。</li>
+  </ul>
+</div>
+
+<p>顺带扫掉的关联项：</p>
+<ul>
+  <li>C4 <code>ModeValueLabel</code> 改 <code>ModeButton</code>（点击切换 control_mode）</li>
+  <li>A1 残留：<code>selected_skill_confirm_ready</code> / <code>selected_skill_auto_cast_ready</code> 挂到结算按钮高亮态</li>
+  <li>E2 面板内精简战报回显（<code>LogLabel</code>）</li>
+  <li>C2 全局键位说明位（按钮自带 hotkey 文本）</li>
+</ul>
+
+<h2>2. 当前可用的命令通道（已就绪，等 UI）</h2>
+
+<p><code>battle_session_facade.gd:127-253</code> 已经有完整 API，按钮直接调用 <code>world_map_system._runtime_proxy.command_battle_*</code> 即可。</p>
+
+<table>
+  <thead>
+    <tr><th>命令</th><th>facade 方法</th><th>当前键盘绑定</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>选技能槽</td><td><code>command_battle_select_skill(i)</code></td><td>仅鼠标点击技能槽（不再绑定 1-9）</td></tr>
+    <tr><td>切技能变体</td><td><code>command_battle_cycle_variant(±1)</code></td><td>Q / E</td></tr>
+    <tr><td>清除技能选择</td><td><code>command_battle_clear_skill()</code></td><td>Esc / R</td></tr>
+    <tr><td>移动到坐标</td><td><code>command_battle_move_to(coord)</code></td><td>鼠标点</td></tr>
+    <tr><td>按方向移动</td><td><code>command_battle_move_direction(dir)</code></td><td>WASD</td></tr>
+    <tr><td>待机 / 结算</td><td><code>command_battle_wait_or_resolve()</code></td><td>Enter</td></tr>
+    <tr><td>检视格</td><td><code>command_battle_inspect(coord)</code></td><td>右键</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>未走 facade 通道</strong>：<code>reset_movement</code>（重置本回合移动累计）。需要先确认 facade 是否要新增 <code>command_battle_reset_movement</code> —— 这是 A2 唯一可能涉及"动 facade"的点，建议先排查再下手。
+</div>
+
+<h2>3. snapshot 已就绪的字段（adapter 已产出）</h2>
+
+<p><code>battle_hud_adapter._build_hud_snapshot</code> 返回里已有：</p>
+
+<ul>
+  <li><code>mode_text</code>（manual / auto / ...）→ ModeButton 显示文本</li>
+  <li><code>selected_skill_confirm_ready</code> → 结算按钮高亮态</li>
+  <li><code>selected_skill_auto_cast_ready</code> → "自动施法可用"提示</li>
+  <li><code>selected_skill_target_count</code> / <code>target_min_count</code> / <code>target_max_count</code> → 命令摘要 "2/3 目标"</li>
+  <li><code>skill_title</code> / <code>skill_subtitle</code> → 已渲染到 SkillPanel，可不再重复</li>
+</ul>
+
+<h3>需要新增的 adapter 字段</h3>
+
+<ul>
+  <li><code>recent_battle_log_lines: Array[String]</code> —— 给面板内 <code>LogLabel</code> 用，取 RuntimeLogDock 同源 log，前 N 条精简版。</li>
+  <li><code>hint_text: String</code> —— 当前可用操作的一行提示（如"按 Enter 结算 / Esc 取消选择"），来自当前 selection state 状态机。</li>
+  <li><code>command_dock: Dictionary</code> —— 单独打包按钮启用态，避免面板自己拼：</li>
+</ul>
+
+<pre>command_dock = {
+    "resolve_enabled": bool,         # confirm_ready &amp;&amp; not modal
+    "reset_movement_enabled": bool,  # 本回合有移动累计
+    "clear_skill_enabled": bool,     # selected_skill_id != ""
+    "prev_variant_enabled": bool,    # current_variant > 0
+    "next_variant_enabled": bool,    # current_variant < max
+    "mode_cycle_enabled": bool,      # ai / manual 切换允许
+}</pre>
+
+<h2>4. 节点 / 信号设计</h2>
+
+<p>被删除的历史节点名（来自 A2 原始列表）：<code>ResolveBattleButton</code>、<code>ResetMovementButton</code>、<code>PrevVariantButton</code>、<code>NextVariantButton</code>、<code>ClearSkillButton</code>、<code>CommandDock</code>、<code>CommandSummaryLabel</code>、<code>HintLabel</code>、<code>LogLabel</code>、<code>UnitDetailLabel</code>。</p>
+
+<p>建议恢复 8 个节点，组织成 3 个区块：</p>
+
+<h3>区块 A — TopBar 右端（C4 顺带做）</h3>
+
+<pre>TopBar/RightCell
+├─ ModeButton (Button)            # 取代 ModeValueLabel；点击 cycle control_mode
+└─ ResolveBattleButton (Button)   # 状态：confirm_ready → 主色亮 / 否则灰</pre>
+
+<h3>区块 B — BottomPanel 中央偏右（指令带）</h3>
+
+<pre>BottomPanel/CommandDock (HBoxContainer)
+├─ ClearSkillButton (Button)      # 显示 "Esc 取消选择"，selected_skill_id 非空时亮
+├─ PrevVariantButton (Button)     # ← 显示 "Q"
+├─ VariantNameLabel               # 当前 variant 名（从 skill_title 拆出来）
+├─ NextVariantButton (Button)     # → 显示 "E"
+├─ ResetMovementButton (Button)   # "重置本回合移动"
+└─ CommandSummaryLabel            # "已选 2/3 目标 · 50 STA"</pre>
+
+<h3>区块 C — BottomPanel 右侧（信息位）</h3>
+
+<pre>BottomPanel/InfoColumn (VBoxContainer)
+├─ HintLabel    # 一行可执行操作提示，来自 snapshot.hint_text
+└─ LogLabel     # 最近 3-4 条精简战报，固定高度</pre>
+
+<h3>信号约定</h3>
+
+<p>每个按钮发面板级 signal，由 <code>world_map_system</code> 统一接 facade：</p>
+
+<pre>signal battle_resolve_pressed
+signal battle_reset_movement_pressed
+signal battle_cycle_variant_pressed(step: int)
+signal battle_clear_skill_pressed
+signal battle_mode_toggle_pressed</pre>
+
+<p>参考 <code>world_map_system.gd:136</code> 已有的 <code>battle_skill_slot_selected.connect(...)</code> 模式，<strong>不直接把 facade 注入面板</strong>——保持 panel 纯渲染。</p>
+
+<h2>5. 工作清单（按落地顺序）</h2>
+
+<table>
+  <thead>
+    <tr><th>步骤</th><th>改动</th><th>文件</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>排查 reset_movement 是否需要新 facade 命令</td><td><code>battle_session_facade.gd</code>、<code>battle_selection.gd</code></td></tr>
+    <tr><td>2</td><td>adapter 加 <code>command_dock</code> / <code>hint_text</code> / <code>recent_battle_log_lines</code> 三个 snapshot 字段</td><td><code>battle_hud_adapter.gd</code></td></tr>
+    <tr><td>3</td><td>场景 <code>.tscn</code> 加 8 个新节点 + 布局</td><td><code>battle_map_panel.tscn</code></td></tr>
+    <tr><td>4</td><td>面板加 <code>_create_command_dock()</code> / <code>_apply_command_dock(snapshot)</code> + 5 个 signal</td><td><code>battle_map_panel.gd</code></td></tr>
+    <tr><td>5</td><td><code>world_map_system</code> 接 5 个 signal → facade</td><td><code>world_map_system.gd</code></td></tr>
+    <tr><td>6</td><td>C4 <code>ModeValueLabel</code> → <code>ModeButton</code>（替换 Label 节点类型）</td><td><code>battle_map_panel.tscn</code></td></tr>
+    <tr><td>7</td><td>A1 残留：<code>confirm_ready</code> 灯挂到 <code>ResolveBattleButton</code> 高亮态</td><td>面板</td></tr>
+    <tr><td>8</td><td>regression：<code>run_battle_ui_regression.gd</code> 补按钮启用态 / 点击路径 fixture</td><td>tests</td></tr>
+    <tr><td>9</td><td><code>game_text_snapshot_renderer</code> 同步打印新字段</td><td><code>game_text_snapshot_renderer.gd</code></td></tr>
+    <tr><td>10</td><td>移除 <code>_handle_battle_input</code> 里 KEY_1 - KEY_9 的 <code>command_battle_select_skill</code> 绑定；同步清理依赖该绑定的 regression / 文本命令路径</td><td><code>world_map_system.gd:485-486</code>、<code>run_battle_ui_regression.gd</code>、<code>game_text_command_runner.gd</code></td></tr>
+  </tbody>
+</table>
+
+<h2>6. 复杂度估算</h2>
+
+<ul>
+  <li><strong>代码</strong>：约 +600 / -50 行</li>
+  <li><strong>场景</strong>：1 个 <code>.tscn</code> 加 8 个节点 + 1 个 HBox 容器</li>
+  <li><strong>测试</strong>：snapshot regression 字段加 6-8 个新 expectation；UI fixture 加按钮点击路径</li>
+</ul>
+
+<div class="risk">
+  <strong>风险点</strong>
+  <ul>
+    <li><code>command_dock</code> 启用态的 source of truth 必须<strong>只</strong>在 adapter，否则面板会出现"按钮亮但 facade 拒绝"的不一致。</li>
+    <li><code>LogLabel</code> 与 <code>RuntimeLogDock</code> 同源——需要决定是 dock 转发还是各自从 facade 拉。<strong>建议各自拉</strong>，避免互相依赖。</li>
+    <li><code>reset_movement</code> 如果发现需要新增 facade 命令，把这一项拆成单独前置 PR。</li>
+  </ul>
+</div>
+
+<h2>7. 建议拆 PR</h2>
+
+<p>A2 工作量偏大，建议 3 个 PR：</p>
+
+<ol>
+  <li><strong>A2.1</strong> — adapter 新增 3 个 snapshot 字段 + <code>game_text_snapshot_renderer</code> 同步 + regression 加 expectation。<strong>纯数据层，不动 UI</strong>。</li>
+  <li><strong>A2.2</strong> — 场景节点 + 面板渲染逻辑 + signal + <code>world_map_system</code> 接线 + UI regression。</li>
+  <li><strong>A2.3</strong> — C4 <code>ModeButton</code> 切换 control_mode + A1 残留 <code>confirm_ready</code> 灯。</li>
+</ol>
+
+<p>A2.1 落地后，A2.2 / A2.3 可以并行评审；A2.1 是独立可测的数据补齐，风险最低。</p>
+
+<h2>8. 实现前需要先决议</h2>
+
+<ol>
+  <li><strong><code>reset_movement</code> 是否需要新 facade 命令？</strong> 现状 <code>battle_session_facade</code> 没有暴露重置本回合移动累计的 API，必须先排查 <code>battle_selection</code> 是否已有内部方法，没有则前置加一个 <code>command_battle_reset_movement</code>。</li>
+  <li><strong><code>hint_text</code> 状态机定义</strong> 至少覆盖 5 个状态：无技能选中 / 技能已选未达最小目标数 / 已达最小目标数可施法 / 模态阻断（战斗结算中）/ 自动模式。adapter 需要明确这块的状态来源（<code>battle_selection</code> 还是 <code>battle_state.modal_state</code>）。</li>
+  <li><strong>LogLabel 行数与时机</strong> 默认 3 行 + 战斗事件触发时刷新。需要决定是否在面板上做"点开看完整 log"的链接（推荐不做，留给 RuntimeLogDock）。</li>
+</ol>
+
+</body>
+</html>

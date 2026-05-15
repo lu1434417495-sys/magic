@@ -4,6 +4,7 @@ extends RefCounted
 const BattleSpecialProfileManifest = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_manifest.gd")
 const MeteorSwarmImpactComponent = preload("res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_impact_component.gd")
 const MeteorSwarmProfile = preload("res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_profile.gd")
+const CombatTargetTeamContentRules = preload("res://scripts/player/progression/combat_target_team_content_rules.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
 const METEOR_SWARM_PROFILE_ID: StringName = &"meteor_swarm"
@@ -303,6 +304,14 @@ func _append_accuracy_modifier_spec_errors(errors: Array[String], spec: Dictiona
 		errors.append("MeteorSwarmProfile.terrain_profiles[%d].accuracy_modifier_spec is missing modifier_delta." % terrain_index)
 	elif not _is_int_value(spec.get("modifier_delta", spec.get(&"modifier_delta", 0))):
 		errors.append("MeteorSwarmProfile.terrain_profiles[%d].accuracy_modifier_spec.modifier_delta must be int." % terrain_index)
+	var target_team_filter = spec.get("target_team_filter", spec.get(&"target_team_filter", &"any"))
+	if not _is_string_like(target_team_filter):
+		errors.append("MeteorSwarmProfile.terrain_profiles[%d].accuracy_modifier_spec.target_team_filter must be String/StringName." % terrain_index)
+	elif not CombatTargetTeamContentRules.is_valid_skill_target_team_filter(_to_string_name(target_team_filter)):
+		errors.append("MeteorSwarmProfile.terrain_profiles[%d].accuracy_modifier_spec.target_team_filter is unsupported: %s." % [
+			terrain_index,
+			String(target_team_filter),
+		])
 
 
 func _resource_has_property(resource: Resource, property_name: String) -> bool:

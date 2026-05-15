@@ -19,6 +19,7 @@ static func build_level_description(skill_def: SkillDef, level: int, runtime_con
 	if raw_config is Dictionary:
 		config = (raw_config as Dictionary).duplicate()
 	_merge_matching_effect_params(config, skill_def, level)
+	_merge_matching_effect_typed_fields(config, skill_def, level)
 	_merge_level_overrides(config, skill_def, level)
 	_resolve_charge_distance(config, level)
 	for ctx_key in runtime_context.keys():
@@ -44,7 +45,7 @@ static func render_template(template: String, config: Dictionary) -> String:
 		var start := match_result.get_start()
 		var end := match_result.get_end()
 
-		if config.has(key) and not str(config[key]).strip_edges().is_empty():
+		if config.has(key) and _is_optional_value_visible(config[key]):
 			result = result.substr(0, start) + inner + result.substr(end)
 		else:
 			result = result.substr(0, start) + result.substr(end)
@@ -74,26 +75,173 @@ static func render_template(template: String, config: Dictionary) -> String:
 	return result
 
 
+static func _is_optional_value_visible(value: Variant) -> bool:
+	match typeof(value):
+		TYPE_NIL:
+			return false
+		TYPE_BOOL:
+			return bool(value)
+		TYPE_INT:
+			return int(value) != 0
+		TYPE_FLOAT:
+			var float_value := float(value)
+			if float_value != float_value:
+				return false
+			return not is_equal_approx(float_value, 0.0)
+		TYPE_STRING, TYPE_STRING_NAME:
+			return not str(value).strip_edges().is_empty()
+		_:
+			return not str(value).strip_edges().is_empty()
+
+
 static func _merge_matching_effect_params(config: Dictionary, skill_def: SkillDef, level: int) -> void:
-	if skill_def == null or skill_def.combat_profile == null:
-		return
-	var all_effect_defs: Array = []
-	all_effect_defs.append_array(skill_def.combat_profile.effect_defs)
-	for cast_variant in skill_def.combat_profile.cast_variants:
-		if cast_variant != null and cast_variant.effect_defs != null:
-			all_effect_defs.append_array(cast_variant.effect_defs)
-	for effect_def in all_effect_defs:
+	for effect_def in _collect_level_effect_defs(skill_def, level):
 		if effect_def == null or effect_def.params == null:
-			continue
-		var min_level := maxi(int(effect_def.min_skill_level), 0)
-		var max_level := int(effect_def.max_skill_level)
-		if level < min_level:
-			continue
-		if max_level >= 0 and level > max_level:
 			continue
 		for param_key in effect_def.params.keys():
 			if not config.has(param_key):
 				config[param_key] = effect_def.params[param_key]
+
+
+static func _merge_matching_effect_typed_fields(config: Dictionary, skill_def: SkillDef, level: int) -> void:
+	for effect_def in _collect_level_effect_defs(skill_def, level):
+		if effect_def == null:
+			continue
+		match effect_def.effect_type:
+			&"damage":
+				_merge_damage_effect_typed_fields(config, effect_def)
+			&"status", &"apply_status":
+				_merge_status_effect_typed_fields(config, effect_def)
+			&"forced_move":
+				if effect_def.forced_move_mode != &"":
+					_set_if_missing(config, "forced_move_mode", String(effect_def.forced_move_mode))
+				if int(effect_def.forced_move_distance) > 0:
+					_set_if_missing(config, "forced_move_distance", int(effect_def.forced_move_distance))
+
+
+static func _collect_level_effect_defs(skill_def: SkillDef, level: int) -> Array:
+	var effect_defs: Array = []
+	if skill_def == null or skill_def.combat_profile == null:
+		return effect_defs
+	_append_level_effect_defs(effect_defs, skill_def.combat_profile.effect_defs, level)
+	for cast_variant in skill_def.combat_profile.get_unlocked_cast_variants(level):
+		if cast_variant == null:
+			continue
+		_append_level_effect_defs(effect_defs, cast_variant.effect_defs, level)
+	return effect_defs
+
+
+static func _append_level_effect_defs(output: Array, effect_defs: Array, level: int) -> void:
+	for effect_def in effect_defs:
+		if effect_def == null:
+			continue
+		if _effect_unlocked_at_level(effect_def, level):
+			output.append(effect_def)
+
+
+static func _effect_unlocked_at_level(effect_def, level: int) -> bool:
+	if effect_def == null:
+		return false
+	var min_level := maxi(int(effect_def.min_skill_level), 0)
+	if level < min_level:
+		return false
+	var max_level := int(effect_def.max_skill_level)
+	return max_level < 0 or level <= max_level
+
+
+static func _merge_damage_effect_typed_fields(config: Dictionary, effect_def) -> void:
+	if int(effect_def.power) != 0:
+		_set_if_missing(config, "damage_power", int(effect_def.power))
+	if int(effect_def.damage_ratio_percent) != 100:
+		_set_if_missing(config, "damage_ratio_percent", int(effect_def.damage_ratio_percent))
+	if effect_def.damage_tag != &"":
+		_set_if_missing(config, "damage_tag", String(effect_def.damage_tag))
+	_merge_save_fields(config, "damage", effect_def)
+
+
+static func _merge_status_effect_typed_fields(config: Dictionary, effect_def) -> void:
+	var status_id := String(effect_def.status_id)
+	if status_id.is_empty():
+		return
+	var status_label := _format_status_label(effect_def.status_id)
+	_set_if_missing(config, "status_id", status_id)
+	_set_if_missing(config, "status_display_name", status_label)
+	if int(effect_def.duration_tu) > 0:
+		_set_if_missing(config, "status_duration_tu", int(effect_def.duration_tu))
+	if int(effect_def.power) != 0:
+		_set_if_missing(config, "status_power", int(effect_def.power))
+	_set_if_missing(config, "%s_status_id" % status_id, status_id)
+	_set_if_missing(config, "%s_display_name" % status_id, status_label)
+	if int(effect_def.duration_tu) > 0:
+		_set_if_missing(config, "%s_duration_tu" % status_id, int(effect_def.duration_tu))
+	if int(effect_def.power) != 0:
+		_set_if_missing(config, "%s_power" % status_id, int(effect_def.power))
+	_merge_save_fields(config, "status", effect_def)
+	_merge_save_fields(config, status_id, effect_def)
+
+
+static func _merge_save_fields(config: Dictionary, prefix: String, effect_def) -> void:
+	if prefix.is_empty() or effect_def == null or effect_def.save_ability == &"":
+		return
+	var save_ability := String(effect_def.save_ability)
+	var save_label := _format_attribute_label(effect_def.save_ability)
+	_set_if_missing(config, "%s_save_ability" % prefix, save_ability)
+	_set_if_missing(config, "%s_save_ability_label" % prefix, save_label)
+	_set_if_missing(config, "%s_save_text" % prefix, _format_save_text(effect_def, save_label))
+
+
+static func _format_save_text(effect_def, save_label: String) -> String:
+	if effect_def == null:
+		return ""
+	if effect_def.effect_type == &"damage" and bool(effect_def.save_partial_on_success):
+		return "%s豁免成功时伤害减半" % save_label
+	if (effect_def.effect_type == &"status" or effect_def.effect_type == &"apply_status") and effect_def.status_id != &"":
+		return "%s豁免失败时附加%s" % [save_label, _format_status_label(effect_def.status_id)]
+	return "%s豁免" % save_label
+
+
+static func _format_attribute_label(attribute_id: StringName) -> String:
+	match attribute_id:
+		&"strength":
+			return "力量"
+		&"agility":
+			return "敏捷"
+		&"constitution":
+			return "体质"
+		&"perception":
+			return "感知"
+		&"intelligence":
+			return "智力"
+		&"willpower":
+			return "意志"
+		_:
+			return String(attribute_id)
+
+
+static func _format_status_label(status_id: StringName) -> String:
+	match status_id:
+		&"shocked":
+			return "感电"
+		&"burning":
+			return "燃烧"
+		&"frozen":
+			return "冻结"
+		&"slow":
+			return "迟缓"
+		&"blind", &"blinded":
+			return "失明"
+		&"rooted":
+			return "定身"
+		&"staggered":
+			return "踉跄"
+		_:
+			return String(status_id)
+
+
+static func _set_if_missing(config: Dictionary, key: String, value) -> void:
+	if config.has(key):
+		return
+	config[key] = value
 
 
 static func _merge_level_overrides(config: Dictionary, skill_def: SkillDef, level: int) -> void:

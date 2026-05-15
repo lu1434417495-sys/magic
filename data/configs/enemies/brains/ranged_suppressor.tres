@@ -7,6 +7,9 @@
 [ext_resource type="Script" path="res://scripts/enemies/actions/move_to_range_action.gd" id="5_move"]
 [ext_resource type="Script" path="res://scripts/enemies/actions/wait_action.gd" id="6_wait"]
 [ext_resource type="Script" path="res://scripts/enemies/actions/retreat_action.gd" id="7_retreat"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_generation_slot_def.gd" id="8_slot"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_transition_rule_def.gd" id="9_transition_rule"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_transition_condition_def.gd" id="10_transition_condition"]
 
 [sub_resource type="Resource" id="Action_pressure_lane"]
 script = ExtResource("3_ground")
@@ -53,15 +56,52 @@ desired_max_distance = 1
 script = ExtResource("6_wait")
 action_id = &"harrier_wait"
 
-[sub_resource type="Resource" id="State_engage"]
-script = ExtResource("2_state")
-state_id = &"engage"
-actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Action_pressure_pin"), SubResource("Action_engage_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
+[sub_resource type="Resource" id="Slot_pressure_ground"]
+script = ExtResource("8_slot")
+slot_id = &"pressure_ground"
+slot_role = &"control"
+order = 10
+allowed_affordances = Array[StringName]([&"ground_hostile.aoe", &"ground_control", &"terrain_control", &"special_ground"])
+action_families = Array[StringName]([&"use_ground_skill"])
+style_template_action_id = &"harrier_suppress_lane"
+score_bucket_id = &"harrier_pressure"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Slot_pressure_unit"]
+script = ExtResource("8_slot")
+slot_id = &"pressure_unit"
+slot_role = &"control"
+order = 20
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"harrier_pin_target"
+score_bucket_id = &"harrier_pressure"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_pressure_move"]
+script = ExtResource("8_slot")
+slot_id = &"pressure_move"
+slot_role = &"positioning"
+order = 30
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"ground_hostile.aoe", &"ground_control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"harrier_keep_range"
+score_bucket_id = &"harrier_pressure"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
 
 [sub_resource type="Resource" id="State_pressure"]
 script = ExtResource("2_state")
 state_id = &"pressure"
 actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Action_pressure_pin"), SubResource("Action_pressure_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_pressure_ground"), SubResource("Slot_pressure_unit"), SubResource("Slot_pressure_move")])
 
 [sub_resource type="Resource" id="Action_retreat_cover"]
 script = ExtResource("4_unit")
@@ -77,15 +117,129 @@ script = ExtResource("7_retreat")
 action_id = &"harrier_retreat"
 minimum_safe_distance = 5
 
+[sub_resource type="Resource" id="Slot_engage_ground"]
+script = ExtResource("8_slot")
+slot_id = &"engage_ground"
+slot_role = &"control"
+order = 10
+allowed_affordances = Array[StringName]([&"ground_hostile.aoe", &"ground_control", &"terrain_control", &"special_ground"])
+action_families = Array[StringName]([&"use_ground_skill"])
+style_template_action_id = &"harrier_suppress_lane"
+score_bucket_id = &"harrier_pressure"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Slot_engage_unit"]
+script = ExtResource("8_slot")
+slot_id = &"engage_unit"
+slot_role = &"control"
+order = 20
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"harrier_pin_target"
+score_bucket_id = &"harrier_pressure"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_engage_move"]
+script = ExtResource("8_slot")
+slot_id = &"engage_move"
+slot_role = &"positioning"
+order = 30
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"ground_hostile.aoe", &"ground_control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"harrier_take_cover"
+score_bucket_id = &"harrier_pressure"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+
+[sub_resource type="Resource" id="State_engage"]
+script = ExtResource("2_state")
+state_id = &"engage"
+actions = Array[Resource]([SubResource("Action_pressure_lane"), SubResource("Action_pressure_pin"), SubResource("Action_engage_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_engage_ground"), SubResource("Slot_engage_unit"), SubResource("Slot_engage_move")])
+
+[sub_resource type="Resource" id="Slot_retreat_unit"]
+script = ExtResource("8_slot")
+slot_id = &"retreat_unit"
+slot_role = &"survival"
+order = 10
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"harrier_cover_retreat"
+score_bucket_id = &"harrier_pressure"
+target_selector = &"nearest_enemy"
+desired_min_distance = 5
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
 [sub_resource type="Resource" id="State_retreat"]
 script = ExtResource("2_state")
 state_id = &"retreat"
 actions = Array[Resource]([SubResource("Action_retreat_cover"), SubResource("Action_retreat_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_retreat_unit")])
+
+[sub_resource type="Resource" id="Condition_retreat_low_hp"]
+script = ExtResource("10_transition_condition")
+predicate = &"self_hp_at_or_below_basis_points"
+basis_points = 3000
+
+[sub_resource type="Resource" id="Condition_pressure_current"]
+script = ExtResource("10_transition_condition")
+predicate = &"current_state_is"
+state_ids = Array[StringName]([&"pressure"])
+
+[sub_resource type="Resource" id="Condition_pressure_sticky_distance"]
+script = ExtResource("10_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 5
+
+[sub_resource type="Resource" id="Condition_pressure_enter_distance"]
+script = ExtResource("10_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 4
+
+[sub_resource type="Resource" id="Condition_always"]
+script = ExtResource("10_transition_condition")
+predicate = &"always"
+
+[sub_resource type="Resource" id="Rule_retreat_low_hp"]
+script = ExtResource("9_transition_rule")
+rule_id = &"retreat_low_hp"
+order = 10
+target_state_id = &"retreat"
+conditions = Array[Resource]([SubResource("Condition_retreat_low_hp")])
+
+[sub_resource type="Resource" id="Rule_pressure_sticky"]
+script = ExtResource("9_transition_rule")
+rule_id = &"pressure_sticky"
+order = 30
+from_state_ids = Array[StringName]([&"pressure"])
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_current"), SubResource("Condition_pressure_sticky_distance")])
+
+[sub_resource type="Resource" id="Rule_pressure_enter"]
+script = ExtResource("9_transition_rule")
+rule_id = &"pressure_enter"
+order = 40
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_enter_distance")])
+
+[sub_resource type="Resource" id="Rule_engage_default"]
+script = ExtResource("9_transition_rule")
+rule_id = &"engage_default"
+order = 90
+target_state_id = &"engage"
+conditions = Array[Resource]([SubResource("Condition_always")])
 
 [resource]
 script = ExtResource("1_brain")
 brain_id = &"ranged_suppressor"
 default_state_id = &"pressure"
-retreat_hp_basis_points = 3000
-pressure_distance = 4
 states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_retreat")])
+transition_rules = Array[Resource]([SubResource("Rule_retreat_low_hp"), SubResource("Rule_pressure_sticky"), SubResource("Rule_pressure_enter"), SubResource("Rule_engage_default")])

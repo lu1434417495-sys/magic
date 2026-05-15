@@ -155,6 +155,45 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	var pending_reward_errors: Array[String] = invalid_pending_reward_quest.validate_schema()
 	_assert_true(pending_reward_errors.size() >= 3, "无效 pending_character_reward 应被 validate_schema() 拒绝。")
 
+	var unsupported_pending_reward_quest := QuestDef.new()
+	unsupported_pending_reward_quest.quest_id = &"unsupported_pending_reward_contract"
+	unsupported_pending_reward_quest.display_name = "非法角色奖励契约"
+	unsupported_pending_reward_quest.provider_interaction_id = &"service_contract_board"
+	unsupported_pending_reward_quest.objective_defs = [
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+	]
+	unsupported_pending_reward_quest.reward_entries = [
+		{
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"member_id": "hero",
+			"entries": [
+				{
+					"entry_type": "skill_level",
+					"target_id": "charge",
+					"amount": 1,
+				},
+				{
+					"entry_type": "phantom_reward",
+					"target_id": "charge",
+					"amount": 1,
+				},
+			],
+		},
+	]
+	var unsupported_pending_errors: Array[String] = unsupported_pending_reward_quest.validate_schema()
+	_assert_true(
+		_has_error_containing(unsupported_pending_errors, "unsupported pending_character_reward entry_type skill_level"),
+		"pending_character_reward 不应把 skill_level 当成正式 entry_type。"
+	)
+	_assert_true(
+		_has_error_containing(unsupported_pending_errors, "unsupported pending_character_reward entry_type phantom_reward"),
+		"pending_character_reward 应拒绝未知 entry_type。"
+	)
+	_assert_true(
+		QuestDef.from_dict(unsupported_pending_reward_quest.to_dict()) == null,
+		"QuestDef.from_dict 应拒绝 unsupported pending_character_reward entry_type。"
+	)
+
 	var invalid_submit_item_quest := QuestDef.new()
 	invalid_submit_item_quest.quest_id = &"broken_submit_item_contract"
 	invalid_submit_item_quest.objective_defs = [

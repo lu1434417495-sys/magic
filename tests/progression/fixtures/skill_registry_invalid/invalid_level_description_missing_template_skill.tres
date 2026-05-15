@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"invalid_level_description_missing_template_skill"
+display_name = "缺少等级描述模板"
+icon_id = &"invalid_level_description_missing_template_skill"
+description = "用于验证声明等级描述配置时必须声明模板。"
+skill_type = &"passive"
+max_level = 1
+mastery_curve = PackedInt32Array(10)
+level_description_configs = {
+"0": {
+"value": "一"
+}
+}
+learn_source = &"book"
+tags = Array[StringName]([&"test"])

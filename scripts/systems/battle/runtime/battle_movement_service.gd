@@ -2,14 +2,13 @@ class_name BattleMovementService
 extends RefCounted
 
 const BATTLE_STATUS_SEMANTIC_TABLE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
+const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
 
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-
-const STATUS_ARCHER_QUICKSTEP: StringName = &"archer_quickstep"
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -56,12 +55,6 @@ func _has_status(unit_state: BattleUnitState, status_id: StringName) -> bool:
 		return false
 	return _runtime._has_status(unit_state, status_id)
 
-func _consume_status_if_present(unit_state: BattleUnitState, status_id: StringName, batch: BattleEventBatch = null) -> void:
-	if _runtime == null:
-		return
-	_runtime._consume_status_if_present(unit_state, status_id, batch)
-
-
 func get_unit_reachable_move_coords(unit_state: BattleUnitState) -> Array[Vector2i]:
 	if _runtime._state == null or unit_state == null or not unit_state.is_alive:
 		return []
@@ -70,10 +63,6 @@ func get_unit_reachable_move_coords(unit_state: BattleUnitState) -> Array[Vector
 
 	var origin = unit_state.coord
 	var max_move_points = _get_available_move_points(unit_state)
-	var origin_has_quickstep_bonus = _has_status(unit_state, STATUS_ARCHER_QUICKSTEP)
-	var best_state_costs = {
-		_build_reachable_move_state_key(origin, origin_has_quickstep_bonus): 0,
-	}
 	var best_coord_costs = {
 		origin: 0,
 	}
@@ -81,7 +70,6 @@ func get_unit_reachable_move_coords(unit_state: BattleUnitState) -> Array[Vector
 	buckets[0].append({
 		"coord": origin,
 		"spent_cost": 0,
-		"has_quickstep_bonus": origin_has_quickstep_bonus,
 	})
 	for current_cost in range(max_move_points + 1):
 		var bucket_index = 0
@@ -90,30 +78,23 @@ func get_unit_reachable_move_coords(unit_state: BattleUnitState) -> Array[Vector
 			bucket_index += 1
 			var current_coord: Vector2i = frontier_entry.get("coord", origin)
 			var spent_cost = int(frontier_entry.get("spent_cost", current_cost))
-			var has_quickstep_bonus = bool(frontier_entry.get("has_quickstep_bonus", false))
-			var current_state_key = _build_reachable_move_state_key(current_coord, has_quickstep_bonus)
 			if spent_cost != current_cost:
 				continue
-			if spent_cost != int(best_state_costs.get(current_state_key, 2147483647)):
+			if spent_cost != int(best_coord_costs.get(current_coord, 2147483647)):
 				continue
 			for neighbor_coord in _runtime._grid_service.get_neighbors_4(_runtime._state, current_coord):
 				if not _runtime._grid_service.can_unit_step_between_anchors(_runtime._state, unit_state, current_coord, neighbor_coord):
 					continue
-				var move_cost = _get_move_cost_for_unit_target(unit_state, neighbor_coord, has_quickstep_bonus)
+				var move_cost = _get_move_cost_for_unit_target(unit_state, neighbor_coord)
 				var next_cost = spent_cost + move_cost
 				if next_cost > max_move_points:
 					continue
-				var next_has_quickstep_bonus = false
-				var next_state_key = _build_reachable_move_state_key(neighbor_coord, next_has_quickstep_bonus)
-				var best_state_cost = int(best_state_costs.get(next_state_key, 2147483647))
-				if next_cost >= best_state_cost:
+				if next_cost >= int(best_coord_costs.get(neighbor_coord, 2147483647)):
 					continue
-				best_state_costs[next_state_key] = next_cost
-				best_coord_costs[neighbor_coord] = mini(int(best_coord_costs.get(neighbor_coord, 2147483647)), next_cost)
+				best_coord_costs[neighbor_coord] = next_cost
 				buckets[next_cost].append({
 					"coord": neighbor_coord,
 					"spent_cost": next_cost,
-					"has_quickstep_bonus": next_has_quickstep_bonus,
 				})
 
 	best_coord_costs.erase(origin)
@@ -121,8 +102,7 @@ func get_unit_reachable_move_coords(unit_state: BattleUnitState) -> Array[Vector
 
 func _get_move_cost_for_unit_target(
 	unit_state: BattleUnitState,
-	target_coord: Vector2i,
-	allow_quickstep_bonus: bool = true
+	target_coord: Vector2i
 ) -> int:
 	if _runtime._state == null or unit_state == null:
 		return 1
@@ -130,24 +110,14 @@ func _get_move_cost_for_unit_target(
 	if _runtime._terrain_effect_system != null:
 		move_cost += _runtime._terrain_effect_system.get_move_cost_delta_for_unit_target(unit_state, target_coord)
 	move_cost += _get_status_move_cost_delta(unit_state)
-	if allow_quickstep_bonus and _has_status(unit_state, STATUS_ARCHER_QUICKSTEP):
-		move_cost = maxi(move_cost - 1, 0)
 	return move_cost
-
-func _get_move_cost_for_unit_target_without_quickstep(
-	unit_state: BattleUnitState,
-	target_coord: Vector2i
-) -> int:
-	return _get_move_cost_for_unit_target(unit_state, target_coord, false)
 
 func _get_move_path_cost(unit_state: BattleUnitState, anchor_path: Array[Vector2i]) -> int:
 	if unit_state == null or anchor_path.size() <= 1:
 		return 0
 	var total_cost = 0
-	var allow_quickstep_bonus = _has_status(unit_state, STATUS_ARCHER_QUICKSTEP)
 	for path_index in range(1, anchor_path.size()):
-		total_cost += _get_move_cost_for_unit_target(unit_state, anchor_path[path_index], allow_quickstep_bonus)
-		allow_quickstep_bonus = false
+		total_cost += _get_move_cost_for_unit_target(unit_state, anchor_path[path_index])
 	return total_cost
 
 func _get_status_move_cost_delta(unit_state: BattleUnitState) -> int:
@@ -175,28 +145,32 @@ func _resolve_move_path_result(active_unit: BattleUnitState, target_coord: Vecto
 			"path": [],
 			"message": "已行动，移动力被锁定。" if _is_normal_movement_locked(active_unit) else "移动力不足，无法移动。",
 		}
-	var first_step_cost_discount = 1 if _has_status(active_unit, STATUS_ARCHER_QUICKSTEP) else 0
+	AI_TRACE_RECORDER.enter(&"move_path:grid_resolve")
 	var move_result = _runtime._grid_service.resolve_unit_move_path(
 		_runtime._state,
 		active_unit,
 		active_unit.coord,
 		target_coord,
 		available_move_points,
-		first_step_cost_discount,
-		Callable(self, "_get_move_cost_for_unit_target_without_quickstep")
+		Callable(self, "_get_move_cost_for_unit_target")
 	)
+	AI_TRACE_RECORDER.exit(&"move_path:grid_resolve")
+	AI_TRACE_RECORDER.enter(&"move_path:extract_path")
 	var anchor_path: Array[Vector2i] = []
 	var path_variant = move_result.get("path", [])
 	if path_variant is Array:
 		for coord_variant in path_variant:
 			if coord_variant is Vector2i:
 				anchor_path.append(coord_variant)
+	AI_TRACE_RECORDER.exit(&"move_path:extract_path")
 	if anchor_path.size() > 1:
+		AI_TRACE_RECORDER.enter(&"move_path:semantic_cost")
 		var semantic_cost = _get_move_path_cost(active_unit, anchor_path)
 		move_result["cost"] = semantic_cost
 		if semantic_cost > available_move_points:
 			move_result["allowed"] = false
 			move_result["message"] = "移动力不足，无法移动。"
+		AI_TRACE_RECORDER.exit(&"move_path:semantic_cost")
 	return move_result
 
 func _get_available_move_points(unit_state: BattleUnitState) -> int:
@@ -240,7 +214,6 @@ func _handle_move_command(active_unit: BattleUnitState, command: BattleCommand, 
 				executed_path.append(executed_coord_variant)
 		move_cost = _get_move_path_cost(active_unit, executed_path)
 		active_unit.current_move_points = maxi(active_unit.current_move_points - move_cost, 0)
-		_consume_status_if_present(active_unit, STATUS_ARCHER_QUICKSTEP, batch)
 		_record_action_issued(active_unit, BattleCommand.TYPE_MOVE)
 		batch.changed_unit_ids.append(active_unit.unit_id)
 		_append_changed_coords(batch, previous_coords)
@@ -327,6 +300,3 @@ func _build_reachable_move_buckets(max_move_points: int) -> Array:
 	for bucket_index in range(bucket_count):
 		buckets[bucket_index] = []
 	return buckets
-
-func _build_reachable_move_state_key(coord: Vector2i, has_quickstep_bonus: bool) -> String:
-	return "%d:%d:%d" % [coord.x, coord.y, 1 if has_quickstep_bonus else 0]

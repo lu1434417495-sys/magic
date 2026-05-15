@@ -9,7 +9,6 @@ script = ExtResource("3_7k4xh")
 effect_type = &"damage"
 power = 0
 max_skill_level = 2
-damage_tag = &"physical_slash"
 bonus_condition = &"target_low_hp"
 params = {
 "add_weapon_dice": true,
@@ -28,7 +27,6 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 3
 max_skill_level = 4
-damage_tag = &"physical_slash"
 bonus_condition = &"target_low_hp"
 params = {
 "add_weapon_dice": true,
@@ -46,7 +44,6 @@ script = ExtResource("3_7k4xh")
 effect_type = &"damage"
 power = 0
 min_skill_level = 5
-damage_tag = &"physical_slash"
 bonus_condition = &"target_low_hp"
 params = {
 "add_weapon_dice": true,

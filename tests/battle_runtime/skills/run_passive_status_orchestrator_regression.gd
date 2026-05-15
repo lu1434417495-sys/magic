@@ -255,7 +255,6 @@ func _make_racial_grant(skill_id: StringName, charge_kind: StringName, charges: 
 	var grant = RACIAL_GRANTED_SKILL_SCRIPT.new()
 	grant.skill_id = skill_id
 	grant.minimum_skill_level = 1
-	grant.grant_level = 1
 	grant.charge_kind = charge_kind
 	grant.charges = charges
 	return grant

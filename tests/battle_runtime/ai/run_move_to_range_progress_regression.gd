@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
@@ -42,7 +43,6 @@ func _test_move_to_range_prefers_progress_over_wait_when_far_from_band() -> void
 	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
 	brain.brain_id = &"far_gap_mover_brain"
 	brain.default_state_id = &"engage"
-	brain.pressure_distance = 0
 	var engage_state = ENEMY_AI_STATE_DEF_SCRIPT.new()
 	engage_state.state_id = &"engage"
 	var move_action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
@@ -95,7 +95,6 @@ func _test_move_to_range_uses_path_detour_when_direct_progress_is_blocked() -> v
 	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
 	brain.brain_id = &"detour_mover_brain"
 	brain.default_state_id = &"engage"
-	brain.pressure_distance = 0
 	var engage_state = ENEMY_AI_STATE_DEF_SCRIPT.new()
 	engage_state.state_id = &"engage"
 	var move_action = MOVE_TO_RANGE_ACTION_SCRIPT.new()
@@ -145,10 +144,13 @@ func _test_move_to_range_uses_path_detour_when_direct_progress_is_blocked() -> v
 		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
 		"直接逼近被阻挡但存在绕路路径时，AI 不应待机。"
 	)
-	_assert_eq(
-		decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1),
-		Vector2i(2, 0),
-		"绕路 move_to_range 回归应沿正式路径走到本回合可达的绕路落点。"
+	# (2, 0) 和 (2, 2) 都是 2 步预算内的最优绕路落点（同成本、同曼哈顿距离），
+	# 二者等价；A* 内部 tie-break 不应被断言固化。
+	var actual_landing: Vector2i = decision.command.target_coord if decision != null and decision.command != null else Vector2i(-1, -1)
+	var valid_landings: Array[Vector2i] = [Vector2i(2, 0), Vector2i(2, 2)]
+	_assert_true(
+		valid_landings.has(actual_landing),
+		"绕路 move_to_range 回归应沿正式路径走到本回合可达的绕路落点之一。 actual=%s expected_one_of=%s" % [str(actual_landing), str(valid_landings)]
 	)
 
 
@@ -194,6 +196,8 @@ func _build_ai_context(runtime, unit_state):
 	ai_context.preview_callback = Callable(runtime, "preview_command")
 	ai_context.skill_score_input_callback = Callable(runtime._ai_service, "build_skill_score_input")
 	ai_context.action_score_input_callback = Callable(runtime._ai_service, "build_action_score_input")
+	ai_context.move_cost_callback = Callable(runtime, "_get_move_cost_for_unit_target")
+	ai_context.allow_authored_action_fallback_for_tests = true
 	return ai_context
 
 
@@ -252,11 +256,7 @@ func _build_manual_unit(
 
 
 func _add_unit_to_state(runtime, state, unit, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	var placed = runtime._grid_service.place_unit(state, unit, unit.coord, true)
 	_assert_true(placed, "测试单位 %s 应能放入测试战场。" % String(unit.unit_id))
 

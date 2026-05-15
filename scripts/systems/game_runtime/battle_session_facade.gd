@@ -530,19 +530,26 @@ func build_promotion_prompt(delta, selection_hint: String = "确认后将在战�
 		if pending_choice == null:
 			continue
 		for profession_id in pending_choice.candidate_profession_ids:
+			if profession_id == &"":
+				continue
 			var profession_def = profession_defs.get(profession_id)
-			var target_rank := int(pending_choice.target_rank_map.get(profession_id, 1))
+			if profession_def == null:
+				continue
+			if not pending_choice.target_rank_map.has(profession_id):
+				continue
+			var target_rank := int(pending_choice.target_rank_map.get(profession_id, 0))
+			if target_rank <= 0:
+				continue
 			var granted_skill_ids: Array[StringName] = []
-			if profession_def != null:
-				for granted_skill in profession_def.get_granted_skills_for_rank(target_rank):
-					if granted_skill != null and granted_skill.skill_id != &"":
-						granted_skill_ids.append(granted_skill.skill_id)
+			for granted_skill in profession_def.get_granted_skills_for_rank(target_rank):
+				if granted_skill != null and granted_skill.skill_id != &"":
+					granted_skill_ids.append(granted_skill.skill_id)
 
 			choice_entries.append({
 				"profession_id": String(profession_id),
-				"display_name": profession_def.display_name if profession_def != null and not profession_def.display_name.is_empty() else String(profession_id),
+				"display_name": profession_def.display_name if not profession_def.display_name.is_empty() else String(profession_id),
 				"summary": "Rank %d" % target_rank,
-				"description": profession_def.description if profession_def != null else "",
+				"description": profession_def.description,
 				"granted_skill_ids": granted_skill_ids,
 				"selection_hint": selection_hint,
 				"selection": {},

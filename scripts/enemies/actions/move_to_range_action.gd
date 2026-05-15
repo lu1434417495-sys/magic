@@ -4,6 +4,7 @@ extends "res://scripts/enemies/enemy_ai_action.gd"
 const SCREENING_NONE: StringName = &"none"
 const SCREENING_RANGED_ALLY: StringName = &"ranged_ally"
 const SCREENING_PATH_UNREACHABLE_COST := 2147483647
+const PATH_TREE_FILTER_MIN_DESTINATIONS := 4
 
 @export var target_selector: StringName = &"nearest_enemy"
 @export var desired_min_distance := 1
@@ -161,7 +162,7 @@ func _collect_reachable_move_candidates_impl(context) -> Array[Vector2i]:
 		for neighbor in context.grid_service.get_neighbors_4(context.state, current_coord):
 			if not context.grid_service.can_unit_step_between_anchors(context.state, context.unit_state, current_coord, neighbor):
 				continue
-			var next_cost: int = current_cost + int(context.grid_service.get_unit_move_cost(context.state, context.unit_state, neighbor))
+			var next_cost: int = current_cost + int(context.get_move_cost(context.unit_state, neighbor))
 			if next_cost > max_move_points:
 				continue
 			if next_cost >= int(best_costs.get(neighbor, 2147483647)):
@@ -493,7 +494,8 @@ func _resolve_screening_threat_path_cost(
 			threat_unit,
 			threat_unit.coord,
 			destination,
-			path_budget
+			path_budget,
+			Callable(context, "get_move_cost")
 		)
 		if not bool(path_result.get("allowed", false)):
 			continue
@@ -592,14 +594,39 @@ func _build_path_progress_decision_impl(
 	var best_score_input = null
 	var best_path_cost := 2147483647
 	var best_path_length := 2147483647
-	for destination in _collect_distance_band_destinations(context, focus_target, distance_contract):
+	var path_search_budget := _build_path_search_budget(context)
+	var destinations := _collect_distance_band_destinations(context, focus_target, distance_contract)
+	var path_tree_costs: Dictionary = {}
+	if destinations.size() >= PATH_TREE_FILTER_MIN_DESTINATIONS:
+		AI_TRACE_RECORDER.enter(&"grid_service.build_unit_move_path_tree")
+		var path_tree: Dictionary = context.grid_service.build_unit_move_path_tree(
+			context.state,
+			context.unit_state,
+			context.unit_state.coord,
+			path_search_budget,
+			Callable(context, "get_move_cost")
+		)
+		AI_TRACE_RECORDER.exit(&"grid_service.build_unit_move_path_tree")
+		var costs_variant = path_tree.get("costs", {})
+		if costs_variant is Dictionary:
+			path_tree_costs = costs_variant
+	for destination in destinations:
+		if not path_tree_costs.is_empty():
+			if not path_tree_costs.has(destination):
+				_trace_count_increment(action_trace, "path_tree_unreachable_skip_count", 1)
+				continue
+			var known_path_cost := int(path_tree_costs.get(destination, 2147483647))
+			if best_decision != null and known_path_cost > best_path_cost:
+				_trace_count_increment(action_trace, "path_tree_cost_skip_count", 1)
+				continue
 		AI_TRACE_RECORDER.enter(&"grid_service.resolve_unit_move_path")
 		var path_result: Dictionary = context.grid_service.resolve_unit_move_path(
 			context.state,
 			context.unit_state,
 			context.unit_state.coord,
 			destination,
-			_build_path_search_budget(context)
+			path_search_budget,
+			Callable(context, "get_move_cost")
 		)
 		AI_TRACE_RECORDER.exit(&"grid_service.resolve_unit_move_path")
 		if not bool(path_result.get("allowed", false)):
@@ -725,7 +752,7 @@ func _resolve_current_turn_path_target_impl(context, path: Array[Vector2i]) -> V
 	var best_coord: Vector2i = context.unit_state.coord
 	for path_index in range(1, path.size()):
 		var next_coord: Vector2i = path[path_index]
-		var step_cost: int = int(context.grid_service.get_unit_move_cost(context.state, context.unit_state, next_coord))
+		var step_cost: int = int(context.get_move_cost(context.unit_state, next_coord))
 		if spent_cost + step_cost > max_move_points:
 			break
 		spent_cost += step_cost

@@ -54,71 +54,83 @@ func _decide_impl(context):
 		if targets.is_empty():
 			_trace_add_block_reason(action_trace, "no_valid_targets")
 			continue
-		for target_unit in targets:
-			_trace_count_increment(action_trace, "evaluation_count", 1)
-			var command = _build_unit_skill_command(context, skill_id, target_unit)
-			var preview = context.preview_command(command)
-			if preview == null or not bool(preview.allowed):
-				_trace_count_increment(action_trace, "preview_reject_count", 1)
-				continue
-			var position_metadata := _build_position_metadata(context, target_unit, skill_def)
-			position_metadata["action_label"] = skill_def.display_name
-			var score_input = _build_skill_score_input(
-				context,
-				skill_def,
-				command,
-				preview,
-				skill_def.combat_profile.effect_defs,
-				position_metadata
-			)
-			if score_input == null:
-				if fallback_decision == null:
-					fallback_decision = _create_decision(
-						command,
-						"%s 选择对 %s 使用 %s。" % [
-							context.unit_state.display_name,
-							target_unit.display_name,
-							skill_def.display_name,
-						]
-					)
-				_trace_offer_candidate(action_trace, _build_candidate_summary(
-					"%s->%s" % [skill_def.display_name, target_unit.display_name],
+		var cast_variants := _get_unit_cast_variants(context, skill_def)
+		if cast_variants.is_empty():
+			_trace_add_block_reason(action_trace, "no_unlocked_unit_variants")
+			continue
+		for cast_variant_variant in cast_variants:
+			var cast_variant := cast_variant_variant as CombatCastVariantDef
+			var variant_id: StringName = cast_variant.variant_id if cast_variant != null else &""
+			var variant_label := _format_skill_variant_label(skill_def, cast_variant)
+			for target_unit in targets:
+				_trace_count_increment(action_trace, "evaluation_count", 1)
+				var command = _build_unit_skill_command(context, skill_id, target_unit, variant_id)
+				var preview = context.preview_command(command)
+				if preview == null or not bool(preview.allowed):
+					_trace_count_increment(action_trace, "preview_reject_count", 1)
+					continue
+				var position_metadata := _build_position_metadata(context, target_unit, skill_def)
+				position_metadata["action_label"] = variant_label
+				var score_input = _build_skill_score_input(
+					context,
+					skill_def,
 					command,
-					null,
+					preview,
+					_collect_unit_skill_effect_defs(skill_def, cast_variant, context.unit_state if context != null else null),
+					position_metadata
+				)
+				if score_input == null:
+					if fallback_decision == null:
+						fallback_decision = _create_decision(
+							command,
+							"%s 选择对 %s 使用 %s。" % [
+								context.unit_state.display_name,
+								target_unit.display_name,
+								variant_label,
+							]
+						)
+					_trace_offer_candidate(action_trace, _build_candidate_summary(
+						"%s->%s" % [variant_label, target_unit.display_name],
+						command,
+						null,
+						{
+							"skill_id": String(skill_id),
+							"skill_variant_id": String(variant_id),
+							"skill_variant_target_mode": String(_get_cast_variant_target_mode(skill_def, cast_variant)),
+							"target_unit_id": String(target_unit.unit_id),
+						}
+					))
+					continue
+				if int(score_input.effective_target_count) < minimum_effective_target_count:
+					_trace_add_block_reason(action_trace, "minimum_effective_target_count")
+					continue
+				if not _passes_friendly_fire_limits(score_input):
+					_trace_add_block_reason(action_trace, "friendly_fire_limit")
+					continue
+				_trace_offer_candidate(action_trace, _build_candidate_summary(
+					"%s->%s" % [variant_label, target_unit.display_name],
+					command,
+					score_input,
 					{
 						"skill_id": String(skill_id),
+						"skill_variant_id": String(variant_id),
+						"skill_variant_target_mode": String(_get_cast_variant_target_mode(skill_def, cast_variant)),
 						"target_unit_id": String(target_unit.unit_id),
 					}
 				))
-				continue
-			if int(score_input.effective_target_count) < minimum_effective_target_count:
-				_trace_add_block_reason(action_trace, "minimum_effective_target_count")
-				continue
-			if not _passes_friendly_fire_limits(score_input):
-				_trace_add_block_reason(action_trace, "friendly_fire_limit")
-				continue
-			_trace_offer_candidate(action_trace, _build_candidate_summary(
-				"%s->%s" % [skill_def.display_name, target_unit.display_name],
-				command,
-				score_input,
-				{
-					"skill_id": String(skill_id),
-					"target_unit_id": String(target_unit.unit_id),
-				}
-			))
-			if not _is_better_skill_score_input(score_input, best_score_input):
-				continue
-			best_score_input = score_input
-			best_decision = _create_scored_decision(
-				command,
-				score_input,
-				"%s 选择对 %s 使用 %s（评分 %d）。" % [
-					context.unit_state.display_name,
-					target_unit.display_name,
-					skill_def.display_name,
-					int(score_input.total_score),
-				]
-			)
+				if not _is_better_skill_score_input(score_input, best_score_input):
+					continue
+				best_score_input = score_input
+				best_decision = _create_scored_decision(
+					command,
+					score_input,
+					"%s 选择对 %s 使用 %s（评分 %d）。" % [
+						context.unit_state.display_name,
+						target_unit.display_name,
+						variant_label,
+						int(score_input.total_score),
+					]
+				)
 	var resolved_decision: BattleAiDecision = best_decision if best_decision != null else fallback_decision
 	_finalize_action_trace(context, action_trace, resolved_decision)
 	return resolved_decision
@@ -132,6 +144,19 @@ func _passes_friendly_fire_limits(score_input) -> bool:
 	if not allow_friendly_lethal and int(score_input.estimated_friendly_lethal_target_count) > 0:
 		return false
 	return true
+
+
+func _get_unit_cast_variants(context, skill_def: SkillDef) -> Array:
+	if skill_def == null or skill_def.combat_profile == null:
+		return []
+	if skill_def.combat_profile.cast_variants.is_empty():
+		return [null]
+	var variants: Array = []
+	var skill_level := _get_skill_level(context.unit_state, skill_def.skill_id) if context != null else 0
+	for cast_variant in skill_def.combat_profile.get_unlocked_cast_variants(skill_level):
+		if cast_variant != null and _get_cast_variant_target_mode(skill_def, cast_variant) == &"unit":
+			variants.append(cast_variant)
+	return variants
 
 
 func _build_position_metadata(context, target_unit, skill_def: SkillDef) -> Dictionary:

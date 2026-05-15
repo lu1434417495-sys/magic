@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="EnemyContentSeed" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_content_seed.gd" id="1_seed"]
+
+[resource]
+script = ExtResource("1_seed")
+enemy_ai_brains = Array[Resource]([])
+enemy_templates = Array[Resource]([])
+wild_encounter_rosters = Array[Resource]([])

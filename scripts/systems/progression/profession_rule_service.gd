@@ -79,7 +79,14 @@ func can_rank_up_profession(profession_id: StringName) -> bool:
 	if rank_requirement == null:
 		return false
 
-	if not can_satisfy_tag_rules(profession_id, rank_requirement.required_tag_rules):
+	var preview_assigned_skill_ids := _get_rank_up_preview_assigned_core_skill_ids(profession_id)
+	if not _can_satisfy_tag_rules_with_skill_ids(
+		_get_rank_up_candidate_skill_ids(profession_id, preview_assigned_skill_ids),
+		profession_id,
+		rank_requirement.required_tag_rules,
+		false,
+		preview_assigned_skill_ids
+	):
 		return false
 	if not can_satisfy_profession_gates(rank_requirement.required_profession_ranks):
 		return false
@@ -151,9 +158,10 @@ func skill_matches_tag_requirement(
 	skill_id: StringName,
 	profession_id: StringName,
 	tag_rule: TagRequirement,
-	allow_unassigned: bool
+	allow_unassigned: bool,
+	preview_assigned_skill_ids: Array[StringName] = []
 ) -> bool:
-	return _matches_tag_requirement(skill_id, profession_id, tag_rule, allow_unassigned)
+	return _matches_tag_requirement(skill_id, profession_id, tag_rule, allow_unassigned, preview_assigned_skill_ids)
 
 
 func can_satisfy_reputation_rules(rules: Array[ReputationRequirement]) -> bool:
@@ -310,7 +318,8 @@ func _can_satisfy_tag_rules_with_skill_ids(
 	candidate_skill_ids: Array[StringName],
 	profession_id: StringName,
 	tag_rules: Array[TagRequirement],
-	allow_unassigned: bool
+	allow_unassigned: bool,
+	preview_assigned_skill_ids: Array[StringName] = []
 ) -> bool:
 	if tag_rules.is_empty():
 		return true
@@ -321,7 +330,7 @@ func _can_satisfy_tag_rules_with_skill_ids(
 
 		var matched_count: int = 0
 		for skill_id in candidate_skill_ids:
-			if _matches_tag_requirement(skill_id, profession_id, tag_rule, allow_unassigned):
+			if _matches_tag_requirement(skill_id, profession_id, tag_rule, allow_unassigned, preview_assigned_skill_ids):
 				matched_count += 1
 
 		if matched_count < tag_rule.count:
@@ -334,11 +343,35 @@ func _get_unlock_candidate_skill_ids(profession_id: StringName) -> Array[StringN
 	return _get_all_learned_skill_ids()
 
 
-func _get_rank_up_candidate_skill_ids(profession_id: StringName) -> Array[StringName]:
+func _get_rank_up_candidate_skill_ids(
+	profession_id: StringName,
+	preview_assigned_skill_ids: Array[StringName] = []
+) -> Array[StringName]:
 	var profession_progress: Variant = _get_profession_progress(profession_id)
 	if profession_progress == null:
 		return []
-	return profession_progress.core_skill_ids.duplicate()
+	var candidate_skill_ids: Array[StringName] = profession_progress.core_skill_ids.duplicate()
+	for skill_id in preview_assigned_skill_ids:
+		if skill_id == &"" or candidate_skill_ids.has(skill_id):
+			continue
+		candidate_skill_ids.append(skill_id)
+	return candidate_skill_ids
+
+
+func _get_rank_up_preview_assigned_core_skill_ids(profession_id: StringName) -> Array[StringName]:
+	var preview_skill_ids: Array[StringName] = []
+	var trigger_skill_id := _get_ready_active_level_trigger_skill_id()
+	if trigger_skill_id == &"":
+		return preview_skill_ids
+	if not _is_skill_eligible_for_profession(trigger_skill_id, profession_id, true):
+		return preview_skill_ids
+	var skill_progress: Variant = _unit_progress.get_skill_progress(trigger_skill_id)
+	if skill_progress == null:
+		return preview_skill_ids
+	if skill_progress.assigned_profession_id != &"":
+		return preview_skill_ids
+	preview_skill_ids.append(trigger_skill_id)
+	return preview_skill_ids
 
 
 func _is_skill_eligible_for_unlock(skill_id: StringName, profession_id: StringName) -> bool:
@@ -389,7 +422,8 @@ func _matches_tag_requirement(
 	skill_id: StringName,
 	profession_id: StringName,
 	tag_rule: TagRequirement,
-	allow_unassigned: bool
+	allow_unassigned: bool,
+	preview_assigned_skill_ids: Array[StringName] = []
 ) -> bool:
 	if tag_rule == null or tag_rule.tag == &"":
 		return false
@@ -409,7 +443,7 @@ func _matches_tag_requirement(
 		return false
 	if not _matches_origin_filter(skill_progress, tag_rule):
 		return false
-	return _matches_assignment(skill_progress, profession_id, allow_unassigned)
+	return _matches_assignment(skill_progress, profession_id, allow_unassigned, preview_assigned_skill_ids)
 
 
 func _matches_skill_state(skill_progress: Variant, skill_def: SkillDef, tag_rule: TagRequirement) -> bool:
@@ -443,11 +477,35 @@ func _matches_origin_filter(skill_progress: Variant, tag_rule: TagRequirement) -
 func _matches_assignment(
 	skill_progress: Variant,
 	profession_id: StringName,
-	allow_unassigned: bool
+	allow_unassigned: bool,
+	preview_assigned_skill_ids: Array[StringName] = []
 ) -> bool:
-	if skill_progress.assigned_profession_id == &"":
-		return allow_unassigned
-	return skill_progress.assigned_profession_id == profession_id
+	if profession_id != &"" and skill_progress.assigned_profession_id == profession_id:
+		return true
+	if skill_progress.assigned_profession_id != &"":
+		return false
+	return allow_unassigned or preview_assigned_skill_ids.has(skill_progress.skill_id)
+
+
+func _get_ready_active_level_trigger_skill_id() -> StringName:
+	if _unit_progress == null:
+		return &""
+	var trigger_skill_id := _unit_progress.active_level_trigger_core_skill_id
+	if trigger_skill_id == &"":
+		return &""
+	var skill_progress: Variant = _unit_progress.get_skill_progress(trigger_skill_id)
+	var skill_def := _get_skill_def(trigger_skill_id)
+	if skill_progress == null or skill_def == null:
+		return &""
+	if not bool(skill_progress.is_learned) or not bool(skill_progress.is_core):
+		return &""
+	if bool(skill_progress.is_level_trigger_locked):
+		return &""
+	if _unit_progress.locked_level_trigger_skill_ids.has(trigger_skill_id):
+		return &""
+	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, _unit_progress):
+		return &""
+	return trigger_skill_id
 
 
 func _get_all_learned_skill_ids() -> Array[StringName]:

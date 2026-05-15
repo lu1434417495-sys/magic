@@ -164,6 +164,7 @@ func _test_armor_break_lowers_target_ac_without_damage_vulnerability() -> void:
 	damage_resolver.resolve_effects(attacker, broken_target, [armor_break_effect])
 	var damage_effect := CombatEffectDef.new()
 	damage_effect.effect_type = &"damage"
+	damage_effect.damage_tag = &"physical_slash"
 	damage_effect.power = 10
 	var plain_result := damage_resolver.resolve_effects(attacker, plain_target, [damage_effect])
 	var broken_result := damage_resolver.resolve_effects(attacker, broken_target, [damage_effect])
@@ -221,6 +222,8 @@ func _test_start_battle_accepts_explicit_narrow_assault_profile() -> void:
 
 	var ally_a := _build_unit(&"narrow_assault_ally_a", Vector2i.ZERO, 3)
 	var ally_b := _build_unit(&"narrow_assault_ally_b", Vector2i.ZERO, 3)
+	var enemy_a := _build_enemy_unit(&"narrow_assault_enemy_a", Vector2i.ZERO)
+	var enemy_b := _build_enemy_unit(&"narrow_assault_enemy_b", Vector2i.ZERO)
 	var state := runtime.start_battle(
 		encounter_anchor,
 		20260417,
@@ -228,7 +231,7 @@ func _test_start_battle_accepts_explicit_narrow_assault_profile() -> void:
 			"battle_terrain_profile": "narrow_assault",
 			"battle_map_size": Vector2i(19, 11),
 			"battle_party": [ally_a.to_dict(), ally_b.to_dict()],
-			"enemy_unit_count": 2,
+			"enemy_units": [enemy_a.to_dict(), enemy_b.to_dict()],
 		}
 	)
 	_assert_true(state != null and not state.is_empty(), "BattleRuntimeModule.start_battle() 应能显式启动 narrow_assault 地形。")
@@ -290,6 +293,8 @@ func _test_start_battle_accepts_explicit_holdout_push_profile() -> void:
 
 	var ally_a := _build_unit(&"holdout_push_ally_a", Vector2i.ZERO, 3)
 	var ally_b := _build_unit(&"holdout_push_ally_b", Vector2i.ZERO, 3)
+	var enemy_a := _build_enemy_unit(&"holdout_push_enemy_a", Vector2i.ZERO)
+	var enemy_b := _build_enemy_unit(&"holdout_push_enemy_b", Vector2i.ZERO)
 	var state := runtime.start_battle(
 		encounter_anchor,
 		20260417,
@@ -297,7 +302,7 @@ func _test_start_battle_accepts_explicit_holdout_push_profile() -> void:
 			"battle_terrain_profile": "holdout_push",
 			"battle_map_size": Vector2i(19, 11),
 			"battle_party": [ally_a.to_dict(), ally_b.to_dict()],
-			"enemy_unit_count": 2,
+			"enemy_units": [enemy_a.to_dict(), enemy_b.to_dict()],
 		}
 	)
 	_assert_true(state != null and not state.is_empty(), "BattleRuntimeModule.start_battle() 应能显式启动 holdout_push 地形。")
@@ -2054,7 +2059,6 @@ func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 	var effect := CombatEffectDef.new()
 	effect.effect_type = &"damage"
 	effect.power = 1
-	effect.damage_tag = &"physical_blunt"
 	effect.params = {
 		"use_weapon_physical_damage_tag": true,
 	}
@@ -2082,7 +2086,7 @@ func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 func _test_weapon_damage_tag_override_does_not_require_weapon() -> void:
 	var skill := _build_direct_damage_skill(&"weapon_tag_override_without_gate", 1)
 	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
-	damage_effect.damage_tag = &"physical_slash"
+	damage_effect.damage_tag = &""
 	damage_effect.params = {
 		"use_weapon_physical_damage_tag": true,
 	}
@@ -2096,7 +2100,7 @@ func _test_weapon_damage_tag_override_does_not_require_weapon() -> void:
 	attacker.known_active_skill_ids = [skill.skill_id]
 	attacker.known_skill_level_map = {skill.skill_id: 1}
 	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
-	attacker.clear_weapon_projection()
+	attacker.set_unarmed_weapon_projection()
 	var target := _build_enemy_unit(&"weapon_tag_only_target", Vector2i(1, 0))
 	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	state.units = {
@@ -2130,7 +2134,7 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	var skill := _build_direct_damage_skill(&"requires_weapon_contract", 1)
 	skill.tags = [&"warrior", &"melee"]
 	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
-	damage_effect.damage_tag = &"physical_blunt"
+	damage_effect.damage_tag = &""
 	damage_effect.params = {
 		"requires_weapon": true,
 		"use_weapon_physical_damage_tag": true,
@@ -2204,7 +2208,7 @@ func _test_required_weapon_families_restricts_equipped_weapon_family() -> void:
 	skill.tags = [&"archer", &"bow"]
 	skill.combat_profile.required_weapon_families = [&"bow"]
 	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
-	damage_effect.damage_tag = &"physical_pierce"
+	damage_effect.damage_tag = &""
 	damage_effect.params = {
 		"add_weapon_dice": true,
 		"resolve_as_weapon_attack": true,
@@ -2814,6 +2818,7 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.current_stamina = 60
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS)
 	return unit
 
 
@@ -3093,6 +3098,7 @@ func _build_enemy_unit(unit_id: StringName, coord: Vector2i) -> BattleUnitState:
 func _build_direct_damage_skill(skill_id: StringName, power: int) -> SkillDef:
 	var damage_effect := CombatEffectDef.new()
 	damage_effect.effect_type = &"damage"
+	damage_effect.damage_tag = &"physical_blunt"
 	damage_effect.power = power
 	damage_effect.effect_target_team_filter = &"any"
 
@@ -3120,6 +3126,7 @@ func _build_ground_damage_dice_skill(
 ) -> SkillDef:
 	var damage_effect := CombatEffectDef.new()
 	damage_effect.effect_type = &"damage"
+	damage_effect.damage_tag = &"physical_blunt"
 	damage_effect.power = power
 	damage_effect.effect_target_team_filter = &"enemy"
 	if dice_count > 0 and dice_sides > 0:

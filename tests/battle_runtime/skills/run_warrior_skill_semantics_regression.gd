@@ -11,6 +11,7 @@ const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
@@ -399,12 +400,15 @@ func _test_taunt_redirects_ai_target() -> void:
 	enemy.current_move_points = 0
 	enemy.known_active_skill_ids = [&"warrior_heavy_strike"]
 	enemy.known_skill_level_map = {&"warrior_heavy_strike": 1}
-	enemy.status_effects[&"taunted"] = {
-		"status_id": &"taunted",
-		"source_unit_id": &"taunt_source",
-		"power": 1,
-		"duration": 90,
-	}
+	# 直接构造 BattleStatusEffectState 实例，避免 BattleUnitState.get_status_effect 在 AI 决策路径中触发
+	# lazy 反序列化（裸 dict → 实例），那次写入会被 BattleAiMutationGuard 误判成 AI 改了状态。
+	var taunted_effect := BattleStatusEffectState.new()
+	taunted_effect.status_id = &"taunted"
+	taunted_effect.source_unit_id = &"taunt_source"
+	taunted_effect.power = 1
+	taunted_effect.stacks = 1
+	taunted_effect.duration = 90
+	enemy.set_status_effect(taunted_effect)
 	var taunt_source := _build_unit(&"taunt_source", Vector2i(2, 1), 2)
 	var other_target := _build_unit(&"other_target", Vector2i(1, 2), 2)
 
@@ -648,6 +652,10 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(&"stamina_max", 60)
 	unit.attribute_snapshot.set_value(&"aura_max", 2)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
+	# Fixture 显式给了 mp_max / aura_max，就视作两条资源已解锁；
+	# 否则技能 preview 在 get_locked_combat_resource_block_reason 阶段被拒（aura_slash 等需要 aura）。
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)

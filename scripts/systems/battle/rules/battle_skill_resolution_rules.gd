@@ -7,6 +7,7 @@ const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const BattleSaveResolver = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
+const BattleTargetTeamRules = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 
 const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
 const FATE_PREVIEW_MODE_NONE: StringName = &""
@@ -22,14 +23,27 @@ func build_skill_resolution_policy(
 	target_unit: BattleUnitState = null
 ) -> Dictionary:
 	var target_unit_ids := normalize_target_unit_ids(target_unit_ids_variant)
+	var routes_to_unit_targeting := should_route_skill_command_to_unit_targeting(skill_def, target_unit_ids)
+	var variant_error_message := get_skill_variant_command_error_message(
+		skill_def,
+		active_unit,
+		skill_variant_id,
+		routes_to_unit_targeting
+	)
 	var unit_cast_variant := resolve_unit_cast_variant(skill_def, active_unit, skill_variant_id)
 	var ground_cast_variant := resolve_ground_cast_variant(skill_def, active_unit, skill_variant_id)
-	var command_cast_variant := ground_cast_variant if ground_cast_variant != null else unit_cast_variant
-	var routes_to_unit_targeting := should_route_skill_command_to_unit_targeting(skill_def, target_unit_ids)
-	var unit_execution_cast_variant := unit_cast_variant if unit_cast_variant != null else ground_cast_variant
+	var command_cast_variant := resolve_command_route_cast_variant(
+		skill_def,
+		active_unit,
+		skill_variant_id,
+		routes_to_unit_targeting
+	)
+	var unit_execution_cast_variant := command_cast_variant if routes_to_unit_targeting else unit_cast_variant
 	var execution_cast_variant := unit_execution_cast_variant if routes_to_unit_targeting else command_cast_variant
 	var effect_defs: Array[CombatEffectDef] = []
-	if routes_to_unit_targeting:
+	if not variant_error_message.is_empty():
+		effect_defs = []
+	elif routes_to_unit_targeting:
 		effect_defs = collect_unit_skill_effect_defs(skill_def, unit_execution_cast_variant, active_unit)
 	else:
 		effect_defs = collect_ground_unit_effect_defs(skill_def, ground_cast_variant, active_unit)
@@ -51,6 +65,8 @@ func build_skill_resolution_policy(
 		"unit_execution_cast_variant": unit_execution_cast_variant,
 		"execution_cast_variant": execution_cast_variant,
 		"routes_to_unit_targeting": routes_to_unit_targeting,
+		"variant_error_message": variant_error_message,
+		"variant_allowed": variant_error_message.is_empty(),
 		"effect_defs": effect_defs.duplicate(),
 		"uses_fate_attack": uses_fate_attack,
 		"force_hit_no_crit": force_hit_no_crit,
@@ -80,6 +96,35 @@ func should_route_skill_command_to_unit_targeting(skill_def: SkillDef, target_un
 	if ProgressionDataUtils.to_string_name(skill_def.combat_profile.target_selection_mode) == &"random_chain":
 		return true
 	return skill_def.combat_profile.target_mode == &"unit"
+
+
+func get_skill_variant_command_error_message(
+	skill_def: SkillDef,
+	active_unit: BattleUnitState,
+	skill_variant_id: StringName = &"",
+	routes_to_unit_targeting: bool = false
+) -> String:
+	if skill_def == null or skill_def.combat_profile == null:
+		return "技能或目标无效。"
+	if skill_def.combat_profile.cast_variants.is_empty():
+		return "技能形态无效或尚未解锁。" if skill_variant_id != &"" else ""
+	var skill_level := _get_unit_skill_level(active_unit, skill_def.skill_id)
+	var unlocked_variants := skill_def.combat_profile.get_unlocked_cast_variants(skill_level)
+	var matching_mode_variants: Array[CombatCastVariantDef] = []
+	var expected_target_mode := get_command_route_cast_variant_target_mode(skill_def, routes_to_unit_targeting)
+	for cast_variant in unlocked_variants:
+		if cast_variant != null and get_cast_variant_target_mode(skill_def, cast_variant) == expected_target_mode:
+			matching_mode_variants.append(cast_variant)
+	if skill_variant_id == &"":
+		if matching_mode_variants.size() > 1:
+			return "技能形态不明确。"
+		if matching_mode_variants.is_empty():
+			return "技能形态无效或尚未解锁。"
+		return ""
+	for cast_variant in matching_mode_variants:
+		if cast_variant != null and cast_variant.variant_id == skill_variant_id:
+			return ""
+	return "技能形态无效或尚未解锁。"
 
 
 func should_resolve_unit_skill_as_fate_attack(
@@ -132,7 +177,11 @@ func resolve_ground_cast_variant(
 	if unlocked_variants.is_empty():
 		return null
 	if skill_variant_id == &"":
-		return unlocked_variants[0] if unlocked_variants.size() == 1 else null
+		var ground_variants: Array[CombatCastVariantDef] = []
+		for cast_variant in unlocked_variants:
+			if cast_variant != null and get_cast_variant_target_mode(skill_def, cast_variant) == &"ground":
+				ground_variants.append(cast_variant)
+		return ground_variants[0] if ground_variants.size() == 1 else null
 
 	for cast_variant in unlocked_variants:
 		if cast_variant != null \
@@ -169,6 +218,33 @@ func resolve_unit_cast_variant(
 			and get_cast_variant_target_mode(skill_def, cast_variant) == &"unit":
 			return cast_variant
 	return null
+
+
+func resolve_command_route_cast_variant(
+	skill_def: SkillDef,
+	active_unit: BattleUnitState,
+	skill_variant_id: StringName = &"",
+	routes_to_unit_targeting: bool = false
+) -> CombatCastVariantDef:
+	var target_mode := get_command_route_cast_variant_target_mode(skill_def, routes_to_unit_targeting)
+	match target_mode:
+		&"unit":
+			return resolve_unit_cast_variant(skill_def, active_unit, skill_variant_id)
+		&"ground":
+			return resolve_ground_cast_variant(skill_def, active_unit, skill_variant_id)
+		_:
+			return null
+
+
+func get_command_route_cast_variant_target_mode(
+	skill_def: SkillDef,
+	routes_to_unit_targeting: bool = false
+) -> StringName:
+	if skill_def == null or skill_def.combat_profile == null:
+		return &""
+	if not routes_to_unit_targeting:
+		return &"ground"
+	return skill_def.combat_profile.target_mode
 
 
 func get_cast_variant_target_mode(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> StringName:
@@ -280,11 +356,7 @@ func is_terrain_effect(effect_def: CombatEffectDef) -> bool:
 
 
 func resolve_effect_target_filter(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:
-	if effect_def != null and effect_def.effect_target_team_filter != &"":
-		return effect_def.effect_target_team_filter
-	if skill_def != null and skill_def.combat_profile != null:
-		return skill_def.combat_profile.target_team_filter
-	return &"any"
+	return BattleTargetTeamRules.resolve_effect_target_filter(skill_def, effect_def)
 
 
 func is_unit_valid_for_effect(
@@ -292,19 +364,7 @@ func is_unit_valid_for_effect(
 	target_unit: BattleUnitState,
 	target_team_filter: StringName
 ) -> bool:
-	if target_unit == null or not target_unit.is_alive:
-		return false
-	match target_team_filter:
-		&"", &"any":
-			return true
-		&"self":
-			return source_unit != null and target_unit.unit_id == source_unit.unit_id
-		&"ally", &"friendly":
-			return source_unit != null and target_unit.faction_id == source_unit.faction_id
-		&"enemy", &"hostile":
-			return source_unit != null and target_unit.faction_id != source_unit.faction_id
-		_:
-			return true
+	return BattleTargetTeamRules.is_unit_valid_for_filter(source_unit, target_unit, target_team_filter)
 
 
 func _get_unit_skill_level(active_unit: BattleUnitState, skill_id: StringName) -> int:

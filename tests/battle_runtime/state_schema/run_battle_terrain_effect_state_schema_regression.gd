@@ -14,6 +14,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_params_lifetime_policy_roundtrip()
 	_test_top_level_lifetime_policy_is_rejected()
+	_test_invalid_target_team_filter_is_rejected()
 	if _failures.is_empty():
 		print("Battle terrain effect state schema regression: PASS")
 		quit(0)
@@ -37,6 +38,12 @@ func _test_top_level_lifetime_policy_is_rejected() -> void:
 	var payload := _build_effect().to_dict()
 	payload["lifetime_policy"] = "battle"
 	_assert_true(BattleTerrainEffectState.from_dict(payload) == null, "terrain effect strict schema 应拒绝顶层 lifetime_policy 字段。")
+
+
+func _test_invalid_target_team_filter_is_rejected() -> void:
+	var payload := _build_effect().to_dict()
+	payload["target_team_filter"] = "hostile"
+	_assert_true(BattleTerrainEffectState.from_dict(payload) == null, "terrain effect state 不应接受 hostile 作为 target_team_filter。")
 
 
 func _build_effect() -> BattleTerrainEffectState:

@@ -6,6 +6,7 @@ class_name PendingCharacterRewardEntry
 extends RefCounted
 
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
+const PENDING_CHARACTER_REWARD_CONTENT_RULES = preload("res://scripts/player/progression/pending_character_reward_content_rules.gd")
 const SKILL_MASTERY_ENTRY_TYPE: StringName = &"skill_mastery"
 const TO_DICT_FIELDS: Array[String] = [
 	"entry_type",
@@ -47,6 +48,8 @@ static func from_dict(data: Dictionary):
 	var entry_type = _parse_string_name_field(data["entry_type"], false)
 	var target_id = _parse_string_name_field(data["target_id"], false)
 	if entry_type == null or target_id == null:
+		return null
+	if not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(entry_type):
 		return null
 	if data["target_label"] is not String or data["reason_text"] is not String:
 		return null

@@ -18,6 +18,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_attack_check_reads_attacker_base_attack_bonus()
 	_test_attack_check_falls_back_to_zero_when_attribute_absent()
+	_test_attack_check_rejects_missing_target_armor_class()
 	_test_attack_check_adds_bab_on_top_of_existing_attack_bonus()
 	_test_locked_skill_hit_bonus_reduces_required_roll()
 	_test_locked_skill_hit_bonus_applies_to_spell_control_roll()
@@ -56,6 +57,21 @@ func _test_attack_check_falls_back_to_zero_when_attribute_absent() -> void:
 	var attack_check := resolver.build_skill_attack_check(attacker, target, null)
 	_assert_eq(int(attack_check.get("attacker_base_attack_bonus", -1)), 0, "缺失 BASE_ATTACK_BONUS 时应回退为 0。")
 	_assert_eq(int(attack_check.get("required_roll", -1)), 12, "缺失 BAB 时 required_roll 应等于裸 AC。")
+
+
+func _test_attack_check_rejects_missing_target_armor_class() -> void:
+	var attacker := _make_unit_with_attack_bonuses(0, 0)
+	var target := BattleUnitState.new()
+	var resolver := BattleHitResolver.new()
+
+	var attack_check := resolver.build_skill_attack_check(attacker, target, null)
+	_assert_true(bool(attack_check.get("invalid", false)), "缺失目标 armor_class 时不应回退到隐藏 AC。")
+	_assert_eq(
+		String(attack_check.get("error_id", "")),
+		"missing_target_armor_class",
+		"缺失目标 armor_class 应返回明确错误码。"
+	)
+	_assert_eq(int(attack_check.get("success_rate_percent", -1)), 0, "无效命中检定不应被 AI/HUD 当作 100% 命中。")
 
 
 func _test_attack_check_adds_bab_on_top_of_existing_attack_bonus() -> void:
@@ -114,3 +130,8 @@ func _make_unit_with_armor_class(armor_class: int) -> BattleUnitState:
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
 		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+
+
+func _assert_true(condition: bool, message: String) -> void:
+	if not condition:
+		_test.fail(message)

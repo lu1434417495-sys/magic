@@ -12,6 +12,7 @@ var action_kind: StringName = &"skill"
 var action_label: String = ""
 var score_bucket_id: StringName = &""
 var score_bucket_priority := 0
+var runtime_action_metadata: Dictionary = {}
 var primary_coord: Vector2i = Vector2i(-1, -1)
 var target_unit_ids: Array[StringName] = []
 var target_coords: Array[Vector2i] = []
@@ -105,6 +106,7 @@ func to_dict() -> Dictionary:
 		"action_label": action_label,
 		"score_bucket_id": String(score_bucket_id),
 		"score_bucket_priority": score_bucket_priority,
+		"runtime_action_metadata": runtime_action_metadata.duplicate(true),
 		"command_type": String(command.command_type) if command != null else "",
 		"skill_id": String(skill_def.skill_id) if skill_def != null else "",
 		"primary_coord": primary_coord,

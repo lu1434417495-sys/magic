@@ -23,6 +23,7 @@ func _run() -> void:
 	await _test_save_index_schema_rejects_old_entry_shapes()
 	await _test_bak_only_restore_for_save_payload()
 	await _test_index_rebuild_filters_payloads_that_fail_full_decode()
+	await _test_index_rebuild_filters_payloads_with_bad_identity()
 	await _test_ensure_world_ready_skips_newest_bad_save()
 	if _failures.is_empty():
 		print("Save index resilience regression: PASS")
@@ -306,6 +307,45 @@ func _test_index_rebuild_filters_payloads_that_fail_full_decode() -> void:
 	await process_frame
 
 
+func _test_index_rebuild_filters_payloads_with_bad_identity() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	root.add_child(game_session)
+	await process_frame
+
+	var clear_error := int(game_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "bad identity index rebuild 回归前应能清理旧存档目录。")
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "bad identity index rebuild 回归应能创建测试存档。")
+	if create_error != OK:
+		game_session.queue_free()
+		await process_frame
+		return
+
+	var payload := _build_payload_for_session(game_session)
+	_assert_true(_poison_first_member_identity_payload(payload), "bad identity index rebuild 回归前置：测试 payload 应至少有一个成员。")
+	var write_error := _overwrite_payload_at_path(game_session.get_active_save_path(), payload)
+	_assert_eq(write_error, OK, "bad identity index rebuild 回归前置：应能写入坏 identity payload。")
+
+	var corrupt_file := FileAccess.open(SAVE_INDEX_PATH, FileAccess.WRITE)
+	_assert_true(corrupt_file != null, "bad identity index rebuild 回归前置：应能写入坏 index 以触发 rebuild。")
+	if corrupt_file != null:
+		corrupt_file.store_buffer(PackedByteArray([0xCC, 0x80, 0x01, 0x02]))
+		corrupt_file.close()
+	game_session.queue_free()
+	await process_frame
+
+	var fresh_session = GAME_SESSION_SCRIPT.new()
+	root.add_child(fresh_session)
+	await process_frame
+	var slots := fresh_session.list_save_slots()
+	_assert_eq(slots.size(), 0, "index rebuild 不应收录身份阶段组合非法的坏 payload。")
+
+	var cleanup_error := int(fresh_session.clear_persisted_game())
+	_assert_eq(cleanup_error, OK, "bad identity index rebuild 回归结束后应能清理 save 目录。")
+	fresh_session.queue_free()
+	await process_frame
+
+
 func _test_ensure_world_ready_skips_newest_bad_save() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	root.add_child(game_session)
@@ -391,6 +431,21 @@ func _overwrite_payload_at_path(save_path: String, payload: Dictionary) -> int:
 	save_file.store_var(payload, false)
 	save_file.close()
 	return OK
+
+
+func _poison_first_member_identity_payload(payload: Dictionary) -> bool:
+	var party_state: Dictionary = (payload.get("party_state", {}) as Dictionary).duplicate(true)
+	var member_states: Dictionary = (party_state.get("member_states", {}) as Dictionary).duplicate(true)
+	if member_states.is_empty():
+		return false
+	var member_key = member_states.keys()[0]
+	var member_payload: Dictionary = (member_states.get(member_key, {}) as Dictionary).duplicate(true)
+	member_payload["ascension_id"] = ""
+	member_payload["ascension_stage_id"] = "identity_poison_stage"
+	member_states[member_key] = member_payload
+	party_state["member_states"] = member_states
+	payload["party_state"] = party_state
+	return true
 
 
 func _assert_true(condition: bool, message: String) -> void:

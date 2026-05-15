@@ -598,7 +598,14 @@ func _calculate_base_armor_class(resolved_base_values: Dictionary, modifier_entr
 	var max_dex_bonus := _resolve_armor_max_dex_bonus(modifier_entries)
 	if max_dex_bonus >= 0 and agility_modifier > max_dex_bonus:
 		capped_agility_modifier = max_dex_bonus
-	return _get_persistent_base_value(ARMOR_CLASS) + BASE_ARMOR_CLASS + capped_agility_modifier
+	return BASE_ARMOR_CLASS + capped_agility_modifier + _resolve_persistent_ac_component_total()
+
+
+func _resolve_persistent_ac_component_total() -> int:
+	var total := 0
+	for component_id in AC_COMPONENT_ATTRIBUTE_IDS:
+		total += maxi(_get_persistent_base_value(component_id), 0)
+	return total
 
 
 func _calculate_score_modifier(score: int) -> int:

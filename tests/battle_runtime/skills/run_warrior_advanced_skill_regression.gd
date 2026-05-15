@@ -896,6 +896,10 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.attribute_snapshot.set_value(&"stamina_max", 60)
 	unit.attribute_snapshot.set_value(&"aura_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
+	# Fixture 设了 mp_max=4 / aura_max=8，就视作两条资源已解锁；
+	# 否则技能 preview 在 get_locked_combat_resource_block_reason 阶段被拒（saint_blade_combo / whirlwind 都需要 aura）。
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)

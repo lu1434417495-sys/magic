@@ -33,6 +33,7 @@ const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/batt
 const BATTLE_SKILL_MASTERY_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_skill_mastery_service.gd")
 const BATTLE_TERRAIN_TOPOLOGY_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_terrain_topology_service.gd")
 const BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_target_collection_service.gd")
+const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
 const BATTLE_SPAWN_REACHABILITY_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_spawn_reachability_service.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
 const BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_change_equipment_resolver.gd")
@@ -95,7 +96,6 @@ const STATUS_STAGGERED: StringName = &"staggered"
 const STATUS_TAUNTED: StringName = &"taunted"
 const STATUS_MARKED: StringName = &"marked"
 const STATUS_ARCHER_RANGE_UP: StringName = &"archer_range_up"
-const STATUS_ARCHER_QUICKSTEP: StringName = &"archer_quickstep"
 const STATUS_GUARDING: StringName = &"guarding"
 const STATUS_VAJRA_BODY: StringName = &"vajra_body"
 const STATUS_BLACK_STAR_BRAND_NORMAL: StringName = &"black_star_brand_normal"
@@ -357,10 +357,14 @@ func start_battle(
 		and enemy_build_context.get("enemy_units", []) is Array \
 		and not (enemy_build_context.get("enemy_units", []) as Array).is_empty()
 	var validate_spawn_reachability := bool(context.get("validate_spawn_reachability", not has_explicit_enemy_units))
-	if _encounter_builder != null and not has_explicit_enemy_units:
-		enemy_units = _encounter_builder.build_enemy_units(encounter_anchor, enemy_build_context)
-	if enemy_units.is_empty():
+	if has_explicit_enemy_units:
 		enemy_units = _unit_factory.build_enemy_units(encounter_anchor, enemy_build_context)
+	elif _encounter_builder != null:
+		enemy_units = _encounter_builder.build_enemy_units(encounter_anchor, enemy_build_context)
+	if not _validate_battle_units_for_start(ally_units, "ally") or not _validate_battle_units_for_start(enemy_units, "enemy"):
+		_state = null
+		_ai_action_plans_by_unit_id.clear()
+		return BATTLE_STATE_SCRIPT.new()
 	for placement_attempt in range(BATTLE_START_PLACEMENT_MAX_ATTEMPTS):
 		var terrain_seed := seed + placement_attempt * BATTLE_START_TERRAIN_RETRY_SEED_STEP
 		var terrain_data := _unit_factory.build_terrain_data(encounter_anchor, terrain_seed, context)
@@ -440,6 +444,24 @@ func start_battle(
 	return BATTLE_STATE_SCRIPT.new()
 
 
+func _validate_battle_units_for_start(units: Array, side_label: String) -> bool:
+	if units.is_empty():
+		push_error("BattleRuntimeModule cannot start battle: %s units are empty." % side_label)
+		return false
+	for unit_variant in units:
+		var unit_state := unit_variant as BattleUnitState
+		if unit_state == null:
+			push_error("BattleRuntimeModule cannot start battle: %s unit payload is invalid." % side_label)
+			return false
+		if unit_state.attribute_snapshot == null:
+			push_error("BattleRuntimeModule cannot start battle: %s unit %s is missing attribute_snapshot." % [side_label, String(unit_state.unit_id)])
+			return false
+		if not unit_state.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS):
+			push_error("BattleRuntimeModule cannot start battle: %s unit %s is missing armor_class." % [side_label, String(unit_state.unit_id)])
+			return false
+	return true
+
+
 func _build_ai_action_plans() -> void:
 	_ai_action_plans_by_unit_id.clear()
 	if _state == null or _ai_action_assembler == null:
@@ -451,9 +473,24 @@ func _build_ai_action_plans() -> void:
 		var brain = _enemy_ai_brains.get(unit_state.ai_brain_id)
 		if brain == null:
 			continue
-		var action_plan: Dictionary = _ai_action_assembler.build_unit_action_plan(unit_state, brain, _skill_defs)
-		if action_plan.is_empty():
+		var action_plan = _ai_action_assembler.build_unit_action_plan(unit_state, brain, _skill_defs)
+		if action_plan == null:
 			continue
+		_ai_action_plans_by_unit_id[unit_state.unit_id] = action_plan
+
+
+func _ensure_ai_action_plan_for_unit(unit_state: BattleUnitState) -> void:
+	if unit_state == null or _ai_action_assembler == null:
+		return
+	if _ai_action_plans_by_unit_id.has(unit_state.unit_id):
+		return
+	if unit_state.control_mode == &"manual" or unit_state.ai_brain_id == &"":
+		return
+	var brain = _enemy_ai_brains.get(unit_state.ai_brain_id)
+	if brain == null:
+		return
+	var action_plan = _ai_action_assembler.build_unit_action_plan(unit_state, brain, _skill_defs)
+	if action_plan != null:
 		_ai_action_plans_by_unit_id[unit_state.unit_id] = action_plan
 
 
@@ -487,6 +524,7 @@ func advance(tick_count: int) -> BattleEventBatch:
 				var madness_command = _skill_turn_resolver.build_madness_fallback_command(active_unit)
 				if madness_command != null:
 					return issue_command(madness_command)
+			_ensure_ai_action_plan_for_unit(active_unit)
 			var ai_context := BATTLE_AI_CONTEXT_SCRIPT.new()
 			ai_context.state = _state
 			ai_context.unit_state = active_unit
@@ -494,8 +532,9 @@ func advance(tick_count: int) -> BattleEventBatch:
 			ai_context.skill_defs = _skill_defs
 			ai_context.preview_callback = Callable(self, "preview_command")
 			ai_context.skill_score_input_callback = Callable(_ai_service, "build_skill_score_input")
+			ai_context.move_cost_callback = Callable(self, "_get_move_cost_for_unit_target")
 			ai_context.action_score_input_callback = Callable(_ai_service, "build_action_score_input")
-			ai_context.runtime_actions_by_state = _ai_action_plans_by_unit_id.get(active_unit.unit_id, {})
+			ai_context.runtime_action_plan = _ai_action_plans_by_unit_id.get(active_unit.unit_id, null)
 			ai_context.trace_enabled = _ai_trace_enabled
 			var decision: BattleAiDecision = _ai_service.choose_command(ai_context)
 			if decision != null and decision.command != null:
@@ -593,27 +632,39 @@ func preview_command(command: BattleCommand) -> BattlePreview:
 
 	match command.command_type:
 		BattleCommand.TYPE_MOVE:
+			AI_TRACE_RECORDER.enter(&"preview:move")
 			if _is_movement_blocked(active_unit):
 				preview.log_lines.append("%s 当前被限制移动。" % active_unit.display_name)
-				return preview
-			var move_result := _resolve_move_path_result(active_unit, command.target_coord)
-			if bool(move_result.get("allowed", false)):
-				preview.allowed = true
-				var move_cost := int(move_result.get("cost", 0))
-				preview.move_cost = move_cost
-				preview.resolved_anchor_coord = command.target_coord
-				preview.log_lines.append("移动可执行，距离消耗 %d 点移动力，执行后锁定剩余移动力。" % move_cost)
-				for target_coord in _grid_service.get_unit_target_coords(active_unit, command.target_coord):
-					preview.target_coords.append(target_coord)
 			else:
-				preview.log_lines.append(String(move_result.get("message", "该移动不可执行。")))
+				AI_TRACE_RECORDER.enter(&"preview:move.resolve_path_result")
+				var move_result := _resolve_move_path_result(active_unit, command.target_coord)
+				AI_TRACE_RECORDER.exit(&"preview:move.resolve_path_result")
+				AI_TRACE_RECORDER.enter(&"preview:move.build_preview")
+				if bool(move_result.get("allowed", false)):
+					preview.allowed = true
+					var move_cost := int(move_result.get("cost", 0))
+					preview.move_cost = move_cost
+					preview.resolved_anchor_coord = command.target_coord
+					preview.log_lines.append("移动可执行，距离消耗 %d 点移动力，执行后锁定剩余移动力。" % move_cost)
+					for target_coord in _grid_service.get_unit_target_coords(active_unit, command.target_coord):
+						preview.target_coords.append(target_coord)
+				else:
+					preview.log_lines.append(String(move_result.get("message", "该移动不可执行。")))
+				AI_TRACE_RECORDER.exit(&"preview:move.build_preview")
+			AI_TRACE_RECORDER.exit(&"preview:move")
 		BattleCommand.TYPE_SKILL:
+			AI_TRACE_RECORDER.enter(&"preview:skill")
 			_preview_skill_command(active_unit, command, preview)
+			AI_TRACE_RECORDER.exit(&"preview:skill")
 		BattleCommand.TYPE_WAIT:
+			AI_TRACE_RECORDER.enter(&"preview:wait")
 			preview.allowed = true
 			preview.log_lines.append("%s 可以结束行动。" % active_unit.display_name)
+			AI_TRACE_RECORDER.exit(&"preview:wait")
 		BattleCommand.TYPE_CHANGE_EQUIPMENT:
+			AI_TRACE_RECORDER.enter(&"preview:change_equipment")
 			_preview_change_equipment_command(active_unit, command, preview)
+			AI_TRACE_RECORDER.exit(&"preview:change_equipment")
 		_:
 			preview.log_lines.append("未知命令类型。")
 	return preview
@@ -756,15 +807,44 @@ func submit_promotion_choice(
 	if _state == null or _character_gateway == null:
 		return batch
 	var delta = _character_gateway.promote_profession(member_id, profession_id, selection)
+	if not _promotion_delta_applied(delta, member_id, profession_id):
+		_keep_promotion_choice_modal_open(batch, "晋升提交无效，当前选择仍需确认。")
+		return batch
 	batch.progression_deltas.append(delta)
 	var unit_state := _find_unit_by_member_id(member_id)
 	if unit_state != null:
 		_unit_factory.refresh_battle_unit(unit_state)
 		batch.changed_unit_ids.append(unit_state.unit_id)
 		batch.log_lines.append("%s 完成职业晋升。" % unit_state.display_name)
-	_state.modal_state = &""
-	_state.timeline.frozen = false
+	if delta.needs_promotion_modal:
+		_keep_promotion_choice_modal_open(batch, "%s 触发职业晋升选择。" % (unit_state.display_name if unit_state != null else String(member_id)))
+	else:
+		_state.modal_state = &""
+		if _state.timeline != null:
+			_state.timeline.frozen = false
 	return batch
+
+
+func _keep_promotion_choice_modal_open(batch: BattleEventBatch, message: String = "") -> void:
+	if _state == null:
+		return
+	_state.modal_state = &"promotion_choice"
+	if _state.timeline != null:
+		_state.timeline.frozen = true
+	if batch != null:
+		batch.modal_requested = true
+		if not message.is_empty():
+			batch.log_lines.append(message)
+
+
+func _promotion_delta_applied(delta, member_id: StringName, profession_id: StringName) -> bool:
+	if delta == null:
+		return false
+	if delta.member_id != member_id:
+		return false
+	if delta.needs_promotion_modal:
+		return true
+	return delta.changed_profession_ids.has(profession_id)
 
 
 func get_state() -> BattleState:
@@ -1730,19 +1810,10 @@ func _get_spawn_anchor_center_bias(unit_state: BattleUnitState, coord: Vector2i)
 
 func _get_move_cost_for_unit_target(
 	unit_state: BattleUnitState,
-	target_coord: Vector2i,
-	allow_quickstep_bonus: bool = true
-) -> int:
-	_ensure_sidecars_ready()
-	return _movement_service._get_move_cost_for_unit_target(unit_state, target_coord, allow_quickstep_bonus)
-
-
-func _get_move_cost_for_unit_target_without_quickstep(
-	unit_state: BattleUnitState,
 	target_coord: Vector2i
 ) -> int:
 	_ensure_sidecars_ready()
-	return _movement_service._get_move_cost_for_unit_target_without_quickstep(unit_state, target_coord)
+	return _movement_service._get_move_cost_for_unit_target(unit_state, target_coord)
 
 
 func _get_move_path_cost(unit_state: BattleUnitState, anchor_path: Array[Vector2i]) -> int:
@@ -1954,9 +2025,15 @@ func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 	return _skill_orchestrator._is_multi_unit_skill(skill_def)
 
 
-func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def: SkillDef, require_ap: bool = true) -> bool:
+func _can_skill_target_unit(
+	active_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	skill_def: SkillDef,
+	require_ap: bool = true,
+	cast_variant: CombatCastVariantDef = null
+) -> bool:
 	_ensure_sidecars_ready()
-	return _skill_orchestrator._can_skill_target_unit(active_unit, target_unit, skill_def, require_ap)
+	return _skill_orchestrator._can_skill_target_unit(active_unit, target_unit, skill_def, require_ap, cast_variant)
 
 
 func _resolve_unit_skill_effect_result(
@@ -2879,11 +2956,6 @@ func _collect_dict_vector2i_keys(values: Dictionary) -> Array[Vector2i]:
 func _build_reachable_move_buckets(max_move_points: int) -> Array:
 	_ensure_sidecars_ready()
 	return _movement_service._build_reachable_move_buckets(max_move_points)
-
-
-func _build_reachable_move_state_key(coord: Vector2i, has_quickstep_bonus: bool) -> String:
-	_ensure_sidecars_ready()
-	return _movement_service._build_reachable_move_state_key(coord, has_quickstep_bonus)
 
 
 func _get_unit_skill_level(unit_state: BattleUnitState, skill_id: StringName) -> int:

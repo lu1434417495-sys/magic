@@ -42,39 +42,70 @@ func get_track_type_for_skill(skill_id: StringName) -> StringName:
 	var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
 	if skill_def == null:
 		return &""
+	return _get_exclusive_practice_track(skill_def)
+
+
+func _get_exclusive_practice_track(skill_def: SkillDef) -> StringName:
+	if skill_def == null:
+		return &""
+	var matched_track: StringName = &""
+	var matched_count := 0
 	for track_type in PRACTICE_TRACKS:
 		if skill_def.tags.has(track_type):
-			return track_type
-	return &""
+			matched_track = track_type
+			matched_count += 1
+	if matched_count != 1:
+		return &""
+	if skill_def.tags.size() != 1:
+		return &""
+	return matched_track
 
 
 func get_practice_tier(skill_id: StringName) -> int:
 	var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
 	if skill_def == null:
-		return TIER_BASIC
-	return TIER_NAME_TO_VALUE.get(skill_def.practice_tier, TIER_BASIC)
+		return -1
+	return int(TIER_NAME_TO_VALUE.get(skill_def.practice_tier, -1))
+
+
+func _has_valid_practice_tier(skill_id: StringName) -> bool:
+	var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
+	return skill_def != null and TIER_NAME_TO_VALUE.has(skill_def.practice_tier)
 
 
 func get_active_practice_skill(unit_progress: UnitProgress, track_type: StringName) -> StringName:
+	var active_skill_ids := _get_active_practice_skill_ids(unit_progress, track_type)
+	if active_skill_ids.size() != 1:
+		return &""
+	return active_skill_ids[0]
+
+
+func _get_active_practice_skill_ids(unit_progress: UnitProgress, track_type: StringName) -> Array[StringName]:
+	var active_skill_ids: Array[StringName] = []
 	if unit_progress == null:
-		return &""
+		return active_skill_ids
 	if not PRACTICE_TRACKS.has(track_type):
-		return &""
+		return active_skill_ids
 	for skill_key in ProgressionDataUtils.sorted_string_keys(unit_progress.skills):
 		var skill_id := StringName(skill_key)
 		var skill_progress: UnitSkillProgress = unit_progress.get_skill_progress(skill_id)
 		if skill_progress == null or not skill_progress.is_learned:
 			continue
 		if get_track_type_for_skill(skill_id) == track_type:
-			return skill_id
-	return &""
+			active_skill_ids.append(skill_id)
+	return active_skill_ids
 
 
 func can_learn_practice_skill(skill_id: StringName, unit_progress: UnitProgress) -> Dictionary:
 	var track_type := get_track_type_for_skill(skill_id)
 	if track_type == &"":
 		return {"can_learn": false, "needs_replacement": false, "existing_skill_id": &""}
-	var existing_skill_id := get_active_practice_skill(unit_progress, track_type)
+	if not _has_valid_practice_tier(skill_id):
+		return {"can_learn": false, "needs_replacement": false, "existing_skill_id": &""}
+	var existing_skill_ids := _get_active_practice_skill_ids(unit_progress, track_type)
+	if existing_skill_ids.size() > 1:
+		return {"can_learn": false, "needs_replacement": false, "existing_skill_id": &"", "error_code": &"ambiguous_existing_practice_track"}
+	var existing_skill_id: StringName = existing_skill_ids[0] if existing_skill_ids.size() == 1 else &""
 	if existing_skill_id == &"":
 		return {"can_learn": true, "needs_replacement": false, "existing_skill_id": &""}
 	if existing_skill_id == skill_id:
@@ -89,6 +120,8 @@ func calculate_replacement_level(
 ) -> int:
 	var old_tier := get_practice_tier(old_skill_id)
 	var new_tier := get_practice_tier(new_skill_id)
+	if old_tier < 0 or new_tier < 0:
+		return -1
 	var old_skill_progress: UnitSkillProgress = unit_progress.get_skill_progress(old_skill_id)
 	var old_level := 0
 	if old_skill_progress != null:
@@ -107,8 +140,11 @@ func calculate_replacement_level(
 
 func apply_replacement(
 	new_skill_id: StringName,
-	unit_progress: UnitProgress
+	unit_progress: UnitProgress,
+	formal_learning_verified: bool = false
 ) -> bool:
+	if not formal_learning_verified:
+		return false
 	var track_type := get_track_type_for_skill(new_skill_id)
 	if track_type == &"":
 		return false
@@ -120,6 +156,8 @@ func apply_replacement(
 		return false
 
 	var predicted_level: int = calculate_replacement_level(old_skill_id, new_skill_id, unit_progress)
+	if predicted_level < 0:
+		return false
 
 	_clear_replaced_skill_references(unit_progress, old_skill_id)
 	unit_progress.remove_skill_progress(old_skill_id)
@@ -139,6 +177,11 @@ func _clear_replaced_skill_references(unit_progress: UnitProgress, old_skill_id:
 	if unit_progress.active_level_trigger_core_skill_id == old_skill_id:
 		unit_progress.active_level_trigger_core_skill_id = &""
 	unit_progress.locked_level_trigger_skill_ids.erase(old_skill_id)
+	var old_skill_progress := unit_progress.get_skill_progress(old_skill_id) as UnitSkillProgress
+	if old_skill_progress != null:
+		old_skill_progress.is_level_trigger_active = false
+		old_skill_progress.is_level_trigger_locked = false
+		unit_progress.set_skill_progress(old_skill_progress)
 	for profession_key in ProgressionDataUtils.sorted_string_keys(unit_progress.professions):
 		var profession_id := ProgressionDataUtils.to_string_name(profession_key)
 		var profession_progress = unit_progress.get_profession_progress(profession_id)

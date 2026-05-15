@@ -6,6 +6,9 @@
 [ext_resource type="Script" path="res://scripts/enemies/actions/move_to_range_action.gd" id="4_move"]
 [ext_resource type="Script" path="res://scripts/enemies/actions/wait_action.gd" id="5_wait"]
 [ext_resource type="Script" path="res://scripts/enemies/actions/retreat_action.gd" id="6_retreat"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_generation_slot_def.gd" id="7_slot"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_transition_rule_def.gd" id="8_transition_rule"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_transition_condition_def.gd" id="9_transition_condition"]
 
 [sub_resource type="Resource" id="Action_control"]
 script = ExtResource("3_unit")
@@ -52,15 +55,38 @@ desired_max_distance = 1
 script = ExtResource("5_wait")
 action_id = &"weaver_wait"
 
+[sub_resource type="Resource" id="Slot_engage_unit"]
+script = ExtResource("7_slot")
+slot_id = &"engage_unit"
+slot_role = &"control"
+order = 10
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"weaver_lock_target"
+score_bucket_id = &"mist_control"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_engage_move"]
+script = ExtResource("7_slot")
+slot_id = &"engage_move"
+slot_role = &"positioning"
+order = 20
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"unit_hostile.control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"weaver_take_position"
+score_bucket_id = &"mist_control"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+
 [sub_resource type="Resource" id="State_engage"]
 script = ExtResource("2_state")
 state_id = &"engage"
 actions = Array[Resource]([SubResource("Action_control"), SubResource("Action_pressure"), SubResource("Action_move"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
-
-[sub_resource type="Resource" id="State_pressure"]
-script = ExtResource("2_state")
-state_id = &"pressure"
-actions = Array[Resource]([SubResource("Action_control"), SubResource("Action_pressure"), SubResource("Action_move_pressure"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_engage_unit"), SubResource("Slot_engage_move")])
 
 [sub_resource type="Resource" id="Action_support_heal"]
 script = ExtResource("3_unit")
@@ -82,11 +108,6 @@ desired_min_distance = 3
 desired_max_distance = 4
 distance_reference = &"target_unit"
 
-[sub_resource type="Resource" id="State_support"]
-script = ExtResource("2_state")
-state_id = &"support"
-actions = Array[Resource]([SubResource("Action_support_heal"), SubResource("Action_support_bind"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
-
 [sub_resource type="Resource" id="Action_retreat_heal"]
 script = ExtResource("3_unit")
 action_id = &"weaver_rewind_retreat"
@@ -102,16 +123,191 @@ script = ExtResource("6_retreat")
 action_id = &"weaver_retreat"
 minimum_safe_distance = 4
 
+[sub_resource type="Resource" id="Slot_pressure_unit"]
+script = ExtResource("7_slot")
+slot_id = &"pressure_unit"
+slot_role = &"control"
+order = 10
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"weaver_lock_target"
+score_bucket_id = &"mist_control"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_pressure_move"]
+script = ExtResource("7_slot")
+slot_id = &"pressure_move"
+slot_role = &"positioning"
+order = 20
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"unit_hostile.control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"weaver_keep_range"
+score_bucket_id = &"mist_control"
+target_selector = &"nearest_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+
+[sub_resource type="Resource" id="Slot_support_heal"]
+script = ExtResource("7_slot")
+slot_id = &"support_heal"
+slot_role = &"support"
+order = 10
+allowed_affordances = Array[StringName]([&"ally_heal", &"self_or_ally_buff"])
+action_families = Array[StringName]([&"use_unit_skill"])
+style_template_action_id = &"weaver_rewind_ally"
+score_bucket_id = &"mist_support"
+target_selector = &"lowest_hp_ally"
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"enemy_frontline"
+
+[sub_resource type="Resource" id="Slot_support_unit"]
+script = ExtResource("7_slot")
+slot_id = &"support_unit"
+slot_role = &"control"
+order = 20
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"weaver_cover_bind"
+score_bucket_id = &"mist_control"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 3
+desired_max_distance = 4
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_support_move"]
+script = ExtResource("7_slot")
+slot_id = &"support_move"
+slot_role = &"positioning"
+order = 30
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"unit_hostile.control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"weaver_close_for_basic_attack"
+score_bucket_id = &"mist_control"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+
+[sub_resource type="Resource" id="State_pressure"]
+script = ExtResource("2_state")
+state_id = &"pressure"
+actions = Array[Resource]([SubResource("Action_control"), SubResource("Action_pressure"), SubResource("Action_move_pressure"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_pressure_unit"), SubResource("Slot_pressure_move")])
+
+[sub_resource type="Resource" id="State_support"]
+script = ExtResource("2_state")
+state_id = &"support"
+actions = Array[Resource]([SubResource("Action_support_heal"), SubResource("Action_support_bind"), SubResource("Action_melee_fallback_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_support_heal"), SubResource("Slot_support_unit"), SubResource("Slot_support_move")])
+
+[sub_resource type="Resource" id="Slot_retreat_heal"]
+script = ExtResource("7_slot")
+slot_id = &"retreat_heal"
+slot_role = &"survival"
+order = 10
+allowed_affordances = Array[StringName]([&"ally_heal", &"self_or_ally_buff"])
+action_families = Array[StringName]([&"use_unit_skill"])
+style_template_action_id = &"weaver_rewind_retreat"
+score_bucket_id = &"mist_support"
+target_selector = &"lowest_hp_ally"
+desired_min_distance = 4
+desired_max_distance = 4
+distance_reference = &"enemy_frontline"
+
 [sub_resource type="Resource" id="State_retreat"]
 script = ExtResource("2_state")
 state_id = &"retreat"
 actions = Array[Resource]([SubResource("Action_retreat_heal"), SubResource("Action_retreat_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_retreat_heal")])
+
+[sub_resource type="Resource" id="Condition_retreat_low_hp"]
+script = ExtResource("9_transition_condition")
+predicate = &"self_hp_at_or_below_basis_points"
+basis_points = 3500
+
+[sub_resource type="Resource" id="Condition_support_self_low_hp"]
+script = ExtResource("9_transition_condition")
+predicate = &"self_hp_at_or_below_basis_points"
+basis_points = 7000
+
+[sub_resource type="Resource" id="Condition_support_ally_low_hp"]
+script = ExtResource("9_transition_condition")
+predicate = &"ally_hp_at_or_below_basis_points"
+basis_points = 7000
+
+[sub_resource type="Resource" id="Condition_support_affordance"]
+script = ExtResource("9_transition_condition")
+predicate = &"has_skill_affordance"
+affordances = Array[StringName]([&"ally_heal", &"self_or_ally_buff"])
+
+[sub_resource type="Resource" id="Condition_pressure_current"]
+script = ExtResource("9_transition_condition")
+predicate = &"current_state_is"
+state_ids = Array[StringName]([&"pressure"])
+
+[sub_resource type="Resource" id="Condition_pressure_sticky_distance"]
+script = ExtResource("9_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 5
+
+[sub_resource type="Resource" id="Condition_pressure_enter_distance"]
+script = ExtResource("9_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 4
+
+[sub_resource type="Resource" id="Condition_always"]
+script = ExtResource("9_transition_condition")
+predicate = &"always"
+
+[sub_resource type="Resource" id="Rule_retreat_low_hp"]
+script = ExtResource("8_transition_rule")
+rule_id = &"retreat_low_hp"
+order = 10
+target_state_id = &"retreat"
+conditions = Array[Resource]([SubResource("Condition_retreat_low_hp")])
+
+[sub_resource type="Resource" id="Rule_support_self_low_hp"]
+script = ExtResource("8_transition_rule")
+rule_id = &"support_self_low_hp"
+order = 20
+target_state_id = &"support"
+conditions = Array[Resource]([SubResource("Condition_support_self_low_hp"), SubResource("Condition_support_affordance")])
+
+[sub_resource type="Resource" id="Rule_support_ally_low_hp"]
+script = ExtResource("8_transition_rule")
+rule_id = &"support_ally_low_hp"
+order = 21
+target_state_id = &"support"
+conditions = Array[Resource]([SubResource("Condition_support_ally_low_hp"), SubResource("Condition_support_affordance")])
+
+[sub_resource type="Resource" id="Rule_pressure_sticky"]
+script = ExtResource("8_transition_rule")
+rule_id = &"pressure_sticky"
+order = 30
+from_state_ids = Array[StringName]([&"pressure"])
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_current"), SubResource("Condition_pressure_sticky_distance")])
+
+[sub_resource type="Resource" id="Rule_pressure_enter"]
+script = ExtResource("8_transition_rule")
+rule_id = &"pressure_enter"
+order = 40
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_enter_distance")])
+
+[sub_resource type="Resource" id="Rule_engage_default"]
+script = ExtResource("8_transition_rule")
+rule_id = &"engage_default"
+order = 90
+target_state_id = &"engage"
+conditions = Array[Resource]([SubResource("Condition_always")])
 
 [resource]
 script = ExtResource("1_brain")
 brain_id = &"healer_controller"
 default_state_id = &"pressure"
-retreat_hp_basis_points = 3500
-support_hp_basis_points = 7000
-pressure_distance = 4
 states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_support"), SubResource("State_retreat")])
+transition_rules = Array[Resource]([SubResource("Rule_retreat_low_hp"), SubResource("Rule_support_self_low_hp"), SubResource("Rule_support_ally_low_hp"), SubResource("Rule_pressure_sticky"), SubResource("Rule_pressure_enter"), SubResource("Rule_engage_default")])

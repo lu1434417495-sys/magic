@@ -498,6 +498,7 @@ func _test_damage_resolver_reports_hp_damage_after_shield_absorption() -> void:
 
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
+	damage_effect.damage_tag = &"physical_slash"
 	damage_effect.power = 10
 
 	var result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
@@ -610,6 +611,7 @@ func _test_damage_resolver_reports_mitigation_sources() -> void:
 	_set_test_status(target, &"guarding", {}, 4)
 	var physical_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	physical_effect.effect_type = &"damage"
+	physical_effect.damage_tag = &"physical_slash"
 	physical_effect.power = 10
 
 	var guarded_result: Dictionary = resolver.resolve_effects(source, target, [physical_effect])
@@ -919,6 +921,7 @@ func _test_damage_resolver_guarding_only_reduces_physical_damage() -> void:
 
 	var physical_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	physical_effect.effect_type = &"damage"
+	physical_effect.damage_tag = &"physical_slash"
 	physical_effect.power = 10
 
 	var magic_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
@@ -947,6 +950,7 @@ func _test_damage_resolver_damage_reduction_up_uses_fixed_value() -> void:
 
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
+	damage_effect.damage_tag = &"physical_slash"
 	damage_effect.power = 10
 
 	var result: Dictionary = resolver.resolve_effects(source, target, [damage_effect])
@@ -2245,7 +2249,9 @@ func _test_facade_auto_battle_advance_marks_overlay_refresh_for_tu_only_updates(
 	_assert_true(changed, "仅 TU 推进时 facade.advance() 也应返回 true，以驱动标题栏实时刷新。")
 	_assert_eq(facade.get_last_advance_battle_refresh_mode(), "overlay", "仅 TU 推进时应建议场景层走 overlay HUD 刷新。")
 	_assert_eq(int(runtime_state.timeline.current_tu) if runtime_state != null and runtime_state.timeline != null else -1, 5, "仅 TU 推进时 battle state 应正式增长 current_tu。")
-	_assert_eq(String(hud.get("round_badge", "")), "TU 5\nREADY 0", "HUD round_badge 应同步反映最新的 TU。")
+	var round_badge: Dictionary = hud.get("round_badge", {}) as Dictionary
+	_assert_eq(String(round_badge.get("tu_text", "")), "TU 5", "HUD round_badge.tu_text 应同步反映最新的 TU。")
+	_assert_eq(String(round_badge.get("ready_text", "")), "READY 0", "HUD round_badge.ready_text 应同步反映 ready 数量。")
 	_assert_eq(String(runtime_state.phase) if runtime_state != null else "", "timeline_running", "仅 TU 推进且未达到阈值时，不应误切换到 unit_acting。")
 
 	_cleanup_test_session(game_session)
@@ -2538,7 +2544,7 @@ func _build_test_damage_skill(
 	power: int,
 	_attack_bonus_attribute_id: StringName,
 	_armor_class_attribute_id: StringName,
-	damage_tag: StringName = &""
+	damage_tag: StringName = &"physical_blunt"
 ) -> SkillDef:
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"damage"
@@ -2601,7 +2607,6 @@ func _build_test_ground_weapon_attack_effect() -> CombatEffectDef:
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = 0
-	effect_def.damage_tag = &"physical_slash"
 	effect_def.effect_target_team_filter = &"enemy"
 	effect_def.params = {
 		"resolve_as_weapon_attack": true,
@@ -2615,7 +2620,6 @@ func _build_test_basic_attack_skill() -> SkillDef:
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = 0
-	effect_def.damage_tag = &"physical_slash"
 	effect_def.params = {
 		"add_weapon_dice": true,
 		"use_weapon_physical_damage_tag": true,
@@ -2648,21 +2652,13 @@ func _build_test_basic_attack_skill() -> SkillDef:
 
 
 func _add_unit_to_state(facade, state: BattleState, unit: BattleUnitState, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	var placed: bool = bool(facade._battle_runtime._grid_service.place_unit(state, unit, unit.coord, true))
 	_assert_true(placed, "测试单位 %s 应能成功放入战场。" % String(unit.unit_id))
 
 
 func _add_unit_to_runtime_state(runtime, state: BattleState, unit: BattleUnitState, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	var placed: bool = bool(runtime._grid_service.place_unit(state, unit, unit.coord, true))
 	_assert_true(placed, "测试单位 %s 应能成功放入战场。" % String(unit.unit_id))
 

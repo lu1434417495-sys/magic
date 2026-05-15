@@ -26,6 +26,10 @@ var _enemy_content_seed_resource_path := ENEMY_CONTENT_SEED_RESOURCE_PATH
 var _enemy_template_directory := ENEMY_TEMPLATE_CONFIG_DIRECTORY
 var _enemy_ai_brain_directory := ENEMY_BRAIN_CONFIG_DIRECTORY
 var _wild_encounter_roster_directory := WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY
+var _validate_seed_directory_completeness := true
+var _seed_enemy_ai_brain_paths: Dictionary = {}
+var _seed_enemy_template_paths: Dictionary = {}
+var _seed_wild_encounter_roster_paths: Dictionary = {}
 
 
 func _init() -> void:
@@ -34,9 +38,12 @@ func _init() -> void:
 
 func configure_seed_resource(
 	seed_resource_path: String = ENEMY_CONTENT_SEED_RESOURCE_PATH,
-	rebuild_now: bool = true
+	rebuild_now: bool = true,
+	validate_seed_directory_completeness: bool = false
 ) -> void:
 	_enemy_content_seed_resource_path = seed_resource_path
+	_validate_seed_directory_completeness = validate_seed_directory_completeness \
+		or seed_resource_path == ENEMY_CONTENT_SEED_RESOURCE_PATH
 	if rebuild_now:
 		rebuild()
 
@@ -51,6 +58,7 @@ func configure_directories(
 	_enemy_template_directory = template_directory
 	_enemy_ai_brain_directory = brain_directory
 	_wild_encounter_roster_directory = roster_directory
+	_validate_seed_directory_completeness = false
 	if rebuild_now:
 		rebuild()
 
@@ -60,8 +68,13 @@ func rebuild() -> void:
 	_enemy_ai_brains.clear()
 	_wild_encounter_rosters.clear()
 	_validation_errors.clear()
+	_seed_enemy_ai_brain_paths.clear()
+	_seed_enemy_template_paths.clear()
+	_seed_wild_encounter_roster_paths.clear()
 	if not _enemy_content_seed_resource_path.is_empty():
 		_register_seed_resource(_enemy_content_seed_resource_path)
+		if _validate_seed_directory_completeness:
+			_validation_errors.append_array(_collect_seed_directory_completeness_errors())
 	else:
 		_scan_directory(
 			_enemy_ai_brain_directory,
@@ -112,11 +125,100 @@ func _register_seed_resource(resource_path: String) -> void:
 		return
 
 	for brain_variant in seed_resource.enemy_ai_brains:
+		_remember_seed_resource_path(_seed_enemy_ai_brain_paths, brain_variant)
 		_register_brain_entry(brain_variant, "%s::enemy_ai_brains" % resource_path)
 	for template_variant in seed_resource.enemy_templates:
+		_remember_seed_resource_path(_seed_enemy_template_paths, template_variant)
 		_register_template_entry(template_variant, "%s::enemy_templates" % resource_path)
 	for roster_variant in seed_resource.wild_encounter_rosters:
+		_remember_seed_resource_path(_seed_wild_encounter_roster_paths, roster_variant)
 		_register_wild_encounter_roster_entry(roster_variant, "%s::wild_encounter_rosters" % resource_path)
+
+
+func _remember_seed_resource_path(seed_paths: Dictionary, resource_variant: Variant) -> void:
+	var resource := resource_variant as Resource
+	if resource == null:
+		return
+	var resource_path := _normalize_resource_path(resource.resource_path)
+	if resource_path.is_empty():
+		return
+	seed_paths[resource_path] = true
+
+
+func _collect_seed_directory_completeness_errors() -> Array[String]:
+	var errors: Array[String] = []
+	_append_seed_directory_completeness_errors(
+		errors,
+		_enemy_ai_brain_directory,
+		_seed_enemy_ai_brain_paths,
+		"enemy_ai_brains"
+	)
+	_append_seed_directory_completeness_errors(
+		errors,
+		_enemy_template_directory,
+		_seed_enemy_template_paths,
+		"enemy_templates"
+	)
+	_append_seed_directory_completeness_errors(
+		errors,
+		_wild_encounter_roster_directory,
+		_seed_wild_encounter_roster_paths,
+		"wild_encounter_rosters"
+	)
+	return errors
+
+
+func _append_seed_directory_completeness_errors(
+	errors: Array[String],
+	directory_path: String,
+	seed_paths: Dictionary,
+	seed_collection_name: String
+) -> void:
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(directory_path)):
+		errors.append("Enemy content seed completeness could not find %s." % directory_path)
+		return
+
+	var directory_resource_paths := _collect_resource_paths_in_directory(directory_path)
+	for resource_path in directory_resource_paths:
+		if seed_paths.has(resource_path):
+			continue
+		errors.append(
+			"Enemy content seed %s is missing %s entry for %s." % [
+				_enemy_content_seed_resource_path,
+				seed_collection_name,
+				resource_path,
+			]
+		)
+
+
+func _collect_resource_paths_in_directory(directory_path: String) -> Array[String]:
+	var resource_paths: Array[String] = []
+	var directory := DirAccess.open(directory_path)
+	if directory == null:
+		return resource_paths
+
+	directory.list_dir_begin()
+	while true:
+		var entry_name := directory.get_next()
+		if entry_name.is_empty():
+			break
+		if entry_name == "." or entry_name == "..":
+			continue
+
+		var entry_path := "%s/%s" % [directory_path, entry_name]
+		if directory.current_is_dir():
+			resource_paths.append_array(_collect_resource_paths_in_directory(entry_path))
+			continue
+		if not entry_name.ends_with(".tres") and not entry_name.ends_with(".res"):
+			continue
+		resource_paths.append(_normalize_resource_path(entry_path))
+	directory.list_dir_end()
+	resource_paths.sort()
+	return resource_paths
+
+
+func _normalize_resource_path(resource_path: String) -> String:
+	return resource_path.replace("\\", "/")
 
 
 func _scan_directory(directory_path: String, register_callback: Callable, scan_label: String) -> void:

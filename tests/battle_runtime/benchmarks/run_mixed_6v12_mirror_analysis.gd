@@ -11,6 +11,9 @@ const BATTLE_SIM_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battl
 const BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_formal_combat_fixture.gd")
 const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
 const BATTLE_SIM_TRACE_SUMMARY_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd")
+const AI_SERVICE_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_service_probe.gd")
+const AI_ASSEMBLER_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_assembler_probe.gd")
+const AI_PROFILE_CAPTURE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_profile_capture.gd")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
 const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
@@ -22,6 +25,14 @@ const ENV_SIMULATION_TIMEOUT_SECONDS := "SIM_TIMEOUT_SECONDS"
 const DEFAULT_PROGRESS_INTERVAL_SECONDS := 5.0
 const ENV_PROGRESS_ENABLED := "PROGRESS"
 const ENV_PROGRESS_INTERVAL_SECONDS := "PROGRESS_SECONDS"
+const DEFAULT_AI_PROFILE_OUTPUT_DIR := "res://tests/battle_runtime/benchmarks/profiles/"
+const ENV_AI_PROFILE_ENABLED := "AI_PROFILE"
+const ENV_AI_PROFILE_TOP_N := "AI_PROFILE_TOP_N"
+const ENV_AI_PROFILE_SORT := "AI_PROFILE_SORT"
+const ENV_AI_PROFILE_FILTER := "AI_PROFILE_FILTER"
+const ENV_AI_PROFILE_OUTPUT_DIR := "AI_PROFILE_OUTPUT_DIR"
+const ENV_AI_TRACE_JSON := "AI_TRACE_JSON"
+const ENV_AI_MUTATION_GUARD_ENABLED := "AI_MUTATION_GUARD"
 
 var _progress_enabled := true
 var _progress_interval_msec := int(DEFAULT_PROGRESS_INTERVAL_SECONDS * 1000.0)
@@ -42,6 +53,8 @@ func _initialize() -> void:
 	_progress_enabled = _read_bool_environment(ENV_PROGRESS_ENABLED, true)
 	_progress_interval_msec = maxi(int(_read_float_environment(ENV_PROGRESS_INTERVAL_SECONDS, DEFAULT_PROGRESS_INTERVAL_SECONDS) * 1000.0), 250)
 	var roster_options := _build_roster_options_from_environment()
+	var ai_profile_capture = _build_ai_profile_capture() if _read_bool_environment(ENV_AI_PROFILE_ENABLED, false) else null
+	var ai_mutation_guard_enabled := _read_bool_environment(ENV_AI_MUTATION_GUARD_ENABLED, false)
 
 	var scenario_path := "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres"
 	var scenario_def = load(scenario_path)
@@ -132,6 +145,15 @@ func _initialize() -> void:
 		timeout_seconds,
 		output_path if not output_path.is_empty() else "<stdout>",
 	])
+	_print_progress("[Progress] ai_mutation_guard=%s" % str(ai_mutation_guard_enabled))
+	if ai_profile_capture != null:
+		_print_progress("[Progress] ai_profile enabled top_n=%d sort=%s filter='%s' trace_json=%s output=%s" % [
+			int(ai_profile_capture.top_n),
+			String(ai_profile_capture.sort_by),
+			String(ai_profile_capture.name_filter),
+			str(ai_profile_capture.dump_trace_json),
+			String(ai_profile_capture.output_dir),
+		])
 	for run_index in range(run_count):
 		if _has_reached_timeout(start_time, timeout_seconds):
 			timed_out = true
@@ -161,7 +183,9 @@ func _initialize() -> void:
 				"batch_start_time": start_time,
 				"seed": seed,
 				"max_iterations": int(scenario_def.max_iterations) if scenario_def != null else 0,
-			}
+			},
+			ai_profile_capture,
+			ai_mutation_guard_enabled
 		)
 		var metrics: Dictionary = result.get("metrics", {})
 		var factions: Dictionary = metrics.get("factions", {})
@@ -368,6 +392,7 @@ func _initialize() -> void:
 		"timeout_seconds": timeout_seconds,
 		"timed_out": timed_out,
 		"elapsed_seconds": elapsed_total,
+		"ai_mutation_guard_enabled": ai_mutation_guard_enabled,
 		"ended_count": ended_count,
 		"avg_iterations": float(total_iterations) / n,
 		"avg_timeline_steps": float(total_timeline_steps) / n,
@@ -410,6 +435,16 @@ func _initialize() -> void:
 	}
 	if trace_ai:
 		report["trace_summary_file"] = _resolve_trace_summary_path(output_path)
+	if ai_profile_capture != null:
+		var profile_report: Dictionary = ai_profile_capture.write_reports()
+		report["ai_profile"] = profile_report.duplicate(true)
+		print(String(profile_report.get("header", "")))
+		print(String(profile_report.get("body", "")))
+		_print_ai_profile_report_status(profile_report)
+		if not bool(profile_report.get("balanced", true)):
+			print("[ERROR] AI profile tracer call stack not balanced (enter/exit pairing broken)")
+		if bool(profile_report.get("truncated", false)):
+			print("[WARN] AI profile trace events truncated (max_events cap reached)")
 
 	if output_path.is_empty():
 		print(JSON.stringify(report, "\t"))
@@ -470,6 +505,26 @@ func _build_roster_options_from_environment() -> Dictionary:
 	return options
 
 
+func _build_ai_profile_capture():
+	var output_dir := _read_string_environment(ENV_AI_PROFILE_OUTPUT_DIR, DEFAULT_AI_PROFILE_OUTPUT_DIR)
+	var top_n := maxi(_read_int_environment(ENV_AI_PROFILE_TOP_N, 20), 1)
+	var sort_by := _read_string_environment(ENV_AI_PROFILE_SORT, "self_usec")
+	var name_filter := _read_string_environment(ENV_AI_PROFILE_FILTER, "")
+	var dump_trace_json := _read_bool_environment(ENV_AI_TRACE_JSON, false)
+	var capture = AI_PROFILE_CAPTURE_SCRIPT.new()
+	capture.setup(
+		"mixed_6v12",
+		output_dir,
+		top_n,
+		sort_by,
+		name_filter,
+		dump_trace_json,
+		AI_PROFILE_CAPTURE_SCRIPT.resolve_git_commit(),
+		"ai_profile"
+	)
+	return capture
+
+
 func _run_single_simulation(
 	scenario_def,
 	overrides: Dictionary,
@@ -478,7 +533,9 @@ func _run_single_simulation(
 	fixture,
 	seed: int,
 	trace_ai: bool = false,
-	progress_context: Dictionary = {}
+	progress_context: Dictionary = {},
+	ai_profile_capture = null,
+	ai_mutation_guard_enabled: bool = false
 ) -> Dictionary:
 	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
 	var use_formal_terrain := bool(scenario_def.use_formal_terrain_generation) if scenario_def != null else false
@@ -491,6 +548,9 @@ func _run_single_simulation(
 		null if use_formal_terrain else terrain_generator
 	)
 	runtime.set_ai_trace_enabled(trace_ai)
+	if ai_profile_capture != null:
+		_install_ai_profile_probes(runtime)
+	_set_ai_mutation_guard_enabled(runtime, ai_mutation_guard_enabled)
 	runtime.set_ai_score_profile(overrides.get("ai_score_profile", null))
 
 	var encounter_anchor = ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
@@ -501,6 +561,7 @@ func _run_single_simulation(
 	encounter_anchor.region_tag = &"simulation"
 
 	var context: Dictionary = fixture.build_runtime_context(runtime, scenario_def.build_start_context())
+	var ai_profile_recorder = ai_profile_capture.begin_run(true) if ai_profile_capture != null else null
 	var state = runtime.start_battle(encounter_anchor, seed, context)
 	fixture.apply_started_battle_metadata(state)
 
@@ -515,6 +576,8 @@ func _run_single_simulation(
 	var timeline_steps := int(loop_result.get("timeline_steps", 0))
 
 	var metrics := runtime.get_battle_metrics().duplicate(true)
+	if ai_profile_capture != null:
+		ai_profile_capture.end_run(ai_profile_recorder, _count_profile_ai_turns(metrics))
 	var run_result := {
 		"battle_ended": state != null and state.phase == &"battle_ended",
 		"winner_faction_id": String(state.winner_faction_id) if state != null else "",
@@ -528,6 +591,35 @@ func _run_single_simulation(
 		run_result["ai_turn_traces"] = runtime.get_ai_turn_traces().duplicate(true)
 	runtime.dispose()
 	return run_result
+
+
+func _install_ai_profile_probes(runtime) -> void:
+	var ai_probe = AI_SERVICE_PROBE_SCRIPT.new()
+	ai_probe.setup(runtime._enemy_ai_brains, runtime._damage_resolver)
+	runtime._ai_service = ai_probe
+	var assembler_probe = AI_ASSEMBLER_PROBE_SCRIPT.new()
+	runtime._ai_action_assembler = assembler_probe
+
+
+func _set_ai_mutation_guard_enabled(runtime, enabled: bool) -> void:
+	if runtime == null or runtime._ai_service == null:
+		return
+	runtime._ai_service.enable_mutation_guard = enabled
+
+
+func _count_profile_ai_turns(metrics: Dictionary) -> int:
+	var units = metrics.get("units", {})
+	if units is not Dictionary:
+		return 0
+	var unit_map: Dictionary = units
+	var count := 0
+	for unit_data_variant in unit_map.values():
+		if unit_data_variant is not Dictionary:
+			continue
+		if String(unit_data_variant.get("control_mode", "ai")) == "manual":
+			continue
+		count += int(unit_data_variant.get("turn_count", 0))
+	return count
 
 
 func _get_content_dictionary(content_provider, method_name: StringName) -> Dictionary:
@@ -560,6 +652,13 @@ func _read_float_environment(name: String, default_value: float) -> float:
 	if value.is_empty():
 		return default_value
 	return float(value)
+
+
+func _read_string_environment(name: String, default_value: String) -> String:
+	if not OS.has_environment(name):
+		return default_value
+	var value := OS.get_environment(name).strip_edges()
+	return default_value if value.is_empty() else value
 
 
 func _read_int_list_environment(name: String) -> Array[int]:
@@ -653,6 +752,27 @@ func _count_living_units(state, unit_ids: Array) -> int:
 func _print_progress(message: String) -> void:
 	if _progress_enabled:
 		print(message)
+
+
+func _print_ai_profile_report_status(report: Dictionary) -> void:
+	var hotspots_path := String(report.get("hotspots_path", ""))
+	if not hotspots_path.is_empty():
+		if bool(report.get("wrote_hotspots", false)):
+			print("[AiProfile] wrote %s" % hotspots_path)
+		else:
+			print("[ERROR] AiProfile failed to write %s" % hotspots_path)
+	var csv_path := String(report.get("functions_csv_path", ""))
+	if not csv_path.is_empty():
+		if bool(report.get("wrote_functions_csv", false)):
+			print("[AiProfile] wrote %s" % csv_path)
+		else:
+			print("[ERROR] AiProfile failed to write %s" % csv_path)
+	var trace_path := String(report.get("trace_path", ""))
+	if not trace_path.is_empty():
+		if bool(report.get("wrote_trace", false)):
+			print("[AiProfile] wrote %s" % trace_path)
+		else:
+			print("[ERROR] AiProfile failed to write %s" % trace_path)
 
 
 func _resolve_trace_summary_path(output_path: String) -> String:

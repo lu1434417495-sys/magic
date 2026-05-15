@@ -63,7 +63,17 @@ func _decide_impl(context):
 		for cast_variant in _get_ground_variants(context, skill_def):
 			if cast_variant == null or _is_charge_variant(cast_variant):
 				continue
+			var effective_skill_range := BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(context.unit_state, skill_def)
+			var uses_relocation_distance := BATTLE_RANGE_SERVICE_SCRIPT.is_ground_relocation_skill(skill_def)
 			for target_coords in _enumerate_ground_target_coord_sets(context, cast_variant):
+				if not _is_ground_coord_set_within_cast_range(
+					context,
+					target_coords,
+					effective_skill_range,
+					uses_relocation_distance
+				):
+					_trace_count_increment(action_trace, "range_prefilter_reject_count", 1)
+					continue
 				_trace_count_increment(action_trace, "evaluation_count", 1)
 				var command = _build_ground_skill_command(context, skill_id, cast_variant.variant_id, target_coords)
 				var preview = context.preview_command(command)
@@ -135,6 +145,25 @@ func _decide_impl(context):
 	var resolved_decision: BattleAiDecision = best_decision if best_decision != null else fallback_decision
 	_finalize_action_trace(context, action_trace, resolved_decision)
 	return resolved_decision
+
+
+func _is_ground_coord_set_within_cast_range(
+	context,
+	target_coords: Array,
+	effective_skill_range: int,
+	uses_relocation_distance: bool
+) -> bool:
+	if context == null or context.grid_service == null or context.unit_state == null:
+		return true
+	for coord_variant in target_coords:
+		if coord_variant is not Vector2i:
+			return true
+		var coord: Vector2i = coord_variant
+		var distance: int = context.grid_service.get_chebyshev_distance(context.unit_state.coord, coord) \
+			if uses_relocation_distance else context.grid_service.get_distance_from_unit_to_coord(context.unit_state, coord)
+		if distance > effective_skill_range:
+			return false
+	return true
 
 
 func _passes_minimum_effective_target_or_ground_control(score_input) -> bool:

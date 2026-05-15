@@ -156,11 +156,31 @@ func _on_world_preset_picker_cancelled() -> void:
 
 
 func _open_character_creation_for(start_type: StringName, preset_id: StringName) -> void:
+	if not _can_open_character_creation():
+		_pending_start_type = &""
+		_pending_preset_id = &""
+		return
 	_pending_start_type = start_type
 	_pending_preset_id = preset_id
 	_configure_character_creation_window()
 	character_creation_window.show_window()
 	status_label.text = "请输入主角姓名并掷出六项属性。"
+
+
+func _can_open_character_creation() -> bool:
+	var game_session = _get_game_session()
+	if game_session == null:
+		_show_error("未找到 GameSession。")
+		return false
+	if game_session.has_method("refresh_content_validation_snapshot"):
+		var snapshot: Dictionary = game_session.refresh_content_validation_snapshot()
+		if not bool(snapshot.get("ok", false)):
+			_show_error("内容校验失败，无法开始建卡。请查看日志并修正配置。")
+			return false
+	if game_session.has_method("is_content_validation_ok") and not game_session.is_content_validation_ok():
+		_show_error("内容校验失败，无法开始建卡。请查看日志并修正配置。")
+		return false
+	return true
 
 
 func _on_character_creation_confirmed(payload: Dictionary) -> void:

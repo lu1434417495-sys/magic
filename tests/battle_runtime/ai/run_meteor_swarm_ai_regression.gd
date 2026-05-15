@@ -15,6 +15,7 @@ const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_s
 const UseGroundSkillAction = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -155,6 +156,8 @@ func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionar
 	caster.current_ap = 4
 	caster.current_mp = 200
 	caster.current_aura = 3
+	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
 	state.units[caster.unit_id] = caster
 	state.ally_unit_ids.append(caster.unit_id)
 	for unit in extra_units:
@@ -225,6 +228,7 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 	unit.is_alive = true
 	unit.current_hp = hp
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, hp)
+	BattleRuntimeTestHelpers.seed_base_attributes_and_derive_ac(unit)
 	unit.refresh_footprint()
 	return unit
 

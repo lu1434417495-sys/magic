@@ -12,6 +12,7 @@ const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/b
 const BATTLE_ATTACK_CHECK_POLICY_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_attack_check_policy_service.gd")
 const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_skill_resolution_rules.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const BATTLE_TARGET_TEAM_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 const BATTLE_CHANGE_EQUIPMENT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_change_equipment_resolver.gd")
 const BATTLE_REPEAT_ATTACK_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd")
 const FATE_ATTACK_FORMULA_SCRIPT = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
@@ -187,6 +188,150 @@ func build_snapshot(
 	}
 
 
+## 仅为 hover 浮层算预览，不重建整个 HUD snapshot。
+##
+## 返回字段：
+##   hover_coord: Vector2i               -- 原样回传
+##   hover_is_valid_target: bool         -- false 时浮层显示"不可达"或不显示命中/伤害区
+##   has_selected_skill: bool            -- selected_skill_id 是否非空
+##   hit_preview: Dictionary             -- 与 selected_skill_hit_preview_payload 同结构（可能为空）
+##   hit_stage_rates: Array              -- 与 selected_skill_hit_stage_rates 同结构
+##   hit_badge_text: String              -- 简短命中徽标文本
+##   fate_badges: Array                  -- 与 selected_skill_fate_badges 同结构
+##   damage_min: int / damage_max: int   -- 伤害区间
+##   damage_text: String                 -- 伤害区间汇总文案
+##   target_unit: Dictionary             -- 目标单位概览（name/glyph/hp/mp/ap/is_enemy/is_self/buffs）
+##                                          缺技能选中时也允许填，仅靠 target_unit 实现 B2 / B4
+func build_hover_preview(
+	battle_state: BattleState,
+	hover_coord: Vector2i,
+	selected_skill_id: StringName = &"",
+	selected_skill_variant_id: StringName = &"",
+	valid_target_coords: Array = [],
+	change_equipment_preview_callback: Callable = Callable()
+) -> Dictionary:
+	var result := {
+		"hover_coord": hover_coord,
+		"hover_is_valid_target": false,
+		"has_selected_skill": selected_skill_id != &"",
+		"hit_preview": {},
+		"hit_stage_rates": [],
+		"hit_badge_text": "",
+		"fate_badges": [],
+		"damage_min": 0,
+		"damage_max": 0,
+		"damage_text": "",
+		"target_unit": {},
+	}
+	if battle_state == null:
+		return result
+	if not battle_state.cells.has(hover_coord):
+		return result
+
+	var hovered_unit := _get_unit_at_coord(battle_state, hover_coord)
+	if hovered_unit != null:
+		result["target_unit"] = _build_hover_target_unit_snapshot(hovered_unit, battle_state)
+
+	if selected_skill_id == &"":
+		return result
+
+	var normalized_valid := _normalize_vector2i_array(valid_target_coords)
+	var is_valid_target := normalized_valid.has(hover_coord)
+	result["hover_is_valid_target"] = is_valid_target
+	if not is_valid_target:
+		return result
+
+	var active_unit := battle_state.units.get(battle_state.active_unit_id) as BattleUnitState
+	if active_unit == null:
+		return result
+
+	var target_coords: Array[Vector2i] = [hover_coord]
+	var target_unit_ids: Array[StringName] = []
+	if hovered_unit != null:
+		target_unit_ids.append(hovered_unit.unit_id)
+	var runtime_preview := _build_selected_skill_runtime_preview(
+		battle_state,
+		active_unit,
+		hover_coord,
+		selected_skill_id,
+		target_coords,
+		target_unit_ids,
+		selected_skill_variant_id,
+		change_equipment_preview_callback
+	)
+	var hit_preview := _build_selected_skill_hit_preview(
+		battle_state,
+		active_unit,
+		hover_coord,
+		selected_skill_id,
+		target_coords,
+		target_unit_ids,
+		selected_skill_variant_id,
+		runtime_preview
+	)
+	var damage_preview := _build_selected_skill_damage_preview(
+		battle_state,
+		active_unit,
+		hover_coord,
+		selected_skill_id,
+		target_coords,
+		target_unit_ids,
+		selected_skill_variant_id
+	)
+	var fate_preview := _build_selected_skill_fate_preview(
+		battle_state,
+		active_unit,
+		hover_coord,
+		selected_skill_id,
+		target_coords,
+		target_unit_ids,
+		selected_skill_variant_id
+	)
+	result["hit_preview"] = hit_preview.duplicate(true)
+	result["hit_stage_rates"] = (hit_preview.get("stage_success_rates", []) as Array).duplicate(true)
+	result["hit_badge_text"] = _build_selected_skill_hit_badge_text(hit_preview)
+	result["fate_badges"] = (fate_preview.get("badges", []) as Array).duplicate(true)
+	result["damage_min"] = int(damage_preview.get("min_damage", 0))
+	result["damage_max"] = int(damage_preview.get("max_damage", 0))
+	result["damage_text"] = String(damage_preview.get("summary_text", ""))
+	return result
+
+
+func _build_hover_target_unit_snapshot(unit_state: BattleUnitState, battle_state: BattleState) -> Dictionary:
+	if unit_state == null:
+		return {}
+	var portrait_data := _build_portrait_data(unit_state, battle_state)
+	var hp_max := _get_snapshot_value(unit_state, &"hp_max", maxi(unit_state.current_hp, 1))
+	var mp_max := _get_snapshot_value(unit_state, &"mp_max", maxi(unit_state.current_mp, 0))
+	var stamina_max := _get_snapshot_value(unit_state, &"stamina_max", maxi(unit_state.current_stamina, 0))
+	var aura_max := _get_snapshot_value(unit_state, &"aura_max", maxi(unit_state.current_aura, 0))
+	var ap_max := _get_snapshot_value(unit_state, &"action_points", maxi(unit_state.current_ap, 1))
+	var is_enemy := battle_state != null and battle_state.enemy_unit_ids.has(unit_state.unit_id)
+	var is_self := battle_state != null and unit_state.unit_id == battle_state.active_unit_id
+	return {
+		"unit_id": unit_state.unit_id,
+		"name": _format_unit_name(unit_state, "单位"),
+		"glyph": portrait_data.get("glyph", "?"),
+		"portrait_key": portrait_data.get("portrait_key", ""),
+		"primary_color": portrait_data.get("primary_color", Color(0.62, 0.47, 0.32, 1.0)),
+		"edge_color": portrait_data.get("edge_color", Color(0.93, 0.77, 0.5, 1.0)),
+		"hp_current": int(unit_state.current_hp),
+		"hp_max": maxi(hp_max, 1),
+		"mp_current": int(unit_state.current_mp),
+		"mp_max": maxi(mp_max, 1),
+		"mp_visible": _is_resource_unlocked(unit_state, BattleUnitState.COMBAT_RESOURCE_MP),
+		"stamina_current": int(unit_state.current_stamina),
+		"stamina_max": maxi(stamina_max, 1),
+		"aura_current": int(unit_state.current_aura),
+		"aura_max": maxi(aura_max, 1),
+		"aura_visible": _is_resource_unlocked(unit_state, BattleUnitState.COMBAT_RESOURCE_AURA),
+		"ap_current": int(unit_state.current_ap),
+		"ap_max": maxi(ap_max, 1),
+		"is_enemy": is_enemy,
+		"is_self": is_self,
+	}
+
+
 func _build_header_subtitle(battle_state: BattleState, active_unit: BattleUnitState) -> String:
 	return "阶段 %s  |  友军 %d  |  敌军 %d  |  当前 %s" % [
 		_format_phase(battle_state.phase),
@@ -196,13 +341,13 @@ func _build_header_subtitle(battle_state: BattleState, active_unit: BattleUnitSt
 	]
 
 
-func _build_round_badge(battle_state: BattleState) -> String:
+func _build_round_badge(battle_state: BattleState) -> Dictionary:
 	if battle_state.timeline == null:
-		return "TU --\nREADY 0"
-	return "TU %d\nREADY %d" % [
-		int(battle_state.timeline.current_tu),
-		battle_state.timeline.ready_unit_ids.size(),
-	]
+		return {"tu_text": "TU --", "ready_text": "READY 0"}
+	return {
+		"tu_text": "TU %d" % int(battle_state.timeline.current_tu),
+		"ready_text": "READY %d" % battle_state.timeline.ready_unit_ids.size(),
+	}
 
 
 func _build_queue_entries(battle_state: BattleState) -> Array[Dictionary]:
@@ -1661,21 +1806,7 @@ func _skill_target_filter_matches_unit(
 	target_unit: BattleUnitState,
 	target_team_filter: StringName
 ) -> bool:
-	if active_unit == null or target_unit == null:
-		return false
-	var is_same_unit := active_unit.unit_id == target_unit.unit_id
-	var is_same_faction := String(active_unit.faction_id) == String(target_unit.faction_id)
-	match target_team_filter:
-		&"enemy":
-			return not is_same_faction
-		&"ally":
-			return is_same_faction
-		&"self":
-			return is_same_unit
-		&"", &"any":
-			return true
-		_:
-			return true
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_unit_valid_for_filter(active_unit, target_unit, target_team_filter)
 
 
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def) -> int:

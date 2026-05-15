@@ -30,6 +30,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_apply_services_validate_before_mutation()
+	_test_character_management_rejects_invalid_identity_apply_without_mutation()
 	_test_character_management_applies_identity_and_refreshes_grants()
 	_test_stage_advancement_refreshes_effective_stage()
 	_test_identity_summary_includes_identity_projection()
@@ -104,6 +105,29 @@ func _test_apply_services_validate_before_mutation() -> void:
 		"remove_stage_advancement_modifier 应能移除已存在 modifier。"
 	)
 	_assert_eq(member.active_stage_advancement_modifier_ids, [], "移除 modifier 后列表应为空。")
+
+
+func _test_character_management_rejects_invalid_identity_apply_without_mutation() -> void:
+	var bundle := _make_identity_bundle()
+	var party_state := _make_party_state()
+	var manager := CharacterManagementModule.new()
+	manager.setup(party_state, {}, {}, {}, {}, {}, Callable(), bundle)
+	var member: PartyMemberState = party_state.get_member_state(&"hero")
+
+	_assert_true(
+		not manager.apply_bloodline(&"hero", &"titan", &"dragon_awakened"),
+		"CMM 应拒绝不属于该 bloodline 的 stage。"
+	)
+	_assert_eq(member.bloodline_id, &"", "CMM 非法 bloodline apply 不应写入 bloodline_id。")
+	_assert_eq(member.bloodline_stage_id, &"", "CMM 非法 bloodline apply 不应写入 bloodline_stage_id。")
+
+	_assert_true(
+		not manager.apply_ascension(&"hero", &"elf_ascension", &"elf_awakened", 7),
+		"CMM 应拒绝不满足 allowed_race_ids 的 ascension。"
+	)
+	_assert_eq(member.ascension_id, &"", "CMM 非法 ascension apply 不应写入 ascension_id。")
+	_assert_eq(member.ascension_stage_id, &"", "CMM 非法 ascension apply 不应写入 ascension_stage_id。")
+	_assert_eq(member.ascension_started_at_world_step, -1, "CMM 非法 ascension apply 不应写入开始 world step。")
 
 
 func _test_character_management_applies_identity_and_refreshes_grants() -> void:
@@ -432,7 +456,6 @@ func _make_granted_skill(skill_id: StringName) -> RacialGrantedSkill:
 	var grant := RacialGrantedSkill.new()
 	grant.skill_id = skill_id
 	grant.minimum_skill_level = 1
-	grant.grant_level = 1
 	grant.charge_kind = RacialGrantedSkill.CHARGE_KIND_PER_BATTLE
 	grant.charges = 1
 	return grant

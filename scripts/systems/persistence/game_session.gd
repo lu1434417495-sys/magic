@@ -26,7 +26,9 @@ const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/persistence/game_
 const WORLD_PRESET_REGISTRY_SCRIPT = preload("res://scripts/utils/world_preset_registry.gd")
 const WORLD_MAP_CONTENT_VALIDATOR_SCRIPT = preload("res://scripts/utils/world_map_content_validator.gd")
 const BATTLE_SPECIAL_PROFILE_REGISTRY_SCRIPT = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd")
+const QUEST_CONTENT_VALIDATOR_SCRIPT = preload("res://scripts/player/progression/quest_content_validator.gd")
 const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/character_creation_service.gd")
+const IDENTITY_PAYLOAD_VALIDATOR_SCRIPT = preload("res://scripts/systems/progression/identity_payload_validator.gd")
 const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/progression_service.gd")
 const RACIAL_SKILL_GRANT_SERVICE_SCRIPT = preload("res://scripts/systems/progression/racial_skill_grant_service.gd")
 const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
@@ -42,7 +44,7 @@ const SAVE_VERSION := 7
 const SAVE_INDEX_VERSION := 3
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 const MAX_ACTIVE_MEMBER_COUNT := 4
-const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "battle_special_profile", "item", "recipe", "enemy", "world"]
+const CONTENT_VALIDATION_DOMAIN_ORDER := ["progression", "battle_special_profile", "item", "recipe", "enemy", "world", "quest"]
 const RANDOM_START_SKILL_TIER_BASIC: StringName = &"basic"
 const RANDOM_START_SKILL_TIER_INTERMEDIATE: StringName = &"intermediate"
 const RANDOM_START_SKILL_TIER_ADVANCED: StringName = &"advanced"
@@ -212,7 +214,10 @@ func create_new_save(
 		_restore_runtime_state(previous_runtime_state)
 		return prepare_error
 
-	_apply_character_creation_payload_to_main_character(character_creation_payload)
+	var character_creation_error := _apply_character_creation_payload_to_main_character(character_creation_payload)
+	if character_creation_error != OK:
+		_restore_runtime_state(previous_runtime_state)
+		return character_creation_error
 
 	var timestamp := int(Time.get_unix_time_from_system())
 	var save_id := _generate_unique_save_id(timestamp)
@@ -804,6 +809,14 @@ func _load_current_payload(
 	var decode_error := int(decode_result.get("error", ERR_INVALID_DATA))
 	if decode_error != OK:
 		return decode_error
+	var decoded_party_state = decode_result.get("party_state", PARTY_STATE_SCRIPT.new())
+	var identity_error := _validate_decoded_party_identity_for_save(
+		decoded_party_state,
+		String(decode_result.get("active_save_id", "")),
+		&"load_save"
+	)
+	if identity_error != OK:
+		return identity_error
 	_reset_runtime_state()
 	_active_save_id = String(decode_result.get("active_save_id", ""))
 	_active_save_path = _build_save_file_path(_active_save_id)
@@ -813,7 +826,7 @@ func _load_current_payload(
 	_world_data = decode_result.get("world_data", {}).duplicate(true)
 	_player_coord = decode_result.get("player_coord", Vector2i.ZERO)
 	_player_faction_id = String(decode_result.get("player_faction_id", "player"))
-	_party_state = decode_result.get("party_state", PARTY_STATE_SCRIPT.new())
+	_party_state = decoded_party_state
 	_has_active_world = true
 	var body_size_changed := _refresh_party_body_sizes_from_identity(_party_state)
 	var racial_grants_changed := false
@@ -1290,6 +1303,12 @@ func _rebuild_save_index_entries_from_save_files() -> Array[Dictionary]:
 		var decode_result := _save_serializer.decode_payload(payload, generation_config_path, generation_config, save_meta)
 		if int(decode_result.get("error", ERR_INVALID_DATA)) != OK:
 			continue
+		if _validate_decoded_party_identity_for_save(
+			decode_result.get("party_state", null),
+			String(save_meta.get("save_id", "")),
+			&"index_rebuild"
+		) != OK:
+			continue
 		rebuilt_by_id[String(save_meta.get("save_id", ""))] = save_meta
 	save_dir.list_dir_end()
 
@@ -1306,6 +1325,22 @@ func _merge_save_index_entries(primary_entries: Array[Dictionary], fallback_entr
 
 func _extract_save_meta_from_payload(payload: Dictionary) -> Dictionary:
 	return _save_serializer.extract_save_meta_from_payload(payload)
+
+
+func _validate_decoded_party_identity_for_save(party_state, save_id: String, context: StringName) -> int:
+	var identity_errors := IDENTITY_PAYLOAD_VALIDATOR_SCRIPT.validate_party_identity(party_state, _progression_content_registry)
+	if identity_errors.is_empty():
+		return OK
+	_push_session_error(
+		"session.save.identity_payload_invalid",
+		"Save slot %s has invalid party identity payload." % save_id,
+		{
+			"save_id": save_id,
+			"context": String(context),
+			"errors": identity_errors,
+		}
+	)
+	return ERR_INVALID_DATA
 
 
 func _upsert_save_meta(entries: Array[Dictionary], save_meta: Dictionary) -> Array[Dictionary]:
@@ -1345,21 +1380,32 @@ func _remove_directory_recursive(virtual_path: String) -> int:
 	)
 
 
-func _apply_character_creation_payload_to_main_character(payload: Dictionary) -> void:
+func _apply_character_creation_payload_to_main_character(payload: Dictionary) -> int:
 	if payload == null or payload.is_empty():
-		return
+		return OK
 	if _party_state == null:
-		return
+		_push_session_error(
+			"session.save.create.missing_party_state",
+			"GameSession cannot apply character creation payload without party state."
+		)
+		return ERR_INVALID_DATA
 
 	var main_member_id: StringName = _party_state.get_resolved_main_character_member_id()
 	if main_member_id == &"":
-		push_warning("GameSession: no resolvable main character; skipping character creation override.")
-		return
+		_push_session_error(
+			"session.save.create.missing_main_character",
+			"GameSession cannot apply character creation payload without a resolvable main character."
+		)
+		return ERR_INVALID_DATA
 
 	var member_state = _party_state.get_member_state(main_member_id)
 	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
-		push_warning("GameSession: main character %s missing progression; skipping character creation override." % String(main_member_id))
-		return
+		_push_session_error(
+			"session.save.create.invalid_main_character",
+			"GameSession cannot apply character creation payload because main character %s is incomplete." % String(main_member_id),
+			{"member_id": String(main_member_id)}
+		)
+		return ERR_INVALID_DATA
 
 	if not CHARACTER_CREATION_SERVICE_SCRIPT.apply_character_creation_payload_to_member(
 		member_state,
@@ -1367,11 +1413,16 @@ func _apply_character_creation_payload_to_main_character(payload: Dictionary) ->
 		_progression_content_registry,
 		{CHARACTER_CREATION_SERVICE_SCRIPT.CREATION_OPTION_BAKE_REROLL_LUCK: true}
 	):
-		push_warning("GameSession: failed to apply character creation payload for main character %s." % String(main_member_id))
-		return
+		_push_session_error(
+			"session.save.create.invalid_character_creation_payload",
+			"GameSession rejected invalid character creation payload for main character %s." % String(main_member_id),
+			{"member_id": String(main_member_id)}
+		)
+		return ERR_INVALID_DATA
 
 	_revoke_orphan_racial_skills(_party_state)
 	_backfill_racial_granted_skills(_party_state)
+	return OK
 
 
 func _apply_character_creation_identity_payload(member_state, payload: Dictionary) -> void:
@@ -1907,6 +1958,7 @@ func _refresh_content_validation_snapshot() -> void:
 		"recipe": _build_content_validation_domain_snapshot(_recipe_content_registry),
 		"enemy": _build_content_validation_domain_snapshot(_enemy_content_registry),
 		"world": _build_world_content_validation_domain_snapshot(),
+		"quest": _build_quest_content_validation_domain_snapshot(),
 	}
 	var error_count := 0
 	for domain_id in CONTENT_VALIDATION_DOMAIN_ORDER:
@@ -1936,6 +1988,27 @@ func _build_world_content_validation_domain_snapshot() -> Dictionary:
 	if _world_content_validator != null and _world_content_validator.has_method("validate_world_presets"):
 		for validation_error in _world_content_validator.validate_world_presets(_enemy_templates, _wild_encounter_rosters):
 			errors.append(String(validation_error))
+	return {
+		"ok": errors.is_empty(),
+		"error_count": errors.size(),
+		"errors": errors,
+	}
+
+
+func _build_quest_content_validation_domain_snapshot() -> Dictionary:
+	var errors: Array[String] = []
+	var registration_errors: Array[String] = []
+	if _progression_content_registry != null and _progression_content_registry.has_method("get_quest_registration_errors"):
+		for registration_error in _progression_content_registry.get_quest_registration_errors():
+			registration_errors.append(String(registration_error))
+	for validation_error in QUEST_CONTENT_VALIDATOR_SCRIPT.validate(
+		_quest_defs,
+		_item_defs,
+		_skill_defs,
+		_enemy_templates,
+		registration_errors
+	):
+		errors.append(String(validation_error))
 	return {
 		"ok": errors.is_empty(),
 		"error_count": errors.size(),
@@ -1987,6 +2060,8 @@ func _report_content_validation_error(domain_id: String, validation_error: Strin
 			_push_session_error("session.content.enemy_validation_failed", "Enemy content error: %s" % validation_error)
 		"world":
 			_push_session_error("session.content.world_validation_failed", "World content error: %s" % validation_error)
+		"quest":
+			_push_session_error("session.content.quest_validation_failed", "Quest content error: %s" % validation_error)
 
 
 func _log_session_info(event_id: String, message: String, context: Dictionary = {}) -> void:

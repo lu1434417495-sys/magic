@@ -35,7 +35,6 @@ source_id = &"titan_avatar"
 script = ExtResource("3_grant")
 skill_id = &"titan_stomp"
 minimum_skill_level = 1
-grant_level = 1
 charge_kind = &"per_battle"
 charges = 2
 
@@ -43,7 +42,6 @@ charges = 2
 script = ExtResource("3_grant")
 skill_id = &"titan_domain_pressure"
 minimum_skill_level = 1
-grant_level = 1
 charge_kind = &"per_battle"
 charges = 1
 
@@ -51,7 +49,6 @@ charges = 1
 script = ExtResource("3_grant")
 skill_id = &"titan_colossus_form"
 minimum_skill_level = 1
-grant_level = 1
 charge_kind = &"per_battle"
 charges = 1
 

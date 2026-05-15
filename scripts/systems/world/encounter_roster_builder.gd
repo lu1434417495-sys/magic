@@ -58,7 +58,8 @@ func build_enemy_units(encounter_anchor, source: Dictionary = {}):
 	var template = _resolve_enemy_template(encounter_anchor, enemy_templates)
 	if template != null:
 		return _build_template_enemy_units(encounter_anchor, template, skill_defs, enemy_ai_brains, build_context)
-	return _build_fallback_enemy_units(encounter_anchor, skill_defs, build_context)
+	_report_missing_enemy_template(encounter_anchor)
+	return []
 
 
 func build_loot_entries(encounter_anchor, source: Dictionary = {}) -> Array:
@@ -378,7 +379,8 @@ func _build_profile_enemy_units(
 	var template = _resolve_enemy_template(encounter_anchor, enemy_templates)
 	if template != null:
 		return _build_template_enemy_units(encounter_anchor, template, skill_defs, enemy_ai_brains, build_context)
-	return _build_fallback_enemy_units(encounter_anchor, skill_defs, build_context)
+	_report_missing_enemy_template(encounter_anchor)
+	return []
 
 
 func _build_template_enemy_units(
@@ -489,10 +491,11 @@ func _build_enemy_snapshot_from_template(
 	var unit_progress = UNIT_PROGRESS_SCRIPT.new()
 	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
 		unit_progress.unit_base_attributes.set_attribute_value(attribute_id, int(base_attributes.get(attribute_id, 0)))
+	var stats: Dictionary = template.attribute_overrides if template != null else {}
+	_apply_enemy_ac_component_overrides_to_progress(unit_progress, stats)
 	var attribute_service = ATTRIBUTE_SERVICE_SCRIPT.new()
 	attribute_service.setup(unit_progress)
 	var snapshot = attribute_service.get_snapshot()
-	var stats: Dictionary = template.attribute_overrides if template != null else {}
 	_apply_enemy_attribute_overrides(snapshot, stats)
 	if template != null:
 		_apply_enemy_target_rank(snapshot, template.target_rank)
@@ -557,55 +560,25 @@ func _apply_enemy_attribute_overrides(snapshot, stats: Dictionary) -> void:
 		snapshot.set_value(attribute_id, value)
 
 
-func _build_fallback_enemy_units(encounter_anchor, skill_defs: Dictionary, build_context: Dictionary) -> Array:
-	var enemy_units: Array = []
-	var enemy_count := maxi(
-		int(build_context.get("enemy_unit_count", 2 if encounter_anchor != null and encounter_anchor.enemy_roster_template_id != &"" else 1)),
-		1
-	)
-	var default_skill_ids: Array[StringName] = _pick_default_enemy_skill_ids(skill_defs)
-	var fallback_stamina_max := _resolve_basic_attack_stamina_cost(skill_defs)
-	for index in range(enemy_count):
-		var unit_state := BATTLE_UNIT_STATE_SCRIPT.new()
-		unit_state.unit_id = _build_enemy_unit_id(encounter_anchor, index)
-		unit_state.display_name = encounter_anchor.display_name if encounter_anchor != null and index == 0 else "%s·从属%d" % [
-			encounter_anchor.display_name if encounter_anchor != null else "敌人",
-			index + 1,
+func _apply_enemy_ac_component_overrides_to_progress(unit_progress, stats: Dictionary) -> void:
+	if unit_progress == null or unit_progress.unit_base_attributes == null:
+		return
+	for component_id in ATTRIBUTE_SERVICE_SCRIPT.AC_COMPONENT_ATTRIBUTE_IDS:
+		if stats.has(component_id):
+			unit_progress.unit_base_attributes.set_attribute_value(component_id, maxi(int(stats.get(component_id, 0)), 0))
+		elif stats.has(String(component_id)):
+			unit_progress.unit_base_attributes.set_attribute_value(component_id, maxi(int(stats.get(String(component_id), 0)), 0))
+
+
+func _report_missing_enemy_template(encounter_anchor) -> void:
+	var anchor_id := String(encounter_anchor.entity_id) if encounter_anchor != null else "unknown"
+	var template_id := String(encounter_anchor.enemy_roster_template_id) if encounter_anchor != null else ""
+	push_error(
+		"Encounter %s cannot build fallback enemy units; missing enemy roster/template %s." % [
+			anchor_id,
+			template_id,
 		]
-		unit_state.faction_id = encounter_anchor.faction_id if encounter_anchor != null else &"hostile"
-		unit_state.control_mode = &"ai"
-		unit_state.body_size = BattleUnitState.BODY_SIZE_MEDIUM
-		unit_state.refresh_footprint()
-		unit_state.attribute_snapshot = _build_enemy_snapshot(index, fallback_stamina_max)
-		unit_state.current_hp = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)
-		unit_state.current_mp = 0
-		unit_state.current_stamina = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)
-		unit_state.current_ap = unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS)
-		unit_state.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
-		unit_state.set_unarmed_weapon_projection()
-		unit_state.action_threshold = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_ACTION_THRESHOLD
-		unit_state.known_active_skill_ids = default_skill_ids.duplicate()
-		_ensure_basic_attack_skill(unit_state, skill_defs)
-		for skill_id in unit_state.known_active_skill_ids:
-			unit_state.known_skill_level_map[skill_id] = 1
-		_sync_enemy_unlocked_resources(unit_state, skill_defs)
-		enemy_units.append(unit_state)
-	return enemy_units
-
-
-func _build_enemy_snapshot(index: int, fallback_stamina_max: int = 0):
-	var snapshot = ATTRIBUTE_SNAPSHOT_SCRIPT.new()
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 26 + index * 6)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(fallback_stamina_max, 0))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 1)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 4 + index)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 12 + index)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, 0)
-	return snapshot
+	)
 
 
 func _pick_default_enemy_skill_ids(skill_defs: Dictionary) -> Array[StringName]:
@@ -646,14 +619,6 @@ func _ensure_basic_attack_skill(unit_state, skill_defs: Dictionary) -> void:
 		return
 	if not unit_state.known_active_skill_ids.has(BASIC_ATTACK_SKILL_ID):
 		unit_state.known_active_skill_ids.append(BASIC_ATTACK_SKILL_ID)
-
-
-func _resolve_basic_attack_stamina_cost(skill_defs: Dictionary) -> int:
-	var skill_def := skill_defs.get(BASIC_ATTACK_SKILL_ID) as SkillDef
-	if skill_def == null or skill_def.combat_profile == null:
-		return 0
-	var costs: Dictionary = skill_def.combat_profile.get_effective_resource_costs(1)
-	return maxi(int(costs.get("stamina_cost", skill_def.combat_profile.stamina_cost)), 0)
 
 
 func _sync_enemy_unlocked_resources(unit_state, skill_defs: Dictionary) -> void:

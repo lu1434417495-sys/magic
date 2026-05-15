@@ -188,6 +188,10 @@ func validate_schema(known_brains: Dictionary = {}, item_defs: Dictionary = {}, 
 					String(forbidden_key),
 				]
 			)
+	if _dictionary_has_unsupported_key(attribute_overrides, &"armor_class"):
+		errors.append(
+			"Enemy template %s must not declare attribute_overrides.armor_class; use base attributes and AC component bonuses." % String(template_id)
+		)
 	errors.append_array(_validate_template_skill_ids(skill_defs))
 	for unsupported_key in UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS:
 		if _dictionary_has_unsupported_key(attribute_overrides, unsupported_key):

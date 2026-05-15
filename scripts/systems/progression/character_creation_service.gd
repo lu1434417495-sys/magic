@@ -9,7 +9,7 @@ const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/part
 const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
+const IDENTITY_PAYLOAD_VALIDATOR_SCRIPT = preload("res://scripts/systems/progression/identity_payload_validator.gd")
 
 const HIDDEN_LUCK_AT_BIRTH_MAX := 2
 const HIDDEN_LUCK_AT_BIRTH_MIN := -6
@@ -17,6 +17,16 @@ const INITIAL_HP_BASE := 14
 const DEFAULT_SOURCE_ID: StringName = &"birth_roll"
 const MAXIMUM_REROLL_TIER_MINIMUM := 10_000_000
 const CREATION_OPTION_BAKE_REROLL_LUCK := "bake_reroll_luck"
+const IDENTITY_BODY_SIZE_SOURCE_FIELDS := [
+	"race_id",
+	"subrace_id",
+	"bloodline_id",
+	"bloodline_stage_id",
+	"ascension_id",
+	"ascension_stage_id",
+	"body_size",
+	"body_size_category",
+]
 
 
 static func calculate_initial_hp_max(constitution_value: int) -> int:
@@ -34,7 +44,8 @@ static func create_member_from_character_creation_payload(
 	member_state.progression = UNIT_PROGRESS_SCRIPT.new()
 	member_state.progression.unit_id = member_id
 	member_state.progression.unit_base_attributes = UNIT_BASE_ATTRIBUTES_SCRIPT.new()
-	apply_character_creation_payload_to_member(member_state, payload, progression_content_source, options)
+	if not apply_character_creation_payload_to_member(member_state, payload, progression_content_source, options):
+		return null
 	return member_state
 
 
@@ -45,6 +56,8 @@ static func apply_character_creation_payload_to_member(
 	options: Dictionary = {}
 ) -> bool:
 	if member_state == null or payload == null or payload.is_empty():
+		return false
+	if not _validate_payload_identity_before_mutation(member_state, payload, progression_content_source):
 		return false
 	if member_state.progression == null:
 		member_state.progression = UNIT_PROGRESS_SCRIPT.new()
@@ -63,7 +76,8 @@ static func apply_character_creation_payload_to_member(
 		if payload.has(String(attribute_id)):
 			base_attributes.set_attribute_value(attribute_id, int(payload[String(attribute_id)]))
 
-	_apply_identity_payload_to_member(member_state, payload, progression_content_source)
+	if not _apply_identity_payload_to_member(member_state, payload, progression_content_source):
+		return false
 	if payload.has(String(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD)):
 		base_attributes.set_attribute_value(
 			ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD,
@@ -161,7 +175,8 @@ static func _map_string_reroll_count(reroll_count_text: String) -> int:
 	return 2 - digit_count
 
 
-static func _apply_identity_payload_to_member(member_state, payload: Dictionary, progression_content_source: Variant) -> void:
+static func _apply_identity_payload_to_member(member_state, payload: Dictionary, progression_content_source: Variant) -> bool:
+	var should_refresh_body_size := _payload_requires_body_size_identity_source(payload)
 	member_state.race_id = _read_payload_string_name(payload, "race_id", member_state.race_id, false)
 	member_state.subrace_id = _read_payload_string_name(payload, "subrace_id", member_state.subrace_id, false)
 	member_state.age_years = _read_payload_nonnegative_int(payload, "age_years", member_state.age_years)
@@ -171,8 +186,6 @@ static func _apply_identity_payload_to_member(member_state, payload: Dictionary,
 	member_state.effective_age_stage_id = _read_payload_string_name(payload, "effective_age_stage_id", member_state.effective_age_stage_id, false)
 	member_state.effective_age_stage_source_type = _read_payload_string_name(payload, "effective_age_stage_source_type", member_state.effective_age_stage_source_type, true)
 	member_state.effective_age_stage_source_id = _read_payload_string_name(payload, "effective_age_stage_source_id", member_state.effective_age_stage_source_id, true)
-	member_state.body_size = maxi(_read_payload_nonnegative_int(payload, "body_size", member_state.body_size), 1)
-	member_state.body_size_category = _read_payload_string_name(payload, "body_size_category", member_state.body_size_category, false)
 	member_state.versatility_pick = _read_payload_string_name(payload, "versatility_pick", member_state.versatility_pick, true)
 	if payload.has("active_stage_advancement_modifier_ids") and payload["active_stage_advancement_modifier_ids"] is Array:
 		member_state.active_stage_advancement_modifier_ids = ProgressionDataUtils.to_string_name_array(payload["active_stage_advancement_modifier_ids"])
@@ -185,52 +198,48 @@ static func _apply_identity_payload_to_member(member_state, payload: Dictionary,
 	member_state.original_race_id_before_ascension = _read_payload_string_name(payload, "original_race_id_before_ascension", member_state.original_race_id_before_ascension, true)
 	member_state.biological_age_years = _read_payload_nonnegative_int(payload, "biological_age_years", member_state.biological_age_years)
 	member_state.astral_memory_years = _read_payload_nonnegative_int(payload, "astral_memory_years", member_state.astral_memory_years)
-	_refresh_member_body_size_from_identity(member_state, progression_content_source)
-
-
-static func _refresh_member_body_size_from_identity(member_state, progression_content_source: Variant) -> bool:
-	var category := _resolve_body_size_category_for_member(member_state, progression_content_source)
-	if category == &"":
-		return false
-	var resolved_body_size := BODY_SIZE_RULES_SCRIPT.get_body_size_for_category(category)
-	if member_state.body_size_category == category and int(member_state.body_size) == resolved_body_size:
-		return false
-	member_state.body_size_category = category
-	member_state.body_size = resolved_body_size
+	if should_refresh_body_size:
+		return _refresh_member_body_size_from_identity(member_state, progression_content_source)
 	return true
 
 
+static func _validate_payload_identity_before_mutation(member_state, payload: Dictionary, progression_content_source: Variant) -> bool:
+	if not _payload_requires_body_size_identity_source(payload):
+		return true
+	if progression_content_source == null:
+		return false
+	var candidate = _build_identity_candidate_from_payload(member_state, payload)
+	var errors: Array[String] = IDENTITY_PAYLOAD_VALIDATOR_SCRIPT.validate_member_identity(candidate, progression_content_source)
+	if not errors.is_empty():
+		return false
+	return _resolve_body_size_category_for_member(candidate, progression_content_source) != &""
+
+
+static func _build_identity_candidate_from_payload(member_state, payload: Dictionary):
+	var candidate = PARTY_MEMBER_STATE_SCRIPT.new()
+	candidate.member_id = member_state.member_id
+	candidate.race_id = _read_payload_string_name(payload, "race_id", member_state.race_id, false)
+	candidate.subrace_id = _read_payload_string_name(payload, "subrace_id", member_state.subrace_id, false)
+	candidate.bloodline_id = _read_payload_string_name(payload, "bloodline_id", member_state.bloodline_id, true)
+	candidate.bloodline_stage_id = _read_payload_string_name(payload, "bloodline_stage_id", member_state.bloodline_stage_id, true)
+	candidate.ascension_id = _read_payload_string_name(payload, "ascension_id", member_state.ascension_id, true)
+	candidate.ascension_stage_id = _read_payload_string_name(payload, "ascension_stage_id", member_state.ascension_stage_id, true)
+	return candidate
+
+
+static func _payload_requires_body_size_identity_source(payload: Dictionary) -> bool:
+	for field_name in IDENTITY_BODY_SIZE_SOURCE_FIELDS:
+		if payload.has(field_name):
+			return true
+	return false
+
+
+static func _refresh_member_body_size_from_identity(member_state, progression_content_source: Variant) -> bool:
+	return IDENTITY_PAYLOAD_VALIDATOR_SCRIPT.refresh_member_body_size_from_identity(member_state, progression_content_source)
+
+
 static func _resolve_body_size_category_for_member(member_state, progression_content_source: Variant) -> StringName:
-	if member_state == null:
-		return &""
-	if member_state.ascension_stage_id != &"":
-		var ascension_stage_def = _get_content_def(progression_content_source, "get_ascension_stage_defs", "ascension_stage_defs", member_state.ascension_stage_id)
-		if ascension_stage_def != null \
-			and ascension_stage_def.body_size_category_override != &"" \
-			and BODY_SIZE_RULES_SCRIPT.is_valid_body_size_category(ascension_stage_def.body_size_category_override):
-			return ascension_stage_def.body_size_category_override
-	var subrace_def = _get_content_def(progression_content_source, "get_subrace_defs", "subrace_defs", member_state.subrace_id)
-	if subrace_def != null \
-		and subrace_def.body_size_category_override != &"" \
-		and BODY_SIZE_RULES_SCRIPT.is_valid_body_size_category(subrace_def.body_size_category_override):
-		return subrace_def.body_size_category_override
-	var race_def = _get_content_def(progression_content_source, "get_race_defs", "race_defs", member_state.race_id)
-	if race_def != null and BODY_SIZE_RULES_SCRIPT.is_valid_body_size_category(race_def.body_size_category):
-		return race_def.body_size_category
-	return &""
-
-
-static func _get_content_def(source: Variant, method_name: String, bucket_name: String, def_id: StringName):
-	if source == null or def_id == &"":
-		return null
-	var bucket: Variant = {}
-	if source is Dictionary:
-		bucket = source.get(bucket_name, {})
-	elif source is Object and source.has_method(method_name):
-		bucket = source.call(method_name)
-	if bucket is Dictionary:
-		return bucket.get(def_id)
-	return null
+	return IDENTITY_PAYLOAD_VALIDATOR_SCRIPT.resolve_body_size_category_for_member(member_state, progression_content_source)
 
 
 static func _read_payload_string_name(payload: Dictionary, field_name: String, fallback: StringName, allow_empty: bool) -> StringName:

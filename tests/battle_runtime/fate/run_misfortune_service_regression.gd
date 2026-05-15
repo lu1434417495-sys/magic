@@ -8,6 +8,7 @@ const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_snapshot_builder.gd")
 const MISFORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/misfortune_service.gd")
 
@@ -381,6 +382,7 @@ func _build_attribute_snapshot(hp_max: int, hidden_luck_at_birth: int, calamity_
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 1)
 	snapshot.set_value(&"hidden_luck_at_birth", hidden_luck_at_birth)
 	snapshot.set_value(&"calamity_capacity_bonus", calamity_capacity_bonus)
+	BattleRuntimeTestHelpers.seed_attribute_snapshot_base_attributes_and_ac(snapshot)
 	return snapshot
 
 

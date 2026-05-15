@@ -25,12 +25,12 @@ bucket_priorities = {
 script = ExtResource("1_profile")
 profile_id = &"ranged_suppressor_cautious"
 display_name = "Ranged Suppressor Cautious"
-description = "提高撤退与站位价值，并直接修改 ranged_suppressor 的 retreat/pressure 行为参数。"
+description = "提高撤退与站位价值，并通过 transition rule patch 修改 ranged_suppressor 的 retreat 行为参数。"
 ai_score_profile = SubResource("Resource_score")
 override_patches = Array[Dictionary]([{
 "target_type": "brain",
 "target_id": "ranged_suppressor",
-"path": "retreat_hp_basis_points",
+"path": "transition_rules.0.conditions.0.basis_points",
 "value": 6000
 }, {
 "target_type": "action",

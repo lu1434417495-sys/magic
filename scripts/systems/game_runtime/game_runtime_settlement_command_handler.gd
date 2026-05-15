@@ -6,6 +6,7 @@ const SETTLEMENT_FORGE_SERVICE_SCRIPT = preload("res://scripts/systems/settlemen
 const SETTLEMENT_RESEARCH_SERVICE_SCRIPT = preload("res://scripts/systems/settlement/settlement_research_service.gd")
 const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement/settlement_service_result.gd")
 const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
+const QUEST_PROVIDER_CONTENT_RULES = preload("res://scripts/player/progression/quest_provider_content_rules.gd")
 const LOW_LUCK_RELIC_RULES_SCRIPT = preload("res://scripts/systems/fate/low_luck_relic_rules.gd")
 const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
 
@@ -26,11 +27,6 @@ const SHOP_INTERACTION_IDS := {
 const STAGECOACH_INTERACTION_IDS := {
 	"service_stagecoach": true,
 	"service_world_gate_travel": true,
-}
-
-const CONTRACT_BOARD_INTERACTION_IDS := {
-	"service_contract_board": true,
-	"service_bounty_registry": true,
 }
 
 const UNIMPLEMENTED_INTERACTION_IDS := {
@@ -393,7 +389,7 @@ func _dispatch_settlement_action(settlement_id: String, action_id: String, paylo
 		var warehouse_message := "已从据点服务打开共享仓库。"
 		_update_status(warehouse_message)
 		return _command_ok(warehouse_message)
-	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
+	if QUEST_PROVIDER_CONTENT_RULES.is_supported_provider_id(interaction_script_id):
 		if _is_contract_board_modal_submission(payload):
 			return _submit_contract_board_quest_action(settlement_id, action_id, payload)
 		_open_contract_board_modal(settlement_id, payload)
@@ -868,7 +864,7 @@ func _resolve_service_panel_kind(service_data: Dictionary) -> String:
 		return "shop"
 	if STAGECOACH_INTERACTION_IDS.has(interaction_script_id):
 		return "stagecoach"
-	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
+	if QUEST_PROVIDER_CONTENT_RULES.is_supported_provider_id(interaction_script_id):
 		return "contract_board"
 	if _is_forge_interaction(interaction_script_id):
 		return "forge"
@@ -890,7 +886,7 @@ func _build_service_metadata(settlement: Dictionary, service_data: Dictionary, _
 	if interaction_script_id == "service_intel_network":
 		var can_afford_intel: bool = party_state != null and party_state.can_afford(INTEL_NETWORK_COST)
 		return {"cost_label": "%d 金" % INTEL_NETWORK_COST, "is_enabled": can_afford_intel, "disabled_reason": "" if can_afford_intel else "金币不足"}
-	if CONTRACT_BOARD_INTERACTION_IDS.has(interaction_script_id):
+	if QUEST_PROVIDER_CONTENT_RULES.is_supported_provider_id(interaction_script_id):
 		return {"cost_label": "查看任务", "is_enabled": true, "disabled_reason": ""}
 	if SHOP_INTERACTION_IDS.has(interaction_script_id):
 		return {"cost_label": "按商品计价", "is_enabled": true}

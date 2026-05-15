@@ -10,9 +10,7 @@
 ##   2. On a featureless map, A* returns cost == Manhattan distance (no detour).
 ##   3. On a map seeded with mixed-cost terrain, A* matches a naive reference
 ##      Dijkstra implementation embedded in this test.
-##   4. `first_step_cost_discount` reduces cost by no more than the discount
-##      itself (the heuristic clamps via `max(0, manhattan - discount)`).
-##   5. Randomized differential test: A* and the reference agree across multiple
+##   4. Randomized differential test: A* and the reference agree across multiple
 ##      random maps with sprinkled mud cells.
 extends SceneTree
 
@@ -48,8 +46,9 @@ func _run() -> void:
 	_test_step_cost_floor()
 	_test_a_star_simple_optimality()
 	_test_a_star_matches_reference_with_mud_stripe()
-	_test_first_step_discount_bounded()
 	_test_a_star_matches_reference_randomized()
+	_test_path_tree_matches_reference_with_mud_stripe()
+	_test_path_tree_respects_occupant_blocks()
 
 	if _failures.is_empty():
 		print("Battle grid service pathfinding invariants: PASS")
@@ -130,31 +129,7 @@ func _test_a_star_matches_reference_with_mud_stripe() -> void:
 		])
 
 
-# Invariant 4: first_step_cost_discount must reduce cost by at most the discount
-# amount and never increase it. This guards the `max(0, manhattan - discount)`
-# correction in `_move_path_heuristic`.
-func _test_first_step_discount_bounded() -> void:
-	var state := _build_state(Vector2i(6, 6))
-	var unit := _build_unit(Vector2i(0, 0))
-	state.units[unit.unit_id] = unit
-	if not _grid.place_unit(state, unit, unit.coord, true):
-		_test.fail("first-step discount: failed to place unit at origin.")
-		return
-	var to_coord := Vector2i(3, 3)
-	var no_discount := _grid.resolve_unit_move_path(state, unit, unit.coord, to_coord, 99, 0)
-	var with_discount := _grid.resolve_unit_move_path(state, unit, unit.coord, to_coord, 99, 1)
-	var raw_cost := int(no_discount.get("cost", -1))
-	var disc_cost := int(with_discount.get("cost", -1))
-	if raw_cost < 0 or disc_cost < 0:
-		_test.fail("first-step discount: both pathfinding results should be allowed.")
-		return
-	if disc_cost > raw_cost:
-		_test.fail("first-step discount: cost rose from %d to %d when discount applied." % [raw_cost, disc_cost])
-	if raw_cost - disc_cost > 1:
-		_test.fail("first-step discount: a discount of 1 should save at most 1 cost, but %d → %d." % [raw_cost, disc_cost])
-
-
-# Invariant 5: Differential test against a reference Dijkstra on randomized maps.
+# Invariant 4: Differential test against a reference Dijkstra on randomized maps.
 # Catches subtle heuristic / tie-break bugs that handcrafted scenarios miss.
 func _test_a_star_matches_reference_randomized() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -199,6 +174,57 @@ func _test_a_star_matches_reference_randomized() -> void:
 		trials_run += 1
 	if trials_run == 0:
 		_test.fail("randomized differential test ran 0 trials — RNG/setup degenerate, invariant unverified.")
+
+
+func _test_path_tree_matches_reference_with_mud_stripe() -> void:
+	var state := _build_state(Vector2i(5, 5))
+	var unit := _build_unit(Vector2i(0, 0))
+	state.units[unit.unit_id] = unit
+	if not _grid.place_unit(state, unit, unit.coord, true):
+		_test.fail("path tree mud stripe: failed to place unit at origin.")
+		return
+	for x in range(5):
+		var cell := state.cells.get(Vector2i(x, 1)) as BattleCellState
+		if cell != null:
+			cell.base_terrain = &"mud"
+	var tree := _grid.build_unit_move_path_tree(state, unit, unit.coord, 99)
+	var costs: Dictionary = tree.get("costs", {})
+	for y in range(state.map_size.y):
+		for x in range(state.map_size.x):
+			var dest := Vector2i(x, y)
+			var reference_cost := _reference_dijkstra_cost(state, unit, unit.coord, dest)
+			if reference_cost < 0:
+				if costs.has(dest):
+					_test.fail("path tree mud stripe: dest=%s should be unreachable, got cost=%d." % [
+						str(dest), int(costs.get(dest, -1)),
+					])
+				continue
+			var tree_cost := int(costs.get(dest, -1))
+			if tree_cost != reference_cost:
+				_test.fail("path tree mud stripe: dest=%s cost=%d != reference=%d." % [
+					str(dest), tree_cost, reference_cost,
+				])
+
+
+func _test_path_tree_respects_occupant_blocks() -> void:
+	var state := _build_state(Vector2i(3, 1))
+	var unit := _build_unit(Vector2i(0, 0))
+	var blocker := _build_unit(Vector2i(1, 0))
+	blocker.unit_id = &"path_tree_blocker"
+	state.units[unit.unit_id] = unit
+	state.units[blocker.unit_id] = blocker
+	if not _grid.place_unit(state, unit, unit.coord, true):
+		_test.fail("path tree occupant: failed to place unit.")
+		return
+	if not _grid.place_unit(state, blocker, blocker.coord, true):
+		_test.fail("path tree occupant: failed to place blocker.")
+		return
+	var tree := _grid.build_unit_move_path_tree(state, unit, unit.coord, 99)
+	var costs: Dictionary = tree.get("costs", {})
+	if costs.has(Vector2i(1, 0)):
+		_test.fail("path tree occupant: blocker coord should not be reachable.")
+	if costs.has(Vector2i(2, 0)):
+		_test.fail("path tree occupant: coord behind blocker should not be reachable on a 1-row map.")
 
 
 # Reference Dijkstra: no heuristic, O(N^2) frontier scan. This is intentionally the

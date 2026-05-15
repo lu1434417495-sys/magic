@@ -26,10 +26,10 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 const AI_SERVICE_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_service_probe.gd")
 const AI_ASSEMBLER_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_assembler_probe.gd")
-const AiTraceRecorderScript = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
-const AiHotspotsFormatterScript = preload("res://tests/battle_runtime/benchmarks/ai_hotspots_formatter.gd")
+const AI_PROFILE_CAPTURE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_profile_capture.gd")
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
@@ -109,109 +109,51 @@ func _run() -> void:
 
 func _run_scenario(scenario_id: StringName, spec: Dictionary, repeat_count: int, top_n: int, sort_by: String, name_filter: String, output_dir: String, dump_trace_json: bool) -> void:
 	print("[AiProfile] scenario=%s starting (target_tu=%d)" % [String(scenario_id), int(spec.get("target_tu", 0))])
-	var aggregate_stats: Dictionary = {}
-	var measured_ai_turns := 0
-	var balanced := true
-	var truncated := false
-	var trace_events_sample: Array = []
+	var capture = AI_PROFILE_CAPTURE_SCRIPT.new()
+	capture.setup(
+		String(scenario_id),
+		output_dir,
+		top_n,
+		sort_by,
+		name_filter,
+		dump_trace_json,
+		AI_PROFILE_CAPTURE_SCRIPT.resolve_git_commit(),
+		"ai_profile"
+	)
 
 	for run_index in range(repeat_count):
 		var is_warmup := (run_index == 0)
-		# Create a fresh tracer per measured run; warmup uses null tracer to avoid recording overhead during JIT/cache warmup.
-		var recorder = null
-		if not is_warmup:
-			recorder = AiTraceRecorderScript.new()
-			AiTraceRecorderScript.instance = recorder
+		var recorder = capture.begin_run(not is_warmup)
 		var run_meta := _run_pass(scenario_id, spec)
-		# Detach recorder before next run.
-		AiTraceRecorderScript.instance = null
-		if not is_warmup and recorder != null:
-			_merge_stats(aggregate_stats, recorder.get_func_stats())
-			measured_ai_turns += int(run_meta.get("ai_turns", 0))
-			if not recorder.assert_balanced():
-				balanced = false
-			if recorder.is_truncated():
-				truncated = true
-			if trace_events_sample.is_empty() and dump_trace_json:
-				trace_events_sample = recorder.get_events()
+		capture.end_run(recorder, int(run_meta.get("ai_turns", 0)))
 		var phase := "warmup" if is_warmup else "measured"
 		print("[AiProfile]   run %d/%d (%s): ai_turns=%d final_tu=%d" % [
 			run_index + 1, repeat_count, phase,
 			int(run_meta.get("ai_turns", 0)), int(run_meta.get("final_tu", 0)),
 		])
 
-	if not balanced:
+	if not capture.balanced:
 		_test.fail("scenario %s tracer call stack not balanced (enter/exit pairing broken)" % String(scenario_id))
-	if truncated:
+	if capture.truncated:
 		print("[AiProfile] WARN scenario=%s trace events truncated (max_events cap reached)" % String(scenario_id))
 
-	var timestamp := _format_timestamp()
-	var basename := "ai_profile_%s_%s" % [String(scenario_id), timestamp]
-
-	# Print top-N to stdout.
-	var header := AiHotspotsFormatterScript.format_header(
-		String(scenario_id),
-		measured_ai_turns,
-		AiHotspotsFormatterScript.total_self_usec(aggregate_stats),
-		sort_by,
-		Engine.get_version_info().get("string", "unknown"),
-		_git_commit(),
-	)
-	var body := AiHotspotsFormatterScript.format_top_n(aggregate_stats, sort_by, top_n, name_filter)
-	print(header)
-	print(body)
-
-	# Write hotspots.txt + functions.csv (always).
-	var hotspots_path := output_dir + basename + ".hotspots.txt"
-	var csv_path := output_dir + basename + ".functions.csv"
-	var ok_txt := AiHotspotsFormatterScript.write_text_report(hotspots_path, header, body)
-	var ok_csv := AiHotspotsFormatterScript.write_csv(csv_path, aggregate_stats)
-	if ok_txt:
-		print("[AiProfile] wrote %s" % hotspots_path)
+	var report: Dictionary = capture.write_reports()
+	print(String(report.get("header", "")))
+	print(String(report.get("body", "")))
+	if bool(report.get("wrote_hotspots", false)):
+		print("[AiProfile] wrote %s" % String(report.get("hotspots_path", "")))
 	else:
-		push_error("[AiProfile] failed to write %s" % hotspots_path)
-	if ok_csv:
-		print("[AiProfile] wrote %s" % csv_path)
+		push_error("[AiProfile] failed to write %s" % String(report.get("hotspots_path", "")))
+	if bool(report.get("wrote_functions_csv", false)):
+		print("[AiProfile] wrote %s" % String(report.get("functions_csv_path", "")))
 	else:
-		push_error("[AiProfile] failed to write %s" % csv_path)
-
-	# Optionally write Chrome Tracing JSON.
-	if dump_trace_json and not trace_events_sample.is_empty():
-		var trace_path := output_dir + basename + ".trace.json"
-		var trace_doc := {
-			"traceEvents": trace_events_sample,
-			"displayTimeUnit": "us",
-			"metadata": {
-				"scenario": String(scenario_id),
-				"godot_version": Engine.get_version_info().get("string", ""),
-				"git_commit": _git_commit(),
-			},
-		}
-		var dir_part := trace_path.get_base_dir()
-		if not DirAccess.dir_exists_absolute(dir_part):
-			DirAccess.make_dir_recursive_absolute(dir_part)
-		var fh := FileAccess.open(trace_path, FileAccess.WRITE)
-		if fh != null:
-			fh.store_string(JSON.stringify(trace_doc))
-			fh.close()
+		push_error("[AiProfile] failed to write %s" % String(report.get("functions_csv_path", "")))
+	var trace_path := String(report.get("trace_path", ""))
+	if not trace_path.is_empty():
+		if bool(report.get("wrote_trace", false)):
 			print("[AiProfile] wrote %s" % trace_path)
 		else:
 			push_error("[AiProfile] failed to write %s" % trace_path)
-
-
-func _merge_stats(target: Dictionary, source: Dictionary) -> void:
-	for name_variant in source.keys():
-		var src: Dictionary = source[name_variant]
-		var dst: Dictionary
-		if target.has(name_variant):
-			dst = target[name_variant]
-		else:
-			dst = {"ncalls": 0, "self_usec": 0, "total_usec": 0, "max_usec": 0}
-		dst["ncalls"] = int(dst["ncalls"]) + int(src.get("ncalls", 0))
-		dst["self_usec"] = int(dst["self_usec"]) + int(src.get("self_usec", 0))
-		dst["total_usec"] = int(dst["total_usec"]) + int(src.get("total_usec", 0))
-		dst["max_usec"] = max(int(dst["max_usec"]), int(src.get("max_usec", 0)))
-		target[name_variant] = dst
 
 
 func _run_pass(scenario_id: StringName, spec: Dictionary) -> Dictionary:
@@ -421,11 +363,7 @@ func _build_ai_unit(unit_id: StringName, display_name: String, coord: Vector2i, 
 
 
 func _add_unit_to_state(runtime, state, unit: BattleUnitState, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	var placed: bool = runtime._grid_service.place_unit(state, unit, unit.coord, true)
 	if not placed:
 		_test.fail("AI profile unit %s could not be placed." % String(unit.unit_id))
@@ -456,32 +394,3 @@ func _resolve_str_env(name: String, default_value: String) -> String:
 	if raw.is_empty():
 		return default_value
 	return raw
-
-
-func _git_commit() -> String:
-	var head := FileAccess.open("res://.git/HEAD", FileAccess.READ)
-	if head == null:
-		return "unknown"
-	var line := head.get_as_text().strip_edges()
-	head.close()
-	if line.begins_with("ref: "):
-		var ref_path := "res://.git/" + line.substr(5).strip_edges()
-		var ref_file := FileAccess.open(ref_path, FileAccess.READ)
-		if ref_file == null:
-			return "unknown"
-		var sha := ref_file.get_as_text().strip_edges()
-		ref_file.close()
-		if sha.length() >= 7:
-			return sha.substr(0, 7)
-		return sha
-	if line.length() >= 7:
-		return line.substr(0, 7)
-	return "unknown"
-
-
-func _format_timestamp() -> String:
-	var t := Time.get_datetime_dict_from_system()
-	return "%04d%02d%02d_%02d%02d%02d" % [
-		int(t["year"]), int(t["month"]), int(t["day"]),
-		int(t["hour"]), int(t["minute"]), int(t["second"]),
-	]

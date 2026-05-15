@@ -40,6 +40,7 @@ const STATUS_ARMOR_BREAK: StringName = &"armor_break"
 const STATUS_DODGE_BONUS_UP: StringName = &"dodge_bonus_up"
 const STATUS_ATTACK_ROLL_BONUS_UP: StringName = &"attack_roll_bonus_up"
 const BLACK_STAR_BRAND_ATTACK_BONUS_DELTA := -3
+const ATTACK_CHECK_ERROR_MISSING_TARGET_ARMOR_CLASS: StringName = &"missing_target_armor_class"
 
 var _fate_attack_rules = BATTLE_FATE_ATTACK_RULES_SCRIPT.new()
 var _trait_trigger_hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
@@ -246,6 +247,10 @@ func build_skill_attack_check(
 ) -> Dictionary:
 	var attacker_base_attack_bonus := _get_unit_attribute_value(active_unit, ATTRIBUTE_SERVICE_SCRIPT.BASE_ATTACK_BONUS, 0)
 	var attacker_attack_bonus := _get_unit_attribute_value(active_unit, ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
+	if not _unit_has_attribute_value(target_unit, ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS):
+		var error_message := "BattleHitResolver cannot build attack check: target unit is missing armor_class."
+		push_error(error_message)
+		return _build_invalid_attack_check(ATTACK_CHECK_ERROR_MISSING_TARGET_ARMOR_CLASS, error_message)
 	var target_armor_class := _get_target_armor_class(target_unit)
 	var skill_level := 0
 	if active_unit != null and skill_def != null:
@@ -294,14 +299,44 @@ func _get_unit_attribute_value(unit_state: BattleUnitState, attribute_id: String
 	return unit_state.attribute_snapshot.get_value(attribute_id)
 
 
+func _unit_has_attribute_value(unit_state: BattleUnitState, attribute_id: StringName) -> bool:
+	return unit_state != null \
+		and unit_state.attribute_snapshot != null \
+		and unit_state.attribute_snapshot.has_value(attribute_id)
+
+
 func _get_target_armor_class(target_unit: BattleUnitState) -> int:
-	var target_armor_class := _get_unit_attribute_value(target_unit, ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
+	var target_armor_class := _get_unit_attribute_value(target_unit, ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
 	target_armor_class -= _get_target_armor_break_penalty(target_unit)
 	if _is_target_dodge_bonus_locked(target_unit):
 		target_armor_class -= maxi(_get_unit_attribute_value(target_unit, ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, 0), 0)
 	else:
 		target_armor_class += _get_target_status_dodge_bonus(target_unit)
 	return maxi(target_armor_class, 1)
+
+
+func _build_invalid_attack_check(error_id: StringName, error_message: String) -> Dictionary:
+	return {
+		"invalid": true,
+		"error_id": String(error_id),
+		"error_message": error_message,
+		"attacker_base_attack_bonus": 0,
+		"attacker_attack_bonus": 0,
+		"attacker_bab": 0,
+		"target_armor_class": 0,
+		"skill_attack_bonus": 0,
+		"locked_skill_hit_bonus": 0,
+		"situational_attack_bonus": 0,
+		"situational_attack_penalty": 0,
+		"required_roll": ATTACK_CHECK_TARGET,
+		"display_required_roll": _get_display_required_roll(ATTACK_CHECK_TARGET),
+		"hit_rate_percent": 0,
+		"success_rate_percent": 0,
+		"base_hit_rate_percent": 0,
+		"natural_one_auto_miss": true,
+		"natural_twenty_auto_hit": false,
+		"preview_text": "无效命中检定：%s" % error_message,
+	}
 
 
 func _get_target_armor_break_penalty(target_unit: BattleUnitState) -> int:
@@ -403,6 +438,13 @@ func roll_attack_check(battle_state: BattleState, attack_check: Dictionary) -> D
 				"roll_disposition": empty_disposition,
 			}),
 		}
+	if bool(attack_check.get("invalid", false)):
+		var invalid_result: Dictionary = attack_check.duplicate(true)
+		invalid_result["success"] = false
+		invalid_result["roll"] = 0
+		invalid_result["roll_disposition"] = ROLL_DISPOSITION_THRESHOLD_MISS
+		invalid_result["resolution_text"] = String(attack_check.get("preview_text", "无效命中检定"))
+		return invalid_result
 	var roll := _roll_battle_d20(battle_state)
 	var roll_disposition := _resolve_attack_roll_disposition_for_check(roll, attack_check)
 	var result: Dictionary = attack_check.duplicate(true)
@@ -849,6 +891,12 @@ func _build_fate_aware_attack_check_preview(
 	attack_check: Dictionary
 ) -> Dictionary:
 	var resolved_check: Dictionary = attack_check.duplicate(true)
+	if bool(resolved_check.get("invalid", false)):
+		resolved_check["hit_rate_percent"] = 0
+		resolved_check["success_rate_percent"] = 0
+		resolved_check["base_hit_rate_percent"] = 0
+		resolved_check["preview_text"] = String(resolved_check.get("preview_text", "无效命中检定"))
+		return resolved_check
 	var base_hit_rate_percent := int(attack_check.get("hit_rate_percent", 0))
 	resolved_check["base_hit_rate_percent"] = base_hit_rate_percent
 	if not resolved_check.has("success_rate_percent"):

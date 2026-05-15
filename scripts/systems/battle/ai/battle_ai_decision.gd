@@ -13,3 +13,4 @@ var score_bucket_id: StringName = &""
 var action_trace_id: StringName = &""
 var skill_score_input: BattleAiScoreInput = null
 var score_input: BattleAiScoreInput = null
+var transition: Dictionary = {}

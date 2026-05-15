@@ -74,6 +74,14 @@ func _test_exact_schema_round_trip() -> void:
 	_assert_eq(restored.modifier_delta if restored != null else 0, -2, "typed modifier spec roundtrip 应保留 modifier_delta。")
 	payload["unexpected"] = true
 	_assert_true(BattleAttackRollModifierSpec.from_dict(payload) == null, "exact schema 应拒绝额外字段。")
+	var invalid_target_filter_payload := _build_spec(&"dust", -2, &"dust_attack_roll_penalty", &"max").to_dict()
+	invalid_target_filter_payload.erase("effective_modifier_delta")
+	invalid_target_filter_payload["target_team_filter"] = "hostile"
+	_assert_true(BattleAttackRollModifierSpec.from_dict(invalid_target_filter_payload) == null, "modifier spec 不应接受 hostile 作为 target_team_filter。")
+	_assert_true(
+		BattleAttackRollModifierSpec.from_partial_dict({"target_team_filter": "friendly"}) == null,
+		"partial modifier spec 不应接受 friendly 作为 target_team_filter。"
+	)
 
 
 func _build_spec(source_id: StringName, delta: int, stack_key: StringName, stack_mode: StringName) -> BattleAttackRollModifierSpec:

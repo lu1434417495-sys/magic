@@ -18,8 +18,8 @@ params = {
 [sub_resource type="Resource" id="Resource_combat_profile"]
 script = ExtResource("2_combat")
 skill_id = &"archer_shooting_specialization"
-target_mode = &"self"
-target_team_filter = &"ally"
+target_mode = &"unit"
+target_team_filter = &"self"
 target_selection_mode = &"self"
 selection_order_mode = &"stable"
 min_target_count = 1

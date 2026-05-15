@@ -13,6 +13,7 @@ const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 const FIREBALL_ALIGNMENT_EXCEPTIONS: Array[StringName] = [
 	&"mage_arcane_missile",
@@ -452,6 +453,9 @@ func _build_unit(unit_id: StringName, faction_id: StringName, coord: Vector2i, c
 	unit.current_stamina = 60
 	unit.is_alive = true
 	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	# 法师测试场景需要 MP/AURA 解锁，否则技能 preview 在 get_locked_combat_resource_block_reason 阶段被拒。
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
 	unit.set_anchor_coord(coord)
 	return unit
 
@@ -467,11 +471,7 @@ func _set_status(unit, status_id: StringName) -> void:
 
 
 func _add_unit(runtime, state, unit, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "%s 应能放入战场。" % String(unit.unit_id))
 
 

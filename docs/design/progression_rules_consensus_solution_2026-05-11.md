@@ -4,14 +4,14 @@
 
 `progression_rules_subagent_review_2026-05-11.md` 暴露的问题集中在“规则合同与执行口径漂移”：
 
-- `AttributeService` 普通 AC 实现为 `8 + AGI modifier`，但 CU-14 合同是 `10 + AGI modifier`。
+- 2026-05-14 已确认普通 AC 合同为 `8 + AGI modifier`；真正需要清理的是隐藏 fallback AC、敌人模板直接写最终 `armor_class`，以及旧文档继续指向 AC10。
 - 职业 rank 1 -> rank 2 可能被当前核心容量自锁：rank 2 需要第二个核心，但 rank 1 不允许预先分配第二个核心。
 - promotion submit 失败时，world/battle UI 状态可能被当作成功清掉，battle timeline 还会解冻。
 - `ProgressionService.promote_profession()` 失败路径可能留下 rank 0、HP、history、核心分配等半状态。
 - formatter 主要合并 effect `params`，而正式规则大量使用 typed effect fields，描述和运行时容易漂移。
 - battle-local 换装刷新只处理 HP，没有统一 clamp MP/Aura/stamina/AP/action threshold。
 
-本轮对抗性讨论后的共识：先锁定规则合同，不扩大到 skill merge / dynamic max 的大重构。晋升是事务；属性公式以 CU-14 为准；formatter 只做展示派生但必须读取 typed fields；正式入口 fail closed，不用 UI/runtime 兜底掩盖底层状态污染。
+本轮对抗性讨论后的共识：先锁定规则合同，不扩大到 skill merge / dynamic max 的大重构。晋升是事务；属性公式以当前项目合同为准；formatter 只做展示派生但必须读取 typed fields；正式入口 fail closed，不用 UI/runtime 兜底掩盖底层状态污染。
 
 ## Current Ownership
 
@@ -29,7 +29,8 @@
 
 ## Core Invariants
 
-- 普通 AC 是 `10 + AGI/DEX modifier`，再叠加 AC 组件；`armor_max_dex_bonus` 只限制正向敏捷加值。
+- 普通 AC 是 `8 + AGI/DEX modifier`，再叠加 AC 组件；`armor_max_dex_bonus` 只限制正向敏捷加值。
+- `armor_class` 是派生展示/命中消费值，不允许敌人模板或缺失模板路径直接写隐藏最终 AC。
 - `armor_max_dex_bonus = -1` 表示不限制；多个非负 cap 取最小；负敏捷惩罚不被 cap 抹掉。
 - 职业晋升是原子事务：rank、profession progress、核心分配、HP、授予技能、promotion history、trigger lock、runtime refresh 要么全成功，要么完全不变。
 - rank-up 可在 promotion transaction 内按 `target_rank` 临时纳入 ready active trigger core；普通核心分配仍按当前 rank / 当前 character level 容量。
@@ -43,11 +44,11 @@
 
 ## Disputed Options
 
-### A. 保留 AC 8 并修改文档
+### A. 保留 AC 8 并清理隐藏最终 AC
 
 把当前实现视为平衡结果。
 
-结论：反对。CU-14、CMM attribute snapshot、BattleHitResolver 消费的展示用 `armor_class` 已围绕普通 AC 10 收束；AC 8 是实现漂移。
+结论：采纳。2026-05-14 用户确认低等级命中率需要 AC8 基准；后续修复目标是移除 fallback AC10/12、敌人模板最终 `armor_class`、旧 battle payload 兼容路径，而不是把常量改回 10。
 
 ### B. 普通 rank-up 继续只看当前 core_skill_ids
 
@@ -83,11 +84,13 @@
 
 ### 1. AttributeService AC contract
 
-- `AttributeService.BASE_ARMOR_CLASS` 改为 `10`。
+- `AttributeService.BASE_ARMOR_CLASS` 保持 `8`。
 - 保持现有 AC 组件模型：
   - `armor_class` 对外仍是单一展示/命中消费值。
   - `armor_ac_bonus / shield_ac_bonus / dodge_bonus / deflection_bonus` 是内部组件。
   - `armor_max_dex_bonus` 只限制正向敏捷加值。
+- 敌人内容使用基础属性和 AC 组件表达防御：狼没有天生护甲；迷雾系敌人的 +4 魔法护甲使用 `deflection_bonus = 4`。
+- 运行时缺失 `armor_class` 时 fail closed，不用 `BattleHitResolver`、`BattleUnitFactory` 或 encounter fallback 填隐藏默认值。
 - `_resolve_armor_max_dex_bonus()` 继续采用最小非负 cap；`-1` 和负值表示不限制。
 - 不调整属性来源顺序；当前来源拓扑与 CU-14 基本一致。
 
@@ -212,7 +215,7 @@
 
 ## Minimal Slice
 
-1. AC 常量改为 10，并补 AC component/max dex 回归。
+1. AC 合同保持 8，清理 fallback AC、敌人最终 `armor_class`，并补 missing AC / AC component 回归。
 2. promotion transaction：selection 先验、rank0 防污染、快照回滚。
 3. rank-up target-rank preview capacity，只在 promotion transaction 内纳入 ready trigger core。
 4. world/battle promotion submit 按真实 result 清 prompt/modal/解冻。
@@ -246,7 +249,7 @@
 ## Tests To Add Or Run
 
 - `tests/progression/core/run_progression_tests.gd`
-  - no-armor AC 10 at AGI 10.
+  - no-armor AC 8 at AGI 10.
   - positive AGI modifier adds to AC.
   - armor max dex `-1/0/3` semantics.
   - negative AGI remains a penalty under cap.
@@ -283,11 +286,12 @@ Do not include battle simulation or balance runners in this slice.
 
 ## Project Context Units Impact
 
-No context map edit is required until implementation lands.
+No context map edit is required for the AC cleanup; ownership boundaries and recommended read sets stay the same.
 
-When implemented, update CU-14 to reflect:
+CU-14 follow-up implementation should still preserve:
 
-- base AC is enforced as 10.
+- base AC is enforced as 8.
+- enemy templates must express AC through base attributes and AC components, not final `armor_class`.
 - profession rank-up can precommit the ready trigger core only inside promotion transaction.
 - promotion submit failure preserves prompt/modal/timeline freeze.
 - formatter derives minimum display fields from typed effect fields.

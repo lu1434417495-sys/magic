@@ -2,6 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
+const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
+const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 const SkillLevelDescriptionFormatter = preload("res://scripts/systems/progression/skill_level_description_formatter.gd")
 const BATTLE_RECOVERY_SKILL_PATH := "res://data/configs/skills/warrior_battle_recovery.tres"
@@ -18,12 +21,16 @@ func _run() -> void:
 	_test_basic_substitution()
 	_test_conditional_present()
 	_test_conditional_absent()
+	_test_conditional_numeric_zero_absent()
 	_test_guard_full_template()
 	_test_whirlwind_template()
 	_test_taunt_template()
 	_test_empty_config()
 	_test_level_description_requires_template_config()
+	_test_level_description_hides_zero_profile_defaults_in_optional_blocks()
 	_test_battle_recovery_description_derives_display_dice()
+	_test_level_description_derives_typed_effect_fields()
+	_test_level_description_ignores_locked_cast_variant_effects()
 
 	if _failures.is_empty():
 		print("Level description template regression: PASS")
@@ -49,6 +56,19 @@ func _test_conditional_present() -> void:
 func _test_conditional_absent() -> void:
 	var result := SkillLevelDescriptionFormatter.render_template("A{{?x}}，B{x}{{/x}}C", {})
 	_assert_eq(result, "AC", "条件块不存在时应整段删除")
+
+
+func _test_conditional_numeric_zero_absent() -> void:
+	_assert_eq(
+		SkillLevelDescriptionFormatter.render_template("A{{?x}}，B{x}{{/x}}C", {"x": 0}),
+		"AC",
+		"条件块数值为 0 时应整段删除"
+	)
+	_assert_eq(
+		SkillLevelDescriptionFormatter.render_template("A{{?x}}，B{x}{{/x}}C", {"x": 0.0}),
+		"AC",
+		"条件块数值为 0.0 时应整段删除"
+	)
 
 
 func _test_guard_full_template() -> void:
@@ -145,6 +165,35 @@ func _test_level_description_requires_template_config() -> void:
 	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(wrong_config_type, 0), "", "等级配置不是字典时应返回空")
 
 
+func _test_level_description_hides_zero_profile_defaults_in_optional_blocks() -> void:
+	var skill_def := SkillDef.new()
+	skill_def.level_description_template = "基础{{?attack_roll_bonus}}，攻击检定{attack_roll_bonus}{{/attack_roll_bonus}}{{?aura_cost}}，消耗{aura_cost}斗气{{/aura_cost}}"
+	skill_def.level_description_configs = {
+		"0": {"marker": "configured"},
+		"1": {"marker": "configured"},
+	}
+	skill_def.combat_profile = CombatSkillDef.new()
+	skill_def.combat_profile.attack_roll_bonus = 0
+	skill_def.combat_profile.aura_cost = 0
+	skill_def.combat_profile.level_overrides = {
+		1: {
+			"attack_roll_bonus": 2,
+			"aura_cost": 1,
+		},
+	}
+
+	_assert_eq(
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0),
+		"基础",
+		"formatter 不应让 profile 默认 0 撑开 optional 条件块。"
+	)
+	_assert_eq(
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 1),
+		"基础，攻击检定2，消耗1斗气",
+		"formatter 仍应显示非 0 profile override。"
+	)
+
+
 func _test_battle_recovery_description_derives_display_dice() -> void:
 	var skill_def := load(BATTLE_RECOVERY_SKILL_PATH) as SkillDef
 	if skill_def == null:
@@ -159,6 +208,65 @@ func _test_battle_recovery_description_derives_display_dice() -> void:
 		low_stat_description,
 		"恢复体力10D4，并恢复生命2D4。冷却120TU。",
 		"战斗回复描述 formatter 应正确渲染低属性展示骰面和 Lv5 治疗骰。"
+	)
+
+
+func _test_level_description_derives_typed_effect_fields() -> void:
+	var skill_def := SkillDef.new()
+	skill_def.level_description_template = "造成{dmg}伤害（{damage_save_text}），{shocked_save_text}（{shocked_duration_tu}TU，强度{shocked_power}）。"
+	skill_def.level_description_configs = {"0": {"dmg": "4D6"}}
+	skill_def.combat_profile = CombatSkillDef.new()
+
+	var damage_effect := CombatEffectDef.new()
+	damage_effect.effect_type = &"damage"
+	damage_effect.save_ability = &"agility"
+	damage_effect.save_dc_mode = &"caster_spell"
+	damage_effect.save_partial_on_success = true
+	skill_def.combat_profile.effect_defs.append(damage_effect)
+
+	var status_effect := CombatEffectDef.new()
+	status_effect.effect_type = &"status"
+	status_effect.status_id = &"shocked"
+	status_effect.power = 1
+	status_effect.duration_tu = 60
+	status_effect.save_ability = &"constitution"
+	status_effect.save_dc_mode = &"caster_spell"
+	skill_def.combat_profile.effect_defs.append(status_effect)
+
+	_assert_eq(
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0),
+		"造成4D6伤害（敏捷豁免成功时伤害减半），体质豁免失败时附加感电（60TU，强度1）。",
+		"等级描述 formatter 应从 typed effect fields 派生豁免、状态名、持续时间和强度。"
+	)
+
+
+func _test_level_description_ignores_locked_cast_variant_effects() -> void:
+	var skill_def := SkillDef.new()
+	skill_def.level_description_template = "基础{base}{{?locked_param}}，高阶{locked_param}{{/locked_param}}"
+	skill_def.level_description_configs = {
+		"0": {"base": "可用"},
+		"3": {"base": "可用"},
+	}
+	skill_def.combat_profile = CombatSkillDef.new()
+
+	var variant := CombatCastVariantDef.new()
+	variant.variant_id = &"advanced"
+	variant.min_skill_level = 3
+	var variant_effect := CombatEffectDef.new()
+	variant_effect.effect_type = &"damage"
+	variant_effect.params = {"locked_param": "未锁"}
+	variant.effect_defs.append(variant_effect)
+	skill_def.combat_profile.cast_variants.append(variant)
+
+	_assert_eq(
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0),
+		"基础可用",
+		"低等级描述不应合并未解锁施法形态的 effect params。"
+	)
+	_assert_eq(
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 3),
+		"基础可用，高阶未锁",
+		"达到施法形态等级后应合并该形态的 effect params。"
 	)
 
 

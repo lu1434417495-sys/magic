@@ -26,8 +26,13 @@ const OFFICIAL_ITEM_DIRECTORY := "res://data/configs/items"
 const OFFICIAL_RECIPE_DIRECTORY := "res://data/configs/recipes"
 const OFFICIAL_ENEMY_SEED_PATH := "res://data/configs/enemies/enemy_content_seed.tres"
 const SKILL_INVALID_DIRECTORY := "res://tests/progression/fixtures/skill_registry_invalid"
+const SKILL_VALID_DIRECTORY := "res://tests/progression/fixtures/skill_registry_valid"
 const PROFESSION_INVALID_DIRECTORY := "res://tests/progression/fixtures/profession_registry_invalid"
 const ITEM_INVALID_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_invalid"
+const ITEM_TEMPLATE_INVALID_ITEM_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_template_invalid/items"
+const ITEM_TEMPLATE_INVALID_TEMPLATE_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_template_invalid/templates"
+const ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_template_isolated/items"
+const ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_template_isolated/templates"
 const RECIPE_INVALID_DIRECTORY := "res://tests/fixtures/resource_validation/recipe_registry_invalid"
 const IDENTITY_INVALID_RACE_DIRECTORY := "res://tests/progression/fixtures/identity_registry_invalid/races"
 const IDENTITY_INVALID_SUBRACE_DIRECTORY := "res://tests/progression/fixtures/identity_registry_invalid/subraces"
@@ -36,6 +41,10 @@ const IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY := "res://tests/progression/f
 const ENEMY_MISSING_ID_SEED_PATH := "res://tests/fixtures/enemy_content/missing_template_id/enemy_content_seed.tres"
 const ENEMY_DUPLICATE_ID_SEED_PATH := "res://tests/fixtures/enemy_content/duplicate_template_id/enemy_content_seed.tres"
 const ENEMY_INVALID_REFERENCE_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres"
+const ENEMY_INCOMPLETE_SEED_PATH := "res://tests/fixtures/enemy_content/incomplete_seed/enemy_content_seed.tres"
+const ENEMY_INCOMPLETE_BRAIN_DIRECTORY := "res://tests/fixtures/enemy_content/incomplete_seed/brains"
+const ENEMY_INCOMPLETE_TEMPLATE_DIRECTORY := "res://tests/fixtures/enemy_content/incomplete_seed/templates"
+const ENEMY_INCOMPLETE_ROSTER_DIRECTORY := "res://tests/fixtures/enemy_content/incomplete_seed/rosters"
 const BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT := "user://resource_validation/battle_special_profiles"
 
 var _test := TestRunner.new()
@@ -56,15 +65,19 @@ func _run() -> void:
 	var enemy_registry := EnemyContentRegistry.new()
 	var enemy_templates := enemy_registry.get_enemy_templates()
 	var wild_encounter_rosters := enemy_registry.get_wild_encounter_rosters()
+	var official_item_result: Dictionary = validation_runner.validate_official_item_content()
+	var official_enemy_result: Dictionary = validation_runner.validate_enemy_seed(OFFICIAL_ENEMY_SEED_PATH)
+
+	_test_item_registry_directory_rebuild_clears_template_cache()
 
 	var official_report := validation_runner.build_run_report("official_content", [
 		validation_runner.validate_skill_directory(OFFICIAL_SKILL_DIRECTORY),
 		validation_runner.validate_profession_directory(OFFICIAL_PROFESSION_DIRECTORY, skill_defs),
 		validation_runner.validate_identity_content("official_identity", skill_defs),
 		validation_runner.validate_battle_special_profile_registry("official_battle_special_profiles", skill_defs),
-		validation_runner.validate_item_directory(OFFICIAL_ITEM_DIRECTORY),
+		official_item_result,
 		validation_runner.validate_recipe_directory(OFFICIAL_RECIPE_DIRECTORY, item_defs),
-		validation_runner.validate_enemy_seed(OFFICIAL_ENEMY_SEED_PATH),
+		official_enemy_result,
 		validation_runner.validate_world_presets(enemy_templates, wild_encounter_rosters),
 		validation_runner.validate_quest_entries(
 			"official_quests",
@@ -77,8 +90,14 @@ func _run() -> void:
 	_reports.append(validation_runner.format_report(official_report))
 	_assert_true(bool(official_report.get("ok", false)), "正式内容 validation runner 应通过。")
 	_assert_true(int(official_report.get("error_count", -1)) == 0, "正式内容 validation runner 不应报告错误。")
+	_assert_true(
+		official_item_result.get("errors", []) == item_registry.validate(),
+		"正式 item validation runner 应与 ItemContentRegistry 默认 runtime 构建路径等价。"
+	)
+	_assert_domain_is(official_enemy_result, "enemy", "正式 enemy validation runner 应稳定归入 enemy domain。")
 
 	var skill_result := validation_runner.validate_skill_directory(SKILL_INVALID_DIRECTORY, true)
+	var valid_skill_result := validation_runner.validate_skill_directory(SKILL_VALID_DIRECTORY)
 	var profession_result := validation_runner.validate_profession_directory(PROFESSION_INVALID_DIRECTORY, skill_defs)
 	var identity_result := validation_runner.validate_identity_directories(
 		"invalid_identity_directories",
@@ -91,11 +110,25 @@ func _run() -> void:
 		["res://data/configs/stage_advancements", IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY],
 		skill_defs
 	)
-	var item_result := validation_runner.validate_item_directory(ITEM_INVALID_DIRECTORY)
+	var item_result: Dictionary = validation_runner.validate_item_directories(
+		"isolated_invalid_items",
+		[ITEM_INVALID_DIRECTORY]
+	)
+	var item_template_result: Dictionary = validation_runner.validate_item_directories(
+		"invalid_item_templates",
+		[ITEM_TEMPLATE_INVALID_ITEM_DIRECTORY],
+		[ITEM_TEMPLATE_INVALID_TEMPLATE_DIRECTORY]
+	)
 	var recipe_result := validation_runner.validate_recipe_directory(RECIPE_INVALID_DIRECTORY, item_defs)
-	var enemy_missing_result := validation_runner.validate_enemy_seed(ENEMY_MISSING_ID_SEED_PATH)
-	var enemy_duplicate_result := validation_runner.validate_enemy_seed(ENEMY_DUPLICATE_ID_SEED_PATH)
-	var enemy_invalid_reference_result := validation_runner.validate_enemy_seed(ENEMY_INVALID_REFERENCE_SEED_PATH)
+	var enemy_missing_result: Dictionary = validation_runner.validate_enemy_seed(ENEMY_MISSING_ID_SEED_PATH)
+	var enemy_duplicate_result: Dictionary = validation_runner.validate_enemy_seed(ENEMY_DUPLICATE_ID_SEED_PATH)
+	var enemy_invalid_reference_result: Dictionary = validation_runner.validate_enemy_seed(ENEMY_INVALID_REFERENCE_SEED_PATH)
+	var enemy_incomplete_seed_result: Dictionary = validation_runner.validate_enemy_seed_with_directory_completeness(
+		ENEMY_INCOMPLETE_SEED_PATH,
+		ENEMY_INCOMPLETE_TEMPLATE_DIRECTORY,
+		ENEMY_INCOMPLETE_BRAIN_DIRECTORY,
+		ENEMY_INCOMPLETE_ROSTER_DIRECTORY
+	)
 	var battle_special_missing_manifest_result := validation_runner.validate_battle_special_profile_registry(
 		"battle_special_profile_missing_manifest",
 		skill_defs,
@@ -174,10 +207,12 @@ func _run() -> void:
 		profession_result,
 		identity_result,
 		item_result,
+		item_template_result,
 		recipe_result,
 		enemy_missing_result,
 		enemy_duplicate_result,
 		enemy_invalid_reference_result,
+		enemy_incomplete_seed_result,
 		battle_special_missing_manifest_result,
 		battle_special_unknown_profile_result,
 		battle_special_duplicate_profile_result,
@@ -194,6 +229,25 @@ func _run() -> void:
 	_assert_domain_has_fragment(skill_result, "is missing skill_id", "技能 validation runner 应覆盖缺失 skill_id。")
 	_assert_domain_has_fragment(skill_result, "Duplicate skill_id registered: duplicate_skill", "技能 validation runner 应覆盖重复 skill_id。")
 	_assert_domain_has_fragment(skill_result, "references missing skill missing_skill", "技能 validation runner 应覆盖非法技能引用。")
+	_assert_domain_has_fragment(skill_result, "uses unsupported target_mode phantom", "技能 validation runner 应覆盖非法 target_mode。")
+	_assert_domain_has_fragment(skill_result, "uses unsupported target_selection_mode spiral_selection", "技能 validation runner 应覆盖非法 target_selection_mode。")
+	_assert_domain_has_fragment(skill_result, "uses unsupported selection_order_mode chaotic", "技能 validation runner 应覆盖非法 selection_order_mode。")
+	_assert_domain_has_fragment(skill_result, "uses unsupported area_pattern blob", "技能 validation runner 应覆盖非法 area_pattern。")
+	_assert_domain_has_fragment(skill_result, "level override 1.area_pattern uses unsupported area_pattern spiral", "技能 validation runner 应覆盖非法 level override area_pattern。")
+	_assert_domain_has_fragment(skill_result, "cast variant self_variant uses unsupported target_mode self", "技能 validation runner 应拒绝 self cast variant target_mode。")
+	_assert_domain_has_fragment(skill_result, "cast variant typo_variant uses unsupported target_mode phantom", "技能 validation runner 应覆盖非法 cast variant target_mode。")
+	_assert_domain_has_fragment(skill_result, "cast variant typo_variant uses unsupported footprint_pattern hex", "技能 validation runner 应覆盖非法 footprint_pattern。")
+	_assert_domain_has_fragment(skill_result, "cast variant typo_variant min_skill_level must be >= 0", "技能 validation runner 应覆盖负数 cast variant min_skill_level。")
+	_assert_domain_has_fragment(skill_result, "cast variant overlevel_variant min_skill_level must be <= max_level 1", "技能 validation runner 应覆盖静态 max_level 越级 cast variant。")
+	_assert_domain_has_fragment(skill_result, "cast variant locked_variant min_skill_level must be <= max_level 0", "技能 validation runner 应覆盖无等级技能的正数 cast variant min_skill_level。")
+	_assert_domain_has_fragment(skill_result, "level_description_configs must be non-empty when level_description_template is set", "技能 validation runner 应覆盖等级描述模板缺少配置。")
+	_assert_domain_has_fragment(skill_result, "level_description_template must be non-empty when level_description_configs is set", "技能 validation runner 应覆盖等级描述配置缺少模板。")
+	_assert_domain_has_fragment(skill_result, "level_description_configs key 0 must be a non-negative integer string", "技能 validation runner 应拒绝 int 等级描述 key。")
+	_assert_domain_has_fragment(skill_result, "level_description_configs key two must be a non-negative integer string", "技能 validation runner 应拒绝非数字等级描述 key。")
+	_assert_domain_has_fragment(skill_result, "level_description_configs[2] must be a Dictionary", "技能 validation runner 应拒绝旧式字符串等级描述配置。")
+	_assert_domain_has_fragment(skill_result, "level_description_configs must include level 1", "技能 validation runner 应拒绝等级描述配置断档。")
+	_assert_domain_has_fragment(skill_result, "level_description_configs[1] must be <= max_level 0", "技能 validation runner 应拒绝无等级技能声明 1 级描述。")
+	_assert_true(int(valid_skill_result.get("error_count", -1)) == 0, "合法技能 targeting fixture 不应产生 validation 错误。")
 
 	_assert_domain_has_fragment(profession_result, "is missing profession_id", "职业 validation runner 应覆盖缺失 profession_id。")
 	_assert_domain_has_fragment(profession_result, "Duplicate profession_id registered: duplicate_profession", "职业 validation runner 应覆盖重复 profession_id。")
@@ -203,6 +257,8 @@ func _run() -> void:
 	_assert_domain_has_fragment(identity_result, "Duplicate race_id registered: duplicate_identity_race", "身份 validation runner 应覆盖重复 race_id。")
 	_assert_domain_has_fragment(identity_result, "references missing age_profile missing_age_profile", "身份 validation runner 应覆盖非法 age_profile 引用。")
 	_assert_domain_has_fragment(identity_result, "references missing parent_race missing_parent_race", "身份 validation runner 应覆盖非法 parent_race 引用。")
+	_assert_domain_has_fragment(identity_result, "parent_race human must list this subrace in subrace_ids", "身份 validation runner 应覆盖 parent race 未列回 subrace 的双向关系错误。")
+	_assert_domain_has_fragment(identity_result, "parent_race_id must be parent_mismatch_race, got human", "身份 validation runner 应覆盖 race 列出 subrace 但 subrace parent 指向别处的错误。")
 	_assert_domain_has_fragment(identity_result, "uses unsupported trigger_type not_a_trigger", "身份 validation runner 应覆盖非法 trigger_type。")
 	_assert_domain_has_fragment(identity_result, "uses unsupported target_axis unlisted_axis", "身份 validation runner 应覆盖非法 target_axis。")
 	_assert_domain_has_fragment(identity_result, "unsupported damage tag cold", "身份 validation runner 应覆盖非法 damage resistance tag。")
@@ -213,20 +269,33 @@ func _run() -> void:
 	_assert_domain_has_fragment(item_result, "declares invalid slot phantom_slot", "物品 validation runner 应覆盖非法槽位引用。")
 	_assert_domain_has_fragment(item_result, "must declare weapon_profile", "物品 validation runner 应拒绝只声明旧武器裸字段的资源。")
 	_assert_domain_has_fragment(item_result, "must declare explicit buy_price", "物品 validation runner 应拒绝只声明 base_price 的可交易资源。")
+	_assert_domain_has_fragment(item_result, "references missing template weapon_type_longsword_base", "物品 fixture validation 不得借用官方 template cache。")
+
+	_assert_domain_has_fragment(item_template_result, "is missing item_id", "物品 template validation runner 应覆盖缺失 template item_id。")
+	_assert_domain_has_fragment(item_template_result, "Duplicate item template id: duplicate_fixture_template", "物品 template validation runner 应覆盖重复 template id。")
+	_assert_domain_has_fragment(item_template_result, "Item template inheritance cycle detected", "物品 template validation runner 应覆盖 template 继承环。")
 
 	_assert_domain_has_fragment(recipe_result, "is missing recipe_id", "配方 validation runner 应覆盖缺失 recipe_id。")
 	_assert_domain_has_fragment(recipe_result, "Duplicate recipe_id registered: duplicate_recipe", "配方 validation runner 应覆盖重复 recipe_id。")
 	_assert_domain_has_fragment(recipe_result, "references missing input item missing_item", "配方 validation runner 应覆盖非法物品引用。")
 
+	_assert_domain_is(enemy_missing_result, "enemy", "缺失 template_id 的 enemy fixture 应稳定归入 enemy domain。")
+	_assert_domain_is(enemy_duplicate_result, "enemy", "重复 template_id 的 enemy fixture 应稳定归入 enemy domain。")
+	_assert_domain_is(enemy_invalid_reference_result, "enemy", "非法 roster 引用的 enemy fixture 应稳定归入 enemy domain。")
+	_assert_domain_is(enemy_incomplete_seed_result, "enemy", "遗漏 seed entry 的 enemy fixture 应稳定归入 enemy domain。")
 	var enemy_errors := _combine_domain_errors([
 		enemy_missing_result,
 		enemy_duplicate_result,
 		enemy_invalid_reference_result,
+		enemy_incomplete_seed_result,
 	])
 	_assert_messages_have_fragment(enemy_errors, "is missing template_id", "敌方 validation runner 应覆盖缺失 template_id。")
 	_assert_messages_have_fragment(enemy_errors, "Duplicate enemy template_id registered: duplicate_enemy", "敌方 validation runner 应覆盖重复 template_id。")
 	_assert_messages_have_fragment(enemy_errors, "references missing template missing_template", "敌方 validation runner 应覆盖非法 template 引用。")
 	_assert_messages_have_fragment(enemy_errors, "must declare attack_equipment_item_id", "敌方 validation runner 应覆盖非 beast 模板缺失真实攻击装备。")
+	_assert_messages_have_fragment(enemy_errors, "is missing enemy_ai_brains entry for res://tests/fixtures/enemy_content/incomplete_seed/brains/unseeded_brain.tres", "敌方 validation runner 应覆盖 brain 目录资源未入 seed。")
+	_assert_messages_have_fragment(enemy_errors, "is missing enemy_templates entry for res://tests/fixtures/enemy_content/incomplete_seed/templates/unseeded_template.tres", "敌方 validation runner 应覆盖 template 目录资源未入 seed。")
+	_assert_messages_have_fragment(enemy_errors, "is missing wild_encounter_rosters entry for res://tests/fixtures/enemy_content/incomplete_seed/rosters/unseeded_roster.tres", "敌方 validation runner 应覆盖 roster 目录资源未入 seed。")
 
 	var battle_special_errors := _combine_domain_errors([
 		battle_special_missing_manifest_result,
@@ -257,9 +326,11 @@ func _run() -> void:
 	_assert_domain_has_fragment(world_result, "references missing enemy roster template missing_enemy", "世界 validation runner 应覆盖非法野怪敌方模板引用。")
 	_assert_domain_has_fragment(world_result, "references missing encounter profile missing_roster", "世界 validation runner 应覆盖非法野怪 roster 引用。")
 
+	_assert_true(String(quest_result.get("domain", "")) == "quest", "任务 validation runner 应稳定归入 quest domain。")
 	_assert_domain_has_fragment(quest_result, "is missing quest_id", "任务 validation runner 应覆盖缺失 quest_id。")
 	_assert_domain_has_fragment(quest_result, "Duplicate quest_id registered: duplicate_quest", "任务 validation runner 应覆盖重复 quest_id。")
 	_assert_domain_has_fragment(quest_result, "references missing item missing_item", "任务 validation runner 应覆盖非法物品引用。")
+	_assert_domain_has_fragment(quest_result, "unsupported pending_character_reward entry_type skill_level", "任务 validation runner 应拒绝 skill_level pending reward entry。")
 
 	for report_text in _reports:
 		print(report_text)
@@ -284,6 +355,26 @@ func _build_quest_entries_from_dict(quest_defs: Dictionary, source_prefix: Strin
 			"quest_def": quest_defs.get(quest_id) as QuestDef,
 		})
 	return entries
+
+
+func _test_item_registry_directory_rebuild_clears_template_cache() -> void:
+	var registry := ItemContentRegistry.new(false)
+	registry.rebuild_from_directories(
+		[ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY],
+		[ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY]
+	)
+	_assert_true(registry.validate().size() == 0, "显式传入 fixture template 时 isolated item registry 应可通过。")
+	_assert_true(
+		registry.get_item_defs().has(&"fixture_inherited_item"),
+		"显式传入 fixture template 时应注册继承后的 fixture item。"
+	)
+
+	registry.rebuild_from_directories([ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY], [])
+	_assert_messages_have_fragment(
+		registry.validate(),
+		"references missing template fixture_item_base",
+		"同一个 registry 重新构建时不得残留上一次的 fixture template cache。"
+	)
 
 
 func _build_single_special_profile_skill_defs(skill_id: StringName, profile_id: StringName) -> Dictionary:
@@ -490,6 +581,11 @@ func _build_invalid_quest_entries() -> Array[Dictionary]:
 					"target_id": "missing_skill",
 					"amount": 1,
 				},
+				{
+					"entry_type": "skill_level",
+					"target_id": "charge",
+					"amount": 1,
+				},
 			],
 		},
 	]
@@ -574,6 +670,10 @@ func _combine_domain_errors(domain_results: Array[Dictionary]) -> Array[String]:
 
 func _assert_domain_has_fragment(domain_result: Dictionary, fragment: String, message: String) -> void:
 	_assert_messages_have_fragment(_combine_domain_errors([domain_result]), fragment, message)
+
+
+func _assert_domain_is(domain_result: Dictionary, expected_domain: String, message: String) -> void:
+	_assert_true(String(domain_result.get("domain", "")) == expected_domain, message)
 
 
 func _assert_report_has_fragment(report: Dictionary, fragment: String, message: String) -> void:

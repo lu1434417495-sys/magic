@@ -31,6 +31,7 @@ const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
 const QUEST_PROGRESS_SERVICE_SCRIPT = preload("res://scripts/systems/progression/quest_progress_service.gd")
 const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
+const PENDING_CHARACTER_REWARD_CONTENT_RULES = preload("res://scripts/player/progression/pending_character_reward_content_rules.gd")
 const CHARACTER_PROGRESSION_DELTA_SCRIPT = preload("res://scripts/systems/progression/character_progression_delta.gd")
 const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
 const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
@@ -48,11 +49,11 @@ const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 const REWARD_TYPE_ACHIEVEMENT: StringName = &"achievement"
 const REWARD_TYPE_QUEST: StringName = &"quest"
 const REWARD_ENTRY_ORDER := {
-	&"knowledge_unlock": 0,
-	&"skill_unlock": 1,
-	&"skill_mastery": 2,
-	&"attribute_progress": 3,
-	&"attribute_delta": 4,
+	PENDING_CHARACTER_REWARD_CONTENT_RULES.ENTRY_KNOWLEDGE_UNLOCK: 0,
+	PENDING_CHARACTER_REWARD_CONTENT_RULES.ENTRY_SKILL_UNLOCK: 1,
+	PENDING_CHARACTER_REWARD_CONTENT_RULES.ENTRY_SKILL_MASTERY: 2,
+	PENDING_CHARACTER_REWARD_CONTENT_RULES.ENTRY_ATTRIBUTE_PROGRESS: 3,
+	PENDING_CHARACTER_REWARD_CONTENT_RULES.ENTRY_ATTRIBUTE_DELTA: 4,
 }
 
 ## 字段说明：缓存队伍状态实例，会参与运行时状态流转、系统协作和存档恢复。
@@ -778,20 +779,23 @@ func _learn_skill_internal(member_id: StringName, skill_id: StringName, unlocked
 
 	var practice_service = _build_practice_growth_service()
 	var practice_status: Dictionary = practice_service.get_skill_learned_status(skill_id, member_state.progression)
+	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
 	if bool(practice_status.get("is_practice_skill", false)):
 		if bool(practice_status.get("needs_replacement", false)):
 			if not bool(options.get("confirm_practice_replacement", false)):
 				return false
-			if not practice_service.apply_replacement(skill_id, member_state.progression):
+			if not progression_service.can_learn_skill(skill_id):
 				return false
-			var refreshed_service: ProgressionService = _build_progression_service(member_state.progression)
-			refreshed_service.refresh_runtime_state()
+			if not practice_service.apply_replacement(skill_id, member_state.progression, true):
+				return false
+			progression_service.refresh_runtime_state()
 			var replacement_achievement_ids := record_achievement_event(member_id, &"skill_learned", 1, skill_id)
 			if unlocked_ids is Array:
 				_append_unique_string_names(unlocked_ids, replacement_achievement_ids)
 			return true
+		if not bool(practice_status.get("can_learn", false)):
+			return false
 
-	var progression_service: ProgressionService = _build_progression_service(member_state.progression)
 	if not progression_service.learn_skill(skill_id):
 		return false
 	if bool(practice_status.get("is_practice_skill", false)):
@@ -930,6 +934,8 @@ func build_pending_character_reward(
 	var member_state: PartyMemberState = get_member_state(member_id)
 	if member_state == null or member_state.progression == null:
 		return null
+	if _has_unsupported_pending_character_entry_type(entry_variants):
+		return null
 
 	var reward := PENDING_CHARACTER_REWARD_SCRIPT.new()
 	reward.reward_id = reward_id if reward_id != &"" else _build_reward_id(member_id, source_id if source_id != &"" else source_type)
@@ -982,7 +988,7 @@ func build_pending_skill_mastery_reward(
 
 
 func apply_pending_character_reward(reward: PendingCharacterReward) -> CharacterProgressionDelta:
-	var normalized_reward: PendingCharacterReward = _normalize_pending_character_reward_variant(reward)
+	var normalized_reward: PendingCharacterReward = _normalize_pending_character_reward_variant(reward, true)
 	var member_id: StringName = normalized_reward.member_id if normalized_reward != null else &""
 	var delta: CharacterProgressionDelta = _new_delta(member_id)
 	var member_state: PartyMemberState = get_member_state(member_id)
@@ -1069,6 +1075,7 @@ func apply_pending_character_reward(reward: PendingCharacterReward) -> Character
 						"reason_text": entry.reason_text,
 					})
 			_:
+				_log_unsupported_pending_character_reward_entry(normalized_reward, entry)
 				continue
 
 	_fill_delta_from_progression(
@@ -1420,20 +1427,15 @@ func _apply_level_trigger_attribute_growth(
 	var skill_progress = member_state.progression.get_skill_progress(trigger_skill_id)
 	if skill_progress == null or bool(skill_progress.core_max_growth_claimed):
 		return
+	var growth_entries := _collect_attribute_growth_entries(skill_def)
+	if growth_entries.is_empty():
+		return
 	var attribute_growth_service: AttributeGrowthService = ATTRIBUTE_GROWTH_SERVICE_SCRIPT.new()
 	attribute_growth_service.setup(member_state.progression)
-	var attribute_keys: Array[String] = []
-	for raw_attribute_key in skill_def.attribute_growth_progress.keys():
-		var attribute_id := ProgressionDataUtils.to_string_name(raw_attribute_key)
-		if attribute_id == &"":
-			continue
-		attribute_keys.append(String(attribute_id))
-	attribute_keys.sort()
-	for attribute_key in attribute_keys:
-		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
-		var amount := int(skill_def.attribute_growth_progress.get(attribute_id, skill_def.attribute_growth_progress.get(attribute_key, 0)))
-		if amount <= 0:
-			continue
+	var did_apply_growth := false
+	for entry in growth_entries:
+		var attribute_id := ProgressionDataUtils.to_string_name(entry.get("attribute_id", ""))
+		var amount := int(entry.get("amount", 0))
 		var growth_result: Dictionary = attribute_growth_service.apply_attribute_progress(
 			attribute_id,
 			amount,
@@ -1441,6 +1443,7 @@ func _apply_level_trigger_attribute_growth(
 		)
 		if not bool(growth_result.get("applied", false)):
 			continue
+		did_apply_growth = true
 		if delta != null:
 			delta.attribute_changes.append({
 				"attribute_id": attribute_id,
@@ -1453,8 +1456,43 @@ func _apply_level_trigger_attribute_growth(
 				"attribute_after": int(growth_result.get("attribute_after", 0)),
 				"reason_text": String(growth_result.get("reason_text", "")),
 			})
+	if not did_apply_growth:
+		return
 	skill_progress.core_max_growth_claimed = true
 	member_state.progression.set_skill_progress(skill_progress)
+
+
+func _collect_attribute_growth_entries(skill_def: SkillDef) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	if skill_def == null:
+		return entries
+
+	var attribute_keys: Array[String] = []
+	for raw_attribute_key in skill_def.attribute_growth_progress.keys():
+		if typeof(raw_attribute_key) != TYPE_STRING:
+			continue
+		var attribute_key := String(raw_attribute_key)
+		if attribute_key.strip_edges().is_empty():
+			continue
+		attribute_keys.append(attribute_key)
+	attribute_keys.sort()
+
+	for attribute_key in attribute_keys:
+		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
+		var amount_variant: Variant = skill_def.attribute_growth_progress.get(attribute_key, null)
+		if amount_variant is not int:
+			continue
+		var amount := int(amount_variant)
+		if amount <= 0:
+			continue
+		if not ATTRIBUTE_GROWTH_SERVICE_SCRIPT.is_valid_attribute_id(attribute_id):
+			continue
+		entries.append({
+			"attribute_id": attribute_id,
+			"amount": amount,
+		})
+
+	return entries
 
 
 func _get_content_def(primary_bucket: String, alias_bucket: String, entry_id: StringName):
@@ -1673,67 +1711,7 @@ func _grant_skill_mastery_internal(
 			delta.unlocked_achievement_ids,
 			record_achievement_event(member_id, &"skill_mastery_gained", amount, skill_id)
 		)
-	_enqueue_core_max_attribute_growth_reward(member_state, skill_id, source_label)
 	return delta
-
-
-func _enqueue_core_max_attribute_growth_reward(
-	member_state: PartyMemberState,
-	skill_id: StringName,
-	source_label: String
-) -> void:
-	if member_state == null or member_state.progression == null:
-		return
-	var skill_def: SkillDef = _skill_defs.get(skill_id) as SkillDef
-	if skill_def == null or skill_def.attribute_growth_progress.is_empty():
-		return
-	var skill_progress = member_state.progression.get_skill_progress(skill_id)
-	if skill_progress == null:
-		return
-	if not skill_progress.is_learned or not skill_progress.is_core:
-		return
-	if bool(skill_progress.is_level_trigger_active) or member_state.progression.active_level_trigger_core_skill_id == skill_id:
-		return
-	if bool(skill_progress.core_max_growth_claimed):
-		return
-	if not SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.is_at_effective_max_level(skill_def, skill_progress, member_state.progression):
-		return
-
-	var attribute_keys: Array[String] = []
-	for raw_attribute_key in skill_def.attribute_growth_progress.keys():
-		if typeof(raw_attribute_key) == TYPE_STRING:
-			attribute_keys.append(String(raw_attribute_key))
-	attribute_keys.sort()
-
-	var entries: Array = []
-	for attribute_key in attribute_keys:
-		var attribute_id := ProgressionDataUtils.to_string_name(attribute_key)
-		var amount := int(skill_def.attribute_growth_progress.get(attribute_key, 0))
-		if amount <= 0:
-			continue
-		entries.append({
-			"entry_type": "attribute_progress",
-			"target_id": String(attribute_id),
-			"target_label": _resolve_attribute_label(attribute_id),
-			"amount": amount,
-			"reason_text": "%s 满级成长" % _resolve_skill_label(skill_id),
-		})
-	if entries.is_empty():
-		return
-
-	skill_progress.core_max_growth_claimed = true
-	member_state.progression.set_skill_progress(skill_progress)
-	var reward := build_pending_character_reward(
-		member_state.member_id,
-		&"",
-		&"skill_core_max",
-		skill_id,
-		source_label if not source_label.is_empty() else _resolve_skill_label(skill_id),
-		entries,
-		"%s 达到核心满级，获得属性成长进度。" % _resolve_skill_label(skill_id)
-	)
-	if reward != null and not reward.is_empty():
-		enqueue_pending_character_rewards([reward])
 
 
 func _capture_skill_levels(progression_state) -> Dictionary:
@@ -1828,11 +1806,13 @@ func _normalize_pending_skill_mastery_entries(
 	return normalized_entries
 
 
-func _normalize_pending_character_reward_variant(reward_variant) -> PendingCharacterReward:
+func _normalize_pending_character_reward_variant(reward_variant, allow_unsupported_entries := false) -> PendingCharacterReward:
 	if reward_variant == null:
 		return null
 	if reward_variant is PendingCharacterReward:
 		var typed_reward := reward_variant as PendingCharacterReward
+		if not allow_unsupported_entries and _has_unsupported_pending_character_entry_object(typed_reward.entries):
+			return null
 		if typed_reward.reward_id == &"":
 			typed_reward.reward_id = _build_reward_id(typed_reward.member_id, typed_reward.source_id if typed_reward.source_id != &"" else typed_reward.source_type)
 		return typed_reward if not typed_reward.is_empty() else null
@@ -2183,6 +2163,42 @@ func _normalize_pending_character_entries(entry_variants: Array) -> Array[Pendin
 	return normalized_entries
 
 
+func _has_unsupported_pending_character_entry_type(entry_variants: Array) -> bool:
+	for entry_variant in entry_variants:
+		if entry_variant is PendingCharacterRewardEntry:
+			var typed_entry := entry_variant as PendingCharacterRewardEntry
+			if _is_unsupported_pending_character_entry(typed_entry.entry_type, typed_entry.target_id):
+				return true
+			continue
+		if entry_variant is Dictionary:
+			var entry_data := entry_variant as Dictionary
+			var entry_type := ProgressionDataUtils.to_string_name(entry_data.get("entry_type", ""))
+			var target_id := ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
+			if _is_unsupported_pending_character_entry(entry_type, target_id):
+				return true
+	return false
+
+
+func _has_unsupported_pending_character_entry_object(entries: Array[PendingCharacterRewardEntry]) -> bool:
+	for entry in entries:
+		if entry == null:
+			continue
+		if _is_unsupported_pending_character_entry(entry.entry_type, entry.target_id):
+			return true
+	return false
+
+
+func _is_unsupported_pending_character_entry(entry_type: StringName, target_id: StringName) -> bool:
+	if entry_type == &"":
+		return false
+	if not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(entry_type):
+		return true
+	if PENDING_CHARACTER_REWARD_CONTENT_RULES.is_attribute_progress_entry(entry_type) \
+		and not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_valid_attribute_progress_target(target_id):
+		return true
+	return false
+
+
 func _normalize_pending_character_entry(entry_variant) -> PendingCharacterRewardEntry:
 	if entry_variant == null:
 		return null
@@ -2194,6 +2210,11 @@ func _normalize_pending_character_entry(entry_variant) -> PendingCharacterReward
 		var target_id := ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
 		var amount := int(entry_data.get("amount", 0))
 		if entry_type == &"" or target_id == &"" or amount == 0:
+			return null
+		if not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(entry_type):
+			return null
+		if PENDING_CHARACTER_REWARD_CONTENT_RULES.is_attribute_progress_entry(entry_type) \
+			and not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_valid_attribute_progress_target(target_id):
 			return null
 		var entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
 		entry.entry_type = entry_type
@@ -2231,6 +2252,14 @@ func _build_achievement_reward_entries(achievement_def) -> Array[PendingCharacte
 	for reward_def in achievement_def.rewards:
 		if reward_def == null or reward_def.is_empty():
 			continue
+		if not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(reward_def.reward_type):
+			push_error(
+				"Achievement %s has unsupported pending reward entry_type %s." % [
+					String(achievement_def.achievement_id),
+					String(reward_def.reward_type),
+				]
+			)
+			return []
 		var entry := PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.new()
 		entry.entry_type = reward_def.reward_type
 		entry.target_id = reward_def.target_id
@@ -2333,6 +2362,22 @@ func _remove_pending_character_reward_if_present(reward_id: StringName) -> void:
 	if _party_state == null or reward_id == &"":
 		return
 	_party_state.remove_pending_character_reward(reward_id)
+
+
+func _log_unsupported_pending_character_reward_entry(reward: PendingCharacterReward, entry: PendingCharacterRewardEntry) -> void:
+	if reward == null or entry == null:
+		return
+	push_error(
+		"Unsupported pending character reward entry_type %s; reward_id=%s member_id=%s source_type=%s source_id=%s target_id=%s amount=%d." % [
+			String(entry.entry_type),
+			String(reward.reward_id),
+			String(reward.member_id),
+			String(reward.source_type),
+			String(reward.source_id),
+			String(entry.target_id),
+			int(entry.amount),
+		]
+	)
 
 
 func _build_reward_id(member_id: StringName, source_id: StringName) -> StringName:

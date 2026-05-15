@@ -264,6 +264,7 @@ func _build_party_member_snapshot(member_id: StringName, roster_role: String) ->
 	var achievement_summary: Dictionary = _runtime.get_member_achievement_summary(member_id)
 	var attribute_snapshot = _runtime.get_member_attribute_snapshot(member_id)
 	var equipment_entries: Array = _runtime.get_member_equipped_entries(member_id)
+	var progression = member_state.progression if member_state != null else null
 	return {
 		"member_id": String(member_id),
 		"display_name": _runtime.get_member_display_name(member_id),
@@ -274,6 +275,12 @@ func _build_party_member_snapshot(member_id: StringName, roster_role: String) ->
 		"current_aura": int(member_state.current_aura) if member_state != null else 0,
 		"unlocked_combat_resource_ids": _build_member_unlocked_combat_resource_ids(member_state),
 		"learned_skill_ids": _build_member_learned_skill_ids(member_state),
+		"active_core_skill_ids": _build_sorted_string_name_array(progression.active_core_skill_ids if progression != null else []),
+		"active_level_trigger_core_skill_id": String(progression.active_level_trigger_core_skill_id) if progression != null else "",
+		"locked_level_trigger_skill_ids": _build_sorted_string_name_array(progression.locked_level_trigger_skill_ids if progression != null else []),
+		"blocked_relearn_skill_ids": _build_sorted_string_name_array(progression.blocked_relearn_skill_ids if progression != null else []),
+		"skill_entries": _build_member_skill_entries(member_state),
+		"profession_entries": _build_member_profession_entries(member_state),
 		"achievement_summary": achievement_summary.duplicate(true) if achievement_summary is Dictionary else {},
 		"attributes": attribute_snapshot.to_dict() if attribute_snapshot is Object and attribute_snapshot.has_method("to_dict") else {},
 		"equipment": equipment_entries,
@@ -303,6 +310,56 @@ func _build_member_unlocked_combat_resource_ids(member_state) -> Array[String]:
 		resource_ids.append(String(resource_id))
 	resource_ids.sort()
 	return resource_ids
+
+
+func _build_member_skill_entries(member_state) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	if member_state == null or member_state.progression == null:
+		return entries
+	for skill_key in ProgressionDataUtils.sorted_string_keys(member_state.progression.skills):
+		var skill_id := ProgressionDataUtils.to_string_name(skill_key)
+		var skill_progress = member_state.progression.get_skill_progress(skill_id)
+		if skill_progress == null or not bool(skill_progress.is_learned):
+			continue
+		entries.append({
+			"skill_id": String(skill_id),
+			"level": int(skill_progress.skill_level),
+			"is_core": bool(skill_progress.is_core),
+			"assigned_profession_id": String(skill_progress.assigned_profession_id),
+			"is_level_trigger_active": bool(skill_progress.is_level_trigger_active),
+			"is_level_trigger_locked": bool(skill_progress.is_level_trigger_locked),
+			"core_max_growth_claimed": bool(skill_progress.core_max_growth_claimed),
+			"granted_source_type": String(skill_progress.granted_source_type),
+			"granted_source_id": String(skill_progress.granted_source_id),
+		})
+	return entries
+
+
+func _build_member_profession_entries(member_state) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	if member_state == null or member_state.progression == null:
+		return entries
+	for profession_key in ProgressionDataUtils.sorted_string_keys(member_state.progression.professions):
+		var profession_id := ProgressionDataUtils.to_string_name(profession_key)
+		var profession_progress = member_state.progression.get_profession_progress(profession_id)
+		if profession_progress == null:
+			continue
+		entries.append({
+			"profession_id": String(profession_id),
+			"rank": int(profession_progress.rank),
+			"is_active": bool(profession_progress.is_active),
+			"is_hidden": bool(profession_progress.is_hidden),
+			"core_skill_ids": _build_sorted_string_name_array(profession_progress.core_skill_ids),
+			"granted_skill_ids": _build_sorted_string_name_array(profession_progress.granted_skill_ids),
+			"inactive_reason": String(profession_progress.inactive_reason),
+		})
+	return entries
+
+
+func _build_sorted_string_name_array(values: Array) -> Array[String]:
+	var result := _string_name_array_to_string_array(values)
+	result.sort()
+	return result
 
 
 func _build_settlement_snapshot() -> Dictionary:

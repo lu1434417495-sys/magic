@@ -2,6 +2,7 @@ class_name BattleAttackRollModifierSpec
 extends RefCounted
 
 const BATTLE_ATTACK_ROLL_MODIFIER_SPEC_SCRIPT = preload("res://scripts/systems/battle/core/battle_attack_roll_modifier_spec.gd")
+const COMBAT_TARGET_TEAM_CONTENT_RULES = preload("res://scripts/player/progression/combat_target_team_content_rules.gd")
 
 var source_domain: StringName = &""
 var source_id: StringName = &""
@@ -69,6 +70,9 @@ static func from_dict(data: Variant):
 		return null
 	if not _is_string_like(payload.get("target_team_filter")):
 		return null
+	var target_team_filter := ProgressionDataUtils.to_string_name(payload.get("target_team_filter"))
+	if not COMBAT_TARGET_TEAM_CONTENT_RULES.is_valid_skill_target_team_filter(target_team_filter):
+		return null
 	if not _is_string_like(payload.get("footprint_mode")):
 		return null
 	if not _is_string_like(payload.get("applies_to")):
@@ -85,7 +89,7 @@ static func from_dict(data: Variant):
 	spec.endpoint_mode = ProgressionDataUtils.to_string_name(payload.get("endpoint_mode"))
 	spec.distance_min_exclusive = int(payload.get("distance_min_exclusive"))
 	spec.distance_max_inclusive = int(payload.get("distance_max_inclusive"))
-	spec.target_team_filter = ProgressionDataUtils.to_string_name(payload.get("target_team_filter"))
+	spec.target_team_filter = target_team_filter
 	spec.footprint_mode = ProgressionDataUtils.to_string_name(payload.get("footprint_mode"))
 	spec.applies_to = ProgressionDataUtils.to_string_name(payload.get("applies_to"))
 	return spec
@@ -95,6 +99,9 @@ static func from_partial_dict(data: Variant):
 	if data is not Dictionary:
 		return null
 	var payload: Dictionary = data
+	var target_team_filter := ProgressionDataUtils.to_string_name(payload.get("target_team_filter", &"any"))
+	if not COMBAT_TARGET_TEAM_CONTENT_RULES.is_valid_skill_target_team_filter(target_team_filter):
+		return null
 	var spec := BATTLE_ATTACK_ROLL_MODIFIER_SPEC_SCRIPT.new()
 	spec.source_domain = ProgressionDataUtils.to_string_name(payload.get("source_domain", &""))
 	spec.source_id = ProgressionDataUtils.to_string_name(payload.get("source_id", &""))
@@ -107,7 +114,7 @@ static func from_partial_dict(data: Variant):
 	spec.endpoint_mode = ProgressionDataUtils.to_string_name(payload.get("endpoint_mode", &"either"))
 	spec.distance_min_exclusive = int(payload.get("distance_min_exclusive", -1))
 	spec.distance_max_inclusive = int(payload.get("distance_max_inclusive", -1))
-	spec.target_team_filter = ProgressionDataUtils.to_string_name(payload.get("target_team_filter", &"any"))
+	spec.target_team_filter = target_team_filter
 	spec.footprint_mode = ProgressionDataUtils.to_string_name(payload.get("footprint_mode", &"any_cell"))
 	spec.applies_to = ProgressionDataUtils.to_string_name(payload.get("applies_to", &"attack_roll"))
 	return spec

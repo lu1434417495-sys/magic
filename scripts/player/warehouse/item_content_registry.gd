@@ -23,18 +23,31 @@ var _resolved_template_cache: Dictionary = {}
 var _validation_errors: Array[String] = []
 
 
-func _init() -> void:
-	rebuild()
+func _init(auto_rebuild: bool = true) -> void:
+	if auto_rebuild:
+		rebuild()
 
 
 func rebuild() -> void:
+	rebuild_from_directories([ITEM_CONFIG_DIRECTORY], [ITEM_TEMPLATE_DIRECTORY])
+
+
+func rebuild_from_directories(item_directories: Array, template_directories: Array = []) -> void:
 	_item_defs.clear()
 	_template_defs.clear()
 	_resolved_template_cache.clear()
 	_validation_errors.clear()
-	_scan_template_directory(ITEM_TEMPLATE_DIRECTORY)
+	for template_directory in template_directories:
+		var template_path := String(template_directory)
+		if template_path.is_empty():
+			continue
+		_scan_template_directory(template_path)
 	_resolve_all_templates()
-	_scan_directory(ITEM_CONFIG_DIRECTORY)
+	for item_directory in item_directories:
+		var item_path := String(item_directory)
+		if item_path.is_empty():
+			continue
+		_scan_directory(item_path)
 
 
 func get_item_defs() -> Dictionary:

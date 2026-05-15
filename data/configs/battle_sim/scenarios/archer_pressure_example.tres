@@ -13,11 +13,18 @@ coord = Vector2i(4, 2)
 current_hp = 80
 current_ap = 2
 action_threshold = 120
+base_attributes = {
+"strength": 10,
+"agility": 10,
+"constitution": 12,
+"perception": 10,
+"intelligence": 10,
+"willpower": 10
+}
 attribute_overrides = {
 "hp_max": 80,
 "action_points": 2,
-"armor_class": 16,
-"armor_ac_bonus": 0
+"armor_ac_bonus": 8
 }
 
 [sub_resource type="Resource" id="Resource_player_b"]
@@ -30,11 +37,18 @@ coord = Vector2i(5, 2)
 current_hp = 80
 current_ap = 2
 action_threshold = 120
+base_attributes = {
+"strength": 10,
+"agility": 10,
+"constitution": 12,
+"perception": 10,
+"intelligence": 10,
+"willpower": 10
+}
 attribute_overrides = {
 "hp_max": 80,
 "action_points": 2,
-"armor_class": 16,
-"armor_ac_bonus": 0
+"armor_ac_bonus": 8
 }
 
 [sub_resource type="Resource" id="Resource_enemy_archer"]
@@ -51,14 +65,21 @@ current_mp = 20
 current_stamina = 20
 current_ap = 2
 action_threshold = 120
+base_attributes = {
+"strength": 10,
+"agility": 12,
+"constitution": 12,
+"perception": 14,
+"intelligence": 10,
+"willpower": 10
+}
 attribute_overrides = {
 "hp_max": 60,
 "mp_max": 20,
 "stamina_max": 20,
 "action_points": 2,
 "attack_bonus": 6,
-"armor_class": 14,
-"armor_ac_bonus": 0
+"armor_ac_bonus": 5
 }
 skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
 skill_level_map = {

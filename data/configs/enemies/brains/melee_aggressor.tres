@@ -7,6 +7,9 @@
 [ext_resource type="Script" path="res://scripts/enemies/actions/wait_action.gd" id="5_wait"]
 [ext_resource type="Script" path="res://scripts/enemies/actions/use_unit_skill_action.gd" id="6_unit"]
 [ext_resource type="Script" path="res://scripts/enemies/actions/retreat_action.gd" id="7_retreat"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_generation_slot_def.gd" id="8_slot"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_transition_rule_def.gd" id="9_transition_rule"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_ai_transition_condition_def.gd" id="10_transition_condition"]
 
 [sub_resource type="Resource" id="Action_engage_charge"]
 script = ExtResource("3_charge")
@@ -38,10 +41,76 @@ distance_reference = &"target_unit"
 script = ExtResource("5_wait")
 action_id = &"wolf_wait"
 
+[sub_resource type="Resource" id="Slot_engage_charge_path"]
+script = ExtResource("8_slot")
+slot_id = &"engage_charge_path"
+slot_role = &"engage"
+order = 10
+allowed_affordances = Array[StringName]([&"charge_path_aoe"])
+action_families = Array[StringName]([&"use_charge_path_aoe"])
+style_template_action_id = &"wolf_charge_open"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_role_threat_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+
+[sub_resource type="Resource" id="Slot_engage_charge"]
+script = ExtResource("8_slot")
+slot_id = &"engage_charge"
+slot_role = &"engage"
+order = 20
+allowed_affordances = Array[StringName]([&"charge_engage"])
+action_families = Array[StringName]([&"use_charge"])
+style_template_action_id = &"wolf_charge_open"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_role_threat_enemy"
+
+[sub_resource type="Resource" id="Slot_engage_unit"]
+script = ExtResource("8_slot")
+slot_id = &"engage_unit"
+slot_role = &"offense"
+order = 30
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"displacement_control"])
+action_families = Array[StringName]([&"use_unit_skill"])
+style_template_action_id = &"wolf_basic_in_engage"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_engage_random_chain"]
+script = ExtResource("8_slot")
+slot_id = &"engage_random_chain"
+slot_role = &"offense"
+order = 35
+allowed_affordances = Array[StringName]([&"random_chain"])
+action_families = Array[StringName]([&"use_random_chain_skill"])
+style_template_action_id = &"wolf_basic_in_engage"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_engage_move"]
+script = ExtResource("8_slot")
+slot_id = &"engage_move"
+slot_role = &"positioning"
+order = 40
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"unit_hostile.control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"wolf_close_in"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_role_threat_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+
 [sub_resource type="Resource" id="State_engage"]
 script = ExtResource("2_state")
 state_id = &"engage"
 actions = Array[Resource]([SubResource("Action_engage_charge"), SubResource("Action_engage_move"), SubResource("Action_engage_basic"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_engage_charge_path"), SubResource("Slot_engage_charge"), SubResource("Slot_engage_unit"), SubResource("Slot_engage_random_chain"), SubResource("Slot_engage_move")])
 
 [sub_resource type="Resource" id="Action_pressure_attack"]
 script = ExtResource("6_unit")
@@ -62,10 +131,38 @@ screening_mode = &"ranged_ally"
 screening_min_hp_basis_points = 4000
 screening_path_bonus = 45
 
+[sub_resource type="Resource" id="Slot_pressure_unit"]
+script = ExtResource("8_slot")
+slot_id = &"pressure_unit"
+slot_role = &"offense"
+order = 10
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"displacement_control"])
+action_families = Array[StringName]([&"use_unit_skill"])
+style_template_action_id = &"wolf_basic_attack"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_pressure_move"]
+script = ExtResource("8_slot")
+slot_id = &"pressure_move"
+slot_role = &"positioning"
+order = 20
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"unit_hostile.control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"wolf_keep_contact"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_role_threat_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+
 [sub_resource type="Resource" id="State_pressure"]
 script = ExtResource("2_state")
 state_id = &"pressure"
 actions = Array[Resource]([SubResource("Action_pressure_attack"), SubResource("Action_pressure_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_pressure_unit"), SubResource("Slot_pressure_move")])
 
 [sub_resource type="Resource" id="Action_support_attack"]
 script = ExtResource("6_unit")
@@ -76,26 +173,135 @@ desired_min_distance = 1
 desired_max_distance = 1
 distance_reference = &"target_unit"
 
-[sub_resource type="Resource" id="State_support"]
-script = ExtResource("2_state")
-state_id = &"support"
-actions = Array[Resource]([SubResource("Action_support_attack"), SubResource("Action_wait")])
-
 [sub_resource type="Resource" id="Action_retreat"]
 script = ExtResource("7_retreat")
 action_id = &"wolf_retreat"
 minimum_safe_distance = 2
 
+[sub_resource type="Resource" id="Slot_support_unit"]
+script = ExtResource("8_slot")
+slot_id = &"support_unit"
+slot_role = &"offense"
+order = 10
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"displacement_control"])
+action_families = Array[StringName]([&"use_unit_skill"])
+style_template_action_id = &"wolf_basic_attack_support"
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="State_support"]
+script = ExtResource("2_state")
+state_id = &"support"
+actions = Array[Resource]([SubResource("Action_support_attack"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_support_unit")])
+
+[sub_resource type="Resource" id="Slot_retreat_unit"]
+script = ExtResource("8_slot")
+slot_id = &"retreat_unit"
+slot_role = &"survival"
+order = 10
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control"])
+action_families = Array[StringName]([&"use_unit_skill"])
+score_bucket_id = &"charge_open"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
 [sub_resource type="Resource" id="State_retreat"]
 script = ExtResource("2_state")
 state_id = &"retreat"
 actions = Array[Resource]([SubResource("Action_retreat"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_retreat_unit")])
+
+[sub_resource type="Resource" id="Condition_retreat_low_hp"]
+script = ExtResource("10_transition_condition")
+predicate = &"self_hp_at_or_below_basis_points"
+basis_points = 3500
+
+[sub_resource type="Resource" id="Condition_support_self_low_hp"]
+script = ExtResource("10_transition_condition")
+predicate = &"self_hp_at_or_below_basis_points"
+basis_points = 4000
+
+[sub_resource type="Resource" id="Condition_support_ally_low_hp"]
+script = ExtResource("10_transition_condition")
+predicate = &"ally_hp_at_or_below_basis_points"
+basis_points = 4000
+
+[sub_resource type="Resource" id="Condition_support_affordance"]
+script = ExtResource("10_transition_condition")
+predicate = &"has_skill_affordance"
+affordances = Array[StringName]([&"ally_heal", &"self_or_ally_buff"])
+
+[sub_resource type="Resource" id="Condition_pressure_current"]
+script = ExtResource("10_transition_condition")
+predicate = &"current_state_is"
+state_ids = Array[StringName]([&"pressure"])
+
+[sub_resource type="Resource" id="Condition_pressure_sticky_distance"]
+script = ExtResource("10_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 2
+
+[sub_resource type="Resource" id="Condition_pressure_enter_distance"]
+script = ExtResource("10_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 1
+
+[sub_resource type="Resource" id="Condition_always"]
+script = ExtResource("10_transition_condition")
+predicate = &"always"
+
+[sub_resource type="Resource" id="Rule_retreat_low_hp"]
+script = ExtResource("9_transition_rule")
+rule_id = &"retreat_low_hp"
+order = 10
+target_state_id = &"retreat"
+conditions = Array[Resource]([SubResource("Condition_retreat_low_hp")])
+
+[sub_resource type="Resource" id="Rule_support_self_low_hp"]
+script = ExtResource("9_transition_rule")
+rule_id = &"support_self_low_hp"
+order = 20
+target_state_id = &"support"
+conditions = Array[Resource]([SubResource("Condition_support_self_low_hp"), SubResource("Condition_support_affordance")])
+
+[sub_resource type="Resource" id="Rule_support_ally_low_hp"]
+script = ExtResource("9_transition_rule")
+rule_id = &"support_ally_low_hp"
+order = 21
+target_state_id = &"support"
+conditions = Array[Resource]([SubResource("Condition_support_ally_low_hp"), SubResource("Condition_support_affordance")])
+
+[sub_resource type="Resource" id="Rule_pressure_sticky"]
+script = ExtResource("9_transition_rule")
+rule_id = &"pressure_sticky"
+order = 30
+from_state_ids = Array[StringName]([&"pressure"])
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_current"), SubResource("Condition_pressure_sticky_distance")])
+
+[sub_resource type="Resource" id="Rule_pressure_enter"]
+script = ExtResource("9_transition_rule")
+rule_id = &"pressure_enter"
+order = 40
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_enter_distance")])
+
+[sub_resource type="Resource" id="Rule_engage_default"]
+script = ExtResource("9_transition_rule")
+rule_id = &"engage_default"
+order = 90
+target_state_id = &"engage"
+conditions = Array[Resource]([SubResource("Condition_always")])
 
 [resource]
 script = ExtResource("1_brain")
 brain_id = &"melee_aggressor"
 default_state_id = &"engage"
-retreat_hp_basis_points = 3500
-support_hp_basis_points = 4000
-pressure_distance = 1
 states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_support"), SubResource("State_retreat")])
+transition_rules = Array[Resource]([SubResource("Rule_retreat_low_hp"), SubResource("Rule_support_self_low_hp"), SubResource("Rule_support_ally_low_hp"), SubResource("Rule_pressure_sticky"), SubResource("Rule_pressure_enter"), SubResource("Rule_engage_default")])

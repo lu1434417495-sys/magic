@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="SubraceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/subrace_def.gd" id="1_subrace"]
+
+[resource]
+script = ExtResource("1_subrace")
+subrace_id = &"parent_mismatch_subrace"
+parent_race_id = &"human"
+display_name = "Parent Mismatch Subrace"
+description = "Fixture covering a subrace whose parent race does not list it."

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
@@ -110,6 +111,7 @@ func _run() -> void:
 	await _test_repeat_attack_hud_preview_matches_runtime_resolver()
 	await _test_single_hit_hud_preview_matches_runtime_resolver()
 	await _test_battle_panel_hover_target_surfaces_hit_preview()
+	await _test_hover_preview_overlay_renders_on_valid_target_and_hides_on_invalid()
 	await _test_repeat_attack_hud_preview_uses_fate_aware_success_rate()
 	await _test_skill_slot_surfaces_stamina_and_cooldown_blockers()
 	await _test_multi_unit_board_highlights_confirm_state()
@@ -747,6 +749,155 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 	runtime.dispose()
 	game_session.queue_free()
 	await process_frame
+
+
+func _test_hover_preview_overlay_renders_on_valid_target_and_hides_on_invalid() -> void:
+	var skill_def := _get_repeat_attack_skill_def()
+	_assert_true(skill_def != null and skill_def.combat_profile != null, "hover overlay 前置：saint_blade_combo 定义应存在。")
+	if skill_def == null or skill_def.combat_profile == null:
+		return
+
+	var game_session := await _install_mock_game_session()
+	game_session.skill_defs = {
+		skill_def.skill_id: skill_def,
+	}
+
+	var runtime := BattleRuntimeModule.new()
+	runtime.setup(null, game_session.skill_defs, {}, {}, null)
+	var state := _build_repeat_attack_state()
+	var attacker := _build_repeat_attack_unit(
+		&"hover_overlay_user",
+		"浮层战士",
+		&"player",
+		Vector2i(1, 1),
+		[skill_def.skill_id],
+		3,
+		4
+	)
+	attacker.current_aura = 6
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	var defender := _build_repeat_attack_unit(
+		&"hover_overlay_target",
+		"浮层木桩",
+		&"enemy",
+		Vector2i(2, 1),
+		[],
+		2,
+		0
+	)
+	defender.current_hp = 8
+	defender.attribute_snapshot.set_value(&"hp_max", 12)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	_add_unit_to_runtime_state(runtime, state, attacker, false)
+	_add_unit_to_runtime_state(runtime, state, defender, true)
+	state.phase = &"unit_acting"
+	state.active_unit_id = attacker.unit_id
+	runtime._state = state
+
+	var panel := BattlePanelScene.instantiate() as BattleMapPanel
+	root.add_child(panel)
+	await process_frame
+	_configure_battle_panel(panel)
+	panel.size = VIEWPORT_SIZE
+	panel.show_battle(
+		state,
+		attacker.coord,
+		skill_def.skill_id,
+		skill_def.display_name,
+		"",
+		[],
+		[defender.coord],
+		1,
+		[]
+	)
+	await process_frame
+	await process_frame
+
+	_assert_true(panel.hover_overlay != null, "BattleMapPanel 应暴露 hover_overlay 节点。")
+	if panel.hover_overlay == null:
+		panel.queue_free()
+		runtime.dispose()
+		game_session.queue_free()
+		await process_frame
+		return
+	_assert_true(not panel.hover_overlay.visible, "初始无 hover 时浮层应隐藏。")
+
+	var valid_target_coords: Array[Vector2i] = [defender.coord]
+	panel.update_hover_preview(
+		state,
+		defender.coord,
+		valid_target_coords,
+		skill_def.skill_id,
+		&""
+	)
+	await process_frame
+	_assert_true(panel.hover_overlay.visible, "悬停到合法目标格时浮层应显示。")
+	var defender_hp_label := _find_label_with_prefix(panel.hover_overlay, "HP ")
+	_assert_true(
+		defender_hp_label != null and defender_hp_label.text == "HP 8/12",
+		"浮层应展示目标单位的 HP 数值（当前/最大）。"
+	)
+	var hit_summary_label := _find_label_with_prefix(panel.hover_overlay, "命中 ")
+	_assert_true(
+		hit_summary_label != null and hit_summary_label.text.contains("命中"),
+		"悬停到合法技能目标时浮层应展示命中徽标文本。"
+	)
+
+	panel.update_hover_preview(
+		state,
+		Vector2i(0, 0),
+		valid_target_coords,
+		skill_def.skill_id,
+		&""
+	)
+	await process_frame
+	_assert_true(
+		not panel.hover_overlay.visible \
+			or _find_label_with_text(panel.hover_overlay, "不可达") != null,
+		"悬停到无效目标格时浮层应隐藏或标记不可达。"
+	)
+
+	panel.update_hover_preview(
+		state,
+		BattleMapPanel.INVALID_HOVER_COORD,
+		valid_target_coords,
+		skill_def.skill_id,
+		&""
+	)
+	await process_frame
+	_assert_true(not panel.hover_overlay.visible, "hover_coord = INVALID 时浮层应隐藏。")
+
+	panel.queue_free()
+	runtime.dispose()
+	game_session.queue_free()
+	await process_frame
+
+
+func _find_label_with_prefix(node: Node, prefix: String) -> Label:
+	if node == null:
+		return null
+	for child in node.get_children():
+		var label := child as Label
+		if label != null and label.text.begins_with(prefix):
+			return label
+		var nested := _find_label_with_prefix(child, prefix)
+		if nested != null:
+			return nested
+	return null
+
+
+func _find_label_with_text(node: Node, target_text: String) -> Label:
+	if node == null:
+		return null
+	for child in node.get_children():
+		var label := child as Label
+		if label != null and label.text == target_text:
+			return label
+		var nested := _find_label_with_text(child, target_text)
+		if nested != null:
+			return nested
+	return null
 
 
 func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
@@ -1648,11 +1799,7 @@ func _build_repeat_attack_unit(
 
 
 func _add_unit_to_runtime_state(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUnitState, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	_assert_true(bool(runtime._grid_service.place_unit(state, unit, unit.coord, true)), "UI 命中预览回归中的测试单位应成功放入战场。")
 
 
@@ -1780,7 +1927,7 @@ func _find_backpack_entry(equipment_panel: Dictionary, instance_id: String) -> D
 func _build_legacy_missing_field_panel_snapshot() -> Dictionary:
 	return {
 		"header_title": "战斗地图",
-		"round_badge": "TU 0\nREADY 1",
+		"round_badge": {"tu_text": "TU 0", "ready_text": "READY 1"},
 		"mode_text": "手动",
 		"focus_unit": {
 			"name": "旧字段单位",

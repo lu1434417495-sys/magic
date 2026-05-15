@@ -89,11 +89,16 @@ func _run() -> void:
 	_test_progression_registry_uses_skill_resources_only()
 	_test_level_less_skill_schema_validation()
 	_test_attribute_growth_progress_schema_validation()
+	_test_practice_skill_schema_validation()
 	_test_dynamic_max_level_schema_validation()
 	_test_level_override_key_schema_validation()
+	_test_level_description_schema_validation()
+	_test_target_team_filter_schema_validation()
+	_test_passive_effect_defs_schema_validation()
 	_test_required_weapon_family_schema_validation()
 	_test_special_resolution_profile_id_is_manifest_owned()
 	_test_requires_weapon_param_schema_validation()
+	_test_damage_tag_schema_validation()
 	_test_duration_param_schema_validation()
 	_test_damage_dice_alias_param_schema_validation()
 	_test_damage_resolver_alias_param_schema_validation()
@@ -428,6 +433,62 @@ func _test_level_less_skill_schema_validation() -> void:
 	)
 
 
+func _test_practice_skill_schema_validation() -> void:
+	var valid_meditation := _make_minimal_schema_skill(&"valid_meditation_practice_skill")
+	valid_meditation.tags = [&"meditation"]
+	valid_meditation.practice_tier = &"basic"
+	_assert_true(
+		_collect_practice_schema_errors(valid_meditation).is_empty(),
+		"meditation 功法只带 meditation tag 且配置合法 practice_tier 时应通过 schema 校验。"
+	)
+
+	var valid_cultivation := _make_minimal_schema_skill(&"valid_cultivation_practice_skill")
+	valid_cultivation.tags = [&"cultivation"]
+	valid_cultivation.practice_tier = &"ultimate"
+	_assert_true(
+		_collect_practice_schema_errors(valid_cultivation).is_empty(),
+		"cultivation 功法只带 cultivation tag 且配置合法 practice_tier 时应通过 schema 校验。"
+	)
+
+	var dual_track := _make_minimal_schema_skill(&"invalid_dual_track_practice_skill")
+	dual_track.tags = [&"meditation", &"cultivation"]
+	dual_track.practice_tier = &"basic"
+	_assert_true(
+		_has_error_containing(_collect_practice_schema_errors(dual_track), "must use exactly one practice track tag"),
+		"同时带 meditation/cultivation 的技能应被 schema 拒绝。"
+	)
+
+	var extra_tag := _make_minimal_schema_skill(&"invalid_extra_tag_practice_skill")
+	extra_tag.tags = [&"meditation", &"passive"]
+	extra_tag.practice_tier = &"basic"
+	_assert_true(
+		_has_error_containing(_collect_practice_schema_errors(extra_tag), "practice tags must be exclusive"),
+		"practice 技能带额外 tag 时应被 schema 拒绝。"
+	)
+
+	var missing_tier := _make_minimal_schema_skill(&"invalid_missing_tier_practice_skill")
+	missing_tier.tags = [&"cultivation"]
+	_assert_true(
+		_has_error_containing(_collect_practice_schema_errors(missing_tier), "practice_tier must be one of"),
+		"practice 技能缺 practice_tier 时应被 schema 拒绝。"
+	)
+
+	var invalid_tier := _make_minimal_schema_skill(&"invalid_tier_practice_skill")
+	invalid_tier.tags = [&"meditation"]
+	invalid_tier.practice_tier = &"novice"
+	_assert_true(
+		_has_error_containing(_collect_practice_schema_errors(invalid_tier), "practice_tier must be one of"),
+		"practice 技能配置未知 practice_tier 时应被 schema 拒绝。"
+	)
+
+	var non_practice_with_tier := _make_minimal_schema_skill(&"invalid_non_practice_with_tier_skill")
+	non_practice_with_tier.practice_tier = &"basic"
+	_assert_true(
+		_has_error_containing(_collect_practice_schema_errors(non_practice_with_tier), "practice_tier requires meditation or cultivation"),
+		"非 practice 技能不应配置 practice_tier。"
+	)
+
+
 func _test_dynamic_max_level_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_skill := _make_minimal_schema_skill(&"valid_dynamic_max_level_skill")
@@ -600,6 +661,89 @@ func _test_level_override_key_schema_validation() -> void:
 	)
 
 
+func _test_target_team_filter_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var valid_profile := CombatSkillDef.new()
+	valid_profile.skill_id = &"valid_target_team_filter_skill"
+	valid_profile.target_team_filter = &"enemy"
+	var inherited_effect := CombatEffectDef.new()
+	inherited_effect.effect_type = &"damage"
+	inherited_effect.damage_tag = &"physical_blunt"
+	inherited_effect.effect_target_team_filter = &""
+	var self_effect := CombatEffectDef.new()
+	self_effect.effect_type = &"heal"
+	self_effect.effect_target_team_filter = &"self"
+	valid_profile.effect_defs = [inherited_effect, self_effect]
+	var valid_errors: Array[String] = []
+	registry._append_combat_profile_validation_errors(valid_errors, valid_profile.skill_id, valid_profile)
+	_assert_true(valid_errors.is_empty(), "正式 target_team_filter 与 effect 级空值继承 / self override 应通过 schema。")
+
+	var invalid_skill_filter_profile := CombatSkillDef.new()
+	invalid_skill_filter_profile.skill_id = &"invalid_skill_target_team_filter"
+	invalid_skill_filter_profile.target_team_filter = &"hostile"
+	var invalid_skill_filter_errors: Array[String] = []
+	registry._append_combat_profile_validation_errors(
+		invalid_skill_filter_errors,
+		invalid_skill_filter_profile.skill_id,
+		invalid_skill_filter_profile
+	)
+	_assert_true(
+		_has_error_containing(invalid_skill_filter_errors, "uses unsupported target_team_filter hostile"),
+		"skill 级 target_team_filter 不应接受 faction_id 风格的 hostile 别名。"
+	)
+
+	var invalid_effect_filter := CombatEffectDef.new()
+	invalid_effect_filter.effect_type = &"damage"
+	invalid_effect_filter.effect_target_team_filter = &"friendly"
+	var invalid_effect_filter_errors: Array[String] = []
+	registry._append_effect_validation_errors(
+		invalid_effect_filter_errors,
+		&"invalid_effect_target_team_filter",
+		invalid_effect_filter,
+		"test_effect"
+	)
+	_assert_true(
+		_has_error_containing(invalid_effect_filter_errors, "uses unsupported effect_target_team_filter friendly"),
+		"effect 级 effect_target_team_filter 不应接受 friendly 别名。"
+	)
+
+
+func _test_passive_effect_defs_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var invalid_status_profile := CombatSkillDef.new()
+	invalid_status_profile.skill_id = &"invalid_passive_status_skill"
+	var missing_status_effect := CombatEffectDef.new()
+	missing_status_effect.effect_type = &"status"
+	missing_status_effect.trigger_condition = &"battle_start"
+	invalid_status_profile.passive_effect_defs = [missing_status_effect]
+	var invalid_status_errors: Array[String] = []
+	registry._append_combat_profile_validation_errors(
+		invalid_status_errors,
+		invalid_status_profile.skill_id,
+		invalid_status_profile
+	)
+	_assert_true(
+		_has_error_containing(invalid_status_errors, "combat_profile.passive_effect_defs[0] is missing status_id"),
+		"passive_effect_defs 应复用 effect schema，并把错误定位到 passive_effect_defs 下标。"
+	)
+
+	var execute_profile := CombatSkillDef.new()
+	execute_profile.skill_id = &"execute_passive_effect_skill"
+	var execute_effect := CombatEffectDef.new()
+	execute_effect.effect_type = &"execute"
+	execute_profile.passive_effect_defs = [execute_effect]
+	var execute_errors: Array[String] = []
+	registry._append_combat_profile_validation_errors(
+		execute_errors,
+		execute_profile.skill_id,
+		execute_profile
+	)
+	_assert_true(
+		_has_error_containing(execute_errors, "passive_effect_defs[0] uses effect_type 'execute'"),
+		"passive_effect_defs 不应允许 execute，避免被动技能承载主动结算动作。"
+	)
+
+
 func _test_required_weapon_family_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_profile := CombatSkillDef.new()
@@ -708,6 +852,70 @@ func _test_requires_weapon_param_schema_validation() -> void:
 	)
 
 
+func _test_damage_tag_schema_validation() -> void:
+	var registry := SkillContentRegistry.new()
+	var explicit_tag_effect := CombatEffectDef.new()
+	explicit_tag_effect.effect_type = &"damage"
+	explicit_tag_effect.damage_tag = &"fire"
+	var explicit_tag_errors: Array[String] = []
+	registry._append_effect_validation_errors(explicit_tag_errors, &"valid_explicit_damage_tag_skill", explicit_tag_effect, "test_effect")
+	_assert_true(explicit_tag_errors.is_empty(), "damage effect 可使用 effect.damage_tag 声明正式伤害类型。")
+
+	var weapon_tag_effect := CombatEffectDef.new()
+	weapon_tag_effect.effect_type = &"damage"
+	weapon_tag_effect.params = {
+		"use_weapon_physical_damage_tag": true,
+	}
+	var weapon_tag_errors: Array[String] = []
+	registry._append_effect_validation_errors(weapon_tag_errors, &"valid_weapon_damage_tag_skill", weapon_tag_effect, "test_effect")
+	_assert_true(weapon_tag_errors.is_empty(), "damage effect 可通过 use_weapon_physical_damage_tag 从当前武器投影物理伤害类型。")
+
+	var missing_tag_effect := CombatEffectDef.new()
+	missing_tag_effect.effect_type = &"damage"
+	var missing_tag_errors: Array[String] = []
+	registry._append_effect_validation_errors(missing_tag_errors, &"missing_damage_tag_skill", missing_tag_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(missing_tag_errors, "must declare damage_tag or set params.use_weapon_physical_damage_tag = true"),
+		"damage effect 缺少显式伤害类型来源时应在启动内容校验中失败。"
+	)
+
+	var unsupported_tag_effect := CombatEffectDef.new()
+	unsupported_tag_effect.effect_type = &"damage"
+	unsupported_tag_effect.damage_tag = &"arcane_force"
+	var unsupported_tag_errors: Array[String] = []
+	registry._append_effect_validation_errors(unsupported_tag_errors, &"unsupported_damage_tag_skill", unsupported_tag_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(unsupported_tag_errors, "uses unsupported damage_tag arcane_force"),
+		"damage effect 不应接受未登记的伤害类型。"
+	)
+
+	var conflicting_tag_effect := CombatEffectDef.new()
+	conflicting_tag_effect.effect_type = &"damage"
+	conflicting_tag_effect.damage_tag = &"physical_slash"
+	conflicting_tag_effect.params = {
+		"use_weapon_physical_damage_tag": true,
+	}
+	var conflicting_tag_errors: Array[String] = []
+	registry._append_effect_validation_errors(conflicting_tag_errors, &"conflicting_damage_tag_skill", conflicting_tag_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(conflicting_tag_errors, "cannot combine damage_tag with params.use_weapon_physical_damage_tag"),
+		"damage_tag 与 use_weapon_physical_damage_tag 同时存在应视为配置错误。"
+	)
+
+	var params_tag_effect := CombatEffectDef.new()
+	params_tag_effect.effect_type = &"damage"
+	params_tag_effect.damage_tag = &"fire"
+	params_tag_effect.params = {
+		"damage_tag": "fire",
+	}
+	var params_tag_errors: Array[String] = []
+	registry._append_effect_validation_errors(params_tag_errors, &"params_damage_tag_skill", params_tag_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(params_tag_errors, "params.damage_tag is unsupported on damage effects"),
+		"damage effect 不应再从 params.damage_tag 读取伤害类型。"
+	)
+
+
 func _test_duration_param_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_effect := CombatEffectDef.new()
@@ -763,9 +971,9 @@ func _test_damage_resolver_alias_param_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_effect := CombatEffectDef.new()
 	valid_effect.effect_type = &"damage"
+	valid_effect.damage_tag = &"fire"
 	valid_effect.bonus_condition = &"target_low_hp"
 	valid_effect.params = {
-		"damage_tag": "fire",
 		"dr_bypass_tag": "armor_pierce",
 		"hp_ratio_threshold_percent": 60,
 		"bonus_damage_dice_count": 1,
@@ -773,7 +981,7 @@ func _test_damage_resolver_alias_param_schema_validation() -> void:
 	}
 	var valid_errors: Array[String] = []
 	registry._append_effect_validation_errors(valid_errors, &"valid_damage_resolver_params_skill", valid_effect, "test_effect")
-	_assert_true(valid_errors.is_empty(), "正式 damage_tag / dr_bypass_tag / hp_ratio_threshold_percent / bonus_damage_dice params 应通过 schema。")
+	_assert_true(valid_errors.is_empty(), "正式 effect.damage_tag / dr_bypass_tag / hp_ratio_threshold_percent / bonus_damage_dice params 应通过 schema。")
 
 	var legacy_effect := CombatEffectDef.new()
 	legacy_effect.effect_type = &"damage"
@@ -983,6 +1191,54 @@ func _test_skill_registry_reports_missing_id_duplicate_schema_and_illegal_refs()
 		_has_error_containing(validation_errors, "references missing skill missing_skill"),
 		"技能注册表应显式报告非法技能引用。"
 	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_missing_config_skill level_description_configs must be non-empty when level_description_template is set"),
+		"技能注册表应拒绝只有等级描述模板但没有等级配置的资源。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_missing_template_skill level_description_template must be non-empty when level_description_configs is set"),
+		"技能注册表应拒绝只有等级描述配置但没有模板的资源。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_malformed_skill level_description_configs key 0 must be a non-negative integer string"),
+		"技能注册表应拒绝 int 等级描述 key。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_malformed_skill level_description_configs key -1 must be a non-negative integer string"),
+		"技能注册表应拒绝负数等级描述 key。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_malformed_skill level_description_configs key two must be a non-negative integer string"),
+		"技能注册表应拒绝非数字等级描述 key。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_malformed_skill level_description_configs[2] must be a Dictionary"),
+		"技能注册表应拒绝旧式字符串等级描述配置。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_malformed_skill level_description_configs[2] must be <= max_level 1"),
+		"技能注册表应拒绝静态等级描述配置超过 max_level。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_gap_skill level_description_configs must include level 1"),
+		"技能注册表应拒绝等级描述配置断档。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "invalid_level_description_level_less_overflow_skill level_description_configs[1] must be <= max_level 0"),
+		"技能注册表应拒绝无等级技能声明 1 级描述。"
+	)
+
+
+func _test_level_description_schema_validation() -> void:
+	var valid_registry := SkillContentRegistry.new()
+	valid_registry._skill_defs.clear()
+	valid_registry._validation_errors.clear()
+	valid_registry._scan_directory("res://tests/progression/fixtures/skill_registry_valid")
+	valid_registry._validation_errors.append_array(valid_registry._collect_validation_errors())
+	_assert_true(
+		valid_registry.validate().is_empty(),
+		"合法技能 fixture 应允许无等级描述的未迁移技能，也应允许动态等级描述超过静态 max_level。"
+	)
 
 
 func _assert_resource_backed_skill_ids(
@@ -1093,6 +1349,15 @@ func _make_growth_schema_skill(
 	skill_def.growth_tier = growth_tier
 	skill_def.attribute_growth_progress = attribute_growth_progress.duplicate(true)
 	return skill_def
+
+
+func _collect_practice_schema_errors(skill_def: SkillDef) -> Array[String]:
+	var errors: Array[String] = []
+	var skill_registry := SkillContentRegistry.new()
+	skill_registry._append_skill_validation_errors(errors, skill_def.skill_id, skill_def)
+	var progression_registry := ProgressionContentRegistry.new()
+	progression_registry._append_invalid_skill_errors(errors, skill_def.skill_id, skill_def)
+	return errors
 
 
 func _assert_cast_variant_compat_entry(

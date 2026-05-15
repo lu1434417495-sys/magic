@@ -11,7 +11,11 @@ const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/batt
 const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
 const BattleUiTheme = preload("res://scripts/ui/battle_ui_theme.gd")
 const BattleSkillSlotButton = preload("res://scripts/ui/battle_skill_slot_button.gd")
+const BattleHoverPreviewOverlay = preload("res://scripts/ui/battle_hover_preview_overlay.gd")
 const BATTLE_BOARD_SCENE = preload("res://scenes/ui/battle_board_2d.tscn")
+const HOVER_OVERLAY_ANCHOR_OFFSET_Y := 8.0
+const HOVER_OVERLAY_EDGE_MARGIN := 6.0
+const INVALID_HOVER_COORD := Vector2i(-1, -1)
 
 ## 信号说明：当战斗格子被点击时发出的信号，供外层接管选择、移动或交互逻辑。
 signal battle_cell_clicked(coord: Vector2i)
@@ -105,8 +109,10 @@ var _battle_encounter_display_name_callable: Callable = Callable()
 @onready var timeline_row: HBoxContainer = %TimelineRow
 ## 字段说明：缓存回合徽标外层 chip。
 @onready var round_chip: PanelContainer = %RoundChip
-## 字段说明：缓存回合标签节点。
-@onready var round_label: Label = %RoundLabel
+## 字段说明：缓存 TU 子标签节点（RoundChip 内的左半部分，独立显示 "TU N"）。
+@onready var tu_label: Label = %TuLabel
+## 字段说明：缓存 READY 子标签节点（RoundChip 内的右半部分，独立显示 "READY N"）。
+@onready var ready_label: Label = %ReadyLabel
 ## 字段说明：缓存模式徽标外层 chip。
 @onready var mode_chip: PanelContainer = %ModeChip
 ## 字段说明：缓存模式数值标签节点。
@@ -153,6 +159,15 @@ var _battle_encounter_display_name_callable: Callable = Callable()
 @onready var fate_badge_row: HFlowContainer = %FateBadgeRow
 ## 字段说明：缓存技能网格节点。
 @onready var skill_grid: GridContainer = %SkillGrid
+## 字段说明：缓存战斗悬停浮层节点（A1）。
+@onready var hover_overlay: BattleHoverPreviewOverlay = %HoverPreviewOverlay
+
+## 字段说明：缓存最近一次 update_hover_preview 的输入，供 _process 在相机 pan / zoom 时重算位置。
+var _hover_preview_coord: Vector2i = INVALID_HOVER_COORD
+var _hover_preview_valid_coords: Array[Vector2i] = []
+var _hover_preview_selected_skill_id: StringName = &""
+var _hover_preview_selected_skill_variant_id: StringName = &""
+var _hover_preview_battle_state: BattleState = null
 
 
 func _ready() -> void:
@@ -441,6 +456,7 @@ func hide_battle() -> void:
 	_cancel_battle_reveal()
 	_pending_show_battle_payload.clear()
 	_close_battle_equipment_panel()
+	clear_hover_preview()
 	_set_placeholder_state()
 	visible = false
 	if _battle_board != null:
@@ -557,6 +573,93 @@ func _on_battle_board_cell_right_clicked(coord: Vector2i) -> void:
 
 func _on_battle_board_cell_hovered(coord: Vector2i) -> void:
 	battle_cell_hovered.emit(coord)
+
+
+## 更新战斗悬停浮层（A1）。selected_skill_id 为空时仍可显示 target_unit（B2 / B4 路径）。
+## hover_coord 传 INVALID_HOVER_COORD 时浮层隐藏。
+func update_hover_preview(
+	battle_state: BattleState,
+	hover_coord: Vector2i,
+	valid_target_coords: Array[Vector2i] = [],
+	selected_skill_id: StringName = &"",
+	selected_skill_variant_id: StringName = &""
+) -> void:
+	if hover_overlay == null:
+		return
+	if battle_state == null or hover_coord == INVALID_HOVER_COORD:
+		_clear_hover_preview_state()
+		hover_overlay.clear()
+		return
+	_hover_preview_battle_state = battle_state
+	_hover_preview_coord = hover_coord
+	_hover_preview_valid_coords = valid_target_coords.duplicate()
+	_hover_preview_selected_skill_id = selected_skill_id
+	_hover_preview_selected_skill_variant_id = selected_skill_variant_id
+
+	var preview: Dictionary = _hud_adapter.build_hover_preview(
+		battle_state,
+		hover_coord,
+		selected_skill_id,
+		selected_skill_variant_id,
+		valid_target_coords,
+		_resolve_battle_command_preview_callable()
+	)
+	hover_overlay.apply_preview(preview)
+	if not hover_overlay.visible:
+		return
+	_position_hover_overlay(hover_coord)
+
+
+func clear_hover_preview() -> void:
+	_clear_hover_preview_state()
+	if hover_overlay != null:
+		hover_overlay.clear()
+
+
+func _clear_hover_preview_state() -> void:
+	_hover_preview_battle_state = null
+	_hover_preview_coord = INVALID_HOVER_COORD
+	_hover_preview_valid_coords.clear()
+	_hover_preview_selected_skill_id = &""
+	_hover_preview_selected_skill_variant_id = &""
+
+
+func _process(_delta: float) -> void:
+	if hover_overlay == null or not hover_overlay.visible:
+		return
+	if _hover_preview_coord == INVALID_HOVER_COORD:
+		return
+	_position_hover_overlay(_hover_preview_coord)
+
+
+func _position_hover_overlay(hover_coord: Vector2i) -> void:
+	if hover_overlay == null or _battle_board == null or map_viewport_container == null:
+		return
+	if not _battle_board.is_coord_in_viewport(hover_coord):
+		hover_overlay.visible = false
+		return
+	var viewport_position := _battle_board.coord_to_viewport_position(hover_coord)
+	if viewport_position.x == -INF or viewport_position.y == -INF:
+		hover_overlay.visible = false
+		return
+	# Wait for the overlay's panel layout to settle so size reflects child contents
+	# before computing edge-flip math; on first show this is one frame off without it.
+	hover_overlay.reset_size()
+	var overlay_size := hover_overlay.size
+	var anchor_screen_position := map_viewport_container.position + viewport_position
+	var overlay_position := anchor_screen_position - Vector2(overlay_size.x * 0.5, overlay_size.y + HOVER_OVERLAY_ANCHOR_OFFSET_Y)
+	var panel_size := size
+	if overlay_position.y < HOVER_OVERLAY_EDGE_MARGIN:
+		overlay_position.y = anchor_screen_position.y + HOVER_OVERLAY_ANCHOR_OFFSET_Y
+	if overlay_position.x < HOVER_OVERLAY_EDGE_MARGIN:
+		overlay_position.x = HOVER_OVERLAY_EDGE_MARGIN
+	var max_x := panel_size.x - overlay_size.x - HOVER_OVERLAY_EDGE_MARGIN
+	if overlay_position.x > max_x:
+		overlay_position.x = maxf(max_x, HOVER_OVERLAY_EDGE_MARGIN)
+	var max_y := panel_size.y - overlay_size.y - HOVER_OVERLAY_EDGE_MARGIN
+	if overlay_position.y > max_y:
+		overlay_position.y = maxf(max_y, HOVER_OVERLAY_EDGE_MARGIN)
+	hover_overlay.position = overlay_position
 
 
 func _on_map_viewport_container_gui_input(event: InputEvent) -> void:
@@ -703,7 +806,8 @@ func _apply_static_skin() -> void:
 	# 顶栏标题承载真实 encounter 名（GameRuntimeFacade._active_battle_encounter_name），
 	# 占位 "战斗地图" 仍走同一节点；FONT_HEADING 让玩家在场景切换时第一眼看到当前遭遇。
 	_style_header_label(header_title_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
-	_style_header_label(round_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
+	_style_header_label(tu_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
+	_style_header_label(ready_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
 	_style_header_label(mode_value_label, BattleUiTheme.FONT_HEADING, BattleUiTheme.TEXT_PRIMARY)
 	_style_header_label(unit_name_label, BattleUiTheme.FONT_TITLE, BattleUiTheme.TEXT_PRIMARY)
 	_style_header_label(unit_role_label, BattleUiTheme.FONT_LABEL, BattleUiTheme.TEXT_SECONDARY)
@@ -731,7 +835,8 @@ func _set_placeholder_state() -> void:
 	_selected_backpack_instance_id = &""
 	_selected_backpack_slot_id = &""
 	header_title_label.text = "战斗地图"
-	round_label.text = "TU -- · READY 0"
+	tu_label.text = "TU --"
+	ready_label.text = "READY 0"
 	mode_value_label.text = "手动"
 	unit_name_label.text = "待命"
 	unit_role_label.text = "未选中单位"
@@ -757,7 +862,9 @@ func _apply_snapshot(snapshot: Dictionary) -> void:
 	var equipment_snapshot_variant = snapshot.get("equipment_panel", {})
 	_battle_equipment_snapshot = (equipment_snapshot_variant as Dictionary).duplicate(true) if equipment_snapshot_variant is Dictionary else {}
 	header_title_label.text = String(snapshot.get("header_title", "战斗地图"))
-	round_label.text = String(snapshot.get("round_badge", "TU --\nREADY 0")).replace("\n", " · ")
+	var round_badge: Dictionary = snapshot.get("round_badge", {}) as Dictionary
+	tu_label.text = String(round_badge.get("tu_text", "TU --"))
+	ready_label.text = String(round_badge.get("ready_text", "READY 0"))
 	mode_value_label.text = String(snapshot.get("mode_text", "手动"))
 	_refresh_focus_unit_card(snapshot.get("focus_unit", {}))
 	_rebuild_timeline_row(snapshot.get("queue_entries", []))

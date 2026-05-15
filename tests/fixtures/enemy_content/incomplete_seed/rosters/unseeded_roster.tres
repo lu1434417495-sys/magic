@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/wild_encounter_roster_def.gd" id="1_roster"]
+
+[resource]
+script = ExtResource("1_roster")
+profile_id = &"unseeded_roster"

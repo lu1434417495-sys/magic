@@ -2,6 +2,7 @@ extends RefCounted
 
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const QuestContentValidator = preload("res://scripts/player/progression/quest_content_validator.gd")
 const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
 const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
 const ProfessionContentRegistry = preload("res://scripts/player/progression/profession_content_registry.gd")
@@ -17,18 +18,6 @@ const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_con
 const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
 const WorldMapContentValidator = preload("res://scripts/utils/world_map_content_validator.gd")
 const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd")
-
-const SUPPORTED_QUEST_PROVIDER_IDS := {
-	&"service_contract_board": true,
-	&"service_bounty_registry": true,
-}
-
-const QUEST_REWARD_ENTRY_TYPES_REQUIRING_SKILL := {
-	&"skill_unlock": true,
-	&"skill_mastery": true,
-	&"skill_level": true,
-}
-
 
 func build_run_report(label: String, domain_results: Array[Dictionary]) -> Dictionary:
 	var report := {
@@ -175,12 +164,26 @@ func validate_identity_directories(
 	return _build_domain_result("identity", label, errors)
 
 
+func validate_official_item_content() -> Dictionary:
+	return validate_item_directories(
+		"official_items",
+		[ItemContentRegistry.ITEM_CONFIG_DIRECTORY],
+		[ItemContentRegistry.ITEM_TEMPLATE_DIRECTORY]
+	)
+
+
 func validate_item_directory(directory_path: String) -> Dictionary:
-	var registry := ItemContentRegistry.new()
-	registry._item_defs.clear()
-	registry._validation_errors.clear()
-	registry._scan_directory(directory_path)
-	return _build_domain_result("item", directory_path, registry.validate())
+	return validate_item_directories(directory_path, [directory_path], [])
+
+
+func validate_item_directories(
+	label: String,
+	item_directories: Array,
+	template_directories: Array = []
+) -> Dictionary:
+	var registry := ItemContentRegistry.new(false)
+	registry.rebuild_from_directories(item_directories, template_directories)
+	return _build_domain_result("item", label, registry.validate())
 
 
 func validate_recipe_directory(directory_path: String, item_defs: Dictionary) -> Dictionary:
@@ -194,6 +197,18 @@ func validate_recipe_directory(directory_path: String, item_defs: Dictionary) ->
 func validate_enemy_seed(seed_resource_path: String) -> Dictionary:
 	var registry := EnemyContentRegistry.new()
 	registry.configure_seed_resource(seed_resource_path)
+	return _build_domain_result("enemy", seed_resource_path, registry.validate())
+
+
+func validate_enemy_seed_with_directory_completeness(
+	seed_resource_path: String,
+	template_directory: String,
+	brain_directory: String,
+	roster_directory: String
+) -> Dictionary:
+	var registry := EnemyContentRegistry.new()
+	registry.configure_directories(template_directory, brain_directory, roster_directory, false)
+	registry.configure_seed_resource(seed_resource_path, true, true)
 	return _build_domain_result("enemy", seed_resource_path, registry.validate())
 
 
@@ -236,116 +251,8 @@ func validate_quest_entries(
 	skill_defs: Dictionary = {},
 	enemy_templates: Dictionary = {}
 ) -> Dictionary:
-	var errors: Array[String] = []
-	var seen_quest_ids: Dictionary = {}
-
-	for entry in quest_entries:
-		var source_label := String(entry.get("source", label))
-		var quest_def := entry.get("quest_def") as QuestDef
-		if quest_def == null:
-			errors.append("Quest entry %s failed to cast to QuestDef." % source_label)
-			continue
-		if quest_def.quest_id == &"":
-			errors.append("Quest entry %s is missing quest_id." % source_label)
-			continue
-		if seen_quest_ids.has(quest_def.quest_id):
-			errors.append("Duplicate quest_id registered: %s" % String(quest_def.quest_id))
-			continue
-		seen_quest_ids[quest_def.quest_id] = true
-
-		for schema_error in quest_def.validate_schema():
-			errors.append("Quest %s: %s" % [String(quest_def.quest_id), schema_error])
-
-		if quest_def.provider_interaction_id == &"":
-			errors.append("Quest %s is missing provider_interaction_id." % String(quest_def.quest_id))
-		elif not SUPPORTED_QUEST_PROVIDER_IDS.has(quest_def.provider_interaction_id):
-			errors.append(
-				"Quest %s references missing provider_interaction_id %s." % [
-					String(quest_def.quest_id),
-					String(quest_def.provider_interaction_id),
-				]
-			)
-
-		_append_quest_objective_reference_errors(errors, quest_def, item_defs, enemy_templates)
-		_append_quest_reward_reference_errors(errors, quest_def, item_defs, skill_defs)
-
+	var errors := QuestContentValidator.validate_entries(label, quest_entries, item_defs, skill_defs, enemy_templates)
 	return _build_domain_result("quest", label, errors)
-
-
-func _append_quest_objective_reference_errors(
-	errors: Array[String],
-	quest_def: QuestDef,
-	item_defs: Dictionary,
-	enemy_templates: Dictionary
-) -> void:
-	for objective_variant in quest_def.objective_defs:
-		if objective_variant is not Dictionary:
-			continue
-		var objective_data := objective_variant as Dictionary
-		var objective_id := ProgressionDataUtils.to_string_name(objective_data.get("objective_id", ""))
-		var objective_type := ProgressionDataUtils.to_string_name(objective_data.get("objective_type", ""))
-		var target_id := ProgressionDataUtils.to_string_name(objective_data.get("target_id", ""))
-		match objective_type:
-			QuestDef.OBJECTIVE_SUBMIT_ITEM:
-				if target_id != &"" and not item_defs.is_empty() and not item_defs.has(target_id):
-					errors.append(
-						"Quest %s submit_item objective %s references missing item %s." % [
-							String(quest_def.quest_id),
-							String(objective_id),
-							String(target_id),
-						]
-					)
-			QuestDef.OBJECTIVE_DEFEAT_ENEMY:
-				if target_id != &"" and not enemy_templates.is_empty() and not enemy_templates.has(target_id):
-					errors.append(
-						"Quest %s defeat_enemy objective %s references missing enemy %s." % [
-							String(quest_def.quest_id),
-							String(objective_id),
-							String(target_id),
-						]
-					)
-
-
-func _append_quest_reward_reference_errors(
-	errors: Array[String],
-	quest_def: QuestDef,
-	item_defs: Dictionary,
-	skill_defs: Dictionary
-) -> void:
-	for reward_variant in quest_def.reward_entries:
-		if reward_variant is not Dictionary:
-			continue
-		var reward_data := reward_variant as Dictionary
-		var reward_type := ProgressionDataUtils.to_string_name(reward_data.get("reward_type", ""))
-		match reward_type:
-			QuestDef.REWARD_ITEM:
-				var reward_item_id := QuestDef.get_reward_item_id(reward_data)
-				if reward_item_id != &"" and not item_defs.is_empty() and not item_defs.has(reward_item_id):
-					errors.append(
-						"Quest %s reward references missing item %s." % [
-							String(quest_def.quest_id),
-							String(reward_item_id),
-						]
-					)
-			QuestDef.REWARD_PENDING_CHARACTER_REWARD:
-				var entries_variant: Variant = reward_data.get("entries", [])
-				if entries_variant is not Array:
-					continue
-				for entry_variant in entries_variant:
-					if entry_variant is not Dictionary:
-						continue
-					var entry_data := entry_variant as Dictionary
-					var entry_type := ProgressionDataUtils.to_string_name(entry_data.get("entry_type", ""))
-					var target_id := ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
-					if not QUEST_REWARD_ENTRY_TYPES_REQUIRING_SKILL.has(entry_type):
-						continue
-					if target_id != &"" and not skill_defs.is_empty() and not skill_defs.has(target_id):
-						errors.append(
-							"Quest %s pending_character_reward references missing skill %s." % [
-								String(quest_def.quest_id),
-								String(target_id),
-							]
-						)
 
 
 func _build_race_registry(directory_paths: Array[String]) -> RaceContentRegistry:

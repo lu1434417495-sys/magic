@@ -4,6 +4,7 @@ extends RefCounted
 const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
 
 const RUNTIME_UNAVAILABLE_MESSAGE := "运行时尚未初始化。"
+const INVALID_PROMOTION_CHOICE_MESSAGE := "晋升提交无效，当前选择仍需确认。"
 
 var _runtime_ref: WeakRef = null
 var _runtime = null:
@@ -57,8 +58,9 @@ func command_choose_promotion(profession_id: StringName) -> Dictionary:
 		if candidate_profession_id != profession_id:
 			continue
 		var selection: Dictionary = choice_data.get("selection", {}).duplicate(true)
-		on_promotion_choice_submitted(member_id, candidate_profession_id, selection)
-		return _command_ok()
+		if on_promotion_choice_submitted(member_id, candidate_profession_id, selection):
+			return _command_ok()
+		return _command_error(INVALID_PROMOTION_CHOICE_MESSAGE)
 	return _command_error("当前晋升列表中不存在职业 %s。" % String(profession_id))
 
 
@@ -106,7 +108,8 @@ func command_close_active_modal() -> Dictionary:
 func submit_promotion_choice(member_id: StringName, profession_id: StringName, selection: Dictionary) -> Dictionary:
 	if not _has_runtime():
 		return _runtime_unavailable_error()
-	on_promotion_choice_submitted(member_id, profession_id, selection)
+	if not on_promotion_choice_submitted(member_id, profession_id, selection):
+		return _command_error(INVALID_PROMOTION_CHOICE_MESSAGE)
 	return _command_ok()
 
 
@@ -133,21 +136,36 @@ func on_character_info_window_closed() -> void:
 	present_pending_reward_if_ready()
 
 
-func on_promotion_choice_submitted(member_id: StringName, profession_id: StringName, selection: Dictionary) -> void:
+func on_promotion_choice_submitted(member_id: StringName, profession_id: StringName, selection: Dictionary) -> bool:
 	if not _has_runtime():
-		return
+		return false
 	if _is_battle_active():
-		_clear_pending_promotion_prompt()
-		_set_active_modal_id("")
+		if not _promotion_prompt_contains_choice(_get_pending_promotion_prompt(), member_id, profession_id, selection):
+			_reject_invalid_promotion_choice()
+			return false
 		var batch = _submit_battle_promotion_choice(member_id, profession_id, selection)
 		_apply_battle_batch(batch)
-		return
+		if not _battle_promotion_batch_applied(batch, member_id, profession_id):
+			_reject_invalid_promotion_choice()
+			return false
+		if not _battle_promotion_batch_needs_follow_up(batch, member_id):
+			_clear_pending_promotion_prompt()
+			_set_active_modal_id("")
+		return true
 
-	if _get_pending_world_promotion_prompt().is_empty():
-		return
+	var prompt := _get_pending_world_promotion_prompt()
+	if prompt.is_empty():
+		_reject_invalid_promotion_choice()
+		return false
+	if not _promotion_prompt_contains_choice(prompt, member_id, profession_id, selection):
+		_reject_invalid_promotion_choice()
+		return false
+	var delta = _promote_profession(member_id, profession_id, selection)
+	if not _promotion_delta_applied(delta, member_id, profession_id):
+		_reject_invalid_promotion_choice()
+		return false
 	_clear_pending_world_promotion_prompt()
 	_set_active_modal_id("")
-	var delta = _promote_profession(member_id, profession_id, selection)
 	_sync_party_state_from_character_management()
 	var persist_error := int(_persist_party_state())
 	if delta.needs_promotion_modal:
@@ -157,13 +175,14 @@ func on_promotion_choice_submitted(member_id: StringName, profession_id: StringN
 			_update_status("%s 完成晋升后还有后续抉择待确认。" % _get_member_display_name(member_id))
 		else:
 			_update_status("%s 的晋升已应用，但队伍状态持久化失败。" % _get_member_display_name(member_id))
-		return
+		return true
 
 	if persist_error == OK:
 		_update_status("%s 完成职业晋升。" % _get_member_display_name(member_id))
 	else:
 		_update_status("%s 完成职业晋升，但队伍状态持久化失败。" % _get_member_display_name(member_id))
 	present_pending_reward_if_ready()
+	return true
 
 
 func on_promotion_choice_cancelled() -> void:
@@ -270,6 +289,67 @@ func _command_error(message: String) -> Dictionary:
 	if not _has_runtime():
 		return {"ok": false, "message": message}
 	return _runtime.build_command_error(message)
+
+
+func _reject_invalid_promotion_choice() -> void:
+	_set_active_modal_id("promotion")
+	_update_status(INVALID_PROMOTION_CHOICE_MESSAGE)
+
+
+func _promotion_prompt_contains_choice(
+	prompt: Dictionary,
+	member_id: StringName,
+	profession_id: StringName,
+	selection: Dictionary
+) -> bool:
+	if prompt.is_empty():
+		return false
+	if ProgressionDataUtils.to_string_name(prompt.get("member_id", "")) != member_id:
+		return false
+	var choices_variant: Variant = prompt.get("choices", [])
+	if choices_variant is not Array:
+		return false
+	for choice_variant in choices_variant:
+		if choice_variant is not Dictionary:
+			continue
+		var choice_data: Dictionary = choice_variant
+		if ProgressionDataUtils.to_string_name(choice_data.get("profession_id", "")) != profession_id:
+			continue
+		var choice_selection_variant: Variant = choice_data.get("selection", {})
+		if choice_selection_variant is not Dictionary:
+			continue
+		var choice_selection: Dictionary = choice_selection_variant
+		if choice_selection == selection:
+			return true
+	return false
+
+
+func _battle_promotion_batch_applied(batch, member_id: StringName, profession_id: StringName) -> bool:
+	if batch == null:
+		return false
+	for delta in batch.progression_deltas:
+		if _promotion_delta_applied(delta, member_id, profession_id):
+			return true
+	return false
+
+
+func _battle_promotion_batch_needs_follow_up(batch, member_id: StringName) -> bool:
+	if batch == null:
+		return false
+	for delta in batch.progression_deltas:
+		if delta != null and delta.member_id == member_id and delta.needs_promotion_modal:
+			return true
+	return false
+
+
+func _promotion_delta_applied(delta, member_id: StringName, profession_id: StringName) -> bool:
+	if delta == null:
+		return false
+	if delta.member_id != member_id:
+		return false
+	if delta.needs_promotion_modal:
+		return true
+	return delta.changed_profession_ids.has(profession_id)
 
 
 func _get_pending_promotion_prompt() -> Dictionary:

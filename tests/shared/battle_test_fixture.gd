@@ -5,6 +5,7 @@ const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 
 func build_state(options: Dictionary = {}) -> BattleState:
@@ -60,6 +61,11 @@ func build_unit(unit_id: StringName, options: Dictionary = {}) -> BattleUnitStat
 	if options.has("aura_max"):
 		unit.attribute_snapshot.set_value(&"aura_max", int(options.get("aura_max", 0)))
 	unit.set_anchor_coord(_option_vector2i(options, "coord", Vector2i.ZERO))
+	# options["seed_base_attributes"]=true 时补齐 6 维基础属性 + 派生 AC=8+agility_mod。
+	# 默认不开是因为旧测试（如 FixedRollDamageResolver 用例）依赖"缺 AC 时 resolver 走另一路径"。
+	# 需要走 BattleHitResolver 命中检定的 fixture 显式打开开关或单独调 BattleRuntimeTestHelpers。
+	if bool(options.get("seed_base_attributes", false)):
+		BattleRuntimeTestHelpers.seed_base_attributes_and_derive_ac(unit)
 	return unit
 
 

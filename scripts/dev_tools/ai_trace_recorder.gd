@@ -30,6 +30,7 @@ var _pid: int = 1
 var _tid: int = 1
 var _max_events: int = 200000  # Soft cap; warn but keep aggregating stats.
 var _truncated: bool = false
+var _collect_events := true
 
 
 static func enter(name: StringName) -> void:
@@ -50,12 +51,20 @@ func _init() -> void:
 	_start_ts_usec = Time.get_ticks_usec()
 
 
+func set_event_capture_enabled(enabled: bool) -> void:
+	_collect_events = enabled
+	if not _collect_events:
+		_events.clear()
+		_truncated = false
+
+
 func _enter_impl(name: StringName) -> void:
 	var ts := Time.get_ticks_usec()
-	if _events.size() < _max_events:
-		_events.append({"name": String(name), "cat": "ai", "ph": _EVENT_BEGIN, "ts": ts - _start_ts_usec, "pid": _pid, "tid": _tid})
-	else:
-		_truncated = true
+	if _collect_events:
+		if _events.size() < _max_events:
+			_events.append({"name": String(name), "cat": "ai", "ph": _EVENT_BEGIN, "ts": ts - _start_ts_usec, "pid": _pid, "tid": _tid})
+		else:
+			_truncated = true
 	_call_stack.append({"name": name, "t_enter": ts, "child_usec": 0})
 
 
@@ -68,10 +77,11 @@ func _exit_impl(name: StringName) -> void:
 	if frame.get("name", &"") != name:
 		push_warning("AiTraceRecorder.exit(%s) mismatched stack top=%s" % [String(name), String(frame.get("name", &""))])
 		# Best-effort: try to flush frame anyway.
-	if _events.size() < _max_events:
-		_events.append({"name": String(name), "cat": "ai", "ph": _EVENT_END, "ts": ts - _start_ts_usec, "pid": _pid, "tid": _tid})
-	else:
-		_truncated = true
+	if _collect_events:
+		if _events.size() < _max_events:
+			_events.append({"name": String(name), "cat": "ai", "ph": _EVENT_END, "ts": ts - _start_ts_usec, "pid": _pid, "tid": _tid})
+		else:
+			_truncated = true
 
 	var own_usec := ts - int(frame["t_enter"])
 	var child_usec := int(frame["child_usec"])

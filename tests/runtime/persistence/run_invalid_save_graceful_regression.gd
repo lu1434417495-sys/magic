@@ -22,6 +22,11 @@ func _run() -> void:
 	_test_load_save_rejects_bad_world_data_without_quit()
 	_test_fresh_session_load_rejects_bad_world_data_without_quit()
 	_test_load_save_rejects_bad_equipment_instance_without_quit()
+	_test_load_save_rejects_bad_identity_without_clearing_current_world()
+	_test_fresh_session_load_rejects_bad_identity_without_quit()
+	_test_create_new_save_rejects_bad_creation_identity_without_creating_slot()
+	_test_create_new_save_bad_creation_identity_preserves_previous_world()
+	_test_create_new_save_accepts_valid_creation_identity_payload()
 	_test_load_save_repairs_memory_without_implicit_disk_write()
 	_test_load_save_rejects_foreign_payload_save_id()
 	_test_decode_payload_rejects_request_meta_mismatch()
@@ -171,6 +176,111 @@ func _test_load_save_rejects_bad_equipment_instance_without_quit() -> void:
 	if write_error == OK:
 		var load_error := int(game_session.load_save(game_session.get_active_save_id()))
 		_assert_eq(load_error, ERR_INVALID_DATA, "坏 equipment instance payload 应通过 load_save() 返回 ERR_INVALID_DATA，不应中止进程。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_load_save_rejects_bad_identity_without_clearing_current_world() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "坏 identity 回归前置：应能创建测试存档。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var previous_save_id := String(game_session.get_active_save_id())
+	var previous_save_path := String(game_session.get_active_save_path())
+	var previous_world_data := game_session.get_world_data().duplicate(true)
+	var previous_party_state = game_session.get_party_state()
+	var payload := _build_payload_for_session(game_session)
+	_assert_true(_poison_first_member_identity_payload(payload), "坏 identity 回归前置：测试 payload 应至少有一个成员。")
+	var write_error := _overwrite_active_save_payload(game_session, payload)
+	_assert_eq(write_error, OK, "坏 identity 回归前置：应能写入损坏存档 payload。")
+	if write_error == OK:
+		var load_error := int(game_session.load_save(previous_save_id))
+		_assert_eq(load_error, ERR_INVALID_DATA, "坏 identity 组合应通过 load_save() 返回 ERR_INVALID_DATA，不应中止进程。")
+		_assert_true(game_session.has_active_world(), "坏 identity 被拒后不应卸载原 active world。")
+		_assert_eq(String(game_session.get_active_save_id()), previous_save_id, "坏 identity 被拒后应保留原 active save id。")
+		_assert_eq(String(game_session.get_active_save_path()), previous_save_path, "坏 identity 被拒后应保留原 active save path。")
+		_assert_eq(game_session.get_world_data(), previous_world_data, "坏 identity 被拒后不应替换当前 world_data。")
+		_assert_true(game_session.get_party_state() == previous_party_state, "坏 identity 被拒后不应替换当前 party_state。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_fresh_session_load_rejects_bad_identity_without_quit() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "fresh load 坏 identity 回归前置：应能创建测试存档。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var save_id := String(game_session.get_active_save_id())
+	var payload := _build_payload_for_session(game_session)
+	_assert_true(_poison_first_member_identity_payload(payload), "fresh load 坏 identity 回归前置：测试 payload 应至少有一个成员。")
+	var write_error := _overwrite_active_save_payload(game_session, payload)
+	_assert_eq(write_error, OK, "fresh load 坏 identity 回归前置：应能写入损坏存档 payload。")
+	game_session.free()
+	if write_error != OK:
+		var cleanup_session = GAME_SESSION_SCRIPT.new()
+		_cleanup_test_session(cleanup_session)
+		return
+
+	var fresh_session = GAME_SESSION_SCRIPT.new()
+	var load_error := int(fresh_session.load_save(save_id))
+	_assert_eq(load_error, ERR_INVALID_DATA, "fresh GameSession 通过存档列表加载坏 identity 时应返回 ERR_INVALID_DATA，不应中止进程。")
+	_assert_eq(fresh_session.has_active_world(), false, "fresh GameSession 加载坏 identity 失败后不应留下 active world。")
+
+	_cleanup_test_session(fresh_session)
+
+
+func _test_create_new_save_rejects_bad_creation_identity_without_creating_slot() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var clear_error := int(game_session.clear_persisted_game())
+	_assert_eq(clear_error, OK, "坏建卡 identity 建档回归前置：应能清理旧存档。")
+
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG, &"", "", _build_bad_creation_identity_payload()))
+	_assert_eq(create_error, ERR_INVALID_DATA, "非法 race/subrace 建卡 payload 应让 create_new_save() 返回 ERR_INVALID_DATA。")
+	_assert_true(not game_session.has_active_world(), "非法建卡 payload 被拒后 fresh session 不应留下 active world。")
+	_assert_eq(game_session.list_save_slots().size(), 0, "非法建卡 payload 被拒后不应创建新存档槽。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_create_new_save_bad_creation_identity_preserves_previous_world() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
+	_assert_eq(create_error, OK, "坏建卡 identity 回滚前置：应能先创建有效存档。")
+	if create_error != OK:
+		_cleanup_test_session(game_session)
+		return
+
+	var previous_save_id := String(game_session.get_active_save_id())
+	var previous_world_data := game_session.get_world_data().duplicate(true)
+	var previous_party_state = game_session.get_party_state()
+	var rejected_error := int(game_session.create_new_save(TEST_WORLD_CONFIG, &"", "", _build_bad_creation_identity_payload()))
+	_assert_eq(rejected_error, ERR_INVALID_DATA, "已有世界时非法建卡 payload 应被拒绝。")
+	_assert_true(game_session.has_active_world(), "已有世界时非法建卡 payload 被拒后应保留原 active world。")
+	_assert_eq(String(game_session.get_active_save_id()), previous_save_id, "非法建卡 payload 被拒后应保留原 active save id。")
+	_assert_eq(game_session.get_world_data(), previous_world_data, "非法建卡 payload 被拒后不应替换当前 world_data。")
+	_assert_true(game_session.get_party_state() == previous_party_state, "非法建卡 payload 被拒后不应替换当前 party_state。")
+
+	_cleanup_test_session(game_session)
+
+
+func _test_create_new_save_accepts_valid_creation_identity_payload() -> void:
+	var game_session = GAME_SESSION_SCRIPT.new()
+	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG, &"", "", _build_valid_creation_identity_payload()))
+	_assert_eq(create_error, OK, "合法建卡 identity payload 应仍可创建新存档。")
+	if create_error == OK:
+		var party_state = game_session.get_party_state()
+		var member = party_state.get_member_state(party_state.get_resolved_main_character_member_id()) if party_state != null else null
+		_assert_true(member != null, "合法建卡 identity payload 创建后应能取得主角。")
+		if member != null:
+			_assert_eq(member.race_id, &"human", "合法建卡 payload 应保留 race_id。")
+			_assert_eq(member.subrace_id, &"common_human", "合法建卡 payload 应保留 subrace_id。")
+			_assert_eq(member.body_size_category, &"medium", "合法建卡 payload 应从内容规则派生 body_size_category。")
 
 	_cleanup_test_session(game_session)
 
@@ -552,6 +662,63 @@ func _read_active_save_payload(game_session) -> Dictionary:
 	var payload = save_file.get_var(false)
 	save_file.close()
 	return payload if payload is Dictionary else {}
+
+
+func _poison_first_member_identity_payload(payload: Dictionary) -> bool:
+	var party_state: Dictionary = (payload.get("party_state", {}) as Dictionary).duplicate(true)
+	var member_states: Dictionary = (party_state.get("member_states", {}) as Dictionary).duplicate(true)
+	if member_states.is_empty():
+		return false
+	var member_key = member_states.keys()[0]
+	var member_payload: Dictionary = (member_states.get(member_key, {}) as Dictionary).duplicate(true)
+	member_payload["ascension_id"] = ""
+	member_payload["ascension_stage_id"] = "identity_poison_stage"
+	member_states[member_key] = member_payload
+	party_state["member_states"] = member_states
+	payload["party_state"] = party_state
+	return true
+
+
+func _build_bad_creation_identity_payload() -> Dictionary:
+	var payload := _build_valid_creation_identity_payload()
+	payload["subrace_id"] = &"red_dragonborn"
+	payload["body_size"] = 2
+	payload["body_size_category"] = &"medium"
+	return payload
+
+
+func _build_valid_creation_identity_payload() -> Dictionary:
+	return {
+		"display_name": "Identity Gate Hero",
+		"reroll_count": 0,
+		"strength": 10,
+		"agility": 10,
+		"constitution": 10,
+		"perception": 10,
+		"intelligence": 10,
+		"willpower": 10,
+		"race_id": &"human",
+		"subrace_id": &"common_human",
+		"age_years": 24,
+		"birth_at_world_step": 0,
+		"age_profile_id": &"human_age_profile",
+		"natural_age_stage_id": &"adult",
+		"effective_age_stage_id": &"adult",
+		"effective_age_stage_source_type": &"",
+		"effective_age_stage_source_id": &"",
+		"body_size": 99,
+		"body_size_category": &"boss",
+		"versatility_pick": &"",
+		"active_stage_advancement_modifier_ids": [],
+		"bloodline_id": &"",
+		"bloodline_stage_id": &"",
+		"ascension_id": &"",
+		"ascension_stage_id": &"",
+		"ascension_started_at_world_step": -1,
+		"original_race_id_before_ascension": &"",
+		"biological_age_years": 24,
+		"astral_memory_years": 0,
+	}
 
 
 func _build_valid_world_event_payload_with_extra(extra_field_name: String) -> Dictionary:

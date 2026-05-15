@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-05-13`
+更新日期：`2026-05-16`
 
 ## 使用规则
 
@@ -239,7 +239,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/progression/practice_growth_service.gd`
   - `scripts/systems/attributes/attribute_source_context.gd`
 - 负责：角色管理门面、奖励归并、成就/任务进度、身份应用、属性上下文、装备/技能/成长桥接。
-- 适合：奖励入账、成就记录、任务推进、身份刷新、角色信息摘要、跨系统成长接线。
+- 适合：奖励入账、成就记录、任务推进、身份刷新、角色信息摘要、功法学习/同轨替换、跨系统成长接线。
 - 邻接单元：CU-06、CU-08、CU-09、CU-10、CU-11、CU-13、CU-14、CU-15、CU-19。
 - 不带：展示层，除非任务是窗口 payload。
 
@@ -252,6 +252,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/progression/progression_content_registry.gd`
   - `scripts/player/progression/progression_data_utils.gd`
   - `scripts/player/progression/*content_rules.gd`
+  - `scripts/player/progression/*content_validator.gd`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
   - `data/configs/races/*.tres`
@@ -264,7 +265,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `data/configs/barriers/*.tres`
   - `data/configs/faith/*.tres`
 - 负责：技能、职业、身份、血脉、升华、阶段进阶、成就、任务等静态内容与跨表校验。
-- 适合：新增/改技能、职业、身份内容、条件模型、静态内容引用校验。
+- 适合：新增/改技能、职业、身份内容、条件模型、功法 tag / practice_tier schema、静态内容引用校验。
 - 邻接单元：CU-02、CU-11、CU-12、CU-14、CU-15、CU-16、CU-19。
 - 不带：运行时服务，除非内容改动需要验证行为。
 
@@ -281,12 +282,14 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/progression/skill_level_description_formatter.gd`
   - `scripts/systems/progression/attribute_growth_service.gd`
   - `scripts/systems/progression/character_creation_service.gd`
+  - `scripts/systems/progression/character_creation_identity_option_service.gd`
+  - `scripts/systems/progression/identity_payload_validator.gd`
   - `scripts/systems/progression/body_size_rules.gd`
   - `scripts/systems/progression/age_stage_resolver.gd`
   - `scripts/systems/attributes/attribute_service.gd`
   - `scripts/systems/attributes/attribute_source_context.gd`
-- 负责：成长规则、职业规则、技能合成、属性快照、建卡、体型、年龄阶段。
-- 适合：成长公式、属性公式、职业/技能规则、建卡规则、体型派生。
+- 负责：成长规则、职业规则、技能合成、属性快照、建卡、建卡身份候选、身份 payload 校验、体型、年龄阶段。
+- 适合：成长公式、属性公式、职业/技能规则、功法同轨替换规则、建卡规则、建卡身份候选、身份 payload 校验、体型派生。
 - 邻接单元：CU-01、CU-09、CU-11、CU-12、CU-13、CU-15、CU-19。
 - 不带：内容资源，除非规则和 seed 内容同时变化。
 
@@ -309,12 +312,15 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/core/special_profiles/*.gd`
   - `scripts/systems/battle/core/meteor_swarm/*.gd`
   - `scripts/systems/battle/rules/battle_skill_resolution_rules.gd`
+  - `scripts/systems/battle/rules/battle_target_team_rules.gd`
   - `scripts/systems/battle/rules/battle_save_resolver.gd`
   - `scripts/systems/battle/rules/battle_damage_preview_range_service.gd`
   - `scripts/systems/battle/rules/battle_range_service.gd`
   - `scripts/systems/battle/rules/battle_report_formatter.gd`
   - `scripts/systems/battle/terrain/battle_terrain_effect_system.gd`
   - `scripts/systems/battle/ai/battle_ai_action_assembler.gd`
+  - `scripts/systems/battle/ai/battle_ai_runtime_action_plan.gd`
+  - `scripts/systems/battle/ai/battle_ai_skill_affordance_classifier.gd`
   - `scripts/systems/battle/sim/*.gd`
   - `data/configs/skill_special_profiles/**/*.tres`
   - `data/configs/barriers/*.tres`
@@ -346,6 +352,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/rules/battle_damage_resolver.gd`
   - `scripts/systems/battle/rules/battle_damage_preview_range_service.gd`
   - `scripts/systems/battle/rules/battle_status_semantic_table.gd`
+  - `scripts/systems/battle/rules/battle_target_team_rules.gd`
   - `scripts/systems/battle/rules/battle_hit_resolver.gd`
   - `scripts/systems/battle/rules/battle_attack_check_policy_service.gd`
   - `scripts/systems/battle/rules/battle_range_service.gd`
@@ -355,8 +362,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/enemies/actions/*.gd`
   - `scripts/player/warehouse/weapon_profile_def.gd`
   - `scripts/player/warehouse/weapon_damage_dice_def.gd`
-- 负责：BattleState 数据模型、terrain/edge/grid 规则、伤害/命中/豁免/状态语义、AI 评分与决策输入。
-- 适合：战斗规则、伤害、命中、AI 评分、terrain effect、状态语义、武器射程规则。
+- 负责：BattleState 数据模型、terrain/edge/grid 规则、伤害/命中/豁免/状态语义、AI 评分、决策输入、AI state transition resolver、runtime action plan 与技能 affordance 分类。
+- 适合：战斗规则、伤害、命中、AI 评分、AI 状态转移、AI 行动生成、terrain effect、状态语义、武器射程规则。
 - 邻接单元：CU-13、CU-15、CU-17、CU-18、CU-20。
 - 不带：战斗流程 sidecar，除非规则改动需要执行链验证。
 
@@ -419,6 +426,9 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scripts/enemies/*.gd`
+  - `scripts/enemies/enemy_ai_generation_slot_def.gd`
+  - `scripts/enemies/enemy_ai_transition_rule_def.gd`
+  - `scripts/enemies/enemy_ai_transition_condition_def.gd`
   - `scripts/enemies/actions/*.gd`
   - `scripts/systems/world/encounter_roster_builder.gd`
   - `scripts/player/warehouse/item_def.gd`
@@ -429,8 +439,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `data/configs/enemies/templates/*.tres`
   - `data/configs/enemies/rosters/*.tres`
   - 改 `attack_equipment_item_id` 时按需读取 `data/configs/items/*.tres`
-- 负责：敌方模板、AI brain/state/action、wild encounter roster、敌方攻击装备和掉落静态内容。
-- 适合：新敌人、敌方棋盘贴图、敌人技能表、AI action 顺序、target selector、distance 策略。
+- 负责：敌方模板、AI brain/state/action/generation slot/transition rule、wild encounter roster、敌方攻击装备和掉落静态内容。
+- 适合：新敌人、敌方棋盘贴图、敌人技能表、AI state transition、AI action 顺序、generation slot、target selector、distance 策略。
 - 邻接单元：CU-02、CU-10、CU-15、CU-16、CU-17、CU-18。
 - 不带：玩家 UI、仓库规则实现，除非新增装备引用或展示字段。
 

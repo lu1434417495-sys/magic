@@ -16,6 +16,8 @@ const ASCENSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progress
 const STAGE_ADVANCEMENT_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/stage_advancement_content_registry.gd")
 const ATTRIBUTE_GROWTH_CONTENT_RULES = preload("res://scripts/player/progression/attribute_growth_content_rules.gd")
 const BODY_SIZE_CONTENT_RULES = preload("res://scripts/player/progression/body_size_content_rules.gd")
+const DAMAGE_TAG_CONTENT_RULES = preload("res://scripts/player/progression/damage_tag_content_rules.gd")
+const PENDING_CHARACTER_REWARD_CONTENT_RULES = preload("res://scripts/player/progression/pending_character_reward_content_rules.gd")
 const TRAIT_TRIGGER_CONTENT_RULES = preload("res://scripts/player/progression/trait_trigger_content_rules.gd")
 const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
 const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
@@ -45,28 +47,15 @@ const VALID_CORE_SKILL_TRANSITION_MODES := {
 	&"inherit": true,
 	&"replace_sources_with_result": true,
 }
-const VALID_DAMAGE_TAGS := {
-	&"physical_slash": true,
-	&"physical_pierce": true,
-	&"physical_blunt": true,
-	&"fire": true,
-	&"freeze": true,
-	&"lightning": true,
-	&"negative_energy": true,
-	&"force": true,
-	&"psychic": true,
-	&"radiant": true,
-	&"thunder": true,
-	&"magic": true,
-	&"acid": true,
-	&"poison": true,
+const PRACTICE_TRACK_TAGS := [&"meditation", &"cultivation"]
+const VALID_PRACTICE_TIERS := {
+	&"basic": true,
+	&"intermediate": true,
+	&"advanced": true,
+	&"ultimate": true,
 }
-const VALID_MITIGATION_TIERS := {
-	&"normal": true,
-	&"half": true,
-	&"double": true,
-	&"immune": true,
-}
+const VALID_DAMAGE_TAGS := DAMAGE_TAG_CONTENT_RULES.VALID_DAMAGE_TAGS
+const VALID_MITIGATION_TIERS := DAMAGE_TAG_CONTENT_RULES.VALID_MITIGATION_TIERS
 const BODY_SIZE_TINY := BodySizeRules.BODY_SIZE_TINY
 const BODY_SIZE_SMALL := BodySizeRules.BODY_SIZE_SMALL
 const BODY_SIZE_MEDIUM := BodySizeRules.BODY_SIZE_MEDIUM
@@ -106,6 +95,7 @@ var _ascension_content_registry = ASCENSION_CONTENT_REGISTRY_SCRIPT.new()
 var _stage_advancement_content_registry = STAGE_ADVANCEMENT_CONTENT_REGISTRY_SCRIPT.new()
 ## 字段说明：收集配置校验阶段发现的错误信息，便于启动时统一报告和定位问题。
 var _validation_errors: Array[String] = []
+var _quest_registration_errors: Array[String] = []
 
 
 func _init() -> void:
@@ -117,6 +107,7 @@ func rebuild() -> void:
 	_profession_defs.clear()
 	_achievement_defs.clear()
 	_quest_defs.clear()
+	_quest_registration_errors.clear()
 	_race_defs.clear()
 	_subrace_defs.clear()
 	_race_trait_defs.clear()
@@ -178,6 +169,10 @@ func get_achievement_defs() -> Dictionary:
 
 func get_quest_defs() -> Dictionary:
 	return _quest_defs.duplicate()
+
+
+func get_quest_registration_errors() -> Array[String]:
+	return _quest_registration_errors.duplicate()
 
 
 func get_race_defs() -> Dictionary:
@@ -683,10 +678,10 @@ func _register_achievement(achievement_def: AchievementDef) -> void:
 
 func _register_quest(quest_def: QuestDef) -> void:
 	if quest_def == null or quest_def.quest_id == &"":
-		_validation_errors.append("Encountered a quest definition without a quest_id.")
+		_quest_registration_errors.append("Encountered a quest definition without a quest_id.")
 		return
 	if _quest_defs.has(quest_def.quest_id):
-		_validation_errors.append("Duplicate quest_id registered: %s" % String(quest_def.quest_id))
+		_quest_registration_errors.append("Duplicate quest_id registered: %s" % String(quest_def.quest_id))
 		return
 	_quest_defs[quest_def.quest_id] = quest_def
 
@@ -703,11 +698,6 @@ func _collect_validation_errors() -> Array[String]:
 		var achievement_id := StringName(achievement_key)
 		var achievement_def := _achievement_defs.get(achievement_id) as AchievementDef
 		_append_invalid_achievement_errors(errors, achievement_id, achievement_def)
-
-	for quest_key in ProgressionDataUtils.sorted_string_keys(_quest_defs):
-		var quest_id := StringName(quest_key)
-		var quest_def := _quest_defs.get(quest_id) as QuestDef
-		_append_invalid_quest_errors(errors, quest_id, quest_def)
 
 	_append_identity_phase2_validation_errors(errors)
 
@@ -1078,6 +1068,15 @@ func _append_racial_granted_skill_reference_errors(
 					String(skill_def.learn_source),
 				]
 			)
+		if int(granted_skill.minimum_skill_level) > int(skill_def.max_level):
+			errors.append(
+				"%s racial_granted_skills[%d] skill %s minimum_skill_level must be <= max_level %d." % [
+					owner_label,
+					index,
+					String(granted_skill.skill_id),
+					int(skill_def.max_level),
+				]
+			)
 
 
 func _append_id_reference_errors(
@@ -1108,7 +1107,7 @@ func _append_damage_resistance_errors(errors: Array[String], owner_label: String
 		if damage_tag == &"":
 			errors.append("%s damage_resistances key %s must be a non-empty String or StringName." % [owner_label, str(key_variant)])
 			continue
-		if not VALID_DAMAGE_TAGS.has(damage_tag):
+		if not DAMAGE_TAG_CONTENT_RULES.is_valid_damage_tag(damage_tag):
 			errors.append("%s damage_resistances references unsupported damage tag %s." % [owner_label, String(damage_tag)])
 		var mitigation_tier := _strict_to_string_name(damage_resistances.get(key_variant, null))
 		if mitigation_tier == &"":
@@ -1119,7 +1118,7 @@ func _append_damage_resistance_errors(errors: Array[String], owner_label: String
 				]
 			)
 			continue
-		if not VALID_MITIGATION_TIERS.has(mitigation_tier):
+		if not DAMAGE_TAG_CONTENT_RULES.is_valid_mitigation_tier(mitigation_tier):
 			errors.append(
 				"%s damage_resistances[%s] uses unsupported mitigation tier %s." % [
 					owner_label,
@@ -1240,6 +1239,7 @@ func _append_invalid_skill_errors(
 	if skill_def.mastery_curve.size() != skill_def.max_level and skill_def.max_level >= 0 and skill_def.dynamic_max_level_stat_id == &"":
 		errors.append("Skill %s mastery_curve size must match max_level." % String(skill_id))
 	_append_dynamic_max_level_errors(errors, skill_id, skill_def)
+	_append_practice_skill_errors(errors, skill_id, skill_def)
 	_append_skill_attribute_growth_errors(errors, skill_id, skill_def)
 
 	_append_skill_requirement_errors(errors, skill_id, skill_def.learn_requirements, "learn_requirements")
@@ -1252,6 +1252,29 @@ func _append_invalid_skill_errors(
 
 	if skill_def.unlock_mode == &"composite_upgrade" and skill_def.upgrade_source_skill_ids.is_empty():
 		errors.append("Skill %s is composite_upgrade but missing upgrade_source_skill_ids." % String(skill_id))
+
+
+func _append_practice_skill_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_def: SkillDef
+) -> void:
+	var track_count := 0
+	for track_tag in PRACTICE_TRACK_TAGS:
+		if skill_def.tags.has(track_tag):
+			track_count += 1
+
+	if track_count == 0:
+		if skill_def.practice_tier != &"":
+			errors.append("Skill %s practice_tier requires meditation or cultivation tag." % String(skill_id))
+		return
+
+	if track_count != 1:
+		errors.append("Skill %s must use exactly one practice track tag." % String(skill_id))
+	if skill_def.tags.size() != 1:
+		errors.append("Skill %s practice tags must be exclusive; tags must contain only meditation or cultivation." % String(skill_id))
+	if not VALID_PRACTICE_TIERS.has(skill_def.practice_tier):
+		errors.append("Skill %s practice_tier must be one of basic, intermediate, advanced, ultimate." % String(skill_id))
 
 
 func _append_dynamic_max_level_errors(
@@ -1405,6 +1428,14 @@ func _append_invalid_achievement_errors(
 				String(achievement_id),
 				String(reward.target_id),
 			])
+		if reward.reward_type != &"" and not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(reward.reward_type):
+			errors.append(
+				"Achievement %s uses unsupported reward_type %s." % [
+					String(achievement_id),
+					String(reward.reward_type),
+				]
+			)
+			continue
 		match reward.reward_type:
 			AchievementRewardDef.TYPE_SKILL_UNLOCK, AchievementRewardDef.TYPE_SKILL_MASTERY:
 				if not _skill_defs.has(reward.target_id):
@@ -1413,23 +1444,13 @@ func _append_invalid_achievement_errors(
 					)
 			AchievementRewardDef.TYPE_ATTRIBUTE_DELTA:
 				pass
+			PENDING_CHARACTER_REWARD_CONTENT_RULES.ENTRY_ATTRIBUTE_PROGRESS:
+				if not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_valid_attribute_progress_target(reward.target_id):
+					errors.append(
+						"Achievement %s attribute_progress reward references unsupported attribute %s." % [
+							String(achievement_id),
+							String(reward.target_id),
+						]
+					)
 			AchievementRewardDef.TYPE_KNOWLEDGE_UNLOCK:
 				pass
-			_:
-				errors.append(
-					"Achievement %s uses unsupported reward_type %s." % [
-						String(achievement_id),
-						String(reward.reward_type),
-					]
-				)
-
-
-func _append_invalid_quest_errors(
-	errors: Array[String],
-	quest_id: StringName,
-	quest_def: QuestDef
-) -> void:
-	if quest_def == null:
-		return
-	for validation_error in quest_def.validate_schema():
-		errors.append("Quest %s: %s" % [String(quest_id), validation_error])

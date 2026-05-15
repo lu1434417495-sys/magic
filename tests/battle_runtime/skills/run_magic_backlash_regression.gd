@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
 const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
@@ -199,6 +200,14 @@ func _build_unit(
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 16)
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 0)
 	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, 0)
+	# 派生 AC=BASE_ARMOR_CLASS(8)+agility_mod(0)，BattleHitResolver 需要 ARMOR_CLASS 显式存在。
+	unit.attribute_snapshot.set_value(
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS,
+		ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS
+	)
+	# Fixture 显式给了 mp_max，就视作 MP 资源已解锁；否则技能 preview 在 get_locked_combat_resource_block_reason 直接拒。
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
 	if fireball_level >= 0:
 		unit.known_active_skill_ids.append(&"mage_fireball")
 		unit.known_skill_level_map[&"mage_fireball"] = fireball_level
@@ -207,11 +216,7 @@ func _build_unit(
 
 
 func _add_unit(runtime, state, unit, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "%s 应能放入战场。" % String(unit.unit_id))
 
 

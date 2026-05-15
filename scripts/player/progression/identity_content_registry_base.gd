@@ -189,7 +189,8 @@ func _append_racial_granted_skill_array_errors(
 			continue
 		_append_string_name_field_error(errors, skill_label, "skill_id", granted_skill.skill_id)
 		_append_int_field_error(errors, skill_label, "minimum_skill_level", granted_skill.minimum_skill_level)
-		_append_int_field_error(errors, skill_label, "grant_level", granted_skill.grant_level)
+		if typeof(granted_skill.minimum_skill_level) == TYPE_INT and int(granted_skill.minimum_skill_level) < 0:
+			errors.append("%s.minimum_skill_level must be >= 0." % skill_label)
 		_append_string_name_field_error(errors, skill_label, "charge_kind", granted_skill.charge_kind)
 		if not RacialGrantedSkill.VALID_CHARGE_KINDS.has(granted_skill.charge_kind):
 			errors.append("%s.charge_kind uses unsupported value %s." % [skill_label, String(granted_skill.charge_kind)])

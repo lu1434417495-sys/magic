@@ -43,7 +43,7 @@ func _test_arrow_rain_leaves_suppression_zone_and_damage() -> void:
 	archer.weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED
 	archer.weapon_family = &"bow"
 	archer.weapon_attack_range = 5
-	archer.weapon_physical_damage_tag = &"pierce"
+	archer.weapon_physical_damage_tag = &"physical_pierce"
 	archer.weapon_one_handed_dice = {"dice_count": 1, "dice_sides": 6, "flat_bonus": 2}
 	archer.attribute_snapshot.set_value(&"attack_bonus", 100)
 	archer.known_active_skill_ids = [&"archer_arrow_rain"]
@@ -80,8 +80,8 @@ func _test_arrow_rain_leaves_suppression_zone_and_damage() -> void:
 	if suppression != null:
 		_assert_true(int(suppression.remaining_tu) == 30, "1级箭雨压制地带应持续 30 TU。")
 		_assert_true(int(suppression.params.get("move_cost_delta", 0)) == 1, "箭雨压制地带应只提供 +1 移动成本。")
-	_assert_true(runtime._get_move_cost_for_unit_target(enemy, enemy.coord, false) == 2, "敌方位于箭雨压制地带时平地移动成本应从 1 提升到 2。")
-	_assert_true(runtime._get_move_cost_for_unit_target(archer, enemy.coord, false) == 1, "箭雨压制地带不应惩罚施法者友方。")
+	_assert_true(runtime._get_move_cost_for_unit_target(enemy, enemy.coord) == 2, "敌方位于箭雨压制地带时平地移动成本应从 1 提升到 2。")
+	_assert_true(runtime._get_move_cost_for_unit_target(archer, enemy.coord) == 1, "箭雨压制地带不应惩罚施法者友方。")
 
 
 func _test_skirmish_step_repositions_and_grants_pre_aim() -> void:

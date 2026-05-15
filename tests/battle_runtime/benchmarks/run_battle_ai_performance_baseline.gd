@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 const AI_SERVICE_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_service_probe.gd")
 const AI_ASSEMBLER_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_assembler_probe.gd")
 const AiBaselineDiffScript = preload("res://tests/battle_runtime/benchmarks/ai_baseline_diff.gd")
@@ -402,11 +403,7 @@ func _build_ai_unit(unit_id: StringName, display_name: String, coord: Vector2i, 
 
 
 func _add_unit_to_state(runtime, state, unit: BattleUnitState, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	var placed: bool = runtime._grid_service.place_unit(state, unit, unit.coord, true)
 	if not placed:
 		_test.fail("AI baseline unit %s could not be placed." % String(unit.unit_id))

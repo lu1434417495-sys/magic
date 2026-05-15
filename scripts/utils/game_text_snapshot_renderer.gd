@@ -259,7 +259,84 @@ static func _build_party_lines(party: Dictionary) -> Array[String]:
 				int(attributes.get("armor_class", 0)),
 				_format_equipment(member.get("equipment", [])),
 			])
+			_append_member_progression_lines(lines, member)
 	return lines
+
+
+static func _append_member_progression_lines(lines: Array[String], member: Dictionary) -> void:
+	var member_id := String(member.get("member_id", ""))
+	if member_id.is_empty():
+		return
+	if _member_has_progression_snapshot(member):
+		lines.append("member_progression=%s | resources=%s | aura=%d | active_core=%s | active_trigger=%s | locked_trigger=%s | blocked_relearn=%s" % [
+			member_id,
+			_format_array(member.get("unlocked_combat_resource_ids", [])),
+			int(member.get("current_aura", 0)),
+			_format_array(member.get("active_core_skill_ids", [])),
+			String(member.get("active_level_trigger_core_skill_id", "")),
+			_format_array(member.get("locked_level_trigger_skill_ids", [])),
+			_format_array(member.get("blocked_relearn_skill_ids", [])),
+		])
+	_append_member_skill_lines(lines, member_id, member.get("skill_entries", []))
+	_append_member_profession_lines(lines, member_id, member.get("profession_entries", []))
+
+
+static func _member_has_progression_snapshot(member: Dictionary) -> bool:
+	for field_name in [
+		"unlocked_combat_resource_ids",
+		"current_aura",
+		"active_core_skill_ids",
+		"active_level_trigger_core_skill_id",
+		"locked_level_trigger_skill_ids",
+		"blocked_relearn_skill_ids",
+		"skill_entries",
+		"profession_entries",
+	]:
+		if member.has(field_name):
+			return true
+	return false
+
+
+static func _append_member_skill_lines(lines: Array[String], member_id: String, skill_entries_variant: Variant) -> void:
+	if skill_entries_variant is not Array:
+		return
+	for skill_entry_variant in skill_entries_variant:
+		if skill_entry_variant is not Dictionary:
+			continue
+		var skill_entry: Dictionary = skill_entry_variant
+		var skill_id := String(skill_entry.get("skill_id", ""))
+		if skill_id.is_empty():
+			continue
+		lines.append("member_skill=%s | %s | lv=%d | core=%s | trigger_active=%s | trigger_locked=%s | growth_claimed=%s | profession=%s" % [
+			member_id,
+			skill_id,
+			int(skill_entry.get("level", 0)),
+			_format_bool(bool(skill_entry.get("is_core", false))),
+			_format_bool(bool(skill_entry.get("is_level_trigger_active", false))),
+			_format_bool(bool(skill_entry.get("is_level_trigger_locked", false))),
+			_format_bool(bool(skill_entry.get("core_max_growth_claimed", false))),
+			String(skill_entry.get("assigned_profession_id", "")),
+		])
+
+
+static func _append_member_profession_lines(lines: Array[String], member_id: String, profession_entries_variant: Variant) -> void:
+	if profession_entries_variant is not Array:
+		return
+	for profession_entry_variant in profession_entries_variant:
+		if profession_entry_variant is not Dictionary:
+			continue
+		var profession_entry: Dictionary = profession_entry_variant
+		var profession_id := String(profession_entry.get("profession_id", ""))
+		if profession_id.is_empty():
+			continue
+		lines.append("member_profession=%s | %s | rank=%d | active=%s | core=%s | granted=%s" % [
+			member_id,
+			profession_id,
+			int(profession_entry.get("rank", 0)),
+			_format_bool(bool(profession_entry.get("is_active", false))),
+			_format_array(profession_entry.get("core_skill_ids", [])),
+			_format_array(profession_entry.get("granted_skill_ids", [])),
+		])
 
 
 static func _build_quest_lines(quests: Dictionary) -> Array[String]:
@@ -512,7 +589,11 @@ static func _build_battle_lines(battle: Dictionary) -> Array[String]:
 	var hud: Dictionary = battle.get("hud", {})
 	if not hud.is_empty():
 		lines.append("hud_header=%s" % String(hud.get("header_subtitle", "")))
-		lines.append("hud_round=%s" % String(hud.get("round_badge", "")))
+		var round_badge: Dictionary = hud.get("round_badge", {}) as Dictionary
+		lines.append("hud_round=%s · %s" % [
+			String(round_badge.get("tu_text", "")),
+			String(round_badge.get("ready_text", "")),
+		])
 		lines.append("hud_command=%s" % String(hud.get("command_text", hud.get("skill_subtitle", ""))))
 		lines.append("hud_log=%s" % String(hud.get("log_text", "")))
 	lines.append("report_entry_count=%d" % int(battle.get("report_entry_count", 0)))

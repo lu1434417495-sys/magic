@@ -191,12 +191,9 @@ func build_enemy_units(encounter_anchor, context: Dictionary) -> Array:
 		var explicit_enemy_units: Variant = context.get("enemy_units", [])
 		if explicit_enemy_units is Array and not explicit_enemy_units.is_empty():
 			return _normalize_unit_payloads(explicit_enemy_units)
-	var enemy_count := maxi(int(context.get("enemy_unit_count", 1)), 1)
-	var monster_name := String(encounter_anchor.display_name if encounter_anchor != null else "敌人")
-	var units: Array = []
-	for index in range(enemy_count):
-		units.append(_build_runtime_enemy_unit(encounter_anchor, monster_name, index, context))
-	return units
+	var anchor_id := String(encounter_anchor.entity_id) if encounter_anchor != null else "unknown"
+	push_error("BattleUnitFactory cannot build fallback enemy units for %s; provide explicit enemy_units or a formal enemy template." % anchor_id)
+	return []
 
 
 func _normalize_unit_payloads(payloads: Array) -> Array:
@@ -309,11 +306,11 @@ func _build_runtime_enemy_unit(encounter_anchor, monster_name: String, index: in
 	unit_state.attribute_snapshot.set_value(&"stamina_max", maxi(stamina_max, 0))
 	unit_state.attribute_snapshot.set_value(&"action_points", maxi(action_points, 1))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_enemy_attack_bonus", 4)))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_enemy_armor_class", 12)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_enemy_armor_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_enemy_shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_enemy_dodge_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_enemy_deflection_bonus", 0)))
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, _resolve_snapshot_armor_class(unit_state.attribute_snapshot))
 	unit_state.attribute_snapshot.set_value(
 		ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS,
 		int(context.get(
@@ -442,6 +439,7 @@ func _skill_def_from_runtime(skill_id: StringName) -> SkillDef:
 func _build_member_attribute_snapshot(member_state, context: Dictionary, equipment_view: Variant = null) -> AttributeSnapshot:
 	var snapshot := ATTRIBUTE_SNAPSHOT_SCRIPT.new()
 	if member_state == null:
+		_seed_default_base_attributes(snapshot, context, "default_ally", 10)
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, maxi(int(context.get("default_ally_hp", 24)), 1))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, maxi(int(context.get("default_ally_mp", 0)), 0))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(int(context.get("default_ally_stamina", 0)), 0))
@@ -455,11 +453,11 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary, equipme
 			)
 		)
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_ally_attack_bonus", 4)))
-		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_ally_armor_class", 10)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_ally_armor_ac_bonus", 0)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_ally_shield_ac_bonus", 0)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_ally_dodge_bonus", 0)))
 		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_ally_deflection_bonus", 0)))
+		snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, _resolve_snapshot_armor_class(snapshot))
 		return snapshot
 
 	if _runtime != null and _runtime.get_character_gateway() != null:
@@ -474,6 +472,13 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary, equipme
 		if runtime_snapshot != null:
 			return runtime_snapshot
 
+	if member_state.progression != null:
+		var attribute_service = ATTRIBUTE_SERVICE_SCRIPT.new()
+		var skill_defs := _runtime.get_skill_defs() if _runtime != null and _runtime.get_skill_defs() is Dictionary else {}
+		attribute_service.setup(member_state.progression, skill_defs, null, equipment_view)
+		return attribute_service.get_snapshot()
+
+	_seed_default_base_attributes(snapshot, context, "default_ally", 10)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, maxi(int(member_state.current_hp), 1))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, maxi(int(member_state.current_mp), 0))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, maxi(int(context.get("default_ally_stamina", 0)), 0))
@@ -487,12 +492,32 @@ func _build_member_attribute_snapshot(member_state, context: Dictionary, equipme
 		)
 	)
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(context.get("default_ally_attack_bonus", 4)))
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(context.get("default_ally_armor_class", 10)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(context.get("default_ally_armor_ac_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(context.get("default_ally_shield_ac_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(context.get("default_ally_dodge_bonus", 0)))
 	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS, int(context.get("default_ally_deflection_bonus", 0)))
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, _resolve_snapshot_armor_class(snapshot))
 	return snapshot
+
+
+func _seed_default_base_attributes(snapshot, context: Dictionary, key_prefix: String, default_value: int) -> void:
+	if snapshot == null:
+		return
+	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+		var attribute_key := "%s_%s" % [key_prefix, String(attribute_id)]
+		snapshot.set_value(attribute_id, int(context.get(attribute_key, default_value)))
+
+
+func _resolve_snapshot_armor_class(snapshot) -> int:
+	if snapshot == null:
+		return ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS
+	var agility_modifier := ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_score_modifier(
+		int(snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY))
+	)
+	var total := ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS + agility_modifier
+	for component_id in ATTRIBUTE_SERVICE_SCRIPT.AC_COMPONENT_ATTRIBUTE_IDS:
+		total += maxi(int(snapshot.get_value(component_id)), 0)
+	return clampi(total, 1, 99)
 
 
 func _apply_member_weapon_projection(unit_state: BattleUnitState, member_id: StringName, equipment_view: Variant = null) -> void:

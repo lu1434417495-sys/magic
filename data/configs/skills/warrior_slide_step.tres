@@ -13,8 +13,8 @@ forced_move_distance = 2
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_slide_step"
-target_mode = &"self"
-target_team_filter = &"ally"
+target_mode = &"unit"
+target_team_filter = &"self"
 target_selection_mode = &"self"
 range_value = 0
 ap_cost = 1

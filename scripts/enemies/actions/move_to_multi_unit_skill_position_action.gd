@@ -154,7 +154,7 @@ func _collect_reachable_move_candidates(context) -> Array[Vector2i]:
 		for neighbor in context.grid_service.get_neighbors_4(context.state, current_coord):
 			if not context.grid_service.can_unit_step_between_anchors(context.state, context.unit_state, current_coord, neighbor):
 				continue
-			var next_cost: int = current_cost + int(context.grid_service.get_unit_move_cost(context.state, context.unit_state, neighbor))
+			var next_cost: int = current_cost + int(context.get_move_cost(context.unit_state, neighbor))
 			if next_cost > max_move_points:
 				continue
 			if next_cost >= int(best_costs.get(neighbor, 2147483647)):

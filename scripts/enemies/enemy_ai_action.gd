@@ -5,6 +5,8 @@ const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd"
 const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const BATTLE_SKILL_RESOLUTION_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_skill_resolution_rules.gd")
+const BATTLE_TARGET_TEAM_RULES = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
 const ENEMY_AI_ACTION_HELPER_SCRIPT = preload("res://scripts/enemies/enemy_ai_action_helper.gd")
 const BattleAiDecision = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
@@ -22,6 +24,8 @@ const ROLE_THREAT_MAX_CONTACT_RANGE := 2
 
 @export var action_id: StringName = &""
 @export var score_bucket_id: StringName = &""
+
+var _skill_resolution_rules = BATTLE_SKILL_RESOLUTION_RULES_SCRIPT.new()
 
 
 func decide(_context):
@@ -161,6 +165,8 @@ func _build_skill_score_input(
 	scoring_metadata["score_bucket_id"] = score_bucket_id
 	scoring_metadata["action_kind"] = ProgressionDataUtils.to_string_name(scoring_metadata.get("action_kind", "skill"))
 	scoring_metadata["action_label"] = String(scoring_metadata.get("action_label", skill_def.display_name if skill_def != null else String(action_id)))
+	scoring_metadata = _merge_runtime_action_metadata(context, scoring_metadata)
+	scoring_metadata["score_bucket_id"] = ProgressionDataUtils.to_string_name(scoring_metadata.get("score_bucket_id", score_bucket_id))
 	return context.build_skill_score_input(skill_def, command, preview, effect_defs, scoring_metadata)
 
 
@@ -174,13 +180,17 @@ func _build_action_score_input(
 ):
 	if context == null:
 		return null
+	var scoring_metadata := metadata.duplicate(true)
+	scoring_metadata["score_bucket_id"] = score_bucket_id
+	scoring_metadata = _merge_runtime_action_metadata(context, scoring_metadata)
+	var resolved_score_bucket_id := ProgressionDataUtils.to_string_name(scoring_metadata.get("score_bucket_id", score_bucket_id))
 	return context.build_action_score_input(
 		action_kind,
 		action_label,
-		score_bucket_id,
+		resolved_score_bucket_id,
 		command,
 		preview,
-		metadata
+		scoring_metadata
 	)
 
 
@@ -213,6 +223,9 @@ func _is_better_skill_score_input(candidate, best_candidate) -> bool:
 			return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
 		if int(candidate.effective_target_count) != int(best_candidate.effective_target_count):
 			return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
+		var lethal_nonfatal_risk_comparison := _compare_nonfatal_post_action_survival_risk(candidate, best_candidate)
+		if lethal_nonfatal_risk_comparison != 0:
+			return lethal_nonfatal_risk_comparison > 0
 		if int(candidate.resource_cost_score) != int(best_candidate.resource_cost_score):
 			return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
 	if int(candidate.score_bucket_priority) != int(best_candidate.score_bucket_priority):
@@ -225,6 +238,9 @@ func _is_better_skill_score_input(candidate, best_candidate) -> bool:
 		return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
 	if int(candidate.target_count) != int(best_candidate.target_count):
 		return int(candidate.target_count) > int(best_candidate.target_count)
+	var nonfatal_risk_comparison := _compare_nonfatal_post_action_survival_risk(candidate, best_candidate)
+	if nonfatal_risk_comparison != 0:
+		return nonfatal_risk_comparison > 0
 	if int(candidate.position_objective_score) != int(best_candidate.position_objective_score):
 		return int(candidate.position_objective_score) > int(best_candidate.position_objective_score)
 	return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
@@ -269,6 +285,32 @@ func _compare_post_action_survival_risk(candidate, best_candidate) -> int:
 	return 0
 
 
+func _compare_nonfatal_post_action_survival_risk(candidate, best_candidate) -> int:
+	if candidate == null or best_candidate == null:
+		return 0
+	if not bool(candidate.has_post_action_threat_projection) or not bool(best_candidate.has_post_action_threat_projection):
+		return 0
+	if bool(candidate.post_action_is_lethal_survival_risk) or bool(best_candidate.post_action_is_lethal_survival_risk):
+		return 0
+	var candidate_threat_free := int(candidate.post_action_remaining_threat_count) <= 0
+	var best_threat_free := int(best_candidate.post_action_remaining_threat_count) <= 0
+	if candidate_threat_free != best_threat_free:
+		return 1 if candidate_threat_free else -1
+	var candidate_damage := int(candidate.post_action_remaining_threat_expected_damage)
+	var best_damage := int(best_candidate.post_action_remaining_threat_expected_damage)
+	if candidate_damage != best_damage:
+		return 1 if candidate_damage < best_damage else -1
+	var candidate_count := int(candidate.post_action_remaining_threat_count)
+	var best_count := int(best_candidate.post_action_remaining_threat_count)
+	if candidate_count != best_count:
+		return 1 if candidate_count < best_count else -1
+	var candidate_margin := int(candidate.post_action_survival_margin)
+	var best_margin := int(best_candidate.post_action_survival_margin)
+	if candidate_margin != best_margin:
+		return 1 if candidate_margin > best_margin else -1
+	return 0
+
+
 func _build_wait_command(context):
 	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_wait_command(context)
 
@@ -277,8 +319,20 @@ func _build_move_command(context, target_coord: Vector2i):
 	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_move_command(context, target_coord)
 
 
-func _build_unit_skill_command(context, skill_id: StringName, target_unit):
-	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_unit_skill_command(context, skill_id, target_unit)
+func _build_unit_skill_command(context, skill_id: StringName, target_unit, skill_variant_id: StringName = &""):
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.build_unit_skill_command(context, skill_id, target_unit, skill_variant_id)
+
+
+func _collect_unit_skill_effect_defs(
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	active_unit: BattleUnitState = null
+) -> Array:
+	return _skill_resolution_rules.collect_unit_skill_effect_defs(skill_def, cast_variant, active_unit)
+
+
+func _get_cast_variant_target_mode(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> StringName:
+	return _skill_resolution_rules.get_cast_variant_target_mode(skill_def, cast_variant)
 
 
 func _build_ground_skill_command(context, skill_id: StringName, skill_variant_id: StringName, target_coords: Array):
@@ -302,18 +356,15 @@ func _collect_units_by_filter(context, target_filter: StringName) -> Array:
 func _matches_target_filter(context, unit_state: BattleUnitState, target_filter: StringName) -> bool:
 	if context == null or context.unit_state == null or unit_state == null:
 		return false
-	if bool(context.unit_state.ai_blackboard.get("madness_target_any_team", false)) \
-			and target_filter != &"self":
-		return unit_state.unit_id != context.unit_state.unit_id
-	match target_filter:
-		&"enemy":
-			return unit_state.faction_id != context.unit_state.faction_id
-		&"ally":
-			return unit_state.faction_id == context.unit_state.faction_id
-		&"self":
-			return unit_state.unit_id == context.unit_state.unit_id
-		_:
-			return true
+	return BATTLE_TARGET_TEAM_RULES.is_unit_valid_for_filter(
+		context.unit_state,
+		unit_state,
+		target_filter,
+		{
+			"madness_target_any_team": bool(context.unit_state.ai_blackboard.get("madness_target_any_team", false)),
+			"madness_target_filters": [&"ally", &"enemy", &"any"],
+		}
+	)
 
 
 func _sort_target_units(context, target_filter: StringName, selector: StringName) -> Array:
@@ -681,7 +732,15 @@ func _coord_set_key(coords: Array[Vector2i]) -> String:
 
 
 func _begin_action_trace(context, metadata: Dictionary = {}) -> Dictionary:
-	return ENEMY_AI_ACTION_HELPER_SCRIPT.begin_action_trace(action_id, score_bucket_id, context, metadata)
+	var trace_metadata := _merge_runtime_action_metadata(context, metadata)
+	var resolved_score_bucket_id := ProgressionDataUtils.to_string_name(trace_metadata.get("score_bucket_id", score_bucket_id))
+	return ENEMY_AI_ACTION_HELPER_SCRIPT.begin_action_trace(action_id, resolved_score_bucket_id, context, trace_metadata)
+
+
+func _merge_runtime_action_metadata(context, metadata: Dictionary = {}) -> Dictionary:
+	if context != null and context.has_method("merge_current_action_metadata"):
+		return context.merge_current_action_metadata(metadata)
+	return metadata.duplicate(true)
 
 
 func _trace_count_increment(action_trace: Dictionary, key: String, amount: int = 1) -> void:

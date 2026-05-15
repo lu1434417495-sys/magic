@@ -7,6 +7,8 @@ const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_s
 const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -140,6 +142,7 @@ func _build_unit(unit_id: StringName, coord: Vector2i, faction_id: StringName) -
 	unit.faction_id = faction_id
 	unit.coord = coord
 	unit.is_alive = true
+	BattleRuntimeTestHelpers.seed_base_attributes_and_derive_ac(unit)
 	unit.refresh_footprint()
 	return unit
 

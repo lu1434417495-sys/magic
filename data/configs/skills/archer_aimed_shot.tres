@@ -11,7 +11,6 @@ script = ExtResource("3_dmnkm")
 effect_type = &"damage"
 power = 0
 max_skill_level = 0
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "dice_count": 1,
@@ -27,7 +26,6 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 1
 max_skill_level = 2
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "dice_count": 1,
@@ -43,7 +41,6 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 3
 max_skill_level = 4
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "dice_count": 1,
@@ -59,7 +56,6 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 5
 max_skill_level = -1
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "dice_count": 2,

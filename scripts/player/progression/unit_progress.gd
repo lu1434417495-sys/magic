@@ -405,6 +405,9 @@ static func from_dict(data: Dictionary):
 		if not skill_progress.merged_from_skill_ids.is_empty():
 			progress.merged_skill_source_map[skill_progress.skill_id] = skill_progress.merged_from_skill_ids.duplicate()
 
+	if not _has_valid_level_trigger_state(progress):
+		return null
+
 	for key in professions_data.keys():
 		var profession_id := ProgressionDataUtils.to_string_name(key)
 		if profession_id == &"" or progress.professions.has(profession_id):
@@ -511,3 +514,74 @@ static func _parse_string_name_array_map(values: Dictionary):
 		seen_keys[parsed_key] = true
 		parsed_values[parsed_key] = parsed_array
 	return parsed_values
+
+
+static func _has_valid_level_trigger_state(progress) -> bool:
+	if progress == null:
+		return false
+
+	var active_skill_id: StringName = progress.active_level_trigger_core_skill_id
+	var active_flag_count := 0
+	var active_flag_skill_id: StringName = &""
+	var locked_flag_lookup: Dictionary = {}
+
+	for raw_skill_id in progress.skills.keys():
+		var skill_id := ProgressionDataUtils.to_string_name(raw_skill_id)
+		var skill_progress = progress.get_skill_progress(skill_id)
+		if skill_progress == null:
+			return false
+
+		if bool(skill_progress.is_level_trigger_active):
+			active_flag_count += 1
+			active_flag_skill_id = skill_id
+			if bool(skill_progress.is_level_trigger_locked):
+				return false
+
+		if bool(skill_progress.is_level_trigger_locked):
+			locked_flag_lookup[skill_id] = true
+			if bool(skill_progress.is_level_trigger_active):
+				return false
+			if not bool(skill_progress.is_learned) or not bool(skill_progress.is_core):
+				return false
+
+	if active_flag_count > 1:
+		return false
+
+	if active_skill_id == &"":
+		if active_flag_count != 0:
+			return false
+	else:
+		var active_skill_progress = progress.get_skill_progress(active_skill_id)
+		if active_skill_progress == null:
+			return false
+		if active_flag_count != 1 or active_flag_skill_id != active_skill_id:
+			return false
+		if not bool(active_skill_progress.is_learned) or not bool(active_skill_progress.is_core):
+			return false
+		if bool(active_skill_progress.is_level_trigger_locked):
+			return false
+		if progress.locked_level_trigger_skill_ids.has(active_skill_id):
+			return false
+
+	var locked_list_lookup: Dictionary = {}
+	for locked_skill_id in progress.locked_level_trigger_skill_ids:
+		if locked_skill_id == &"" or locked_list_lookup.has(locked_skill_id):
+			return false
+		var locked_skill_progress = progress.get_skill_progress(locked_skill_id)
+		if locked_skill_progress == null:
+			return false
+		if not bool(locked_skill_progress.is_learned) or not bool(locked_skill_progress.is_core):
+			return false
+		if bool(locked_skill_progress.is_level_trigger_active):
+			return false
+		if not bool(locked_skill_progress.is_level_trigger_locked):
+			return false
+		locked_list_lookup[locked_skill_id] = true
+
+	if locked_list_lookup.size() != locked_flag_lookup.size():
+		return false
+	for locked_skill_id in locked_flag_lookup.keys():
+		if not locked_list_lookup.has(locked_skill_id):
+			return false
+
+	return true

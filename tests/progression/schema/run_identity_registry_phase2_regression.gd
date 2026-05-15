@@ -29,6 +29,7 @@ func _run() -> void:
 	_test_progression_registry_bundle_exposes_identity_phase2_keys()
 	_test_valid_identity_graph_passes_phase2()
 	_test_invalid_identity_graph_reports_phase2_errors()
+	_test_racial_granted_skill_minimum_level_cannot_exceed_skill_max_level()
 
 	if _failures.is_empty():
 		print("Identity registry Phase 2 regression: PASS")
@@ -213,6 +214,35 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 	_assert_error_contains(errors, "applies_to_ascension_ids references missing ascension missing_ascension", "StageAdvancement.applies_to_ascension_ids 应校验引用。")
 	_assert_error_contains(errors, "max_stage_id references missing stage missing_stage", "StageAdvancement.max_stage_id 应校验目标 stage 引用。")
 	_assert_error_contains(errors, "AscensionStage shared_stage body_size_category_override uses unsupported body_size_category colossal", "AscensionStage.body_size_category_override 应校验合法枚举。")
+
+
+func _test_racial_granted_skill_minimum_level_cannot_exceed_skill_max_level() -> void:
+	var registry := _make_empty_progression_registry()
+	var race_skill := _make_skill(&"race_level_cap_skill", &"race")
+	race_skill.max_level = 1
+	race_skill.mastery_curve = PackedInt32Array([10])
+	registry._skill_defs = {
+		race_skill.skill_id: race_skill,
+	}
+	registry._race_defs = {
+		&"level_cap_race": _make_race(
+			&"level_cap_race",
+			&"missing_age",
+			&"missing_subrace",
+			[&"missing_subrace"],
+			[],
+			race_skill.skill_id
+		),
+	}
+	var race := registry._race_defs[&"level_cap_race"] as RaceDef
+	race.racial_granted_skills[0].minimum_skill_level = 2
+
+	var errors := registry.validate()
+	_assert_error_contains(
+		errors,
+		"Race level_cap_race racial_granted_skills[0] skill race_level_cap_skill minimum_skill_level must be <= max_level 1",
+		"racial_granted_skills.minimum_skill_level 不应超过目标 SkillDef.max_level。"
+	)
 
 
 func _make_empty_progression_registry() -> ProgressionContentRegistry:
@@ -408,7 +438,6 @@ func _make_granted_skill(skill_id: StringName) -> RacialGrantedSkill:
 	var granted_skill := RacialGrantedSkill.new()
 	granted_skill.skill_id = skill_id
 	granted_skill.minimum_skill_level = 1
-	granted_skill.grant_level = 1
 	granted_skill.charge_kind = RacialGrantedSkill.CHARGE_KIND_PER_BATTLE
 	granted_skill.charges = 1
 	return granted_skill

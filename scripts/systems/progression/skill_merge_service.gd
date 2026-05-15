@@ -105,12 +105,14 @@ func apply_composite_upgrade_result(
 
 	if core_skill_transition_mode == &"replace_sources_with_result" and resolved_target_profession_id != &"":
 		if not _replace_source_cores_with_result(normalized_source_skill_ids, result_skill_id, resolved_target_profession_id):
+			_clear_level_trigger_references(result_skill_id)
 			result_progress.is_core = false
 			result_progress.clear_profession_assignment()
 		else:
 			result_progress.is_core = true
 			result_progress.assigned_profession_id = resolved_target_profession_id
 	elif core_skill_transition_mode == &"replace_sources_with_result":
+		_clear_level_trigger_references(result_skill_id)
 		result_progress.is_core = false
 		result_progress.clear_profession_assignment()
 
@@ -136,6 +138,7 @@ func detach_merged_source_skills(source_skill_ids: Array[StringName]) -> void:
 		else:
 			_remove_source_skill_from_all_professions(source_skill_id)
 
+		_clear_level_trigger_references(source_skill_id)
 		source_skill_progress.clear_profession_assignment()
 		_unit_progress.block_skill_relearn(source_skill_id)
 		_unit_progress.remove_skill_progress(source_skill_id)
@@ -155,6 +158,7 @@ func attach_merged_result_skill(result_skill_id: StringName, keep_core: bool, ta
 		_unit_progress.set_skill_progress(result_skill_progress)
 
 	if not keep_core:
+		_clear_level_trigger_references(result_skill_id)
 		_remove_source_skill_from_all_professions(result_skill_id)
 		result_skill_progress.is_core = false
 		result_skill_progress.clear_profession_assignment()
@@ -317,6 +321,22 @@ func _get_or_create_result_skill_progress(
 	return result_progress
 
 
+func _clear_level_trigger_references(skill_id: StringName) -> void:
+	if _unit_progress == null or skill_id == &"":
+		return
+
+	if _unit_progress.active_level_trigger_core_skill_id == skill_id:
+		_unit_progress.active_level_trigger_core_skill_id = &""
+	_unit_progress.locked_level_trigger_skill_ids.erase(skill_id)
+
+	var skill_progress := _unit_progress.get_skill_progress(skill_id) as UnitSkillProgress
+	if skill_progress == null:
+		return
+	skill_progress.is_level_trigger_active = false
+	skill_progress.is_level_trigger_locked = false
+	_unit_progress.set_skill_progress(skill_progress)
+
+
 func _remove_source_skill_from_profession(skill_id: StringName, profession_id: StringName) -> void:
 	if _assignment_service != null:
 		_assignment_service.remove_core_skill_from_profession(skill_id, profession_id)
@@ -367,6 +387,7 @@ func _replace_source_cores_with_result(
 			continue
 		if source_skill_progress.assigned_profession_id != target_profession_id:
 			continue
+		_clear_level_trigger_references(source_skill_id)
 		source_skill_progress.is_core = false
 		source_skill_progress.clear_profession_assignment()
 		profession_progress.remove_core_skill(source_skill_id)

@@ -7,7 +7,6 @@
 script = ExtResource("2_grant")
 skill_id = &"dragon_breath_poison_cone"
 minimum_skill_level = 1
-grant_level = 1
 charge_kind = &"per_battle"
 charges = 1
 

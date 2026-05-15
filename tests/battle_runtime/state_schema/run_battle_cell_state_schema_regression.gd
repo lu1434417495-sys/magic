@@ -187,7 +187,7 @@ func _build_timed_effect() -> BattleTerrainEffectState:
 	effect.effect_type = &"damage"
 	effect.source_unit_id = &"caster_001"
 	effect.source_skill_id = &"flame_patch"
-	effect.target_team_filter = &"hostile"
+	effect.target_team_filter = &"enemy"
 	effect.power = 3
 	effect.damage_tag = &"fire"
 	effect.remaining_tu = 20

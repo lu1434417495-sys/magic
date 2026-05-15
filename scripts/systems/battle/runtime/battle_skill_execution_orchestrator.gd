@@ -2,6 +2,8 @@ class_name BattleSkillExecutionOrchestrator
 extends RefCounted
 
 const BATTLE_DAMAGE_PREVIEW_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_preview_range_service.gd")
+const BATTLE_TARGET_TEAM_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
+const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
 
 const BATTLE_REPORT_FORMATTER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_report_formatter.gd")
 
@@ -374,8 +376,23 @@ func _handle_skill_command(active_unit: BattleUnitState, command: BattleCommand,
 		return
 	var unit_cast_variant = _resolve_unit_cast_variant(skill_def, active_unit, command)
 	var ground_cast_variant = _resolve_ground_cast_variant(skill_def, active_unit, command)
-	var command_cast_variant = ground_cast_variant if ground_cast_variant != null else unit_cast_variant
-	var unit_execution_cast_variant = unit_cast_variant if unit_cast_variant != null else ground_cast_variant
+	var routes_to_unit_targeting := _should_route_skill_command_to_unit_targeting(skill_def, command)
+	var variant_block_reason := _get_skill_variant_command_block_reason(
+		skill_def,
+		active_unit,
+		command,
+		routes_to_unit_targeting
+	)
+	if not variant_block_reason.is_empty():
+		batch.log_lines.append(variant_block_reason)
+		return
+	var command_cast_variant = _resolve_command_route_cast_variant(
+		skill_def,
+		active_unit,
+		command,
+		routes_to_unit_targeting
+	)
+	var unit_execution_cast_variant = command_cast_variant if routes_to_unit_targeting else unit_cast_variant
 	var block_reason = _get_skill_command_block_reason(active_unit, skill_def, command_cast_variant)
 	if not block_reason.is_empty():
 		batch.log_lines.append(block_reason)
@@ -395,7 +412,7 @@ func _handle_skill_command(active_unit: BattleUnitState, command: BattleCommand,
 	_record_skill_attempt(active_unit, command.skill_id)
 	_runtime._skill_mastery_service.clear()
 	var applied = false
-	if _should_route_skill_command_to_unit_targeting(skill_def, command):
+	if routes_to_unit_targeting:
 		applied = _handle_unit_skill_command(active_unit, command, skill_def, unit_execution_cast_variant, batch)
 	else:
 		if ground_cast_variant != null:
@@ -407,12 +424,20 @@ func _handle_skill_command(active_unit: BattleUnitState, command: BattleCommand,
 	_runtime._skill_mastery_service.clear()
 
 func _preview_skill_command(active_unit: BattleUnitState, command: BattleCommand, preview: BattlePreview) -> void:
+	AI_TRACE_RECORDER.enter(&"preview:skill.orchestrator")
+	_preview_skill_command_impl(active_unit, command, preview)
+	AI_TRACE_RECORDER.exit(&"preview:skill.orchestrator")
+
+
+func _preview_skill_command_impl(active_unit: BattleUnitState, command: BattleCommand, preview: BattlePreview) -> void:
 	var skill_def = _runtime._skill_defs.get(command.skill_id) as SkillDef
 	if skill_def == null or skill_def.combat_profile == null:
 		preview.log_lines.append("技能或目标无效。")
 		return
 	if _runtime._has_special_profile(skill_def, &"meteor_swarm"):
+		AI_TRACE_RECORDER.enter(&"preview:skill.meteor_gate")
 		var gate_result = _runtime._special_profile_gate.preview_skill(skill_def, command, active_unit, _runtime._state) if _runtime._special_profile_gate != null else null
+		AI_TRACE_RECORDER.exit(&"preview:skill.meteor_gate")
 		preview.special_profile_gate_result = gate_result
 		if gate_result == null or not bool(gate_result.allowed):
 			if gate_result != null and not String(gate_result.player_message).is_empty():
@@ -430,11 +455,32 @@ func _preview_skill_command(active_unit: BattleUnitState, command: BattleCommand
 		preview.allowed = false
 		preview.log_lines.append("该禁咒结算尚未接入。")
 		return
+	AI_TRACE_RECORDER.enter(&"preview:skill.resolve_variants")
 	var unit_cast_variant = _resolve_unit_cast_variant(skill_def, active_unit, command)
 	var ground_cast_variant = _resolve_ground_cast_variant(skill_def, active_unit, command)
-	var unit_execution_cast_variant = unit_cast_variant if unit_cast_variant != null else ground_cast_variant
+	var routes_to_unit_targeting := _should_route_skill_command_to_unit_targeting(skill_def, command)
+	AI_TRACE_RECORDER.exit(&"preview:skill.resolve_variants")
+	AI_TRACE_RECORDER.enter(&"preview:skill.variant_block")
+	var variant_block_reason := _get_skill_variant_command_block_reason(
+		skill_def,
+		active_unit,
+		command,
+		routes_to_unit_targeting
+	)
+	AI_TRACE_RECORDER.exit(&"preview:skill.variant_block")
+	if not variant_block_reason.is_empty():
+		preview.log_lines.append(variant_block_reason)
+		return
+	AI_TRACE_RECORDER.enter(&"preview:skill.route_variant")
+	var unit_execution_cast_variant = _resolve_command_route_cast_variant(
+		skill_def,
+		active_unit,
+		command,
+		routes_to_unit_targeting
+	) if routes_to_unit_targeting else unit_cast_variant
+	AI_TRACE_RECORDER.exit(&"preview:skill.route_variant")
 
-	if _should_route_skill_command_to_unit_targeting(skill_def, command):
+	if routes_to_unit_targeting:
 		_preview_unit_skill_command(active_unit, command, skill_def, unit_execution_cast_variant, preview)
 		return
 
@@ -521,12 +567,27 @@ func _preview_unit_skill_command(
 	cast_variant: CombatCastVariantDef,
 	preview: BattlePreview
 ) -> void:
+	AI_TRACE_RECORDER.enter(&"preview:unit_skill")
+	_preview_unit_skill_command_impl(active_unit, command, skill_def, cast_variant, preview)
+	AI_TRACE_RECORDER.exit(&"preview:unit_skill")
+
+
+func _preview_unit_skill_command_impl(
+	active_unit: BattleUnitState,
+	command: BattleCommand,
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	preview: BattlePreview
+) -> void:
 	var block_reason = _get_skill_command_block_reason(active_unit, skill_def, cast_variant)
 	if not block_reason.is_empty():
 		preview.log_lines.append(block_reason)
 		return
 
+	AI_TRACE_RECORDER.enter(&"preview:unit_skill.validate_targets")
 	var validation = _validate_unit_skill_targets(active_unit, command, skill_def, cast_variant)
+	AI_TRACE_RECORDER.exit(&"preview:unit_skill.validate_targets")
+	AI_TRACE_RECORDER.enter(&"preview:unit_skill.copy_validation")
 	preview.allowed = bool(validation.get("allowed", false))
 	preview.target_unit_ids.clear()
 	for target_unit_id_variant in validation.get("target_unit_ids", []):
@@ -538,10 +599,16 @@ func _preview_unit_skill_command(
 	for preview_coord_variant in validation.get("preview_coords", []):
 		if preview_coord_variant is Vector2i:
 			preview.target_coords.append(preview_coord_variant)
+	AI_TRACE_RECORDER.exit(&"preview:unit_skill.copy_validation")
 	if preview.allowed:
 		var target_units = validation.get("target_units", []) as Array
+		AI_TRACE_RECORDER.enter(&"preview:unit_skill.hit_preview")
 		preview.hit_preview = _build_unit_skill_hit_preview(active_unit, target_units, skill_def, cast_variant)
+		AI_TRACE_RECORDER.exit(&"preview:unit_skill.hit_preview")
+		AI_TRACE_RECORDER.enter(&"preview:unit_skill.damage_preview")
 		preview.damage_preview = _build_unit_skill_damage_preview(active_unit, skill_def, cast_variant)
+		AI_TRACE_RECORDER.exit(&"preview:unit_skill.damage_preview")
+		AI_TRACE_RECORDER.enter(&"preview:unit_skill.log_lines")
 		var skill_label = _format_skill_variant_label(skill_def, cast_variant)
 		if target_units.size() == 1:
 			var target_unit = target_units[0] as BattleUnitState
@@ -550,6 +617,7 @@ func _preview_unit_skill_command(
 				if not preview.hit_preview.is_empty():
 					preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
 				_append_damage_preview_line(preview)
+				AI_TRACE_RECORDER.exit(&"preview:unit_skill.log_lines")
 				return
 		if StringName(skill_def.combat_profile.target_selection_mode) == &"random_chain":
 			preview.log_lines.append("%s 可用 %s 从 %d 个候选单位中随机连击。" % [
@@ -558,6 +626,7 @@ func _preview_unit_skill_command(
 				preview.random_chain_candidate_unit_ids.size(),
 			])
 			_append_damage_preview_line(preview)
+			AI_TRACE_RECORDER.exit(&"preview:unit_skill.log_lines")
 			return
 		preview.log_lines.append("%s 可对 %d 个单位使用 %s。" % [
 			active_unit.display_name,
@@ -567,6 +636,7 @@ func _preview_unit_skill_command(
 		if not preview.hit_preview.is_empty():
 			preview.log_lines.append(String(preview.hit_preview.get("summary_text", "")))
 		_append_damage_preview_line(preview)
+		AI_TRACE_RECORDER.exit(&"preview:unit_skill.log_lines")
 		return
 	preview.log_lines.append(String(validation.get("message", "技能或目标无效。")))
 
@@ -577,11 +647,26 @@ func _preview_ground_skill_command(
 	cast_variant: CombatCastVariantDef,
 	preview: BattlePreview
 ) -> void:
+	AI_TRACE_RECORDER.enter(&"preview:ground_skill")
+	_preview_ground_skill_command_impl(active_unit, command, skill_def, cast_variant, preview)
+	AI_TRACE_RECORDER.exit(&"preview:ground_skill")
+
+
+func _preview_ground_skill_command_impl(
+	active_unit: BattleUnitState,
+	command: BattleCommand,
+	skill_def: SkillDef,
+	cast_variant: CombatCastVariantDef,
+	preview: BattlePreview
+) -> void:
 	var block_reason = _get_skill_command_block_reason(active_unit, skill_def, cast_variant)
 	if not block_reason.is_empty():
 		preview.log_lines.append(block_reason)
 		return
+	AI_TRACE_RECORDER.enter(&"preview:ground_skill.validate")
 	var validation = _validate_ground_skill_command(active_unit, skill_def, cast_variant, command)
+	AI_TRACE_RECORDER.exit(&"preview:ground_skill.validate")
+	AI_TRACE_RECORDER.enter(&"preview:ground_skill.preview_coords")
 	preview.target_coords.clear()
 	var preview_coords: Array[Vector2i] = validation.get(
 		"preview_coords",
@@ -599,13 +684,17 @@ func _preview_ground_skill_command(
 			)
 	for target_coord in preview_coords:
 		preview.target_coords.append(target_coord)
+	AI_TRACE_RECORDER.exit(&"preview:ground_skill.preview_coords")
+	AI_TRACE_RECORDER.enter(&"preview:ground_skill.collect_unit_ids")
 	preview.target_unit_ids = _collect_ground_preview_unit_ids(
 		active_unit,
 		skill_def,
 		_collect_ground_unit_effect_defs(skill_def, cast_variant, active_unit),
 		preview.target_coords
 	)
+	AI_TRACE_RECORDER.exit(&"preview:ground_skill.collect_unit_ids")
 	if bool(validation.get("allowed", false)):
+		AI_TRACE_RECORDER.enter(&"preview:ground_skill.path_step_aoe")
 		var path_step_aoe_effect = _runtime._charge_resolver.get_charge_path_step_aoe_effect_def(cast_variant, skill_def, active_unit)
 		if path_step_aoe_effect != null:
 			var path_step_target_filter = _resolve_effect_target_filter(skill_def, path_step_aoe_effect)
@@ -615,7 +704,9 @@ func _preview_ground_skill_command(
 				if preview.target_unit_ids.has(target_unit.unit_id):
 					continue
 				preview.target_unit_ids.append(target_unit.unit_id)
+		AI_TRACE_RECORDER.exit(&"preview:ground_skill.path_step_aoe")
 	preview.allowed = bool(validation.get("allowed", false))
+	AI_TRACE_RECORDER.enter(&"preview:ground_skill.log_lines")
 	if preview.allowed:
 		preview.log_lines.append("%s 可使用 %s，预计影响 %d 个地格、%d 个单位。" % [
 			active_unit.display_name,
@@ -625,6 +716,7 @@ func _preview_ground_skill_command(
 		])
 	else:
 		preview.log_lines.append(String(validation.get("message", "地面技能目标无效。")))
+	AI_TRACE_RECORDER.exit(&"preview:ground_skill.log_lines")
 
 func _build_unit_skill_hit_preview(
 	active_unit: BattleUnitState,
@@ -1041,7 +1133,7 @@ func _validate_unit_skill_targets(
 		if not special_validation_message.is_empty():
 			result.message = special_validation_message
 			return result
-		if target_unit == null or not _can_skill_target_unit(active_unit, target_unit, skill_def):
+		if target_unit == null or not _can_skill_target_unit(active_unit, target_unit, skill_def, true, cast_variant):
 			result.message = "技能目标超出范围或不满足筛选条件。"
 			return result
 		target_units.append(target_unit)
@@ -1101,7 +1193,13 @@ func _is_multi_unit_skill(skill_def: SkillDef) -> bool:
 		and skill_def.combat_profile != null \
 		and StringName(skill_def.combat_profile.target_selection_mode) == &"multi_unit"
 
-func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, skill_def: SkillDef, require_ap: bool = true) -> bool:
+func _can_skill_target_unit(
+	active_unit: BattleUnitState,
+	target_unit: BattleUnitState,
+	skill_def: SkillDef,
+	require_ap: bool = true,
+	cast_variant: CombatCastVariantDef = null
+) -> bool:
 	if active_unit == null or target_unit == null or skill_def == null or skill_def.combat_profile == null:
 		return false
 	var costs = _get_effective_skill_costs(active_unit, skill_def)
@@ -1109,7 +1207,7 @@ func _can_skill_target_unit(active_unit: BattleUnitState, target_unit: BattleUni
 		return false
 	if not _is_unit_valid_for_effect(active_unit, target_unit, skill_def.combat_profile.target_team_filter):
 		return false
-	if not _get_unit_skill_target_validation_message(active_unit, target_unit, skill_def, null).is_empty():
+	if not _get_unit_skill_target_validation_message(active_unit, target_unit, skill_def, cast_variant).is_empty():
 		return false
 	active_unit.refresh_footprint()
 	target_unit.refresh_footprint()
@@ -1541,7 +1639,7 @@ func _collect_chain_damage_targets(
 	var prevent_repeat_target = bool(chain_params.get("prevent_repeat_target", true))
 	var target_filter = _resolve_effect_target_filter(skill_def, chain_effect)
 	if target_filter == &"":
-		target_filter = skill_def.combat_profile.target_team_filter if skill_def != null and skill_def.combat_profile != null else &"enemy"
+		return targets
 
 	var visited: Dictionary = {}
 	var queue: Array[BattleUnitState] = []
@@ -1805,34 +1903,19 @@ func _is_terrain_effect(effect_def: CombatEffectDef) -> bool:
 		or effect_def.effect_type == &"terrain_effect"
 
 func _resolve_effect_target_filter(skill_def: SkillDef, effect_def: CombatEffectDef) -> StringName:
-	if effect_def != null and effect_def.effect_target_team_filter != &"":
-		return effect_def.effect_target_team_filter
-	if skill_def != null and skill_def.combat_profile != null:
-		return skill_def.combat_profile.target_team_filter
-	return &"any"
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.resolve_effect_target_filter(skill_def, effect_def)
 
 func _is_unit_valid_for_effect(
 	source_unit: BattleUnitState,
 	target_unit: BattleUnitState,
 	target_team_filter: StringName
 ) -> bool:
-	if target_unit == null or not target_unit.is_alive:
-		return false
-	if source_unit != null \
-			and bool(source_unit.ai_blackboard.get("madness_target_any_team", false)) \
-			and target_team_filter in [&"ally", &"friendly", &"enemy", &"hostile"]:
-		return target_unit.unit_id != source_unit.unit_id
-	match target_team_filter:
-		&"", &"any":
-			return true
-		&"self":
-			return source_unit != null and target_unit.unit_id == source_unit.unit_id
-		&"ally", &"friendly":
-			return source_unit != null and target_unit.faction_id == source_unit.faction_id
-		&"enemy", &"hostile":
-			return source_unit != null and target_unit.faction_id != source_unit.faction_id
-		_:
-			return true
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_unit_valid_for_filter(
+		source_unit,
+		target_unit,
+		target_team_filter,
+		{"madness_target_any_team": source_unit != null and bool(source_unit.ai_blackboard.get("madness_target_any_team", false))}
+	)
 
 func _resolve_ground_cast_variant(
 	skill_def: SkillDef,
@@ -1856,8 +1939,36 @@ func _resolve_unit_cast_variant(
 		command.skill_variant_id if command != null else &""
 	)
 
+func _resolve_command_route_cast_variant(
+	skill_def: SkillDef,
+	active_unit: BattleUnitState,
+	command: BattleCommand,
+	routes_to_unit_targeting: bool
+) -> CombatCastVariantDef:
+	return _runtime._skill_resolution_rules.resolve_command_route_cast_variant(
+		skill_def,
+		active_unit,
+		command.skill_variant_id if command != null else &"",
+		routes_to_unit_targeting
+	)
+
 func _get_cast_variant_target_mode(skill_def: SkillDef, cast_variant: CombatCastVariantDef) -> StringName:
 	return _runtime._skill_resolution_rules.get_cast_variant_target_mode(skill_def, cast_variant)
+
+func _get_skill_variant_command_block_reason(
+	skill_def: SkillDef,
+	active_unit: BattleUnitState,
+	command: BattleCommand,
+	routes_to_unit_targeting: bool
+) -> String:
+	if _runtime == null or _runtime._skill_resolution_rules == null:
+		return ""
+	return _runtime._skill_resolution_rules.get_skill_variant_command_error_message(
+		skill_def,
+		active_unit,
+		command.skill_variant_id if command != null else &"",
+		routes_to_unit_targeting
+	)
 
 func _build_implicit_ground_cast_variant(skill_def: SkillDef) -> CombatCastVariantDef:
 	var cast_variant = CombatCastVariantDef.new()

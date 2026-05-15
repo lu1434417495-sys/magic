@@ -16,7 +16,8 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_default_attack_bonus_and_ac_are_initialized()
 	_test_base_attributes_use_formal_attribute_service()
-	_test_attribute_overrides_can_replace_attack_bonus_and_ac()
+	_test_attribute_overrides_can_replace_attack_bonus_without_final_ac()
+	_test_formal_base_attributes_use_ac_components()
 	_test_base_attribute_overrides_use_formal_action_threshold()
 	if _failures.is_empty():
 		print("Battle sim unit spec defaults regression: PASS")
@@ -40,8 +41,8 @@ func _test_default_attack_bonus_and_ac_are_initialized() -> void:
 		"BattleSimUnitSpec 默认应初始化 +4 攻击加值，避免 simulation 中退化到仅天然 20 命中。"
 	)
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS) == 10,
-		"BattleSimUnitSpec 默认应初始化 10 AC，保持 simulation 与常规战斗的基础面板口径一致。"
+		not unit_state.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS),
+		"BattleSimUnitSpec 空单位不应再隐式初始化 AC；simulation 应提供 base_attributes。"
 	)
 
 
@@ -88,7 +89,7 @@ func _test_base_attributes_use_formal_attribute_service() -> void:
 	)
 
 
-func _test_attribute_overrides_can_replace_attack_bonus_and_ac() -> void:
+func _test_attribute_overrides_can_replace_attack_bonus_without_final_ac() -> void:
 	var unit_spec = BATTLE_SIM_UNIT_SPEC_SCRIPT.new()
 	unit_spec.unit_id = &"sim_override"
 	unit_spec.display_name = "覆盖模拟单位"
@@ -104,8 +105,34 @@ func _test_attribute_overrides_can_replace_attack_bonus_and_ac() -> void:
 		"BattleSimUnitSpec 应允许 attribute_overrides 覆盖默认攻击加值。"
 	)
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS) == 17,
-		"BattleSimUnitSpec 应允许 attribute_overrides 覆盖默认 AC。"
+		not unit_state.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS),
+		"BattleSimUnitSpec 不应接受无 base_attributes 的最终 armor_class 兼容路径。"
+	)
+
+
+func _test_formal_base_attributes_use_ac_components() -> void:
+	var unit_spec = BATTLE_SIM_UNIT_SPEC_SCRIPT.new()
+	unit_spec.unit_id = &"sim_formal_ac_components"
+	unit_spec.display_name = "正式 AC 组件模拟单位"
+	unit_spec.current_hp = 30
+	unit_spec.current_ap = 1
+	unit_spec.base_attributes = {
+		"strength": 10,
+		"agility": 10,
+		"constitution": 10,
+		"perception": 10,
+		"intelligence": 10,
+		"willpower": 10,
+	}
+	unit_spec.attribute_overrides = {
+		"armor_class": 99,
+		"armor_ac_bonus": 2,
+		"deflection_bonus": 4,
+	}
+	var unit_state = unit_spec.to_battle_unit_state(&"hostile", &"ai")
+	_assert_true(
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS) == 14,
+		"BattleSimUnitSpec 有 base_attributes 时应忽略最终 armor_class，改用基础 8 + AC 组件。"
 	)
 
 

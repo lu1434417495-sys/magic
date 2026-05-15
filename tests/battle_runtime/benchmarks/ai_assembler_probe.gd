@@ -14,7 +14,7 @@ static func _new_stats() -> Dictionary:
 	}
 
 
-func build_unit_action_plan(unit_state, brain, skill_defs: Dictionary) -> Dictionary:
+func build_unit_action_plan(unit_state, brain, skill_defs: Dictionary):
 	AiTraceRecorderScript.enter(&"build_unit_action_plan")
 	var t := Time.get_ticks_usec()
 	var result = super.build_unit_action_plan(unit_state, brain, skill_defs)

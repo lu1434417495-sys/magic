@@ -8,6 +8,7 @@ extends RefCounted
 const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
 const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const PENDING_CHARACTER_REWARD_CONTENT_RULES = preload("res://scripts/player/progression/pending_character_reward_content_rules.gd")
 const FAITH_DEITY_DEF_TYPE = preload("res://scripts/player/progression/faith_deity_def.gd")
 const FAITH_RANK_DEF_TYPE = preload("res://scripts/player/progression/faith_rank_def.gd")
 const FAITH_DEITY_DEF_SCRIPT = preload("res://scripts/player/progression/faith_deity_def.gd")
@@ -326,6 +327,15 @@ func _build_rank_reward(
 
 	var normalized_entries: Array[PendingCharacterRewardEntry] = []
 	for reward_entry_variant in rank_def.reward_entries:
+		if reward_entry_variant is Dictionary:
+			var reward_data := reward_entry_variant as Dictionary
+			var entry_type := ProgressionDataUtils.to_string_name(reward_data.get("entry_type", ""))
+			var target_id := ProgressionDataUtils.to_string_name(reward_data.get("target_id", ""))
+			if entry_type != &"" and not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(entry_type):
+				return null
+			if PENDING_CHARACTER_REWARD_CONTENT_RULES.is_attribute_progress_entry(entry_type) \
+				and not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_valid_attribute_progress_target(target_id):
+				return null
 		var reward_entry = PENDING_CHARACTER_REWARD_ENTRY_SCRIPT.from_variant(reward_entry_variant)
 		if reward_entry == null or reward_entry.is_empty():
 			continue

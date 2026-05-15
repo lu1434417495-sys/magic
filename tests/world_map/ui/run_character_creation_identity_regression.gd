@@ -3,11 +3,36 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
 const CHARACTER_CREATION_WINDOW_SCENE = preload("res://scenes/ui/character_creation_window.tscn")
+const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
+const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
 const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
+const RaceDef = preload("res://scripts/player/progression/race_def.gd")
+const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
 const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
+
+
+class IdentityUiFixtureRegistry:
+	extends RefCounted
+
+	var race_defs: Dictionary = {}
+	var subrace_defs: Dictionary = {}
+	var age_profile_defs: Dictionary = {}
+	var race_trait_defs: Dictionary = {}
+
+	func get_race_defs() -> Dictionary:
+		return race_defs.duplicate()
+
+	func get_subrace_defs() -> Dictionary:
+		return subrace_defs.duplicate()
+
+	func get_age_profile_defs() -> Dictionary:
+		return age_profile_defs.duplicate()
+
+	func get_race_trait_defs() -> Dictionary:
+		return race_trait_defs.duplicate()
 
 
 func _initialize() -> void:
@@ -16,6 +41,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _test_official_identity_pool_is_selectable()
+	await _test_invalid_registry_subraces_are_not_ui_candidates()
+	await _test_stale_invalid_subrace_selection_cannot_build_payload()
+	await _test_invalid_identity_blocks_buttons_and_confirm_signal()
 	await _test_identity_payload_uses_registry_defaults_and_body_size_rules()
 	await _test_human_versatility_preview_and_confirm_payload()
 
@@ -65,6 +93,98 @@ func _test_official_identity_pool_is_selectable() -> void:
 			BodySizeRules.get_body_size_for_category(&"small"),
 			"Halfling body_size int 应由 BodySizeRules 从 small 派生。"
 		)
+
+	window.queue_free()
+	await process_frame
+
+
+func _test_invalid_registry_subraces_are_not_ui_candidates() -> void:
+	var window = CHARACTER_CREATION_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	window.set_progression_content_registry(_make_identity_ui_fixture_registry())
+	window.show_window()
+	await process_frame
+
+	var human_index: int = window._find_option_index_by_metadata(window.race_option_button, &"human")
+	_assert_true(human_index >= 0, "夹具 human race 应进入建卡 UI race 候选。")
+	if human_index >= 0:
+		window._on_race_option_selected(human_index)
+		await process_frame
+		_assert_true(
+			window._find_option_index_by_metadata(window.subrace_option_button, &"common_human") >= 0,
+			"合法 common_human 应显示在 UI subrace 候选中。"
+		)
+		_assert_true(
+			window._find_option_index_by_metadata(window.subrace_option_button, &"wrong_parent") < 0,
+			"race 列出但 parent_race_id 不匹配的 subrace 不得显示。"
+		)
+
+	_assert_true(
+		window._find_option_index_by_metadata(window.race_option_button, &"fallback_race") < 0,
+		"只有 parent-only subrace 的 race 不得作为可选 race 显示。"
+	)
+
+	window.queue_free()
+	await process_frame
+
+
+func _test_stale_invalid_subrace_selection_cannot_build_payload() -> void:
+	var window = CHARACTER_CREATION_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	window.set_progression_content_registry(_make_identity_ui_fixture_registry())
+	window.show_window()
+	await process_frame
+	window._selected_race_id = &"human"
+	window._selected_subrace_id = &"parent_only_human"
+	window._selected_age_stage_id = &"adult"
+	window._selected_age_years = 24
+
+	var identity_payload: Dictionary = window._build_selected_identity_payload()
+	_assert_true(identity_payload.is_empty(), "stale parent-only subrace selection 不得构造建卡 identity payload。")
+	_assert_true(not identity_payload.has("age_years"), "非法身份不得带出 age_years 伪装成完整 payload。")
+	_assert_true(not identity_payload.has("body_size"), "非法身份不得带出 body_size 伪装成完整 payload。")
+
+	window.queue_free()
+	await process_frame
+
+
+func _test_invalid_identity_blocks_buttons_and_confirm_signal() -> void:
+	var window = CHARACTER_CREATION_WINDOW_SCENE.instantiate()
+	root.add_child(window)
+	await process_frame
+
+	window.set_progression_content_registry(_make_identity_ui_fixture_registry())
+	window.show_window()
+	await process_frame
+	window.name_input.text = "非法身份"
+	window._on_name_confirmed()
+	_set_uniform_attributes(window, 10)
+	window._player_name = "非法身份"
+	window._selected_race_id = &"human"
+	window._selected_subrace_id = &"parent_only_human"
+	window._selected_age_stage_id = &"adult"
+	window._selected_age_years = 24
+	window._refresh_identity_option_controls()
+
+	_assert_true(window.race_next_button.disabled, "非法身份时 race 下一步按钮应禁用。")
+	_assert_true(window.age_next_button.disabled, "非法身份时 age 下一步按钮应禁用。")
+	_assert_true(window.final_confirm_button.disabled, "非法身份时最终确认按钮应禁用。")
+	_assert_true(
+		String(window.race_preview_label.text).contains("身份内容无效"),
+		"非法身份 preview 应显示无法继续建卡的文案。"
+	)
+
+	var emitted_payloads: Array[Dictionary] = []
+	window.character_confirmed.connect(func(payload: Dictionary) -> void:
+		emitted_payloads.append(payload)
+	)
+	window._on_confirm_pressed()
+	await process_frame
+	_assert_eq(emitted_payloads.size(), 0, "非法 stale 身份即使直接调用确认也不得发出 character_confirmed。")
 
 	window.queue_free()
 	await process_frame
@@ -155,6 +275,65 @@ func _set_uniform_attributes(window, value: int) -> void:
 		UnitBaseAttributes.INTELLIGENCE: value,
 		UnitBaseAttributes.WILLPOWER: value,
 	}
+
+
+func _make_identity_ui_fixture_registry() -> IdentityUiFixtureRegistry:
+	var registry := IdentityUiFixtureRegistry.new()
+	var human := _make_race(&"human", &"common_human", [&"common_human", &"wrong_parent"])
+	var fallback_race := _make_race(&"fallback_race", &"", [])
+	registry.race_defs = {
+		human.race_id: human,
+		fallback_race.race_id: fallback_race,
+	}
+	registry.subrace_defs = {
+		&"common_human": _make_subrace(&"common_human", &"human"),
+		&"wrong_parent": _make_subrace(&"wrong_parent", &"elf"),
+		&"parent_only_human": _make_subrace(&"parent_only_human", &"human"),
+		&"parent_only_fallback": _make_subrace(&"parent_only_fallback", &"fallback_race"),
+	}
+	registry.age_profile_defs = {&"human_age_profile": _make_age_profile(&"human_age_profile", &"human")}
+	return registry
+
+
+func _make_race(race_id: StringName, default_subrace_id: StringName, subrace_ids: Array) -> RaceDef:
+	var race := RaceDef.new()
+	race.race_id = race_id
+	race.display_name = String(race_id)
+	race.age_profile_id = &"human_age_profile"
+	race.default_subrace_id = default_subrace_id
+	race.subrace_ids = _typed_string_names(subrace_ids)
+	race.body_size_category = &"medium"
+	return race
+
+
+func _make_subrace(subrace_id: StringName, parent_race_id: StringName) -> SubraceDef:
+	var subrace := SubraceDef.new()
+	subrace.subrace_id = subrace_id
+	subrace.parent_race_id = parent_race_id
+	subrace.display_name = String(subrace_id)
+	return subrace
+
+
+func _make_age_profile(profile_id: StringName, race_id: StringName) -> AgeProfileDef:
+	var age_profile := AgeProfileDef.new()
+	age_profile.profile_id = profile_id
+	age_profile.race_id = race_id
+	age_profile.creation_stage_ids = _typed_string_names([&"adult"])
+	age_profile.default_age_by_stage = {"adult": 24}
+	var adult := AgeStageRule.new()
+	adult.stage_id = &"adult"
+	adult.display_name = "Adult"
+	adult.selectable_in_creation = true
+	var stage_rules: Array[AgeStageRule] = [adult]
+	age_profile.stage_rules = stage_rules
+	return age_profile
+
+
+func _typed_string_names(values: Array) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value in values:
+		result.append(StringName(String(value)))
+	return result
 
 
 func _assert_true(value: bool, message: String) -> void:

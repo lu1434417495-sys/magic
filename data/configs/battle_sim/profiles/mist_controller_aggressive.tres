@@ -25,12 +25,17 @@ bucket_priorities = {
 script = ExtResource("1_profile")
 profile_id = &"mist_controller_aggressive"
 display_name = "Mist Controller Aggressive"
-description = "让 ranged_controller 在 1v1 中更愿意接近、压低待机倾向，并放宽 mist_aoe 的命中人数要求，用于验证雾沼异兽的主动性。"
+description = "让 ranged_controller 在 1v1 中更愿意接近、压低待机倾向，并通过 transition rule patch 放宽 pressure 距离与 mist_aoe 命中人数要求。"
 ai_score_profile = SubResource("Resource_score")
 override_patches = Array[Dictionary]([{
 "target_type": "brain",
 "target_id": "ranged_controller",
-"path": "pressure_distance",
+"path": "transition_rules.3.conditions.1.max_distance",
+"value": 6
+}, {
+"target_type": "brain",
+"target_id": "ranged_controller",
+"path": "transition_rules.4.conditions.0.max_distance",
 "value": 5
 }, {
 "target_type": "action",

@@ -9,6 +9,9 @@ const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battl
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BATTLE_AI_SCORE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_service.gd")
 const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
+const BATTLE_AI_MUTATION_GUARD_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_mutation_guard.gd")
+const BATTLE_AI_STATE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_state_resolver.gd")
+const AI_TRACE_RECORDER = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
 const BattleAiDecision = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
 const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
@@ -18,10 +21,13 @@ const BattleAiScoreService = preload("res://scripts/systems/battle/ai/battle_ai_
 const BattleAiScoreProfile = preload("res://scripts/systems/battle/ai/battle_ai_score_profile.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
-const HP_BASIS_POINTS_DENOMINATOR := 10000
-
 var _enemy_ai_brains: Dictionary = {}
 var _score_service: BattleAiScoreService = BATTLE_AI_SCORE_SERVICE_SCRIPT.new()
+var _state_resolver = BATTLE_AI_STATE_RESOLVER_SCRIPT.new()
+## 字段说明：是否启用 AI mutation guard。
+## - true（默认）：每次 choose_command 都 capture/validate，越权写入直接 assert 中断，强迫修复根因。
+## - false：跳过 guard，AI 决策吞吐回到 baseline。供 balance / AI-vs-AI 大规模 sim runner 显式关闭。
+var enable_mutation_guard: bool = true
 
 
 func setup(enemy_ai_brains: Dictionary = {}, damage_resolver: BattleDamageResolver = null) -> void:
@@ -40,6 +46,40 @@ func get_score_profile() -> BattleAiScoreProfile:
 func choose_command(context) -> BattleAiDecision:
 	if context == null or context.state == null or context.unit_state == null or context.grid_service == null:
 		return null
+	if context.has_method("get") and context.get("mutation_guard_violations") is Array:
+		context.mutation_guard_violations.clear()
+	# enable_mutation_guard=false 时完全跳过 capture/validate；大规模 sim 走这条路径换吞吐。
+	if not enable_mutation_guard:
+		AI_TRACE_RECORDER.enter(&"choose:impl")
+		var decision_no_guard := _choose_command_impl(context)
+		AI_TRACE_RECORDER.exit(&"choose:impl")
+		return decision_no_guard
+	var mutation_guard = BATTLE_AI_MUTATION_GUARD_SCRIPT.new()
+	AI_TRACE_RECORDER.enter(&"choose:mutation_guard_capture")
+	mutation_guard.capture(context)
+	AI_TRACE_RECORDER.exit(&"choose:mutation_guard_capture")
+	AI_TRACE_RECORDER.enter(&"choose:impl")
+	var decision := _choose_command_impl(context)
+	AI_TRACE_RECORDER.exit(&"choose:impl")
+	AI_TRACE_RECORDER.enter(&"choose:mutation_guard_validate")
+	var violations: Array[String] = mutation_guard.validate_and_restore(context)
+	AI_TRACE_RECORDER.exit(&"choose:mutation_guard_validate")
+	if violations.is_empty():
+		return decision
+	context.mutation_guard_violations = violations.duplicate()
+	for violation in violations:
+		push_error("AI mutation guard blocked decision: %s" % violation)
+	# 开关打开时检测到 mutation 必须立即终止——AI 决策路径偷偷写 state 是契约级 bug，
+	# 必须看到、必须修，不能靠 wait fallback 蒙混过去。
+	# assert 走 debug build 的 breakpoint；OS.crash 兜底 release build（assert 被剥离也能崩）。
+	var unit_label: String = String(context.unit_state.display_name) if context.unit_state != null else "unknown"
+	var crash_message: String = "AI mutation guard blocked %s 的决策；越权写入：%s" % [unit_label, "; ".join(violations)]
+	assert(false, crash_message)
+	OS.crash(crash_message)
+	return null
+
+
+func _choose_command_impl(context) -> BattleAiDecision:
 	if not context.skill_score_input_callback.is_valid():
 		context.skill_score_input_callback = Callable(self, "build_skill_score_input")
 	if not context.action_score_input_callback.is_valid():
@@ -61,7 +101,8 @@ func choose_command(context) -> BattleAiDecision:
 		return missing_brain_decision
 
 	unit_state.ai_brain_id = brain.brain_id
-	var next_state_id: StringName = _resolve_state_id(context, brain)
+	var transition_result: Dictionary = _state_resolver.resolve(context, brain)
+	var next_state_id: StringName = ProgressionDataUtils.to_string_name(transition_result.get("state_id", brain.default_state_id))
 	unit_state.ai_state_id = next_state_id
 	var state_def = brain.get_state(next_state_id)
 	if state_def == null:
@@ -72,6 +113,7 @@ func choose_command(context) -> BattleAiDecision:
 			&"wait_missing_state",
 			"%s 找不到 AI 状态 %s，改为待机。" % [unit_state.display_name, String(next_state_id)]
 		)
+		_prepare_decision(missing_state_decision, brain.brain_id, next_state_id, transition_result)
 		_commit_decision(unit_state, missing_state_decision)
 		if context.has_method("mark_action_trace_chosen"):
 			context.mark_action_trace_chosen(missing_state_decision.action_trace_id, missing_state_decision)
@@ -80,17 +122,35 @@ func choose_command(context) -> BattleAiDecision:
 	var best_scored_decision: BattleAiDecision = null
 	var best_scored_action_index := 999999
 	var fallback_decision: BattleAiDecision = null
-	var actions = context.get_runtime_actions(next_state_id) if context.has_method("get_runtime_actions") else []
-	if actions.is_empty():
-		actions = state_def.get_actions()
+	var action_resolution := _resolve_runtime_actions(context, brain, next_state_id, state_def)
+	if action_resolution.get("wait_action_id", &"") != &"":
+		var runtime_wait_decision = _build_wait_decision(
+			context,
+			brain.brain_id,
+			next_state_id,
+			ProgressionDataUtils.to_string_name(action_resolution.get("wait_action_id", &"")),
+			String(action_resolution.get("wait_reason_text", ""))
+		)
+		_prepare_decision(runtime_wait_decision, brain.brain_id, next_state_id, transition_result)
+		_commit_decision(unit_state, runtime_wait_decision)
+		if context.has_method("mark_action_trace_chosen"):
+			context.mark_action_trace_chosen(runtime_wait_decision.action_trace_id, runtime_wait_decision)
+		return runtime_wait_decision
+	var actions: Array = action_resolution.get("actions", [])
 	for action_index in range(actions.size()):
 		var action = actions[action_index]
 		if action == null or not action.has_method("decide"):
 			continue
+		var action_metadata: Dictionary = context.get_runtime_action_metadata(action) if context.has_method("get_runtime_action_metadata") else {}
+		if context.has_method("push_action_metadata"):
+			context.push_action_metadata(action_metadata)
 		var decision = action.decide(context) as BattleAiDecision
+		if context.has_method("pop_action_metadata"):
+			context.pop_action_metadata()
 		if decision == null or decision.command == null:
 			continue
-		_prepare_decision(decision, brain.brain_id, next_state_id)
+		_prepare_decision(decision, brain.brain_id, next_state_id, transition_result)
+		_apply_action_metadata_to_decision(decision, action_metadata)
 		if _get_decision_score_input(decision) != null:
 			if _should_replace_scored_decision(decision, action_index, best_scored_decision, best_scored_action_index):
 				best_scored_decision = decision
@@ -113,6 +173,7 @@ func choose_command(context) -> BattleAiDecision:
 		&"wait_fallback",
 		"%s 在状态 %s 下没有找到合法指令，改为待机。" % [unit_state.display_name, String(next_state_id)]
 	)
+	_prepare_decision(wait_decision, brain.brain_id, next_state_id, transition_result)
 	_commit_decision(unit_state, wait_decision)
 	if context.has_method("mark_action_trace_chosen"):
 		context.mark_action_trace_chosen(wait_decision.action_trace_id, wait_decision)
@@ -143,16 +204,67 @@ func build_action_score_input(
 	)
 
 
-func _prepare_decision(decision: BattleAiDecision, brain_id: StringName, state_id: StringName) -> void:
+func _prepare_decision(
+	decision: BattleAiDecision,
+	brain_id: StringName,
+	state_id: StringName,
+	transition_result: Dictionary = {}
+) -> void:
 	if decision == null:
 		return
 	decision.brain_id = brain_id
 	decision.state_id = state_id
+	decision.transition = transition_result.duplicate(true) if transition_result is Dictionary else {}
 	if decision.action_id == &"":
 		decision.action_id = &"anonymous_action"
 	var score_input = _get_decision_score_input(decision)
 	if decision.score_bucket_id == &"" and score_input != null:
 		decision.score_bucket_id = score_input.score_bucket_id
+
+
+func _resolve_runtime_actions(context, brain, state_id: StringName, state_def) -> Dictionary:
+	if context == null:
+		return {"actions": []}
+	var has_runtime_plan := context.runtime_action_plan != null
+	if has_runtime_plan:
+		if context.has_method("is_runtime_action_plan_stale") and context.is_runtime_action_plan_stale(brain):
+			return {
+				"wait_action_id": &"wait_stale_runtime_plan",
+				"wait_reason_text": "%s 的 AI runtime plan 已过期，改为待机。" % context.unit_state.display_name,
+			}
+		if not context.has_method("has_runtime_action_state") or not context.has_runtime_action_state(state_id):
+			return {
+				"wait_action_id": &"wait_missing_runtime_plan",
+				"wait_reason_text": "%s 缺少状态 %s 的 AI runtime plan，改为待机。" % [context.unit_state.display_name, String(state_id)],
+			}
+		var runtime_actions: Array = context.get_runtime_actions(state_id) if context.has_method("get_runtime_actions") else []
+		if runtime_actions.is_empty():
+			return {
+				"wait_action_id": &"wait_empty_runtime_state",
+				"wait_reason_text": "%s 的 AI runtime state %s 没有可评估 action，改为待机。" % [context.unit_state.display_name, String(state_id)],
+			}
+		return {"actions": runtime_actions}
+	if bool(context.allow_authored_action_fallback_for_tests):
+		return {"actions": state_def.get_actions()}
+	return {
+		"wait_action_id": &"wait_missing_runtime_plan",
+		"wait_reason_text": "%s 缺少 AI runtime plan，改为待机。" % context.unit_state.display_name,
+	}
+
+
+func _apply_action_metadata_to_decision(decision: BattleAiDecision, metadata: Dictionary) -> void:
+	if decision == null or metadata.is_empty():
+		return
+	var metadata_bucket_id := ProgressionDataUtils.to_string_name(metadata.get("score_bucket_id", &""))
+	if metadata_bucket_id != &"":
+		decision.score_bucket_id = metadata_bucket_id
+	var score_input = _get_decision_score_input(decision)
+	if score_input != null:
+		if metadata_bucket_id != &"":
+			score_input.score_bucket_id = metadata_bucket_id
+			score_input.score_bucket_priority = _score_service.get_bucket_priority(metadata_bucket_id)
+		if score_input.runtime_action_metadata.is_empty() and metadata.get("runtime_action_metadata", {}) is Dictionary:
+			score_input.runtime_action_metadata = (metadata.get("runtime_action_metadata", {}) as Dictionary).duplicate(true)
 
 
 func _should_replace_scored_decision(
@@ -203,6 +315,9 @@ func _is_better_score_input(candidate, best_candidate) -> bool:
 			return int(candidate.hit_payoff_score) > int(best_candidate.hit_payoff_score)
 		if int(candidate.effective_target_count) != int(best_candidate.effective_target_count):
 			return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
+		var lethal_nonfatal_risk_comparison := _compare_nonfatal_post_action_survival_risk(candidate, best_candidate)
+		if lethal_nonfatal_risk_comparison != 0:
+			return lethal_nonfatal_risk_comparison > 0
 		if int(candidate.resource_cost_score) != int(best_candidate.resource_cost_score):
 			return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
 	if int(candidate.score_bucket_priority) != int(best_candidate.score_bucket_priority):
@@ -215,6 +330,9 @@ func _is_better_score_input(candidate, best_candidate) -> bool:
 		return int(candidate.effective_target_count) > int(best_candidate.effective_target_count)
 	if int(candidate.target_count) != int(best_candidate.target_count):
 		return int(candidate.target_count) > int(best_candidate.target_count)
+	var nonfatal_risk_comparison := _compare_nonfatal_post_action_survival_risk(candidate, best_candidate)
+	if nonfatal_risk_comparison != 0:
+		return nonfatal_risk_comparison > 0
 	if int(candidate.position_objective_score) != int(best_candidate.position_objective_score):
 		return int(candidate.position_objective_score) > int(best_candidate.position_objective_score)
 	return int(candidate.resource_cost_score) < int(best_candidate.resource_cost_score)
@@ -259,6 +377,32 @@ func _compare_post_action_survival_risk(candidate, best_candidate) -> int:
 	return 0
 
 
+func _compare_nonfatal_post_action_survival_risk(candidate, best_candidate) -> int:
+	if candidate == null or best_candidate == null:
+		return 0
+	if not bool(candidate.has_post_action_threat_projection) or not bool(best_candidate.has_post_action_threat_projection):
+		return 0
+	if bool(candidate.post_action_is_lethal_survival_risk) or bool(best_candidate.post_action_is_lethal_survival_risk):
+		return 0
+	var candidate_threat_free := int(candidate.post_action_remaining_threat_count) <= 0
+	var best_threat_free := int(best_candidate.post_action_remaining_threat_count) <= 0
+	if candidate_threat_free != best_threat_free:
+		return 1 if candidate_threat_free else -1
+	var candidate_damage := int(candidate.post_action_remaining_threat_expected_damage)
+	var best_damage := int(best_candidate.post_action_remaining_threat_expected_damage)
+	if candidate_damage != best_damage:
+		return 1 if candidate_damage < best_damage else -1
+	var candidate_count := int(candidate.post_action_remaining_threat_count)
+	var best_count := int(best_candidate.post_action_remaining_threat_count)
+	if candidate_count != best_count:
+		return 1 if candidate_count < best_count else -1
+	var candidate_margin := int(candidate.post_action_survival_margin)
+	var best_margin := int(best_candidate.post_action_survival_margin)
+	if candidate_margin != best_margin:
+		return 1 if candidate_margin > best_margin else -1
+	return 0
+
+
 func _get_decision_score_input(decision: BattleAiDecision):
 	if decision == null:
 		return null
@@ -271,80 +415,6 @@ func _resolve_brain(brain_id: StringName):
 	if brain_id == &"":
 		return null
 	return _enemy_ai_brains.get(brain_id)
-
-
-func _resolve_state_id(context, brain) -> StringName:
-	var current_state_id: StringName = brain.default_state_id
-	if context.unit_state != null and brain.has_state(context.unit_state.ai_state_id):
-		current_state_id = context.unit_state.ai_state_id
-
-	if brain.has_state(&"retreat") and _is_unit_at_or_below_hp_basis_points(context.unit_state, int(brain.retreat_hp_basis_points)):
-		return &"retreat"
-	if brain.has_state(&"support") and _has_support_window(context, int(brain.support_hp_basis_points)):
-		return &"support"
-
-	var nearest_enemy = _find_nearest_enemy(context)
-	if nearest_enemy == null:
-		return current_state_id
-	var nearest_distance: int = context.grid_service.get_distance_between_units(context.unit_state, nearest_enemy)
-	if brain.has_state(&"pressure") and nearest_distance <= int(brain.pressure_distance):
-		return &"pressure"
-	if current_state_id == &"pressure" and brain.has_state(&"pressure") and nearest_distance <= int(brain.pressure_distance) + 1:
-		return &"pressure"
-	if brain.has_state(&"engage"):
-		return &"engage"
-	return current_state_id
-
-
-func _has_support_window(context, threshold_basis_points: int) -> bool:
-	if context == null or context.unit_state == null:
-		return false
-	if not _unit_has_support_skill(context):
-		return false
-	for unit_variant in context.state.units.values():
-		var ally_unit = unit_variant as BattleUnitState
-		if ally_unit == null or not ally_unit.is_alive:
-			continue
-		if ally_unit.faction_id != context.unit_state.faction_id:
-			continue
-		if _is_unit_at_or_below_hp_basis_points(ally_unit, threshold_basis_points):
-			return true
-	return false
-
-
-func _unit_has_support_skill(context) -> bool:
-	if context == null or context.unit_state == null:
-		return false
-	for skill_id in context.unit_state.known_active_skill_ids:
-		var skill_def = context.skill_defs.get(skill_id) as SkillDef
-		if _is_support_skill(skill_def):
-			return true
-	return false
-
-
-func _is_support_skill(skill_def: SkillDef) -> bool:
-	if skill_def == null or skill_def.combat_profile == null:
-		return false
-	if skill_def.combat_profile.target_team_filter == &"ally":
-		return true
-	for effect_def in skill_def.combat_profile.effect_defs:
-		if effect_def == null:
-			continue
-		if effect_def.effect_type == &"heal":
-			return true
-		if effect_def.effect_target_team_filter == &"ally":
-			return true
-	for cast_variant in skill_def.combat_profile.cast_variants:
-		if cast_variant == null:
-			continue
-		for effect_def in cast_variant.effect_defs:
-			if effect_def == null:
-				continue
-			if effect_def.effect_type == &"heal":
-				return true
-			if effect_def.effect_target_team_filter == &"ally":
-				return true
-	return false
 
 
 func _build_wait_decision(
@@ -373,51 +443,9 @@ func _commit_decision(unit_state: BattleUnitState, decision: BattleAiDecision) -
 	unit_state.ai_blackboard["last_state_id"] = String(decision.state_id)
 	unit_state.ai_blackboard["last_action_id"] = String(decision.action_id)
 	unit_state.ai_blackboard["last_reason_text"] = decision.reason_text
+	if decision.transition is Dictionary and not decision.transition.is_empty():
+		unit_state.ai_blackboard["last_transition_previous_state_id"] = String(decision.transition.get("previous_state_id", &""))
+		unit_state.ai_blackboard["last_transition_state_id"] = String(decision.transition.get("state_id", &""))
+		unit_state.ai_blackboard["last_transition_rule_id"] = String(decision.transition.get("rule_id", &""))
+		unit_state.ai_blackboard["last_transition_reason"] = String(decision.transition.get("reason", &""))
 	unit_state.ai_blackboard["turn_decision_count"] = int(unit_state.ai_blackboard.get("turn_decision_count", 0)) + 1
-
-
-func _find_nearest_enemy(context) -> BattleUnitState:
-	if context == null or context.state == null or context.unit_state == null:
-		return null
-	var candidate_ids = context.state.enemy_unit_ids if context.unit_state.faction_id == &"player" else context.state.ally_unit_ids
-	var best_unit: BattleUnitState = null
-	var best_distance := 999999
-	for unit_id in candidate_ids:
-		var candidate = context.state.units.get(unit_id) as BattleUnitState
-		if candidate == null or not candidate.is_alive:
-			continue
-		var distance = context.grid_service.get_distance_between_units(context.unit_state, candidate)
-		if distance < best_distance:
-			best_distance = distance
-			best_unit = candidate
-	return best_unit
-
-
-func _pick_step_toward(
-	state,
-	unit_state: BattleUnitState,
-	target_coord: Vector2i,
-	grid_service: BattleGridService
-) -> Vector2i:
-	if unit_state == null:
-		return Vector2i(-1, -1)
-	var from_coord := unit_state.coord
-	var best_coord := Vector2i(-1, -1)
-	var best_distance := grid_service.get_distance(from_coord, target_coord)
-	for neighbor in grid_service.get_neighbors_4(state, from_coord):
-		if not grid_service.can_traverse(state, from_coord, neighbor, unit_state):
-			continue
-		var distance := grid_service.get_distance(neighbor, target_coord)
-		if distance < best_distance:
-			best_distance = distance
-			best_coord = neighbor
-	return best_coord
-
-
-func _is_unit_at_or_below_hp_basis_points(unit_state: BattleUnitState, threshold_basis_points: int) -> bool:
-	if unit_state == null or unit_state.attribute_snapshot == null:
-		return false
-	var hp_max := maxi(int(unit_state.attribute_snapshot.get_value(&"hp_max")), 1)
-	var clamped_threshold := clampi(threshold_basis_points, 0, HP_BASIS_POINTS_DENOMINATOR)
-	var current_hp := clampi(int(unit_state.current_hp), 0, hp_max)
-	return current_hp * HP_BASIS_POINTS_DENOMINATOR <= hp_max * clamped_threshold

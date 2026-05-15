@@ -30,6 +30,5 @@ attribute_overrides = {
 "mp_max": 120,
 "action_points": 2,
 "attack_bonus": 6,
-"armor_class": 12,
-"armor_ac_bonus": 0,
+"deflection_bonus": 4,
 }

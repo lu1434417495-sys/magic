@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="3_variant"]
+
+[sub_resource type="Resource" id="Variant_dynamic_high"]
+script = ExtResource("3_variant")
+variant_id = &"dynamic_high"
+target_mode = &"ground"
+footprint_pattern = &"single"
+min_skill_level = 10
+
+[sub_resource type="Resource" id="Combat_dynamic"]
+script = ExtResource("2_combat")
+skill_id = &"valid_dynamic_variant_level_skill"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_coord"
+selection_order_mode = &"stable"
+cast_variants = Array[ExtResource("3_variant")]([SubResource("Variant_dynamic_high")])
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"valid_dynamic_variant_level_skill"
+display_name = "合法动态等级形态"
+icon_id = &"valid_dynamic_variant_level_skill"
+description = "用于验证动态等级上限技能允许高等级变体。"
+skill_type = &"active"
+max_level = 0
+dynamic_max_level_stat_id = &"test_dynamic_level"
+dynamic_max_level_base = 1
+dynamic_max_level_per_stat = 1
+mastery_curve = PackedInt32Array()
+level_description_template = "动态等级描述"
+level_description_configs = {
+"0": {},
+"1": {},
+"2": {},
+"3": {},
+"4": {},
+"5": {},
+"6": {},
+"7": {},
+"8": {},
+"9": {},
+"10": {}
+}
+learn_source = &"book"
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Combat_dynamic")

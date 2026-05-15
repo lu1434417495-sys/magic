@@ -6,6 +6,7 @@ class_name BattleTerrainEffectState
 extends RefCounted
 
 const BATTLE_TERRAIN_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
+const COMBAT_TARGET_TEAM_CONTENT_RULES = preload("res://scripts/player/progression/combat_target_team_content_rules.gd")
 const _SERIALIZED_FIELD_NAMES := [
 	"field_instance_id",
 	"effect_id",
@@ -105,6 +106,8 @@ static func from_dict(data: Variant):
 	for field_name in _OPTIONAL_STRING_FIELDS:
 		if not _is_string_like(typed_data[field_name]):
 			return null
+	if not COMBAT_TARGET_TEAM_CONTENT_RULES.is_valid_skill_target_team_filter(StringName(typed_data["target_team_filter"])):
+		return null
 	for field_name in _INTEGER_FIELDS:
 		if typed_data[field_name] is not int:
 			return null

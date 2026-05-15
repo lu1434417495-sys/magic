@@ -2,6 +2,7 @@ class_name QuestDef
 extends Resource
 
 const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
+const PENDING_CHARACTER_REWARD_CONTENT_RULES = preload("res://scripts/player/progression/pending_character_reward_content_rules.gd")
 
 const OBJECTIVE_SUBMIT_ITEM: StringName = &"submit_item"
 const OBJECTIVE_DEFEAT_ENEMY: StringName = &"defeat_enemy"
@@ -297,6 +298,14 @@ static func _validate_pending_character_reward(quest_id_value: StringName, rewar
 		var amount := int(entry_data.get("amount", 0))
 		if entry_type == &"":
 			errors.append("QuestDef %s 的 pending_character_reward entry 缺少 entry_type。" % quest_id_text)
+		elif not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(entry_type):
+			errors.append(
+				"QuestDef %s has unsupported pending_character_reward entry_type %s. Supported: %s." % [
+					quest_id_text,
+					String(entry_type),
+					PENDING_CHARACTER_REWARD_CONTENT_RULES.valid_entry_type_label(),
+				]
+			)
 		if target_id == &"":
 			errors.append("QuestDef %s 的 pending_character_reward entry 缺少 target_id。" % quest_id_text)
 		if amount == 0:

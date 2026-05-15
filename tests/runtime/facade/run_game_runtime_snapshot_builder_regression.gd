@@ -6,7 +6,11 @@ const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_sess
 const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
 const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_snapshot_builder.gd")
 const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/game_text_snapshot_renderer.gd")
+const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const PartyState = preload("res://scripts/player/progression/party_state.gd")
 const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
+const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -22,6 +26,7 @@ func _run() -> void:
 	_test_snapshot_builder_matches_facade_outputs()
 	_test_text_snapshot_redacts_host_log_paths()
 	_test_snapshot_builder_exposes_party_quest_snapshot()
+	_test_snapshot_builder_exposes_member_progression_snapshot()
 	_test_snapshot_builder_rejects_legacy_quest_container_shapes()
 	_test_text_snapshot_requires_explicit_quest_stage_id()
 	_test_text_snapshot_rejects_legacy_window_and_report_fields()
@@ -187,6 +192,77 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	_assert_true(text_snapshot.contains("quest=contract_settlement_warehouse | stage=claimable"), "文本快照应渲染待领奖励任务明细。")
 
 	builder.dispose()
+
+
+func _test_snapshot_builder_exposes_member_progression_snapshot() -> void:
+	var party_state := PartyState.new()
+	party_state.leader_member_id = &"player_sword_01"
+	party_state.active_member_ids = [&"player_sword_01"]
+
+	var member_state := PartyMemberState.new()
+	member_state.member_id = &"player_sword_01"
+	member_state.display_name = "剑士"
+	member_state.current_aura = 2
+	member_state.progression.unit_id = member_state.member_id
+	var unlocked_resources: Array[StringName] = [&"hp", &"stamina", &"mp", &"aura"]
+	member_state.progression.unlocked_combat_resource_ids = unlocked_resources
+	member_state.progression.active_level_trigger_core_skill_id = &"warrior_heavy_strike"
+	var locked_triggers: Array[StringName] = [&"mage_blink"]
+	member_state.progression.locked_level_trigger_skill_ids = locked_triggers
+	var blocked_relearn: Array[StringName] = [&"old_focus"]
+	member_state.progression.blocked_relearn_skill_ids = blocked_relearn
+
+	var core_skill := UnitSkillProgress.new()
+	core_skill.skill_id = &"warrior_heavy_strike"
+	core_skill.is_learned = true
+	core_skill.skill_level = 3
+	core_skill.is_core = true
+	core_skill.assigned_profession_id = &"warrior"
+	core_skill.is_level_trigger_active = true
+	member_state.progression.set_skill_progress(core_skill)
+
+	var locked_skill := UnitSkillProgress.new()
+	locked_skill.skill_id = &"mage_blink"
+	locked_skill.is_learned = true
+	locked_skill.skill_level = 1
+	locked_skill.is_level_trigger_locked = true
+	locked_skill.core_max_growth_claimed = true
+	member_state.progression.set_skill_progress(locked_skill)
+
+	var profession := UnitProfessionProgress.new()
+	profession.profession_id = &"warrior"
+	profession.rank = 2
+	profession.is_active = true
+	var profession_core_skill_ids: Array[StringName] = [&"warrior_heavy_strike"]
+	profession.core_skill_ids = profession_core_skill_ids
+	var profession_granted_skill_ids: Array[StringName] = [&"warrior_guard_break"]
+	profession.granted_skill_ids = profession_granted_skill_ids
+	member_state.progression.set_profession_progress(profession)
+	party_state.set_member_state(member_state)
+
+	var runtime := FakeQuestRuntime.new()
+	runtime.party_state = party_state
+	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
+	builder.setup(runtime)
+	var snapshot: Dictionary = builder.build_headless_snapshot()
+	var text_snapshot := builder.build_text_snapshot()
+	builder.dispose()
+
+	var member_snapshot := _find_member_snapshot(snapshot, "player_sword_01")
+	_assert_true(not member_snapshot.is_empty(), "member progression 回归前置：应能找到主角成员快照。")
+	if member_snapshot.is_empty():
+		return
+	_assert_eq(member_snapshot.get("unlocked_combat_resource_ids", []), ["aura", "hp", "mp", "stamina"], "成员快照应稳定暴露已解锁战斗资源。")
+	_assert_eq(member_snapshot.get("active_core_skill_ids", []), ["warrior_heavy_strike"], "成员快照应暴露激活核心技能列表。")
+	_assert_eq(String(member_snapshot.get("active_level_trigger_core_skill_id", "")), "warrior_heavy_strike", "成员快照应暴露 active level trigger。")
+	_assert_eq(member_snapshot.get("locked_level_trigger_skill_ids", []), ["mage_blink"], "成员快照应暴露 locked trigger 技能。")
+	_assert_eq(member_snapshot.get("blocked_relearn_skill_ids", []), ["old_focus"], "成员快照应暴露 blocked relearn 技能。")
+	var skill_entries: Array = member_snapshot.get("skill_entries", [])
+	var profession_entries: Array = member_snapshot.get("profession_entries", [])
+	_assert_eq(skill_entries.size(), 2, "成员快照应暴露 learned skill 详情。")
+	_assert_eq(profession_entries.size(), 1, "成员快照应暴露 profession 详情。")
+	_assert_true(text_snapshot.contains("member_skill=player_sword_01 | warrior_heavy_strike | lv=3"), "文本快照应渲染技能等级。")
+	_assert_true(text_snapshot.contains("member_profession=player_sword_01 | warrior | rank=2"), "文本快照应渲染职业 rank。")
 
 
 func _test_snapshot_builder_rejects_legacy_quest_container_shapes() -> void:
@@ -707,6 +783,19 @@ func _build_party_quest_snapshot(party_state) -> Dictionary:
 	return snapshot.get("party", {}).get("quests", {})
 
 
+func _find_member_snapshot(snapshot: Dictionary, member_id: String) -> Dictionary:
+	var members_variant = snapshot.get("party", {}).get("members", [])
+	if members_variant is not Array:
+		return {}
+	for member_variant in members_variant:
+		if member_variant is not Dictionary:
+			continue
+		var member: Dictionary = member_variant
+		if String(member.get("member_id", "")) == member_id:
+			return member
+	return {}
+
+
 func _build_snapshot_quest_payload(quest_id: String) -> Dictionary:
 	return {
 		"quest_id": quest_id,
@@ -763,7 +852,7 @@ class FakeLegacyQuestPartyState:
 class FakeQuestRuntime:
 	extends RefCounted
 
-	var party_state: FakeQuestPartyState = null
+	var party_state = null
 	var active_modal_id := ""
 	var contract_board_window_data: Dictionary = {}
 	var forge_window_data: Dictionary = {}
@@ -834,6 +923,10 @@ class FakeQuestRuntime:
 
 	func get_member_achievement_summary(_member_id: StringName) -> Dictionary:
 		return {}
+
+	func get_member_display_name(member_id: StringName) -> String:
+		var member_state = party_state.get_member_state(member_id) if party_state != null else null
+		return member_state.display_name if member_state != null else ""
 
 	func get_member_attribute_snapshot(_member_id: StringName):
 		return null

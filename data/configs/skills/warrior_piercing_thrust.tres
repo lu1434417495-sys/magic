@@ -9,7 +9,6 @@ script = ExtResource("3_agipl")
 effect_type = &"damage"
 power = 0
 max_skill_level = 2
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "requires_weapon": true,
@@ -23,7 +22,6 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 3
 max_skill_level = 4
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "dice_count": 1,
@@ -38,7 +36,6 @@ script = ExtResource("3_agipl")
 effect_type = &"damage"
 power = 0
 min_skill_level = 5
-damage_tag = &"physical_pierce"
 params = {
 "add_weapon_dice": true,
 "dice_count": 1,

@@ -370,7 +370,7 @@ func _assert_granted_skill(
 		if grant == null or grant.skill_id != expected_skill_id:
 			continue
 		_assert_eq(grant.minimum_skill_level, 1, "%s %s grant should start from minimum skill level 1." % [owner_label, String(expected_skill_id)])
-		_assert_eq(grant.grant_level, 1, "%s %s grant should grant skill level 1." % [owner_label, String(expected_skill_id)])
+		_assert_true(not _resource_has_property(grant, "grant_level"), "%s %s grant should not expose legacy grant_level." % [owner_label, String(expected_skill_id)])
 		_assert_eq(grant.charge_kind, expected_charge_kind, "%s %s grant should use expected charge kind." % [owner_label, String(expected_skill_id)])
 		_assert_eq(grant.charges, expected_charges, "%s %s grant should have expected charges." % [owner_label, String(expected_skill_id)])
 		return
@@ -422,8 +422,8 @@ func _assert_titan_colossus_form_skill(skill_defs: Dictionary) -> void:
 	if skill == null or skill.combat_profile == null:
 		return
 	var combat_profile := skill.combat_profile
-	_assert_eq(combat_profile.target_mode, &"self", "Titan Colossus Form should target self.")
-	_assert_eq(combat_profile.target_team_filter, &"ally", "Titan Colossus Form should be an ally/self effect.")
+	_assert_eq(combat_profile.target_mode, &"unit", "Titan Colossus Form should use unit routing for self targeting.")
+	_assert_eq(combat_profile.target_team_filter, &"self", "Titan Colossus Form should only target self.")
 	_assert_eq(combat_profile.target_selection_mode, &"self", "Titan Colossus Form should use self target selection.")
 	_assert_eq(combat_profile.effect_defs.size(), 1, "Titan Colossus Form should have one body size effect.")
 	if combat_profile.effect_defs.size() >= 1:
@@ -481,6 +481,15 @@ func _assert_modifier(
 func _array_contains_text(values: Array, fragment: String) -> bool:
 	for value in values:
 		if String(value).contains(fragment):
+			return true
+	return false
+
+
+func _resource_has_property(resource: Resource, property_name: String) -> bool:
+	if resource == null:
+		return false
+	for property_info in resource.get_property_list():
+		if String(property_info.get("name", "")) == property_name:
 			return true
 	return false
 

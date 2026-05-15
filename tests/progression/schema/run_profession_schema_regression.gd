@@ -70,6 +70,8 @@ func _run() -> void:
 	_test_seed_profession_resources_scan_and_validate()
 	_test_progression_registry_and_game_session_cache_scanned_professions()
 	_test_profession_registry_reports_missing_id_duplicate_and_illegal_refs()
+	_test_profession_gate_reachability_reports_structural_deadlocks()
+	_test_profession_gate_reachability_allows_valid_rank_graphs()
 
 	if _failures.is_empty():
 		print("Profession schema regression: PASS")
@@ -180,6 +182,131 @@ func _test_profession_registry_reports_missing_id_duplicate_and_illegal_refs() -
 		_has_error_containing(validation_errors, "uses unsupported bab_progression three-quarter"),
 		"职业注册表应显式报告非法 BAB 成长档位。"
 	)
+
+
+func _test_profession_gate_reachability_reports_structural_deadlocks() -> void:
+	var rank_one_target := _make_schema_profession(&"rank_one_target", 1)
+	var over_max_gate := _make_schema_profession(&"over_max_gate", 1, [&"rank_one_target", 2])
+	var self_unlock_gate := _make_schema_profession(&"self_unlock_gate", 1, [&"self_unlock_gate", 1])
+	var self_rank_lock := _make_schema_profession(&"self_rank_lock", 2)
+	self_rank_lock.rank_requirements = [_make_rank_requirement(2, [&"self_rank_lock", 2])]
+	var unlock_cycle_a := _make_schema_profession(&"unlock_cycle_a", 1, [&"unlock_cycle_b", 1])
+	var unlock_cycle_b := _make_schema_profession(&"unlock_cycle_b", 1, [&"unlock_cycle_a", 1])
+	var rank_cycle_a := _make_schema_profession(&"rank_cycle_a", 2)
+	rank_cycle_a.rank_requirements = [_make_rank_requirement(2, [&"rank_cycle_b", 2])]
+	var rank_cycle_b := _make_schema_profession(&"rank_cycle_b", 2)
+	rank_cycle_b.rank_requirements = [_make_rank_requirement(2, [&"rank_cycle_a", 2])]
+
+	var registry := _make_profession_registry_with_defs([
+		rank_one_target,
+		over_max_gate,
+		self_unlock_gate,
+		self_rank_lock,
+		unlock_cycle_a,
+		unlock_cycle_b,
+		rank_cycle_a,
+		rank_cycle_b,
+	])
+	var validation_errors := registry._collect_validation_errors()
+
+	_assert_true(
+		_has_error_containing(validation_errors, "requires rank 2 for gate rank_one_target but rank_one_target max_rank is 1"),
+		"profession gate 要求超过目标 max_rank 时应被静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "cannot require itself in unlock.required_profession_ranks"),
+		"职业 unlock gate 自引用时应被静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "rank_2.required_profession_ranks cannot require self rank 2"),
+		"职业 rank-up gate 要求自身达到当前 target_rank 时应被静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "unlock_cycle_a has structurally unreachable profession gate unlock_cycle_b@1"),
+		"跨职业 unlock 循环应被 rank 图可达性校验拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(validation_errors, "rank_cycle_a has structurally unreachable profession gate rank_cycle_b@2"),
+		"高阶 rank 互锁应被 rank 图可达性校验拒绝。"
+	)
+
+
+func _test_profession_gate_reachability_allows_valid_rank_graphs() -> void:
+	var gate_free_base := _make_schema_profession(&"gate_free_base", 1)
+	var rank_self_ok := _make_schema_profession(&"rank_self_ok", 3)
+	rank_self_ok.rank_requirements = [
+		_make_rank_requirement(2, [&"rank_self_ok", 1]),
+		_make_rank_requirement(3, [&"rank_self_ok", 2]),
+	]
+	var cross_source := _make_schema_profession(&"cross_source", 2)
+	cross_source.rank_requirements = [_make_rank_requirement(2, [&"gate_free_base", 1])]
+	var long_chain := _make_schema_profession(&"long_chain", 3)
+	long_chain.rank_requirements = [
+		_make_rank_requirement(2),
+		_make_rank_requirement(3, [&"cross_source", 2]),
+	]
+
+	var registry := _make_profession_registry_with_defs([
+		gate_free_base,
+		rank_self_ok,
+		cross_source,
+		long_chain,
+	])
+
+	_assert_true(
+		registry._collect_validation_errors().is_empty(),
+		"合法旧 rank 自引用、跨职业低阶依赖和长链高阶依赖不应被可达性校验误杀。"
+	)
+
+
+func _make_profession_registry_with_defs(profession_defs: Array) -> ProfessionContentRegistry:
+	var registry := ProfessionContentRegistry.new({})
+	registry._profession_defs.clear()
+	registry._validation_errors.clear()
+	for profession_def in profession_defs:
+		if profession_def is ProfessionDef:
+			registry._profession_defs[profession_def.profession_id] = profession_def
+	return registry
+
+
+func _make_schema_profession(
+	profession_id: StringName,
+	max_rank: int,
+	unlock_gate_data: Array = []
+) -> ProfessionDef:
+	var profession_def := ProfessionDef.new()
+	profession_def.profession_id = profession_id
+	profession_def.display_name = String(profession_id)
+	profession_def.max_rank = max_rank
+	profession_def.hit_die_sides = 8
+	profession_def.bab_progression = &"half"
+	profession_def.is_initial_profession = true
+	profession_def.unlock_requirement = _make_unlock_requirement(unlock_gate_data)
+	for target_rank in range(2, max_rank + 1):
+		profession_def.rank_requirements.append(_make_rank_requirement(target_rank))
+	return profession_def
+
+
+func _make_unlock_requirement(gate_data: Array = []) -> ProfessionPromotionRequirement:
+	var requirement := ProfessionPromotionRequirement.new()
+	if not gate_data.is_empty():
+		requirement.required_profession_ranks = [_make_profession_gate(gate_data[0], int(gate_data[1]))]
+	return requirement
+
+
+func _make_rank_requirement(target_rank: int, gate_data: Array = []) -> ProfessionRankRequirement:
+	var requirement := ProfessionRankRequirement.new()
+	requirement.target_rank = target_rank
+	if not gate_data.is_empty():
+		requirement.required_profession_ranks = [_make_profession_gate(gate_data[0], int(gate_data[1]))]
+	return requirement
+
+
+func _make_profession_gate(profession_id: StringName, min_rank: int) -> ProfessionRankGate:
+	var gate := ProfessionRankGate.new()
+	gate.profession_id = profession_id
+	gate.min_rank = min_rank
+	return gate
 
 
 func _has_error_containing(errors: Array[String], expected_fragment: String) -> bool:

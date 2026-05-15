@@ -38,6 +38,7 @@ func _run() -> void:
 	_test_progression_registry_exposes_identity_bundle()
 	_test_race_registry_reports_missing_and_duplicate_ids()
 	_test_racial_granted_skill_limited_charges_must_be_positive()
+	_test_racial_granted_skill_minimum_level_allows_zero_and_rejects_negative()
 	_test_age_registry_loads_profile_stage_rules()
 	_test_race_trait_registry_validates_phase1_whitelists()
 	_test_bloodline_and_ascension_registries_load_stage_defs()
@@ -137,6 +138,37 @@ func _test_racial_granted_skill_limited_charges_must_be_positive() -> void:
 	_assert_true(
 		_has_error_containing(errors, "racial_granted_skills[1].charges must be > 0 for charge_kind per_turn"),
 		"per_turn racial_granted_skills 应要求正数 charges。"
+	)
+
+
+func _test_racial_granted_skill_minimum_level_allows_zero_and_rejects_negative() -> void:
+	var valid_directory_path := _make_temp_directory("racial_grant_zero_level")
+	var zero_level_race := _make_race(&"zero_level_race")
+	zero_level_race.racial_granted_skills = [
+		_make_racial_granted_skill(&"zero_level_skill", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 1),
+	]
+	zero_level_race.racial_granted_skills[0].minimum_skill_level = 0
+	_save_resource(zero_level_race, valid_directory_path, "zero_level_race")
+
+	var valid_registry := RaceContentRegistry.new()
+	valid_registry.load_from_directory(valid_directory_path)
+	var valid_errors := valid_registry.validate()
+	_assert_true(valid_errors.is_empty(), "RacialGrantedSkill.minimum_skill_level = 0 应是合法配置。errors=%s" % str(valid_errors))
+
+	var invalid_directory_path := _make_temp_directory("racial_grant_negative_level")
+	var negative_level_race := _make_race(&"negative_level_race")
+	negative_level_race.racial_granted_skills = [
+		_make_racial_granted_skill(&"negative_level_skill", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 1),
+	]
+	negative_level_race.racial_granted_skills[0].minimum_skill_level = -1
+	_save_resource(negative_level_race, invalid_directory_path, "negative_level_race")
+
+	var invalid_registry := RaceContentRegistry.new()
+	invalid_registry.load_from_directory(invalid_directory_path)
+	var invalid_errors := invalid_registry.validate()
+	_assert_true(
+		_has_error_containing(invalid_errors, "racial_granted_skills[0].minimum_skill_level must be >= 0"),
+		"RacialGrantedSkill.minimum_skill_level 只应拒绝负数。"
 	)
 
 
@@ -255,7 +287,6 @@ func _make_racial_granted_skill(skill_id: StringName, charge_kind: StringName, c
 	var granted_skill := RacialGrantedSkill.new()
 	granted_skill.skill_id = skill_id
 	granted_skill.minimum_skill_level = 1
-	granted_skill.grant_level = 1
 	granted_skill.charge_kind = charge_kind
 	granted_skill.charges = charges
 	return granted_skill

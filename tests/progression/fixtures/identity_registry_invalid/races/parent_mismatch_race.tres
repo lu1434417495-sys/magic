@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RaceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/race_def.gd" id="1_race"]
+
+[resource]
+script = ExtResource("1_race")
+race_id = &"parent_mismatch_race"
+display_name = "Parent Mismatch Race"
+description = "Fixture covering a race listing a subrace whose parent points elsewhere."
+age_profile_id = &"human_age_profile"
+subrace_ids = Array[StringName]([&"parent_mismatch_subrace"])
+body_size_category = &"medium"
+base_speed = 6

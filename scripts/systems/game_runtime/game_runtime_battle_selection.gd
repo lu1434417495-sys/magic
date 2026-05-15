@@ -4,6 +4,7 @@ extends RefCounted
 const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
 const BATTLE_TARGET_COLLECTION_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_target_collection_service.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const BATTLE_TARGET_TEAM_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
@@ -855,21 +856,7 @@ func _is_boss_target(target_unit: BattleUnitState) -> bool:
 
 
 func _skill_target_filter_matches_unit(active_unit: BattleUnitState, target_unit: BattleUnitState, target_team_filter: StringName) -> bool:
-	if active_unit == null or target_unit == null:
-		return false
-	var is_same_unit := active_unit.unit_id == target_unit.unit_id
-	var is_same_faction := String(active_unit.faction_id) == String(target_unit.faction_id)
-	match target_team_filter:
-		&"enemy":
-			return not is_same_faction
-		&"ally":
-			return is_same_faction
-		&"self":
-			return is_same_unit
-		&"", &"any":
-			return true
-		_:
-			return true
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_unit_valid_for_filter(active_unit, target_unit, target_team_filter)
 
 
 func _get_effective_skill_range(active_unit: BattleUnitState, skill_def) -> int:

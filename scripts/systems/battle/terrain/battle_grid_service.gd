@@ -629,7 +629,6 @@ func resolve_unit_move_path(
 	from_coord: Vector2i,
 	to_coord: Vector2i,
 	max_move_points: int,
-	first_step_cost_discount: int = 0,
 	move_cost_provider: Callable = Callable()
 ) -> Dictionary:
 	if state == null:
@@ -669,26 +668,20 @@ func resolve_unit_move_path(
 		}
 
 	var sanitized_max_move_points := maxi(max_move_points, 0)
-	var has_initial_discount := first_step_cost_discount > 0
 
 	# A* with Manhattan heuristic (admissible on a 4-connected grid where step_cost >= 1).
-	# State is the cell coord. `has_discount` only matters for the start cell — after leaving
-	# the start, the per-call first-step discount is exhausted, so subsequent states do not
-	# need to be keyed on it.
 	# best_costs[Vector2i] = best known g-cost from start to that cell.
 	# previous[Vector2i]   = predecessor cell on the best known path.
 	# visited[Vector2i]    = true once popped at its best cost (locked).
-	# Heap entries: [f_score, g_cost, coord, has_discount].
+	# Heap entries: [f_score, g_cost, coord].
 	var best_costs: Dictionary = {from_coord: 0}
 	var previous: Dictionary = {}
 	var visited: Dictionary = {}
 	var heap: Array = []
-	var initial_pending_discount := first_step_cost_discount if has_initial_discount else 0
 	_move_heap_push(heap, [
-		_move_path_heuristic(from_coord, to_coord, initial_pending_discount),
+		_move_path_heuristic(from_coord, to_coord),
 		0,
 		from_coord,
-		has_initial_discount,
 	])
 
 	var found_target := false
@@ -697,7 +690,6 @@ func resolve_unit_move_path(
 		var entry: Array = _move_heap_pop(heap)
 		var current_cost: int = int(entry[1])
 		var current_coord: Vector2i = entry[2]
-		var current_has_discount: bool = bool(entry[3])
 
 		# Stale entry — a better g-cost finalized this coord earlier.
 		if visited.has(current_coord):
@@ -716,16 +708,13 @@ func resolve_unit_move_path(
 			var step_cost := get_unit_move_cost(state, unit_state, neighbor_coord)
 			if move_cost_provider.is_valid():
 				step_cost = int(move_cost_provider.call(unit_state, neighbor_coord))
-			if current_has_discount and first_step_cost_discount > 0:
-				step_cost = maxi(step_cost - first_step_cost_discount, 0)
 			var next_cost := current_cost + step_cost
 			if next_cost >= int(best_costs.get(neighbor_coord, 2147483647)):
 				continue
 			best_costs[neighbor_coord] = next_cost
 			previous[neighbor_coord] = current_coord
-			# Discount is consumed after leaving the start cell; no pending discount downstream.
-			var h := _move_path_heuristic(neighbor_coord, to_coord, 0)
-			_move_heap_push(heap, [next_cost + h, next_cost, neighbor_coord, false])
+			var h := _move_path_heuristic(neighbor_coord, to_coord)
+			_move_heap_push(heap, [next_cost + h, next_cost, neighbor_coord])
 
 	if not found_target:
 		if not can_place_footprint(state, to_coord, unit_state.footprint_size, unit_state.unit_id, unit_state):
@@ -764,6 +753,65 @@ func resolve_unit_move_path(
 		"cost": final_cost,
 		"path": anchor_path,
 		"message": "可移动。",
+	}
+
+
+func build_unit_move_path_tree(
+	state: BattleState,
+	unit_state: BattleUnitState,
+	from_coord: Vector2i,
+	max_path_cost: int,
+	move_cost_provider: Callable = Callable()
+) -> Dictionary:
+	if state == null or unit_state == null or not is_inside(state, from_coord):
+		return {
+			"costs": {},
+			"previous": {},
+			"steps": {},
+		}
+
+	var sanitized_max_path_cost := maxi(max_path_cost, 0)
+	var best_costs: Dictionary = {from_coord: 0}
+	var previous: Dictionary = {}
+	var steps: Dictionary = {from_coord: 0}
+	var visited: Dictionary = {}
+	var heap: Array = []
+	_move_heap_push(heap, [
+		0,
+		0,
+		from_coord,
+	])
+
+	while not heap.is_empty():
+		var entry: Array = _move_heap_pop(heap)
+		var current_cost: int = int(entry[1])
+		var current_coord: Vector2i = entry[2]
+		if visited.has(current_coord):
+			continue
+		visited[current_coord] = true
+
+		for neighbor_coord in get_neighbors_4(state, current_coord):
+			if visited.has(neighbor_coord):
+				continue
+			if not can_unit_step_between_anchors(state, unit_state, current_coord, neighbor_coord):
+				continue
+			var step_cost := get_unit_move_cost(state, unit_state, neighbor_coord)
+			if move_cost_provider.is_valid():
+				step_cost = int(move_cost_provider.call(unit_state, neighbor_coord))
+			var next_cost := current_cost + step_cost
+			if next_cost > sanitized_max_path_cost:
+				continue
+			if next_cost >= int(best_costs.get(neighbor_coord, 2147483647)):
+				continue
+			best_costs[neighbor_coord] = next_cost
+			previous[neighbor_coord] = current_coord
+			steps[neighbor_coord] = int(steps.get(current_coord, 0)) + 1
+			_move_heap_push(heap, [next_cost, next_cost, neighbor_coord])
+
+	return {
+		"costs": best_costs,
+		"previous": previous,
+		"steps": steps,
 	}
 
 
@@ -994,17 +1042,15 @@ func _get_unit_movement_tags(unit_state: BattleUnitState) -> Array[StringName]:
 	return unit_state.movement_tags if unit_state != null else []
 
 
-func _move_path_heuristic(from_coord: Vector2i, to_coord: Vector2i, pending_discount: int) -> int:
+func _move_path_heuristic(from_coord: Vector2i, to_coord: Vector2i) -> int:
 	# Manhattan distance: admissible on a 4-connected grid because every step adds at least 1
-	# to the true cost. When a first-step discount is still pending, subtract it (clamped at 0)
-	# so the heuristic remains admissible even if the next step's cost could be reduced to 0.
-	var raw := absi(to_coord.x - from_coord.x) + absi(to_coord.y - from_coord.y)
-	return maxi(0, raw - pending_discount)
+	# to the true cost.
+	return absi(to_coord.x - from_coord.x) + absi(to_coord.y - from_coord.y)
 
 
 func _move_heap_push(heap: Array, entry: Array) -> void:
 	# Binary min-heap push, ordered by entry[0] (f_score). entry layout:
-	# [f_score, g_cost, coord, has_discount].
+	# [f_score, g_cost, coord].
 	heap.append(entry)
 	var index := heap.size() - 1
 	while index > 0:

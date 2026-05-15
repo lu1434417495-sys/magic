@@ -157,9 +157,9 @@
 - 行为型 trait 的 `.tres trigger_type` 必须等于正式 dispatch trigger；不能资源写 `passive`，runtime 却按 trait id 触发。
 - `TraitTriggerHooks` 与 `TraitTriggerContentRules.DISPATCH_TRIGGER_TYPES` 增加一致性测试或生成式断言。
 - `RacialGrantedSkill` level 校验：
-  - `minimum_skill_level > 0`。
+  - `minimum_skill_level >= 0`，因为当前技能等级体系允许 0 级。
   - `minimum_skill_level <= SkillDef.max_level`。
-  - `grant_level == minimum_skill_level`，直到 `grant_level` 被删除、重命名或赋予正式语义。
+  - `grant_level` 已移除，身份授予等级只认 `minimum_skill_level`。
 - `ProgressionService.grant_racial_skill()` 也做同样拒绝，避免坏内容绕过 validation。
 
 ### 7. Validation surface and fixture isolation
@@ -221,7 +221,7 @@
   - `skill_level` pending reward entry rejected.
   - quest bad provider/item/skill/enemy cross-ref makes official snapshot fail.
   - profession `min_rank > max_rank`, unlock self-reference, impossible rank self-reference.
-  - racial grant `minimum_skill_level=0`, above max, `grant_level != minimum_skill_level`.
+  - racial grant `minimum_skill_level < 0`, `minimum_skill_level=0`, above max, and absence of legacy `grant_level`.
   - enemy seed completeness and stable domain assertions.
 - `tests/battle_runtime/skills`
   - unknown target filter does not hit arbitrary units.
@@ -249,7 +249,6 @@ Do not include battle simulation or balance runners in this slice.
 - Whether every official content validation error should block app startup, or only block new game / load / content-consuming commands. Current consensus requires fail closed at consuming entry points; full startup hard gate can be decided separately.
 - Whether `skill_level` reward should become a formal entry type. If yes, design it as a separate CU-14 progression rule task.
 - Whether enemy directories may contain unpublished draft resources outside `enemy_content_seed.tres`. If yes, add an explicit draft convention before enforcing completeness.
-- Whether to remove `RacialGrantedSkill.grant_level` after enforcing equality with `minimum_skill_level`.
 
 ## Project Context Units Impact
 

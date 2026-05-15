@@ -17,14 +17,21 @@ current_mp = 8
 current_stamina = 0
 current_ap = 2
 action_threshold = 135
+base_attributes = {
+"strength": 5,
+"agility": 5,
+"constitution": 5,
+"perception": 6,
+"intelligence": 6,
+"willpower": 6
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 8,
 "stamina_max": 0,
 "action_points": 2,
 "attack_bonus": 6,
-"armor_class": 12,
-"armor_ac_bonus": 0
+"deflection_bonus": 4
 }
 skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
 skill_level_map = {
@@ -47,14 +54,21 @@ current_mp = 0
 current_stamina = 4
 current_ap = 2
 action_threshold = 110
+base_attributes = {
+"strength": 5,
+"agility": 7,
+"constitution": 5,
+"perception": 7,
+"intelligence": 4,
+"willpower": 5
+}
 attribute_overrides = {
 "hp_max": 26,
 "mp_max": 0,
 "stamina_max": 4,
 "action_points": 2,
 "attack_bonus": 5,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"deflection_bonus": 4
 }
 skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
 skill_level_map = {

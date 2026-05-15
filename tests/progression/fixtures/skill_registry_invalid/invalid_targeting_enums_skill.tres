@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="3_variant"]
+
+[sub_resource type="Resource" id="Variant_self_target"]
+script = ExtResource("3_variant")
+variant_id = &"self_variant"
+target_mode = &"self"
+footprint_pattern = &"single"
+
+[sub_resource type="Resource" id="Variant_typo_target"]
+script = ExtResource("3_variant")
+variant_id = &"typo_variant"
+target_mode = &"phantom"
+footprint_pattern = &"hex"
+min_skill_level = -1
+
+[sub_resource type="Resource" id="Variant_static_overlevel"]
+script = ExtResource("3_variant")
+variant_id = &"overlevel_variant"
+target_mode = &"ground"
+footprint_pattern = &"single"
+min_skill_level = 2
+
+[sub_resource type="Resource" id="Combat_invalid_targeting"]
+script = ExtResource("2_combat")
+skill_id = &"invalid_targeting_enums_skill"
+target_mode = &"phantom"
+target_team_filter = &"enemy"
+area_pattern = &"blob"
+level_overrides = {
+1: {
+"area_pattern": "spiral"
+}
+}
+target_selection_mode = &"spiral_selection"
+selection_order_mode = &"chaotic"
+cast_variants = Array[ExtResource("3_variant")]([SubResource("Variant_self_target"), SubResource("Variant_typo_target"), SubResource("Variant_static_overlevel")])
+
+[resource]
+script = ExtResource("1_skill")
+skill_id = &"invalid_targeting_enums_skill"
+display_name = "非法目标协议技能"
+icon_id = &"invalid_targeting_enums_skill"
+description = "用于验证技能目标、范围与变体枚举强校验。"
+skill_type = &"active"
+max_level = 1
+mastery_curve = PackedInt32Array(10)
+learn_source = &"book"
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Combat_invalid_targeting")

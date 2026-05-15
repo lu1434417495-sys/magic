@@ -13,6 +13,5 @@ const VALID_CHARGE_KINDS: Array[StringName] = [
 
 @export var skill_id: StringName = &""
 @export var minimum_skill_level: int = 1
-@export var grant_level: int = 1
 @export var charge_kind: StringName = CHARGE_KIND_PER_BATTLE
 @export var charges: int = 1

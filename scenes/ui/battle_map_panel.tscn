@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://ksx1yp4hfmd1"]
 
 [ext_resource type="Script" uid="uid://dvuekldbrvvae" path="res://scripts/ui/battle_map_panel.gd" id="1_pnl12"]
+[ext_resource type="Script" path="res://scripts/ui/battle_hover_preview_overlay.gd" id="2_hover"]
 
 [node name="BattleMapPanel" type="Control" unique_id=905716978]
 layout_mode = 3
@@ -84,14 +85,25 @@ alignment = 1
 
 [node name="RoundChip" type="PanelContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell" unique_id=2143009001]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
 size_flags_vertical = 4
 
-[node name="RoundLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell/RoundChip" unique_id=2023688852]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(120, 0)
+[node name="RoundLayout" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell/RoundChip"]
 layout_mode = 2
-text = "TU -- · READY 0"
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="TuLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell/RoundChip/RoundLayout" unique_id=2023688852]
+unique_name_in_owner = true
+layout_mode = 2
+text = "TU --"
+horizontal_alignment = 1
+
+[node name="ReadyLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell/RoundChip/RoundLayout" unique_id=2023688853]
+unique_name_in_owner = true
+layout_mode = 2
+text = "READY 0"
 horizontal_alignment = 1
 
 [node name="RightCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
@@ -286,3 +298,11 @@ size_flags_vertical = 3
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 columns = 6
+
+[node name="HoverPreviewOverlay" type="PanelContainer" parent="HudRoot" unique_id=2143009070]
+unique_name_in_owner = true
+layout_mode = 1
+mouse_filter = 2
+visible = false
+z_index = 256
+script = ExtResource("2_hover")

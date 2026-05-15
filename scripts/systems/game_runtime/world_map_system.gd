@@ -614,13 +614,25 @@ func _on_battle_cell_right_clicked(coord: Vector2i) -> void:
 func _on_battle_cell_hovered(coord: Vector2i) -> void:
 	if _runtime == null or not _runtime_proxy.is_battle_active():
 		return
-	var selected_skill_id = _runtime_proxy.get_selected_battle_skill_id()
-	if selected_skill_id == &"" or battle_map_panel.is_loading_battle():
+	if battle_map_panel.is_loading_battle():
 		return
+	var selected_skill_id = _runtime_proxy.get_selected_battle_skill_id()
 	var valid_target_coords = _runtime_proxy.get_battle_overlay_target_coords()
+	var selected_skill_variant_id = _runtime_proxy.get_selected_battle_skill_variant_id()
+	var battle_state = _runtime_proxy.get_battle_state()
+	# Hover 浮层（A1）：技能未选中也要刷新，浮层会回退到 target_unit-only 形态（B2/B4）。
+	battle_map_panel.update_hover_preview(
+		battle_state,
+		coord,
+		valid_target_coords,
+		selected_skill_id,
+		selected_skill_variant_id
+	)
+	if selected_skill_id == &"":
+		return
 	var selected_coord = coord if valid_target_coords.has(coord) else _runtime_proxy.get_battle_selected_coord()
 	battle_map_panel.refresh_overlay(
-		_runtime_proxy.get_battle_state(),
+		battle_state,
 		selected_coord,
 		selected_skill_id,
 		_runtime_proxy.get_selected_battle_skill_name(),
@@ -629,7 +641,7 @@ func _on_battle_cell_hovered(coord: Vector2i) -> void:
 		valid_target_coords,
 		_runtime_proxy.get_selected_battle_skill_required_coord_count(),
 		_runtime_proxy.get_selected_battle_skill_target_unit_ids(),
-		_runtime_proxy.get_selected_battle_skill_variant_id()
+		selected_skill_variant_id
 	)
 
 

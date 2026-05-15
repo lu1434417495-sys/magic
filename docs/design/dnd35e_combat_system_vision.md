@@ -152,7 +152,7 @@ disadvantage: 掷 2d20 取低
 ### 2.1 AC 组件化
 
 ```
-AC = 10
+AC = 8
    + armor_bonus          # 护甲加值（穿甲）
    + shield_bonus         # 盾牌加值（持盾）
    + dex_modifier         # 敏捷修正（受甲上限）
@@ -1089,8 +1089,8 @@ ranged_attack:      BAB + dex_mod + size_mod + weapon_enchant
 cmb:                BAB + str_mod + size_mod
 
 # 防御
-armor_class:        10 + armor + shield + dex_mod(capped) + size + natural + deflection + dodge
-touch_ac:           10 + dex_mod + size + deflection + dodge
+armor_class:        8 + armor + shield + dex_mod(capped) + size + natural + deflection + dodge
+touch_ac:           8 + dex_mod + size + deflection + dodge
 flat_footed_ac:     AC - dex_mod - dodge
 cmd:                10 + BAB + str_mod + dex_mod + size_mod
 
@@ -1124,7 +1124,8 @@ size_category: StringName
 hit_dice: int                    # 生命骰数
 hit_dice_sides: int              # 生命骰面数（d8/d10/d12）
 base_attack_bonus: int           # 直接给 BAB，不走职业曲线
-armor_class: int                 # 直接给最终 AC
+base_attributes: Dictionary      # 六维基础属性，AC 从敏捷修正派生
+ac_components: Dictionary        # armor/shield/natural/deflection/dodge 等组件，不直接给最终 AC
 touch_ac: int
 flat_footed_ac: int
 fortitude_save: int

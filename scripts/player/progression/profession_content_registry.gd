@@ -28,6 +28,8 @@ const VALID_GATE_CHECK_MODES := {
 	&"historical": true,
 	&"active_only": true,
 }
+const GATE_CONTEXT_UNLOCK: StringName = &"unlock"
+const GATE_CONTEXT_RANK: StringName = &"rank"
 
 ## 字段说明：缓存职业定义集合字典，集中保存可按键查询的运行时数据。
 var _profession_defs: Dictionary = {}
@@ -122,6 +124,7 @@ func _collect_validation_errors() -> Array[String]:
 			continue
 		_append_profession_validation_errors(errors, profession_id, profession_def)
 
+	_append_profession_rank_reachability_errors(errors)
 	return errors
 
 
@@ -193,7 +196,8 @@ func _append_unlock_requirement_errors(
 		errors,
 		profession_id,
 		unlock_requirement.required_profession_ranks,
-		"unlock.required_profession_ranks"
+		"unlock.required_profession_ranks",
+		GATE_CONTEXT_UNLOCK
 	)
 
 	for attribute_rule in unlock_requirement.required_attribute_rules:
@@ -250,7 +254,9 @@ func _append_rank_requirement_errors(
 			errors,
 			profession_id,
 			rank_requirement.required_profession_ranks,
-			"rank_%d.required_profession_ranks" % rank_requirement.target_rank
+			"rank_%d.required_profession_ranks" % rank_requirement.target_rank,
+			GATE_CONTEXT_RANK,
+			rank_requirement.target_rank
 		)
 
 	var expected_rank := 2
@@ -387,11 +393,14 @@ func _append_profession_gate_errors(
 	errors: Array[String],
 	profession_id: StringName,
 	gates: Array[ProfessionRankGate],
-	context_label: String
+	context_label: String,
+	context_kind: StringName = &"",
+	target_rank: int = 0
 ) -> void:
 	for gate in gates:
 		if gate == null:
 			continue
+		var referenced_profession_def: ProfessionDef = null
 		if gate.profession_id == &"":
 			errors.append(
 				"Profession %s has an empty profession gate in %s." % [
@@ -408,6 +417,8 @@ func _append_profession_gate_errors(
 					String(context_label),
 				]
 			)
+		else:
+			referenced_profession_def = _profession_defs.get(gate.profession_id) as ProfessionDef
 		if gate.min_rank <= 0:
 			errors.append(
 				"Profession %s requires non-positive min_rank %d for gate %s in %s." % [
@@ -415,6 +426,35 @@ func _append_profession_gate_errors(
 					gate.min_rank,
 					String(gate.profession_id),
 					String(context_label),
+				]
+			)
+		elif referenced_profession_def != null and gate.min_rank > referenced_profession_def.max_rank:
+			errors.append(
+				"Profession %s requires rank %d for gate %s but %s max_rank is %d in %s." % [
+					String(profession_id),
+					gate.min_rank,
+					String(gate.profession_id),
+					String(gate.profession_id),
+					referenced_profession_def.max_rank,
+					String(context_label),
+				]
+			)
+		if context_kind == GATE_CONTEXT_UNLOCK and gate.profession_id == profession_id:
+			errors.append(
+				"Profession %s cannot require itself in %s." % [
+					String(profession_id),
+					String(context_label),
+				]
+			)
+		if context_kind == GATE_CONTEXT_RANK \
+				and gate.profession_id == profession_id \
+				and target_rank > 0 \
+				and gate.min_rank >= target_rank:
+			errors.append(
+				"Profession %s %s cannot require self rank %d." % [
+					String(profession_id),
+					String(context_label),
+					gate.min_rank,
 				]
 			)
 		if gate.check_mode != &"" and not VALID_GATE_CHECK_MODES.has(gate.check_mode):
@@ -425,3 +465,158 @@ func _append_profession_gate_errors(
 					String(context_label),
 				]
 			)
+
+
+func _append_profession_rank_reachability_errors(errors: Array[String]) -> void:
+	var transitions: Array[Dictionary] = []
+	var gate_records: Array[Dictionary] = []
+
+	for profession_key in ProgressionDataUtils.sorted_string_keys(_profession_defs):
+		var profession_id := StringName(profession_key)
+		var profession_def := _profession_defs.get(profession_id) as ProfessionDef
+		if profession_def == null or profession_def.max_rank <= 0:
+			continue
+
+		var unlock_gates: Array[ProfessionRankGate] = []
+		if profession_def.unlock_requirement != null:
+			unlock_gates = profession_def.unlock_requirement.required_profession_ranks
+		transitions.append({
+			"node": _profession_rank_node(profession_id, 1),
+			"deps": _collect_profession_gate_dependency_nodes(
+				profession_id,
+				unlock_gates,
+				"unlock.required_profession_ranks",
+				GATE_CONTEXT_UNLOCK,
+				1,
+				gate_records
+			),
+		})
+
+		for rank_requirement in profession_def.rank_requirements:
+			if rank_requirement == null:
+				continue
+			var target_rank := int(rank_requirement.target_rank)
+			if target_rank < 2 or target_rank > profession_def.max_rank:
+				continue
+			var deps: Array[String] = [_profession_rank_node(profession_id, target_rank - 1)]
+			deps.append_array(
+				_collect_profession_gate_dependency_nodes(
+					profession_id,
+					rank_requirement.required_profession_ranks,
+					"rank_%d.required_profession_ranks" % target_rank,
+					GATE_CONTEXT_RANK,
+					target_rank,
+					gate_records
+				)
+			)
+			transitions.append({
+				"node": _profession_rank_node(profession_id, target_rank),
+				"deps": deps,
+			})
+
+	var reachable_nodes: Dictionary = {}
+	var changed := true
+	while changed:
+		changed = false
+		for transition in transitions:
+			var node := String(transition.get("node", ""))
+			if node.is_empty() or reachable_nodes.has(node):
+				continue
+			var deps: Array = transition.get("deps", [])
+			if not _are_profession_rank_dependencies_reachable(deps, reachable_nodes):
+				continue
+			reachable_nodes[node] = true
+			changed = true
+
+	for gate_record in gate_records:
+		var dependency_node := String(gate_record.get("node", ""))
+		if dependency_node.is_empty() or reachable_nodes.has(dependency_node):
+			continue
+		errors.append(
+			"Profession %s has structurally unreachable profession gate %s in %s (check_mode=%s)." % [
+				String(gate_record.get("profession_id", "")),
+				dependency_node,
+				String(gate_record.get("context_label", "")),
+				String(gate_record.get("check_mode", "")),
+			]
+		)
+
+
+func _collect_profession_gate_dependency_nodes(
+	profession_id: StringName,
+	gates: Array[ProfessionRankGate],
+	context_label: String,
+	context_kind: StringName,
+	target_rank: int,
+	gate_records: Array[Dictionary]
+) -> Array[String]:
+	var dependency_nodes: Array[String] = []
+	for gate in gates:
+		if not _is_profession_gate_valid_for_reachability(profession_id, gate, context_kind, target_rank):
+			continue
+		var dependency_node := _profession_rank_node(gate.profession_id, gate.min_rank)
+		if not dependency_nodes.has(dependency_node):
+			dependency_nodes.append(dependency_node)
+		gate_records.append({
+			"profession_id": profession_id,
+			"node": dependency_node,
+			"context_label": context_label,
+			"check_mode": _resolve_gate_check_mode_for_validation(gate),
+		})
+	return dependency_nodes
+
+
+func _is_profession_gate_valid_for_reachability(
+	profession_id: StringName,
+	gate: ProfessionRankGate,
+	context_kind: StringName,
+	target_rank: int
+) -> bool:
+	if gate == null:
+		return false
+	if gate.profession_id == &"":
+		return false
+	if gate.min_rank <= 0:
+		return false
+	if gate.check_mode != &"" and not VALID_GATE_CHECK_MODES.has(gate.check_mode):
+		return false
+	var referenced_profession_def := _profession_defs.get(gate.profession_id) as ProfessionDef
+	if referenced_profession_def == null:
+		return false
+	if gate.min_rank > referenced_profession_def.max_rank:
+		return false
+	if context_kind == GATE_CONTEXT_UNLOCK and gate.profession_id == profession_id:
+		return false
+	if context_kind == GATE_CONTEXT_RANK \
+			and gate.profession_id == profession_id \
+			and target_rank > 0 \
+			and gate.min_rank >= target_rank:
+		return false
+	return true
+
+
+func _are_profession_rank_dependencies_reachable(deps: Array, reachable_nodes: Dictionary) -> bool:
+	for dependency_node_variant in deps:
+		var dependency_node := String(dependency_node_variant)
+		if dependency_node.is_empty():
+			continue
+		if not reachable_nodes.has(dependency_node):
+			return false
+	return true
+
+
+func _profession_rank_node(profession_id: StringName, rank: int) -> String:
+	return "%s@%d" % [String(profession_id), rank]
+
+
+func _resolve_gate_check_mode_for_validation(gate: ProfessionRankGate) -> StringName:
+	if gate == null:
+		return &"historical"
+	if gate.check_mode != &"":
+		return gate.check_mode
+	var source_profession_def := _profession_defs.get(gate.profession_id) as ProfessionDef
+	if source_profession_def == null:
+		return &"historical"
+	if source_profession_def.dependency_visibility_mode == &"ignore_when_hidden":
+		return &"active_only"
+	return &"historical"

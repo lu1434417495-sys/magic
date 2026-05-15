@@ -10,7 +10,11 @@ const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd"
 const ATTRIBUTE_GROWTH_CONTENT_RULES = preload("res://scripts/player/progression/attribute_growth_content_rules.gd")
 const BATTLE_SAVE_CONTENT_RULES = preload("res://scripts/player/progression/battle_save_content_rules.gd")
 const BODY_SIZE_CONTENT_RULES = preload("res://scripts/player/progression/body_size_content_rules.gd")
+const COMBAT_SKILL_TARGETING_CONTENT_RULES = preload("res://scripts/player/progression/combat_skill_targeting_content_rules.gd")
+const COMBAT_TARGET_TEAM_CONTENT_RULES = preload("res://scripts/player/progression/combat_target_team_content_rules.gd")
+const DAMAGE_TAG_CONTENT_RULES = preload("res://scripts/player/progression/damage_tag_content_rules.gd")
 const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
+const SKILL_LEVEL_DESCRIPTION_CONTENT_RULES = preload("res://scripts/player/progression/skill_level_description_content_rules.gd")
 const TU_GRANULARITY := 5
 const VALID_MASTERY_TRIGGER_MODES := [
 	&"skill_damage_dice_max",
@@ -81,6 +85,13 @@ const VALID_EFFECT_TYPES := [
 	&"terrain_replace_to",
 	&"execute",
 ]
+const PRACTICE_TRACK_TAGS := [&"meditation", &"cultivation"]
+const VALID_PRACTICE_TIERS := {
+	&"basic": true,
+	&"intermediate": true,
+	&"advanced": true,
+	&"ultimate": true,
+}
 
 ## 字段说明：缓存技能定义集合字典，集中保存可按键查询的运行时数据。
 var _skill_defs: Dictionary = {}
@@ -210,10 +221,35 @@ func _append_skill_validation_errors(
 
 	if skill_def.skill_type == &"active" and skill_def.combat_profile == null:
 		errors.append("Skill %s is active but missing combat_profile." % String(skill_id))
+	_append_practice_skill_validation_errors(errors, skill_id, skill_def)
 	_append_attribute_growth_validation_errors(errors, skill_id, skill_def)
+	SKILL_LEVEL_DESCRIPTION_CONTENT_RULES.append_validation_errors(errors, skill_id, skill_def)
 
 	if skill_def.combat_profile != null:
-		_append_combat_profile_validation_errors(errors, skill_id, skill_def.combat_profile)
+		_append_combat_profile_validation_errors(errors, skill_id, skill_def.combat_profile, skill_def)
+
+
+func _append_practice_skill_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	skill_def: SkillDef
+) -> void:
+	var track_count := 0
+	for track_tag in PRACTICE_TRACK_TAGS:
+		if skill_def.tags.has(track_tag):
+			track_count += 1
+
+	if track_count == 0:
+		if skill_def.practice_tier != &"":
+			errors.append("Skill %s practice_tier requires meditation or cultivation tag." % String(skill_id))
+		return
+
+	if track_count != 1:
+		errors.append("Skill %s must use exactly one practice track tag." % String(skill_id))
+	if skill_def.tags.size() != 1:
+		errors.append("Skill %s practice tags must be exclusive; tags must contain only meditation or cultivation." % String(skill_id))
+	if not VALID_PRACTICE_TIERS.has(skill_def.practice_tier):
+		errors.append("Skill %s practice_tier must be one of basic, intermediate, advanced, ultimate." % String(skill_id))
 
 
 func _append_dynamic_max_level_validation_errors(
@@ -277,7 +313,8 @@ func _append_attribute_growth_validation_errors(
 func _append_combat_profile_validation_errors(
 	errors: Array[String],
 	skill_id: StringName,
-	combat_profile: CombatSkillDef
+	combat_profile: CombatSkillDef,
+	skill_def: SkillDef = null
 ) -> void:
 	if combat_profile.skill_id != skill_id:
 		errors.append(
@@ -285,12 +322,52 @@ func _append_combat_profile_validation_errors(
 		)
 	if combat_profile.target_mode == &"":
 		errors.append("Skill %s combat_profile is missing target_mode." % String(skill_id))
+	elif not COMBAT_SKILL_TARGETING_CONTENT_RULES.is_valid_combat_target_mode(combat_profile.target_mode):
+		errors.append(
+			"Skill %s combat_profile uses unsupported target_mode %s; expected one of %s." % [
+				String(skill_id),
+				String(combat_profile.target_mode),
+				COMBAT_SKILL_TARGETING_CONTENT_RULES.valid_combat_target_mode_label(),
+			]
+		)
 	if combat_profile.target_team_filter == &"":
 		errors.append("Skill %s combat_profile is missing target_team_filter." % String(skill_id))
+	elif not COMBAT_TARGET_TEAM_CONTENT_RULES.is_valid_skill_target_team_filter(combat_profile.target_team_filter):
+		errors.append(
+			"Skill %s combat_profile uses unsupported target_team_filter %s; expected one of %s." % [
+				String(skill_id),
+				String(combat_profile.target_team_filter),
+				COMBAT_TARGET_TEAM_CONTENT_RULES.valid_skill_target_team_filter_label(),
+			]
+		)
 	if combat_profile.target_selection_mode == &"":
 		errors.append("Skill %s combat_profile is missing target_selection_mode." % String(skill_id))
+	elif not COMBAT_SKILL_TARGETING_CONTENT_RULES.is_valid_target_selection_mode(combat_profile.target_selection_mode):
+		errors.append(
+			"Skill %s combat_profile uses unsupported target_selection_mode %s; expected one of %s." % [
+				String(skill_id),
+				String(combat_profile.target_selection_mode),
+				COMBAT_SKILL_TARGETING_CONTENT_RULES.valid_target_selection_mode_label(),
+			]
+		)
 	if combat_profile.selection_order_mode == &"":
 		errors.append("Skill %s combat_profile is missing selection_order_mode." % String(skill_id))
+	elif not COMBAT_SKILL_TARGETING_CONTENT_RULES.is_valid_selection_order_mode(combat_profile.selection_order_mode):
+		errors.append(
+			"Skill %s combat_profile uses unsupported selection_order_mode %s; expected one of %s." % [
+				String(skill_id),
+				String(combat_profile.selection_order_mode),
+				COMBAT_SKILL_TARGETING_CONTENT_RULES.valid_selection_order_mode_label(),
+			]
+		)
+	if not COMBAT_SKILL_TARGETING_CONTENT_RULES.is_valid_area_pattern(combat_profile.area_pattern):
+		errors.append(
+			"Skill %s combat_profile uses unsupported area_pattern %s; expected one of %s." % [
+				String(skill_id),
+				String(combat_profile.area_pattern),
+				COMBAT_SKILL_TARGETING_CONTENT_RULES.valid_area_pattern_label(),
+			]
+		)
 	if not VALID_MASTERY_TRIGGER_MODES.has(combat_profile.mastery_trigger_mode):
 		errors.append("Skill %s combat_profile uses unsupported mastery_trigger_mode %s." % [String(skill_id), String(combat_profile.mastery_trigger_mode)])
 	if not VALID_MASTERY_AMOUNT_MODES.has(combat_profile.mastery_amount_mode):
@@ -326,6 +403,17 @@ func _append_combat_profile_validation_errors(
 			errors.append("Skill %s combat_profile level override %s.cooldown_tu must be 0 or a multiple of %d." % [String(skill_id), String(override_level_key), TU_GRANULARITY])
 		if override_dict.has("area_value") and int(override_dict.get("area_value", 0)) < 0:
 			errors.append("Skill %s combat_profile level override %s.area_value must be >= 0." % [String(skill_id), String(override_level_key)])
+		if override_dict.has("area_pattern"):
+			var override_area_pattern := ProgressionDataUtils.to_string_name(override_dict.get("area_pattern", &""))
+			if not COMBAT_SKILL_TARGETING_CONTENT_RULES.is_valid_area_pattern(override_area_pattern):
+				errors.append(
+					"Skill %s combat_profile level override %s.area_pattern uses unsupported area_pattern %s; expected one of %s." % [
+						str(skill_id),
+						str(override_level_key),
+						str(override_area_pattern),
+						COMBAT_SKILL_TARGETING_CONTENT_RULES.valid_area_pattern_label(),
+					]
+				)
 		if override_dict.has("max_target_count") and int(override_dict.get("max_target_count", 0)) < 1:
 			errors.append("Skill %s combat_profile level override %s.max_target_count must be >= 1." % [String(skill_id), String(override_level_key)])
 	if combat_profile.min_target_count <= 0:
@@ -391,6 +479,42 @@ func _append_combat_profile_validation_errors(
 				"Skill %s cast variant %s is missing target_mode." % [
 					String(skill_id),
 					String(cast_variant.variant_id),
+				]
+			)
+		elif not COMBAT_SKILL_TARGETING_CONTENT_RULES.is_valid_cast_variant_target_mode(cast_variant.target_mode):
+			errors.append(
+				"Skill %s cast variant %s uses unsupported target_mode %s; expected one of %s." % [
+					String(skill_id),
+					String(cast_variant.variant_id),
+					String(cast_variant.target_mode),
+					COMBAT_SKILL_TARGETING_CONTENT_RULES.valid_cast_variant_target_mode_label(),
+				]
+			)
+		if not COMBAT_SKILL_TARGETING_CONTENT_RULES.is_valid_footprint_pattern(cast_variant.footprint_pattern):
+			errors.append(
+				"Skill %s cast variant %s uses unsupported footprint_pattern %s; expected one of %s." % [
+					String(skill_id),
+					String(cast_variant.variant_id),
+					String(cast_variant.footprint_pattern),
+					COMBAT_SKILL_TARGETING_CONTENT_RULES.valid_footprint_pattern_label(),
+				]
+			)
+		if cast_variant.min_skill_level < 0:
+			errors.append(
+				"Skill %s cast variant %s min_skill_level must be >= 0." % [
+					String(skill_id),
+					String(cast_variant.variant_id),
+				]
+			)
+		elif skill_def != null \
+				and skill_def.dynamic_max_level_stat_id == &"" \
+				and skill_def.max_level >= 0 \
+				and cast_variant.min_skill_level > skill_def.max_level:
+			errors.append(
+				"Skill %s cast variant %s min_skill_level must be <= max_level %d." % [
+					String(skill_id),
+					String(cast_variant.variant_id),
+					int(skill_def.max_level),
 				]
 			)
 		if cast_variant.required_coord_count <= 0:
@@ -483,6 +607,15 @@ func _append_effect_validation_errors(
 				String(effect_def.trigger_condition),
 			]
 		)
+	if not COMBAT_TARGET_TEAM_CONTENT_RULES.is_valid_effect_target_team_filter(effect_def.effect_target_team_filter):
+		errors.append(
+			"Skill %s effect %s uses unsupported effect_target_team_filter %s; expected one of %s." % [
+				String(skill_id),
+				context_label,
+				String(effect_def.effect_target_team_filter),
+				COMBAT_TARGET_TEAM_CONTENT_RULES.valid_effect_target_team_filter_label(),
+			]
+		)
 	if not _is_valid_tu_value(int(effect_def.duration_tu)):
 		errors.append(
 			"Skill %s effect %s duration_tu must be 0 or a multiple of %d." % [
@@ -549,6 +682,7 @@ func _append_effect_validation_errors(
 						context_label,
 					]
 				)
+			_append_status_damage_filter_validation_errors(errors, skill_id, effect_def, context_label)
 		&"shield":
 			var has_dice_keys := effect_def.params != null \
 				and (effect_def.params.has("dice_count") or effect_def.params.has("dice_sides"))
@@ -689,10 +823,51 @@ func _append_damage_effect_validation_errors(
 	effect_def: CombatEffectDef,
 	context_label: String
 ) -> void:
-	if effect_def == null or effect_def.params == null:
+	if effect_def == null:
 		return
-	if effect_def.params.has("hp_ratio_threshold_percent"):
-		var threshold_value = effect_def.params.get("hp_ratio_threshold_percent")
+	var params: Dictionary = effect_def.params if effect_def.params != null else {}
+	var damage_tag := DAMAGE_TAG_CONTENT_RULES.normalize_string_name(effect_def.damage_tag)
+	var has_weapon_damage_tag_param := params.has("use_weapon_physical_damage_tag")
+	var weapon_damage_tag_param_is_bool := has_weapon_damage_tag_param \
+		and typeof(params.get("use_weapon_physical_damage_tag")) == TYPE_BOOL
+	var uses_weapon_damage_tag := weapon_damage_tag_param_is_bool \
+		and bool(params.get("use_weapon_physical_damage_tag", false))
+
+	if params.has("damage_tag"):
+		errors.append(
+			"Skill %s damage effect in %s params.damage_tag is unsupported on damage effects; use damage_tag or params.use_weapon_physical_damage_tag." % [
+				String(skill_id),
+				context_label,
+			]
+		)
+	if uses_weapon_damage_tag:
+		if damage_tag != &"":
+			errors.append(
+				"Skill %s damage effect in %s cannot combine damage_tag with params.use_weapon_physical_damage_tag." % [
+					String(skill_id),
+					context_label,
+				]
+			)
+	elif not has_weapon_damage_tag_param or weapon_damage_tag_param_is_bool:
+		if damage_tag == &"":
+			errors.append(
+				"Skill %s damage effect in %s must declare damage_tag or set params.use_weapon_physical_damage_tag = true." % [
+					String(skill_id),
+					context_label,
+				]
+			)
+		elif not DAMAGE_TAG_CONTENT_RULES.is_valid_damage_tag(damage_tag):
+			errors.append(
+				"Skill %s damage effect in %s uses unsupported damage_tag %s; expected one of %s." % [
+					String(skill_id),
+					context_label,
+					String(damage_tag),
+					DAMAGE_TAG_CONTENT_RULES.valid_damage_tag_label(),
+				]
+			)
+
+	if params.has("hp_ratio_threshold_percent"):
+		var threshold_value = params.get("hp_ratio_threshold_percent")
 		if typeof(threshold_value) != TYPE_INT or int(threshold_value) < 1 or int(threshold_value) > 100:
 			errors.append(
 				"Skill %s damage effect in %s params.hp_ratio_threshold_percent must be an int from 1 to 100." % [
@@ -700,9 +875,9 @@ func _append_damage_effect_validation_errors(
 					context_label,
 				]
 			)
-	var has_bonus_dice_key := effect_def.params.has("bonus_damage_dice_count") \
-		or effect_def.params.has("bonus_damage_dice_sides") \
-		or effect_def.params.has("bonus_damage_dice_bonus")
+	var has_bonus_dice_key := params.has("bonus_damage_dice_count") \
+		or params.has("bonus_damage_dice_sides") \
+		or params.has("bonus_damage_dice_bonus")
 	if not has_bonus_dice_key:
 		return
 	if effect_def.bonus_condition == &"":
@@ -712,8 +887,8 @@ func _append_damage_effect_validation_errors(
 				context_label,
 			]
 		)
-	var count_value = effect_def.params.get("bonus_damage_dice_count", 0)
-	var sides_value = effect_def.params.get("bonus_damage_dice_sides", 0)
+	var count_value = params.get("bonus_damage_dice_count", 0)
+	var sides_value = params.get("bonus_damage_dice_sides", 0)
 	if typeof(count_value) != TYPE_INT or int(count_value) < 1:
 		errors.append(
 			"Skill %s damage effect in %s params.bonus_damage_dice_count must be a positive int." % [
@@ -728,13 +903,75 @@ func _append_damage_effect_validation_errors(
 				context_label,
 			]
 		)
-	if effect_def.params.has("bonus_damage_dice_bonus") and typeof(effect_def.params.get("bonus_damage_dice_bonus")) != TYPE_INT:
+	if params.has("bonus_damage_dice_bonus") and typeof(params.get("bonus_damage_dice_bonus")) != TYPE_INT:
 		errors.append(
 			"Skill %s damage effect in %s params.bonus_damage_dice_bonus must be an int." % [
 				String(skill_id),
 				context_label,
 			]
 		)
+
+
+func _append_status_damage_filter_validation_errors(
+	errors: Array[String],
+	skill_id: StringName,
+	effect_def: CombatEffectDef,
+	context_label: String
+) -> void:
+	if effect_def == null or effect_def.params == null:
+		return
+	var params: Dictionary = effect_def.params
+	if params.has("damage_tag"):
+		var damage_tag := DAMAGE_TAG_CONTENT_RULES.normalize_string_name(params.get("damage_tag"))
+		if damage_tag == &"" or not DAMAGE_TAG_CONTENT_RULES.is_valid_damage_tag(damage_tag):
+			errors.append(
+				"Skill %s status effect in %s params.damage_tag must be one of %s." % [
+					String(skill_id),
+					context_label,
+					DAMAGE_TAG_CONTENT_RULES.valid_damage_tag_label(),
+				]
+			)
+	if params.has("damage_tags"):
+		var damage_tags = params.get("damage_tags")
+		if damage_tags is not Array:
+			errors.append(
+				"Skill %s status effect in %s params.damage_tags must be an Array." % [
+					String(skill_id),
+					context_label,
+				]
+			)
+		else:
+			for index in range((damage_tags as Array).size()):
+				var damage_tag := DAMAGE_TAG_CONTENT_RULES.normalize_string_name((damage_tags as Array)[index])
+				if damage_tag == &"" or not DAMAGE_TAG_CONTENT_RULES.is_valid_damage_tag(damage_tag):
+					errors.append(
+						"Skill %s status effect in %s params.damage_tags[%d] must be one of %s." % [
+							String(skill_id),
+							context_label,
+							index,
+							DAMAGE_TAG_CONTENT_RULES.valid_damage_tag_label(),
+						]
+					)
+	if params.has("damage_category"):
+		var damage_category := DAMAGE_TAG_CONTENT_RULES.normalize_string_name(params.get("damage_category"))
+		if damage_category == &"" or not DAMAGE_TAG_CONTENT_RULES.is_valid_damage_category(damage_category):
+			errors.append(
+				"Skill %s status effect in %s params.damage_category must be one of %s." % [
+					String(skill_id),
+					context_label,
+					DAMAGE_TAG_CONTENT_RULES.valid_damage_category_label(),
+				]
+			)
+	if params.has("mitigation_tier"):
+		var mitigation_tier := DAMAGE_TAG_CONTENT_RULES.normalize_string_name(params.get("mitigation_tier"))
+		if mitigation_tier == &"" or not DAMAGE_TAG_CONTENT_RULES.is_valid_mitigation_tier(mitigation_tier):
+			errors.append(
+				"Skill %s status effect in %s params.mitigation_tier must be one of %s." % [
+					String(skill_id),
+					context_label,
+					DAMAGE_TAG_CONTENT_RULES.valid_mitigation_tier_label(),
+				]
+			)
 
 
 func _append_equipment_durability_damage_validation_errors(

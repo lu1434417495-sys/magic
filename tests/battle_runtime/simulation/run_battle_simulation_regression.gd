@@ -134,11 +134,11 @@ func _build_ready_queue_unit(
 	unit_spec.action_threshold = 5
 	unit_spec.current_hp = 30
 	unit_spec.current_ap = 1
+	unit_spec.base_attributes = _build_base_attributes(10, 10, 10, 10, 10, 10)
 	unit_spec.attribute_overrides = {
 		"hp_max": 30,
 		"action_points": 1,
-		"armor_class": 12,
-		"armor_ac_bonus": 0,
+		"armor_ac_bonus": 4,
 	}
 	return unit_spec
 
@@ -172,11 +172,11 @@ func _build_manual_unit(unit_id: StringName, display_name: String, coord: Vector
 	unit_spec.coord = coord
 	unit_spec.current_hp = 80
 	unit_spec.current_ap = 2
+	unit_spec.base_attributes = _build_base_attributes(10, 10, 12, 10, 10, 10)
 	unit_spec.attribute_overrides = {
 		"hp_max": 80,
 		"action_points": 2,
-		"armor_class": 16,
-		"armor_ac_bonus": 0,
+		"armor_ac_bonus": 8,
 	}
 	return unit_spec
 
@@ -199,16 +199,34 @@ func _build_enemy_archer(unit_id: StringName, display_name: String, coord: Vecto
 		"archer_suppressive_fire": 1,
 		"archer_pinning_shot": 1,
 	}
+	unit_spec.base_attributes = _build_base_attributes(10, 12, 12, 14, 10, 10)
 	unit_spec.attribute_overrides = {
 		"hp_max": 60,
 		"mp_max": 20,
 		"stamina_max": 20,
 		"action_points": 2,
 		"attack_bonus": 6,
-		"armor_class": 14,
-		"armor_ac_bonus": 0,
+		"armor_ac_bonus": 5,
 	}
 	return unit_spec
+
+
+func _build_base_attributes(
+	strength: int,
+	agility: int,
+	constitution: int,
+	perception: int,
+	intelligence: int,
+	willpower: int
+) -> Dictionary:
+	return {
+		"strength": strength,
+		"agility": agility,
+		"constitution": constitution,
+		"perception": perception,
+		"intelligence": intelligence,
+		"willpower": willpower,
+	}
 
 
 func _build_baseline_profile():

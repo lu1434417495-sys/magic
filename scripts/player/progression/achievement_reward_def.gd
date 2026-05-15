@@ -6,6 +6,7 @@ class_name AchievementRewardDef
 extends RefCounted
 
 const ACHIEVEMENT_REWARD_DEF_SCRIPT = preload("res://scripts/player/progression/achievement_reward_def.gd")
+const PENDING_CHARACTER_REWARD_CONTENT_RULES = preload("res://scripts/player/progression/pending_character_reward_content_rules.gd")
 
 const TYPE_KNOWLEDGE_UNLOCK: StringName = &"knowledge_unlock"
 const TYPE_SKILL_UNLOCK: StringName = &"skill_unlock"
@@ -54,6 +55,8 @@ static func from_dict(data):
 	var reward_type = _parse_string_name_field(data["reward_type"], false)
 	var target_id = _parse_string_name_field(data["target_id"], false)
 	if reward_type == null or target_id == null:
+		return null
+	if not PENDING_CHARACTER_REWARD_CONTENT_RULES.is_supported_entry_type(reward_type):
 		return null
 	if data["target_label"] is not String or data["reason_text"] is not String:
 		return null

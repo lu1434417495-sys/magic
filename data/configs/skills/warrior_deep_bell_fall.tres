@@ -9,7 +9,6 @@ script = ExtResource("3_effect")
 effect_type = &"damage"
 min_skill_level = 0
 max_skill_level = 4
-damage_tag = &"physical_blunt"
 params = {
     "add_weapon_dice": true,
     "requires_weapon": true,
@@ -27,7 +26,6 @@ script = ExtResource("3_effect")
 effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 7
-damage_tag = &"physical_blunt"
 params = {
     "add_weapon_dice": true,
     "requires_weapon": true,
@@ -45,7 +43,6 @@ script = ExtResource("3_effect")
 effect_type = &"damage"
 min_skill_level = 8
 max_skill_level = -1
-damage_tag = &"physical_blunt"
 params = {
     "add_weapon_dice": true,
     "requires_weapon": true,

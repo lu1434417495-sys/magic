@@ -20,6 +20,8 @@ func _run() -> void:
 	_test_damage_resistance_halves_matching_damage_tag()
 	_test_damage_resistance_cancels_with_status_vulnerability()
 	_test_damage_resistance_immune_keeps_highest_priority()
+	_test_missing_damage_tag_fails_closed_without_physical_slash_fallback()
+	_test_missing_weapon_damage_projection_fails_closed()
 	if _failures.is_empty():
 		print("Damage resistance regression: PASS")
 		quit(0)
@@ -88,6 +90,44 @@ func _test_damage_resistance_immune_keeps_highest_priority() -> void:
 		_sources_include(event.get("mitigation_sources", []), "damage_resistance_negative_energy", "damage_resistance", "immune"),
 		"immune source should come from damage_resistances."
 	)
+
+
+func _test_missing_damage_tag_fails_closed_without_physical_slash_fallback() -> void:
+	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	var source = _make_unit(&"missing_tag_source", &"enemy")
+	var target = _make_unit(&"missing_tag_target", &"player")
+	var effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	effect.effect_type = &"damage"
+	effect.power = 10
+
+	var hp_before := int(target.current_hp)
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	_assert_eq(bool(result.get("applied", true)), false, "缺少 damage_tag 的伤害效果不应被当作已应用。")
+	_assert_eq(int(result.get("damage", -1)), 0, "缺少 damage_tag 的伤害效果不应通过 hidden physical_slash fallback 造成伤害。")
+	_assert_eq(int(target.current_hp), hp_before, "缺少 damage_tag 时目标 HP 不应变化。")
+	_assert_true((result.get("damage_events", []) as Array).is_empty(), "缺少 damage_tag 时不应生成普通零伤害事件。")
+	_assert_eq(String(result.get("error_code", "")), "invalid_damage_tag", "缺少 damage_tag 应返回 invalid_damage_tag 诊断。")
+
+
+func _test_missing_weapon_damage_projection_fails_closed() -> void:
+	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	var source = _make_unit(&"missing_weapon_projection_source", &"enemy")
+	source.weapon_physical_damage_tag = &""
+	var target = _make_unit(&"missing_weapon_projection_target", &"player")
+	var effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	effect.effect_type = &"damage"
+	effect.power = 10
+	effect.params = {
+		"use_weapon_physical_damage_tag": true,
+	}
+
+	var hp_before := int(target.current_hp)
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	_assert_eq(bool(result.get("applied", true)), false, "武器伤害类型投影缺失时不应被当作已应用。")
+	_assert_eq(int(result.get("damage", -1)), 0, "武器伤害类型投影缺失时不应 fallback 到 physical_slash。")
+	_assert_eq(int(target.current_hp), hp_before, "武器伤害类型投影缺失时目标 HP 不应变化。")
+	_assert_true((result.get("damage_events", []) as Array).is_empty(), "武器伤害类型投影缺失时不应生成普通零伤害事件。")
+	_assert_eq(String(result.get("error_code", "")), "invalid_damage_tag", "武器伤害类型投影缺失应返回 invalid_damage_tag 诊断。")
 
 
 func _make_damage_effect(damage_tag: StringName, power: int):

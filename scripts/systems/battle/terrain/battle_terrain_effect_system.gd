@@ -7,6 +7,7 @@ extends RefCounted
 
 const BATTLE_TERRAIN_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
 const BATTLE_EVENT_BATCH_SCRIPT = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
+const BATTLE_TARGET_TEAM_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
 const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
@@ -373,11 +374,7 @@ func _resolve_lifetime_policy(effect_def) -> StringName:
 
 
 func _resolve_effect_target_filter(skill_def, effect_def) -> StringName:
-	if effect_def != null and effect_def.effect_target_team_filter != &"":
-		return effect_def.effect_target_team_filter
-	if skill_def != null and skill_def.combat_profile != null:
-		return skill_def.combat_profile.target_team_filter
-	return &"any"
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.resolve_effect_target_filter(skill_def, effect_def)
 
 
 func _is_unit_valid_for_effect(
@@ -385,19 +382,7 @@ func _is_unit_valid_for_effect(
 	target_unit,
 	target_team_filter: StringName
 ) -> bool:
-	if target_unit == null or not target_unit.is_alive:
-		return false
-	match target_team_filter:
-		&"", &"any":
-			return true
-		&"self":
-			return source_unit != null and target_unit.unit_id == source_unit.unit_id
-		&"ally", &"friendly":
-			return source_unit != null and target_unit.faction_id == source_unit.faction_id
-		&"enemy", &"hostile":
-			return source_unit != null and target_unit.faction_id != source_unit.faction_id
-		_:
-			return true
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_unit_valid_for_filter(source_unit, target_unit, target_team_filter)
 
 
 func _normalize_stack_behavior(stack_behavior: StringName) -> StringName:

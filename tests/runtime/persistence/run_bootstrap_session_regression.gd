@@ -5,6 +5,7 @@ const TestRunner = preload("res://tests/shared/test_runner.gd")
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const LOGIN_SCREEN_SCENE = preload("res://scenes/main/login_screen.tscn")
 const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_settings_service.gd")
+const WORLD_MAP_CONTENT_VALIDATOR_SCRIPT = preload("res://scripts/utils/world_map_content_validator.gd")
 const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -35,6 +36,7 @@ func _run() -> void:
 	_test_game_session_rotates_log_boundary_on_create_load_unload()
 	_test_game_session_content_getters_are_read_only_copies()
 	_test_content_validation_failure_blocks_formal_runtime_entries()
+	await _test_login_screen_blocks_character_creation_when_content_validation_fails()
 	await _test_login_screen_test_entry_creates_generated_world()
 
 	if _failures.is_empty():
@@ -358,6 +360,51 @@ func _test_content_validation_failure_blocks_formal_runtime_entries() -> void:
 	var cleanup_error := int(blocked_session.clear_persisted_game())
 	_assert_eq(cleanup_error, OK, "内容硬门禁回归结束后应能清理 save 目录。")
 	blocked_session.free()
+
+
+func _test_login_screen_blocks_character_creation_when_content_validation_fails() -> void:
+	var shared_game_session = _get_shared_game_session()
+	_assert_true(shared_game_session != null, "登录壳内容门禁回归前置：SceneTree 应提供共享 GameSession。")
+	if shared_game_session == null:
+		return
+	shared_game_session._world_content_validator = InvalidWorldContentValidator.new()
+
+	var login_screen = LOGIN_SCREEN_SCENE.instantiate()
+	root.add_child(login_screen)
+	await process_frame
+
+	login_screen._on_test_button_pressed()
+	_assert_true(
+		not login_screen.character_creation_window.visible,
+		"内容校验失败时测试地图入口不应打开建卡窗口。"
+	)
+	_assert_eq(login_screen._pending_start_type, &"", "内容校验失败时不应设置 pending start type。")
+	_assert_eq(login_screen._pending_preset_id, &"", "内容校验失败时不应设置 pending preset id。")
+	_assert_true(
+		String(login_screen.status_label.text).contains("内容校验失败，无法开始建卡"),
+		"内容校验失败时登录页应显示无法开始建卡的明确提示。"
+	)
+
+	login_screen.character_creation_window.hide_window()
+	login_screen._pending_start_type = &""
+	login_screen._pending_preset_id = &""
+	login_screen._on_world_preset_confirmed(login_screen.DEFAULT_START_PRESET_ID)
+	_assert_true(
+		not login_screen.character_creation_window.visible,
+		"内容校验失败时正式世界预设确认也不应打开建卡窗口。"
+	)
+	_assert_eq(login_screen._pending_start_type, &"", "正式预设路径被内容校验阻断后不应设置 pending start type。")
+	_assert_eq(login_screen._pending_preset_id, &"", "正式预设路径被内容校验阻断后不应设置 pending preset id。")
+
+	shared_game_session._world_content_validator = WORLD_MAP_CONTENT_VALIDATOR_SCRIPT.new()
+	login_screen._on_test_button_pressed()
+	_assert_true(login_screen.character_creation_window.visible, "内容恢复合法后测试地图入口应能正常打开建卡窗口。")
+	_assert_eq(login_screen._pending_start_type, login_screen.PENDING_START_TYPE_PRESET, "内容恢复合法后应设置 pending start type。")
+	_assert_eq(login_screen._pending_preset_id, TEST_PRESET_ID, "内容恢复合法后应设置 pending preset id。")
+
+	login_screen.queue_free()
+	await process_frame
+	shared_game_session._world_content_validator = WORLD_MAP_CONTENT_VALIDATOR_SCRIPT.new()
 
 
 func _test_login_screen_test_entry_creates_generated_world() -> void:

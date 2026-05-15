@@ -20,6 +20,7 @@ func _run() -> void:
 	_test_research_reward_dictionary_queue_and_presentation()
 	_test_reward_confirmation_promotion_follow_up()
 	_test_world_and_battle_promotion_routes()
+	_test_invalid_promotion_submit_keeps_prompt_and_modal()
 	_test_close_active_modal_paths()
 
 	if _failures.is_empty():
@@ -166,6 +167,57 @@ func _test_world_and_battle_promotion_routes() -> void:
 	_assert_eq(String(runtime._current_status_message), "当前晋升选择必须确认后才能继续战斗。", "取消战斗晋升应提示必须确认。")
 
 
+func _test_invalid_promotion_submit_keeps_prompt_and_modal() -> void:
+	var context := _create_context()
+	var runtime = context.get("runtime")
+	var handler = context.get("handler")
+
+	runtime._party_state = PARTY_STATE_SCRIPT.new()
+	runtime._character_management = _FakeCharacterManagement.new(runtime._party_state, false, false)
+	runtime._pending_world_promotion_prompt = {
+		"member_id": "hero",
+		"choices": [
+			{
+				"profession_id": "mage",
+				"selection": {"mode": "world"},
+			},
+		],
+	}
+	runtime._active_modal_id = "promotion"
+	var world_result: Dictionary = handler.submit_promotion_choice(&"hero", &"mage", {"mode": "world"})
+	_assert_true(not bool(world_result.get("ok", false)), "世界晋升提交未产生晋升 delta 时应返回失败。")
+	_assert_eq(runtime._character_management.last_promote_member_id, &"hero", "世界晋升应先尝试提交给角色管理模块。")
+	_assert_true(not runtime._pending_world_promotion_prompt.is_empty(), "世界晋升失败后 prompt 应保留。")
+	_assert_eq(String(runtime._active_modal_id), "promotion", "世界晋升失败后 modal 应保持 promotion。")
+	_assert_eq(String(runtime._current_status_message), "晋升提交无效，当前选择仍需确认。", "世界晋升失败应提示无效提交。")
+
+	var stale_result: Dictionary = handler.submit_promotion_choice(&"hero", &"warrior", {"mode": "world"})
+	_assert_true(not bool(stale_result.get("ok", false)), "不在当前 prompt 内的晋升提交应被拒绝。")
+	_assert_true(not runtime._pending_world_promotion_prompt.is_empty(), "陈旧晋升提交不应清空世界 prompt。")
+	_assert_eq(String(runtime._active_modal_id), "promotion", "陈旧晋升提交后 modal 应保持 promotion。")
+
+	runtime._battle_state = _FakeBattleState.new()
+	runtime._battle_runtime = _FakeBattleRuntime.new()
+	runtime._battle_runtime.promotion_succeeds = false
+	runtime._pending_promotion_prompt = {
+		"member_id": "hero",
+		"choices": [
+			{
+				"profession_id": "warrior",
+				"selection": {"mode": "battle"},
+			},
+		],
+	}
+	runtime._active_modal_id = "promotion"
+	var battle_result: Dictionary = handler.submit_promotion_choice(&"hero", &"warrior", {"mode": "battle"})
+	_assert_true(not bool(battle_result.get("ok", false)), "战斗晋升提交未产生晋升 delta 时应返回失败。")
+	_assert_eq(runtime._battle_runtime.last_submit_member_id, &"hero", "战斗晋升应提交给战斗运行时。")
+	_assert_eq(runtime._applied_batches.size(), 1, "战斗晋升失败也应应用批次以刷新阻塞状态。")
+	_assert_true(not runtime._pending_promotion_prompt.is_empty(), "战斗晋升失败后 prompt 应保留。")
+	_assert_eq(String(runtime._active_modal_id), "promotion", "战斗晋升失败后 modal 应保持 promotion。")
+	_assert_eq(String(runtime._current_status_message), "晋升提交无效，当前选择仍需确认。", "战斗晋升失败应提示无效提交。")
+
+
 func _test_close_active_modal_paths() -> void:
 	var context := _create_context()
 	var runtime = context.get("runtime")
@@ -248,6 +300,8 @@ func _build_research_reward_data() -> Dictionary:
 
 
 class _FakePromotionDelta extends RefCounted:
+	var member_id: StringName = &""
+	var changed_profession_ids: Array[StringName] = []
 	var needs_promotion_modal := false
 	var mastery_changes: Array = []
 	var knowledge_changes: Array = []
@@ -257,15 +311,17 @@ class _FakePromotionDelta extends RefCounted:
 class _FakeCharacterManagement extends RefCounted:
 	var _party_state: PartyState
 	var _needs_promotion_modal := false
+	var _promotion_succeeds := true
 	var last_promote_member_id: StringName = &""
 	var last_promote_profession_id: StringName = &""
 	var last_promote_selection: Dictionary = {}
 	var last_applied_reward_id: StringName = &""
 
 
-	func _init(party_state: PartyState, needs_promotion_modal: bool) -> void:
+	func _init(party_state: PartyState, needs_promotion_modal: bool, promotion_succeeds: bool = true) -> void:
 		_party_state = party_state
 		_needs_promotion_modal = needs_promotion_modal
+		_promotion_succeeds = promotion_succeeds
 
 
 	func get_party_state() -> PartyState:
@@ -284,7 +340,10 @@ class _FakeCharacterManagement extends RefCounted:
 		last_promote_profession_id = profession_id
 		last_promote_selection = selection.duplicate(true)
 		var delta := _FakePromotionDelta.new()
+		delta.member_id = member_id
 		delta.needs_promotion_modal = _needs_promotion_modal
+		if _promotion_succeeds:
+			delta.changed_profession_ids.append(profession_id)
 		return delta
 
 
@@ -292,24 +351,38 @@ class _FakeCharacterManagement extends RefCounted:
 		last_applied_reward_id = reward.reward_id
 		_party_state.remove_pending_character_reward(reward.reward_id)
 		var delta := _FakePromotionDelta.new()
+		delta.member_id = reward.member_id
 		delta.needs_promotion_modal = _needs_promotion_modal
 		return delta
+
+
+class _FakeBattleBatch extends RefCounted:
+	var progression_deltas: Array = []
+	var log_lines: Array[String] = []
+	var modal_requested := false
+	var changed_unit_ids: Array[StringName] = []
 
 
 class _FakeBattleRuntime extends RefCounted:
 	var last_submit_member_id: StringName = &""
 	var last_submit_profession_id: StringName = &""
 	var last_submit_selection: Dictionary = {}
+	var promotion_succeeds := true
+	var needs_follow_up := false
 
 
 	func submit_promotion_choice(member_id: StringName, profession_id: StringName, selection: Dictionary):
 		last_submit_member_id = member_id
 		last_submit_profession_id = profession_id
 		last_submit_selection = selection.duplicate(true)
-		return {
-			"batch": "battle_promotion",
-			"member_id": String(member_id),
-		}
+		var batch := _FakeBattleBatch.new()
+		var delta := _FakePromotionDelta.new()
+		delta.member_id = member_id
+		delta.needs_promotion_modal = needs_follow_up
+		if promotion_succeeds:
+			delta.changed_profession_ids.append(profession_id)
+			batch.progression_deltas.append(delta)
+		return batch
 
 
 class _FakeBattleState extends RefCounted:

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
@@ -410,7 +411,6 @@ func _build_heavy_ground_brain():
 	var brain = ENEMY_AI_BRAIN_DEF_SCRIPT.new()
 	brain.brain_id = HEAVY_GROUND_BRAIN_ID
 	brain.default_state_id = &"pressure"
-	brain.pressure_distance = 99
 	brain.states = [pressure_state]
 	return brain
 
@@ -479,11 +479,7 @@ func _build_ai_benchmark_unit(
 
 
 func _add_unit_to_state(runtime, state, unit: BattleUnitState, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	var placed: bool = runtime._grid_service.place_unit(state, unit, unit.coord, true)
 	if not placed:
 		_test.fail("Benchmark unit %s could not be placed on the benchmark map." % String(unit.unit_id))

@@ -6,6 +6,7 @@ const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_s
 const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
 const BattleTargetCollectionService = preload("res://scripts/systems/battle/runtime/battle_target_collection_service.gd")
 const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
+const BATTLE_TARGET_TEAM_RULES_SCRIPT = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 
 const DEFAULT_MAX_SEARCH_NODES := 2048
 
@@ -394,19 +395,7 @@ func _distance_from_anchor_to_coord(
 
 
 func _target_filter_allows(source_unit: BattleUnitState, target_unit: BattleUnitState, target_team_filter: StringName) -> bool:
-	if source_unit == null or target_unit == null:
-		return false
-	match target_team_filter:
-		&"enemy", &"hostile":
-			return source_unit.faction_id != target_unit.faction_id
-		&"ally":
-			return source_unit.faction_id == target_unit.faction_id
-		&"self":
-			return source_unit.unit_id == target_unit.unit_id
-		&"all", &"any":
-			return true
-		_:
-			return false
+	return BATTLE_TARGET_TEAM_RULES_SCRIPT.is_unit_valid_for_filter(source_unit, target_unit, target_team_filter)
 
 
 func _get_effective_skill_range(unit_state: BattleUnitState, skill_def) -> int:

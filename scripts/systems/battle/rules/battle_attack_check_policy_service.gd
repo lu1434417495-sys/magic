@@ -10,6 +10,7 @@ const BattleRepeatAttackStageSpec = preload("res://scripts/systems/battle/core/b
 const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
 const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
 const BattleTerrainEffectSystem = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_system.gd")
+const BattleTargetTeamRules = preload("res://scripts/systems/battle/rules/battle_target_team_rules.gd")
 const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
 const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
 
@@ -549,17 +550,7 @@ func _append_coord_unique(coords: Array[Vector2i], coord: Vector2i) -> void:
 
 
 func _team_filter_applies(filter: StringName, attacker: BattleUnitState, target_unit: BattleUnitState) -> bool:
-	match filter:
-		&"", &"any":
-			return true
-		&"self":
-			return attacker != null and target_unit != null and attacker.unit_id == target_unit.unit_id
-		&"ally", &"friendly":
-			return attacker != null and target_unit != null and attacker.faction_id == target_unit.faction_id
-		&"enemy", &"hostile":
-			return attacker != null and target_unit != null and attacker.faction_id != target_unit.faction_id
-		_:
-			return true
+	return BattleTargetTeamRules.is_unit_valid_for_filter(attacker, target_unit, filter)
 
 
 func _resolve_distance(active_unit: BattleUnitState, target_unit: BattleUnitState) -> int:

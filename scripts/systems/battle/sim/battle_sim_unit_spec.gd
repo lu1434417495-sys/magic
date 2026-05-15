@@ -100,7 +100,6 @@ func _apply_attribute_defaults(unit_state: BattleUnitState) -> void:
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, maxi(current_ap, 1))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD, maxi(action_threshold, 1))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, int(attribute_overrides.get("attack_bonus", 4)))
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, int(attribute_overrides.get("armor_class", 10)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS, int(attribute_overrides.get("armor_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SHIELD_AC_BONUS, int(attribute_overrides.get("shield_ac_bonus", 0)))
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, int(attribute_overrides.get("dodge_bonus", 0)))
@@ -117,6 +116,7 @@ func _build_formal_attribute_snapshot():
 	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
 		var normalized_id := ProgressionDataUtils.to_string_name(attribute_id)
 		unit_progress.unit_base_attributes.set_attribute_value(normalized_id, _get_base_attribute_value(normalized_id, 10))
+	_apply_ac_component_overrides_to_progress(unit_progress)
 
 	if _has_attribute_override(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX):
 		unit_progress.unit_base_attributes.set_attribute_value(
@@ -139,6 +139,17 @@ func _build_formal_attribute_snapshot():
 	return attribute_service.get_snapshot()
 
 
+func _apply_ac_component_overrides_to_progress(unit_progress) -> void:
+	if unit_progress == null or unit_progress.unit_base_attributes == null:
+		return
+	for component_id in ATTRIBUTE_SERVICE_SCRIPT.AC_COMPONENT_ATTRIBUTE_IDS:
+		if _has_attribute_override(component_id):
+			unit_progress.unit_base_attributes.set_attribute_value(
+				component_id,
+				maxi(int(_get_attribute_override(component_id, 0)), 0)
+			)
+
+
 func _apply_attribute_overrides(unit_state: BattleUnitState) -> void:
 	if unit_state == null or unit_state.attribute_snapshot == null:
 		return
@@ -150,6 +161,8 @@ func _apply_attribute_overrides(unit_state: BattleUnitState) -> void:
 
 
 func _is_formal_attribute_override(attribute_id: StringName) -> bool:
+	if attribute_id == ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS:
+		return true
 	if base_attributes.is_empty():
 		return false
 	return attribute_id == ATTRIBUTE_SERVICE_SCRIPT.HP_MAX \

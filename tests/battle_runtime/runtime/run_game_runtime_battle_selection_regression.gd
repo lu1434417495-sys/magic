@@ -855,11 +855,7 @@ func _apply_test_equipped_weapon(unit: BattleUnitState, attack_range: int = 1) -
 
 
 func _add_unit_to_state(facade, state: BattleState, unit: BattleUnitState, is_enemy: bool) -> void:
-	state.units[unit.unit_id] = unit
-	if is_enemy:
-		state.enemy_unit_ids.append(unit.unit_id)
-	else:
-		state.ally_unit_ids.append(unit.unit_id)
+	BattleRuntimeTestHelpers.register_unit_in_state(state, unit, is_enemy)
 	var placed: bool = bool(facade._battle_runtime._grid_service.place_unit(state, unit, unit.coord, true))
 	_assert_true(placed, "测试单位 %s 应能成功放入战场。" % String(unit.unit_id))
 

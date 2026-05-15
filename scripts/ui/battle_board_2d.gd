@@ -246,6 +246,33 @@ func is_render_content_ready() -> bool:
 	return _is_bound and _pending_battle_state != null and _controller != null and _controller.is_render_content_ready()
 
 
+## 把战斗格坐标转换为承载本 board 的 SubViewport 内的局部坐标（含相机 pan / zoom 与高度偏移）。
+## 由 SubViewportContainer 默认 stretch_shrink = 1，且 SubViewport size 与 container 同步（见 BattleMapPanel._resize_map_viewport），
+## 因此返回值可直接作为 BattleMapPanel.map_viewport_container 内的局部坐标使用，
+## 调用方再加上 container.global_position 即可得到屏幕坐标。
+## 当 board 未绑定 / 战斗状态缺失 / 坐标无效时返回 Vector2(-INF, -INF)。
+func coord_to_viewport_position(coord: Vector2i) -> Vector2:
+	if _pending_battle_state == null or input_layer == null:
+		return Vector2(-INF, -INF)
+	if not _pending_battle_state.cells.has(coord):
+		return Vector2(-INF, -INF)
+	var anchor := _get_coord_anchor(coord)
+	return position + anchor * _camera_zoom
+
+
+## 判断该格当前是否落在 SubViewport 可见区域内（用于浮层"出视野则隐藏"）。
+func is_coord_in_viewport(coord: Vector2i) -> bool:
+	if _viewport_size == Vector2.ZERO:
+		return false
+	var viewport_position := coord_to_viewport_position(coord)
+	if viewport_position.x == -INF or viewport_position.y == -INF:
+		return false
+	return viewport_position.x >= 0.0 \
+		and viewport_position.y >= 0.0 \
+		and viewport_position.x <= _viewport_size.x \
+		and viewport_position.y <= _viewport_size.y
+
+
 func _bind_controller() -> void:
 	if _is_bound:
 		return

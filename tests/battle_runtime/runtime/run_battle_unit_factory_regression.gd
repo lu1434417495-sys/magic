@@ -147,7 +147,7 @@ func _run() -> void:
 	_test_battle_unit_factory_projects_player_equipment_weapon_profiles()
 	_test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh()
 	_test_runtime_syncs_member_aura_into_battle_and_back()
-	_test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes()
+	_test_battle_unit_factory_no_longer_builds_fallback_enemy()
 	_test_enemy_resource_sync_handles_missing_attribute_snapshot()
 	_test_battle_unit_factory_no_longer_builds_manual_fallback_terrain()
 	_test_runtime_requires_formal_terrain_profile_id_from_generator()
@@ -216,6 +216,7 @@ func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party
 
 	var state = runtime.start_battle(encounter_anchor, 1901, {
 		"battle_map_size": Vector2i(7, 7),
+		"enemy_units": [_make_runtime_schema_unit(&"factory_entry_enemy", &"hostile").to_dict()],
 	})
 	_assert_true(state != null and not state.is_empty(), "战斗应能在没有 build_battle_party() 的 gateway 上正常创建。")
 	_assert_eq(state.ally_unit_ids.size(), 1, "战斗应从 BattleUnitFactory 构建出 1 个友方单位。")
@@ -260,6 +261,7 @@ func _test_runtime_start_battle_clones_party_backpack_view() -> void:
 
 	var state = runtime.start_battle(encounter_anchor, 1902, {
 		"battle_map_size": Vector2i(7, 7),
+		"enemy_units": [_make_runtime_schema_unit(&"backpack_view_enemy", &"hostile").to_dict()],
 	})
 	_assert_true(state != null and not state.is_empty(), "战斗开始应能创建 battle state 以承载队伍共享背包 view。")
 	if state == null or state.is_empty():
@@ -765,6 +767,7 @@ func _test_runtime_syncs_member_aura_into_battle_and_back() -> void:
 
 	var state = runtime.start_battle(encounter_anchor, 1910, {
 		"battle_map_size": Vector2i(7, 7),
+		"enemy_units": [_make_runtime_schema_unit(&"aura_sync_enemy", &"hostile").to_dict()],
 	})
 	_assert_true(state != null and not state.is_empty(), "灵气同步回归前置：应能创建 battle state。")
 	if state == null or state.is_empty() or state.ally_unit_ids.is_empty():
@@ -781,7 +784,7 @@ func _test_runtime_syncs_member_aura_into_battle_and_back() -> void:
 	_assert_eq(member_state.current_aura, 2, "战斗结束应把 BattleUnitState.current_aura 回写到 PartyMemberState。")
 
 
-func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> void:
+func _test_battle_unit_factory_no_longer_builds_fallback_enemy() -> void:
 	var factory := BattleUnitFactory.new()
 	var encounter_anchor := ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
 	encounter_anchor.entity_id = &"factory_enemy_defaults"
@@ -789,25 +792,7 @@ func _test_battle_unit_factory_fallback_enemy_seeds_six_base_attributes() -> voi
 	encounter_anchor.faction_id = &"hostile"
 
 	var units: Array = factory.build_enemy_units(encounter_anchor, {})
-	_assert_eq(units.size(), 1, "fallback enemy builder 应产出 1 个默认敌人。")
-	if units.is_empty():
-		return
-	var unit = units[0]
-	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
-		_assert_eq(
-			int(unit.attribute_snapshot.get_value(attribute_id)),
-			4,
-			"fallback enemy 应补齐基础六维 %s。" % String(attribute_id)
-		)
-	_assert_true(
-		not unit.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
-		"fallback enemy 不应再把武器攻击范围写入 attribute_snapshot。"
-	)
-	_assert_eq(String(unit.weapon_profile_kind), "unarmed", "fallback enemy 无模板攻击装备时应降级为空手投影。")
-	_assert_eq(String(unit.weapon_profile_type_id), "unarmed", "fallback enemy 空手投影应保留 unarmed profile。")
-	_assert_eq(_weapon_dice_signature(unit.weapon_one_handed_dice), [1, 4, 0], "fallback enemy 空手投影应使用 1D4。")
-	_assert_eq(String(unit.weapon_physical_damage_tag), "physical_blunt", "fallback enemy 空手投影应使用钝击。")
-	_assert_eq(unit.weapon_attack_range, 1, "fallback enemy 应把默认攻击范围投影到 BattleUnitState.weapon_attack_range。")
+	_assert_eq(units.size(), 0, "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。")
 
 
 func _test_enemy_resource_sync_handles_missing_attribute_snapshot() -> void:
@@ -922,6 +907,7 @@ func _make_runtime_schema_unit(unit_id: StringName, faction_id: StringName) -> B
 	unit_state.is_alive = true
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 10)
 	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD, ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD)
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS)
 	return unit_state
 
 

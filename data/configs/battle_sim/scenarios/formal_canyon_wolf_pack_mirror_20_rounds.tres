@@ -17,14 +17,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -46,14 +52,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -75,14 +87,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -104,14 +122,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {

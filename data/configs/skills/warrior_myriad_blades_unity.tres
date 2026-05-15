@@ -12,7 +12,6 @@ dice_per_consumed_stack = 1
 dice_sides_per_stack = 6
 min_skill_level = 0
 max_skill_level = 5
-damage_tag = &"physical_slash"
 params = {
     "add_weapon_dice": true,
     "requires_weapon": true,
@@ -29,7 +28,6 @@ dice_per_consumed_stack = 1
 dice_sides_per_stack = 6
 min_skill_level = 6
 max_skill_level = -1
-damage_tag = &"physical_slash"
 params = {
     "add_weapon_dice": true,
     "requires_weapon": true,
