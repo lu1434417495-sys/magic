@@ -1,0 +1,107 @@
+using Godot;
+
+[GlobalClass]
+public partial class PartyMemberState : RefCounted
+{
+    private static readonly GDScript UnitProgressScript = GD.Load<GDScript>("res://scripts/player/progression/unit_progress.gd");
+    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new() { "member_id","display_name","faction_id","portrait_id","progression","equipment_state","control_mode","current_hp","current_mp","current_aura","is_dead","race_id","subrace_id","age_years","birth_at_world_step","age_profile_id","natural_age_stage_id","effective_age_stage_id","effective_age_stage_source_type","effective_age_stage_source_id","body_size","body_size_category","versatility_pick","active_stage_advancement_modifier_ids","bloodline_id","bloodline_stage_id","ascension_id","ascension_stage_id","ascension_started_at_world_step","original_race_id_before_ascension","biological_age_years","astral_memory_years" };
+
+    public StringName member_id = "";
+    public string display_name = "";
+    public StringName faction_id = "player";
+    public StringName portrait_id = "";
+    public GodotObject progression;
+    public EquipmentState equipment_state = new EquipmentState();
+    public StringName control_mode = "manual";
+    public int current_hp = 1;
+    public int current_mp;
+    public int current_aura;
+    public bool is_dead;
+    public StringName race_id = "human";
+    public StringName subrace_id = "common_human";
+    public int age_years = 24;
+    public int birth_at_world_step;
+    public StringName age_profile_id = "human_age_profile";
+    public StringName natural_age_stage_id = "adult";
+    public StringName effective_age_stage_id = "adult";
+    public StringName effective_age_stage_source_type = "";
+    public StringName effective_age_stage_source_id = "";
+    public int body_size = 2;
+    public StringName body_size_category = "medium";
+    public StringName versatility_pick = "";
+    public Godot.Collections.Array<StringName> active_stage_advancement_modifier_ids = new();
+    public StringName bloodline_id = "";
+    public StringName bloodline_stage_id = "";
+    public StringName ascension_id = "";
+    public StringName ascension_stage_id = "";
+    public int ascension_started_at_world_step = -1;
+    public StringName original_race_id_before_ascension = "";
+    public int biological_age_years = 24;
+    public int astral_memory_years;
+
+    public PartyMemberState() { progression = UnitProgressScript.Call("new").AsGodotObject(); }
+
+    public int get_hidden_luck_at_birth() { var a = _get_unit_base_attributes(); return a?.Get("get_hidden_luck_at_birth") != null ? a.Call("get_hidden_luck_at_birth").AsInt32() : 0; }
+    public int get_faith_luck_bonus() { var a = _get_unit_base_attributes(); return a?.Get("get_faith_luck_bonus") != null ? a.Call("get_faith_luck_bonus").AsInt32() : 0; }
+    public int get_effective_luck() { var a = _get_unit_base_attributes(); return a?.Get("get_effective_luck") != null ? a.Call("get_effective_luck").AsInt32() : 0; }
+    public int get_combat_luck_score() { var a = _get_unit_base_attributes(); return a?.Get("get_combat_luck_score") != null ? a.Call("get_combat_luck_score").AsInt32() : 0; }
+    public int get_drop_luck() { var a = _get_unit_base_attributes(); return a?.Get("get_drop_luck") != null ? a.Call("get_drop_luck").AsInt32() : 0; }
+
+    public Godot.Collections.Dictionary to_dict()
+    {
+        return new Godot.Collections.Dictionary { {"member_id",(string)member_id},{"display_name",display_name},{"faction_id",(string)faction_id},{"portrait_id",(string)portrait_id},{"progression",progression?.Call("to_dict")??new Godot.Collections.Dictionary()},{"equipment_state",equipment_state?.to_dict()??new Godot.Collections.Dictionary()},{"control_mode",(string)control_mode},{"current_hp",current_hp},{"current_mp",current_mp},{"current_aura",current_aura},{"is_dead",is_dead},{"race_id",(string)race_id},{"subrace_id",(string)subrace_id},{"age_years",age_years},{"birth_at_world_step",birth_at_world_step},{"age_profile_id",(string)age_profile_id},{"natural_age_stage_id",(string)natural_age_stage_id},{"effective_age_stage_id",(string)effective_age_stage_id},{"effective_age_stage_source_type",(string)effective_age_stage_source_type},{"effective_age_stage_source_id",(string)effective_age_stage_source_id},{"body_size",body_size},{"body_size_category",(string)body_size_category},{"versatility_pick",(string)versatility_pick},{"active_stage_advancement_modifier_ids",ProgressionDataUtils.string_name_array_to_string_array(active_stage_advancement_modifier_ids)},{"bloodline_id",(string)bloodline_id},{"bloodline_stage_id",(string)bloodline_stage_id},{"ascension_id",(string)ascension_id},{"ascension_stage_id",(string)ascension_stage_id},{"ascension_started_at_world_step",ascension_started_at_world_step},{"original_race_id_before_ascension",(string)original_race_id_before_ascension},{"biological_age_years",biological_age_years},{"astral_memory_years",astral_memory_years} };
+    }
+
+    public static PartyMemberState from_dict(Godot.Collections.Dictionary data)
+    {
+        if (data.Count == 0) return null;
+        if (!_has_exact_fields(data, TO_DICT_FIELDS)) return null;
+        var progData = data["progression"]; var esData = data["equipment_state"];
+        if (progData.VariantType != Variant.Type.Dictionary || esData.VariantType != Variant.Type.Dictionary) return null;
+        var memberId = _parse_string_name_field(data["member_id"], false, out bool o1); if (!o1) return null;
+        var dn = data["display_name"]; if (dn.VariantType != Variant.Type.String || dn.AsString().StripEdges().Length == 0) return null;
+        var factionId = _parse_string_name_field(data["faction_id"], false, out bool o2); if (!o2) return null;
+        var portraitId = _parse_string_name_field(data["portrait_id"], true, out bool o3); if (!o3) return null;
+        var ctrl = _parse_string_name_field(data["control_mode"], false, out bool o4); if (!o4 || (ctrl != "manual" && ctrl != "ai")) return null;
+        if (data["current_hp"].VariantType != Variant.Type.Int || data["current_hp"].AsInt32() < 0) return null;
+        if (data["current_mp"].VariantType != Variant.Type.Int || data["current_mp"].AsInt32() < 0) return null;
+        if (data["current_aura"].VariantType != Variant.Type.Int || data["current_aura"].AsInt32() < 0) return null;
+        if (data["is_dead"].VariantType != Variant.Type.Bool) return null;
+        var raceId = _parse_string_name_field(data["race_id"], false, out bool o5); if (!o5) return null;
+        var subraceId = _parse_string_name_field(data["subrace_id"], false, out bool o6); if (!o6) return null;
+        if (data["age_years"].VariantType != Variant.Type.Int || data["age_years"].AsInt32() < 0) return null;
+        if (data["birth_at_world_step"].VariantType != Variant.Type.Int || data["birth_at_world_step"].AsInt32() < 0) return null;
+        var ageProfId = _parse_string_name_field(data["age_profile_id"], false, out bool o7); if (!o7) return null;
+        var natAgeStage = _parse_string_name_field(data["natural_age_stage_id"], false, out bool o8); if (!o8) return null;
+        var effAgeStage = _parse_string_name_field(data["effective_age_stage_id"], false, out bool o9); if (!o9) return null;
+        var effAgeSrcType = _parse_string_name_field(data["effective_age_stage_source_type"], true, out bool o10); if (!o10) return null;
+        var effAgeSrcId = _parse_string_name_field(data["effective_age_stage_source_id"], true, out bool o11); if (!o11) return null;
+        if (data["body_size"].VariantType != Variant.Type.Int) return null; int bsVal = data["body_size"].AsInt32(); if (bsVal < 1) return null;
+        var bsCat = _parse_string_name_field(data["body_size_category"], false, out bool o12); if (!o12) return null;
+        var versPick = _parse_string_name_field(data["versatility_pick"], true, out bool o13); if (!o13) return null;
+        if (data["active_stage_advancement_modifier_ids"].VariantType != Variant.Type.Array) return null;
+        var asami = _parse_unique_string_name_array(data["active_stage_advancement_modifier_ids"].AsGodotArray()); if (asami == null) return null;
+        var blId = _parse_string_name_field(data["bloodline_id"], true, out bool o14); if (!o14) return null;
+        var blStId = _parse_string_name_field(data["bloodline_stage_id"], true, out bool o15); if (!o15) return null;
+        var ascId = _parse_string_name_field(data["ascension_id"], true, out bool o16); if (!o16) return null;
+        var ascStId = _parse_string_name_field(data["ascension_stage_id"], true, out bool o17); if (!o17) return null;
+        if (data["ascension_started_at_world_step"].VariantType != Variant.Type.Int || data["ascension_started_at_world_step"].AsInt32() < -1) return null;
+        var origRace = _parse_string_name_field(data["original_race_id_before_ascension"], true, out bool o18); if (!o18) return null;
+        if (data["biological_age_years"].VariantType != Variant.Type.Int || data["biological_age_years"].AsInt32() < 0) return null;
+        if (data["astral_memory_years"].VariantType != Variant.Type.Int || data["astral_memory_years"].AsInt32() < 0) return null;
+
+        var ms = new PartyMemberState { member_id=memberId,display_name=dn.AsString(),faction_id=factionId,portrait_id=portraitId,control_mode=ctrl,current_hp=data["current_hp"].AsInt32(),current_mp=data["current_mp"].AsInt32(),current_aura=data["current_aura"].AsInt32(),is_dead=data["is_dead"].AsBool(),race_id=raceId,subrace_id=subraceId,age_years=data["age_years"].AsInt32(),birth_at_world_step=data["birth_at_world_step"].AsInt32(),age_profile_id=ageProfId,natural_age_stage_id=natAgeStage,effective_age_stage_id=effAgeStage,effective_age_stage_source_type=effAgeSrcType,effective_age_stage_source_id=effAgeSrcId,body_size=bsVal,body_size_category=bsCat,versatility_pick=versPick,active_stage_advancement_modifier_ids=asami,bloodline_id=blId,bloodline_stage_id=blStId,ascension_id=ascId,ascension_stage_id=ascStId,ascension_started_at_world_step=data["ascension_started_at_world_step"].AsInt32(),original_race_id_before_ascension=origRace,biological_age_years=data["biological_age_years"].AsInt32(),astral_memory_years=data["astral_memory_years"].AsInt32() };
+        ms.progression = UnitProgressScript.Call("from_dict", progData).AsGodotObject();
+        ms.equipment_state = EquipmentState.from_dict(esData);
+        if (ms.progression == null || ms.equipment_state == null) return null;
+        if (ms.progression.Get("unit_id").AsStringName() == "" || ms.progression.Get("unit_id").AsStringName() != ms.member_id) return null;
+        if (ms.progression.Get("display_name").AsString().StripEdges().Length == 0) return null;
+        return ms;
+    }
+
+    private UnitBaseAttributes _get_unit_base_attributes() => progression?.Get("unit_base_attributes").AsGodotObject() as UnitBaseAttributes;
+
+    private static StringName _parse_string_name_field(Variant v, bool allowEmpty, out bool ok) { ok=false; if(v.VariantType!=Variant.Type.String&&v.VariantType!=Variant.Type.StringName)return new StringName("");var p=ProgressionDataUtils.to_string_name(v);if(p==""&&!allowEmpty)return new StringName("");ok=true;return p; }
+    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(Godot.Collections.Array a) { var r=new Godot.Collections.Array<StringName>();var s=new Godot.Collections.Dictionary();foreach(var raw in a){var p=_parse_string_name_field(raw,false,out bool o);if(!o||s.ContainsKey(p))return null;s[p]=true;r.Add(p);}return r; }
+    private static bool _has_exact_fields(Godot.Collections.Dictionary d, Godot.Collections.Array<string> e) { if(d.Count!=e.Count)return false;var el=new Godot.Collections.Dictionary();foreach(string fn in e)el[fn]=true;foreach(var k in d.Keys){if(k.VariantType!=Variant.Type.String&&k.VariantType!=Variant.Type.StringName)return false;string ks=k.AsString();if(!el.ContainsKey(ks))return false;if((bool)el[ks]){el[ks]=false;}else return false;}return true; }
+}
